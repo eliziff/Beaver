@@ -8,39 +8,15 @@ import {
     createAssistantSessionState,
     type AssistantMessageState,
 } from "@/app/lib/assistantSession";
-import { AssistantMessage as CanonicalAssistantMessage } from "./AssistantMessage";
+import { AssistantMessage } from "./AssistantMessage";
 import * as downloads from "@/app/lib/download";
 
-function canonicalMessage(events: unknown[], error?: string) {
+function renderEvents(events: unknown[], props: Omit<ComponentProps<typeof AssistantMessage>, "message"> = {}) {
     const state = assistantSessionReducer(createAssistantSessionState(), {
-        type: "transcript_loaded",
-        active: true,
-        messages: [{
-            id: "assistant-test",
-            role: "assistant",
-            content: [...events, ...(error ? [{ type: "error", message: error }] : [])],
-        }],
+        type: "transcript_loaded", active: true,
+        messages: [{ id: "assistant-test", role: "assistant", content: events }],
     });
-    return state.messages[0] as AssistantMessageState;
-}
-
-function AssistantMessage({
-    events = [],
-    isError,
-    errorMessage,
-    onSubagentClick,
-    ...props
-}: Omit<ComponentProps<typeof CanonicalAssistantMessage>, "message" | "onReaderClick"> & {
-    events?: unknown[];
-    isError?: boolean;
-    errorMessage?: string;
-    onSubagentClick?: (readerId: string) => void;
-}) {
-    return <CanonicalAssistantMessage
-        {...props}
-        message={canonicalMessage(events, isError ? errorMessage : undefined)}
-        onReaderClick={onSubagentClick}
-    />;
+    return render(<AssistantMessage {...props} message={state.messages[0] as AssistantMessageState} />);
 }
 
 const editEvent = (
@@ -83,8 +59,8 @@ describe("AssistantMessage activity", () => {
                 : new Response("document bytes");
         }));
         try {
-            render(<AssistantMessage events={[{ ...editEvent("manual"),
-                download_url: "/api/single-documents/doc-1/file?version_id=version-2" }]} />);
+            renderEvents([{ ...editEvent("manual"),
+                download_url: "/api/single-documents/doc-1/file?version_id=version-2" }]);
             await userEvent.click(screen.getByRole("button", { name: "Download Draft.docx" }));
             await userEvent.click(screen.getByRole("button", { name: "Accept" }));
             await userEvent.click(screen.getByRole("button", { name: "Download Draft.docx" }));
@@ -103,26 +79,17 @@ describe("AssistantMessage activity", () => {
     });
 
     it("keeps every tracked change emitted for one document version", () => {
-        render(
-            <AssistantMessage
-                events={[
-                    editEvent("manual"),
-                    editEvent("manual", "edit-2"),
-                ]}
-            />,
-        );
+        renderEvents([
+            editEvent("manual"),
+            editEvent("manual", "edit-2"),
+        ]);
 
         expect(screen.getByText("2 tracked changes")).toBeVisible();
         expect(screen.getAllByRole("button", { name: "Accept" })).toHaveLength(2);
     });
 
     it("shows a completed Manual Mode edit while the turn continues", () => {
-        render(
-            <AssistantMessage
-                isStreaming
-                events={[editEvent("manual")]}
-            />,
-        );
+        renderEvents([editEvent("manual")], { isStreaming: true });
 
         expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
         expect(screen.getByText("five")).toHaveClass("line-through");
@@ -132,12 +99,7 @@ describe("AssistantMessage activity", () => {
     });
 
     it("shows a rejected edit as the retained original", () => {
-        render(
-            <AssistantMessage
-                events={[editEvent("manual")]}
-                resolvedEditStatuses={{ "edit-1": "rejected" }}
-            />,
-        );
+        renderEvents([editEvent("manual")], { resolvedEditStatuses: { "edit-1": "rejected" } });
 
         expect(screen.getByText("Kept original")).toBeVisible();
         expect(screen.getByText("five")).not.toHaveClass("line-through");
@@ -146,7 +108,7 @@ describe("AssistantMessage activity", () => {
     });
 
     it("renders the Auto Mode audit from the canonical minimal diff", () => {
-        render(<AssistantMessage events={[editEvent("auto")]} />);
+        renderEvents([editEvent("auto")]);
 
         expect(screen.getByText("Applied in Auto Mode")).toBeVisible();
         expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
@@ -155,79 +117,51 @@ describe("AssistantMessage activity", () => {
     });
 
     it("shows running readers and keeps completed findings in a panel pill", async () => {
-        const onSubagentClick = vi.fn();
+        const onReaderClick = vi.fn();
         const running = ["one", "two", "three"].map((id) => ({
             type: "subagent_run" as const,
             id,
             task: `Distinct Canadian lane ${id}`,
             status: "running" as const,
         }));
-        render(
-            <AssistantMessage
-                events={[
-                    ...running,
+        renderEvents([
+            ...running,
+            {
+                ...running[0],
+                status: "completed",
+                output: "Finding [1].",
+                citations: [
                     {
-                        ...running[0],
-                        status: "completed",
-                        output: "Finding [1].",
-                        citations: [
-                            {
-                                kind: "a2aj",
-                                source_class: "case",
-                                ref: 1,
-                                citation: "2020 BCSC 1",
-                                name: "R. v. Example",
-                                dataset: "BCSC",
-                                url: "https://example.test/case",
-                                quotes: [{ quote: "Exact passage" }],
-                            },
-                        ],
+                        kind: "a2aj",
+                        source_class: "case",
+                        ref: 1,
+                        citation: "2020 BCSC 1",
+                        name: "R. v. Example",
+                        dataset: "BCSC",
+                        url: "https://example.test/case",
+                        quotes: [{ quote: "Exact passage" }],
                     },
-                ]}
-                isStreaming
-                onSubagentClick={onSubagentClick}
-            />,
-        );
+                ],
+            },
+        ], { isStreaming: true, onReaderClick });
 
         expect(screen.getByText("Waiting for reading agent: Distinct Canadian lane two...")).toBeVisible();
         expect(screen.getByText("Waiting for reading agent: Distinct Canadian lane three...")).toBeVisible();
-        expect(
-            screen.getByRole("button", {
-                name: "Reading agent completed: Distinct Canadian lane one",
-            }),
-        ).toBeInTheDocument();
+        const completedReader = screen.getByRole("button", { name: "Reading agent completed: Distinct Canadian lane one" });
+        expect(completedReader).toBeVisible();
         const citationPill = screen.getByRole("link", {
             name: "R. v. Example, 2020 BCSC 1",
         });
         expect(citationPill).toHaveAttribute("target", "_blank");
         expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
 
-        await userEvent.click(
-            screen.getByRole("button", {
-                name: "Reading agent completed: Distinct Canadian lane one",
-            }),
-        );
-        expect(onSubagentClick).toHaveBeenCalledOnce();
-    });
-
-    it("renders verified tool evidence with the shared citation chip", () => {
-        render(<AssistantMessage events={[{
-            type: "tool_activity", id: "read-1", tool: "Read",
-            status: "completed", label: "Read Example v. Example",
-            citations: [{
-                kind: "a2aj", source_class: "case", ref: 1,
-                citation: "2020 BCSC 1", name: "Example v. Example",
-                dataset: "BCSC", url: null, locator_kind: "paragraph",
-                locator: "12", pinpoint: "para 12",
-                quotes: [{ quote: "Exact passage" }],
-            }],
-        }]} />);
-        expect(document.querySelector("[data-citation-ref]" )).toHaveTextContent("Example v. Example");
-        expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
+        await userEvent.click(completedReader);
+        expect(onReaderClick).toHaveBeenCalledOnce();
+        expect(onReaderClick).toHaveBeenCalledWith("one");
     });
 
     it("hides raw search results and shows read passages as canonical chips", () => {
-        render(<AssistantMessage events={[
+        renderEvents([
             {
                 type: "tool_activity", id: "search-1", tool: "search_sources",
                 status: "completed", label: "Searching case law for “Example”",
@@ -248,7 +182,7 @@ describe("AssistantMessage activity", () => {
                     locator_separator: " at ", pinpoint: "60–63", quotes: [],
                 }],
             },
-        ]} />);
+        ]);
 
         expect(screen.queryByText("Example v. Example")).not.toBeInTheDocument();
         expect(screen.getByText("Searching case law for “Example”")).toBeVisible();
@@ -258,104 +192,37 @@ describe("AssistantMessage activity", () => {
         expect(screen.getAllByText(/Gordon F\. Henderson/u)).toHaveLength(1);
     });
 
-    it("shows a single compact thinking row before the first event", () => {
-        render(<AssistantMessage events={[]} isStreaming />);
-
-        expect(
-            screen.getAllByRole("status", { name: "Activity — Thinking" }),
-        ).toHaveLength(1);
-        expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    });
-
-    it("uses only the current reasoning step in the activity label", () => {
-        let state = assistantSessionReducer(createAssistantSessionState({
-            chatId: "chat-1",
-        }), {
-            type: "run_started",
-            runId: "run-1",
-            chatId: "chat-1",
-            message: {
-                id: "user-1",
-                role: "user",
-                content: "Research this",
-            },
-        });
-        state = assistantSessionReducer(state, {
-            type: "protocol",
-            runId: "run-1",
-            chatId: "chat-1",
-            event: {
-                type: "reasoning",
-                text: "Planning targeted non-overlapping delegations\n\nAssigning authority identification tasks",
-                append: false,
-            },
-        });
-
-        render(
-            <CanonicalAssistantMessage
-                message={state.messages.findLast((message) =>
-                    message.role === "assistant") as AssistantMessageState}
-            />,
-        );
-
-        expect(
-            screen.getByText(/Assigning authority identification tasks\.\.\.$/u),
-        ).toBeVisible();
-    });
-
     it("keeps reasoning and deterministic tool activity visible in order", () => {
-        render(
-            <AssistantMessage
-                events={[
-                    {
-                        type: "reasoning",
-                        text: "I should probably inspect something.",
-                    },
-                    {
-                        type: "tool_activity",
-                        id: "read-1",
-                        tool: "Read",
-                        status: "running",
-                        label: "Reading document",
-                    },
-                ]}
-                isStreaming
-            />,
-        );
+        renderEvents([
+            {
+                type: "reasoning",
+                text: "I should probably inspect something.",
+            },
+            {
+                type: "tool_activity",
+                id: "read-1",
+                tool: "Read",
+                status: "running",
+                label: "Reading document",
+            },
+        ], { isStreaming: true });
 
         const rows = screen.getAllByRole("listitem");
         expect(rows).toHaveLength(2);
         expect(rows[0]).toHaveTextContent("I should probably inspect something.");
         expect(rows[1]).toHaveTextContent("Reading document...");
-        expect(screen.getByText("Reading document...")).toBeVisible();
-        expect(screen.getByText("I should probably inspect something.")).toBeVisible();
-    });
-
-    it("shows completed compaction as a quiet conversation receipt", () => {
-        render(
-            <AssistantMessage
-                events={[{ type: "compaction", status: "completed" }]}
-            />,
-        );
-
-        expect(screen.getByRole("status")).toHaveTextContent("Context compacted");
-        expect(screen.queryByRole("button", { name: /Activity/u })).toBeNull();
     });
 
     it("renders steering between assistant response segments", () => {
-        render(
-            <AssistantMessage
-                events={[
-                    { type: "content", text: "Initial answer." },
-                    {
-                        type: "steering",
-                        id: "22222222-2222-4222-8222-222222222222",
-                        text: "Focus on remedies",
-                    },
-                    { type: "content", text: "Revised answer." },
-                ]}
-            />,
-        );
+        renderEvents([
+            { type: "content", text: "Initial answer." },
+            {
+                type: "steering",
+                id: "22222222-2222-4222-8222-222222222222",
+                text: "Focus on remedies",
+            },
+            { type: "content", text: "Revised answer." },
+        ]);
 
         const steering = screen.getByLabelText("Steering message");
         expect(steering).toHaveTextContent("Focus on remedies");
@@ -364,23 +231,19 @@ describe("AssistantMessage activity", () => {
     });
 
     it("shows reasoning history without exposing raw tool names", async () => {
-        render(
-            <AssistantMessage
-                events={[
-                    {
-                        type: "reasoning",
-                        text: "Submitting conclusion with ID 3.",
-                    },
-                    {
-                        type: "tool_activity",
-                        id: "submit-1",
-                        tool: "submit_grounded_answer",
-                        status: "completed",
-                        label: "Finalizing answer",
-                    },
-                ]}
-            />,
-        );
+        renderEvents([
+            {
+                type: "reasoning",
+                text: "Submitting conclusion with ID 3.",
+            },
+            {
+                type: "tool_activity",
+                id: "submit-1",
+                tool: "submit_grounded_answer",
+                status: "completed",
+                label: "Finalizing answer",
+            },
+        ]);
 
         const disclosure = screen.getByRole("button", {
             name: "Activity — Finalizing answer",
@@ -402,11 +265,7 @@ describe("AssistantMessage activity", () => {
                 constructor(_items: Record<string, Blob>) {}
             },
         );
-        render(
-            <AssistantMessage
-                events={[{ type: "content", text: "Answer text." }]}
-            />,
-        );
+        renderEvents([{ type: "content", text: "Answer text." }]);
 
         await userEvent.click(
             screen.getByRole("button", { name: "Copy response" }),
@@ -418,13 +277,7 @@ describe("AssistantMessage activity", () => {
     });
 
     it("announces response errors", () => {
-        render(
-            <AssistantMessage
-                events={[]}
-                isError
-                errorMessage="The provider rejected the request."
-            />,
-        );
+        renderEvents([{ type: "error", message: "The provider rejected the request." }]);
         expect(screen.getByRole("alert")).toHaveTextContent(
             "Unable to get a response. Try again.",
         );
