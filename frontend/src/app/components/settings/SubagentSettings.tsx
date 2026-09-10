@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { ModelPicker } from "@/app/components/assistant/ModelPicker";
+import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { ReasoningEffortToggle } from "@/app/components/assistant/ModelToggle";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import {
@@ -17,7 +18,7 @@ export function SubagentSettings() {
     const preference = preferences.readSubagents;
     const update = (patch: Partial<typeof preference>) =>
         savePreferences({ readSubagents: { ...preference, ...patch } });
-    const catalog = useModelCatalog();
+    const catalog = useModelCatalog(), { profile } = useUserProfile();
     useEffect(() => { void preloadModelCatalog(); }, []);
 
     const capability = catalog?.readSubagents;
@@ -55,7 +56,7 @@ export function SubagentSettings() {
                         </p>
                         <ModelPicker
                             value={preference.model}
-                            models={models}
+                            models={models} apiKeys={profile?.apiKeys}
                             onChange={(model) => update({ model })}
                             disabled={loading || !serverEnabled}
                         />
