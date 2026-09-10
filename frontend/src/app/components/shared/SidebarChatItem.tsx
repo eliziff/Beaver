@@ -6,7 +6,7 @@ import {
     type MouseEvent,
 } from "react";
 import { Link } from "react-router-dom";
-import { Pencil, Trash2, Check, X, FolderInput } from "lucide-react";
+import { Pencil, Trash2, Check, X, FolderInput, type LucideIcon } from "lucide-react";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
@@ -71,6 +71,7 @@ export function SidebarChatItem({
     const ownerOnly = (action: string, run: () => void) => () =>
         isChatOwner ? run() : setOwnerOnlyAction(action);
     const actionsWidth = onMoveToProject ? "w-[72px]" : "w-12";
+    const selectionDelete = isSelectionActionOwner && selectedCount > 1;
     useEffect(() => {
         if (isRenaming) editInputRef.current?.focus();
     }, [isRenaming]);
@@ -111,22 +112,12 @@ export function SidebarChatItem({
                             if (e.key === "Escape") handleRenameCancel();
                         }}
                         className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1 py-0.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-red-500"                    />
-                    <button
-                        type="button"
-                        aria-label="Save rename"
+                    <IconButton label="Save rename" Icon={Check}
                         onClick={() => void handleRenameSave()}
-                        className="ml-1.5 py-2 hover:bg-gray-200 rounded text-green-600"
-                    >
-                        <Check className="h-3 w-3" />
-                    </button>
-                    <button
-                        type="button"
-                        aria-label="Cancel rename"
+                        className="ml-1.5 py-2 hover:bg-gray-200 rounded text-green-600" />
+                    <IconButton label="Cancel rename" Icon={X}
                         onClick={handleRenameCancel}
-                        className="ml-1 py-2 hover:bg-gray-200 rounded text-red-600"
-                    >
-                        <X className="h-3 w-3" />
-                    </button>
+                        className="ml-1 py-2 hover:bg-gray-200 rounded text-red-600" />
                 </div>
             ) : (
                 <>
@@ -200,45 +191,27 @@ export function SidebarChatItem({
                         }`}
                     >
                         {onMoveToProject && (
-                            <button
-                                type="button"
-                                aria-label={`Move ${chat.title ?? "chat"} to project`}
+                            <IconButton Icon={FolderInput}
+                                label={`Move ${chat.title ?? "chat"} to project`}
                                 title="Move to project"
                                 onClick={ownerOnly("move this chat", onMoveToProject)}
-                                className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                            >
-                                <FolderInput className="h-3 w-3" />
-                            </button>
+                                className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900" />
                         )}
-                        <button
-                            type="button"
-                            aria-label={`Rename ${chat.title ?? "chat"}`}
+                        <IconButton Icon={Pencil}
+                            label={`Rename ${chat.title ?? "chat"}`}
                             title="Rename"
                             onClick={ownerOnly("rename this chat", () => {
                                 setEditTitle(chat.title ?? "");
                                 setIsRenaming(true);
                             })}
-                            className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                        >
-                            <Pencil className="h-3 w-3" />
-                        </button>
-                        <button
-                            type="button"
-                            aria-label={
-                                isSelectionActionOwner && selectedCount > 1
-                                    ? `Delete ${selectedCount} selected chats`
-                                    : `Delete ${chat.title ?? "chat"}`
-                            }
-                            title={
-                                isSelectionActionOwner && selectedCount > 1
-                                    ? "Delete selected chats"
-                                    : "Delete"
-                            }
+                            className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-900" />
+                        <IconButton Icon={Trash2}
+                            label={selectionDelete
+                                ? `Delete ${selectedCount} selected chats`
+                                : `Delete ${chat.title ?? "chat"}`}
+                            title={selectionDelete ? "Delete selected chats" : "Delete"}
                             onClick={ownerOnly("delete this chat", () => setConfirmDeleteOpen(true))}
-                            className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-700"
-                        >
-                            <Trash2 className="h-3 w-3" />
-                        </button>
+                            className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-700" />
                     </div>
                 </>
             )}
@@ -270,4 +243,12 @@ export function SidebarChatItem({
             />
         </div>
     );
+}
+
+function IconButton({ label, title, onClick, className, Icon }: {
+    label: string; title?: string; onClick: () => void; className: string; Icon: LucideIcon;
+}) {
+    return <button type="button" aria-label={label} title={title} onClick={onClick} className={className}>
+        <Icon className="h-3 w-3" />
+    </button>;
 }
