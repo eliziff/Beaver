@@ -35,7 +35,6 @@ interface Props {
     autoFocus?: boolean;
     documents?: Document[];
     projectId?: string;
-    loading?: boolean;
     selectedDocuments: Document[];
     onChange: (documents: Document[]) => void;
     uploadingFilenames?: string[];
@@ -57,7 +56,7 @@ interface Props {
 }
 
 export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
-    loading: externalLoading = false, selectedDocuments, onChange,
+    selectedDocuments, onChange,
     uploadingFilenames = [], showTabs, initialTab = "files", initialLocation, tabs = TABS, noun = "files", multiple = true, excludeProjectId, documentFilter, onLocationChange, newDocument }: Props) {
     const [tab, setTab] = useState<DirectoryTab>(initialLocation
         ? "projectId" in initialLocation ? "projects" : initialLocation.library : initialTab);
@@ -153,7 +152,7 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
         } catch (reason) { setCreateError(errorMessage(reason, "Could not create file")); }
         finally { committing.current = false; setCreating(false); }
     }
-    const loading = externalLoading || !!directory?.loading;
+    const loading = !!directory?.loading;
     const projectList = showTabs && activeTab === "projects" && !selectedProjectId;
     const listing = <div className="min-h-0 flex-1 overflow-y-auto" aria-live="polite">
                 {showTabs && activeTab === "projects" && selectedProjectId &&
