@@ -35,6 +35,17 @@ const ACTIONS = [
   ["export.tabular", "Review export"],
 ] as const;
 const labelForAction: ReadonlyMap<string, string> = new Map(ACTIONS);
+const SELECT_FILTERS: {
+  label: string;
+  field: "action" | "status";
+  options: readonly (readonly [string, string])[];
+}[] = [
+  { label: "Action", field: "action", options: ACTIONS },
+  { label: "Status", field: "status", options: [
+    ["", "All statuses"], ["completed", "Completed"],
+    ["cancelled", "Cancelled"], ["failed", "Failed"],
+  ] },
+];
 const controlClass =
   "h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-gray-400";
 
@@ -110,31 +121,20 @@ export default function HistoryPage() {
           <SearchBar value={draft.q ?? ""} booleanSearch
             onValueChange={(q) => setDraft({ ...draft, q })} />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
-          Action
-          <select
-            className={controlClass}
-            value={draft.action ?? ""}
-            onChange={(event) => setDraft({ ...draft, action: event.target.value })}
-          >
-            {ACTIONS.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
-          Status
-          <select
-            className={controlClass}
-            value={draft.status ?? ""}
-            onChange={(event) => setDraft({ ...draft, status: event.target.value })}
-          >
-            <option value="">All statuses</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="failed">Failed</option>
-          </select>
-        </label>
+        {SELECT_FILTERS.map(({ label, field, options }) => (
+          <label key={field} className="flex flex-col gap-1 text-xs text-gray-600">
+            {label}
+            <select
+              className={controlClass}
+              value={draft[field] ?? ""}
+              onChange={(event) => setDraft({ ...draft, [field]: event.target.value })}
+            >
+              {options.map(([value, text]) => (
+                <option key={value} value={value}>{text}</option>
+              ))}
+            </select>
+          </label>
+        ))}
         <button className={`${controlClass} cursor-pointer hover:bg-gray-50`} type="submit">
           Apply
         </button>
