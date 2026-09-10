@@ -5,22 +5,10 @@ const MAX_PART_BYTES = 8 * 1024 * 1024;
 const MAX_HEADERS_BYTES = 256 * 1024;
 const MAX_DEPTH = 8;
 const DISPLAY_HEADERS = ["from", "to", "cc", "bcc", "date", "subject"] as const;
-const EMAIL_MARKERS = new Set([
-  "from",
-  "date",
-  "subject",
-  "message-id",
-  "received",
-  "mime-version",
-]);
-const SAFE_TRANSFER_ENCODINGS = new Set([
-  "",
-  "7bit",
-  "8bit",
-  "binary",
-  "base64",
-  "quoted-printable",
-]);
+const EMAIL_MARKERS =
+  new Set(["from", "date", "subject", "message-id", "received", "mime-version"]);
+const SAFE_TRANSFER_ENCODINGS =
+  new Set(["", "7bit", "8bit", "binary", "base64", "quoted-printable"]);
 
 export interface EmailAttachment {
   filename: string;
@@ -49,21 +37,16 @@ export interface EmailMessage {
   abstentions: EmailAbstention[];
 }
 
-const add = (
-  abstentions: EmailAbstention[],
-  reason: EmailAbstentionReason,
-  detail: string,
-) => {
+const add = (abstentions: EmailAbstention[], reason: EmailAbstentionReason,
+  detail: string) => {
   if (!abstentions.some((item) => item.reason === reason && item.detail === detail)) {
     abstentions.push({ reason, detail });
   }
 };
 
 function rawHeaderValues(bytes: Buffer, name: string) {
-  const expression = new RegExp(
-    `^${name}\\s*:\\s*([^\\r\\n]*(?:\\r?\\n[ \\t]+[^\\r\\n]*)*)`,
-    "gimu",
-  );
+  const expression =
+    new RegExp(`^${name}\\s*:\\s*([^\\r\\n]*(?:\\r?\\n[ \\t]+[^\\r\\n]*)*)`, "gimu");
   return [...bytes.toString("latin1").matchAll(expression)].map((match) =>
     match[1].replace(/\r?\n[ \t]+/gu, " ").trim());
 }
@@ -88,9 +71,7 @@ function htmlToText(html: string) {
 function renderHeaderBlock(headers: Map<string, string>) {
   return DISPLAY_HEADERS.flatMap((name) => {
     const value = headers.get(name);
-    return value
-      ? [`${name[0].toUpperCase()}${name.slice(1)}: ${value}`]
-      : [];
+    return value ? [`${name[0].toUpperCase()}${name.slice(1)}: ${value}`] : [];
   }).join("\n");
 }
 
@@ -118,16 +99,8 @@ function staticAbstentions(bytes: Buffer) {
   return abstentions;
 }
 
-function failedMessage(
-  reason: EmailAbstentionReason,
-  detail: string,
-): EmailMessage {
-  return {
-    headers: new Map(),
-    body: "",
-    attachments: [],
-    abstentions: [{ reason, detail }],
-  };
+function failedMessage(reason: EmailAbstentionReason, detail: string): EmailMessage {
+  return { headers: new Map(), body: "", attachments: [], abstentions: [{ reason, detail }] };
 }
 
 /**
@@ -149,14 +122,10 @@ export async function parseEmail(bytes: Buffer): Promise<EmailMessage> {
       maxNestingDepth: MAX_DEPTH,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const nesting = /nest|depth/iu.test(message);
-    return failedMessage(
-      nesting ? "nesting_too_deep" : "no_text_part",
-      nesting
-        ? `MIME nesting beyond ${MAX_DEPTH} levels`
-        : "the message could not be decoded safely",
-    );
+    const nesting = /nest|depth/iu.test(error instanceof Error ? error.message : String(error));
+    return failedMessage(nesting ? "nesting_too_deep" : "no_text_part",
+      nesting ? `MIME nesting beyond ${MAX_DEPTH} levels`
+        : "the message could not be decoded safely");
   }
 
   const headers = new Map<string, string>();
@@ -164,15 +133,9 @@ export async function parseEmail(bytes: Buffer): Promise<EmailMessage> {
     if (!headers.has(key)) headers.set(key, decodeWords(value));
   }
   if (![...headers.keys()].some((name) => EMAIL_MARKERS.has(name))) {
-    return {
-      headers,
-      body: bytes.toString("utf8").trim(),
-      attachments: [],
-      abstentions: [{
-        reason: "not_an_email",
-        detail: "no From/Date/Subject/Message-ID/Received header",
-      }],
-    };
+    return { headers, body: bytes.toString("utf8").trim(), attachments: [],
+      abstentions: [{ reason: "not_an_email",
+        detail: "no From/Date/Subject/Message-ID/Received header" }] };
   }
 
   let body = (email.text || (email.html ? htmlToText(email.html) : "")).trim();
@@ -184,11 +147,7 @@ export async function parseEmail(bytes: Buffer): Promise<EmailMessage> {
     const bytes = typeof attachment.content === "string"
       ? Buffer.byteLength(attachment.content) : attachment.content.byteLength;
     if (bytes > MAX_PART_BYTES) {
-      add(
-        abstentions,
-        "part_too_large",
-        `${attachment.mimeType} part of ${bytes} bytes`,
-      );
+      add(abstentions, "part_too_large", `${attachment.mimeType} part of ${bytes} bytes`);
     }
     return {
       filename: attachment.filename || "(unnamed attachment)",
@@ -207,19 +166,13 @@ export async function extractEmailText(bytes: Buffer): Promise<string> {
   const message = await parseEmail(bytes);
   const parts = [renderHeaderBlock(message.headers), message.body].filter(Boolean);
   if (message.attachments.length) {
-    parts.push(
-      `[Attachments not included in this file: ${message.attachments
-        .map(({ filename, contentType, bytes }) =>
-          `${filename} (${contentType}, ${bytes} bytes)`)
-        .join("; ")}]`,
-    );
+    parts.push(`[Attachments not included in this file: ${message.attachments
+      .map(({ filename, contentType, bytes }) => `${filename} (${contentType}, ${bytes} bytes)`)
+      .join("; ")}]`);
   }
   if (message.abstentions.length) {
-    parts.push(
-      `[Not decoded: ${message.abstentions
-        .map(({ reason, detail }) => `${reason} (${detail})`)
-        .join("; ")}]`,
-    );
+    parts.push(`[Not decoded: ${message.abstentions
+      .map(({ reason, detail }) => `${reason} (${detail})`).join("; ")}]`);
   }
   return parts.join("\n\n");
 }
