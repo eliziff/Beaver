@@ -9,7 +9,6 @@ interface Props {
 }
 export function ApiKeyMissingPopup({ open, onClose, provider }: Props) {
     const navigate = useNavigate();
-    if (!open) return null;
     const providerName = provider ? providerLabel(provider) : "this provider";
     return (
         <WarningPopup

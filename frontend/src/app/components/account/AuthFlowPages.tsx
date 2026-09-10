@@ -26,6 +26,13 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
     );
 }
 
+function PasswordField({ id, name, label }: { id: string; name: string; label: string }) {
+    return <label htmlFor={id} className="block text-sm font-medium text-gray-700">
+        {label}
+        <Input id={id} name={name} type="password" autoComplete="new-password" minLength={12} required className="mt-2" />
+    </label>;
+}
+
 export function AuthCallbackPage() {
     const navigate = useNavigate();
     const { refreshSession } = useAuth();
@@ -60,9 +67,9 @@ export function AuthCallbackPage() {
 }
 
 export function ForgotPasswordPage() {
-    const location = useLocation();
-    const next = safeNext(new URLSearchParams(location.search).get("next"), "/assistant");
-    const wordQuery = new URLSearchParams(location.search).get("surface") === "word"
+    const query = new URLSearchParams(useLocation().search);
+    const next = safeNext(query.get("next"), "/assistant");
+    const wordQuery = query.get("surface") === "word"
         ? `?next=${encodeURIComponent(next)}&surface=word` : "";
     const [sent, setSent] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -137,14 +144,8 @@ export function ResetPasswordPage() {
     return (
         <><Shell title="Choose a new password">
             <form className="mt-6 space-y-4" onSubmit={submit}>
-                <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">
-                    New password
-                    <Input id="new-password" name="password" type="password" autoComplete="new-password" minLength={12} required className="mt-2" />
-                </label>
-                <label htmlFor="confirm-new-password" className="block text-sm font-medium text-gray-700">
-                    Confirm password
-                    <Input id="confirm-new-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={12} required className="mt-2" />
-                </label>
+                <PasswordField id="new-password" name="password" label="New password" />
+                <PasswordField id="confirm-new-password" name="confirmPassword" label="Confirm password" />
                 <p className="text-xs text-gray-500">Use at least 12 characters.</p>
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
                 <Button type="submit" disabled={busy} className="w-full">

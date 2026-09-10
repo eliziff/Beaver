@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -7,6 +7,16 @@ import { JurisdictionPreferenceEditor } from "@/app/components/settings/Jurisdic
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { CollectionState } from "@/app/components/shared/CollectionState";
+
+/** One labelled profile input; the label carries the text and, where given, the hint under it. */
+function Field({ label, hint, className = "text-sm font-medium text-gray-700", ...props }:
+    ComponentProps<typeof Input> & { label: string; hint?: string }) {
+    return <label htmlFor={props.id} className={className}>
+        {label}
+        <Input {...props} className="mt-2" />
+        {hint && <span className="mt-1 block text-xs font-normal text-gray-500">{hint}</span>}
+    </label>;
+}
 
 function Fields({ onboarding, onDone }: {
     onboarding: boolean;
@@ -49,21 +59,12 @@ function Fields({ onboarding, onDone }: {
     return (
         <form key={`${profile.displayName}:${profile.organisation}`} onSubmit={save} className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
-                <label htmlFor="personal-display-name" className="text-sm font-medium text-gray-700">
-                    Name
-                    <Input id="personal-display-name" name="displayName" autoComplete="name"
-                        defaultValue={profile.displayName ?? ""} className="mt-2" />
-                </label>
-                <label htmlFor="personal-organisation" className="text-sm font-medium text-gray-700">
-                    Organisation
-                    <Input id="personal-organisation" name="organisation" autoComplete="organization"
-                        defaultValue={profile.organisation ?? ""} className="mt-2" />
-                </label>
-                <label htmlFor="personal-title" className="text-sm font-medium text-gray-700">
-                    Professional title
-                    <Input id="personal-title" name="professionalTitle"
-                        defaultValue={profile.professionalTitle ?? ""} placeholder="e.g. Associate" className="mt-2" />
-                </label>
+                <Field id="personal-display-name" label="Name" name="displayName" autoComplete="name"
+                    defaultValue={profile.displayName ?? ""} />
+                <Field id="personal-organisation" label="Organisation" name="organisation" autoComplete="organization"
+                    defaultValue={profile.organisation ?? ""} />
+                <Field id="personal-title" label="Professional title" name="professionalTitle"
+                    defaultValue={profile.professionalTitle ?? ""} placeholder="e.g. Associate" />
                 <label htmlFor="personal-setting" className="text-sm font-medium text-gray-700">
                     Practice setting
                     <select id="personal-setting" name="practiceSetting"
@@ -79,13 +80,10 @@ function Fields({ onboarding, onDone }: {
                     </select>
                 </label>
             </div>
-            <label htmlFor="personal-practice-areas" className="block text-sm font-medium text-gray-700">
-                Practice areas
-                <Input id="personal-practice-areas" name="practiceAreas"
-                    defaultValue={profile.practiceAreas.join(", ")}
-                    placeholder="e.g. commercial litigation, employment" className="mt-2" />
-                <span className="mt-1 block text-xs font-normal text-gray-500">Separate areas with commas.</span>
-            </label>
+            <Field id="personal-practice-areas" label="Practice areas" name="practiceAreas"
+                className="block text-sm font-medium text-gray-700" hint="Separate areas with commas."
+                defaultValue={profile.practiceAreas.join(", ")}
+                placeholder="e.g. commercial litigation, employment" />
             <div>
                 <h2 className="mb-2 text-sm font-medium text-gray-900">Default jurisdiction</h2>
                 <JurisdictionPreferenceEditor compact />
@@ -93,27 +91,19 @@ function Fields({ onboarding, onDone }: {
             {!onboarding && <fieldset className="border-t border-gray-200 pt-5">
                 <legend className="text-sm font-semibold text-gray-950">Court filing details</legend>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                    <label className="text-sm font-medium text-gray-700">Name on court documents
-                        <Input name="filingName" autoComplete="name"
-                            defaultValue={profile.filingContact.name || profile.displayName || ""} className="mt-2" />
-                    </label>
-                    <label className="text-sm font-medium text-gray-700">Email
-                        <Input name="filingEmail" type="email" autoComplete="email"
-                            defaultValue={profile.filingContact.email} className="mt-2" />
-                    </label>
+                    <Field label="Name on court documents" name="filingName" autoComplete="name"
+                        defaultValue={profile.filingContact.name || profile.displayName || ""} />
+                    <Field label="Email" name="filingEmail" type="email" autoComplete="email"
+                        defaultValue={profile.filingContact.email} />
                     <label className="text-sm font-medium text-gray-700 sm:col-span-2">Address for service
                         <textarea name="filingAddress" rows={2} autoComplete="street-address"
                             defaultValue={profile.filingContact.address}
                             className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base leading-6 outline-none focus-visible:ring-2 focus-visible:ring-red-600" />
                     </label>
-                    <label className="text-sm font-medium text-gray-700">Telephone
-                        <Input name="filingPhone" type="tel" autoComplete="tel"
-                            defaultValue={profile.filingContact.phone} className="mt-2" />
-                    </label>
-                    <label className="text-sm font-medium text-gray-700">Fax
-                        <Input name="filingFax" type="tel"
-                            defaultValue={profile.filingContact.fax} className="mt-2" />
-                    </label>
+                    <Field label="Telephone" name="filingPhone" type="tel" autoComplete="tel"
+                        defaultValue={profile.filingContact.phone} />
+                    <Field label="Fax" name="filingFax" type="tel"
+                        defaultValue={profile.filingContact.fax} />
                 </div>
             </fieldset>}
             {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

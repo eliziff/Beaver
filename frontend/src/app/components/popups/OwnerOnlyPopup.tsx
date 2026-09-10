@@ -12,7 +12,6 @@ export function OwnerOnlyPopup({
     title = "Owner-only action",
     action,
 }: Props) {
-    if (!open) return null;
     return (
         <WarningPopup
             open={open}
