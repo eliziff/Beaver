@@ -452,12 +452,40 @@ export function PdfCanvas({
             if (frame === null) frame = requestAnimationFrame(updatePage);
         };
         element.addEventListener("scroll", onScroll, { passive: true });
-        const endSelecting = () => element.querySelectorAll(".pdf-text-layer.selecting")
-            .forEach((layer) => layer.classList.remove("selecting"));
+        // pdf.js's text-selection rule (TextLayerBuilder): while a drag is under way the layer
+        // carries "selecting" and its endOfContent block sits right after the anchor span, so
+        // the browser sweeps whole lines instead of hopping between absolutely placed spans.
+        const layers = () => element.querySelectorAll<HTMLElement>(".pdf-text-layer");
+        const reset = (layer: HTMLElement) => {
+            const end = layer.querySelector<HTMLElement>(":scope .endOfContent");
+            if (end) { layer.append(end); end.style.width = end.style.height = ""; }
+            layer.classList.remove("selecting");
+        };
+        const endSelecting = () => layers().forEach(reset);
+        let previous: Range | null = null;
+        const onSelectionChange = () => {
+            const selection = document.getSelection();
+            if (!selection?.rangeCount) { endSelecting(); previous = null; return; }
+            const range = selection.getRangeAt(0);
+            layers().forEach((layer) => range.intersectsNode(layer) ? layer.classList.add("selecting") : reset(layer));
+            const modifyStart = !!previous && (range.compareBoundaryPoints(Range.END_TO_END, previous) === 0 ||
+                range.compareBoundaryPoints(Range.START_TO_END, previous) === 0);
+            let anchor: Node | null = modifyStart ? range.startContainer : range.endContainer;
+            if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode;
+            const layer = (anchor as Element | null)?.parentElement?.closest<HTMLElement>(".pdf-text-layer");
+            const end = layer?.querySelector<HTMLElement>(":scope .endOfContent");
+            if (layer && end && anchor) {
+                end.style.width = layer.style.width; end.style.height = layer.style.height;
+                anchor.parentElement!.insertBefore(end, modifyStart ? anchor : anchor.nextSibling);
+            }
+            previous = range.cloneRange();
+        };
+        document.addEventListener("selectionchange", onSelectionChange);
         document.addEventListener("pointerup", endSelecting);
         window.addEventListener("blur", endSelecting);
         return () => {
             element.removeEventListener("scroll", onScroll);
+            document.removeEventListener("selectionchange", onSelectionChange);
             document.removeEventListener("pointerup", endSelecting);
             window.removeEventListener("blur", endSelecting);
             if (frame !== null) cancelAnimationFrame(frame);
