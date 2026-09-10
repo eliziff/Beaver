@@ -251,6 +251,9 @@ export function PdfCanvas({
                             line.dataset.legalText = String(index + 1); element.appendChild(line); }
                         line.appendChild(div);
                     }
+                    const end = document.createElement("div"); end.className = "endOfContent";
+                    element.appendChild(end);
+                    element.addEventListener("mousedown", () => element!.classList.add("selecting"));
                     pages[index].hasTextLayer = true;
                 } catch (cause) {
                     element?.remove();
@@ -449,8 +452,14 @@ export function PdfCanvas({
             if (frame === null) frame = requestAnimationFrame(updatePage);
         };
         element.addEventListener("scroll", onScroll, { passive: true });
+        const endSelecting = () => element.querySelectorAll(".pdf-text-layer.selecting")
+            .forEach((layer) => layer.classList.remove("selecting"));
+        document.addEventListener("pointerup", endSelecting);
+        window.addEventListener("blur", endSelecting);
         return () => {
             element.removeEventListener("scroll", onScroll);
+            document.removeEventListener("pointerup", endSelecting);
+            window.removeEventListener("blur", endSelecting);
             if (frame !== null) cancelAnimationFrame(frame);
             generationRef.current += 1;
             taskRef.current?.cancel();
