@@ -22,8 +22,7 @@ export function WorkflowList() {
     const [params] = useSearchParams();
     const initialWorkflowId = params.get("workflow") ?? undefined;
     const picker = useWorkflowPickerState(initialWorkflowId);
-    const { workflows, setWorkflows, audience, setAudience, search, setSearch,
-        loading, loadError, retryLoad } = picker;
+    const { workflows, setWorkflows, loading } = picker;
     const [creating, setCreating] = useState(false);
     const [launching, setLaunching] = useState(false);
     const [launchError, setLaunchError] = useState<string | null>(null);
@@ -65,9 +64,7 @@ export function WorkflowList() {
         ]}><h1 className="font-serif text-2xl font-medium text-gray-900">Workflows</h1></PageHeader>
         <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col px-4 pb-6 pt-2 max-[40rem]:flex-none md:px-6">
             <WorkflowPickerContent workflows={workflows} onSelect={choose}
-                search={search} onSearchChange={setSearch}
-                audience={audience} onAudienceChange={setAudience}
-                loading={loading} loadError={loadError} onRetryLoad={retryLoad}
+                {...picker.pickerProps}
                 initialWorkflowId={initialWorkflowId}
                 audienceTabVariant="dock"
                 disabledItem={() => launching}
