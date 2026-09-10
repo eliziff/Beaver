@@ -20,7 +20,6 @@ type ReadSource = (source: ResearchSource, locator?: string) => void;
 export function useSourceReader({ file, passagePages, onReadSource, onStatus }: { file: ResearchFile | null;
   passagePages: PassagePages; onReadSource?: ReadSource; onStatus: (message: string) => void }) {
   const [reading, setReading] = useState<Reading | null>(null);
-  const sources = Object.values(file?.state.sources ?? {});
   function sourceHref(source: ResearchSource, locator?: string) {
     if (source.reference.kind === "document") return `/library?${new URLSearchParams({ document_id: source.reference.id,
       version_id: source.reference.versionId, ...(locator ? { locator } : {}) })}`;
@@ -57,12 +56,6 @@ export function useSourceReader({ file, passagePages, onReadSource, onStatus }: 
         document_id: source.reference.id, version_id: source.reference.versionId, filename: sourceName(source), quotes: [] } });
     } catch (reason) { onStatus(errorMessage(reason, "Could not open saved passage")); }
   }
-  function openAnswerCitation(citation: Citation) {
-    const source = sources.find(({ reference }) => citation.kind === "document" ? reference.kind === "document" && reference.id === citation.document_id
-      : citation.kind === "public_legal" ? reference.provider === citation.provider && reference.id === citation.identifier
-        : citation.kind === "a2aj" && reference.provider === "a2aj" && reference.citation === citation.citation);
-    setReading({ citation, reference: source?.reference });
-  }
-  return { reading, setReading, readSource, sourceHref, canRead, openAnswerCitation };
+  return { reading, setReading, readSource, sourceHref, canRead };
 }
 export type SourceReader = ReturnType<typeof useSourceReader>;
