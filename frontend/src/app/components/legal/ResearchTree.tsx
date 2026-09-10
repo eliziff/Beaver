@@ -4,7 +4,7 @@ import { BookOpen, ChevronRight, FileText, Gavel, Landmark, Newspaper, ScrollTex
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
 import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
-import { researchLabelColor, ResearchLabelMarker } from "./ResearchLabelMarker";
+import { researchLabelColor } from "./ResearchLabelMarker";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
 import { passageLabel, trimPassageMarker } from "@/app/lib/researchPassage";
@@ -60,12 +60,9 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   }
   function sourceRow(source: ResearchSource, count: number) {
     const name = sourceName(source), open = opened.has(source.id);
-    return <div className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
+    return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
-      <button type="button" data-source-marker={source.id} disabled={!!preview} aria-label={`Label ${name}`} onClick={(event) => setLabelTarget({ file: file!, kind: "source", itemId: source.id,
-        labelIds: source.labelIds, note: source.note, title: name, anchor: event.currentTarget.getBoundingClientRect(), returnFocus: event.currentTarget })} className="grid min-h-6 shrink-0 place-items-center rounded">
-        <ResearchLabelMarker labels={labels} labelIds={source.labelIds} size="sm" /></button>
       {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText; return <Icon aria-hidden className="size-3.5 shrink-0 text-gray-500" />; })()}
       <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
@@ -73,6 +70,9 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       <span className={ROW_ACTIONS}>
         {openControl(source, name)}
         {!preview && <MoreActionsMenu label={`${name} options`} items={[
+          { label: "Label", onSelect: () => { const row = document.querySelector<HTMLElement>(`[data-source-row="${source.id}"]`)!;
+            setLabelTarget({ file: file!, kind: "source", itemId: source.id, labelIds: source.labelIds, note: source.note,
+              title: name, anchor: row.getBoundingClientRect(), returnFocus: row }); } },
           { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
         ]} />}
       </span>
