@@ -60,16 +60,9 @@ export function TRSidePanel({
         // Closing on click, not pointerdown, lets the click also reach the control
         // it landed on: dismissing on pointerdown replaced that control mid-gesture
         // and swallowed the activation.
-        const handleOutsideClick = (event: MouseEvent) => {
+        const handleOutsideClick = ({ target }: MouseEvent) => {
             if (window.matchMedia?.(COMPACT_PANEL).matches) return;
-            const target = event.target;
-            if (
-                !(target instanceof Node) ||
-                panelRef.current?.contains(target)
-            ) {
-                return;
-            }
-            onClose();
+            if (target instanceof Node && !panelRef.current?.contains(target)) onClose();
         };
         const frame = requestAnimationFrame(() =>
             document.addEventListener("click", handleOutsideClick));

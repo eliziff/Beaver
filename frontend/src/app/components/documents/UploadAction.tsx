@@ -58,7 +58,6 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
     const [openError, setOpenError] = useState("");
     const unavailable = busy || !documents.length;
     const noContext = !documents.length && !resolveDocuments;
-    const labelClass = compact ? "sr-only" : "directory-action-shared";
     return <div role="group" aria-label="Document actions"
         className="directory-actions flex items-center gap-1.5">
         <UploadAction actions={actions} busy={busy} compact={compact} />
@@ -91,7 +90,7 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
             resolveDocuments={resolveDocuments}
             onOpen={onOpenWorkflows}
             onAssistantSelect={onAssistantWorkflowSelect}
-            className="directory-action-button" labelClassName={labelClass}
+            className="directory-action-button" labelClassName={compact ? "sr-only" : "directory-action-shared"}
             disabled={busy} />
         <MoreActionsMenu label="More actions" items={[
             { label: "Download", disabled: unavailable,
