@@ -46,26 +46,24 @@ export function expandCitationToEntries(
 ): CitationQuote[] {
   return getDocumentCitationQuotes(a).flatMap(expandDocumentQuoteEntry);
 }
+/** The cell locators a spreadsheet citation points at, or else its page numbers. */
+function documentLocators(a: DocumentCitation) {
+  const spreadsheet = isSpreadsheetFilename(a.filename);
+  const values = getDocumentCitationQuotes(a).flatMap((q) => spreadsheet
+    ? [formatCellLocator(q.sheet, q.cell)].filter(Boolean)
+    : q.page == null ? [] : [String(q.page)]);
+  return { spreadsheet, values: Array.from(new Set(values)) };
+}
 export function formatCitationPage(a: Citation): string {
   if (a.kind === "a2aj") return a.citation || a.name || "A2AJ source";
   if (a.kind === "public_legal") {
     return a.title || a.identifier || "Public legal source";
   }
   if (a.kind === "tabular") return `${a.col_name} · ${a.doc_name}`;
-  const quotes = getDocumentCitationQuotes(a);
-  if (isSpreadsheetFilename(a.filename)) {
-    const cells = Array.from(
-      new Set(
-        quotes.map((q) => formatCellLocator(q.sheet, q.cell)).filter(Boolean),
-      ),
-    );
-    return cells.join(", ");
-  }
-  const pages = Array.from(
-    new Set(quotes.flatMap((q) => q.page == null ? [] : [String(q.page)])),
-  );
-  if (pages.length > 1) return `Pages ${pages.join(", ")}`;
-  if (pages.length === 1) return `Page ${pages[0]}`;
+  const { spreadsheet, values } = documentLocators(a);
+  if (spreadsheet) return values.join(", ");
+  if (values.length > 1) return `Pages ${values.join(", ")}`;
+  if (values.length === 1) return `Page ${values[0]}`;
   return "";
 }
 export function citationPinpoint(a: Citation): string {
@@ -74,24 +72,11 @@ export function citationPinpoint(a: Citation): string {
   }
   if (a.kind === "tabular") return a.col_name;
   if (a.pinpoint?.trim()) return a.pinpoint.trim();
-  const quotes = getDocumentCitationQuotes(a);
-  if (isSpreadsheetFilename(a.filename)) {
-    return Array.from(
-      new Set(
-        quotes.map((q) => formatCellLocator(q.sheet, q.cell)).filter(Boolean),
-      ),
-    ).join(", ");
-  }
-  const pages = Array.from(
-    new Set(
-      quotes.flatMap((q) =>
-        q.page === undefined || q.page === null ? [] : [String(q.page)],
-      ),
-    ),
-  );
-  if (pages.length === 1)
-    return `p. ${pages[0].replace(/\s*-\s*/gu, "\u2013")}`;
-  return pages.length > 1 ? `pp. ${pages.join(", ")}` : "";
+  const { spreadsheet, values } = documentLocators(a);
+  if (spreadsheet) return values.join(", ");
+  if (values.length === 1)
+    return `p. ${values[0].replace(/\s*-\s*/gu, "–")}`;
+  return values.length > 1 ? `pp. ${values.join(", ")}` : "";
 }
 function cleanCitationQuoteText(rawQuote: string): string {
   return rawQuote.replaceAll(PAGE_BREAK_SENTINEL, "...");
