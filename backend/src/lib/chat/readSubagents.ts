@@ -1,4 +1,5 @@
 import { getCodexModelCatalog, type CodexModelCatalog } from "../codexCatalog";
+import { isSupportedModel } from "../llm/models";
 import type { NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
 import { jsonRecord as record } from "../value";
 import type { AssistantEvent, ReadSubagentAssignment, ReadSubagentCheckpoint,
@@ -15,6 +16,8 @@ export type ReadSubagentCapability = {
   available: boolean;
   serverEnabled: boolean;
   model: string;
+  /** The id handed to the provider loop: codex:<slug> or any picker model id. */
+  runModel: string;
   displayName: string;
   effort: string;
   reason?: string;
@@ -294,16 +297,22 @@ export async function getReadSubagentCapability(
   catalog?: CodexModelCatalog,
   selection?: { model?: string; effort?: string },
 ): Promise<ReadSubagentCapability> {
-  const model = selection?.model?.trim().replace(/^codex:/u, "") ||
+  const requested = selection?.model?.trim() ||
     process.env.MIKE_READ_SUBAGENT_MODEL?.trim() || DEFAULT_MODEL;
+  const model = requested.replace(/^codex:/u, "");
   const effort = selection?.effort?.trim() ||
     process.env.MIKE_READ_SUBAGENT_EFFORT?.trim() || DEFAULT_EFFORT;
   if (process.env.MIKE_READ_SUBAGENTS === "0") return {
-    available: false, serverEnabled: false, model, displayName: model, effort,
+    available: false, serverEnabled: false, model, runModel: requested, displayName: model, effort,
     reason: "Reading agents are disabled by the server.",
   };
-  const selected = (catalog ?? await getCodexModelCatalog()).models
-    .find((item) => item.slug === model);
+  // A bare slug the Codex catalog knows stays a Codex reader; any other picker model id
+  // (gemini, claude, deepseek, opencode-go, ...) reads through its own provider (Eli, 2026-09-10).
+  const selected = /^[a-z-]+:/u.test(requested) && !requested.startsWith("codex:") ? undefined
+    : (catalog ?? await getCodexModelCatalog()).models.find((item) => item.slug === model);
+  if (!selected && isSupportedModel(requested)) return {
+    available: true, serverEnabled: true, model: requested, runModel: requested,
+    displayName: requested, effort };
   const reason = !selected
     ? "The configured Codex reading model is unavailable."
     : !selected.supportedReasoningLevels.some((level) =>
@@ -313,6 +322,7 @@ export async function getReadSubagentCapability(
     available: !reason,
     serverEnabled: true,
     model,
+    runModel: `codex:${model}`,
     displayName: selected?.displayName ?? model,
     effort,
     ...(reason && { reason }),
