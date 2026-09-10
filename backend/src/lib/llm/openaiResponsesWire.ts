@@ -113,7 +113,15 @@ export function createResponsesWireAdapter(
       const resultItems = step.results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,
-        output: result.content,
+        output: result.images?.length
+          ? [
+              { type: "input_text", text: result.content },
+              ...result.images.map((image) => ({
+                type: "input_image",
+                image_url: `data:${image.mimeType};base64,${image.data}`,
+              })),
+            ]
+          : result.content,
       }));
       const steeringItems = step.steering.map(({ text }) => ({ role: "user", content: text }));
       const additions = [...resultItems, ...steeringItems];

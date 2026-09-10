@@ -146,7 +146,7 @@ import { readResearchEvidenceParts,
   researchSourceFromResource, researchSourceKey, researchSourceResource,
   type ResearchEvidence, type ResearchFile, type ResearchFileAction, type ResearchQueryReceipt } from "../researchFile";
 import { researchCaptureRuleSchema, runResearchFileQuery } from "../researchFileQuery";
-import { COURT_RECORD_TOOL_PROPERTIES, courtRecordResult,
+import { COURT_RECORD_TOOL_PROPERTIES, courtRecordPageTool, courtRecordResult,
   courtRecordSlotTool } from "./courtRecordSlotTool";
 
 const DOCUMENT_ID_PROPERTY = {
@@ -2384,6 +2384,10 @@ export function assistantTools<Context extends {
     allowedDocumentIds, library, workProducts, courtRecords, resolveArtifact,
     onMutationCommitted: () => {},
   }) : null;
+  const courtPageTool = courtRecord ? courtRecordPageTool<Context>({
+    scope, target: courtRecord, projectId: workProductProjectId,
+    allowedDocumentIds, library, workProducts, documents, resolveArtifact,
+  }) : null;
   const updateWorkProduct: AssistantToolRun = async (call, input, signal) => {
     const kind = input.kind as WorkProductKind;
     const respond = (raw: Record<string, unknown>, mutated = false,
@@ -2763,7 +2767,9 @@ export function assistantTools<Context extends {
     definition(CITATOR_TOOL, runCitator, { specialist: true }),
     ...(turnScope !== "main" ? [] : [
       ...(activeCourtTool ? [definition(activeCourtTool, (call, input, signal) =>
-        activeCourtTool.execute(input, {} as Context, signal, call), { specialist: false })]
+        activeCourtTool.execute(input, {} as Context, signal, call), { specialist: false }),
+        definition(courtPageTool!, (call, input, signal) =>
+          courtPageTool!.execute(input, {} as Context, signal, call), { specialist: false })]
         : authoritiesId ? [definition(workProductTool(true, true), (call, input, signal) =>
           updateWorkProduct(call, { ...input, kind: "authorities", draft_id: authoritiesId }, signal))] : []),
       definition(workProductTool(productFeatures?.authorities !== false, false,

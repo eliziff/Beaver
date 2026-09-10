@@ -223,8 +223,9 @@ export async function runProviderLoop(
       round.toolArgumentBytes = toolCalls.reduce(
         (total, call) => total + Buffer.byteLength(JSON.stringify(call.input)), 0,
       );
-      round.toolResultBytes = results.reduce(
-        (total, result) => total + Buffer.byteLength(result.content), 0,
+      round.toolResultBytes = results.reduce((total, result) => total +
+        Buffer.byteLength(result.content) +
+        (result.images ?? []).reduce((bytes, image) => bytes + image.data.length, 0), 0,
       );
       if (results.some(({ terminal }) => terminal)) break;
       const steering = params.takeSteering?.() ?? [];

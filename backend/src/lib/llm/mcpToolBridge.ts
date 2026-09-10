@@ -107,9 +107,12 @@ function bridgeServer(params: McpToolBridgeParams, state: BridgeState) {
       if (!result) {
         return toolError(`Beaver did not return a result for tool ${name}.`);
       }
-      state.toolResultBytes += Buffer.byteLength(result.content);
+      const images = result.images ?? [];
+      state.toolResultBytes += Buffer.byteLength(result.content) +
+        images.reduce((total, image) => total + image.data.length, 0);
       if (result.terminal) state.terminalResult = true;
-      return { content: [{ type: "text", text: result.content }] };
+      return { content: [{ type: "text", text: result.content },
+        ...images.map(({ data, mimeType }) => ({ type: "image" as const, data, mimeType }))] };
     } catch (error) {
       return toolError(safeErrorMessage(error));
     }
