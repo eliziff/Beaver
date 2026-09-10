@@ -1790,6 +1790,7 @@ export function assistantTools<Context extends {
           legalEvidenceState,
         );
         if (integrityErrors.length) {
+          console.warn("[write] draft integrity rejected", { filename, errors: integrityErrors });
           return fail(`Draft integrity check failed: ${integrityErrors.join("; ")}`);
         }
       }
@@ -1831,6 +1832,7 @@ export function assistantTools<Context extends {
         },
       );
     } catch (error) {
+      console.warn("[write] failed", { filename, error: error instanceof Error ? error.message : String(error) });
       return fail(
         error instanceof Error ? error.message : "DOCX creation failed",
       );
