@@ -20,7 +20,7 @@
 
 import diff from "fast-diff";
 import { applyTrackedEdits, clusterTextChanges, extractDocxBodyText, normalizeWs,
-  type EditDiffSegment, type EditInput } from "./docxTrackedChanges";
+  type AppliedChange, type EditInput } from "./docxTrackedChanges";
 import { runTextOp, type TextOpNote, type TextOpParams } from "./textOps";
 
 export type TextOpScope =
@@ -43,15 +43,10 @@ export type TextOpRequest = TextOpParams & { op: string; scope: TextOpScope };
 
 export type TextOpReport = { op: string; replacements: number; notes: TextOpNote[] };
 
-export type AppliedTextEdit = {
+export type AppliedTextEdit = Omit<AppliedChange, "id" | "delId" | "insId"> & {
   changeId: string;
   delWId?: string;
   insWId?: string;
-  deletedText: string;
-  insertedText: string;
-  contextBefore: string;
-  contextAfter: string;
-  diff: EditDiffSegment[];
 };
 
 export type ApplyTextOpsResult = {
@@ -211,15 +206,8 @@ export async function applyTextOpsToDocx(originalBytes: Buffer,
   const applied = await applyTrackedEdits(originalBytes, edits, { author: "Beaver" });
   return {
     bytes: applied.bytes,
-    edits: applied.changes.map((change) => ({
-      changeId: change.id,
-      delWId: change.delId,
-      insWId: change.insId,
-      deletedText: change.deletedText,
-      insertedText: change.insertedText,
-      contextBefore: change.contextBefore,
-      contextAfter: change.contextAfter,
-      diff: change.diff,
+    edits: applied.changes.map(({ id, delId, insId, ...edit }) => ({
+      changeId: id, delWId: delId, insWId: insId, ...edit,
     })),
     reports,
     replacementCount: replacements.length,

@@ -53,15 +53,8 @@ export async function steerChatTurn(
   });
 }
 
-function abortChatTurn(chatId: string) {
-  const turn = activeTurns.get(chatId);
-  if (!turn) return false;
-  turn.controller.abort();
-  return true;
-}
-
 export function abortChatTurnForDeletion(chatId: string) {
-  return abortChatTurn(chatId);
+  activeTurns.get(chatId)?.controller.abort();
 }
 
 export function finishChatTurn(

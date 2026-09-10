@@ -459,24 +459,20 @@ export function buildLegalSourcePinpoint(
         occurrenceClass(fullText, quote) === "1")
       ? blocks : base;
   };
+  const verifiedPdfUrl = evidence.verifiedPdf
+    ? sourceUrl(evidence.verifiedPdf.url, evidence.anchor) : null;
   let targetUrl = baseUrl;
   let pdf = isPdfSourceUrl(targetUrl);
-  if (!pdf && evidence.verifiedPdf?.pdfOnly) {
-    const verifiedPdfUrl = sourceUrl(evidence.verifiedPdf.url, evidence.anchor);
-    if (verifiedPdfUrl) {
-      targetUrl = verifiedPdfUrl;
-      pdf = true;
-    }
+  if (!pdf && evidence.verifiedPdf?.pdfOnly && verifiedPdfUrl) {
+    targetUrl = verifiedPdfUrl;
+    pdf = true;
   }
   let selected = plan(targetUrl, pdf);
-  if (!pdf && !selected.sourceSafeComplete && evidence.verifiedPdf) {
-    const verifiedPdfUrl = sourceUrl(evidence.verifiedPdf.url, evidence.anchor);
-    if (verifiedPdfUrl) {
-      const fallback = plan(verifiedPdfUrl, true);
-      if (fallback.sourceSafeComplete || fallback.paintedWords > selected.paintedWords) {
-        targetUrl = verifiedPdfUrl;
-        selected = fallback;
-      }
+  if (!pdf && !selected.sourceSafeComplete && verifiedPdfUrl) {
+    const fallback = plan(verifiedPdfUrl, true);
+    if (fallback.sourceSafeComplete || fallback.paintedWords > selected.paintedWords) {
+      targetUrl = verifiedPdfUrl;
+      selected = fallback;
     }
   }
   const target = appendDirectives(targetUrl, selected.directives);
