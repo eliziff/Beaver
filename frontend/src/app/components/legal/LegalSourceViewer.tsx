@@ -19,7 +19,6 @@ import {
   type LegalDocumentType,
   type LegalSourceViewerPayload,
 } from "@/app/lib/api/legalSources";
-import { researchSourceKey } from "@/app/lib/researchFiles";
 import type {
   ResearchFile,
   ResearchSourceReference,
@@ -30,7 +29,7 @@ import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { errorMessage, formatLongDate } from "@/app/lib/utils";
 import { ResearchLabelEditor, ResearchLabelPicker,
   type ResearchLabelTarget } from "./ResearchLabelPicker";
-import { SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
+import { findResearchSource, SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
 import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
 type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
@@ -289,8 +288,7 @@ function LegalSourceViewerContent({
   } : null;
   const researchSource = researchFile ? researchSourceId
     ? researchFile.state.sources[researchSourceId]
-    : payloadReference ? Object.values(researchFile.state.sources).find(({ reference }) =>
-      researchSourceKey(reference) === researchSourceKey(payloadReference)) : undefined
+    : payloadReference ? findResearchSource(researchFile, payloadReference) : undefined
     : null;
   const activeResearchSourceId = researchSource?.id;
   const passagePage = activeResearchSourceId ? passages.chains[activeResearchSourceId] : undefined;
@@ -361,8 +359,7 @@ function LegalSourceViewerContent({
     onOpenResearch?.(); setResearchError("Choose or create a workspace first");
   };
   async function prepareResearchSource(file: ResearchFile) {
-    const existing = Object.values(file.state.sources).find(({ reference }) =>
-      researchSourceKey(reference) === researchSourceKey(sourceReference));
+    const existing = findResearchSource(file, sourceReference);
     if (existing) return { file, itemId: existing.id };
     const pending = sourcePreparation.current ??= commit.act({ type: "source", reference: sourceReference }).then((next) => {
       if (!next.sourceId) throw new Error("Saved source was not returned");
