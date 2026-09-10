@@ -132,6 +132,8 @@ export type AuthoritiesUserAction =
   | { type: "remove-occurrence"; occurrenceId: string }
   | { type: "set-authority-span"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
+  | { type: "clear-pinpoint"; occurrenceId: string }
+  | { type: "add-occurrence"; unitId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;

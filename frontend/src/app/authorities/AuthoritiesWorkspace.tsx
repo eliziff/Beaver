@@ -1138,12 +1138,12 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
         onClick={() => selection && submit({ type: "set-pinpoint-span",
           occurrenceId: selected.id, start: selection.start, end: selection.end })}>Use selection as pinpoint</Button>
       <Button type="button" variant="outline" className={actionClass}
-        disabled={busy || !footnote || !selection || selection.start !== selection.end ||
+        disabled={busy || !selection || selection.start !== selection.end ||
           selection.start <= selected.start || selection.start >= selected.end}
         onMouseDown={(event) => event.preventDefault()} onClick={() => selection && submit({
           type: "split-occurrence", occurrenceId: selected.id, cursor: selection.start })}>Split at cursor</Button>
       <Button type="button" variant="outline" className={actionClass}
-        disabled={busy || !footnote || !canMerge} onClick={() => submit({
+        disabled={busy || !canMerge} onClick={() => submit({
           type: "merge-occurrence", occurrenceId: selected.id })}>Merge with previous</Button>
       <Button type="button" variant="outline" className={cn(actionClass, "col-span-2")} disabled={busy}
         onClick={() => submit({ type: "remove-occurrence",
