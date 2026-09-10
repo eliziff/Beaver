@@ -41,4 +41,4 @@ function sourceExhibitLabels(pages) {
 const mentionKey = (value) => value.normalize("NFKC").toLocaleLowerCase()
   .replace(/[^\p{L}\p{N}]+/gu, "");
 
-export { extractExhibitMentions, sourceExhibitLabels };
+export { extractExhibitMentions, mentionKey, sourceExhibitLabels };

@@ -44,6 +44,7 @@ import { sourceDocumentFields } from "./sourceFields";
 import { COURT_PROFILE_BY_ID } from "./profiles";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { acceptsWorkProductOutput } from "../../../../shared/court-record-work-products.mjs";
+import { mentionKey } from "../../../../shared/court-record-exhibits.mjs";
 import type { AuthoritiesProduct } from "../authorities/types";
 
 const resolutionRequests = new Map<string, Promise<WorkProductResolution>>();
@@ -421,8 +422,10 @@ function mergeSourceFields(...sources: (SourceDocumentFields | undefined)[]) {
   if (!values.length) return;
   const mentionLabels = [...new Set(values.flatMap(({ exhibitMentions }) =>
     Object.keys(exhibitMentions ?? {})))];
+  // Two readings of one affidavit differ in typography, not wording; keep one of each.
   const exhibitMentions = Object.fromEntries(mentionLabels.map((label) => [label,
-    [...new Set(values.flatMap((source) => source.exhibitMentions?.[label] ?? []))],
+    [...new Map(values.flatMap((source) => source.exhibitMentions?.[label] ?? [])
+      .map((statement) => [mentionKey(statement), statement])).values()],
   ]));
   return {
     cover: Object.assign({}, ...values.map(({ cover }) => cover)),
