@@ -1,14 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import {
-  structureNative,
-  type NativeDocument,
-  type PdfStructureLookup,
-} from "./structureNative";
-import {
-  immutableReceiptPath,
-  writeImmutableReceipt,
-} from "./documentProjection";
+import { structureNative, type NativeDocument,
+  type PdfStructureLookup } from "./structureNative";
+import { immutableReceiptPath, writeImmutableReceipt } from "./documentProjection";
 import { RESOURCE_LOCATOR_KINDS } from "./resourceReferences";
 
 export type PdfLocatorKind = (typeof RESOURCE_LOCATOR_KINDS)[number];
@@ -26,22 +20,20 @@ const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
 const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
 const LEGAL_PDF_RESULT_SCHEMA = "legalpdf.document-result.v1";
 
+type ReceiptSource = {
+  document_id: string;
+  version_id: string;
+  source_sha256: string;
+  parser_version: string;
+  cache_key: string;
+};
+
 type PdfEvidenceReceipt = {
   schema_version: typeof EVIDENCE_SCHEMA;
   handle: string;
-  source: {
-    document_id: string;
-    version_id: string;
-    source_sha256: string;
-    parser_version: string;
-    cache_key: string;
-  };
+  source: ReceiptSource;
   lookup: PdfLookupInput;
-  evidence: {
-    payload_sha256: string;
-    page_numbers: number[];
-    page_text_sha256: string;
-  };
+  evidence: { payload_sha256: string; page_numbers: number[]; page_text_sha256: string };
 };
 
 function evidenceHandle(receipt: Omit<PdfEvidenceReceipt, "handle">) {
@@ -54,16 +46,9 @@ function evidencePath(handle: string) {
   return immutableReceiptPath("pdf-evidence", digest);
 }
 
-function evidenceViewPath(
-  documentId: string,
-  versionId: string,
-  handle: string,
-) {
-  return `/single-documents/${encodeURIComponent(
-    documentId,
-  )}/evidence-view?version_id=${encodeURIComponent(
-    versionId,
-  )}&evidence=${encodeURIComponent(handle)}`;
+function evidenceViewPath(documentId: string, versionId: string, handle: string) {
+  return `/single-documents/${encodeURIComponent(documentId)}/evidence-view` +
+    `?version_id=${encodeURIComponent(versionId)}&evidence=${encodeURIComponent(handle)}`;
 }
 
 function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
@@ -71,9 +56,7 @@ function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
     throw new Error("Invalid PDF evidence receipt");
   }
   const receipt = value as Partial<PdfEvidenceReceipt>;
-  const source = receipt.source;
-  const lookup = receipt.lookup;
-  const evidence = receipt.evidence;
+  const { source, lookup, evidence } = receipt;
   if (
     receipt.schema_version !== EVIDENCE_SCHEMA ||
     typeof receipt.handle !== "string" ||
@@ -90,9 +73,7 @@ function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
     !evidence ||
     typeof evidence.payload_sha256 !== "string" ||
     !Array.isArray(evidence.page_numbers) ||
-    !evidence.page_numbers.every(
-      (number) => Number.isInteger(number) && number > 0,
-    ) ||
+    !evidence.page_numbers.every((number) => Number.isInteger(number) && number > 0) ||
     typeof evidence.page_text_sha256 !== "string"
   ) {
     throw new Error("Invalid PDF evidence receipt");
@@ -106,9 +87,7 @@ function evidenceReceipt(value: unknown): PdfEvidenceReceipt {
 }
 
 export async function readPdfEvidenceReceipt(handle: string) {
-  const receipt = evidenceReceipt(
-    JSON.parse(await readFile(evidencePath(handle), "utf8")),
-  );
+  const receipt = evidenceReceipt(JSON.parse(await readFile(evidencePath(handle), "utf8")));
   if (receipt.handle !== handle) {
     throw new Error("PDF evidence receipt handle does not match its content");
   }
@@ -116,15 +95,8 @@ export async function readPdfEvidenceReceipt(handle: string) {
 }
 
 function queryPdf(document: NativeDocument, input: PdfLookupInput) {
-  return structureNative().queryPdfDocument(
-    document,
-    input.locatorKind,
-    input.locator,
-    input.endLocator,
-    input.contextBlocks,
-    input.page,
-    input.occurrence,
-  );
+  return structureNative().queryPdfDocument(document, input.locatorKind, input.locator,
+    input.endLocator, input.contextBlocks, input.page, input.occurrence);
 }
 
 type LookupSource = {
@@ -136,35 +108,31 @@ type LookupSource = {
   parserVersion: string;
 };
 
-async function finishLookup(
-  input: PdfLookupInput,
-  lookup: PdfStructureLookup,
-  options: LookupSource,
-) {
+async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
+  options: LookupSource) {
   if (lookup.status !== "found") {
     return lookup;
   }
-  const { units, pages: boundPages } = lookup;
-  const boundPageNumbers = boundPages.map(({ page_number }) => page_number);
+  const source: ReceiptSource = {
+    document_id: options.documentId,
+    version_id: options.versionId,
+    source_sha256: options.sourceSha256,
+    parser_version: options.parserVersion,
+    cache_key: options.cacheKey,
+  };
   const receiptIdentity: Omit<PdfEvidenceReceipt, "handle"> = {
     schema_version: EVIDENCE_SCHEMA,
-    source: {
-      document_id: options.documentId,
-      version_id: options.versionId,
-      source_sha256: options.sourceSha256,
-      parser_version: options.parserVersion,
-      cache_key: options.cacheKey,
-    },
+    source,
     lookup: { ...input },
     evidence: {
       payload_sha256: lookup.payload_sha256,
-      page_numbers: boundPageNumbers,
+      page_numbers: lookup.pages.map(({ page_number }) => page_number),
       page_text_sha256: lookup.page_text_sha256,
     },
   };
   const handle = evidenceHandle(receiptIdentity);
   const receipt = { ...receiptIdentity, handle };
-  const pageNumbers = [...new Set(units.flatMap((unit) => unit.page_numbers))]
+  const pageNumbers = [...new Set(lookup.units.flatMap((unit) => unit.page_numbers))]
     .sort((left, right) => left - right);
   const viewPath = evidenceViewPath(options.documentId, options.versionId, handle);
 
@@ -174,19 +142,9 @@ async function finishLookup(
 
   return {
     ...lookup,
-    source: {
-      handle: `mike-source:sha256:${options.sourceSha256}`,
-      document_id: options.documentId,
-      version_id: options.versionId,
-      source_sha256: options.sourceSha256,
-      parser_version: options.parserVersion,
-      cache_key: options.cacheKey,
-      schema_version: LEGAL_PDF_RESULT_SCHEMA,
-    },
-    evidence: {
-      handle,
-      ...receipt.evidence,
-    },
+    source: { ...source, handle: `mike-source:sha256:${options.sourceSha256}`,
+      schema_version: LEGAL_PDF_RESULT_SCHEMA },
+    evidence: { handle, ...receipt.evidence },
     link: {
       type: "pdf-evidence",
       evidence_view_path: viewPath,
@@ -196,18 +154,13 @@ async function finishLookup(
   };
 }
 
-export async function lookupPdfStructure(
-  document: NativeDocument,
-  input: PdfLookupInput,
-  options: LookupSource,
-) {
+export async function lookupPdfStructure(document: NativeDocument, input: PdfLookupInput,
+  options: LookupSource) {
   return finishLookup(input, queryPdf(document, input), options);
 }
 
-export async function rehydratePdfEvidence(
-  document: NativeDocument,
-  receipt: PdfEvidenceReceipt,
-) {
+export async function rehydratePdfEvidence(document: NativeDocument,
+  receipt: PdfEvidenceReceipt) {
   const lookup = await finishLookup(receipt.lookup, queryPdf(document, receipt.lookup), {
     persistEvidence: false,
     cacheKey: receipt.source.cache_key,
@@ -216,28 +169,18 @@ export async function rehydratePdfEvidence(
     sourceSha256: receipt.source.source_sha256,
     parserVersion: receipt.source.parser_version,
   });
+  const mismatch = "PDF evidence no longer matches the authoritative source artifacts";
   if (lookup.status !== "found") {
     throw new Error(
       "error" in lookup && lookup.error === "PDF source bytes no longer match their version"
-        ? "PDF evidence source bytes no longer match their version"
-        : "PDF evidence no longer matches the authoritative source artifacts",
-    );
+        ? "PDF evidence source bytes no longer match their version" : mismatch);
   }
-  if (lookup.evidence.handle !== receipt.handle) {
-    throw new Error(
-      "PDF evidence no longer matches the authoritative source artifacts",
-    );
-  }
+  if (lookup.evidence.handle !== receipt.handle) throw new Error(mismatch);
   return lookup;
 }
 
-export async function verifyPdfEvidence(
-  document: NativeDocument,
-  receipt: PdfEvidenceReceipt,
-) {
+export async function verifyPdfEvidence(document: NativeDocument,
+  receipt: PdfEvidenceReceipt) {
   const verified = await rehydratePdfEvidence(document, receipt);
-  return {
-    documentId: verified.source.document_id,
-    versionId: verified.source.version_id,
-  };
+  return { documentId: verified.source.document_id, versionId: verified.source.version_id };
 }
