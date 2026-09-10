@@ -8,23 +8,14 @@ import { pipeline } from "node:stream/promises";
 export const MAX_OBJECT_SIZE_BYTES = 100 * 1024 * 1024;
 const DEFAULT_STORAGE_TIMEOUT_MS = 15_000;
 export const SIGNED_GET_TTL_SECONDS = 90;
-type StorageBody = Uint8Array | Readonly<{
-  path: string; sizeBytes: number;
-}>;
+type StorageBody = Uint8Array | Readonly<{ path: string; sizeBytes: number }>;
 
-type StorageOptions = {
-  signal?: AbortSignal;
-  timeoutMs?: number;
-};
+type StorageOptions = { signal?: AbortSignal; timeoutMs?: number };
 type PutOptions = StorageOptions & { expectedSha256: string };
 
 type SignedGetOptions = StorageOptions & {
-  filename: string;
-  contentType: string;
-  expectedSha256: string;
-  sizeBytes: number;
-  disposition?: "inline" | "attachment";
-  expiresIn?: number;
+  filename: string; contentType: string; expectedSha256: string; sizeBytes: number;
+  disposition?: "inline" | "attachment"; expiresIn?: number;
 };
 
 export type ObjectStorage = {
@@ -36,28 +27,18 @@ export type ObjectStorage = {
 };
 
 export type S3Configuration = {
-  endpoint: string;
-  region: string;
-  bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  forcePathStyle: boolean;
+  endpoint: string; region: string; bucket: string;
+  accessKeyId: string; secretAccessKey: string; forcePathStyle: boolean;
 };
 
-const REQUIRED_S3_ENV = [
-  "S3_ENDPOINT",
-  "S3_REGION",
-  "S3_BUCKET",
-  "S3_ACCESS_KEY_ID",
-  "S3_SECRET_ACCESS_KEY",
-] as const;
+const REQUIRED_S3_ENV = ["S3_ENDPOINT", "S3_REGION", "S3_BUCKET",
+  "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"] as const;
 
 const configValue = (environment: NodeJS.ProcessEnv, name: string) =>
   environment[name]?.trim() ?? "";
 
 export function readS3Configuration(
-  environment: NodeJS.ProcessEnv = process.env,
-): S3Configuration {
+  environment: NodeJS.ProcessEnv = process.env): S3Configuration {
   const missing = REQUIRED_S3_ENV.filter((name) => !configValue(environment, name));
   if (missing.length) {
     throw new Error(`Missing S3 configuration: ${missing.join(", ")}`);
@@ -68,9 +49,7 @@ export function readS3Configuration(
       endpoint.password || endpoint.search || endpoint.hash) {
     throw new Error("S3_ENDPOINT must be an HTTP(S) URL without credentials, query, or fragment");
   }
-  const loopback = endpoint.hostname === "localhost" ||
-    endpoint.hostname === "127.0.0.1" || endpoint.hostname === "[::1]" ||
-    endpoint.hostname === "::1";
+  const loopback = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(endpoint.hostname);
   if (endpoint.protocol !== "https:" &&
       (environment.NODE_ENV === "production" || !loopback)) {
     throw new Error("S3_ENDPOINT must use HTTPS (HTTP is allowed only for local development)");
@@ -83,8 +62,7 @@ export function readS3Configuration(
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/iu.test(region)) {
     throw new Error("S3_REGION is malformed");
   }
-  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/u.test(bucket) ||
-      bucket.includes("..")) {
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/u.test(bucket) || bucket.includes("..")) {
     throw new Error("S3_BUCKET must be a DNS-compatible bucket name");
   }
   if (accessKeyId.length < 3 || accessKeyId.length > 256 ||
@@ -99,14 +77,8 @@ export function readS3Configuration(
   if (rawPathStyle && rawPathStyle !== "true" && rawPathStyle !== "false") {
     throw new Error("S3_FORCE_PATH_STYLE must be true or false");
   }
-  return {
-    endpoint: endpoint.toString().replace(/\/$/u, ""),
-    region,
-    bucket,
-    accessKeyId,
-    secretAccessKey,
-    forcePathStyle: rawPathStyle === "true",
-  };
+  return { endpoint: endpoint.toString().replace(/\/$/u, ""), region, bucket,
+    accessKeyId, secretAccessKey, forcePathStyle: rawPathStyle === "true" };
 }
 
 function storageSignal(options: StorageOptions = {}) {
@@ -118,6 +90,9 @@ function storageSignal(options: StorageOptions = {}) {
     ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)])
     : AbortSignal.timeout(timeoutMs);
 }
+
+const overLimit = (maximum: number) =>
+  new Error(`Object exceeds the ${maximum}-byte read limit`);
 
 function objectLimit(value = MAX_OBJECT_SIZE_BYTES) {
   if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_OBJECT_SIZE_BYTES) {
@@ -183,14 +158,13 @@ async function boundedBody(body: unknown, maximum: number, signal: AbortSignal) 
         signal.throwIfAborted();
         const bytes = Buffer.from(chunk);
         size += bytes.byteLength;
-        if (size > maximum) throw new Error(`Object exceeds the ${maximum}-byte read limit`);
+        if (size > maximum) throw overLimit(maximum);
         chunks.push(bytes);
       }
       return Buffer.concat(chunks, size);
     } catch (error) {
-      (body as { destroy?: (error?: Error) => void }).destroy?.(
-        error instanceof Error ? error : undefined,
-      );
+      (body as { destroy?: (error?: Error) => void })
+        .destroy?.(error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -199,7 +173,7 @@ async function boundedBody(body: unknown, maximum: number, signal: AbortSignal) 
   if (!transform) throw new Error("S3 GetObject returned an unsupported response body");
   const bytes = Buffer.from(await transform.call(body));
   signal.throwIfAborted();
-  if (bytes.byteLength > maximum) throw new Error(`Object exceeds the ${maximum}-byte read limit`);
+  if (bytes.byteLength > maximum) throw overLimit(maximum);
   return bytes;
 }
 
@@ -213,10 +187,8 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       endpoint: config.endpoint,
       forcePathStyle: config.forcePathStyle,
       maxAttempts: 3,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
+      credentials: { accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey },
     });
     return { client, commands, sign };
   }
@@ -224,9 +196,8 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
   const load = () => sdk ??= initialize();
   const verify = async (client: S3Client, commands: typeof import("@aws-sdk/client-s3"), key: string,
     sizeBytes: number, digest: string, signal: AbortSignal) => {
-    const head = await client.send(new commands.HeadObjectCommand({
-      Bucket: config.bucket, Key: key, ChecksumMode: "ENABLED",
-    }), { abortSignal: signal });
+    const head = await client.send(new commands.HeadObjectCommand(
+      { Bucket: config.bucket, Key: key, ChecksumMode: "ENABLED" }), { abortSignal: signal });
     if (head.ContentLength !== sizeBytes || head.ChecksumSHA256 !==
         Buffer.from(digest, "hex").toString("base64"))
       throw new Error("Content-addressed object failed its integrity check");
@@ -275,13 +246,12 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       signal.throwIfAborted();
       const { client, commands } = await load();
       try {
-        const response = await client.send(new commands.GetObjectCommand({
-          Bucket: config.bucket,
-          Key: key,
-        }), { abortSignal: signal });
+        const response = await client.send(
+          new commands.GetObjectCommand({ Bucket: config.bucket, Key: key }),
+          { abortSignal: signal });
         if (response.ContentLength !== undefined && response.ContentLength > maximum) {
           (response.Body as { destroy?: () => void } | undefined)?.destroy?.();
-          throw new Error(`Object exceeds the ${maximum}-byte read limit`);
+          throw overLimit(maximum);
         }
         return await boundedBody(response.Body, maximum, signal);
       } catch (error) {
@@ -295,10 +265,8 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       signal.throwIfAborted();
       const { client, commands } = await load();
       try {
-        await client.send(new commands.DeleteObjectCommand({
-          Bucket: config.bucket,
-          Key: key,
-        }), { abortSignal: signal });
+        await client.send(new commands.DeleteObjectCommand({ Bucket: config.bucket, Key: key }),
+          { abortSignal: signal });
       } catch (error) {
         if (!isNotFound(error)) throw error;
       }
@@ -321,10 +289,8 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
       const url = await sign(client, new commands.GetObjectCommand({
         Bucket: config.bucket,
         Key: key,
-        ResponseContentDisposition: buildContentDisposition(
-          options.disposition ?? "attachment",
-          options.filename,
-        ),
+        ResponseContentDisposition:
+          buildContentDisposition(options.disposition ?? "attachment", options.filename),
         ResponseContentType: contentType(options.contentType),
         ResponseCacheControl: "private, no-store",
       }), { expiresIn });
@@ -413,9 +379,9 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
       try {
         const info = await stat(target);
         if (!info.isFile()) throw new Error("Object path is not a file");
-        if (info.size > maximum) throw new Error(`Object exceeds the ${maximum}-byte read limit`);
+        if (info.size > maximum) throw overLimit(maximum);
         const bytes = await readFile(target, { signal });
-        if (bytes.byteLength > maximum) throw new Error(`Object exceeds the ${maximum}-byte read limit`);
+        if (bytes.byteLength > maximum) throw overLimit(maximum);
         return bytes;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
@@ -435,34 +401,23 @@ export function createFilesystemObjectStorage(root: string): ObjectStorage {
   };
 }
 
-export function scopeObjectStorage(
-  base: ObjectStorage,
-  prefix: string,
-): ObjectStorage {
+export function scopeObjectStorage(base: ObjectStorage, prefix: string): ObjectStorage {
   validateObjectKey(prefix);
   const full = (key: string) => `${prefix}/${validateObjectKey(key)}`;
   return {
     put: (key, bytes, type, options) => base.put(full(key), bytes, type, options),
     get: (key, options) => base.get(full(key), options),
     remove: (key, options) => base.remove(full(key), options),
-    signedGet: base.signedGet
-      ? (key, options) => base.signedGet!(full(key), options)
-      : undefined,
+    signedGet: base.signedGet ? (key, options) => base.signedGet!(full(key), options) : undefined,
   };
 }
 
 export function normalizeDownloadFilename(name: string): string {
-  const trimmed = name.trim();
-  const base = trimmed || "download";
-  return [...base.replace(/[\uD800-\uDFFF]/gu, "�")
-    .replace(/[\x00-\x1F\x7F\\/]/gu, "_")]
-    .slice(0, 200).join("");
+  return [...(name.trim() || "download").replace(/[\uD800-\uDFFF]/gu, "�")
+    .replace(/[\x00-\x1F\x7F\\/]/gu, "_")].slice(0, 200).join("");
 }
 
-function buildContentDisposition(
-  kind: "inline" | "attachment",
-  filename: string,
-): string {
+function buildContentDisposition(kind: "inline" | "attachment", filename: string): string {
   const normalized = normalizeDownloadFilename(filename);
   const ascii = normalized.replace(/["\\]/gu, "_").replace(/[^\x20-\x7E]/gu, "_");
   const encoded = encodeURIComponent(normalized).replace(/['()*]/gu, (character) =>
@@ -470,10 +425,8 @@ function buildContentDisposition(
   return `${kind}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
-export const downloadHeaders = (
-  contentType: string, filename: string,
-  disposition: "inline" | "attachment" = "attachment",
-) => ({
+export const downloadHeaders = (contentType: string, filename: string,
+  disposition: "inline" | "attachment" = "attachment") => ({
   "Cache-Control": "private, no-store",
   "Content-Disposition": buildContentDisposition(disposition, filename),
   "Content-Type": contentType,
@@ -481,15 +434,12 @@ export const downloadHeaders = (
 } as const);
 
 export function documentBlobKey(
-  scope: Readonly<{ userId: string; projectId: string | null }>,
-  sha256: string,
-): string {
+  scope: Readonly<{ userId: string; projectId: string | null }>, sha256: string): string {
   const [kind, id] = scope.projectId === null
     ? ["users", scope.userId] : ["projects", scope.projectId];
   if (validateObjectKey(id).includes("/")) throw new Error("Scope ID must be one path segment");
   if (!/^[a-f0-9]{64}$/u.test(sha256)) throw new Error("Invalid object SHA-256");
-  return `${kind}/${id}/blobs/sha256/${
-    sha256.slice(0, 2)}/${sha256.slice(2)}`;
+  return `${kind}/${id}/blobs/sha256/${sha256.slice(0, 2)}/${sha256.slice(2)}`;
 }
 
 export const documentBlobDigest = (key: string) => {
