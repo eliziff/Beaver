@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+
+const render = vi.hoisted(() => vi.fn(async () => ({
+  image: { filename: "page.jpg", mimeType: "image/jpeg" as const, data: "AAAB" },
+  page: 2, pageCount: 4, width: 850, height: 1100 })));
+vi.mock("../pdfPageImage", () => ({ renderPdfPage: render }));
+
 import { createCourtRecordsApplication } from "../courtRecordsApplication";
 import type { DocumentStore } from "../documentStore";
 import { assistantTools } from "./assistantTools";
@@ -260,5 +266,57 @@ describe("scoped work-product assistant operation", () => {
   it("does not expose mutation operations to reader subagents", () => {
     const { entries } = tools({ scope: "reader" });
     expect(entries.some(({ name }) => name === "update_work_product")).toBe(false);
+  });
+});
+
+describe("looking at a Court Record page", () => {
+  const scanned = { ...record, state: { ...record.state,
+    entries: [{ id: "entry-1", kindId: "affidavit" }],
+    bindings: { "entry-1": { kind: "document", documentId: "library-1",
+      version: { versionId: "version-1", sha256: "a".repeat(64) } } } } };
+  const file = { bytes: Buffer.from("%PDF-1.7"), filename: "scanned-affidavit.pdf",
+    fileType: "pdf", hasPdfRendition: false, version: { id: "version-1" } };
+  const viewer = (read = vi.fn(async () => file)) => {
+    const { entries } = tools({ documents: { read } }, scanned);
+    return { read, tool: entries.find(({ name }) => name === "view_page")! };
+  };
+  const shown = async (tool: ReturnType<typeof viewer>["tool"],
+    input: Record<string, unknown>) => {
+    const output = await execute(tool, input);
+    return { payload: JSON.parse((output.result.content[0] as { text: string }).text),
+      images: output.metadata?.images };
+  };
+
+  it("renders the page bound to an entry and returns it as an image", async () => {
+    const { read, tool } = viewer();
+    const { payload, images } = await shown(tool, { entry_id: "entry-1", page: 2 });
+
+    expect(read).toHaveBeenCalledWith({ userId: "user-1", userEmail: undefined },
+      "library-1", "version-1", true);
+    expect(render).toHaveBeenCalledWith(file.bytes, 2, "scanned-affidavit.pdf",
+      expect.anything());
+    expect(payload).toEqual({ ok: true, filename: "scanned-affidavit.pdf", page: 2,
+      page_count: 4, width: 850, height: 1100 });
+    expect(images).toEqual([{ filename: "page.jpg", mimeType: "image/jpeg", data: "AAAB" }]);
+  });
+
+  it("stops after six pages in one turn and refuses an unbound entry", async () => {
+    const { tool } = viewer();
+    for (let page = 1; page <= 6; page += 1) {
+      expect((await shown(tool, { entry_id: "entry-1", page })).payload.ok).toBe(true);
+    }
+    expect((await shown(tool, { entry_id: "entry-1", page: 7 })).payload).toMatchObject({
+      ok: false, error: expect.stringContaining("6 pages") });
+    expect((await shown(viewer().tool, { entry_id: "entry-9", page: 1 })).payload).toMatchObject({
+      ok: false, error: expect.stringContaining("no Library document") });
+  });
+
+  it("refuses a document outside the chat and a file with no PDF", async () => {
+    expect((await shown(viewer().tool, { document_id: "library-9", page: 1 })).payload)
+      .toMatchObject({ ok: false, error: expect.stringContaining("document scope") });
+    const docx = vi.fn(async () => ({ ...file, fileType: "docx" }));
+    expect((await shown(viewer(docx as never).tool,
+      { document_id: "library-1", page: 1 })).payload)
+      .toMatchObject({ ok: false, error: expect.stringContaining("Only PDF pages") });
   });
 });
