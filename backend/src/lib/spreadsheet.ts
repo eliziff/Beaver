@@ -41,13 +41,8 @@ function cellText(cell: XLSX.CellObject | undefined): string {
   return value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
 }
 
-function renderSheet(
-  { utils }: XlsxModule,
-  table: number,
-  sheetName: string,
-  ws: XLSX.WorkSheet,
-  includeCells: boolean,
-): SpreadsheetLlmStructure | null {
+function renderSheet({ utils }: XlsxModule, table: number, sheetName: string,
+  ws: XLSX.WorkSheet, includeCells: boolean): SpreadsheetLlmStructure | null {
   const mergeAnchors = new Map<string, XLSX.Range>();
   for (const merge of ws["!merges"] ?? []) {
     mergeAnchors.set(utils.encode_cell(merge.s), merge);
@@ -64,23 +59,13 @@ function renderSheet(
   ]);
   for (const address of addresses) {
     const { r: row, c: column } = utils.decode_cell(address);
-    let isCovered = false;
-    for (const [anchor, merge] of mergeAnchors) {
-      if (anchor !== address &&
-          row >= merge.s.r && row <= merge.e.r &&
-          column >= merge.s.c && column <= merge.e.c) {
-        isCovered = true;
-        break;
-      }
-    }
-    if (isCovered) continue;
+    const covered = [...mergeAnchors].some(([anchor, merge]) => anchor !== address &&
+      row >= merge.s.r && row <= merge.e.r && column >= merge.s.c && column <= merge.e.c);
+    if (covered) continue;
     const value = cellText(ws[address]);
     const merge = mergeAnchors.get(address);
     const text = merge
-      ? value
-        ? `${value} ⟨merged ${utils.encode_range(merge)}⟩`
-        : `⟨merged ${utils.encode_range(merge)}⟩`
-      : value;
+      ? `${value ? `${value} ` : ""}⟨merged ${utils.encode_range(merge)}⟩` : value;
     if (!text) continue;
     const cells = rowsByNumber.get(row) ??
       new Map<number, { address: string; text: string; value: string }>();
@@ -119,12 +104,8 @@ function renderSheet(
             column: column + 1,
             address: cell.address,
             displayValue: cell.value,
-            ...(merge && merge.e.c > merge.s.c
-              ? { columnSpan: merge.e.c - merge.s.c + 1 }
-              : {}),
-            ...(merge && merge.e.r > merge.s.r
-              ? { rowSpan: merge.e.r - merge.s.r + 1 }
-              : {}),
+            ...(merge && merge.e.c > merge.s.c ? { columnSpan: merge.e.c - merge.s.c + 1 } : {}),
+            ...(merge && merge.e.r > merge.s.r ? { rowSpan: merge.e.r - merge.s.r + 1 } : {}),
             start,
             end: cursor + line.length,
           });
@@ -138,11 +119,8 @@ function renderSheet(
   return { text: lines.join("\n"), tableCells };
 }
 
-async function spreadsheetProjection(
-  buffer: Buffer,
-  fileType: string,
-  includeCells: boolean,
-): Promise<SpreadsheetLlmStructure> {
+async function spreadsheetProjection(buffer: Buffer, fileType: string,
+  includeCells: boolean): Promise<SpreadsheetLlmStructure> {
   fileType = fileType.trim().toLowerCase();
   if (!buffer.length || buffer.length > MAX_INPUT_BYTES)
     throw new Error("Spreadsheet input exceeds the read limit");
@@ -178,13 +156,8 @@ async function spreadsheetProjection(
     const separator = text ? "\n\n" : "";
     const shift = text.length + separator.length;
     text += separator + sheet.text;
-    tableCells.push(
-      ...sheet.tableCells.map((cell) => ({
-        ...cell,
-        start: cell.start + shift,
-        end: cell.end + shift,
-      })),
-    );
+    tableCells.push(...sheet.tableCells.map((cell) =>
+      ({ ...cell, start: cell.start + shift, end: cell.end + shift })));
   }
   if (Buffer.byteLength(text) > MAX_OUTPUT_BYTES)
     throw new Error("Spreadsheet projection output exceeds the read limit");
