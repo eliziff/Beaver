@@ -129,10 +129,12 @@ export function createChatRouter(
     const query = historyQuery.safeParse(req.query);
     if (!query.success) throw new ChatApplicationError(400, "Invalid history filters");
     const tabularReviewId = text(req.query.tabular_review_id, 200) || undefined;
+    const workProductId = text(req.query.work_product_id, 200) || undefined;
     const limit = Number.parseInt(String(req.query.limit ?? ""), 10);
     const offset = Number.parseInt(String(req.query.offset ?? ""), 10);
     res.json(await chats.list(scope, {
       ...(tabularReviewId ? { tabularReviewId } : {}),
+      ...(workProductId ? { workProductId } : {}),
       limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 20,
       offset: Number.isFinite(offset) ? Math.max(offset, 0) : 0,
       search: text(req.query.search, 200) || undefined,
@@ -150,14 +152,17 @@ export function createChatRouter(
     const project = optionalId(req.body?.project_id, "project_id");
     const review = optionalId(req.body?.tabular_review_id, "tabular_review_id");
     const research = optionalId(req.body?.research_file_id, "research_file_id");
+    const workProduct = optionalId(req.body?.work_product_id, "work_product_id");
     if (project.value && review.value) throw new ChatApplicationError(400,
       "A chat cannot belong to both a project and a tabular review");
     const chat = await (research.value ? application.create(scope, {
       projectId: project.value, tabularReviewId: review.value, researchFileId: research.value,
       researchSelection: researchSelectionSchema.nullish().parse(req.body?.research_selection),
+      workProductId: workProduct.value,
     }) : chats.create(scope, {
       projectId: project.value,
       tabularReviewId: review.value,
+      workProductId: workProduct.value,
     }));
     res.json({ id: chat.id });
   }));
@@ -326,6 +331,10 @@ export function createChatRouter(
     if (chat && parsed.data.tabular_review_id !== undefined &&
         chat.tabular_review_id !== (parsed.data.tabular_review_id ?? null)) {
       throw new ChatApplicationError(400, "tabular_review_id does not match chat");
+    }
+    if (chat && chat.work_product_id && parsed.data.work_product &&
+        chat.work_product_id !== parsed.data.work_product.id) {
+      throw new ChatApplicationError(400, "work_product does not match chat");
     }
     if (!chat && parsed.data.expected_version !== 0) {
       throw new ChatApplicationError(409, "Chat changed",

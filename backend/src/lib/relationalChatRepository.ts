@@ -11,6 +11,7 @@ const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
   tabular_review_id: typeof row.tabular_review_id === "string" ? row.tabular_review_id : null,
   research_file_id: typeof row.research_file_id === "string" ? row.research_file_id : null,
   research_selection: decode(row.research_selection, null),
+  work_product_id: typeof row.work_product_id === "string" ? row.work_product_id : null,
   title: typeof row.title === "string" ? row.title : null,
   model: typeof row.model === "string" ? row.model : null,
   reasoning_effort: typeof row.reasoning_effort === "string" ? row.reasoning_effort : null,
@@ -133,13 +134,18 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
 export const chatRepository: CreateChatRepository = (scope) => ({
   async list(options) {
     const db = await relationalDatabase();
-    const assistantContext = sql`c.project_id IS NULL AND c.tabular_review_id IS NULL AND c.user_id=${scope.userId}`;
+    const assistantContext = sql`c.project_id IS NULL AND c.tabular_review_id IS NULL
+      AND c.work_product_id IS NULL AND c.user_id=${scope.userId}`;
     const reviewContext = sql`c.project_id IS NULL AND EXISTS(SELECT 1 FROM tabular_reviews r
       WHERE r.id=c.tabular_review_id AND r.project_id IS NULL)`;
+    const draftContext = sql`c.project_id IS NULL AND c.work_product_id IS NOT NULL
+      AND c.user_id=${scope.userId}`;
     const context = options.projectId ? sql`c.project_id=${options.projectId}`
       : options.tabularReviewId ? sql`c.tabular_review_id=${options.tabularReviewId}`
-        : options.searchContext === "reviews" ? reviewContext
-          : options.searchContext === "all" ? sql`(${assistantContext} OR ${reviewContext})` : assistantContext;
+        : options.workProductId ? sql`c.work_product_id=${options.workProductId}`
+          : options.searchContext === "reviews" ? reviewContext
+            : options.searchContext === "all"
+              ? sql`(${assistantContext} OR ${reviewContext} OR ${draftContext})` : assistantContext;
     const scoped = sql`SELECT c.* FROM chats c WHERE ${context} AND ${chatAccess(scope)}
       AND c.deleted_at IS NULL AND (EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=c.id)
         OR EXISTS(SELECT 1 FROM chat_drafts d WHERE d.chat_id=c.id AND d.user_id=${scope.userId}))
@@ -188,10 +194,10 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   },
   async create(input) {
     const id = randomUUID(), created = now();
-    await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,research_selection,title,
-      created_at,updated_at,deleted_at,transcript_version) VALUES(${id},${scope.userId},
+    await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,research_selection,
+      work_product_id,title,created_at,updated_at,deleted_at,transcript_version) VALUES(${id},${scope.userId},
       ${input.projectId},${input.tabularReviewId},${input.researchFileId ?? null},${encode(input.researchSelection ?? null)},
-      ${null},${created},${created},${null},0)`);
+      ${input.workProductId ?? null},${null},${created},${created},${null},0)`);
     return (await findChat(scope, id, false, true))!;
   },
   async read(id, messages = false, deleted = false) {

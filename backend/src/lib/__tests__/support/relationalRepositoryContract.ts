@@ -376,6 +376,27 @@ export function relationalRepositoryContract(
     } finally { await repository.removeAll(); }
   });
 
+  it("binds a chat to a work product and keeps it out of the assistant history list", async () => {
+    const { chatRepository } = await import("../../relationalChatRepository");
+    const owner = scope("work-product-chat"), draftId = randomUUID(), otherDraftId = randomUUID();
+    await prepareScopes([owner]);
+    const repository = chatRepository(owner);
+    try {
+      const draftChat = await repository.create({ projectId: null, tabularReviewId: null, workProductId: draftId });
+      const otherChat = await repository.create({ projectId: null, tabularReviewId: null, workProductId: otherDraftId });
+      const assistantChat = await repository.create({ projectId: null, tabularReviewId: null });
+      expect(draftChat.work_product_id).toBe(draftId);
+      for (const chat of [draftChat, otherChat, assistantChat]) await repository.commit(chat.id,
+        { kind: "turn", turn: { expectedVersion: 0, userMessage: { id: randomUUID(), content: "Draft phrase" } } });
+      expect((await repository.list({ workProductId: draftId })).map(({ id }) => id)).toEqual([draftChat.id]);
+      expect((await repository.list({})).map(({ id }) => id)).toEqual([assistantChat.id]);
+      expect((await repository.list({ searchContext: "all" })).map(({ id }) => id).sort())
+        .toEqual([assistantChat.id, draftChat.id, otherChat.id].sort());
+      // A deleted draft leaves its chat listable by id without breaking the surface listing.
+      expect(await repository.list({ workProductId: randomUUID() })).toEqual([]);
+    } finally { await repository.removeAll(); await removeUserData(owner.userId); }
+  });
+
   it("searches standalone review conversations with shared access without leaking project or private chats", async () => {
     const [{ chatRepository }, { tabularRepository }, { projectRepository }] = await Promise.all([
       import("../../relationalChatRepository"), import("../../relationalTabularRepository"), import("../../relationalProjectRepository"),

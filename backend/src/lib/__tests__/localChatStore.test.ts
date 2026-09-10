@@ -181,4 +181,27 @@ describe("local chat store", () => {
     await expect(store.deleted(scope())).resolves.toHaveLength(0);
     await expect(store.get(scope(), expired.id)).resolves.toBeNull();
   });
+
+  it("binds a work product chat in a database created before the column existed", async () => {
+    const draftId = randomUUID();
+    await (await loadStore()).create(scope(), { projectId: null, tabularReviewId: null });
+    await closeDatabase();
+    const { DatabaseSync } = await import("node:sqlite");
+    const legacy = new DatabaseSync(path.join(dataHome, "application.sqlite"));
+    legacy.exec("DROP INDEX IF EXISTS chats_work_product;"
+      + "ALTER TABLE chats DROP COLUMN work_product_id");
+    legacy.close();
+    vi.resetModules();
+
+    const store = await reopenStore();
+    const draftChat = await store.create(scope(), { projectId: null, tabularReviewId: null,
+      workProductId: draftId });
+    const assistantChat = await store.create(scope(), { projectId: null, tabularReviewId: null });
+    expect(draftChat.work_product_id).toBe(draftId);
+    for (const chat of [draftChat, assistantChat]) await store.commitTurn(scope(), chat.id,
+      { expectedVersion: 0, userMessage: { id: randomUUID(), content: "Question" } });
+    expect((await store.list(scope(), { workProductId: draftId })).map(({ id }) => id))
+      .toEqual([draftChat.id]);
+    expect((await store.list(scope(), {})).map(({ id }) => id)).toEqual([assistantChat.id]);
+  });
 });

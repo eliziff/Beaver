@@ -7,7 +7,8 @@ export type ChatScope = { userId: string; userEmail?: string };
 export type ChatRecord = Record<string, unknown> & {
   id: string; user_id: string; project_id: string | null;
   tabular_review_id: string | null; research_file_id?: string | null;
-  research_selection?: ResearchSelection | null; title: string | null;
+  research_selection?: ResearchSelection | null; work_product_id?: string | null;
+  title: string | null;
   model: string | null; reasoning_effort: string | null;
   transcript_version: number;
   search_hit?: { message_id: string | null; snippet: string }; };
@@ -28,12 +29,14 @@ export class ChatStoreError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
-export type ChatListOptions = { projectId?: string; tabularReviewId?: string; limit?: number; offset?: number;
+export type ChatListOptions = { projectId?: string; tabularReviewId?: string; workProductId?: string;
+  limit?: number; offset?: number;
   search?: string; searchScope?: "all" | "titles" | "transcripts";
   searchContext?: "assistant" | "reviews" | "all";
   createdFrom?: string; createdTo?: string; sort?: "newest" | "oldest" };
 export type ChatCreateInput = { projectId: string | null; tabularReviewId: string | null;
-  researchFileId?: string | null; researchSelection?: ResearchSelection | null };
+  researchFileId?: string | null; researchSelection?: ResearchSelection | null;
+  workProductId?: string | null };
 export type ChatUpdateInput = {
   draft?: Record<string, unknown> | null;
   title?: string;
