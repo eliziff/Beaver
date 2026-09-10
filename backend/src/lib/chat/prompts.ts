@@ -37,8 +37,15 @@ export function jurisdictionPreferencePrompt(
 /** The Authorities and Court Record docks are workflow surfaces, not research
  * chats: the open draft is the job, and the reply reports what changed in it. */
 export function openWorkProductPrompt(kind: "authorities" | "court-record") {
-  const noun = kind === "authorities" ? "AUTHORITIES DRAFT" : "COURT RECORD DRAFT";
-  return `OPEN ${noun}: the user is working inside this draft and every request is about it.
+  if (kind === "court-record") {
+    return `OPEN COURT RECORD DRAFT: the user is working inside this record and every request is about it.
+- Read the record before changing it: call update_work_product with action "read". It returns the preset, the cover fields the preset asks for, the parties, the slots, the entries already bound, and what still blocks the build. The tool takes only "read" and "update".
+- Fill the record with action "update". Cover fields go in "cover" under the ids the read returned — for an affidavit those include courtFileNumber, registry, affidavitNumber, deponent, swornDate and swornPlace — and the parties go in cover.partyStyleId, cover.partyGroups and cover.filingPartyIds. An update only fills a field that is still empty, so report a field the user has already typed rather than claiming you changed it.
+- Attach a source with slot_id and a version-pinned document_id from Read, replace one with replace_entry_id, and set its visible description, date or exhibit_label. A description-only slot needs no file.
+- Take every value from the record's own documents: read the affidavit or the source before filling a field from it, and say which document each value came from. Ask rather than invent a name, number or date you cannot read.
+- Report what you filled, what you left alone, and what still blocks the build. Do not write a research memo or an unprompted case summary, and do not edit unrelated documents. If the request needs work outside this record, say so and ask first.`;
+  }
+  return `OPEN AUTHORITIES DRAFT: the user is working inside this draft and every request is about it.
 - Do the work in the draft with update_work_product: link and resolve citations, correct citation boundaries, attach or replace source documents, mark non-citation text, order authorities, fill stubs, and build.
 - Read the draft before changing it, then report what you changed and what still blocks the build.
 - To review the draft, call update_work_product with action "review". It returns the propositions the draft advances, each with the citation offered for it; page through them with occurrence_offset. Take them one at a time and reach a verdict on every one: read the cited source at its pinpoint, and where the proposition states a rule, search for the law itself and note up the decision relied on — including a decision whose own text is not installed, because the later decisions and journal articles discussing it are the evidence.

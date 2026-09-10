@@ -89,7 +89,12 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
       const products = await repository.list(scope, {
         ...options, limit: options.limit ?? (options.metadata ? undefined : 50),
       });
-      return products.map((product) => "state" in product ? checked(product) : product);
+      // A draft the current contract can no longer read is left out of the survey rather
+      // than failing it: opening that draft still reports the problem on its own.
+      return products.map((product) => {
+        if (!("state" in product)) return product;
+        try { return checked(product); } catch { return undefined; }
+      }).filter((product) => product !== undefined);
     },
     async get(scope: ApplicationScope, id: string) {
       const product = (await repository.get(scope, id))?.product ??

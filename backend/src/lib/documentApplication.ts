@@ -595,8 +595,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         ...(input.notes !== undefined
           ? { notes: normalizeDocumentNotes(input.notes) } : {}),
       })) return null;
-      const aggregate = await repository.head(scope, documentId, true);
-      return aggregate ? responseDocument(aggregate) : null;
+      return application.metadata(scope, documentId, true);
     },
 
     async files(scope, documentIds, maxBytes) {
@@ -633,9 +632,7 @@ export function createDocumentApplication(repository: DocumentRepository,
       return requested.flatMap((name) => loaded.get(name) ?? []);
     },
 
-    recordPdfPreparation(scope, documentId, input) {
-      return repository.recordPdfPreparation(scope, documentId, input);
-    },
+    recordPdfPreparation: (...args) => repository.recordPdfPreparation(...args),
 
     async projectionSource(scope, documentId, versionId) {
       const stored = await repository.version(scope, documentId, versionId);
