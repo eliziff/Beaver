@@ -20,8 +20,7 @@ const NEWLINE = "\n";
 /** File-explorer row: one fixed-height line, chevron, glyph, name, actions, number.
  *  Nothing wraps, so a row can never grow into the one above it. */
 export const ROW = "group flex h-7 min-w-0 items-center gap-1 rounded px-1";
-export const ROW_ACTIONS = "flex w-14 shrink-0 items-center justify-end gap-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100";
-export const ROW_COUNT = "w-6 shrink-0 text-end text-xs tabular-nums text-gray-500";
+export const ROW_ACTIONS = "flex w-7 shrink-0 items-center justify-end opacity-0 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100";
 
 /** Virtual folders navigate one source list. A source never needs an exclusive location. */
 export function ResearchTree({ scope = "source", reader, sources, navigationSources = sources, filter = "",
@@ -76,7 +75,6 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
           { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
         ]} />}
       </span>
-      <span className={ROW_COUNT}>{count || ""}</span>
     </div>;
   }
 
@@ -89,18 +87,19 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
       <span className="size-6 shrink-0" />
       <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <button type="button" onClick={() => setSelectedHighlight(id)} className="min-w-0 flex-1 truncate text-start text-xs text-gray-600">
+      {/* The passage row is the open action: it selects the passage and reads it (Eli, 2026-09-10). */}
+      <button type="button" onClick={() => { setSelectedHighlight(id);
+          if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); }}
+        className="min-w-0 flex-1 truncate text-start text-xs text-gray-600">
         <span className="font-medium text-gray-700">{locator}</span> {quote}
       </button>
       <span className={ROW_ACTIONS}>
-        {openControl(source, sourceName(source), item.receipt.locator.label, item.receipt.evidence_id, locator)}
         <MoreActionsMenu label={`${locator} options`} items={[
           { label: "Highlight type", onSelect: () => setLabelTarget({ file: file!, kind: "evidence", itemId: id,
             sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator, anchor: document.activeElement?.getBoundingClientRect() }) },
           { label: "Delete", onSelect: () => onRemove({ kind: "evidence", id, sourceId: source.id, name: locator }) },
         ]} />
       </span>
-      <span className={ROW_COUNT} />
     </div>;
   }
 
