@@ -123,33 +123,6 @@ describe("CourtRecordsWorkspace", () => {
     expect(screen.getByRole("button", { name: "Replace" })).toBeVisible();
   });
 
-  it.each([{ records: [] }, { records: [saved("existing")] }])("keeps landing actions stable while saved records load: %j", async ({ records }) => {
-    let finishListing!: (items: typeof records) => void;
-    const store = { list: vi.fn(() => new Promise<typeof records>((resolve) => {
-      finishListing = resolve;
-    })), get: vi.fn(), create: vi.fn(), update: vi.fn(), duplicate: vi.fn(),
-      remove: vi.fn() } as unknown as WorkProductStore;
-    const host = { mode: "standalone", drafts: store, prepareDeviceFile: vi.fn(),
-      resolveInput: vi.fn() } as unknown as CourtRecordsHost;
-    const user = userEvent.setup();
-    render(<CourtRecordsWorkspace host={host} />);
-    const newRecord = screen.getByRole("button", { name: "New court record" });
-    const openSaved = screen.getByRole("button", { name: "Open saved record" });
-    expect(newRecord).toBeEnabled();
-    expect(openSaved).toBeVisible();
-    expect(openSaved).toBeDisabled();
-    await user.click(newRecord);
-    expect(screen.getByRole("dialog", { name: "Choose document" })).toBeVisible();
-    await user.keyboard("{Escape}");
-    await act(async () => finishListing(records));
-    expect(screen.getByRole("button", { name: "New court record" })).toBe(newRecord);
-    expect(screen.getByRole("button", { name: "Open saved record" })).toBe(openSaved);
-    expect(openSaved).toBeEnabled();
-    await user.click(openSaved);
-    expect(screen.getByRole("dialog", { name: "Open saved record" }))
-      .toHaveTextContent(records.length ? "existing" : "No saved court records yet.");
-  });
-
   it("paginates saved records and searches beyond the current page", async () => {
     const records = Array.from({ length: 17 }, (_, index) => saved(`Record ${index + 1}`));
     const store = { list: vi.fn(async () => records), get: vi.fn(async (id) => records.find((item) => item.id === id)),

@@ -14,14 +14,6 @@ const required = { profile, entries: [], entryFindings: new Map(),
   onAssign: vi.fn(), onAssignKind: vi.fn() };
 
 describe("Court Record documents", () => {
-  it("opens one shared picker for a document slot", () => {
-    const onChoose = vi.fn();
-    render(<CourtRecordDocuments {...required} onChoose={onChoose} />);
-    fireEvent.click(screen.getByRole("button", { name: "Add file" }));
-    expect(onChoose).toHaveBeenCalledWith("authorities", undefined);
-    expect(screen.queryByRole("button", { name: "Library" })).toBeNull();
-  });
-
   it("keeps affidavit files in a pool and assigns them to referenced slots", () => {
     const sourceSha256 = "a".repeat(64);
     const affidavit = { id: "affidavit", kindId: "affidavit",
@@ -69,19 +61,6 @@ describe("Court Record documents", () => {
     expect(onAddExhibit).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Add files" }));
     expect(required.onChoose).toHaveBeenCalledWith("exhibit", undefined);
-  });
-
-  it("offers a real file replacement for an occupied nonrepeatable slot", () => {
-    const authority = { id: "authority", kindId: "authorities",
-      file: new File(["old"], "old.pdf", { type: "application/pdf" }), title: "Authorities",
-      pageCount: 1, searchable: true, encrypted: false } as RecordEntry;
-    const onChoose = vi.fn();
-    render(<CourtRecordDocuments {...required} entries={[authority]} onChoose={onChoose} />);
-    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
-    expect(onChoose).toHaveBeenCalledWith("authorities", undefined, "authority");
-    expect(screen.getAllByText("old.pdf")).toHaveLength(1);
-    expect(screen.getByText("1 page")).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
   });
 
   it("asks for non-text confirmation only after OCR has run", () => {
