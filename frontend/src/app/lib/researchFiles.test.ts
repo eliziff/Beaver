@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isResearchDocument, newResearchState, researchLabelPath,
-  researchMarkdown, researchSourceKey } from "./researchFiles";
+  researchSourceKey } from "./researchFiles";
 
 const document = (filename: string, file_type = "md") => ({
   id: "file", filename, file_type, project_id: null, pdf_storage_path: null,
@@ -11,7 +11,6 @@ describe("research files", () => {
   it("are ordinary Markdown documents with a compact embedded state", () => {
     expect(isResearchDocument(document("fairness.research.md"))).toBe(true);
     expect(isResearchDocument(document("fairness.md"))).toBe(false);
-    expect(researchMarkdown("Fairness")).toContain("beaver-research:v2");
     expect(newResearchState()).toEqual({ schemaVersion: "beaver.research.v2",
       labels: {}, sources: {}, queries: null, note: "" });
   });
