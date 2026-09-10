@@ -3,7 +3,7 @@ import { StepProgress, StepSection } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
 import { authorityName, authorityLabel,
   requiresBilingualSources,
-  missingSource, sourceAction, relinkable } from "./authorityPresentation";
+  missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
   History, Link2, Loader2, Plus, Scale, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
@@ -295,11 +295,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     if (!current || current.id !== draftId)
       return () => { active = false; };
     const request = ++inspectionRequest.current;
-    void host.inspectDraft(current).then((inspection) => active &&
-      request === inspectionRequest.current && setSourceIssueState({ draftId: current.id,
+    void host.inspectDraft(current).then((inspection) => {
+      if (!active || request !== inspectionRequest.current) return;
+      setSourceIssueState({ draftId: current.id,
         sourceKey: sourceIssueKey(current), revision: current.revision,
-        issues: inspection.sourceIssues, outputFreshness: inspection.outputFreshness }))
-      .catch((caught) => active && setError(errorText(caught)));
+        issues: inspection.sourceIssues, outputFreshness: inspection.outputFreshness });
+      // A source with a newer file is picked up on its own, never behind a button (Eli, 2026-09-09).
+      const changed = Object.entries(inspection.sourceIssues).find(([, issue]) => issue.status === "changed");
+      if (changed && host.relinkSource) relinkSource(changed[0]);
+    }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, refreshToken?.sequence, host]);
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
@@ -749,7 +753,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
                         relinkable(importedIssue) && <Button type="button"
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
-                        {sourceAction(importedIssue, "source")}</Button>}
+                        Allow file access</Button>}
                       <StepProgress label={stepOperation} error={stepError} />
                       <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
                         Next<ChevronRight /></Button>
@@ -1418,7 +1422,7 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
             {part && onOpen && <Button type="button" variant="ghost" className="h-8 px-2 text-xs"
               disabled={busy} onClick={() => onOpen(part.bindingRole)}><Eye /> Open</Button>}
             {part && relinkable(issue) ? <Button type="button" variant="outline" className="h-8 px-2 text-xs text-red-800"
-              disabled={busy} onClick={() => onRelink(part.bindingRole)}>{sourceAction(issue, "file")}</Button>
+              disabled={busy} onClick={() => onRelink(part.bindingRole)}>Allow file access</Button>
               : onPick ? <Button type="button" variant="outline" className="h-8 px-2 text-xs"
               disabled={busy} onClick={() => add(slot, false)}>{part ? "Replace" : "Add file"}</Button>
               : onFiles && <FileInputButton multiple={false} disabled={busy}
@@ -1462,7 +1466,7 @@ function BookContents({ draft, busy, onAction, sourceIssues, onRelink, onFiles, 
               disabled={busy} onClick={() => onOpen(part.bindingRole)}><Eye /> Open</Button>}
             {relinkable(issue) && <Button type="button" variant="ghost"
               className={cn(rowControl, "text-red-800")} disabled={busy}
-              onClick={() => onRelink(part.bindingRole)}>{sourceAction(issue, "file")}</Button>}
+              onClick={() => onRelink(part.bindingRole)}>Allow file access</Button>}
             {onPick ? <Button type="button" variant="outline" className={rowControl}
               disabled={busy} onClick={() => add("supplemental", false, part.id)}>Replace</Button>
               : onFiles && <FileInputButton multiple={false} disabled={busy} label="Replace"
