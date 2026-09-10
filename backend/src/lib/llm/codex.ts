@@ -2,23 +2,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { abortError, throwIfAborted } from "./abort";
-import {
-  acquireCodexAppServer,
-  CODEX_APP_SERVER_CLOSED,
-  type CodexAppServer,
-  type CodexAppServerNotification,
-} from "./codexAppServer";
+import { acquireCodexAppServer, CODEX_APP_SERVER_CLOSED, type CodexAppServer,
+  type CodexAppServerNotification } from "./codexAppServer";
 import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
 import { codexModelSlug } from "./models";
 import { flattenedPrompt } from "./prompt";
 import { jsonRecord as record } from "../value";
-import type {
-  NormalizedLlmUsage,
-  NormalizedToolCall,
-  ProviderSubagentUpdate,
-  StreamChatParams,
-  StreamChatResult,
-} from "./types";
+import type { NormalizedLlmUsage, NormalizedToolCall, ProviderSubagentUpdate,
+  StreamChatParams, StreamChatResult } from "./types";
 
 type JsonObject = Record<string, unknown>;
 type ThreadResponse = { thread?: { id?: unknown } };
@@ -36,8 +27,7 @@ const CODEX_IDLE_TIMEOUT_MS = 600_000;
 // only a remote-transport deadlock backstop; never use it as a turn budget.
 const CODEX_TOOL_TIMEOUT_SECONDS = 86_400;
 const INTERRUPT_GRACE_MS = 5_000;
-export const CODEX_THREAD_ID =
-  /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
+export const CODEX_THREAD_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 
 // Beaver drives the turn itself: every Codex surface that would act outside the
 // conversation stays off.
@@ -77,9 +67,7 @@ const unsubscribeThread = (server: CodexAppServer, threadId: string) =>
   void server.request("thread/unsubscribe", { threadId }).catch(() => undefined);
 
 function number(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
-    : null;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 function usageFromTokenUpdate(value: unknown): NormalizedLlmUsage | undefined {
@@ -95,10 +83,9 @@ function usageFromTokenUpdate(value: unknown): NormalizedLlmUsage | undefined {
   return Object.values(usage).some((item) => item !== null) ? usage : undefined;
 }
 
-function codexStreamCallbacks(params: {
-  callbacks?: StreamChatParams["callbacks"];
-  enableThinking?: boolean;
-}) {
+function codexStreamCallbacks(
+  params: { callbacks?: StreamChatParams["callbacks"]; enableThinking?: boolean },
+) {
   let reasoningOpen = false;
   const endReasoning = () => {
     if (!reasoningOpen) return;
@@ -127,36 +114,26 @@ function codexStreamCallbacks(params: {
   };
 }
 
-async function withCodexImages<T>(
-  messages: StreamChatParams["messages"],
-  run: (imagePaths: string[]) => Promise<T>,
-) {
+async function withCodexImages<T>(messages: StreamChatParams["messages"],
+  run: (imagePaths: string[]) => Promise<T>) {
   const images = [...new Set(messages.flatMap((message) => message.images ?? []))];
   if (!images.length) return run([]);
   const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-codex-images-"));
   try {
-    const paths = await Promise.all(
-      images.map(async (image, index) => {
-        const extension =
-          image.mimeType === "image/jpeg"
-            ? "jpg"
-            : image.mimeType.slice("image/".length);
-        const filename = path.join(directory, `${index}.${extension}`);
-        await writeFile(filename, Buffer.from(image.data, "base64"), { mode: 0o600 });
-        return filename;
-      }),
-    );
-    return await run(paths);
+    return await run(await Promise.all(images.map(async (image, index) => {
+      const extension = image.mimeType === "image/jpeg"
+        ? "jpg" : image.mimeType.slice("image/".length);
+      const filename = path.join(directory, `${index}.${extension}`);
+      await writeFile(filename, Buffer.from(image.data, "base64"), { mode: 0o600 });
+      return filename;
+    })));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 }
 
-function threadParams(
-  params: StreamChatParams,
-  bridge: McpToolBridge | null,
-  inheritedMcpServers: string[],
-) {
+function threadParams(params: StreamChatParams, bridge: McpToolBridge | null,
+  inheritedMcpServers: string[]) {
   const model = codexModelSlug(params.model);
   const config = {
     include_permissions_instructions: false,
@@ -172,20 +149,17 @@ function threadParams(
     "features.code_mode.direct_only_tool_namespaces": ["mcp__mike_runtime"],
     show_raw_agent_reasoning: false,
     ...(params.compactThreshold
-      ? { model_auto_compact_token_limit: Math.trunc(params.compactThreshold) }
-      : {}),
+      ? { model_auto_compact_token_limit: Math.trunc(params.compactThreshold) } : {}),
     mcp_servers: {
       ...Object.fromEntries(inheritedMcpServers.map((name) => [name, { enabled: false }])),
-      ...(bridge && {
-        mike_runtime: {
-          url: bridge.url,
-          bearer_token_env_var: "MIKE_CODEX_BRIDGE_TOKEN",
-          required: true,
-          default_tools_approval_mode: "auto",
-          startup_timeout_sec: 10,
-          tool_timeout_sec: CODEX_TOOL_TIMEOUT_SECONDS,
-        },
-      }),
+      ...(bridge && { mike_runtime: {
+        url: bridge.url,
+        bearer_token_env_var: "MIKE_CODEX_BRIDGE_TOKEN",
+        required: true,
+        default_tools_approval_mode: "auto",
+        startup_timeout_sec: 10,
+        tool_timeout_sec: CODEX_TOOL_TIMEOUT_SECONDS,
+      } }),
     },
   };
   return {
@@ -211,10 +185,8 @@ const NATIVE_ACTIVITY_LABEL: Partial<Record<string, string>> = {
   resumeAgent: "Resuming subagent", wait: "Waiting for subagent", closeAgent: "Closing subagent",
 };
 
-async function runCodexTurn(
-  params: StreamChatParams,
-  imagePaths: string[],
-): Promise<StreamChatResult> {
+async function runCodexTurn(params: StreamChatParams,
+  imagePaths: string[]): Promise<StreamChatResult> {
   throwIfAborted(params.abortSignal);
   const continuationId = params.providerSession?.continuationId;
   if (continuationId && !CODEX_THREAD_ID.test(continuationId)) {
@@ -233,10 +205,8 @@ async function runCodexTurn(
       callbacks,
       onActivity: () => noteToolActivity(),
       abortSignal: params.abortSignal,
-      maxToolCalls:
-        params.maxIterations === undefined
-          ? undefined
-          : Math.max(1, params.maxIterations),
+      maxToolCalls: params.maxIterations === undefined
+        ? undefined : Math.max(1, params.maxIterations),
       token: server.bridgeToken,
     });
   }
@@ -271,10 +241,7 @@ async function runCodexTurn(
   noteToolActivity = resetIdle;
   const onAbort = () => {
     void interrupt().catch(() => undefined);
-    interruptTimer ??= setTimeout(
-      () => complete(abortError()),
-      INTERRUPT_GRACE_MS,
-    );
+    interruptTimer ??= setTimeout(() => complete(abortError()), INTERRUPT_GRACE_MS);
   };
 
   const publishNativeSubagents = (item: JsonObject, lifecycle: "started" | "completed") => {
@@ -299,12 +266,8 @@ async function runCodexTurn(
     for (const id of ids) {
       const previous = nativeAgents.get(id);
       const state = record(states[id]);
-      const activityStatus =
-        lifecycle === "started" || item.status === "inProgress"
-          ? "running"
-          : item.status === "failed"
-            ? "error"
-            : "completed";
+      const activityStatus = lifecycle === "started" || item.status === "inProgress"
+        ? "running" : item.status === "failed" ? "error" : "completed";
       const activity = {
         id: String(item.id ?? `${item.tool ?? "subagent"}:${id}`),
         label: NATIVE_ACTIVITY_LABEL[String(item.tool)] ?? "Updating subagent",
@@ -314,22 +277,16 @@ async function runCodexTurn(
       const activityIndex = activities.findIndex((value) => value.id === activity.id);
       if (activityIndex < 0) activities.push(activity);
       else activities[activityIndex] = activity;
-      const status =
-        NATIVE_AGENT_STATUS[String(state?.status)] ??
+      const status = NATIVE_AGENT_STATUS[String(state?.status)] ??
         (item.status === "failed" ? "error" : previous?.status ?? "running");
       const message = typeof state?.message === "string" ? state.message : "";
       const update: ProviderSubagentUpdate = {
         id,
-        task:
-          (typeof item.prompt === "string" && item.prompt) ||
-          previous?.task ||
-          "Subagent task",
-        model:
-          (typeof item.model === "string" && item.model) || previous?.model || "",
-        effort:
-          (typeof item.reasoningEffort === "string" && item.reasoningEffort) ||
-          previous?.effort ||
-          "",
+        task: (typeof item.prompt === "string" && item.prompt) ||
+          previous?.task || "Subagent task",
+        model: (typeof item.model === "string" && item.model) || previous?.model || "",
+        effort: (typeof item.reasoningEffort === "string" && item.reasoningEffort) ||
+          previous?.effort || "",
         status,
         activities,
         ...(status === "completed" && message ? { output: message } : {}),
@@ -369,10 +326,9 @@ async function runCodexTurn(
         }
         return;
       }
-      case "item/reasoning/summaryPartAdded": {
+      case "item/reasoning/summaryPartAdded":
         callbacks.onReasoningBlockEnd();
         return;
-      }
       case "item/started": {
         const item = record(event.params.item);
         if (item) publishNativeSubagents(item, "started");
@@ -409,10 +365,7 @@ async function runCodexTurn(
         const window = number(tokenUsage?.modelContextWindow);
         const used = number(last?.totalTokens);
         if (used !== null && window !== null) {
-          params.callbacks?.onContextUsage?.({
-            usedTokens: used,
-            contextWindowTokens: window,
-          });
+          params.callbacks?.onContextUsage?.({ usedTokens: used, contextWindowTokens: window });
         }
         return;
       }
@@ -427,27 +380,17 @@ async function runCodexTurn(
         if (typeof turn?.id === "string" && turn.id !== turnId) return;
         if (compactionRunning) {
           compactionRunning = false;
-          params.callbacks?.onCompaction?.(
-            turn?.status === "completed" ? "completed" : "failed",
-          );
+          params.callbacks?.onCompaction?.(turn?.status === "completed" ? "completed" : "failed");
         }
         if (turn?.status === "completed") complete();
         else if (turn?.status === "interrupted") {
-          complete(params.abortSignal?.aborted || interruptRequested
-            ? abortError()
-            : new Error(
-              failure || "Codex app-server interrupted the turn without a Beaver cancellation request.",
-            ));
-        }
-        else {
+          complete(params.abortSignal?.aborted || interruptRequested ? abortError()
+            : new Error(failure ||
+              "Codex app-server interrupted the turn without a Beaver cancellation request."));
+        } else {
           const error = record(turn?.error);
-          complete(
-            new Error(
-              (typeof error?.message === "string" && error.message) ||
-                failure ||
-                "Codex app-server turn failed.",
-            ),
-          );
+          complete(new Error((typeof error?.message === "string" && error.message) ||
+            failure || "Codex app-server turn failed."));
         }
         return;
       }
@@ -459,14 +402,10 @@ async function runCodexTurn(
   try {
     const common = threadParams(params, bridge, server.inheritedMcpServers);
     const opened = continuationId
-      ? await server.request<ThreadResponse>("thread/resume", {
-          threadId: continuationId,
-          ...common,
-        })
-      : await server.request<ThreadResponse>("thread/start", {
-          ...common,
-          ephemeral: params.providerSession?.persist !== true,
-        });
+      ? await server.request<ThreadResponse>("thread/resume",
+        { threadId: continuationId, ...common })
+      : await server.request<ThreadResponse>("thread/start",
+        { ...common, ephemeral: params.providerSession?.persist !== true });
     threadId = typeof opened.thread?.id === "string" ? opened.thread.id : "";
     if (!CODEX_THREAD_ID.test(threadId)) {
       throw new Error("Codex app-server returned an invalid thread ID.");
@@ -482,23 +421,17 @@ async function runCodexTurn(
       ...(params.outputSchema ? { outputSchema: params.outputSchema } : {}),
       ...(model ? { model } : {}),
       ...(params.serviceTier ? { serviceTier: params.serviceTier } : {}),
-      ...(params.reasoningEffort?.trim()
-        ? { effort: params.reasoningEffort.trim() }
-        : params.enableThinking
-          ? { effort: "max" }
-          : {}),
+      ...(params.reasoningEffort?.trim() ? { effort: params.reasoningEffort.trim() }
+        : params.enableThinking ? { effort: "max" } : {}),
       summary: params.enableThinking ? (params.reasoningSummary ?? "auto") : "none",
     });
     turnId = typeof started.turn?.id === "string" ? started.turn.id : "";
     if (!turnId) throw new Error("Codex app-server returned an invalid turn ID.");
     params.providerSession?.onControl?.({
       steer: async (message) => {
-        await Promise.race([
-          turnReady,
-          completion.then(() => {
-            throw new Error("Codex turn ended before it could be steered.");
-          }),
-        ]);
+        await Promise.race([turnReady, completion.then(() => {
+          throw new Error("Codex turn ended before it could be steered.");
+        })]);
         const steered = await server.request<SteerResponse>("turn/steer", {
           threadId,
           expectedTurnId: turnId,
@@ -519,11 +452,8 @@ async function runCodexTurn(
     if (!fullText.trim() && !bridge?.hasTerminalResult()) {
       throw new Error(failure || "Codex app-server returned no response.");
     }
-    return {
-      fullText,
-      ...(usage ? { usage } : {}),
-      ...(params.providerSession?.persist ? { continuationId: threadId } : {}),
-    };
+    return { fullText, ...(usage ? { usage } : {}),
+      ...(params.providerSession?.persist ? { continuationId: threadId } : {}) };
   } finally {
     idle.stop();
     clearTimeout(interruptTimer);
@@ -540,11 +470,9 @@ export function streamCodex(params: StreamChatParams) {
   return withCodexImages(params.messages, (images) => runCodexTurn(params, images));
 }
 
-export async function compactCodexSession(params: {
-  continuationId: string;
-  apiKey?: string;
-  abortSignal?: AbortSignal;
-}) {
+export async function compactCodexSession(
+  params: { continuationId: string; apiKey?: string; abortSignal?: AbortSignal },
+) {
   if (!CODEX_THREAD_ID.test(params.continuationId)) {
     throw new Error("Invalid Codex continuation ID.");
   }
@@ -565,28 +493,21 @@ export async function compactCodexSession(params: {
     resetIdle();
     if (typeof event.params.turnId === "string") turnId = event.params.turnId;
     const item = record(event.params.item);
-    if (event.method === "item/completed" && item?.type === "contextCompaction") {
-      settle();
-    } else if (event.method === "thread/compacted") {
+    if (event.method === "thread/compacted" ||
+        (event.method === "item/completed" && item?.type === "contextCompaction")) {
       settle();
     } else if (event.method === "turn/completed") {
       const turn = record(event.params.turn);
       if (turn?.status !== "completed") {
         const error = record(turn?.error);
-        settle(
-          new Error(
-            typeof error?.message === "string"
-              ? error.message
-              : "Codex compaction failed.",
-          ),
-        );
+        settle(new Error(typeof error?.message === "string"
+          ? error.message : "Codex compaction failed."));
       }
     }
   });
   const abort = () => {
     if (turnId) {
-      void server
-        .request("turn/interrupt", { threadId: params.continuationId, turnId })
+      void server.request("turn/interrupt", { threadId: params.continuationId, turnId })
         .catch(() => undefined);
     }
     settle(abortError());
