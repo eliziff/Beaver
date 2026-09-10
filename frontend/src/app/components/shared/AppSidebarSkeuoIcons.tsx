@@ -1,22 +1,13 @@
 import type { HTMLAttributes } from "react";
 type IconProps = HTMLAttributes<HTMLSpanElement>;
-function AppSymbol({
-    symbol,
-    className,
-    ...props
-}: IconProps & { symbol: string }) {
-    return (
-        <span
-            {...props}
-            aria-hidden="true"
-            className={`app-symbol-icon ${className ?? ""}`}
-        >
-            {symbol}
-        </span>
-    );
-}
-const makeIcon = (symbol: string) => (props: IconProps) => (
-    <AppSymbol symbol={symbol} {...props} />
+const makeIcon = (symbol: string) => ({ className, ...props }: IconProps) => (
+    <span
+        {...props}
+        aria-hidden="true"
+        className={`app-symbol-icon ${className ?? ""}`}
+    >
+        {symbol}
+    </span>
 );
 export const ChatSkeuoIcon = makeIcon("✦\uFE0E");
 export const LibrarySkeuoIcon = makeIcon("▤");
