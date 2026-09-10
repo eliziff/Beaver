@@ -250,6 +250,7 @@ function Breadcrumb({
     ) : (
         <span className="truncate">{item.label}</span>
     );
+    const Element = current ? "h1" : item.onClick ? "button" : "span";
     const className = cn(
         "min-w-0 truncate",
         current && "w-full text-gray-900",
@@ -267,15 +268,9 @@ function Breadcrumb({
                     : "hidden max-w-40 font-sans text-sm sm:flex",
             )}
         >
-            {current ? (
-                <h1 className={className}>{content}</h1>
-            ) : item.onClick ? (
-                <button onClick={item.onClick} className={className}>
-                    {content}
-                </button>
-            ) : (
-                <span className={className}>{content}</span>
-            )}
+            <Element className={className} onClick={current ? undefined : item.onClick}>
+                {content}
+            </Element>
             {!current && (
                 <span className="shrink-0 text-gray-300">{"\u203A"}</span>
             )}
