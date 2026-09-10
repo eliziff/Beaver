@@ -1,25 +1,16 @@
 /** Projects tracked edits, comments, and manual ink marks inline. */
 
-import {
-  type XNode,
-  elAttrs,
-  elChildren,
-  elName,
-  getTextContent,
-  isRedFamily,
-} from "./core";
+import { type XNode, elAttrs, elChildren, elName, getTextContent,
+  isRedFamily } from "./core";
 import { openDocxSession } from "./session";
 import { boundedErrorText as message, countLabel as plural } from "../text";
 
+const emptyCounts = () => ({ tracked_insertions: 0, tracked_deletions: 0, comments: 0,
+  ink_insertions: 0, ink_deletions: 0 });
+
 export interface RedlineProjection {
   text: string;
-  counts: {
-    tracked_insertions: number;
-    tracked_deletions: number;
-    comments: number;
-    ink_insertions: number;
-    ink_deletions: number;
-  };
+  counts: ReturnType<typeof emptyCounts>;
   notes: string[];
 }
 
@@ -61,12 +52,10 @@ function readComments(tree: XNode[]): Map<string, CommentBody> {
     if (name === "w:comment") {
       const attrs = elAttrs(node);
       const id = attrs["@_w:id"];
-      if (id != null) {
-        bodies.set(String(id), {
-          author: String(attrs["@_w:author"] ?? "").trim(),
-          text: subtreeText(node).replace(/\s+/gu, " ").trim(),
-        });
-      }
+      if (id != null) bodies.set(String(id), {
+        author: String(attrs["@_w:author"] ?? "").trim(),
+        text: subtreeText(node).replace(/\s+/gu, " ").trim(),
+      });
       return;
     }
     for (const kid of elChildren(node as XNode)) visit(kid);
@@ -90,12 +79,7 @@ function render(segments: Segment[]) {
       text += segments[index].text;
       index += 1;
     }
-    if (kind === "plain") {
-      out += text;
-    } else {
-      const [open, close] = WRAP[kind];
-      out += `${open}${text}${close}`;
-    }
+    out += kind === "plain" ? text : `${WRAP[kind][0]}${text}${WRAP[kind][1]}`;
   }
   return out;
 }
@@ -104,16 +88,8 @@ function render(segments: Segment[]) {
  * Projects a .docx body with all editorial content visible. Never throws: an
  * unreadable package degrades to empty text, zero counts and a note.
  */
-export async function projectDocxRedline(
-  bytes: Buffer,
-): Promise<RedlineProjection> {
-  const counts = {
-    tracked_insertions: 0,
-    tracked_deletions: 0,
-    comments: 0,
-    ink_insertions: 0,
-    ink_deletions: 0,
-  };
+export async function projectDocxRedline(bytes: Buffer): Promise<RedlineProjection> {
+  const counts = emptyCounts();
   const notes: string[] = [];
 
   try {
@@ -182,39 +158,22 @@ export async function projectDocxRedline(
 
     const collided = MARKER_SEQUENCES.filter((seq) => literal.includes(seq));
     if (collided.length) {
-      notes.push(
-        `Document text already contains ${plural(collided.length, "marker sequence", "marker sequences")} (${collided.join(", ")}); markers are not escaped, so those positions are ambiguous.`,
-      );
+      notes.push(`Document text already contains ${plural(collided.length, "marker sequence", "marker sequences")} (${collided.join(", ")}); markers are not escaped, so those positions are ambiguous.`);
     }
     if (danglingRanges.size) {
-      notes.push(
-        `${plural(danglingRanges.size, "comment range points", "comment ranges point")} at a comment this package does not define; ${danglingRanges.size === 1 ? "it is" : "they are"} not shown.`,
-      );
+      notes.push(`${plural(danglingRanges.size, "comment range points", "comment ranges point")} at a comment this package does not define; ${danglingRanges.size === 1 ? "it is" : "they are"} not shown.`);
     }
     const orphaned = comments.size - anchored.size;
     if (orphaned > 0) {
-      notes.push(
-        `${plural(orphaned, "comment is", "comments are")} not anchored to a range in the body; ${orphaned === 1 ? "its" : "their"} text is not shown.`,
-      );
+      notes.push(`${plural(orphaned, "comment is", "comments are")} not anchored to a range in the body; ${orphaned === 1 ? "its" : "their"} text is not shown.`);
     }
     if (sawMove) {
-      notes.push(
-        "Tracked moves are present; moved text is projected in accepted view without a move marker.",
-      );
+      notes.push("Tracked moves are present; moved text is projected in accepted view without a move marker.");
     }
 
     return { text: lines.join("\n"), counts, notes };
   } catch (error) {
-    return {
-      text: "",
-      counts: {
-        tracked_insertions: 0,
-        tracked_deletions: 0,
-        comments: 0,
-        ink_insertions: 0,
-        ink_deletions: 0,
-      },
-      notes: [`Package could not be projected: ${message(error)}.`, ...notes],
-    };
+    return { text: "", counts: emptyCounts(),
+      notes: [`Package could not be projected: ${message(error)}.`, ...notes] };
   }
 }
