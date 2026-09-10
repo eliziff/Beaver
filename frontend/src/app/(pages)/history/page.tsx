@@ -35,16 +35,11 @@ const ACTIONS = [
   ["export.tabular", "Review export"],
 ] as const;
 const labelForAction: ReadonlyMap<string, string> = new Map(ACTIONS);
-const SELECT_FILTERS: {
-  label: string;
-  field: "action" | "status";
-  options: readonly (readonly [string, string])[];
-}[] = [
+const SELECT_FILTERS: { label: string; field: "action" | "status";
+  options: readonly (readonly [string, string])[] }[] = [
   { label: "Action", field: "action", options: ACTIONS },
-  { label: "Status", field: "status", options: [
-    ["", "All statuses"], ["completed", "Completed"],
-    ["cancelled", "Cancelled"], ["failed", "Failed"],
-  ] },
+  { label: "Status", field: "status", options: [["", "All statuses"],
+    ["completed", "Completed"], ["cancelled", "Cancelled"], ["failed", "Failed"]] },
 ];
 const controlClass =
   "h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-gray-400";

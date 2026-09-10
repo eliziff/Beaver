@@ -69,8 +69,21 @@ export function useAssistantChatRoute({
         chatLoaded: assistant.chatLoad.status === "loaded",
         chatTitle: historyTitle ?? loadedChat?.title ?? null,
         chatOwnerId: loadedChat?.user_id ?? null,
-        chatModel: loadedChat?.model ?? null,
-        chatReasoningEffort: loadedChat?.reasoning_effort ?? null,
+        /** The props both chat routes hand ChatView unchanged. */
+        chatViewProps: {
+            chatId,
+            ready: assistant.chatLoad.status === "loaded",
+            researchFileId: loadedChat?.research_file_id,
+            researchSelection: loadedChat?.research_selection,
+            session: assistant.state,
+            handleChat: assistant.actions.handleChat,
+            cancel: assistant.actions.cancel,
+            onRejectedTurnRestored: assistant.actions.clearRejectedTurn,
+            onRetryRejectedTurn: () => void assistant.actions.retryRejectedTurn(),
+            initialModel: loadedChat?.model ?? null,
+            initialDraft: loadedChat?.draft ?? null,
+            initialReasoningEffort: loadedChat?.reasoning_effort ?? null,
+        },
         chatProjectId: projectId ??
             (movedProject ? movedProject.id : loadedChat?.project_id) ?? null,
         chatProjectName: projectId ? null : movedProject?.name ?? null,

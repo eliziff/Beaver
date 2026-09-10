@@ -300,23 +300,11 @@ export default function ConnectorsPage() {
                 updateDetail({ draft: connectorDraft(saved) }, connectorId);
             },
         );
-    const handleConnectorEnabled = (connectorId: string, enabled: boolean) =>
-        runSensitiveAction(`connector:${connectorId}`, async () =>
-            replaceConnector(
-                await updateMcpConnector(connectorId, { enabled }),
-                true,
-            ),
-        );
-    const handleToolEnabled = (
-        connectorId: string,
-        toolId: string,
-        enabled: boolean,
-    ) =>
-        runSensitiveAction(`tool:${toolId}`, async () =>
-            replaceConnector(
-                await setMcpToolEnabled(connectorId, toolId, enabled),
-            ),
-        );
+    /** Both toggles are the same sensitive action: call the API, keep the result. */
+    const applyToggle = (key: string, call: () => Promise<McpConnectorSummary>,
+        preserveTools = false) =>
+        runSensitiveAction(key, async () =>
+            replaceConnector(await call(), preserveTools));
     const handleDelete = (connectorId: string) =>
         runSensitiveAction(`delete:${connectorId}`, async () => {
             await deleteMcpConnector(connectorId);
@@ -408,12 +396,11 @@ export default function ConnectorsPage() {
                                                 : "Disabled"
                                         }
                                         ariaLabel={`${connector.name} enabled`}
-                                        onChange={(enabled) =>
-                                            void handleConnectorEnabled(
-                                                connector.id,
-                                                enabled,
-                                            )
-                                        }
+                                        onChange={(enabled) => void applyToggle(
+                                            `connector:${connector.id}`,
+                                            () => updateMcpConnector(connector.id, { enabled }),
+                                            true,
+                                        )}
                                     />
                                 </div>
                             </AccountSection>
@@ -589,7 +576,9 @@ export default function ConnectorsPage() {
                                 <McpToolList
                                     connector={selectedConnector}
                                     busyKey={busyKey}
-                                    onToolEnabled={handleToolEnabled}
+                                    onToolEnabled={(connectorId, toolId, enabled) =>
+                                        applyToggle(`tool:${toolId}`, () =>
+                                            setMcpToolEnabled(connectorId, toolId, enabled))}
                                 />
                             )}
                         </div>
