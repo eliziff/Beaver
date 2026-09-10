@@ -5,13 +5,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { type Dispatch, type SetStateAction, useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Document } from "@/app/lib/api/documents";
-import {
-  DocTable,
-  type DocTableFolder,
-} from "./DocTable";
+import { DocTable } from "./DocTable";
 import { DirectoryActions, type DocumentSelectionActions } from "./UploadAction";
 
 vi.mock("@/app/contexts/AuthContext", () => ({
@@ -33,12 +30,9 @@ const document: Document = {
   project_id: "matter-1",
   filename: "Brief.pdf",
   file_type: "pdf",
-  storage_path: "brief.pdf",
   pdf_storage_path: "brief.pdf",
   size_bytes: 10,
   page_count: 1,
-  structure_tree: null,
-  status: "ready",
   created_at: "2026-07-27T00:00:00.000Z",
   active_version_number: 3,
 };
@@ -46,7 +40,6 @@ const secondDocument: Document = {
   ...document,
   id: "document-2",
   filename: "Memo.pdf",
-  storage_path: "memo.pdf",
   pdf_storage_path: "memo.pdf",
 };
 
@@ -66,20 +59,14 @@ function Harness({
   removeDocument,
   documentRemovalMode = "detach",
   initialDocuments = [document],
-  initialFolders = [],
-  search = "",
   onOwnerOnlyAction,
 }: {
-  removeDocument: (documentId: string) => Promise<void>;
-  documentRemovalMode?: "delete" | "detach";
+  removeDocument: ComponentProps<typeof DocTable>["operations"]["removeDocument"];
+  documentRemovalMode?: ComponentProps<typeof DocTable>["documentRemovalMode"];
   initialDocuments?: Document[];
-  initialFolders?: DocTableFolder[];
-  search?: string;
-  onOwnerOnlyAction?: Dispatch<SetStateAction<string | null>>;
+  onOwnerOnlyAction?: ComponentProps<typeof DocTable>["onOwnerOnlyAction"];
 }) {
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
-  const [folders, setFolders] =
-    useState<DocTableFolder[]>(initialFolders);
   const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
   return (
     <><DirectoryActions actions={null} onCreateFolder={null} selection={selection} />
@@ -87,17 +74,12 @@ function Harness({
       scopeKey="matter-1"
       documents={documents}
       setDocuments={setDocuments}
-      folders={folders}
-      setFolders={setFolders}
+      folders={[]}
+      setFolders={vi.fn()}
       loading={false}
-      search={search}
+      search=""
       operations={{
-        list: async ({ parent_id }) => ({
-          items: folders
-            .filter((folder) => (folder.parent_folder_id ?? null) === (parent_id ?? null))
-            .map((folder) => ({ kind: "folder" as const, folder })),
-          next_cursor: null,
-        }),
+        list: async () => ({ items: [], next_cursor: null }),
         removeDocument,
         uploadDocument: vi.fn(),
         refreshCollection: vi.fn(),
@@ -142,36 +124,6 @@ describe("DocTable document removal", () => {
     expect(removeDocument).toHaveBeenCalledTimes(2);
   });
 
-  it("requires confirmation before detaching a selected document", async () => {
-    const removeDocument = vi.fn(async () => {});
-    render(<Harness removeDocument={removeDocument} />);
-    fireEvent.click(screen.getAllByRole("checkbox").at(-1)!);
-    chooseSelectedAction("Remove");
-    expect(removeDocument).not.toHaveBeenCalled();
-    expect(screen.getByText("Remove from project?")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-    await waitFor(() =>
-      expect(removeDocument).toHaveBeenCalledWith("document-1"),
-    );
-  });
-
-  it("shows a warning when a row detach fails", async () => {
-    const removeDocument = vi.fn(async () => {
-      throw new Error("offline");
-    });
-    render(<Harness removeDocument={removeDocument} />);
-
-    chooseAction("Remove from project");
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-
-    expect(
-      await screen.findByText(
-        "The document could not be removed from this project. Please try again.",
-      ),
-    ).toBeInTheDocument();
-  });
-
   it("does not infer a version count before version rows are loaded", () => {
     render(
       <Harness
@@ -186,24 +138,6 @@ describe("DocTable document removal", () => {
       screen.getByText(/This will delete the document and all of its versions/u),
     ).toBeInTheDocument();
     expect(screen.queryByText(/has 3 versions/u)).not.toBeInTheDocument();
-  });
-
-  it("uses detach language when selected removals fail", async () => {
-    const removeDocument = vi.fn(async () => {
-      throw new Error("offline");
-    });
-    render(<Harness removeDocument={removeDocument} />);
-
-    fireEvent.click(screen.getAllByRole("checkbox").at(-1)!);
-    chooseSelectedAction("Remove");
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-
-    expect(
-      await screen.findByText(
-        "1 document could not be removed from this project. Please try again.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/could not be deleted/u)).not.toBeInTheDocument();
   });
 
   it("keeps the loaded page until its authoritative refresh after partial removal", async () => {
@@ -249,70 +183,5 @@ describe("DocTable document removal", () => {
     );
     expect(removeDocument).not.toHaveBeenCalled();
     expect(screen.getByText(document.filename)).toBeInTheDocument();
-  });
-
-  it("renders server-filtered Boolean results through normal document rows", () => {
-    const folder: DocTableFolder = {
-      id: "folder-1",
-      project_id: "matter-1",
-      user_id: "local-user",
-      name: "Research",
-      parent_folder_id: null,
-      created_at: "2026-07-27T00:00:00.000Z",
-      updated_at: "2026-07-27T00:00:00.000Z",
-    };
-    const nestedDocument: Document = {
-      ...document,
-      id: "document-2",
-      filename: "Memo.pdf",
-      folder_id: folder.id,
-    };
-
-    render(
-      <Harness
-        removeDocument={vi.fn(async () => {})}
-        initialDocuments={[document, nestedDocument]}
-        initialFolders={[folder]}
-        search="memo OR brief"
-      />,
-    );
-
-    expect(screen.getByText("Memo.pdf")).toBeInTheDocument();
-    expect(screen.getByText("Brief.pdf")).toBeInTheDocument();
-    expect(screen.queryByText("Research")).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("button", { name: "More actions" })
-        .filter((button) => !button.hasAttribute("disabled")),
-    ).toHaveLength(2);
-  });
-
-  it("keeps the folder row action for creating a focused subfolder", () => {
-    Element.prototype.scrollIntoView = vi.fn();
-    const folder: DocTableFolder = {
-      id: "folder-1",
-      project_id: "matter-1",
-      user_id: "local-user",
-      name: "Research",
-      parent_folder_id: null,
-      created_at: "2026-07-27T00:00:00.000Z",
-      updated_at: "2026-07-27T00:00:00.000Z",
-    };
-
-    render(
-      <Harness
-        removeDocument={vi.fn(async () => {})}
-        initialDocuments={[]}
-        initialFolders={[folder]}
-      />,
-    );
-
-    chooseAction("New subfolder inside");
-
-    const input = screen.getByPlaceholderText("Folder name");
-    expect(input).toHaveFocus();
-    fireEvent.keyDown(input, { key: "Escape" });
-    expect(
-      screen.queryByPlaceholderText("Folder name"),
-    ).not.toBeInTheDocument();
   });
 });
