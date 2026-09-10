@@ -74,23 +74,6 @@ function dependencies(value = product()) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("court records application", () => {
-  it("retains recognized page text beside a non-text page", async () => {
-    const store = documents(), { files, workProducts } = dependencies();
-    const lookupPdf = vi.fn(async (_bytes, input: { locator: string }) => input.locator === "1"
-      ? { status: "found" as const, pages: [{ page_number: 1, text: "First page" }] }
-      : { status: "unavailable" as const, pages: [] });
-    const application = createCourtRecordsApplication(store, files as never,
-      workProducts as never, { lookupPdf: lookupPdf as never, preparePdf: vi.fn() as never });
-    await expect(application.preparedPageText(scope, "document-1", null)).resolves.toEqual({
-      document_id: "document-1", version_id: "version-1",
-      source_sha256: "a".repeat(64), page_count: 2, parser_status: "ready",
-      pages: [
-        { page_number: 1, text: "First page" },
-        { page_number: 2, text: "" },
-      ],
-    });
-  });
-
   it("retains readable pages beside a blank page and accepts an entirely blank prepared PDF", async () => {
     const store = documents(), { files, workProducts } = dependencies();
     const lookupPdf = vi.fn(async (_bytes, query: { locator: string }) => query.locator === "1"
