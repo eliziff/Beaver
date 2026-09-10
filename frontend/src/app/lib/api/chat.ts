@@ -17,6 +17,7 @@ export interface Chat {
   tabular_review_id?: string | null;
   research_file_id?: string | null;
   research_selection?: ResearchSelection | null;
+  work_product_id?: string | null;
   updated_at?: string;
   draft?: ChatDraft | null;
   id: string;
@@ -56,6 +57,7 @@ export const createChat = (payload?: {
   tabular_review_id?: string;
   research_file_id?: string;
   research_selection?: ResearchSelection;
+  work_product_id?: string;
 }) => post<{ id: string }>("/chat/create", payload ?? {});
 export type ChatSearchOptions = {
   search?: string;
@@ -69,6 +71,7 @@ export const listChats = (options?: ChatSearchOptions & {
   limit?: number;
   offset?: number;
   tabular_review_id?: string;
+  work_product_id?: string;
 }, signal?: AbortSignal) => apiRequest<Chat[]>(pagePath("/chat", options ?? {}), { signal });
 export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${segment(projectId)}/chats`);

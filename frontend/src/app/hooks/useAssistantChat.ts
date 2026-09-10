@@ -86,6 +86,8 @@ export function useAssistantChat({
   wordClient,
 }: UseAssistantChatOptions = {}) {
   const navigate = useNavigate();
+  // Review and work-product chats belong to their surface, not to the assistant history list.
+  const detached = !!tabularReviewId || !!workProduct;
   const { profile } = useUserProfile();
   const {
     claimPendingChatMessage,
@@ -227,7 +229,7 @@ export function useAssistantChat({
               seenVersion = loadTranscript(targetChatId, latest, true);
             if (!latest.chat.turn_in_progress) {
               setChatTurnInProgress?.(targetChatId, false);
-              if (!tabularReviewId) void loadChats();
+              if (!detached) void loadChats();
               return;
             }
           }
@@ -238,7 +240,7 @@ export function useAssistantChat({
         await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
       }
     })().finally(() => { if (transportRef.current === transport) transportRef.current = null; });
-  }, [consume, loadChats, loadTranscript, setChatTurnInProgress, startTransport, tabularReviewId]);
+  }, [consume, detached, loadChats, loadTranscript, setChatTurnInProgress, startTransport]);
 
   useEffect(() => {
     const generation = ++loadGenerationRef.current;
@@ -354,12 +356,12 @@ export function useAssistantChat({
       if (finalChatId && finalChatId !== current.chatId) {
         if (current.chatId) replaceChatId(current.chatId, finalChatId,
           message.content.trim().slice(0, 120) || "New Chat");
-        if (!tabularReviewId && !stayInPlace) {
+        if (!detached && !stayInPlace) {
           const base = projectId ? `/projects/${projectId}/assistant/chat` : "/assistant/chat";
           navigate(`${base}/${finalChatId}`, { replace: true });
         }
       }
-      if (!tabularReviewId) await loadChats();
+      if (!detached) await loadChats();
       if (finalChatId && shouldGenerateTitle) {
         const titleParts = [message.content];
         if (message.workflow) titleParts.push(`Workflow: ${message.workflow.title}`);
@@ -367,7 +369,7 @@ export function useAssistantChat({
         void generateChatTitle(finalChatId, titleParts.join("\n"))
           .then(({ title }) => {
             onTitleChange?.(finalChatId, title);
-            return tabularReviewId ? undefined : renameChat(finalChatId, title);
+            return detached ? undefined : renameChat(finalChatId, title);
           })
           .catch(() => undefined);
       }

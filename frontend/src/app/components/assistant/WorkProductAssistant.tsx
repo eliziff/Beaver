@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import type { WorkProductContext, WorkProductFocus,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { Button } from "@/app/components/ui/button";
+import { listChats } from "@/app/lib/api/chat";
 import { WorkProductAssistantPanel } from "./WorkProductAssistantPanel";
 
 export type WorkProductAssistantProps = { product?: WorkProductContext & { title?: string };
@@ -25,6 +26,17 @@ export function useWorkProductAssistantState<T extends WorkProductContext>() {
   const productId = product?.id;
   const onChatIdChange = useCallback((chatId: string) => {
     if (productId) setChatIds((current) => ({ ...current, [productId]: chatId }));
+  }, [productId]);
+  // Reopening a draft resumes the chat the last turn bound to it.
+  useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    void listChats({ work_product_id: productId, limit: 1 }).then((chats) => {
+      const resumed = chats[0]?.id;
+      if (cancelled || !resumed) return;
+      setChatIds((current) => current[productId] ? current : { ...current, [productId]: resumed });
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
   }, [productId]);
   const onProductUpdated = useCallback((revision: number) => {
     if (!productId) return;

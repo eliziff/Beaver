@@ -99,6 +99,20 @@ export class LocalDatabase implements RelationalDatabase {
 
 const LOCAL_SCHEMA_VERSION = 17;
 
+// SQLite ignores new columns in `create table if not exists`, so nullable columns added to
+// an existing table are reconciled before the schema runs (its indexes may reference them).
+const ADDED_COLUMNS: readonly (readonly [table: string, column: string, type: string])[] = [
+  ["chats", "work_product_id", "text"],
+];
+
+function addMissingColumns(database: DatabaseSync) {
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const columns = database.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!columns.length || columns.some((row) => row.name === column)) continue;
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
 export function openLocalDatabase(filename: string) {
   mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });
   const database = new DatabaseSync(filename);
@@ -113,6 +127,7 @@ export function openLocalDatabase(filename: string) {
     const schema = readFileSync(path.resolve(__dirname, "../../schema.sql"), "utf8");
     const core = /-- BEAVER_CORE_BEGIN\s*([\s\S]*?)\s*-- BEAVER_CORE_END/u.exec(schema)?.[1];
     if (!core) throw new Error("backend/schema.sql is missing the Beaver core schema");
+    addMissingColumns(database);
     database.exec(core);
     database.exec(`PRAGMA user_version=${LOCAL_SCHEMA_VERSION}`);
     return database;

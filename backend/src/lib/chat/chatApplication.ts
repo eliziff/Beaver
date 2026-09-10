@@ -491,8 +491,11 @@ export function createChatApplication(deps: Dependencies) {
         if (chat && input[key] !== undefined && chat[key] !== (input[key] ?? null))
           throw new ChatApplicationError(400, `${key} does not match chat`);
       }
+      if (chat?.work_product_id && input.work_product && chat.work_product_id !== input.work_product.id)
+        throw new ChatApplicationError(400, "work_product does not match chat");
       const projectId = chat?.project_id ?? input.project_id ?? null;
       const tabularReviewId = chat?.tabular_review_id ?? input.tabular_review_id ?? null;
+      const workProductId = chat?.work_product_id ?? input.work_product?.id ?? null;
       const transcript = chat ? await deps.chats.transcript(auth, chat.id) : [];
       if (chat && !transcript) throw new ChatApplicationError(404, "Chat not found");
       const rows = transcript ?? [];
@@ -704,7 +707,7 @@ ${registeredWorkflow.skill_md}` : "",
       }
 
       if (!chat) chat = await deps.chats.create(auth, { projectId, tabularReviewId, researchFileId,
-        researchSelection: researchSelection ?? null });
+        researchSelection: researchSelection ?? null, workProductId });
       if (!sink.claim(chat.id)) {
         conflict("chat_turn_in_progress", chat.transcript_version,
           "A response is already running");

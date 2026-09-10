@@ -7,7 +7,10 @@ import { WorkProductAssistantPanel } from "./WorkProductAssistantPanel";
 const mocks = vi.hoisted(() => ({
   messages: [] as Array<Record<string, unknown>>,
   handleChat: vi.fn(),
+  listChats: vi.fn(),
 }));
+
+vi.mock("@/app/lib/api/chat", () => ({ listChats: mocks.listChats }));
 
 vi.mock("@/app/hooks/useAssistantChat", () => ({
   useAssistantChat: () => ({
@@ -28,7 +31,7 @@ vi.mock("./ConversationView", () => ({
 const product = { id: "record-1", kind: "court-record" as const,
   revision: 2, projectId: null };
 
-beforeEach(() => { mocks.messages = []; });
+beforeEach(() => { mocks.messages = []; mocks.listChats.mockReset().mockResolvedValue([]); });
 afterEach(() => vi.unstubAllGlobals());
 
 it("refreshes only for a newer completed mutation of the active product", () => {
@@ -90,6 +93,28 @@ it("keeps one conversation per work product without assistant-owned draft state"
   expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("none");
   await user.click(screen.getByRole("button", { name: "Record" }));
   expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("chat-record-1");
+});
+
+it("resumes the chat already bound to a reopened draft", async () => {
+  mocks.listChats.mockResolvedValue([{ id: "chat-bound", work_product_id: product.id }]);
+  function Harness() {
+    const state = useWorkProductAssistantState<typeof product>();
+    return <><output aria-label="Chat">{state.chatId ?? "none"}</output>
+      <button type="button" onClick={() => state.onProductChange(product, true)}>Record</button>
+      <button type="button" onClick={() => state.onChatIdChange("chat-live")}>Connect</button></>;
+  }
+  const user = userEvent.setup();
+  render(<Harness />);
+  expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("none");
+
+  await user.click(screen.getByRole("button", { name: "Record" }));
+  await vi.waitFor(() => expect(screen.getByRole("status", { name: "Chat" }))
+    .toHaveTextContent("chat-bound"));
+  expect(mocks.listChats).toHaveBeenCalledWith({ work_product_id: product.id, limit: 1 });
+
+  // A live turn's chat id wins over the resumed lookup.
+  await user.click(screen.getByRole("button", { name: "Connect" }));
+  expect(screen.getByRole("status", { name: "Chat" })).toHaveTextContent("chat-live");
 });
 
 it("blocks another assistant turn until a tool-updated product has refreshed", async () => {
