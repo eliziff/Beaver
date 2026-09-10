@@ -1,6 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
 import { type Dispatch, type ReactNode, type SetStateAction } from "react";
-import type { Project } from "@/app/lib/api/projects";
 import type { TabularReview } from "@/app/lib/api/tabular";
 import { RowActions } from "@/app/components/shared/RowActions";
 import { TabularReviewSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
@@ -27,25 +26,22 @@ const REVIEW_COLUMNS: {
     className: string;
     /** Only where the row cell needs more than the shared column class. */
     cellClassName?: string;
-    needsProjects?: true;
-    value: (review: TabularReview, projectName: string | null | undefined) => ReactNode;
+    value: (review: TabularReview) => ReactNode;
 }[] = [
     { key: "columns", header: "Columns", className: "ml-auto hidden w-24 md:flex",
         value: (review) => review.columns_config?.length ?? 0 },
     { key: "documents", header: "Documents", className: "hidden w-28 xl:flex",
         value: (review) => review.document_count ?? 0 },
-    { key: "project", header: <span>Project</span>, needsProjects: true,
+    { key: "project", header: <span>Project</span>,
         className: "hidden w-40 lg:flex", cellClassName: "hidden w-40 lg:flex pr-2",
-        value: (_review, projectName) => projectName ?? EMPTY_VALUE },
+        value: (review) => review.project_name ?? EMPTY_VALUE },
     { key: "created", header: "Created", className: "hidden w-32 xl:flex",
         value: (review) => review.created_at ? formatDate(review.created_at) : EMPTY_VALUE },
 ];
 export function TabularReviewsTable({
     reviews,
-    filteredReviews,
     selectedReviewIds,
     setSelectedReviewIds,
-    projects,
     reviewHref,
     onOpenDetails,
     onDeleteReview,
@@ -53,10 +49,8 @@ export function TabularReviewsTable({
     loading = false,
 }: {
     reviews: TabularReview[];
-    filteredReviews: TabularReview[];
     selectedReviewIds: string[];
     setSelectedReviewIds: Dispatch<SetStateAction<string[]>>;
-    projects?: Project[];
     reviewHref: (review: TabularReview) => string;
     onOpenDetails: (review: TabularReview) => void;
     onDeleteReview: (review: TabularReview) => Promise<void> | void;
@@ -64,18 +58,10 @@ export function TabularReviewsTable({
     loading?: boolean;
 }) {
     const navigate = useNavigate();
-    const showProject = projects !== undefined;
-    const projectNameById = projects
-        ? new Map(projects.map((project) => [project.id, project.name]))
-        : null;
-    const selection = useTableSelection(
-        filteredReviews, selectedReviewIds, setSelectedReviewIds);
-    const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
-    const columns = REVIEW_COLUMNS.filter(
-        ({ needsProjects }) => showProject || !needsProjects);
+    const selection = useTableSelection(reviews, selectedReviewIds, setSelectedReviewIds);
     return (
         <TableScrollArea
-            header={<TableSelectionHeader className={rowPadding}
+            header={<TableSelectionHeader
                 widthClassName={TABLE_COMPACT_PRIMARY_CELL_WIDTH_CLASS}
                 selection={selection} selectionLabel="Select loaded reviews"
                 loading={loading}
@@ -87,7 +73,7 @@ export function TabularReviewsTable({
                 {selectedReviewIds.length ? (
                     <RowActions toolbar label="Actions" onDelete={onDeleteSelected} />
                 ) : <>
-                    {columns.map(({ key, header, className }) => (
+                    {REVIEW_COLUMNS.map(({ key, header, className }) => (
                         <TableHeaderCell key={key} className={className}>
                             {header}
                         </TableHeaderCell>
@@ -108,23 +94,15 @@ export function TabularReviewsTable({
                         Extract data from documents into tables using AI.
                     </p>
                 </TableEmptyState>
-            ) : filteredReviews.length === 0 ? (
-                <TableEmptyState>
-                    <p className="text-sm text-gray-600">No reviews found</p>
-                </TableEmptyState>
             ) : (
                 <TableBody>
-                    {filteredReviews.map((review) => {
+                    {reviews.map((review) => {
                         const href = reviewHref(review);
-                        const projectName = review.project_id
-                            ? review.project_name ?? projectNameById?.get(review.project_id)
-                            : null;
                         return (
                             <TableRow
                                 key={review.id}
                                 selected={selection.selected.has(review.id)}
                                 onClick={() => navigate(href)}
-                                className={rowPadding}
                             >
                                 <TablePrimaryCell
                                     selected={selection.selected.has(review.id)}
@@ -144,9 +122,9 @@ export function TabularReviewsTable({
                                         </Link>
                                     }
                                 />
-                                {columns.map(({ key, className, cellClassName, value }) => (
+                                {REVIEW_COLUMNS.map(({ key, className, cellClassName, value }) => (
                                     <TableCell key={key} className={cellClassName ?? className}>
-                                        {value(review, projectName)}
+                                        {value(review)}
                                     </TableCell>
                                 ))}
                                 <div

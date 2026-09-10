@@ -176,10 +176,8 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
         <>
             <TabularReviewsTable
                 reviews={reviews}
-                filteredReviews={reviews}
                 selectedReviewIds={selectedIds}
                 setSelectedReviewIds={setSelectedIds}
-                projects={[]}
                 reviewHref={(review) => review.project_id
                     ? `/projects/${review.project_id}/tabular-reviews/${review.id}`
                     : `/tabular-reviews/${review.id}`
