@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, ChevronRight, FileText, Gavel, Landmark, Newspaper, ScrollText } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
@@ -47,11 +47,11 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     aria-label={label} aria-expanded={open} onClick={onClick} className="grid size-6 shrink-0 place-items-center rounded">
     <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button>;
   /** Opening is always a deliberate control, never a side effect of touching the row. */
-  function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string) {
-    if (preview) return null;
+  function openControl(source: ResearchSource, name: string, locator?: string, evidenceId?: string, spoken?: string, icon?: ReactNode) {
     const href = reader?.sourceHref(source, locator),
       className = "grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
-      inner = <BookOpen aria-hidden className="size-3.5" />, label = `Open ${[spoken ?? locator, name].filter(Boolean).join(" in ")}`;
+      inner = icon ?? <BookOpen aria-hidden className="size-3.5" />, label = `Open ${[spoken ?? locator, name].filter(Boolean).join(" in ")}`;
+    if (preview) return icon ? <span className={className}>{inner}</span> : null;
     if (reader?.canRead(source)) return <button type="button" aria-label={label} title="Open" className={className}
       onClick={() => void reader.readSource(source, locator, evidenceId)}>{inner}</button>;
     if (!href) return null;
@@ -63,12 +63,12 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {preview ? <span className="size-6 shrink-0" /> : chevron(open, `Passages in ${name}`, () => openSource(source.id))}
-      {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText; return <Icon aria-hidden className="size-3.5 shrink-0 text-gray-500" />; })()}
+      {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText, icon = <Icon aria-hidden className="size-3.5" />;
+        return openControl(source, name, undefined, undefined, undefined, icon) ?? <span className="grid size-6 shrink-0 place-items-center text-gray-500">{icon}</span>; })()}
       <button type="button" disabled={!!preview} onClick={() => openSource(source.id)} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
-        {openControl(source, name)}
         {!preview && <MoreActionsMenu label={`${name} options`} items={[
           { label: "Label", onSelect: () => { const row = document.querySelector<HTMLElement>(`[data-source-row="${source.id}"]`)!;
             setLabelTarget({ file: file!, kind: "source", itemId: source.id, labelIds: source.labelIds, note: source.note,
