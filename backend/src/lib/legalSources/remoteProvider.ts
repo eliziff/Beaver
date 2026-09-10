@@ -51,6 +51,16 @@ export function nonnegativeNumber(value: unknown): number | null {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
+/** One URL-checked attachment; each provider names its own metadata fields. */
+export const remoteLegalSourceAttachment = (url: string | null, fields: {
+  title: unknown; contentType: unknown; filename: unknown; pageCount: unknown;
+}): RemoteLegalSourceAttachment[] => url ? [{
+  title: stringValue(fields.title), url,
+  contentType: stringValue(fields.contentType),
+  filename: stringValue(fields.filename),
+  pageCount: nonnegativeNumber(fields.pageCount),
+}] : [];
+
 /**
  * The passage path every remote provider shares: fetch the document for one
  * search result, then read it through the requested locator. The provider's own
