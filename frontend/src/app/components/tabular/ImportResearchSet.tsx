@@ -31,7 +31,9 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [pickerModel] = useSelectedModel(), [pickerEffort] = useSelectedReasoningEffort();
-    const model = chatModel || pickerModel, effort = chatModel ? chatEffort ?? undefined : pickerEffort;
+    // The chat's own model first; if its provider fails, one retry on the picker's model.
+    const [lane, setLane] = useState<"chat" | "picker">(chatModel ? "chat" : "picker");
+    const model = lane === "chat" && chatModel ? chatModel : pickerModel, effort = lane === "chat" && chatModel ? chatEffort ?? undefined : pickerEffort;
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
     async function propose(instruction = "", repropose = false) {
@@ -47,12 +49,14 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             setFile(current);
             if (labelling) { setPlan(next as ResearchLabelProposal); setProposedName((next as ResearchLabelProposal).title); }
             else { setPreview(next as ResearchTablePreview); setNote((next as ResearchTablePreview).fallback ?? ""); }
-        } catch (reason) { if (run === generation.current) setError(errorMessage(reason, labelling
+        } catch (reason) { if (run !== generation.current) return;
+            if (lane === "chat" && chatModel && pickerModel && pickerModel !== chatModel) { setLane("picker"); return; }
+            setError(errorMessage(reason, labelling
             ? "Could not propose labels; nothing was changed" : "Could not propose a table; nothing was changed")); }
         finally { if (run === generation.current) setBusy(false); }
     }
     useEffect(() => { setPreview(null); setPlan(null); void propose(); return () => { generation.current++; }; },
-        [activeId, inputKey, labelling]); // eslint-disable-line react-hooks/exhaustive-deps
+        [activeId, inputKey, labelling, lane]); // eslint-disable-line react-hooks/exhaustive-deps
     const columns = preview?.design.columns ?? [];
     const valid = labelling ? !!plan : columns.length > 0 && columns.every((column) => column.name.trim() && column.prompt.trim());
     async function create() {
