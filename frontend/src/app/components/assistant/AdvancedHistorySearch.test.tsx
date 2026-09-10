@@ -16,7 +16,7 @@ vi.mock("@/app/contexts/AuthContext", () => ({
 
 const hit = { id: "chat-1", title: "Old matter", project_id: null, user_id: "owner",
     created_at: "2026-09-05T10:00:00Z",
-    search_hit: { message_id: "message-42", snippet: "The Lease terms include renewal." } };
+    search_hit: { message_id: "message-42", snippet: 'The **Lease terms** include [renewal](https://attacker.test). <img src="x" onerror="alert(1)">' } };
 
 beforeEach(() => { listChats.mockReset().mockResolvedValue([]); });
 
@@ -72,6 +72,8 @@ it.each([null, "review-1"])("opens a transcript hit at its canonical message and
     const link = await within(dialog).findByRole("link", { name: /Old matter/ });
     expect(link.querySelector("mark")).toHaveTextContent("Lease terms");
     expect(link).toHaveTextContent("include renewal.");
+    expect(link.querySelector("a, img, script")).toBeNull();
+    expect(link).not.toHaveTextContent("**");
     const url = new URL(link.getAttribute("href")!, "https://beaver.test");
     expect(url.pathname).toBe(reviewId ? `/tabular-reviews/${reviewId}` : "/assistant/chat/chat-1");
     expect(url.searchParams.get("message")).toBe("message-42");

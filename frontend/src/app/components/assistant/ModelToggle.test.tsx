@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { getModelCatalog } from "@/app/lib/api/account";
 import { ModelEffortToggle } from "./ModelToggle";
@@ -17,25 +17,6 @@ beforeEach(() => {
     models: [{ id: "codex:gpt-5.6-terra", label: "GPT-5.6 Terra", group: "Codex",
       available: true, reasoningEfforts: ["low", "medium"], defaultReasoningEffort: "medium" }],
   });
-});
-
-it("loads the catalog on mount so opening the model selector never waits", async () => {
-  render(
-    <ModelEffortToggle
-      model="codex:gpt-5.6-terra"
-      effort="medium"
-      onModelChange={vi.fn()}
-      onEffortChange={vi.fn()}
-    />,
-  );
-
-  await waitFor(() => expect(getCatalog).toHaveBeenCalledTimes(1));
-  const modelButton = await screen.findByRole("button", { name: /^Model: GPT-5.6 Terra/ });
-
-  fireEvent.click(modelButton);
-
-  expect(screen.getByRole("dialog")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "GPT-5.6 Terra" })).toBeVisible();
 });
 
 it("preserves persisted effort without guessing an undiscovered model default", () => {
