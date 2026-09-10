@@ -42,18 +42,12 @@ export type ResearchQueryInput = ResearchSelection & { text?: string; after?: st
   rules?: Array<{ phrase: string; direction: "before" | "after" | "around";
     unit: "sentence" | "line" | "paragraph" | "chars"; chars?: number;
     slot?: string }>; conflict?: "prompt" | "first" | "longer" | "shorter" | "append" };
-/** Library readers without block anchors address the whole projection with kind `document`. */
-export type PassageLocator = { kind: "paragraph" | "section" | "page" | "footnote" | "document";
-  value: string; endValue?: string };
 /** Receipt inventory counts are not highlight counts. */
 export const researchHighlightCount = (source: ResearchSource) =>
   Object.values(source.passages?.labelCounts ?? {}).reduce((sum, count) => sum + count, 0);
 
 export const newResearchState = (): ResearchFileState => ({ schemaVersion: "beaver.research.v2",
   labels: {}, sources: {}, queries: null, note: "" });
-export const researchMarkdown = (title: string, state = newResearchState()) =>
-  `# ${title}\n\n0 sources · 0 passages · 0 saved searches\n\n` +
-  `<!-- beaver-research:v2\n${JSON.stringify(state)}\n-->\n`;
 export const isResearchDocument = (document: Document) =>
   document.file_type === "md" && document.filename.toLowerCase().endsWith(".research.md");
 export { researchSourceKey } from "../../../../backend/src/lib/resourceReferences";
