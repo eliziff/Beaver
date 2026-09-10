@@ -132,38 +132,28 @@ function stripMarker(text: string, anchor: Anchor | null) {
   return text;
 }
 
+/** Every plain block is one tag and one class over its children; markdown's other props are dropped. */
+const styled = (Tag: React.ElementType, className: string) =>
+  ({ children }: { children?: React.ReactNode }) => <Tag className={className}>{children}</Tag>;
+
 const HEADING_CLASSES = {
   2: "mb-4 mt-10 border-b border-gray-300 pb-2 text-[1.5rem] font-semibold leading-tight text-gray-950 first:mt-0",
   3: "mb-3 mt-8 border-b-2 border-brand pb-1 text-[1.25rem] font-semibold leading-snug text-gray-950 first:mt-0",
   4: "mb-3 mt-7 border-l-4 border-brand pl-3 text-[1.1rem] font-semibold leading-snug text-gray-950 first:mt-0",
   5: "mb-2 mt-6 text-sm font-semibold uppercase leading-snug tracking-[0.08em] text-gray-800 first:mt-0",
 } as const;
+/** h1 shares h2's rank and h6 shares h5's, as the source markdown numbers them one level deeper. */
+const h2 = styled("h2", HEADING_CLASSES[2]), h3 = styled("h3", HEADING_CLASSES[3]),
+  h4 = styled("h4", HEADING_CLASSES[4]), h5 = styled("h5", HEADING_CLASSES[5]);
 
 const LEGAL_MARKDOWN_COMPONENTS = {
-  h1: ({ children }: { children?: React.ReactNode }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
-  h2: ({ children }: { children?: React.ReactNode }) => <h2 className={HEADING_CLASSES[2]}>{children}</h2>,
-  h3: ({ children }: { children?: React.ReactNode }) => <h3 className={HEADING_CLASSES[3]}>{children}</h3>,
-  h4: ({ children }: { children?: React.ReactNode }) => <h4 className={HEADING_CLASSES[4]}>{children}</h4>,
-  h5: ({ children }: { children?: React.ReactNode }) => <h5 className={HEADING_CLASSES[5]}>{children}</h5>,
-  h6: ({ children }: { children?: React.ReactNode }) => <h5 className={HEADING_CLASSES[5]}>{children}</h5>,
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-4 whitespace-pre-wrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
-      {children}
-    </p>
-  ),
-  ul: ({ children }: { children?: React.ReactNode }) => <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>,
+  h1: h2, h2, h3, h4, h5, h6: h5,
+  p: styled("p", "mb-4 whitespace-pre-wrap [hyphens:none] [overflow-wrap:normal] [word-break:normal]"),
+  ul: styled("ul", "mb-4 list-disc space-y-1 pl-6"),
   ol: ({ children, start }: { children?: React.ReactNode; start?: number }) => <ol start={start} className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>,
-  li: ({ children }: { children?: React.ReactNode }) => <li className="pl-1.5">{children}</li>,
-  blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="mb-5 ml-1 border-l-4 border-gray-300 py-0.5 pl-5 text-gray-700">
-      {children}
-    </blockquote>
-  ),
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.88em]">
-      {children}
-    </code>
-  ),
+  li: styled("li", "pl-1.5"),
+  blockquote: styled("blockquote", "mb-5 ml-1 border-l-4 border-gray-300 py-0.5 pl-5 text-gray-700"),
+  code: styled("code", "rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.88em]"),
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
     const link = href?.startsWith("#")
       ? href
