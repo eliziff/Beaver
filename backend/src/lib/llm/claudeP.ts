@@ -34,19 +34,18 @@ export type ClaudePFatalCode =
   | "compaction_limit";
 
 class ClaudePFatalError extends Error {
-  constructor(
-    message: string,
-    public readonly code: ClaudePFatalCode,
-  ) {
+  constructor(message: string, public readonly code: ClaudePFatalCode) {
     super(message);
     this.name = "ClaudePFatalError";
   }
 }
 
-function fatalCode(text: string): ClaudePFatalCode | null {
-  if (/prompt is too long|blocking_limit/iu.test(text)) return "context_overflow";
-  if (/hit your (?:weekly |session )?limit/iu.test(text)) return "quota_exhausted";
-  return null;
+/** Fatal transport failures carry a code; everything else is a plain Error. */
+function runFailure(message: string, hint: string) {
+  const code: ClaudePFatalCode | null =
+    /prompt is too long|blocking_limit/iu.test(hint) ? "context_overflow"
+      : /hit your (?:weekly |session )?limit/iu.test(hint) ? "quota_exhausted" : null;
+  return code ? new ClaudePFatalError(message, code) : new Error(message);
 }
 
 export function claudePModelSlug(model: string): string | null {
@@ -56,14 +55,9 @@ export function claudePModelSlug(model: string): string | null {
 }
 
 function resolveCli(): { file: string; shell: boolean } {
-  const appData = process.env.APPDATA;
-  if (appData) {
-    const exe = path.join(
-      appData,
-      "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
-    );
-    if (existsSync(exe)) return { file: exe, shell: false };
-  }
+  const exe = process.env.APPDATA && path.join(process.env.APPDATA,
+    "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe");
+  if (exe && existsSync(exe)) return { file: exe, shell: false };
   return { file: "claude", shell: process.platform === "win32" };
 }
 
@@ -102,19 +96,12 @@ type RunState = {
   mcpReady: boolean; mcpError: string;
 };
 
-function handleStreamLine(
-  line: string,
-  state: RunState,
-  callbacks: StreamCallbacks,
-) {
+function handleStreamLine(line: string, state: RunState, callbacks: StreamCallbacks) {
   let message: ResultEnvelope & {
     subtype?: string;
     mcp_servers?: Array<{ name?: string }>;
     mcp_server_errors?: Array<{ name?: string; message?: string }>;
-    event?: {
-      type?: string;
-      delta?: { type?: string; text?: string };
-    };
+    event?: { type?: string; delta?: { type?: string; text?: string } };
   };
   try {
     message = JSON.parse(line) as typeof message;
@@ -159,13 +146,10 @@ async function runClaudeP(params: RunParams) {
   const directory = await mkdtemp(path.join(tmpdir(), "beaver-claude-p-"));
   const systemFile = path.join(directory, "system.txt");
   const mcpFile = path.join(directory, "mcp.json");
-  const mcpConfig = { mcpServers: params.bridge ? {
-    beaver: {
-      type: "http",
-      url: params.bridge.url,
-      headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` },
-    },
-  } : {} };
+  const mcpConfig = { mcpServers: params.bridge ? { beaver: {
+    type: "http", url: params.bridge.url,
+    headers: { Authorization: `Bearer \${${MCP_TOKEN_ENV}}` },
+  } } : {} };
   await Promise.all([
     writeFile(systemFile, params.systemPrompt, { mode: 0o600 }),
     writeFile(mcpFile, JSON.stringify(mcpConfig), { mode: 0o600 }),
@@ -192,12 +176,8 @@ async function runClaudeP(params: RunParams) {
     args.push("--resume", params.providerSession.continuationId);
   }
   if (params.reasoningEffort) args.push("--effort", params.reasoningEffort);
-  if (params.maxIterations !== undefined) {
-    args.push(
-      "--max-turns",
-      String(Math.max(1, Math.trunc(params.maxIterations))),
-    );
-  }
+  if (params.maxIterations !== undefined)
+    args.push("--max-turns", String(Math.max(1, Math.trunc(params.maxIterations))));
 
   try {
     return await new Promise<RunState>((resolve, reject) => {
@@ -207,24 +187,16 @@ async function runClaudeP(params: RunParams) {
         env: authIsolatedEnv(params.model, params.bridge),
         windowsHide: true,
       });
-      const state: RunState = {
-        result: null,
-        fullText: "",
-        compactions: 0,
-        mcpReady: false,
-        mcpError: "",
-        contentOpen: false,
-      };
+      const state: RunState = { result: null, fullText: "", compactions: 0,
+        mcpReady: false, mcpError: "", contentOpen: false };
       let buffer = "";
       let stderr = "";
       let settled = false;
       let sawActivity = false;
       let lastActivity = Date.now();
       const started = Date.now();
-      const inactivityMs =
-        params.reasoningEffort === "max"
-          ? FIRST_MODEL_EVENT_GRACE_MS
-          : INACTIVITY_LIMIT_MS;
+      const inactivityMs = params.reasoningEffort === "max"
+        ? FIRST_MODEL_EVENT_GRACE_MS : INACTIVITY_LIMIT_MS;
       const cleanup = () => {
         clearInterval(watchdog);
         params.abortSignal?.removeEventListener("abort", onAbort);
@@ -242,20 +214,14 @@ async function runClaudeP(params: RunParams) {
         state.contentOpen = false;
       };
       const processLine = (line: string) => {
-        if (
-          handleStreamLine(line.trim(), state, params.callbacks)
-        ) {
+        if (handleStreamLine(line.trim(), state, params.callbacks)) {
           sawActivity = true;
           lastActivity = Date.now();
         }
         if (state.result) child.stdin.end();
         if (state.compactions >= MAX_PROVIDER_COMPACTIONS) {
-          fail(
-            new ClaudePFatalError(
-              `claude -p provider compaction limit: ${state.compactions}`,
-              "compaction_limit",
-            ),
-          );
+          fail(new ClaudePFatalError(
+            `claude -p provider compaction limit: ${state.compactions}`, "compaction_limit"));
         }
       };
       const watchdog = setInterval(() => {
@@ -291,9 +257,7 @@ async function runClaudeP(params: RunParams) {
         cleanup();
         if (code !== 0) {
           const hint = stderr.trim() || String(state.result?.result ?? "");
-          const message = `claude -p exit ${code}: ${hint.slice(0, 800)}`;
-          const fatal = fatalCode(hint);
-          fail(fatal ? new ClaudePFatalError(message, fatal) : new Error(message));
+          fail(runFailure(`claude -p exit ${code}: ${hint.slice(0, 800)}`, hint));
           return;
         }
         if (!state.result) {
@@ -303,38 +267,21 @@ async function runClaudeP(params: RunParams) {
         settled = true;
         if (state.result.is_error) {
           const detail = String(state.result.result ?? "").slice(0, 800);
-          const fatal = fatalCode(detail);
-          reject(
-            fatal
-              ? new ClaudePFatalError(`claude -p error result: ${detail}`, fatal)
-              : new Error(`claude -p error result: ${detail}`),
-          );
+          reject(runFailure(`claude -p error result: ${detail}`, detail));
           return;
         }
         resolve(state);
       });
-      child.stdin.write(
-        `${JSON.stringify({
-          type: "user",
-          message: {
-            role: "user",
-            content: [{ type: "text", text: params.prompt }],
-          },
-        })}\n`,
-        "utf8",
-        (error) => {
-          if (error) fail(error);
-        },
-      );
+      child.stdin.write(`${JSON.stringify({ type: "user", message: {
+        role: "user", content: [{ type: "text", text: params.prompt }],
+      } })}\n`, "utf8", (error) => { if (error) fail(error); });
     });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 }
 
-export async function streamClaudeP(
-  params: StreamChatParams,
-): Promise<StreamChatResult> {
+export async function streamClaudeP(params: StreamChatParams): Promise<StreamChatResult> {
   const model = claudePModelSlug(params.model);
   if (!model) throw new Error(`Not a claude-p model: ${params.model}`);
   throwIfAborted(params.abortSignal);
@@ -354,20 +301,13 @@ export async function streamClaudeP(
       runTools: params.runTools,
       callbacks,
       abortSignal: params.abortSignal,
-      maxToolCalls:
-        params.maxIterations === undefined
-          ? undefined
-          : Math.max(1, Math.trunc(params.maxIterations)),
+      maxToolCalls: params.maxIterations === undefined
+        ? undefined : Math.max(1, Math.trunc(params.maxIterations)),
     });
   }
   try {
-    const state = await runClaudeP({
-      ...params,
-      model,
-      prompt: flattenedPrompt(params.messages),
-      bridge,
-      callbacks,
-    });
+    const state = await runClaudeP({ ...params, model, bridge, callbacks,
+      prompt: flattenedPrompt(params.messages) });
     const envelope = state.result!;
     if (bridge && !state.mcpReady) {
       throw new Error(`Claude did not load the Beaver MCP server${state.mcpError ? `: ${state.mcpError}` : "."}`);
@@ -381,12 +321,8 @@ export async function streamClaudeP(
       cacheWriteInputTokens: rawUsage.cache_creation_input_tokens ?? 0,
     };
     const contextWindowTokens = modelContextWindow(params.model);
-    if (contextWindowTokens) {
-      callbacks.onContextUsage?.({
-        usedTokens: usage.inputTokens ?? 0,
-        contextWindowTokens,
-      });
-    }
+    if (contextWindowTokens)
+      callbacks.onContextUsage?.({ usedTokens: usage.inputTokens ?? 0, contextWindowTokens });
 
     let fullText = state.fullText;
     const finalText = String(envelope.result ?? "");
@@ -406,35 +342,20 @@ export async function streamClaudeP(
       }
       await params.providerSession.onContinuationId?.(sessionId);
     }
-    const messagesJson = JSON.stringify(params.messages);
-    const toolsJson = JSON.stringify(initialTools);
-    const stats = bridge?.stats() ?? {
-      toolCallCount: 0,
-      toolArgumentBytes: 0,
-      toolResultBytes: 0,
-    };
-    const contextRounds: LlmContextRoundReceipt[] = [
-      {
-        iteration: 0,
-        requestAttempts: 1,
-        instructionsBytes: Buffer.byteLength(params.systemPrompt),
-        inputItems: params.messages.length,
-        inputBytes: Buffer.byteLength(messagesJson),
-        toolCount: initialTools.length,
-        toolBytes: Buffer.byteLength(toolsJson),
-        ...stats,
-        usage,
-      },
-    ];
-
-    return {
-      fullText,
+    const contextRounds: LlmContextRoundReceipt[] = [{
+      iteration: 0,
+      requestAttempts: 1,
+      instructionsBytes: Buffer.byteLength(params.systemPrompt),
+      inputItems: params.messages.length,
+      inputBytes: Buffer.byteLength(JSON.stringify(params.messages)),
+      toolCount: initialTools.length,
+      toolBytes: Buffer.byteLength(JSON.stringify(initialTools)),
+      ...(bridge?.stats() ?? { toolCallCount: 0, toolArgumentBytes: 0, toolResultBytes: 0 }),
       usage,
-      contextRounds,
-      ...(params.providerSession?.persist && sessionId
-        ? { continuationId: sessionId }
-        : {}),
-    };
+    }];
+
+    return { fullText, usage, contextRounds,
+      ...(params.providerSession?.persist && sessionId ? { continuationId: sessionId } : {}) };
   } finally {
     await bridge?.close();
   }
