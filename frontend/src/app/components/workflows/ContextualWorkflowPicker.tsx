@@ -131,7 +131,8 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
             />
         {supras.picker}
         {quoteCheck && <QuoteReviewModal workflow={quoteCheck} documents={documents}
-            onClose={() => setQuoteCheck(null)} onAssistantSelect={onAssistantSelect ? (selection) => void choose(selection) : undefined} />}
+            onClose={() => setQuoteCheck(null)} onAssistantSelect={onAssistantSelect ? (selection, picked) => {
+                if (picked.length) onAssistantSelect(selection, picked as WorkflowDocument[]); else void choose(selection); } : undefined} />}
     </div>;
 }
 
