@@ -119,6 +119,25 @@ describe("MCP tool bridge", () => {
     await transport.close();
   });
 
+  it("passes a tool result page through as MCP image content", async () => {
+    const bridge = await startMcpToolBridge({
+      tools: [tool("view_page")],
+      runTools: async (calls) => calls.map((call) => ({
+        tool_use_id: call.id, status: "ok" as const, content: "{\"page\":2}",
+        images: [{ filename: "page 2.jpg", mimeType: "image/jpeg" as const, data: "AAAB" }],
+      })),
+    });
+    bridges.push(bridge);
+    const { client, transport } = await clientFor(bridge);
+
+    expect((await client.callTool({ name: "view_page", arguments: {} })).content).toEqual([
+      { type: "text", text: "{\"page\":2}" },
+      { type: "image", data: "AAAB", mimeType: "image/jpeg" },
+    ]);
+    expect(bridge.stats().toolResultBytes).toBe(14);
+    await transport.close();
+  });
+
   it("redacts provider credentials from tool failures", async () => {
     const bridge = await startMcpToolBridge({
       tools: [tool("inspect")],

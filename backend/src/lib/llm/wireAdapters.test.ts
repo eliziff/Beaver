@@ -330,4 +330,108 @@ describe("provider wire adapters", () => {
       }] },
     ]));
   });
+
+  const page = {
+    filename: "affidavit page 2.jpg", mimeType: "image/jpeg" as const, data: "AAAB",
+  };
+  const viewed = async () => [{ tool_use_id: "call-1", content: "{\"page\":2}", images: [page] }];
+
+  it("hands Claude a tool result page as an image block", async () => {
+    sdk.anthropicCreate
+      .mockResolvedValueOnce(generator([
+        { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "call-1", name: "lookup", input: {} } },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_stop" },
+      ]))
+      .mockResolvedValueOnce(generator([{ type: "message_stop" }]));
+
+    await streamClaude({
+      model: "claude-sonnet-4-6", systemPrompt: "system", tools: [tool],
+      messages: [{ role: "user", content: "Read it." }],
+      apiKeys: { claude: "test" }, runTools: viewed,
+    });
+
+    expect(sdk.anthropicCreate.mock.calls[1][0].messages).toEqual(expect.arrayContaining([
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call-1", content: [
+        { type: "text", text: "{\"page\":2}" },
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "AAAB" } },
+      ] }] },
+    ]));
+  });
+
+  it("hands Gemini a tool result page as inline data", async () => {
+    sdk.geminiCreate
+      .mockResolvedValueOnce(generator([{ candidates: [{ content: { parts: [
+        { functionCall: { id: "call-1", name: "lookup", args: {} } },
+      ] } }] }]))
+      .mockResolvedValueOnce(generator([{ candidates: [{ content: { parts: [{ text: "Read." }] } }] }]));
+
+    await streamGemini({
+      model: "gemini-test", systemPrompt: "system", tools: [tool],
+      messages: [{ role: "user", content: "Read it." }],
+      apiKeys: { gemini: "test" }, runTools: viewed,
+    });
+
+    expect(sdk.geminiCreate.mock.calls[1][0].contents).toEqual(expect.arrayContaining([
+      { role: "user", parts: [
+        { functionResponse: { id: "call-1", name: "lookup", response: { output: "{\"page\":2}" } } },
+        { inlineData: { mimeType: "image/jpeg", data: "AAAB" } },
+      ] },
+    ]));
+  });
+
+  it("hands Responses a tool result page as function-call output content", async () => {
+    const requests: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      requests.push(JSON.parse(String(init.body)));
+      return requests.length === 1
+        ? sse(
+            { type: "response.output_item.done", item: { type: "function_call", call_id: "call-1", name: "lookup", arguments: "{}" } },
+            { type: "response.completed", response: { id: "resp-1" } },
+          )
+        : sse({ type: "response.completed", response: { id: "resp-2" } });
+    }));
+
+    await streamResponses({
+      model: "gpt-5.5", systemPrompt: "system", tools: [tool],
+      messages: [{ role: "user", content: "Read it." }],
+      apiKeys: { openai: "test" }, runTools: viewed,
+    }, "openai");
+
+    expect(requests[1].input).toEqual([{ type: "function_call_output", call_id: "call-1",
+      output: [
+        { type: "input_text", text: "{\"page\":2}" },
+        { type: "input_image", image_url: "data:image/jpeg;base64,AAAB" },
+      ] }]);
+  });
+
+  it("carries a tool result page beside the tool message on the chat wire", async () => {
+    const requests: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      requests.push(JSON.parse(String(init.body)));
+      return requests.length % 2
+        ? sse({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call-1",
+            function: { name: "lookup", arguments: "{}" } }] } }] })
+        : sse({ choices: [{ delta: { content: "Read." } }] });
+    }));
+    const base = { systemPrompt: "system", tools: [tool],
+      messages: [{ role: "user" as const, content: "Read it." }], runTools: viewed };
+
+    await streamOpenCodeGo({ ...base, model: "opencode-go/deepseek-v4-flash-vision-exp",
+      apiKeys: { "opencode-go": "test" } });
+    await streamDeepSeek({ ...base, model: "deepseek-v4-pro", apiKeys: { deepseek: "test" } });
+
+    expect(requests[1].messages).toEqual(expect.arrayContaining([
+      { role: "tool", tool_call_id: "call-1", content: "{\"page\":2}" },
+      { role: "user", content: [
+        { type: "text", text: "Image returned by tool: affidavit page 2.jpg" },
+        { type: "image_url", image_url: { url: "data:image/jpeg;base64,AAAB" } },
+      ] },
+    ]));
+    expect(requests[3].messages).toEqual(expect.arrayContaining([
+      { role: "tool", tool_call_id: "call-1",
+        content: "{\"page\":2}\n[1 page image omitted: this model cannot see images.]" },
+    ]));
+    expect(JSON.stringify(requests[3])).not.toContain("AAAB");
+  });
 });
