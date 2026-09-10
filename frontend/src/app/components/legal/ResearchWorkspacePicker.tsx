@@ -53,9 +53,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     finally { setBusy(false); }
   }
   const newWorkspace = () => { setOpen(true); setCreateOpen(true); setSelectedDocuments([]); };
-  const closePicker = () => { setOpen(false); setCreateOpen(false); };
-  const newFolder = () => { setFolderError(""); setFolderOpen(true); };
-  const closeFolder = () => { setFolderOpen(false); if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
+  const reopenPicker = () => { if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
   const selector = file ? <div className="flex min-w-0 max-w-full items-center gap-2">
     <span className="min-w-0 truncate text-base font-semibold text-gray-900" title={fileTitle(file)}>{fileTitle(file)}</span>
     <ActionMenu label="Workspace options" className="shrink-0" items={[
@@ -82,7 +80,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
           <button type="button" onClick={() => { returnToPicker.current = false; newWorkspace(); }} className="ms-auto h-9 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50">New workspace</button>
         </div>
     </div>}
-    <Modal open={open} onClose={closePicker} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
+    <Modal open={open} onClose={() => { setOpen(false); setCreateOpen(false); }} size="lg" className="!h-[min(30rem,calc(100dvh-2rem))]" breadcrumbs={["Workspaces"]}
       footerStatus={status && <span role="alert" className="text-sm text-red-700">{status}</span>}
       primaryAction={{ label: busy ? "Opening..." : "Open",
         onClick: () => { const document = selectedDocuments.find(isResearchDocument); if (document) void choose(document.id); },
@@ -90,7 +88,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
       <div className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="button" disabled={!projectId && "projectId" in openLocation && !openLocation.projectId}
-          onClick={() => { returnToPicker.current = true; setOpen(false); newFolder(); }}
+          onClick={() => { returnToPicker.current = true; setOpen(false); setFolderError(""); setFolderOpen(true); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><FolderPlus className="size-3.5" />New folder</button>
         <button type="button" onClick={() => { returnToPicker.current = true; setOpen(false); setProjectOpen(true); }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"><FolderKanban className="size-3.5" />New project</button>
@@ -117,7 +115,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
         </label>
       </form>
     </Modal>
-    <Modal open={folderOpen} onClose={closeFolder} size="sm" className="!h-[min(15rem,calc(100dvh-2rem))]"
+    <Modal open={folderOpen} onClose={() => { setFolderOpen(false); reopenPicker(); }} size="sm" className="!h-[min(15rem,calc(100dvh-2rem))]"
       breadcrumbs={["projectId" in openLocation ? "Projects" : "Library", "New folder"]}
       primaryAction={{ label: busy ? "Creating..." : "Create folder", type: "submit", form: "research-new-folder",
         disabled: busy }}>
@@ -128,8 +126,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
         {folderError && <p role="alert" className="mt-2 text-xs text-red-700">{folderError}</p>}
       </form>
     </Modal>
-    <NewProjectModal open={projectOpen} onClose={() => { setProjectOpen(false); if (returnToPicker.current) {
-      returnToPicker.current = false; setOpen(true); } }} onCreated={(project) => {
+    <NewProjectModal open={projectOpen} onClose={() => { setProjectOpen(false); reopenPicker(); }} onCreated={(project) => {
       setOpenLocation({ projectId: project.id });
       setDirectoryKey((value) => value + 1); setProjectOpen(false); setOpen(true); returnToPicker.current = false; }} />
 
