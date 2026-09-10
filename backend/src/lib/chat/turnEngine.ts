@@ -304,7 +304,7 @@ export async function runChatTurn(options: {
         inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }));
       running();
       const child = await runChatTurn({
-        model: `codex:${capability.model}`,
+        model: capability.runModel,
         systemPrompt: [
           readSubagentInstruction(assignment),
           jurisdictionPreferencePrompt(options.jurisdictionPreference ?? null),

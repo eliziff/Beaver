@@ -22,7 +22,7 @@ export function SubagentSettings() {
 
     const capability = catalog?.readSubagents;
     const loading = !catalog;
-    const models = (catalog?.models ?? []).filter(model => model.provider === "codex");
+    const models = catalog?.models ?? []; // any model can read (Eli, 2026-09-10)
     const serverEnabled = capability?.serverEnabled !== false;
 
     return (
