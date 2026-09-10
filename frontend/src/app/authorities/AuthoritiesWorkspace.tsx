@@ -619,7 +619,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     if (recognizeScope !== draftRef.current?.state.settings.scannedPdfPolicy)
       act({ type: "set-settings", settings: { scannedPdfPolicy: recognizeScope } });
     if (recognizeScope === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false);
-    else void ocr.begin(unrecognized, chosen);
+    // Reading already under way is left alone; only a scan that is not being read is started.
+    else void ocr.begin(chosen ? unrecognized
+      : unrecognized.filter(({ role }) => ocr.tracked[role]?.state !== "running"), chosen);
     advance("highlights");
   }
   /** The PDFs a draft cites are gathered as soon as its citations are known, not on request. */
