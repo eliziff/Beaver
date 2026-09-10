@@ -830,14 +830,21 @@ export function legalEvidenceProseIntegrityErrors(text: string,
     paragraphs.forEach((point, index) => {
       const previous = paragraphs[index - 1], range = previous && /^\s*[-–—]\s*$/u.test(text.slice(previous.end, point.start));
       const start = range ? Number(previous.text) : Number(point.text), end = Number(point.text);
-      if (Number.isSafeInteger(start) && end >= start && end - start < 4)
+      // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
+      if (Number.isSafeInteger(start) && end >= start && end - start < 60)
         for (let value = start; value <= end; value++) labels.add(String(value));
       else labels.add(range ? `${previous.text}–${point.text}` : point.text);
     });
   }
   const pinpoints = [...named].flatMap(([key, labels]) => {
     const actual = cited.filter((receipt) => native.citationLookupKey(receipt.citation) === key)
-      .map(({ locator }) => locator.kind === "paragraph" ? locator.label.replace(/^(?:paragraph|para|par)[\s.]*/iu, "") : "");
+      .flatMap(({ locator }) => {
+        if (locator.kind !== "paragraph") return [""];
+        const label = locator.label.replace(/^(?:paragraphs?|paras?|par)[\s.]*/iu, ""), span = /^(\d+)\s*[-–—]\s*(\d+)$/u.exec(label);
+        if (!span) return [label];
+        const [from, to] = [Number(span[1]), Number(span[2])];
+        return to >= from && to - from < 60 ? Array.from({ length: to - from + 1 }, (_, i) => String(from + i)) : [label];
+      });
     return [...labels].every((label) => actual.includes(label)) && actual.every((label) => labels.has(label))
       ? [] : [`${key} paragraphs ${[...labels].join(", ")} require their exact passage evidence_ids; Read those paragraphs and correct the claim's evidence_ids or split the claim`];
   });
