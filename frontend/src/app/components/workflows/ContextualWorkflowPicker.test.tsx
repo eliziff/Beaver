@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
+import type { Workflow } from "@/app/lib/api/workflows";
 import {
     ContextualWorkflowLauncher,
     ContextualWorkflowPicker,
@@ -36,28 +36,6 @@ vi.mock("./WorkflowPickerModal", () => ({
     useWorkflowPickerState: () => ({ workflows: [drafting, authorities, courtRecords, supras], search: "",
         setSearch: vi.fn(), audience: "general", setAudience: vi.fn(), loading: false,
         loadError: false, retryLoad: vi.fn() }),
-}));
-vi.mock("./WorkflowPickerContent", () => ({
-    WorkflowPickerContent: ({ workflows, onSelect, contextLabel, workflowAction,
-        disabledItem }: {
-        workflows: Workflow[];
-        onSelect: (workflow: Workflow, variant?: WorkflowVariant) => void;
-        contextLabel?: string;
-        workflowAction?: (workflow: Workflow) => React.ReactNode;
-        disabledItem?: (workflow: Workflow, variant?: WorkflowVariant) => boolean;
-    }) => <>
-        <output aria-label="Workflow context">{contextLabel}</output>
-        {workflows.map((workflow) => <div key={workflow.id}>
-            <span>{workflow.metadata.title}</span>
-            {workflow.launcher.kind === "instructions" && workflow.launcher.variants.map(
-                (variant) => <button key={variant.id} type="button"
-                    disabled={disabledItem?.(workflow, variant)}
-                    onClick={() => onSelect(workflow, variant)}>{variant.label}</button>)}
-            {workflow.launcher.kind !== "instructions" && <button type="button"
-                onClick={() => onSelect(workflow)}>Open {workflow.metadata.title}</button>}
-            {workflowAction?.(workflow)}
-        </div>)}
-    </>,
 }));
 
 const drafting: Workflow = {
@@ -95,9 +73,9 @@ it("binds a sole source to the latest Authorities draft", async () => {
     render(<ContextualWorkflowPicker documents={[document("factum")]}
         onAssistantSelect={vi.fn()} />);
 
-    expect(screen.getByRole("status", { name: "Workflow context" }))
+    expect(screen.getByText("Using factum.docx"))
         .toHaveTextContent("factum.docx");
-    await userEvent.click(screen.getByRole("button", { name: "Open Authorities" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open: Authorities" }));
 
     expect(mocks.createAuthorities).toHaveBeenCalledWith({
         source: { kind: "document", documentId: "factum", version: "latest" },
@@ -112,7 +90,7 @@ it("hands selected files to Court Records for filing selection", async () => {
     render(<ContextualWorkflowPicker documents={documents}
         onAssistantSelect={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Open Court Records" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open: Court Records" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith(
         "/court-records?project=project-1", { state: { documents: [
@@ -128,12 +106,13 @@ it("uses every selected document for tables and assistant work", async () => {
     render(<ContextualWorkflowPicker documents={documents}
         onAssistantSelect={onAssistantSelect} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Proofread" }));
+    await userEvent.click(screen.getByRole("button", { name: "Details for Drafting" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open chat: Proofread" }));
     expect(onAssistantSelect).toHaveBeenCalledWith(expect.objectContaining({
         variant: expect.objectContaining({ id: "proofread" }),
     }), documents);
 
-    await userEvent.click(screen.getByRole("button", { name: "Create issues table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start Tabular Review: Create issues table" }));
     expect(mocks.createTabularReview).toHaveBeenCalledWith({
         title: "Create issues table", document_ids: ["one", "two"],
         columns_config: [{ name: "Issue", type: "text" }],
@@ -147,7 +126,7 @@ it("uses every selected document for tables and assistant work", async () => {
 it("opens the selected Word document in a new chat with a tracked-change request", async () => {
     render(<ContextualWorkflowLauncher documents={[document("lease", "Lease.docx")]} />);
     await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Open Fix supras" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Open: Fix supras" }));
     await waitFor(() => expect(mocks.stagePendingChatMessage).toHaveBeenCalledWith("new-chat",
         expect.objectContaining({ editMode: "manual", files: [{ document_id: "lease", filename: "Lease.docx" }] })));
     expect(mocks.stageNewChatDocuments).toHaveBeenCalledWith([document("lease", "Lease.docx")]);
@@ -159,7 +138,7 @@ it("runs in the originating chat without creating another chat", async () => {
     const onRun = vi.fn();
     const source = document("lease");
     render(<ContextualWorkflowPicker documents={[source]} onRun={onRun} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open Fix supras" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open: Fix supras" }));
     expect(onRun).toHaveBeenCalledWith(expect.objectContaining({
         editMode: "manual", files: [{ document_id: source.id, filename: source.filename }],
     }), source);
@@ -181,7 +160,7 @@ it("hands an in-app document to an existing workflow dock", async () => {
 it("keeps Fix supras discoverable without attachments and selects a Word document at launch", async () => {
     mocks.list.mockResolvedValue({ items: [{ kind: "document", document: document("selected") }] });
     render(<ContextualWorkflowPicker />);
-    await userEvent.click(screen.getByRole("button", { name: "Open Fix supras" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open: Fix supras" }));
     await userEvent.click(await screen.findByRole("radio", { name: "Select selected.docx" }));
     await userEvent.click(screen.getByRole("button", { name: "Fix supras", exact: true }));
     await waitFor(() => expect(mocks.stagePendingChatMessage).toHaveBeenCalledWith("new-chat",
