@@ -35,9 +35,6 @@ export function ProjectDocumentsView() {
         },
         [],
     );
-    const handleUploadActionsChange = useCallback(
-        (actions: UploadActions | null) => setUploadActions(actions), [],
-    );
     const openAssistantWorkflow = useCallback((selection: WorkflowSelection, documents: Document[]) =>
         void createChat(documents, assistantWorkflowLaunch(selection)), [createChat]);
     const toolbarActions = project !== null
@@ -56,7 +53,7 @@ export function ProjectDocumentsView() {
                 loading={projectLoading || files.loading}
                 search={search}
                 operations={operations}
-                onUploadActionsChange={handleUploadActionsChange}
+                onUploadActionsChange={setUploadActions}
                 onCreateFolderActionChange={handleCreateFolderActionChange}
                 onSelectionActionsChange={setSelectionActions}
                 onAssistantWorkflowSelect={openAssistantWorkflow}

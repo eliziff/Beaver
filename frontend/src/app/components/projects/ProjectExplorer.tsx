@@ -27,15 +27,15 @@ interface Props {
     onMoveDoc?: (documentId: string, folderId: string | null) => Promise<void>;
     onMoveFolder?: (folderId: string, parentId: string | null) => Promise<void>;
 }
-type PendingMove = { kind: "document" | "folder"; id: string };
+type PendingItem = { kind: "document" | "folder"; id: string };
 
 export function ProjectExplorer({
     documents, folders = [], selectedDocId, onDocClick, onCreateFolder,
     onRenameFolder, onDeleteFolder, onDeleteDoc,
     documentRemovalMode = "delete", onMoveDoc, onMoveFolder,
 }: Props) {
-    const [pendingDelete, setPendingDelete] = useState<{ kind: "document" | "folder"; id: string } | null>(null);
-    const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<PendingItem | null>(null);
+    const [pendingMove, setPendingMove] = useState<PendingItem | null>(null);
     const [status, setStatus] = useState<"idle" | "loading" | "complete">("idle");
     const [error, setError] = useState<string | null>(null);
     const { tree, expanded, editor, setEditor, startEditor, commitEditor, toggleFolder,
