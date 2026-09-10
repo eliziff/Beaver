@@ -254,19 +254,25 @@ const WORK_PRODUCT_ACTIVITY: Record<string, string> = {
   review: "Checking draft", refresh: "Refreshing draft", build: "Building draft",
 };
 const AUTHORITIES_ACTION = objectSchema({
-  type: { type: "string", enum: AUTHORITIES_TOOL_ACTIONS },
+  type: { type: "string", enum: AUTHORITIES_TOOL_ACTIONS,
+    description: "Boundary work: set-authority-span re-spans one citation over the whole of it — style of cause, neutral citation, parallel cites — re-parsing the span, relinking its authority, and absorbing any other occurrence lying wholly inside it, which is how two detections become one; set-pinpoint-span attaches the pinpoint, whose span must sit outside the authority span and hold a complete pinpoint (\"at para 33\", \"at 411\"); split-occurrence divides one occurrence in two at cursor_text; merge-occurrence merges it into the occurrence before it in the same unit; split and merge need a footnote unit; relink-occurrence points it at another authorityId, or null to unlink; remove-occurrence drops a false positive; set-reference marks a supra or ibid." },
   occurrenceId: { type: "string", minLength: 1,
     description: "Citation occurrence; omit in a bound view to use the focused citation." },
-  authorityId: { type: "string" },
+  authorityId: { type: "string",
+    description: "An id from the read's authorities list; null in relink-occurrence unlinks." },
   kind: { type: "string", enum: authorityKinds },
   citation: { type: "string", minLength: 1, maxLength: 1_000 },
   name: { type: ["string", "null"], maxLength: 1_000 },
+  span_text: { type: "string", minLength: 1, maxLength: 2_000,
+    description: "The span, quoted exactly from the unit text the read returned, e.g. \"Bhasin v. Hrynew, 2014 SCC 71\" for the authority span and \"at para 33\" for the pinpoint. Preferred over start/end: it is resolved against the occurrence's unit, so no offset is counted by hand." },
+  cursor_text: { type: "string", minLength: 1, maxLength: 2_000,
+    description: "split-occurrence: the text the second citation begins with, quoted from the unit; the split falls immediately before it." },
   start: { type: "integer", minimum: 0,
-    description: "Absolute UTF-16 start in the unit; omit to use the selected range." },
+    description: "Span start as an absolute UTF-16 offset in the whole unit text (add the read's text_offset to a position inside its window); omit when span_text or the focused selection gives the span." },
   end: { type: "integer", minimum: 0,
-    description: "Absolute UTF-16 end in the unit; omit to use the selected range." },
+    description: "Span end, exclusive, on the same scale as start." },
   cursor: { type: "integer", minimum: 0,
-    description: "Absolute UTF-16 split position; omit to use the selection start." },
+    description: "split-occurrence: absolute UTF-16 offset in the unit where the citation divides; it must fall strictly inside the occurrence. Omit when cursor_text is given." },
   reference: { ...objectSchema({
     kind: { type: "string", enum: AUTHORITIES_ACTION_CHOICES.reference },
     targetAuthorityId: { type: "string", minLength: 1 },
@@ -303,8 +309,11 @@ const workProductTool = (authoritiesEnabled: boolean, bound = false,
   activity: (input) => WORK_PRODUCT_ACTIVITY[String(input.action)] ?? "Updating draft",
   description: (bound ? "Read, review, update, refresh, or build the active Authorities draft. "
     : "Create, read, select, or update Court Record and Authorities drafts. Read without draft_id to list drafts. ") +
-    "Use unit_id or occurrence_id for text. Bound reads and citation " +
-    "actions default to the focused citation and selection, and each is a button beside it: " +
+    "Read a unit_id or occurrence_id for the unit text with every occurrence in it, its " +
+    "authority span, pinpoint span and linked authority; correcting those boundaries is your work, " +
+    "not the user's, and authorities_action.span_text quotes the text a span should cover instead of " +
+    "counting offsets. Bound reads and citation actions default to the focused citation and " +
+    "selection, and each is a button beside it: " +
     "set-authority-span (Use selection as citation), set-pinpoint-span (Use selection as pinpoint), split-occurrence (Split at cursor), merge-occurrence (Merge with previous), remove-occurrence (Not a citation). Update with authorities_action, " +
     "evidence_ids, authority_id + document_id + source_language, or book_slot + document_id. " +
     "Reuse supplement_id to replace a supplemental PDF or authorities_action.id to remove it.",
@@ -343,6 +352,26 @@ const workProductTool = (authoritiesEnabled: boolean, bound = false,
     }),
   }, bound ? ["action"] : ["action", "kind"]),
 });
+
+/** Quoted text beats hand-counted offsets: the assistant names the text a span should
+ * cover and the match nearest the occurrence wins, so boundary work needs no arithmetic. */
+function anchoredRange(state: unknown, occurrenceId: string,
+  action: Record<string, unknown>): { start?: number; end?: number; cursor?: number } | null {
+  const span = trimmed(action.span_text), needle = span || trimmed(action.cursor_text);
+  if (!needle) return null;
+  const draft = decodeAuthoritiesDraft(state);
+  const occurrence = draft?.occurrences[occurrenceId];
+  const unit = occurrence && draft!.units.find(({ id }) => id === occurrence.unitId);
+  if (!unit) throw new Error("Quote span_text with the occurrence_id whose unit it comes from");
+  const found: number[] = [];
+  for (let at = unit.text.indexOf(needle); at >= 0;
+    at = unit.text.indexOf(needle, at + 1)) found.push(at);
+  if (!found.length) throw new Error(
+    `That text is not in unit ${unit.id}; quote it exactly as the read returned it`);
+  const start = found.reduce((best, at) =>
+    Math.abs(at - occurrence.start) < Math.abs(best - occurrence.start) ? at : best);
+  return span ? { start, end: start + needle.length } : { cursor: start };
+}
 
 const documentsFromPage = (items: (LibraryPageItem | ProjectDirectoryItem)[]) =>
   items.flatMap((item) => item.kind === "document"
@@ -2265,14 +2294,21 @@ export function assistantTools<Context extends {
       authority_page: { offset: authorityOffset, limit: authorityLimit,
         has_more: authorityOffset + authorityLimit < authorityIds.length },
     };
+    // Boundary work reads spans, not just rows: every listing carries what it would correct.
+    type Span = { start: number; end: number; text: string } | null;
+    const span = (value: Span) => value && ({ start: value.start, end: value.end,
+      text: clip(value.text, 500) });
+    const boundaries = (item: (typeof draft.occurrences)[string]) => ({
+      start: item.start, end: item.end, kind: item.kind, citation: clip(item.citation, 300),
+      authority_id: item.authorityId, authority_span: span(item.authoritySpan),
+      pinpoint_span: span(item.pinpointSpan), pinpoints: item.pinpoints,
+      ...(item.reference ? { reference: item.reference } : {}) });
     if (!occurrenceId && !requestedUnitId) {
       const ids = draft.units.flatMap(({ occurrenceIds }) => occurrenceIds);
       summary.occurrence_index = ids.slice(occurrenceOffset,
         occurrenceOffset + occurrenceLimit).flatMap((id) => {
         const item = draft.occurrences[id];
-        return item ? [{ id, unit_id: item.unitId, start: item.start, end: item.end,
-          kind: item.kind, citation: clip(item.citation, 300),
-          authority_id: item.authorityId }] : [];
+        return item ? [{ id, unit_id: item.unitId, ...boundaries(item) }] : [];
       });
       summary.occurrence_page = { offset: occurrenceOffset, limit: occurrenceLimit,
         has_more: occurrenceOffset + occurrenceLimit < ids.length };
@@ -2290,20 +2326,13 @@ export function assistantTools<Context extends {
         text_end: textEnd, text_length: unit.text.length, has_more: textEnd < unit.text.length,
         occurrences: unit.occurrenceIds.slice(0, 100).flatMap((id) => {
           const item = draft.occurrences[id];
-          return item ? [{ id, start: item.start, end: item.end, kind: item.kind,
-            citation: clip(item.citation, 300), authority_id: item.authorityId }] : [];
+          return item ? [{ id, ...boundaries(item) }] : [];
         }), occurrence_count: unit.occurrenceIds.length };
     }
     if (occurrence) {
-      const span = (value: typeof occurrence.authoritySpan | null) => value && ({
-        start: value.start, end: value.end, text: clip(value.text, 500),
-      });
       summary.occurrence = { id: occurrence.id, unit_id: occurrence.unitId,
-        start: occurrence.start, end: occurrence.end, text: clip(occurrence.text, 1_000),
-        kind: occurrence.kind, citation: clip(occurrence.citation),
-        authority_id: occurrence.authorityId, authority_span: span(occurrence.authoritySpan),
-        core_span: span(occurrence.coreSpan), pinpoint_span: span(occurrence.pinpointSpan),
-        reference: occurrence.reference, pinpoints: occurrence.pinpoints };
+        ...boundaries(occurrence), text: clip(occurrence.text, 1_000),
+        core_span: span(occurrence.coreSpan), reference: occurrence.reference };
       if (occurrence.id === focus?.itemId) summary.focus = {
         occurrence_id: occurrence.id, selection: focus.selection ?? null };
     }
@@ -2369,15 +2398,18 @@ export function assistantTools<Context extends {
     return { ...document, version: { filename: version.filename,
       source_sha256: version.source_sha256 } };
   };
-  const authoritiesAction = (value: unknown, productId: string): AuthoritiesUserAction | null => {
+  const authoritiesAction = (value: unknown,
+    product: { id: string; state: unknown }): AuthoritiesUserAction | null => {
     const action = objectRecord(value);
     if (!action) return null;
-    const focus = productId === authoritiesId ? workProductFocus : undefined;
+    const focus = product.id === authoritiesId ? workProductFocus : undefined;
     const occurrenceId = trimmed(action.occurrenceId) || focus?.itemId,
       selection = occurrenceId === focus?.itemId ? focus?.selection : undefined;
+    const anchor = anchoredRange(product.state, occurrenceId ?? "", action);
     return decodeAuthoritiesUserAction({ ...action, occurrenceId,
-      start: action.start ?? selection?.start, end: action.end ?? selection?.end,
-      cursor: action.cursor ?? selection?.start });
+      start: action.start ?? anchor?.start ?? selection?.start,
+      end: action.end ?? anchor?.end ?? selection?.end,
+      cursor: action.cursor ?? anchor?.cursor ?? selection?.start });
   };
   const activeCourtTool = courtRecord && courtRecords ? courtRecordSlotTool<Context>({
     scope, target: courtRecord, projectId: workProductProjectId,
@@ -2561,7 +2593,7 @@ export function assistantTools<Context extends {
       const authorityId = trimmed(input.authority_id);
       const bookSlot = trimmed(input.book_slot);
       const supplementId = trimmed(input.supplement_id);
-      const action = authoritiesAction(input.authorities_action, target.product.id);
+      const action = authoritiesAction(input.authorities_action, target.product);
       const receipts = input.evidence_ids !== undefined;
       const attachment = Boolean(trimmed(input.document_id) || authorityId || bookSlot || supplementId);
       if ([Boolean(action), attachment, receipts].filter(Boolean).length !== 1) {
