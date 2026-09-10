@@ -26,6 +26,38 @@ describe("court record source fields", () => {
     });
   });
 
+  it("reads a scanned affidavit's deponent, place, and date from flattened OCR text", () => {
+    // OCR of scanned-affidavit.pdf returns one flat line per page, and the recital's comma
+    // after "I" is lost, so only the shape of a name can bound the reading.
+    const fields = sourceDocumentFields([
+      "AFFIDAVIT OF JORDAN JAMES PELECH I JORDAN JAMES PELECH, of the City of Edmonton, in the Province of Alberta, SWEAR AND SAY THAT: 1. I am the Operations Supervisor for the City of Edmonton and as such have personal knowledge of the matters deposed to in this Affidavit. 2. On July 15, 2024 I attended at the Site and observed the encampment described in the Statement of Claim.",
+      "3. Attached as Exhibit A is a photograph of the Site taken on that date. 4. Attached as Exhibit B is a photograph of the items removed. SWORN BEFORE ME at the City of Edmonton, in the Province of Alberta, this 22nd day of May, 2026.",
+      "", "",
+    ]);
+
+    expect(fields?.cover).toEqual({
+      deponent: "JORDAN JAMES PELECH",
+      swornDate: "May 22, 2026",
+      swornPlace: "Edmonton, Alberta",
+    });
+    expect(fields?.entryTitle).toBe("Affidavit of JORDAN JAMES PELECH");
+    expect(fields?.exhibitLabels).toEqual(["A", "B"]);
+  });
+
+  it("never accepts a recital paragraph as a deponent name", () => {
+    const recital = "I JORDAN JAMES PELECH, of the City of Edmonton, in the Province of Alberta, SWEAR AND SAY THAT: 1. I am the Operations Supervisor for the City of Edmonton.";
+    for (const page of [`Deponent: ${recital}`, `AFFIDAVIT OF JORDAN JAMES PELECH ${recital}`]) {
+      expect(sourceDocumentFields([page])?.cover.deponent).toBe("JORDAN JAMES PELECH");
+    }
+    for (const page of [
+      "Deponent: This affidavit is made in support of the application and the facts set out below are true.",
+      "Affidavit of the applicant filed in this action on July 15, 2024.",
+      "Affidavit of 22 boxes of records seized from the Site.",
+    ]) {
+      expect(sourceDocumentFields([page])?.cover).not.toHaveProperty("deponent");
+    }
+  });
+
   it("keeps each distinct affidavit statement with its exhibit slot", () => {
     const fields = sourceDocumentFields([[
       "1. The January order is attached as Exhibit A.",
