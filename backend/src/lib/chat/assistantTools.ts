@@ -2384,10 +2384,11 @@ export function assistantTools<Context extends {
     allowedDocumentIds, library, workProducts, courtRecords, resolveArtifact,
     onMutationCommitted: () => {},
   }) : null;
-  const courtPageTool = courtRecord ? courtRecordPageTool<Context>({
-    scope, target: courtRecord, projectId: workProductProjectId,
+  // Every assistant can look at a page; the Court Record only adds entry_id (Eli, 2026-09-10).
+  const pageTool = courtRecordPageTool<Context>({
+    scope, target: courtRecord ?? undefined, projectId: workProductProjectId,
     allowedDocumentIds, library, workProducts, documents, resolveArtifact,
-  }) : null;
+  });
   const updateWorkProduct: AssistantToolRun = async (call, input, signal) => {
     const kind = input.kind as WorkProductKind;
     const respond = (raw: Record<string, unknown>, mutated = false,
@@ -2766,10 +2767,10 @@ export function assistantTools<Context extends {
     definition(SEARCH_SOURCES_TOOL, sourceSearch),
     definition(CITATOR_TOOL, runCitator, { specialist: true }),
     ...(turnScope !== "main" ? [] : [
+      definition(pageTool, (call, input, signal) =>
+        pageTool.execute(input, {} as Context, signal, call), { specialist: false }),
       ...(activeCourtTool ? [definition(activeCourtTool, (call, input, signal) =>
-        activeCourtTool.execute(input, {} as Context, signal, call), { specialist: false }),
-        definition(courtPageTool!, (call, input, signal) =>
-          courtPageTool!.execute(input, {} as Context, signal, call), { specialist: false })]
+        activeCourtTool.execute(input, {} as Context, signal, call), { specialist: false })]
         : authoritiesId ? [definition(workProductTool(true, true), (call, input, signal) =>
           updateWorkProduct(call, { ...input, kind: "authorities", draft_id: authoritiesId }, signal))] : []),
       definition(workProductTool(productFeatures?.authorities !== false, false,
