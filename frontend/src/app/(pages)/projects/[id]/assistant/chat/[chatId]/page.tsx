@@ -224,22 +224,11 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
           <div inert={route.chatLoaded ? undefined : true} className="h-full">
           <ChatView
             ref={chat}
-            chatId={chatId}
-            researchFileId={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.research_file_id : undefined}
-            ready={route.chatLoaded}
-            researchSelection={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.research_selection : undefined}
+            {...route.chatViewProps}
             searchMessageId={search.get("message")}
-            session={route.state}
-            handleChat={route.actions.handleChat}
-            cancel={route.actions.cancel}
-            onRejectedTurnRestored={route.actions.clearRejectedTurn}
-            onRetryRejectedTurn={() => void route.actions.retryRejectedTurn()}
             projectId={projectId}
             projectName={workspace.project?.name}
             projectCmNumber={workspace.project?.cm_number}
-            initialModel={route.chatModel}
-            initialDraft={route.chatLoad.status === "loaded" ? route.chatLoad.chat?.draft ?? null : null}
-            initialReasoningEffort={route.chatReasoningEffort}
             initialDocuments={initialDocuments}
             initialWorkflow={initialWorkflow}
             useDisplayedDocumentContext
