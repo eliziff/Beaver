@@ -14,13 +14,11 @@ function AssistantChat({ id }: { id: string }) {
     const [initialDocuments] = useState(takeNewChatDocuments);
     const [projectModalOpen, setProjectModalOpen] = useState(false);
     const {
-        state: session,
         actions,
         chatTitle,
         chatLoaded,
         chatLoad,
-        chatModel,
-        chatReasoningEffort,
+        chatViewProps,
         chatProjectId: projectId,
         chatProjectName: projectName,
         changeProject,
@@ -32,23 +30,12 @@ function AssistantChat({ id }: { id: string }) {
             <div className="relative h-full">
                 <div inert={chatLoaded ? undefined : true} className="h-full">
                     <ChatView
-                        chatId={id}
-                        ready={chatLoaded}
-                        researchFileId={chatLoad.status === "loaded" ? chatLoad.chat?.research_file_id : undefined}
-                        researchSelection={chatLoad.status === "loaded" ? chatLoad.chat?.research_selection : undefined}
+                        {...chatViewProps}
                         initialDocuments={initialDocuments}
                         searchMessageId={search.get("message")}
-                        session={session}
-                        handleChat={actions.handleChat}
-                        cancel={actions.cancel}
-                        onRejectedTurnRestored={actions.clearRejectedTurn}
-                        onRetryRejectedTurn={() => void actions.retryRejectedTurn()}
                         projectId={projectId ?? undefined}
                         projectName={projectName}
                         useDisplayedDocumentContext={!!projectId}
-                        initialModel={chatModel}
-                        initialDraft={chatLoad.status === "loaded" ? chatLoad.chat?.draft ?? null : null}
-                        initialReasoningEffort={chatReasoningEffort}
                         onProjectClick={() => setProjectModalOpen(true)}
                     />
                 </div>
