@@ -49,12 +49,6 @@ export function usePagedDirectory(
     }, [chains, fetchPage, query]);
     const reload = useCallback((parentId: string | null = null) =>
         fetchPage(keyFor(parentId, query), null, false, true), [fetchPage, query]);
-    const replaceDocument = useCallback((document: Document) => setChains((current) =>
-        Object.fromEntries(Object.entries(current).map(([key, chain]) => [key, {
-            ...chain,
-            items: chain.items.map((item) => item.kind === "document" &&
-                item.document.id === document.id ? { kind: "document", document } : item),
-        }]))), [setChains]);
     const replaceDocumentParseStates = useCallback((states: Array<
         Pick<Document, "id" | "parse_state" | "page_count">
     >) => {
@@ -99,7 +93,6 @@ export function usePagedDirectory(
         ensureParent,
         loadMore,
         reload,
-        replaceDocument,
         replaceDocumentParseStates,
     };
 }

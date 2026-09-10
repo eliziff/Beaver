@@ -206,10 +206,13 @@ async function mapBounded<T, R>(input: readonly T[], fn: (value: T, index: numbe
 
 export function createDocumentApplication(repository: DocumentRepository,
   objects: ObjectStorage): DocumentStore {
+  const reserve = async (keys: string[]) => {
+    if (keys.length && await repository.recordOrphans(keys) === "busy")
+      throw new ApplicationError(503, "Document storage is busy; retry shortly");
+  };
   const writeBlob = async (key: string,
     body: Parameters<ObjectStorage["put"]>[1], type: string, digest: string) => {
-    if (await repository.recordOrphans([key]) === "busy")
-      throw new ApplicationError(503, "Document storage is busy; retry shortly");
+    await reserve([key]);
     await objects.put(key, body, type, { expectedSha256: digest });
   };
   const stageParts = async (documentId: string,
@@ -229,9 +232,7 @@ export function createDocumentApplication(repository: DocumentRepository,
     });
     const uploads = [...new Map(output.map((part, index) =>
       [part.blobKey, { part, bytes: input[index].bytes }] as const)).values()];
-    if (uploads.length && await repository.recordOrphans(
-      uploads.map(({ part }) => part.blobKey)) === "busy")
-      throw new ApplicationError(503, "Document storage is busy; retry shortly");
+    await reserve(uploads.map(({ part }) => part.blobKey));
     await mapBounded(uploads, ({ part, bytes }) =>
       objects.put(part.blobKey, bytes, "application/octet-stream",
         { expectedSha256: part.sha256 }));
@@ -574,9 +575,7 @@ export function createDocumentApplication(repository: DocumentRepository,
             expectedBlobKey: part.blobKey, blobKey };
         });
         const pending = [...copies];
-        if (pending.length && await repository.recordOrphans(
-          pending.map(([key]) => key)) === "busy")
-          throw new ApplicationError(503, "Document storage is busy; retry shortly");
+        await reserve(pending.map(([key]) => key));
         await mapBounded(pending, async ([key, copy]) => {
           const bytes = await checkedBlob(copy.source, copy.digest);
           if (!bytes) throw new Error("Stored document is unavailable");

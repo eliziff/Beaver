@@ -37,7 +37,6 @@ export interface PdfCanvasProps {
     onUnavailable?: () => void;
 }
 
-type QuoteEntry = CitationQuote;
 type RenderedPage = {
     wrapper: HTMLDivElement;
     hasTextLayer: boolean;
@@ -91,7 +90,7 @@ export function PdfCanvas({
     const scrollRef = useRef<HTMLDivElement>(null);
     const pdfRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
     const pagesRef = useRef<RenderedPage[]>([]);
-    const quotesRef = useRef<QuoteEntry[]>([]);
+    const quotesRef = useRef<CitationQuote[]>([]);
     const zoomRef = useRef(1);
     const pageRef = useRef(1);
     const generationRef = useRef(0);
@@ -101,7 +100,7 @@ export function PdfCanvas({
     const pageCacheRef = useRef<ReturnType<typeof createPdfPageCache> | null>(null);
     const quoteGenerationRef = useRef(0);
     const navigationRef = useRef(0);
-    const searchRef = useRef<((quotes: QuoteEntry[]) => Promise<void>) | null>(null);
+    const searchRef = useRef<((quotes: CitationQuote[]) => Promise<void>) | null>(null);
     const preparePageRef = useRef<((number: number) => Promise<boolean>) | null>(null);
     const quoteList = quotes ?? [];
     const quoteKey = JSON.stringify(quoteList);
@@ -112,7 +111,7 @@ export function PdfCanvas({
     const [viewerError, setViewerError] = useState<string | null>(null);
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
 
-    const renderPdf = useCallback(async (list: QuoteEntry[], scrollToPage?: number) => {
+    const renderPdf = useCallback(async (list: CitationQuote[], scrollToPage?: number) => {
         const container = containerRef.current;
         const pdf = pdfRef.current;
         if (!container || !pdf) return;
@@ -395,7 +394,7 @@ export function PdfCanvas({
                 const quoteGeneration = ++quoteGenerationRef.current;
                 const current = () => generation === generationRef.current && quoteGeneration === quoteGenerationRef.current;
                 pages.forEach(({ wrapper }) => clearHighlights(wrapper));
-                const found = new Map<number, QuoteEntry[]>();
+                const found = new Map<number, CitationQuote[]>();
                 let focused = false;
                 for (const entry of entries) {
                     const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page! - 1 : undefined;
