@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { bindWorkspaceView, ensureSourcesWorkspace, getResearchFile, getResearchItems, getWorkspaceFindings,
-  getWorkspaceViews, openWorkspaceTable, type ResearchFinding } from "@/app/lib/api/researchFiles";
+  getWorkspaceViews, type ResearchFinding } from "@/app/lib/api/researchFiles";
 import { createChat } from "@/app/lib/api/chat";
 import { BeaverApiError } from "@/app/lib/api/client";
 import { researchSourceKey, type ResearchFile, type ResearchPageItem,
@@ -137,10 +137,6 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   async function bind(id: string, input: Parameters<typeof bindWorkspaceView>[1]) {
     const next = await bindWorkspaceView(id, input); accept(next); return next;
   }
-  async function table(input: Parameters<typeof openWorkspaceTable>[1] = {}) {
-    const result = await openWorkspaceTable(requireFile().document.id, { selection, ...input });
-    await refresh(); return result;
-  }
   async function chat(id?: string) {
     const source = requireFile();
     if (id) await bind(source.document.id, { chatId: id, selection });
@@ -194,7 +190,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
       capture.current = next; setReading(!!next); setHighlightError(""); }, []) };
 
   return { file, selection, setSelection, accept, open, refresh, loading, error, mutations, passages, evidence, findings,
-    ensure, bind, table, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
+    ensure, bind, chat, highlight, views: () => getWorkspaceViews(requireFile().document.id), retry: restore };
 }
 
 export function SourcesWorkspaceProvider(props: Options) {

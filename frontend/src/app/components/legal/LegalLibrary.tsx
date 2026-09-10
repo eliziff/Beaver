@@ -49,6 +49,23 @@ const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["articles", "Journals"],
     ["hansard", "Hansard"],
 ];
+/** Free-text filters that only some source categories carry: name, label, placeholder, grid span. */
+const TEXT_FILTERS: Partial<Record<SourceTab, ReadonlyArray<readonly [string, string, string, string]>>> = {
+    articles: [["author", "Author", "Any author", "@min-[48rem]:col-span-2"],
+        ["journal", "Journal", "Any journal or abbreviation", "@min-[48rem]:col-span-2"]],
+    hansard: [["speaker", "Speaker", "Any speaker", "@min-[28rem]:col-span-2 @min-[48rem]:col-span-4"]],
+};
+
+function FilterSelect({ id, label, value, allLabel, options, onChange, span }: {
+    id: string; label: string; value: string; allLabel: string; span?: string;
+    options: { value: string; label: string }[]; onChange: (value: string) => void;
+}) {
+    return <label htmlFor={id} className={span ? `${FILTER_LABEL} ${span}` : FILTER_LABEL}>
+        {label}
+        <ModalSelect id={id} value={value} searchable ariaLabel={label} onChange={onChange}
+            options={[{ value: "", label: allLabel }, ...options]} className="mt-1 h-9! px-2 font-normal" />
+    </label>;
+}
 
 const researchReference = (result: LegalSourceSearchResult): ResearchSourceReference => {
     const { snippet: _snippet, authors: _authors, speaker: _speaker,
@@ -126,18 +143,18 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     useEffect(() => { if (researchFileId) setResearchOpen(true); }, [researchFileId]);
     const sourceIndex = useMemo(() => new Map(Object.values(researchFile?.state.sources ?? {})
         .map((source) => [researchSourceKey(source.reference), source])), [researchFile]);
-    const sourceInFile = (result: LegalSourceSearchResult, file = researchFile) => file === researchFile
-        ? sourceIndex.get(researchSourceKey(researchReference(result)))
-        : file && Object.values(file.state.sources).find(({ reference }) =>
-            researchSourceKey(reference) === researchSourceKey(researchReference(result)));
-    const needResearchFile = () => setResearchOpen(true);
-    function readSavedSource(source: ResearchSource, locator?: string) {
-        const ref = source.reference, tab: LegalSourceTab = { kind: "legal",
+    const sourceInFile = (result: LegalSourceSearchResult) =>
+        sourceIndex.get(researchSourceKey(researchReference(result)));
+    const legalTab = (ref: ResearchSourceReference, citation: string,
+        extra: Partial<LegalSourceTab>): LegalSourceTab => ({ kind: "legal",
             id: `legal:${ref.provider}:${ref.id}`, provider: ref.provider === "journal" ? "journal" : "a2aj",
-            citation: ref.citation || ref.id, sourceId: ref.id, name: ref.title ?? null,
+            citation, sourceId: ref.id, name: ref.title ?? null,
             dataset: ref.collection ?? null, language: ref.language ?? "en",
             docType: ref.kind === "legislation" ? "laws" : ref.kind === "journal" ? "articles" : "cases",
-            researchFileId: researchFile?.document.id, researchSourceId: source.id, initialLocator: locator };
+            researchFileId: researchFile?.document.id, ...extra });
+    function readSavedSource(source: ResearchSource, locator?: string) {
+        const ref = source.reference;
+        const tab = legalTab(ref, ref.citation || ref.id, { researchSourceId: source.id, initialLocator: locator });
         if (embedded && onOpenSource) onOpenSource(tab);
         else setReadingSource(tab);
     }
@@ -165,7 +182,6 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
             (!jurisdiction || item.jurisdictionCode === jurisdiction) &&
             (!sourceKind || item.sourceKind === sourceKind),
     );
-    const selectedDatasets = dataset ? [dataset] : undefined;
     async function runSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
@@ -186,9 +202,9 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                     query,
                     docType: type,
                     datasets:
-                        type === "articles" || docType === "all"
+                        type === "articles" || docType === "all" || !dataset
                             ? undefined
-                            : selectedDatasets,
+                            : [dataset],
                     author: type === "articles"
                         ? form.get("author")?.toString().trim() || undefined
                         : undefined,
@@ -304,36 +320,10 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                         {docType !== "all" && (
                             <div className="mt-3 grid gap-2 @min-[28rem]:grid-cols-2 @min-[48rem]:grid-cols-4">
                                 {(docType === "cases" || docType === "laws") && <>
-                                    <label
-                                        htmlFor="legal-jurisdiction"
-                                        className={FILTER_LABEL}
-                                    >
-                                        Jurisdiction
-                                        <ModalSelect
-                                            id="legal-jurisdiction"
-                                            value={jurisdiction}
-                                            searchable ariaLabel="Jurisdiction"
-                                            onChange={(value) =>
-                                                updateFilters({
-                                                    jurisdiction: value,
-                                                    dataset: "",
-                                                })
-                                            }
-                                            options={[
-                                                {
-                                                    value: "",
-                                                    label: "All jurisdictions",
-                                                },
-                                                ...jurisdictions.map(
-                                                    ([code, name]) => ({
-                                                        value: code,
-                                                        label: name,
-                                                    }),
-                                                ),
-                                            ]}
-                                            className="mt-1 h-9! px-2 font-normal"
-                                        />
-                                    </label>
+                                    <FilterSelect id="legal-jurisdiction" label="Jurisdiction" value={jurisdiction}
+                                        allLabel="All jurisdictions"
+                                        onChange={(value) => updateFilters({ jurisdiction: value, dataset: "" })}
+                                        options={jurisdictions.map(([code, name]) => ({ value: code, label: name }))} />
                                     <label className={FILTER_LABEL}>
                                         Source type
                                         <select
@@ -356,68 +346,24 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                             )}
                                         </select>
                                     </label>
-                                    <label
-                                        htmlFor="legal-dataset"
-                                        className={`${FILTER_LABEL} @min-[48rem]:col-span-2`}
-                                    >
-                                        {docType === "cases"
-                                            ? "Court or tribunal"
-                                            : "Collection"}
-                                        <ModalSelect
-                                            id="legal-dataset"
-                                            value={dataset}
-                                            searchable ariaLabel={docType === "cases" ? "Court or tribunal" : "Collection"}
-                                            onChange={(value) =>
-                                                updateFilters({ dataset: value })
-                                            }
-                                            options={[
-                                                {
-                                                    value: "",
-                                                    label:
-                                                        docType === "cases"
-                                                            ? "All courts and tribunals"
-                                                            : "All statutes and regulations",
-                                                },
-                                                ...availableSources.map((item) => ({
-                                                    value: item.dataset,
-                                                    label: item.description,
-                                                })),
-                                            ]}
-                                            className="mt-1 h-9! px-2 font-normal"
-                                        />
-                                    </label>
+                                    <FilterSelect id="legal-dataset" span="@min-[48rem]:col-span-2"
+                                        label={docType === "cases" ? "Court or tribunal" : "Collection"}
+                                        value={dataset}
+                                        allLabel={docType === "cases" ? "All courts and tribunals" : "All statutes and regulations"}
+                                        onChange={(value) => updateFilters({ dataset: value })}
+                                        options={availableSources.map((item) => ({ value: item.dataset, label: item.description }))} />
                                 </>}
-                                {docType === "articles" && <>
-                                    <label className={`${FILTER_LABEL} @min-[48rem]:col-span-2`}>
-                                        Author
+                                {(TEXT_FILTERS[docType] ?? []).map(([name, label, placeholder, span]) => (
+                                    <label key={name} className={`${FILTER_LABEL} ${span}`}>
+                                        {label}
                                         <input
                                             type="search"
-                                            name="author"
-                                            placeholder="Any author"
+                                            name={name}
+                                            placeholder={placeholder}
                                             className={FILTER_INPUT}
                                         />
                                     </label>
-                                    <label className={`${FILTER_LABEL} @min-[48rem]:col-span-2`}>
-                                        Journal
-                                        <input
-                                            type="search"
-                                            name="journal"
-                                            placeholder="Any journal or abbreviation"
-                                            className={FILTER_INPUT}
-                                        />
-                                    </label>
-                                </>}
-                                {docType === "hansard" && (
-                                    <label className={`${FILTER_LABEL} @min-[28rem]:col-span-2 @min-[48rem]:col-span-4`}>
-                                        Speaker
-                                        <input
-                                            type="search"
-                                            name="speaker"
-                                            placeholder="Any speaker"
-                                            className={FILTER_INPUT}
-                                        />
-                                    </label>
-                                )}
+                                ))}
                                 {DATE_FILTERS.map(([name, label]) => (
                                     <label key={name} className={FILTER_LABEL}>
                                         {label}
@@ -497,7 +443,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                     disabled={researchBusy}
                                                     mutations={mutations} onError={setError} sourceReference={researchReference(result)}
                                                     onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }}
-                                                    onNeedFile={needResearchFile}
+                                                    onNeedFile={() => setResearchOpen(true)}
                                                     prepare={saved ? undefined : (file) => saveResult(result, file)} />
                                                 <div className="min-w-0 flex-1">
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
@@ -516,19 +462,12 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                 </div>
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
-                                                {result.provider !== "hansard" && <button type="button" onClick={() => (embedded && onOpenSource ? onOpenSource : setReadingSource)({
-                                                        kind: "legal",
-                                                        id: `legal:${result.provider}:${result.id ?? result.citation}`,
-                                                        provider: result.provider === "journal" ? "journal" : "a2aj",
-                                                        sourceId: result.id,
-                                                        citation: sourceCitation,
-                                                        name: result.title ?? null,
-                                                        dataset: result.collection ?? null,
-                                                        docType: result.kind === "legislation" ? "laws" : result.kind === "journal" ? "articles" : "cases",
-                                                        language: result.language ?? "en",
-                                                        researchFileId: researchFile?.document.id,
-                                                        researchSourceId: saved?.id,
-                                                    })} aria-label={`View ${result.title || sourceCitation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
+                                                {result.provider !== "hansard" && <button type="button"
+                                                    onClick={() => (embedded && onOpenSource ? onOpenSource : setReadingSource)(
+                                                        legalTab(researchReference(result), sourceCitation, {
+                                                            id: `legal:${result.provider}:${result.id ?? result.citation}`,
+                                                            researchSourceId: saved?.id,
+                                                        }))} aria-label={`View ${result.title || sourceCitation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
                                                         View
                                                     </button>}
                                                 {sourceHref && (
