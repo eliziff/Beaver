@@ -18,7 +18,6 @@ function renderTable(
             columns={columns}
             documents={[doc]}
             cells={cells}
-            savingColumnsConfig={false}
             selectedDocIds={[]}
             onSelectionChange={vi.fn()}
             onExpand={onExpand}
@@ -44,7 +43,7 @@ describe("TRTable", () => {
             { ...doc, id: "passage-1", filename: "Opening position", group: ["Delivery", "Deadlines"] },
             { ...doc, id: "passage-2", filename: "Later amendment", group: ["Delivery", "Deadlines"] },
             { ...doc, id: "passage-3", filename: "Payment terms", group: ["Payment"] },
-        ]} cells={[]} savingColumnsConfig={false} selectedDocIds={[]} onSelectionChange={vi.fn()}
+        ]} cells={[]} selectedDocIds={[]} onSelectionChange={vi.fn()}
             onExpand={vi.fn()} onEditColumn={vi.fn()} />);
         expect(screen.getAllByText("Delivery / Deadlines")).toHaveLength(1);
         expect(screen.getByText("Payment")).toBeVisible();
@@ -55,8 +54,7 @@ describe("TRTable", () => {
     it("routes every column header-menu action to its callback", () => {
         const column = { index: 0, name: "Parties", prompt: "Identify parties" };
         const onEditColumn = vi.fn(), onRerunColumn = vi.fn(), onClearColumn = vi.fn(), onDeleteColumn = vi.fn();
-        render(<TRTable loading={false} columns={[column]} documents={[doc]} cells={[]} savingColumnsConfig={false}
-            selectedDocIds={[]} onSelectionChange={vi.fn()} onExpand={vi.fn()}
+        render(<TRTable loading={false} columns={[column]} documents={[doc]} cells={[]} selectedDocIds={[]} onSelectionChange={vi.fn()} onExpand={vi.fn()}
             onEditColumn={onEditColumn} onRerunColumn={onRerunColumn} onClearColumn={onClearColumn} onDeleteColumn={onDeleteColumn} />);
         const open = () => fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
 
@@ -74,7 +72,7 @@ describe("TRTable", () => {
 
     it("blocks a column rerun while the review is running", () => {
         render(<TRTable loading={false} columns={[{ index: 0, name: "Parties", prompt: "" }]} documents={[doc]} cells={[]}
-            savingColumnsConfig={false} selectedDocIds={[]} running onSelectionChange={vi.fn()} onExpand={vi.fn()}
+            selectedDocIds={[]} running onSelectionChange={vi.fn()} onExpand={vi.fn()}
             onEditColumn={vi.fn()} onRerunColumn={vi.fn()} />);
         fireEvent.click(screen.getByRole("button", { name: "Parties actions" }));
         expect(screen.getByRole("menuitem", { name: "Rerun column" })).toBeDisabled();
@@ -83,7 +81,7 @@ describe("TRTable", () => {
 
     it("offers the next step when the table has no rows", () => {
         const onAddColumns = vi.fn(), onAddDocuments = vi.fn();
-        render(<TRTable loading={false} columns={[]} documents={[]} cells={[]} savingColumnsConfig={false} selectedDocIds={[]}
+        render(<TRTable loading={false} columns={[]} documents={[]} cells={[]} selectedDocIds={[]}
             onSelectionChange={vi.fn()} onExpand={vi.fn()} onEditColumn={vi.fn()}
             onAddColumns={onAddColumns} onAddDocuments={onAddDocuments} />);
         fireEvent.click(screen.getByRole("button", { name: "+ Column" }));

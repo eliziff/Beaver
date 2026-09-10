@@ -18,38 +18,26 @@ import {
     useTableSelection,
 } from "@/app/components/shared/TablePrimitive";
 import { formatDate } from "@/app/lib/utils";
-const REVIEW_COLUMN = {
-    columns: "hidden w-24 md:flex",
-    documents: "hidden w-28 xl:flex",
-    project: "hidden w-40 lg:flex",
-    created: "hidden w-32 xl:flex",
-    actions: "w-7 sm:w-8",
-} as const;
+const ACTIONS_COLUMN = "w-7 sm:w-8";
 const EMPTY_VALUE = <span className="text-gray-300">—</span>;
 /** The metadata columns, so the header cells and the row cells cannot drift apart. */
 const REVIEW_COLUMNS: {
     key: string;
     header: ReactNode;
-    headerClassName: string;
-    cellClassName: string;
+    className: string;
+    /** Only where the row cell needs more than the shared column class. */
+    cellClassName?: string;
     needsProjects?: true;
     value: (review: TabularReview, projectName: string | null | undefined) => ReactNode;
 }[] = [
-    { key: "columns", header: "Columns",
-        headerClassName: `ml-auto ${REVIEW_COLUMN.columns}`,
-        cellClassName: `ml-auto ${REVIEW_COLUMN.columns}`,
+    { key: "columns", header: "Columns", className: "ml-auto hidden w-24 md:flex",
         value: (review) => review.columns_config?.length ?? 0 },
-    { key: "documents", header: "Documents",
-        headerClassName: REVIEW_COLUMN.documents,
-        cellClassName: REVIEW_COLUMN.documents,
+    { key: "documents", header: "Documents", className: "hidden w-28 xl:flex",
         value: (review) => review.document_count ?? 0 },
     { key: "project", header: <span>Project</span>, needsProjects: true,
-        headerClassName: REVIEW_COLUMN.project,
-        cellClassName: `${REVIEW_COLUMN.project} pr-2`,
+        className: "hidden w-40 lg:flex", cellClassName: "hidden w-40 lg:flex pr-2",
         value: (_review, projectName) => projectName ?? EMPTY_VALUE },
-    { key: "created", header: "Created",
-        headerClassName: REVIEW_COLUMN.created,
-        cellClassName: REVIEW_COLUMN.created,
+    { key: "created", header: "Created", className: "hidden w-32 xl:flex",
         value: (review) => review.created_at ? formatDate(review.created_at) : EMPTY_VALUE },
 ];
 export function TabularReviewsTable({
@@ -80,9 +68,8 @@ export function TabularReviewsTable({
     const projectNameById = projects
         ? new Map(projects.map((project) => [project.id, project.name]))
         : null;
-    const visibleReviews = filteredReviews;
     const selection = useTableSelection(
-        visibleReviews, selectedReviewIds, setSelectedReviewIds);
+        filteredReviews, selectedReviewIds, setSelectedReviewIds);
     const rowPadding = showProject ? undefined : "pr-8 md:pr-8";
     const columns = REVIEW_COLUMNS.filter(
         ({ needsProjects }) => showProject || !needsProjects);
@@ -100,12 +87,12 @@ export function TabularReviewsTable({
                 {selectedReviewIds.length ? (
                     <RowActions toolbar label="Actions" onDelete={onDeleteSelected} />
                 ) : <>
-                    {columns.map(({ key, header, headerClassName }) => (
-                        <TableHeaderCell key={key} className={headerClassName}>
+                    {columns.map(({ key, header, className }) => (
+                        <TableHeaderCell key={key} className={className}>
                             {header}
                         </TableHeaderCell>
                     ))}
-                    <TableHeaderCell className={REVIEW_COLUMN.actions} />
+                    <TableHeaderCell className={ACTIONS_COLUMN} />
                 </>}
             </TableSelectionHeader>}
         >
@@ -121,13 +108,13 @@ export function TabularReviewsTable({
                         Extract data from documents into tables using AI.
                     </p>
                 </TableEmptyState>
-            ) : visibleReviews.length === 0 ? (
+            ) : filteredReviews.length === 0 ? (
                 <TableEmptyState>
                     <p className="text-sm text-gray-600">No reviews found</p>
                 </TableEmptyState>
             ) : (
                 <TableBody>
-                    {visibleReviews.map((review) => {
+                    {filteredReviews.map((review) => {
                         const href = reviewHref(review);
                         const projectName = review.project_id
                             ? review.project_name ?? projectNameById?.get(review.project_id)
@@ -157,13 +144,13 @@ export function TabularReviewsTable({
                                         </Link>
                                     }
                                 />
-                                {columns.map(({ key, cellClassName, value }) => (
-                                    <TableCell key={key} className={cellClassName}>
+                                {columns.map(({ key, className, cellClassName, value }) => (
+                                    <TableCell key={key} className={cellClassName ?? className}>
                                         {value(review, projectName)}
                                     </TableCell>
                                 ))}
                                 <div
-                                    className={`flex ${REVIEW_COLUMN.actions} shrink-0 justify-end`}
+                                    className={`flex ${ACTIONS_COLUMN} shrink-0 justify-end`}
                                     onClick={(event) => event.stopPropagation()}
                                 >
                                     <RowActions
