@@ -274,7 +274,15 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     );
     // Own-library chips open in the dock; external sources stay new-tab links (Eli, 2026-09-09).
     const openCitation = (citation: Citation) => {
-        if (citation.kind === "document") upsertTab(documentCitationTab(citation));
+        if (citation.kind !== "document") return;
+        // Opening the dock reflows the conversation; keep the clicked chip where it was (Eli, 2026-09-10).
+        const chip = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const top = chip?.getBoundingClientRect().top;
+        upsertTab(documentCitationTab(citation));
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const scroller = chip?.closest<HTMLElement>(".overflow-y-auto");
+            if (chip && scroller && top !== undefined) scroller.scrollTop += chip.getBoundingClientRect().top - top;
+        }));
     };
     const openEditor = (
         ann: EditAnnotation,
