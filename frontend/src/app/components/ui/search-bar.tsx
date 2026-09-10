@@ -10,10 +10,8 @@ type SearchBarProps = Omit<
     value: string;
     onValueChange: (value: string) => void;
     size?: SearchBarSize;
-    clearLabel?: string;
     clearable?: boolean;
     wrapperClassName?: string;
-    inputClassName?: string;
     booleanSearch?: boolean;
     action?: React.ReactNode;
 };
@@ -41,12 +39,10 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
             value,
             onValueChange,
             size = "normal",
-            clearLabel = "Clear search",
             clearable = true,
             placeholder = "Search...",
             className,
             wrapperClassName,
-            inputClassName,
             booleanSearch = false,
             action,
             ...props
@@ -79,7 +75,6 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
                     className={cn(
                         "h-full min-w-0 flex-1 bg-transparent text-gray-700 outline-none placeholder:text-gray-400 [&::-webkit-search-cancel-button]:hidden",
                         classes.input,
-                        inputClassName,
                     )}
                     {...props}
                 />
@@ -91,7 +86,7 @@ export const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
                             "flex shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900",
                             classes.clear,
                         )}
-                        aria-label={clearLabel}
+                        aria-label="Clear search"
                     >
                         <X aria-hidden="true" className={classes.icon} />
                     </button>
