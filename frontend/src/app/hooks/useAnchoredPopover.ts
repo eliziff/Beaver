@@ -15,12 +15,13 @@ export function useAnchoredPopover<T extends HTMLElement = HTMLDivElement>({ anc
     let frame = 0;
     const place = () => {
       const rect = anchor instanceof HTMLElement ? anchor.getBoundingClientRect() : anchor;
+      const docks = [...document.querySelectorAll<HTMLElement>("[data-assistant-dock]")]
+        .map((element) => ({ element, box: element.getBoundingClientRect() }))
+        .filter(({ box }) => box.width > 200);
       /** A control inside the dock is answered inside the dock: its panel never spills over the page. */
-      const host = anchor instanceof HTMLElement
-        ? anchor.closest<HTMLElement>("[data-assistant-dock]")?.getBoundingClientRect() : null;
-      const dock = [...document.querySelectorAll<HTMLElement>("[data-assistant-dock]")]
-        .map((element) => element.getBoundingClientRect())
-        .filter((candidate) => candidate.width > 200 && (!rect || candidate.left > rect.left))
+      const host = (anchor instanceof HTMLElement ? docks.find(({ element }) => element.contains(anchor))
+        : rect && docks.find(({ box }) => rect.left >= box.left && rect.right <= box.right))?.box;
+      const dock = docks.map(({ box }) => box).filter((candidate) => !rect || candidate.left > rect.left)
         .sort((left, right) => left.left - right.left)[0];
       const left = host ? host.left + 8 : 8;
       const right = host ? host.right - 8
