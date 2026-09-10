@@ -41,6 +41,8 @@ const FILTER_LABEL = "min-w-0 text-xs font-medium text-gray-600";
 const FILTER_INPUT =
     "mt-1 block h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm font-normal text-gray-800";
 const DATE_FILTERS = [["from", "From year"], ["to", "To year"]] as const;
+const SORT_OPTIONS = [["default", "Most relevant"], ["newest_first", "Newest first"],
+    ["oldest_first", "Oldest first"]] as const;
 type SourceTab = "all" | LegalSearchDocumentType;
 const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["all", "All"],
@@ -379,15 +381,9 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                         defaultValue="default"
                                         className={FILTER_INPUT}
                                     >
-                                        <option value="default">
-                                            Most relevant
-                                        </option>
-                                        <option value="newest_first">
-                                            Newest first
-                                        </option>
-                                        <option value="oldest_first">
-                                            Oldest first
-                                        </option>
+                                        {SORT_OPTIONS.map(([value, label]) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
                                     </select>
                                 </label>
                             </div>
