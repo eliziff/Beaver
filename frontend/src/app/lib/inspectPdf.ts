@@ -1,6 +1,5 @@
 import { getPdfJs } from "@/app/lib/pdfJs";
 export interface PdfSourceBookmark { title: string; pageIndex: number; children: PdfSourceBookmark[] }
-type SourceBookmark = PdfSourceBookmark;
 
 export interface PdfInspection {
   pageCount: number;
@@ -8,7 +7,7 @@ export interface PdfInspection {
   encrypted: boolean;
   textlessPageCount: number;
   textlessPages: number[];
-  sourceBookmarks: SourceBookmark[];
+  sourceBookmarks: PdfSourceBookmark[];
   pageLabels: string[] | null;
   pageTexts: string[];
 }
@@ -70,7 +69,8 @@ export async function inspectPdf(
     return result;
   } catch (cause) {
     await loading.destroy().catch(() => undefined);
-    if (isPasswordError(cause)) {
+    if (!!cause && typeof cause === "object" &&
+        (cause as { name?: string }).name === "PasswordException") {
       return {
         pageCount: 0,
         searchable: false,
@@ -89,8 +89,8 @@ export async function inspectPdf(
 async function resolveOutline(
   document: import("pdfjs-dist").PDFDocumentProxy,
   items: PdfOutlineItem[],
-): Promise<SourceBookmark[]> {
-  const resolved: SourceBookmark[] = [];
+): Promise<PdfSourceBookmark[]> {
+  const resolved: PdfSourceBookmark[] = [];
   for (const item of items.slice(0, 500)) {
     try {
       const destination = typeof item.dest === "string"
@@ -111,9 +111,4 @@ async function resolveOutline(
     }
   }
   return resolved;
-}
-
-function isPasswordError(cause: unknown) {
-  return !!cause && typeof cause === "object" &&
-    (cause as { name?: string }).name === "PasswordException";
 }

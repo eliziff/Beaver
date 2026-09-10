@@ -14,6 +14,15 @@ import {
     accountGlassInputClassName,
 } from "./accountStyles";
 import { AccountSection } from "./AccountSection";
+const SaveButton = ({ saving }: { saving: boolean }) => (
+    <button
+        type="submit"
+        disabled={saving}
+        className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
+    >
+        {saving ? "Saving..." : "Save"}
+    </button>
+);
 export default function AccountPage() {
     const navigate = useNavigate();
     const { user, signOut, updateEmail } = useAuth();
@@ -147,13 +156,7 @@ export default function AccountPage() {
                             ))}
                         </div>
                         <div className="flex justify-end pt-4">
-                            <button
-                                type="submit"
-                                disabled={savingProfile}
-                                className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
-                            >
-                                {savingProfile ? "Saving..." : "Save"}
-                            </button>
+                            <SaveButton saving={savingProfile} />
                         </div>
                     </form>
             </AccountSection>
@@ -184,13 +187,7 @@ export default function AccountPage() {
                             </p>
                         ) : null}
                         <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={isSavingEmail}
-                                className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
-                            >
-                                {isSavingEmail ? "Saving..." : "Save"}
-                            </button>
+                            <SaveButton saving={isSavingEmail} />
                         </div>
                     </form>
             </AccountSection>

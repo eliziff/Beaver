@@ -1,5 +1,4 @@
 import { cn } from "@/app/lib/utils";
-import { accountGlassSectionClassName } from "./accountStyles";
 export function AccountSection({
     children,
     className,
@@ -10,7 +9,7 @@ export function AccountSection({
     heading?: React.ReactNode;
 }) {
     const panel = (
-        <div className={cn(accountGlassSectionClassName, className)} {...props}>
+        <div className={cn("overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm", className)} {...props}>
             {children}
         </div>
     );

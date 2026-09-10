@@ -5,8 +5,6 @@ export const accountGlassInputClassName = cn(
     "focus-visible:border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-300/45",
     "disabled:cursor-not-allowed disabled:text-gray-700 disabled:opacity-100 disabled:placeholder:text-gray-600",
 );
-export const accountGlassSectionClassName =
-    "overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm";
 export const accountGlassPrimaryButtonClassName =
     "rounded-lg border border-transparent bg-transparent px-3 text-gray-900 shadow-none hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-45";
 export const accountGlassDangerOutlineButtonClassName =
