@@ -8,10 +8,10 @@ const sizes = {
 } as const;
 
 export function Switch({ checked, disabled, loading, onChange, size = "sm",
-    tone = "green", label, ariaLabel, className }: {
+    tone = "green", label, ariaLabel }: {
     checked: boolean; disabled?: boolean; loading?: boolean;
     onChange: (checked: boolean) => void; size?: keyof typeof sizes;
-    tone?: "green" | "dark" | "dock"; label?: string; ariaLabel?: string; className?: string;
+    tone?: "green" | "dark" | "dock"; label?: string; ariaLabel?: string;
 }) {
     const [track, thumb, shift] = sizes[size];
     const control = <span className="relative inline-flex shrink-0">
@@ -31,6 +31,6 @@ export function Switch({ checked, disabled, loading, onChange, size = "sm",
     </span>;
     return label ? <label className={cn(
         "inline-flex shrink-0 items-center gap-1.5 text-xs font-medium",
-        checked ? "text-emerald-700" : "text-gray-500", className,
+        checked ? "text-emerald-700" : "text-gray-500",
     )}>{label}{control}</label> : control;
 }
