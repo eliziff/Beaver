@@ -44,19 +44,14 @@ export function TabularReviewDetailsModal({
     const trimmedTitle = titleDraft.trim();
     const nextProjectId = underProject ? selectedProjectId : null;
     const hasChanges =        !!review &&        (trimmedTitle !== (review.title ?? "") ||            nextProjectId !== (review.project_id ?? null));    if (!review) return null;
+    const blocked = saving || !hasChanges || !trimmedTitle ||
+        (underProject && !selectedProjectId);
+    /** Any edit invalidates the "Updated" notice and clears a stale failure. */
+    const touch = () => { setSaved(false); setError(null); };
     async function handleSave() {
-        if (
-            !canEdit ||
-            saving ||
-            !hasChanges ||
-            !trimmedTitle ||
-            (underProject && !selectedProjectId)
-        ) {
-            return;
-        }
+        if (!canEdit || blocked) return;
         setSaving(true);
-        setSaved(false);
-        setError(null);
+        touch();
         try {
             await onSave({
                 title: trimmedTitle,
@@ -90,11 +85,7 @@ export function TabularReviewDetailsModal({
                     ? {
                           label: saving ? "Saving..." : "Save changes",
                           onClick: () => void handleSave(),
-                          disabled:
-                              saving ||
-                              !hasChanges ||
-                              !trimmedTitle ||
-                              (underProject && !selectedProjectId),
+                          disabled: blocked,
                       }
                     : undefined
             }
@@ -104,11 +95,7 @@ export function TabularReviewDetailsModal({
                     <ModalTextInput
                         type="text"
                         value={titleDraft}
-                        onChange={(event) => {
-                            setTitleDraft(event.target.value);
-                            setSaved(false);
-                            setError(null);
-                        }}
+                        onChange={(event) => { setTitleDraft(event.target.value); touch(); }}
                         placeholder="Review name"
                         variant="minimal"
                         className="placeholder:text-gray-400"
@@ -123,7 +110,7 @@ export function TabularReviewDetailsModal({
                                 disabled={!canEdit || saving} onChange={(next) => {
                                     setUnderProject(next);
                                     if (!next) setSelectedProjectId("");
-                                    setSaved(false); setError(null);
+                                    touch();
                                 }} />
                             Move under a project
                         </label>
@@ -131,14 +118,8 @@ export function TabularReviewDetailsModal({
                             <ProjectChoiceList
                                 projects={projects}
                                 value={selectedProjectId || null}
-                                onChange={(value) => {
-                                    setSelectedProjectId(value);
-                                    setSaved(false);
-                                    setError(null);
-                                }}
-                                disabled={
-                                    !canEdit || saving || projects?.length === 0
-                                }
+                                onChange={(value) => { setSelectedProjectId(value); touch(); }}
+                                disabled={!canEdit || saving || projects?.length === 0}
                             />
                         )}
                     </FieldGroup>

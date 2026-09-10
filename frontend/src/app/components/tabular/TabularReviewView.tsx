@@ -588,7 +588,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                             }}>
                             <TRTable loading={loading} columns={columns}
                                 documents={filteredDocuments} cells={cells}
-                                savingColumnsConfig={false} selectedDocIds={selectedIds}
+                                selectedDocIds={selectedIds}
                                 uploadingFilenames={uploading} dragOverFiles={dragOver}
                                 running={generating || !!columnRun}
                                 onSelectionChange={(selectedIds) => setUi({ selectedIds })}

@@ -34,7 +34,6 @@ interface Props {
     columns: ColumnConfig[];
     documents: TabularDocument[];
     cells: TabularCell[];
-    savingColumnsConfig: boolean;
     selectedDocIds: string[];
     uploadingFilenames?: string[];
     dragOverFiles?: boolean;
@@ -51,7 +50,7 @@ interface Props {
     onAddDocuments?: () => void;
 }
 export function TRTable({
-    loading, columns, documents, cells, savingColumnsConfig, selectedDocIds,
+    loading, columns, documents, cells, selectedDocIds,
     uploadingFilenames = [], dragOverFiles = false, running = false,
     onSelectionChange, onExpand, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
     onColumnLabels, onColumnDiscuss, onAddColumns, onAddDocuments,
@@ -75,7 +74,7 @@ export function TRTable({
                             <li key={flag} className="flex items-center gap-2"><FlagDot flag={flag} />{FLAGS[flag].meaning}</li>)}</ul>
                     </HelpPopover>}
                 </TableStickyCell>
-                {sortedColumns.map((col) => <ColumnHeader key={col.index} column={col} disabled={loading || savingColumnsConfig} running={running || !documents.length}
+                {sortedColumns.map((col) => <ColumnHeader key={col.index} column={col} disabled={loading} running={running || !documents.length}
                         onEdit={onEditColumn} onRerun={onRerunColumn} onClear={onClearColumn} onDelete={onDeleteColumn}
                         onLabels={onColumnLabels} onDiscuss={onColumnDiscuss} />)}
                 <div className={FILLER} />
