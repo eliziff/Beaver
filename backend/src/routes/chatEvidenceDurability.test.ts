@@ -180,6 +180,24 @@ async function loadApp() {
   return { app, store: chats, projects: localProjects, documents };
 }
 
+function postMessage(app: express.Express, chatId: string, expectedVersion: number, content: string) {
+  return request(app).post("/chat").send({
+    chat_id: chatId,
+    expected_version: expectedVersion,
+    current_turn: { kind: "message", content },
+  });
+}
+
+function rejectWhenAborted({ abortSignal }: { abortSignal?: AbortSignal }) {
+  return new Promise<never>((_resolve, reject) => {
+    abortSignal?.addEventListener("abort", () => {
+      const error = new Error("Stream aborted.");
+      error.name = "AbortError";
+      reject(error);
+    }, { once: true });
+  });
+}
+
 async function storedChat(store: ChatStore, chatId: string) {
   const [chat, messages] = await Promise.all([
     store.get({ userId: USER_ID }, chatId),
@@ -286,8 +304,7 @@ describe("chat PDF evidence durability", () => {
     await loaded.store.commitTurn({ userId: USER_ID }, created.body.id, { expectedVersion: 0,
       assistantMessage: { id: crypto.randomUUID(), content: [event] } });
 
-    const response = await request(loaded.app).post("/chat").send({ chat_id: created.body.id,
-      expected_version: 1, current_turn: { kind: "message", content: "Save that search." } });
+    const response = await postMessage(loaded.app, created.body.id, 1, "Save that search.");
 
     expect(response.status).toBe(200);
     expect(mocks.queryIds.at(-1)).toContain(queryId);
@@ -353,11 +370,7 @@ describe("chat PDF evidence durability", () => {
     const created = await request(loaded.app).post("/chat/create").send({});
     const commit = vi.spyOn(loaded.store, "commitTurn");
 
-    const response = await request(loaded.app).post("/chat").send({
-      chat_id: created.body.id,
-      expected_version: 0,
-      current_turn: { kind: "message", content: "Read this." },
-    });
+    const response = await postMessage(loaded.app, created.body.id, 0, "Read this.");
 
     expect(response.status).toBe(200);
     expect(commit.mock.calls.length).toBeLessThan(10);
@@ -372,11 +385,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const empty = await request(loaded.app).post("/chat/create").send({});
     const used = await request(loaded.app).post("/chat/create").send({});
-    expect((await request(loaded.app).post("/chat").send({
-      chat_id: used.body.id,
-      expected_version: 0,
-      current_turn: { kind: "message", content: "Hello" },
-    })).status).toBe(200);
+    expect((await postMessage(loaded.app, used.body.id, 0, "Hello")).status).toBe(200);
 
     const history = await request(loaded.app).get("/chat");
     expect(history.body.map(({ id }: { id: string }) => id)).toEqual([used.body.id]);
@@ -426,17 +435,9 @@ describe("chat PDF evidence durability", () => {
     });
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    expect((await request(loaded.app).post("/chat").send({
-      chat_id: created.body.id,
-      expected_version: 0,
-      current_turn: { kind: "message", content: "Inspect this." },
-    })).status).toBe(200);
+    expect((await postMessage(loaded.app, created.body.id, 0, "Inspect this.")).status).toBe(200);
     const current = await storedChat(loaded.store, created.body.id);
-    expect((await request(loaded.app).post("/chat").send({
-      chat_id: created.body.id,
-      expected_version: current!.transcript_version,
-      current_turn: { kind: "message", content: "Use it again." },
-    })).status).toBe(200);
+    expect((await postMessage(loaded.app, created.body.id, current!.transcript_version, "Use it again.")).status).toBe(200);
 
     const followUp = mocks.providerMessages.at(-1)!;
     expect(mocks.systemPrompts.at(-1)).toContain(evidence.evidence_id);
@@ -490,23 +491,11 @@ describe("chat PDF evidence durability", () => {
   it("rejects stale or browser-authored history before calling a provider", async () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const accepted = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Accepted turn" },
-      });
+    const accepted = await postMessage(loaded.app, created.body.id, 0, "Accepted turn");
     expect(accepted.status).toBe(200);
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
 
-    const stale = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Stale duplicate" },
-      });
+    const stale = await postMessage(loaded.app, created.body.id, 0, "Stale duplicate");
     expect(stale.status).toBe(409);
     expect(stale.body).toMatchObject({
       code: "chat_version_conflict",
@@ -546,13 +535,7 @@ describe("chat PDF evidence durability", () => {
     });
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const first = request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Long turn" },
-      })
+    const first = postMessage(loaded.app, created.body.id, 0, "Long turn")
       .then((response) => response);
 
     await vi.waitFor(async () => {
@@ -562,13 +545,7 @@ describe("chat PDF evidence durability", () => {
         ?.transcript_version,
       ).toBe(1);
     });
-    const overlapping = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 1,
-        current_turn: { kind: "message", content: "Overlapping turn" },
-      });
+    const overlapping = await postMessage(loaded.app, created.body.id, 1, "Overlapping turn");
     expect(overlapping.status).toBe(409);
     expect(overlapping.body).toMatchObject({
       code: "chat_turn_in_progress",
@@ -603,13 +580,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
 
-    const response = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Draft a lease" },
-      });
+    const response = await postMessage(loaded.app, created.body.id, 0, "Draft a lease");
     const finalEvents = response.text
       .split("\n")
       .filter((line) => line.startsWith("data: {"))
@@ -693,29 +664,10 @@ describe("chat PDF evidence durability", () => {
   });
 
   it("aborts an active turn only through the explicit stop endpoint", async () => {
-    mocks.streamChatWithTools.mockImplementation(
-      async (params) =>
-        new Promise((_resolve, reject) => {
-          params.abortSignal?.addEventListener(
-            "abort",
-            () => {
-              const error = new Error("Stream aborted.");
-              error.name = "AbortError";
-              reject(error);
-            },
-            { once: true },
-          );
-        }),
-    );
+    mocks.streamChatWithTools.mockImplementation(rejectWhenAborted);
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const activeRequest = request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Stop explicitly" },
-      })
+    const activeRequest = postMessage(loaded.app, created.body.id, 0, "Stop explicitly")
       .then((response) => response);
 
     await vi.waitFor(() => {
@@ -750,13 +702,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
 
-    const response = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Start the answer" },
-      });
+    const response = await postMessage(loaded.app, created.body.id, 0, "Start the answer");
 
     expect(response.status).toBe(200);
     expect(
@@ -786,13 +732,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
 
-    await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Cancel this turn" },
-      });
+    await postMessage(loaded.app, created.body.id, 0, "Cancel this turn");
 
     expect(
       await storedChat(loaded.store, created.body.id),
@@ -812,29 +752,10 @@ describe("chat PDF evidence durability", () => {
   });
 
   it("does not resurrect a chat deleted during an active turn", async () => {
-    mocks.streamChatWithTools.mockImplementation(
-      async (params) =>
-        new Promise((_resolve, reject) => {
-          params.abortSignal?.addEventListener(
-            "abort",
-            () => {
-              const error = new Error("Stream aborted.");
-              error.name = "AbortError";
-              reject(error);
-            },
-            { once: true },
-          );
-        }),
-    );
+    mocks.streamChatWithTools.mockImplementation(rejectWhenAborted);
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-    const running = request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Long answer" },
-      })
+    const running = postMessage(loaded.app, created.body.id, 0, "Long answer")
       .then((response) => response);
 
     await vi.waitFor(() => {
@@ -930,31 +851,12 @@ describe("chat PDF evidence durability", () => {
 
   it("does not resurrect project chats deleted with their matter", async () => {
     mocks.matterDocuments = [];
-    mocks.streamChatWithTools.mockImplementation(
-      async (params) =>
-        new Promise((_resolve, reject) => {
-          params.abortSignal?.addEventListener(
-            "abort",
-            () => {
-              const error = new Error("Stream aborted.");
-              error.name = "AbortError";
-              reject(error);
-            },
-            { once: true },
-          );
-        }),
-    );
+    mocks.streamChatWithTools.mockImplementation(rejectWhenAborted);
     const loaded = await loadApp();
     const created = await request(loaded.app)
       .post("/chat/create")
       .send({ project_id: PROJECT_ID });
-    const running = request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Long matter answer" },
-      })
+    const running = postMessage(loaded.app, created.body.id, 0, "Long matter answer")
       .then((response) => response);
 
     await vi.waitFor(() => {
@@ -1069,16 +971,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
 
-    const asked = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: {
-          kind: "message",
-          content: "Prepare the filing plan.",
-        },
-      });
+    const asked = await postMessage(loaded.app, created.body.id, 0, "Prepare the filing plan.");
 
     expect(asked.status).toBe(200);
     expect(asked.text).toContain('"type":"ask_inputs"');
@@ -1507,13 +1400,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
 
-    const response = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: { kind: "message", content: "Read and draft." },
-      });
+    const response = await postMessage(loaded.app, created.body.id, 0, "Read and draft.");
 
     expect(response.status).toBe(200);
   });
@@ -1587,16 +1474,7 @@ describe("chat PDF evidence durability", () => {
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
 
-    const response = await request(loaded.app)
-      .post("/chat")
-      .send({
-        chat_id: created.body.id,
-        expected_version: 0,
-        current_turn: {
-          kind: "message",
-          content: "Create the draft, then ask.",
-        },
-      });
+    const response = await postMessage(loaded.app, created.body.id, 0, "Create the draft, then ask.");
 
     expect(response.status).toBe(200);
     expect(response.text).not.toContain('"type":"ask_inputs"');

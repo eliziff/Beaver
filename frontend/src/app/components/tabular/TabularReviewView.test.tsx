@@ -28,7 +28,8 @@ function fixture(status: TabularCell["status"]) {
         id: "cell-1",
         document_id: document.id,
         column_index: 0,
-        content: null,
+        content: status === "done" ? { summary: "Two years", claims: [], evidence: [],
+            outcome: "answered", coverage: "complete" } : null,
         status,
     } as TabularCell;
     return {
@@ -98,80 +99,6 @@ vi.mock("@/app/hooks/useSelectedModel", () => ({
     useSelectedModel: () => ["gpt-5"],
     useSelectedReasoningEffort: () => ["medium"],
 }));
-vi.mock("../shared/PageHeader", () => ({
-    PageHeader: ({
-        actions,
-    }: {
-        actions?: {
-            label?: React.ReactNode;
-            render?: React.ReactNode;
-            onClick?: () => void;
-            disabled?: boolean;
-        }[];
-    }) => (
-        <>
-            {actions?.map((action, index) =>
-                action?.label ? (
-                    <button
-                        key={index}
-                        disabled={action.disabled}
-                        onClick={action.onClick}
-                    >
-                        {action.label}
-                    </button>
-                ) : <span key={index}>{action?.render}</span>,
-            )}
-        </>
-    ),
-}));
-vi.mock("./TRTable", () => ({
-    TRTable: ({
-        loading,
-        cells,
-        columns,
-        documents,
-        selectedDocIds,
-        onExpand,
-        onSelectionChange,
-        onRerunColumn,
-        onColumnLabels,
-        onColumnDiscuss,
-    }: {
-        loading: boolean;
-        cells: TabularCell[];
-        columns: { index: number }[];
-        documents: Document[];
-        selectedDocIds: string[];
-        onExpand: (cell: TabularCell) => void;
-        onSelectionChange: (ids: string[]) => void;
-        onRerunColumn: (column: { index: number }) => void;
-        onColumnLabels: (column: { index: number }) => void;
-        onColumnDiscuss: (column: { index: number }) => void;
-    }) => (
-        <>
-            <button
-                data-testid="table"
-                data-loading={loading}
-                data-status={cells[0]?.status}
-                data-content={JSON.stringify(cells[0]?.content)}
-                onClick={() => onExpand(cells[0])}
-            >
-                Open cell
-            </button>
-            <button onClick={() => onSelectionChange(selectedDocIds.length ? [] : documents.map(({ id }) => id))}>Toggle rows</button>
-            <button onClick={() => onRerunColumn(columns[0])}>Rerun first column</button>
-            <button onClick={() => onColumnLabels(columns[0])}>Labels from first column</button>
-            <button onClick={() => onColumnDiscuss(columns[0])}>Discuss first column</button>
-        </>
-    ),
-}));
-vi.mock("./TRSidePanel", () => ({
-    TRSidePanel: ({ cell }: { cell: TabularCell }) => (
-        <div data-testid="cell-details" data-status={cell.status}>
-            Cell details
-        </div>
-    ),
-}));
 vi.mock("./TRChatPanel", async () => {
     const { useSourcesWorkspace } = await import("../legal/SourcesWorkspace");
     return { TRChatPanel: ({ workspaceReady, scopeLabel, onClearScope }: { workspaceReady: boolean; scopeLabel?: string; onClearScope?: () => void }) => {
@@ -211,24 +138,12 @@ it("projects queued agents into the table", async () => {
     });
     render(<TRView reviewId="review-1" />);
 
-    await waitFor(() =>
-        expect(screen.getByTestId("table")).toHaveAttribute(
-            "data-loading",
-            "false",
-        ),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Open cell" }));
+    await screen.findByRole("button", { name: "Term actions" });
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
-    await waitFor(() =>
-        expect(screen.getByTestId("table")).toHaveAttribute(
-            "data-status",
-            "generating",
-        ),
-    );
-    expect(screen.getByTestId("cell-details")).toHaveAttribute(
-        "data-status",
-        "generating",
-    );
+    await screen.findByRole("button", { name: "Stop" });
+    fireEvent.click(screen.getByRole("button", { name: "Open Term result" }));
+    expect(screen.getByRole("dialog", { name: "Term result" })).toHaveTextContent("Running…");
+    expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
     expect(mocks.startGeneration).toHaveBeenCalledWith("review-1", {
         model: "gpt-5", reasoningEffort: "medium",
@@ -239,16 +154,16 @@ it("projects queued agents into the table", async () => {
 it("shows row actions only while rows are selected", async () => {
     mocks.getTabularReview.mockResolvedValue(fixture("done").data);
     render(<TRView reviewId="review-1" />);
-    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    await screen.findByRole("button", { name: "Term actions" });
     expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle rows" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select lease.pdf" }));
     expect(screen.getByText("1 selected")).toBeVisible();
     expect(screen.getByRole("button", { name: "Remove" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Clear results" })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle rows" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select lease.pdf" }));
     expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
 });
 
@@ -260,9 +175,10 @@ it("reruns a column one row at a time as the review goes idle", async () => {
     mocks.getTabularReview.mockResolvedValue(data);
     mocks.regenerateCell.mockResolvedValue({ job_id: "job-1", queued: true });
     render(<TRView reviewId="review-1" />);
-    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    await screen.findByRole("button", { name: "Term actions" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Rerun first column" }));
+    fireEvent.click(screen.getByRole("button", { name: "Term actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rerun column" }));
     await waitFor(() => expect(mocks.regenerateCell).toHaveBeenCalledTimes(1));
     expect(mocks.regenerateCell).toHaveBeenCalledWith("review-1", first.document.id, 0, { model: "gpt-5", reasoningEffort: "medium" });
     expect(screen.getByRole("progressbar", { name: "Run progress" })).toHaveAttribute("aria-valuemax", "2");
@@ -277,8 +193,8 @@ it("shows review results without waiting for project metadata", async () => {
     mocks.getProject.mockReturnValue(new Promise(() => {}));
     mocks.getTabularReview.mockResolvedValue(fixture("done").data);
     render(<TRView reviewId="review-1" projectId="project-1" />);
-    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
-    expect(screen.getByTestId("table")).toHaveAttribute("data-status", "done");
+    await screen.findByRole("button", { name: "Term actions" });
+    expect(screen.getByText("Two years")).toBeVisible();
 });
 
 const workspaceFile = (sources: Record<string, unknown>) => ({
@@ -303,9 +219,9 @@ it("adds workspace sources that are not rows yet", async () => {
     }));
     mocks.updateReview.mockResolvedValue({});
     render(<TRView reviewId="review-1" />);
-    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    await screen.findByRole("button", { name: "Term actions" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Docs" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add documents" }));
     fireEvent.click(await screen.findByRole("button", { name: "Add Ruling" }));
     await waitFor(() => expect(mocks.updateReview).toHaveBeenCalledWith("review-1", {
         research_selection: { target: "sources", members: [{ sourceId: "source-1" }, { sourceId: "source-2" }] },
@@ -322,9 +238,10 @@ it("reviews a tag column in the shared dialog before filing it in the workspace"
     mocks.previewWorkspaceLabels.mockResolvedValue(proposal);
     mocks.applyWorkspaceLabels.mockResolvedValue(file);
     render(<TRView reviewId="review-1" />);
-    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
+    await screen.findByRole("button", { name: "Outcome actions" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Labels from first column" }));
+    fireEvent.click(screen.getByRole("button", { name: "Outcome actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Labels from this column" }));
     await waitFor(() => expect(mocks.previewWorkspaceLabels).toHaveBeenCalledWith("workspace-1", {
       tableId: "review-1", columnIndex: 3, selection: { target: "sources", members: [{ sourceId: "source-1" }] }, model: "gpt-5", reasoningEffort: "medium" }));
     const apply = await screen.findByRole("button", { name: "Apply labels" });
@@ -344,14 +261,16 @@ it("discusses the selected column with its actual completed cell references", as
       note: "", passages: null } });
     mocks.getResearchFile.mockResolvedValue(file); mocks.ensureWorkspace.mockResolvedValue(file);
     render(<TRView reviewId="review-1" />);
-    await waitFor(() => expect(screen.getByTestId("table")).toHaveAttribute("data-loading", "false"));
-    fireEvent.click(screen.getByRole("button", { name: "Discuss first column" }));
+    await screen.findByRole("button", { name: "Term actions" });
+    fireEvent.click(screen.getByRole("button", { name: "Term actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Discuss column" }));
     await waitFor(() => expect(screen.getByTestId("discussion")).toHaveAttribute("data-ready", "true"));
     expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!)).toMatchObject({
         members: [{ sourceId: "source-1" }], findingRefs: [{ kind: "cell", reviewId: "review-1", rowId: "document-1", columnIndex: 0 }] });
     fireEvent.click(screen.getByRole("button", { name: "Discuss all columns" }));
     await waitFor(() => expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!).findingRefs).toHaveLength(2));
-    fireEvent.click(screen.getByRole("button", { name: "Discuss first column" }));
+    fireEvent.click(screen.getByRole("button", { name: "Term actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Discuss column" }));
     await waitFor(() => expect(screen.getByTestId("discussion")).toHaveAttribute("data-ready", "true"));
     expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!).findingRefs).toHaveLength(1);
 });

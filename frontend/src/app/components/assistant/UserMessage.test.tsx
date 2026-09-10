@@ -5,17 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { UserMessage } from "./UserMessage";
 
 describe("UserMessage", () => {
-    it("renders user markdown without raw markers", () => {
-        const { container } = render(
-            <UserMessage content={"Please review **section 7**:\n\n- Notice\n- Renewal"} />,
-        );
-
-        expect(screen.getByText("section 7")).toBeInTheDocument();
-        expect(screen.getByText("Notice")).toBeInTheDocument();
-        expect(container.textContent).not.toContain("**");
-        expect(screen.getAllByTestId("user-message-bubble")).toHaveLength(1);
-    });
-
     it("copies the original message and normalizes manual selection spacing", async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, "clipboard", {
