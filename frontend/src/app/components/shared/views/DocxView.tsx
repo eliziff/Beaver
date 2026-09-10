@@ -33,7 +33,6 @@ interface Props {
     onWarningDismiss?: () => void;
     initialScrollTop?: number | null;
     onScrollChange?: (scrollTop: number) => void;
-    rounded?: boolean;
 }
 export const DOCX_RENDER_OPTIONS = {
     breakPages: true,
@@ -148,7 +147,6 @@ export function DocxView({
     onWarningDismiss,
     initialScrollTop,
     onScrollChange,
-    rounded = true,
 }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -325,7 +323,7 @@ export function DocxView({
     }, []);
     return (
         <div
-            className={`relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
+            className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-100 rounded-lg"
         >
             {warning && (
                 <div className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 shadow-sm">

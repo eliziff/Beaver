@@ -8,7 +8,6 @@ interface Props {
     documentId: string;
     versionId?: string | null;
     filename?: string | null;
-    rounded?: boolean;
 }
 
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdown"]);
@@ -38,7 +37,7 @@ const MARKDOWN_COMPONENTS: Components = {
 };
 
 /** Plain text stays verbatim; Markdown gets semantic document styling. */
-export function TextView({ documentId, versionId, filename, rounded }: Props) {
+export function TextView({ documentId, versionId, filename }: Props) {
     const { result, error, loading } = useDocumentFile(documentId, versionId);
     const text = useMemo(() => {
         if (!result || result.type !== "text") return null;
@@ -63,9 +62,7 @@ export function TextView({ documentId, versionId, filename, rounded }: Props) {
             </div>
         );
     }
-    const frame = `h-full min-h-0 overflow-auto bg-white p-4 ${
-        rounded ? "rounded border border-gray-300" : ""
-    }`;
+    const frame = "h-full min-h-0 overflow-auto bg-white p-4 ";
     const extension = filename?.split(".").pop()?.toLowerCase() ?? "";
     if (MARKDOWN_EXTENSIONS.has(extension)) {
         return (
