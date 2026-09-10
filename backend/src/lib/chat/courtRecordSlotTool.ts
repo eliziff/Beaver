@@ -1,4 +1,5 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { isImageDocumentType, toLlmImage } from "../llm/images";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 import type { ApplicationScope } from "../applicationError";
 import { COURT_PROFILES, COURT_PROFILE_BY_ID, type CourtProfile }
@@ -232,11 +233,11 @@ const MAX_TURN_PAGE_IMAGES = 6;
 const pageSchema: Tool & BeaverToolPolicy = {
   name: "view_page",
   activity: (input) => `Looking at page ${Number(input.page) || 1}`,
-  description: "Look at one page of a Court Record source as a picture. Use it whenever a page " +
-    "is scanned, handwritten, stamped or extracted poorly: read the deponent, dates, court file " +
-    "number, registry and exhibit stamps off the image before filling a field, and never guess a " +
-    "value that extraction left empty or garbled. Name the entry with entry_id from the record, " +
-    "or a Library document with document_id. Up to 6 pages a turn.",
+  description: "Look at one page of a Library PDF, or an image file, as a picture. Use it whenever " +
+    "a page is scanned, handwritten, stamped, a diagram, or extracted poorly: read names, dates, " +
+    "numbers and stamps off the image rather than guessing a value that extraction left empty or " +
+    "garbled. Name a Library document with document_id from Read, or an entry of the open Court " +
+    "Record with entry_id. Up to 6 pages a turn.",
   annotations: { readOnlyHint: true },
   inputSchema: {
     type: "object",
@@ -253,9 +254,9 @@ const pageSchema: Tool & BeaverToolPolicy = {
   },
 };
 
-type PageDependencies = Pick<Dependencies, "scope" | "target" | "projectId" |
+type PageDependencies = Pick<Dependencies, "scope" | "projectId" |
   "allowedDocumentIds" | "library" | "workProducts" | "resolveArtifact"> &
-  { documents: Pick<DocumentStore, "read"> };
+  { target?: Dependencies["target"]; documents: Pick<DocumentStore, "read"> };
 
 export function courtRecordPageTool<Context>(
   dependencies: PageDependencies,
@@ -276,6 +277,7 @@ export function courtRecordPageTool<Context>(
         let versionId: string | null = reference?.kind === "document"
           ? reference.versionId : text(input.version_id) || null;
         if (entryId) {
+          if (!dependencies.target) throw new Error("entry_id needs an open Court Record");
           const product = await dependencies.workProducts.get(dependencies.scope,
             dependencies.target.id);
           const bindings = isJsonRecord(product.state.bindings) ? product.state.bindings : {};
@@ -296,8 +298,13 @@ export function courtRecordPageTool<Context>(
         const file = await dependencies.documents.read(dependencies.scope, documentId,
           versionId, true);
         if (!file) throw new Error("The document could not be read");
+        if (isImageDocumentType(file.fileType)) {
+          shown += 1;
+          return { result: toolText({ ok: true, filename: file.filename, page: 1, page_count: 1 }),
+            metadata: { images: [toLlmImage(file.filename, file.bytes, file.fileType)] } };
+        }
         if (file.fileType.toLowerCase() !== "pdf" && !file.hasPdfRendition) {
-          throw new Error(`Only PDF pages can be viewed; this file is ${file.fileType}`);
+          throw new Error(`Only PDF pages and images can be viewed; this file is ${file.fileType}. Use Read.`);
         }
         const rendered = await renderPdfPage(file.bytes, page, file.filename, signal);
         shown += 1;
