@@ -47,11 +47,8 @@ describe("Court Record documents", () => {
     expect(slotB).toBeVisible();
     expect(slotC).toBeVisible();
     expect(within(slotA).getByText("Affidavit said:")).toBeVisible();
-    const detailsA = slotA.querySelector("details")!;
-    expect(detailsA).not.toHaveAttribute("open");
-    fireEvent.click(detailsA.querySelector("summary")!);
-    expect(within(slotA).getAllByText("The January order is attached as Exhibit A.").at(-1))
-      .toBeVisible();
+    expect(slotA.querySelector("details")).toBeNull();
+    expect(within(slotA).getByText("The January order is attached as Exhibit A.")).toBeVisible();
     expect(within(slotB).queryByText("Affidavit said:")).toBeNull();
     const details = slotC.querySelector("details")!;
     expect(details).not.toHaveAttribute("open");

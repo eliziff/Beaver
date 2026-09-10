@@ -806,14 +806,14 @@ describe("CourtRecordsWorkspace", () => {
 
     await waitFor(() => expect(runOcr).toHaveBeenCalledOnce());
     expect(screen.getByRole("button", { name: "Build record" })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Contents description"), { target: { value: "Human description" } });
+    fireEvent.change(screen.getByLabelText(/Deponent/iu), { target: { value: "Human deponent" } });
     await uploadFiles(document.getElementById("court-record-exhibit-file")!,
       ["one.pdf", "two.pdf"].map((name) => new File([name], name, { type: "application/pdf" })));
     await act(async () => finishOcr({ searchable: true, textlessPageCount: 0,
       textlessPages: [], ocrAppliedPages: [1] }));
     await waitFor(() => expect(persisted.state.entries).toHaveLength(3));
-    expect(persisted.state.entries[0].title).toBe("Human description");
-    expect(screen.getByDisplayValue("Human description")).toBeVisible();
+    expect(persisted.state.cover.deponent).toBe("Human deponent");
+    expect(screen.getByDisplayValue("Human deponent")).toBeVisible();
   });
 
   it("propagates the affidavit, auto-slots certified exhibits, and replaces files", async () => {
@@ -854,7 +854,7 @@ describe("CourtRecordsWorkspace", () => {
 
     await waitFor(() => expect(screen.getByLabelText(/Court file number/iu)).toHaveValue("2401-12345"));
     expect(screen.getByLabelText(/Deponent/iu)).toHaveValue("Edited deponent");
-    expect(screen.getByLabelText("Contents description")).toHaveValue("Affidavit of Source deponent");
+    expect(screen.getByText("affidavit.pdf")).toBeVisible();
     expect(screen.getByLabelText(/Style of cause/u)).toHaveValue("");
     fireEvent.drop(document.querySelector("[data-kind-id=affidavit]")!, {
       dataTransfer: { types: ["Files"], files: [new File(["updated"],
