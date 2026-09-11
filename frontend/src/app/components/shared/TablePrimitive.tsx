@@ -89,11 +89,12 @@ export function TableScrollArea({ children, className, header, scrollRef,
         </div>
     );
 }
-export function TableHeaderRow({ children, className, ...props }: DivProps) {
-    return <div role="row" {...props}
-        className={cn("z-[70] flex h-11 min-w-0 items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none",
-            className)}>{children}</div>;
-}
+/** A table element whose only variation is its ARIA role and its own classes. */
+const roleDiv = (role: string, base: string) =>
+    ({ children, className, ...props }: DivProps) =>
+        <div role={role} {...props} className={cn(base, className)}>{children}</div>;
+export const TableHeaderRow = roleDiv("row",
+    "z-[70] flex h-11 min-w-0 items-center bg-app-surface pr-3 text-sm font-semibold text-gray-700 select-none");
 export function TableRow({ children, className, interactive = true, selected = false,
     ...props }: DivProps & { interactive?: boolean; selected?: boolean }) {
     return <div role="row" {...props}
@@ -186,16 +187,10 @@ export function TablePrimaryCell({
         </TableStickyCell>
     );
 }
-export function TableHeaderCell({ children, className, ...props }: DivProps) {
-    return <div role="columnheader" {...props}
-        className={cn("flex shrink-0 items-center justify-center px-2 text-center",
-            className)}>{children}</div>;
-}
-export function TableCell({ children, className, ...props }: DivProps) {
-    return <div role="cell" {...props}
-        className={cn("shrink-0 justify-center truncate px-2 text-center text-sm text-gray-700",
-            className)}>{children}</div>;
-}
+export const TableHeaderCell = roleDiv("columnheader",
+    "flex shrink-0 items-center justify-center px-2 text-center");
+export const TableCell = roleDiv("cell",
+    "shrink-0 justify-center truncate px-2 text-center text-sm text-gray-700");
 export function TableBody({ children, className, ...props }: DivProps) {
     return <div role="rowgroup" className={cn("flex-1", className)} {...props}>{children}</div>;
 }
