@@ -4,7 +4,6 @@ import {
   CommentRangeStart,
   CommentReference,
   DeletedTextRun,
-  Document,
   ExternalHyperlink,
   Footer,
   FootnoteReferenceRun,
@@ -12,7 +11,6 @@ import {
   ImportedXmlComponent,
   InsertedTextRun,
   LevelFormat,
-  Packer,
   PageNumber,
   Paragraph,
   Table,
@@ -22,6 +20,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
+import { docxBytes } from "../../support/docxFixtures";
 
 import { loadZip } from "../../../zip";
 
@@ -42,8 +41,6 @@ const ZERO_WIDTH_JOINER = String.fromCodePoint(0x200d);
 const ZERO_WIDTH_SPACE = String.fromCodePoint(0x200b);
 const CYRILLIC_IE = String.fromCodePoint(0x0435);
 const PRIVATE_USE = String.fromCodePoint(0xe000);
-
-type Block = Paragraph | Table;
 
 /** Raw OOXML the packager has no builder for — the w:sdt shape. */
 function imported(
@@ -68,7 +65,7 @@ function contentControl(tag: string, value: string, inline: boolean) {
         ? imported("w:r", undefined, [
             imported("w:t", { "xml:space": "preserve" }, [value]),
           ])
-        : new Paragraph({ children: [new TextRun(value)] }),
+        : new Paragraph(value),
     ]),
   ]);
 }
@@ -99,10 +96,6 @@ const NUMBERING = {
     },
   ],
 };
-
-function pack(blocks: Block[]) {
-  return Packer.toBuffer(new Document({ sections: [{ children: blocks }] }));
-}
 
 /**
  * Every package this packager writes carries a numbering part whether or
@@ -147,19 +140,15 @@ export const pathologyFixtureBuilders: Record<
   /** Negative control: no numbering part, no pathology of any kind. */
   clean: async () =>
     withoutNumberingPart(
-      await pack([
-        new Paragraph({
-          children: [new TextRun("This agreement is made as of the date below.")],
-        }),
-        new Paragraph({
-          children: [new TextRun("Each party bears its own costs.")],
-        }),
+      await docxBytes([
+        new Paragraph("This agreement is made as of the date below."),
+        new Paragraph("Each party bears its own costs."),
       ]),
     ),
 
   /** Strike and red colour standing in for tracked-change markup. */
   "manual-red-strike-redline": () =>
-    pack([
+    docxBytes([
       new Paragraph({
         children: [
           new TextRun("The notice period is "),
@@ -174,107 +163,86 @@ export const pathologyFixtureBuilders: Record<
 
   /** Numbers live in the numbering part; the text carries none. */
   "auto-numbered": () =>
-    Packer.toBuffer(
-      new Document({
-        numbering: NUMBERING,
-        sections: [
-          {
-            children: [
-              new Paragraph({
-                numbering: { reference: "clauses", level: 0 },
-                children: [new TextRun("Definitions.")],
-              }),
-              new Paragraph({
-                numbering: { reference: "clauses", level: 1 },
-                children: [new TextRun("Affiliate has the meaning given.")],
-              }),
-              new Paragraph({
-                numbering: { reference: "clauses", level: 0 },
-                children: [new TextRun("Governing law.")],
-              }),
-            ],
-          },
-        ],
+    docxBytes([
+      new Paragraph({
+        numbering: { reference: "clauses", level: 0 },
+        children: [new TextRun("Definitions.")],
       }),
-    ),
+      new Paragraph({
+        numbering: { reference: "clauses", level: 1 },
+        children: [new TextRun("Affiliate has the meaning given.")],
+      }),
+      new Paragraph({
+        numbering: { reference: "clauses", level: 0 },
+        children: [new TextRun("Governing law.")],
+      }),
+    ], {
+      numbering: NUMBERING,
+    }),
 
   /** w:ins and w:del, with change recording left switched on. */
   "tracked-changes": () =>
-    Packer.toBuffer(
-      new Document({
-        features: { trackRevisions: true },
-        sections: [
-          {
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun("The seat of arbitration is "),
-                  new InsertedTextRun({ text: "Toronto", id: 1, ...REVISION }),
-                  new DeletedTextRun({ text: "Zurich", id: 2, ...REVISION }),
-                  new TextRun("."),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun("Costs follow "),
-                  new InsertedTextRun({ text: "the cause", id: 3, ...REVISION }),
-                  new TextRun("."),
-                ],
-              }),
-            ],
-          },
+    docxBytes([
+      new Paragraph({
+        children: [
+          new TextRun("The seat of arbitration is "),
+          new InsertedTextRun({ text: "Toronto", id: 1, ...REVISION }),
+          new DeletedTextRun({ text: "Zurich", id: 2, ...REVISION }),
+          new TextRun("."),
         ],
       }),
-    ),
+      new Paragraph({
+        children: [
+          new TextRun("Costs follow "),
+          new InsertedTextRun({ text: "the cause", id: 3, ...REVISION }),
+          new TextRun("."),
+        ],
+      }),
+    ], {
+      features: { trackRevisions: true },
+    }),
 
   /** Comments live in their own part and are not body text. */
   comments: () =>
-    Packer.toBuffer(
-      new Document({
-        comments: {
-          children: [
-            {
-              id: 0,
-              author: "Counsel",
-              date: new Date("2026-01-01T00:00:00Z"),
-              children: [new Paragraph("Confirm the governing law.")],
-            },
-            {
-              id: 1,
-              author: "Counsel",
-              date: new Date("2026-01-01T00:00:00Z"),
-              children: [new Paragraph("Check against the term sheet.")],
-            },
-          ],
-        },
-        sections: [
-          {
-            children: [
-              new Paragraph({
-                children: [
-                  new CommentRangeStart(0),
-                  new TextRun("This agreement is governed by Ontario law."),
-                  new CommentRangeEnd(0),
-                  new TextRun({ children: [new CommentReference(0)] }),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new CommentRangeStart(1),
-                  new TextRun("The purchase price is set out in Schedule A."),
-                  new CommentRangeEnd(1),
-                  new TextRun({ children: [new CommentReference(1)] }),
-                ],
-              }),
-            ],
-          },
+    docxBytes([
+      new Paragraph({
+        children: [
+          new CommentRangeStart(0),
+          new TextRun("This agreement is governed by Ontario law."),
+          new CommentRangeEnd(0),
+          new TextRun({ children: [new CommentReference(0)] }),
         ],
       }),
-    ),
+      new Paragraph({
+        children: [
+          new CommentRangeStart(1),
+          new TextRun("The purchase price is set out in Schedule A."),
+          new CommentRangeEnd(1),
+          new TextRun({ children: [new CommentReference(1)] }),
+        ],
+      }),
+    ], {
+      comments: {
+        children: [
+          {
+            id: 0,
+            author: "Counsel",
+            date: new Date("2026-01-01T00:00:00Z"),
+            children: [new Paragraph("Confirm the governing law.")],
+          },
+          {
+            id: 1,
+            author: "Counsel",
+            date: new Date("2026-01-01T00:00:00Z"),
+            children: [new Paragraph("Check against the term sheet.")],
+          },
+        ],
+      },
+    }),
 
   /** One block-level and one inline w:sdt. */
   "content-controls": () =>
-    pack([
+    docxBytes([
       blockControl("party_name", "Northwind Holdings Inc."),
       new Paragraph({
         children: [
@@ -287,7 +255,7 @@ export const pathologyFixtureBuilders: Record<
 
   /** A hyperlink that does carry visible text. */
   "hyperlink-with-text": () =>
-    pack([
+    docxBytes([
       new Paragraph({
         children: [
           new ExternalHyperlink({
@@ -301,8 +269,8 @@ export const pathologyFixtureBuilders: Record<
 
   /** w:txbxContent text that body extraction never reaches. */
   "text-box": () =>
-    pack([
-      new Paragraph({ children: [new TextRun("The parties agree as follows.")] }),
+    docxBytes([
+      new Paragraph("The parties agree as follows."),
       new Textbox({
         children: [new TextRun("Draft only - not for execution.")],
       }),
@@ -310,7 +278,7 @@ export const pathologyFixtureBuilders: Record<
 
   /** Column and row spans, no nesting. */
   "merged-table": () =>
-    pack([
+    docxBytes([
       new Table({
         width: { size: 9000, type: WidthType.DXA },
         rows: [
@@ -340,80 +308,59 @@ export const pathologyFixtureBuilders: Record<
 
   /** Field codes only: a footer with no literal text of its own. */
   fields: () =>
-    Packer.toBuffer(
-      new Document({
-        sections: [
-          {
-            footers: {
-              default: new Footer({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ children: [PageNumber.CURRENT] }),
-                      new TextRun({ children: [PageNumber.TOTAL_PAGES] }),
-                    ],
-                  }),
-                ],
-              }),
-            },
-            children: [
-              new Paragraph({ children: [new TextRun("Schedule A follows.")] }),
-            ],
-          },
-        ],
-      }),
-    ),
+    docxBytes([
+      new Paragraph("Schedule A follows."),
+    ], {}, {
+      footers: {
+        default: new Footer({
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({ children: [PageNumber.CURRENT] }),
+                new TextRun({ children: [PageNumber.TOTAL_PAGES] }),
+              ],
+            }),
+          ],
+        }),
+      },
+    }),
 
   /** Literal text in both a header and a footer. */
   "header-footer-text": () =>
-    Packer.toBuffer(
-      new Document({
-        sections: [
-          {
-            headers: {
-              default: new Header({
-                children: [new Paragraph("PRIVILEGED AND CONFIDENTIAL")],
-              }),
-            },
-            footers: {
-              default: new Footer({
-                children: [new Paragraph("Execution version")],
-              }),
-            },
-            children: [
-              new Paragraph({ children: [new TextRun("Recitals.")] }),
-            ],
-          },
-        ],
-      }),
-    ),
+    docxBytes([
+      new Paragraph("Recitals."),
+    ], {}, {
+      headers: {
+        default: new Header({
+          children: [new Paragraph("PRIVILEGED AND CONFIDENTIAL")],
+        }),
+      },
+      footers: {
+        default: new Footer({
+          children: [new Paragraph("Execution version")],
+        }),
+      },
+    }),
 
   /** Footnotes and endnotes, alongside the separators that are not content. */
   footnotes: () =>
-    Packer.toBuffer(
-      new Document({
-        footnotes: {
-          1: { children: [new Paragraph("See Schedule B.")] },
-          2: { children: [new Paragraph("As amended.")] },
-        },
-        endnotes: {
-          1: { children: [new Paragraph("Definitions apply throughout.")] },
-        },
-        sections: [
-          {
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun("The consideration is set out below."),
-                  new FootnoteReferenceRun(1),
-                  new FootnoteReferenceRun(2),
-                ],
-              }),
-            ],
-          },
+    docxBytes([
+      new Paragraph({
+        children: [
+          new TextRun("The consideration is set out below."),
+          new FootnoteReferenceRun(1),
+          new FootnoteReferenceRun(2),
         ],
       }),
-    ),
+    ], {
+      footnotes: {
+        1: { children: [new Paragraph("See Schedule B.")] },
+        2: { children: [new Paragraph("As amended.")] },
+      },
+      endnotes: {
+        1: { children: [new Paragraph("Definitions apply throughout.")] },
+      },
+    }),
 
   /**
    * Text that does not read as it renders: a reordered span, a joiner
@@ -421,139 +368,107 @@ export const pathologyFixtureBuilders: Record<
    * private-use character in a header.
    */
   "unicode-traps": () =>
-    Packer.toBuffer(
-      new Document({
-        sections: [
-          {
-            headers: {
-              default: new Header({
-                children: [
-                  new Paragraph(
-                    `PRIVILEGED${PRIVATE_USE} AND CONFIDENTIAL`,
-                  ),
-                ],
-              }),
-            },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun(
-                    `The amount payable is USD ${RIGHT_TO_LEFT_OVERRIDE}00.1${POP_DIRECTIONAL} per unit.`,
-                  ),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun(
-                    `"Confidential${ZERO_WIDTH_JOINER} Information" means information disclosed in writing.`,
-                  ),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun(
-                    `This Agr${CYRILLIC_IE}ement is governed by Ontario law.`,
-                  ),
-                ],
-              }),
-            ],
-          },
+    docxBytes([
+      new Paragraph({
+        children: [
+          new TextRun(
+            `The amount payable is USD ${RIGHT_TO_LEFT_OVERRIDE}00.1${POP_DIRECTIONAL} per unit.`,
+          ),
         ],
       }),
-    ),
+      new Paragraph({
+        children: [
+          new TextRun(
+            `"Confidential${ZERO_WIDTH_JOINER} Information" means information disclosed in writing.`,
+          ),
+        ],
+      }),
+      new Paragraph({
+        children: [
+          new TextRun(
+            `This Agr${CYRILLIC_IE}ement is governed by Ontario law.`,
+          ),
+        ],
+      }),
+    ], {}, {
+      headers: {
+        default: new Header({
+          children: [
+            new Paragraph(
+              `PRIVILEGED${PRIVATE_USE} AND CONFIDENTIAL`,
+            ),
+          ],
+        }),
+      },
+    }),
 
   /** Several pathologies at once, plus an embedded object part. */
   "kitchen-sink": async () =>
     withEmbeddedObject(
-      await Packer.toBuffer(
-        new Document({
-          numbering: NUMBERING,
-          comments: {
-            children: [
-              {
-                id: 0,
-                author: "Counsel",
-                date: new Date("2026-01-01T00:00:00Z"),
-                children: [new Paragraph("Reconcile with the schedule.")],
-              },
-            ],
-          },
-          footnotes: { 1: { children: [new Paragraph("See Schedule C.")] } },
-          sections: [
-            {
-              headers: {
-                default: new Header({
-                  children: [new Paragraph("DRAFT - SUBJECT TO REVIEW")],
-                }),
-              },
+      await docxBytes([
+        blockControl("party_name", "Northwind Holdings Inc."),
+        new Paragraph({
+          numbering: { reference: "clauses", level: 0 },
+          children: [
+            new CommentRangeStart(0),
+            new TextRun("The term is "),
+            new InsertedTextRun({
+              text: "three years",
+              id: 1,
+              ...REVISION,
+            }),
+            new DeletedTextRun({ text: "five years", id: 2, ...REVISION }),
+            new CommentRangeEnd(0),
+            new TextRun({ children: [new CommentReference(0)] }),
+            new FootnoteReferenceRun(1),
+          ],
+        }),
+        new Paragraph({
+          numbering: { reference: "clauses", level: 1 },
+          children: [
+            new TextRun({
+              text: "sixty (60) days",
+              color: "FF0000",
+              strike: true,
+            }),
+            new TextRun({ text: "thirty (30) days", color: "C00000" }),
+            new ExternalHyperlink({
+              link: "https://example.org/schedule",
+              children: [new TextRun("")],
+            }),
+          ],
+        }),
+        new Textbox({
+          // A trap in text that body extraction never reaches.
+          children: [
+            new TextRun(
+              `Internal${ZERO_WIDTH_SPACE} note: confirm the cap.`,
+            ),
+          ],
+        }),
+        new Table({
+          width: { size: 9000, type: WidthType.DXA },
+          rows: [
+            new TableRow({
               children: [
-                blockControl("party_name", "Northwind Holdings Inc."),
-                new Paragraph({
-                  numbering: { reference: "clauses", level: 0 },
-                  children: [
-                    new CommentRangeStart(0),
-                    new TextRun("The term is "),
-                    new InsertedTextRun({
-                      text: "three years",
-                      id: 1,
-                      ...REVISION,
-                    }),
-                    new DeletedTextRun({ text: "five years", id: 2, ...REVISION }),
-                    new CommentRangeEnd(0),
-                    new TextRun({ children: [new CommentReference(0)] }),
-                    new FootnoteReferenceRun(1),
-                  ],
+                new TableCell({
+                  columnSpan: 2,
+                  children: [new Paragraph("Payments")],
                 }),
-                new Paragraph({
-                  numbering: { reference: "clauses", level: 1 },
+              ],
+            }),
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph("Instalment")] }),
+                new TableCell({
                   children: [
-                    new TextRun({
-                      text: "sixty (60) days",
-                      color: "FF0000",
-                      strike: true,
-                    }),
-                    new TextRun({ text: "thirty (30) days", color: "C00000" }),
-                    new ExternalHyperlink({
-                      link: "https://example.org/schedule",
-                      children: [new TextRun("")],
-                    }),
-                  ],
-                }),
-                new Textbox({
-                  // A trap in text that body extraction never reaches.
-                  children: [
-                    new TextRun(
-                      `Internal${ZERO_WIDTH_SPACE} note: confirm the cap.`,
-                    ),
-                  ],
-                }),
-                new Table({
-                  width: { size: 9000, type: WidthType.DXA },
-                  rows: [
-                    new TableRow({
-                      children: [
-                        new TableCell({
-                          columnSpan: 2,
-                          children: [new Paragraph("Payments")],
-                        }),
-                      ],
-                    }),
-                    new TableRow({
-                      children: [
-                        new TableCell({ children: [new Paragraph("Instalment")] }),
-                        new TableCell({
+                    new Table({
+                      width: { size: 3000, type: WidthType.DXA },
+                      rows: [
+                        new TableRow({
                           children: [
-                            new Table({
-                              width: { size: 3000, type: WidthType.DXA },
-                              rows: [
-                                new TableRow({
-                                  children: [
-                                    new TableCell({
-                                      children: [new Paragraph("On closing")],
-                                    }),
-                                  ],
-                                }),
-                              ],
+                            new TableCell({
+                              children: [new Paragraph("On closing")],
                             }),
                           ],
                         }),
@@ -562,10 +477,29 @@ export const pathologyFixtureBuilders: Record<
                   ],
                 }),
               ],
-            },
+            }),
           ],
         }),
-      ),
+      ], {
+        numbering: NUMBERING,
+        comments: {
+          children: [
+            {
+              id: 0,
+              author: "Counsel",
+              date: new Date("2026-01-01T00:00:00Z"),
+              children: [new Paragraph("Reconcile with the schedule.")],
+            },
+          ],
+        },
+        footnotes: { 1: { children: [new Paragraph("See Schedule C.")] } },
+      }, {
+        headers: {
+          default: new Header({
+            children: [new Paragraph("DRAFT - SUBJECT TO REVIEW")],
+          }),
+        },
+      }),
     ),
 };
 

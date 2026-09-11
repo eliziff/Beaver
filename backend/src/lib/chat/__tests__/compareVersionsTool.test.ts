@@ -1,8 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { Paragraph } from "docx";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { docxBytes } from "../../__tests__/support/docxFixtures";
 
 const userId = "00000000-0000-0000-0000-000000000001";
 
@@ -22,17 +23,9 @@ afterEach(async () => {
 });
 
 const docxFrom = (paragraphs: string[]) =>
-  Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: paragraphs.map(
-            (text) => new Paragraph({ children: [new TextRun(text)] }),
-          ),
-        },
-      ],
-    }),
-  );
+  docxBytes(paragraphs.map(
+    (text) => new Paragraph(text),
+  ));
 
 describe("compareDocumentVersions", () => {
   it("compares in memory unless a durable redline is requested", async () => {
@@ -98,5 +91,4 @@ describe("compareDocumentVersions", () => {
       { userId }, String(saved?.document_id), null, false,
     )).not.toBeNull();
   });
-
 });
