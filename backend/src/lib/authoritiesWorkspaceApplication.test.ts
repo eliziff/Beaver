@@ -676,6 +676,29 @@ describe("Authorities workspace application", () => {
     expect(runtime.files.create).toHaveBeenCalledTimes(2);
   });
 
+  it("spends no revision preparing a draft that needs nothing", async () => {
+    const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
+        citation: "2009 SCC 32", name: "R v Grant", displayName: null,
+        excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "unresolved" } },
+    });
+    const runtime = harness({ draft, resolve: async () => {
+      throw new Error("A2AJ unavailable");
+    } });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+
+    const prepared = await prepareSources(runtime, imported);
+    expect((prepared.state as AuthoritiesDraft).authorities.grant.source.kind)
+      .toBe("pending-canlii");
+    expect(prepared.revision).toBe(imported.revision + 1);
+
+    // The second open re-offers the same handoff through a reducer that always
+    // returns a fresh object; the draft is unchanged, so the revision is too.
+    await expect(prepareSources(runtime, prepared)).resolves.toBe(prepared);
+    expect(runtime.workProducts.save).toHaveBeenCalledTimes(1);
+  });
+
   it("offers an exact CanLII handoff when A2AJ is unavailable", async () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
