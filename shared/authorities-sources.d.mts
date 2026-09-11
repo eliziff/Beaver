@@ -45,6 +45,9 @@ type RequirementDraft = {
   outputMode: "table" | "book" | "both";
   insertIntoDocument: boolean;
 };
+type BookDraft = RequirementDraft & {
+  settings: { allowIncomplete?: boolean; missingSourcePolicy: "placeholder" | "omit" };
+};
 type RequirementAuthority = {
   kind: string;
   citation: string;
@@ -65,6 +68,8 @@ export function authorityPdfRequired(draft: RequirementDraft, authority: Require
   requirements?: AuthoritySourceRequirements | null): boolean;
 export function authoritySourceRequirement(draft: RequirementDraft, authority: RequirementAuthority,
   requirements?: AuthoritySourceRequirements | null, prepared?: boolean): AuthoritySourceReason | null;
+export function authorityReproducedInBook(draft: BookDraft,
+  authority: RequirementAuthority & { excluded: boolean }): boolean;
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
 export function removeUnusedBinding(draft: SourceDraft, role: string | undefined): void;
 export function replaceSource(draft: SourceDraft, authority: SourceAuthority,

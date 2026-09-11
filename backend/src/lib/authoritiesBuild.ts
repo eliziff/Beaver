@@ -14,6 +14,7 @@ import {
   authoritiesProfile,
   validateAuthoritiesDraft,
   authorityCitationForms,
+  authorityReproducedInBook,
   authoritySourceRequirement,
   authoritySourceUrl,
   type AttachedAuthoritySource,
@@ -30,6 +31,7 @@ import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structu
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
+import { isCanliiUrl, urlHostname } from "./canliiUrls";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
@@ -177,15 +179,8 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
   return value || "—";
 }
 
-const reproducedInBook = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
-  !authority.excluded && !authoritySourceRequirement(draft, authority, {
-    completeBookSources: !draft.settings.allowIncomplete &&
-      draft.settings.missingSourcePolicy !== "placeholder" });
-
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
-  deriveAuthorityProcedure(authorityProcedureInput(draft, {
-    purpose, reproduced: (authority) => reproducedInBook(draft, authority),
-  }));
+  deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose }));
 
 function authoritySourceLink(authority: AuthorityIdentity) {
   const value = authoritySourceUrl(authority);
@@ -206,11 +201,9 @@ function freePublicDatabaseReference(authority: AuthorityIdentity) {
   if (authority.kind !== "case") return null;
   const value = authoritySourceLink(authority);
   if (!value) return null;
-  const host = new URL(value).hostname.toLowerCase().replace(/\.+$/u, "");
-  const canlii = ["canlii.ca", "canlii.org"].some((domain) =>
-    host === domain || host.endsWith(`.${domain}`));
-  return authority.sourceIdentity?.provider === "a2aj" || canlii
-    ? { url: value, host } : null;
+  const url = new URL(value);
+  return authority.sourceIdentity?.provider === "a2aj" || isCanliiUrl(url)
+    ? { url: value, host: urlHostname(url) } : null;
 }
 
 function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
@@ -614,7 +607,7 @@ async function prepareAuthorityBook(
     throw new Error("Add the Court file number and complete party names and roles for the Federal Form 66 cover.");
   }
   const authorityRows = groups.flatMap(({ entries }) => entries.filter(({ authority }) =>
-    reproducedInBook(draft, authority)));
+    authorityReproducedInBook(draft, authority)));
   const supplementRows: BookRow[] = draft.bookParts.supplements.map((item, index) => ({
     key: `supplement:${item.id}`,
     name: item.filename.replace(/\.pdf$/iu, "").trim() || item.filename,
@@ -663,7 +656,7 @@ async function prepareAuthorityBook(
   });
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
   const rowGroups = groups.flatMap(({ label, entries }) => {
-    const kept = entries.filter(({ authority }) => reproducedInBook(draft, authority))
+    const kept = entries.filter(({ authority }) => authorityReproducedInBook(draft, authority))
       .map(({ authority }) => rowByKey.get(`authority:${authority.id}`)!);
     return kept.length ? [{ label, entries: kept }] : [];
   });

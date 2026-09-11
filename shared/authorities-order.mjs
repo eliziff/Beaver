@@ -1,3 +1,5 @@
+import { authorityReproducedInBook } from "./authorities-sources.mjs";
+
 const groups = [["Cases", "case"], ["Legislation", "legislation"],
   ["Secondary sources", "commentary"], ["Other sources", "other"]];
 
@@ -60,14 +62,15 @@ function deriveAuthorityProcedure(input) {
 }
 
 /** Shapes a draft's stored state into `deriveAuthorityProcedure` input; the caller
- *  supplies the purpose and its own reproduced-in-book rule. */
-function authorityProcedureInput(state, { purpose, reproduced }) {
+ *  supplies only the purpose, so server and browser plan the same book. */
+function authorityProcedureInput(state, { purpose }) {
   return {
     authorities: state.authorityOrder.map((id) => {
       const authority = state.authorities[id];
       return { id, kind: authority.kind, citation: authority.citation,
         sortLabel: authority.displayName || authority.name || authority.citation,
-        excluded: authority.excluded, reproduced: reproduced(authority) };
+        excluded: authority.excluded,
+        reproduced: authorityReproducedInBook(state, authority) };
     }),
     units: state.units, occurrences: state.occurrences,
     manual: state.import.kind === "manual", purpose,

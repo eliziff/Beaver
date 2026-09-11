@@ -1672,13 +1672,9 @@ function location(item: AuthorityOccurrence, index: number, all: AuthorityOccurr
     units.some(({ id, kind }) => id === unitId && kind === "body")).length;
   return `In-text citation ${body}`;
 }
-function planAuthorities(draft: AuthoritiesProduct) {
-  const state = draft.state;
-  return deriveAuthorityProcedure(authorityProcedureInput(state, {
-    purpose: state.outputMode === "table" ? "table" : "book",
-    reproduced: (item) => !item.excluded && (item.source.kind === "attached" ||
-      state.settings.missingSourcePolicy === "placeholder"),
-  }));
+function planAuthorities({ state }: AuthoritiesProduct) {
+  return deriveAuthorityProcedure(authorityProcedureInput(state,
+    { purpose: state.outputMode === "table" ? "table" : "book" }));
 }
 function selectionRange(root: HTMLElement | null) {
   const selection = window.getSelection();
