@@ -5,21 +5,14 @@ import { matchesWorkProductRole } from "mike/shared/court-record-work-products.m
 import type { CaseParty, CasePartyGroup, CourtRecordDraft, CourtRecordDraftEntry,
   CourtRecordPartyContact, SourceDocumentFields,
   SourceExhibits } from "mike/shared/court-record-contract.d.ts";
-import type { FileSnapshot } from "mike/shared/work-products.mjs";
-import { closed, jsonRecord, maybe, type Check, type FieldTable } from "./value";
-import { decodeWorkProductBindings } from "./workProduct";
+import { closed, dictionary, flag, hash, jsonRecord, list, maybe, natural, nonempty, string,
+  type FieldTable } from "./value";
+import { decodeWorkProductBindings, fileSnapshot } from "./workProduct";
 
 const UNASSIGNED_SLOT: DocumentKind = {
   id: "unassigned", label: "Unassigned", requirement: "optional", order: 0, repeatable: true,
 };
-const string = (max = 5_000): Check => (value) =>
-  typeof value === "string" && value.length <= max;
-const identifier: Check = (value) => string(200)(value) && value !== "";
-const natural: Check = (value) => Number.isSafeInteger(value) && Number(value) >= 0;
-const hash: Check = (value) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
-const flag: Check = (value) => typeof value === "boolean";
-const list = (max: number, item: Check): Check => (value) =>
-  Array.isArray(value) && value.length <= max && value.every(item);
+const identifier = nonempty(200);
 
 const partyContactFields = { name: maybe(string()), address: maybe(string()),
   phone: maybe(string()), fax: maybe(string()), email: maybe(string()),
@@ -36,16 +29,9 @@ const partyGroup = closed<CasePartyGroup>({ id: identifier, role: string(500),
   roleBelow: maybe(string(500)), parties: list(100, party) });
 
 const coverFieldIds = new Set(COURT_RECORD_COVER_FIELD_IDS);
-const sourceCover: Check = (value) => {
-  const cover = jsonRecord(value);
-  return !!cover && Object.entries(cover)
-    .every(([key, field]) => coverFieldIds.has(key) && string()(field));
-};
-const exhibitMentions: Check = (value) => {
-  const mentions = jsonRecord(value);
-  return !!mentions && Object.entries(mentions).every(([label, passages]) =>
-    /^[A-Z]+$/u.test(label) && list(1_000, string())(passages));
-};
+const sourceCover = dictionary(string(), (key) => coverFieldIds.has(String(key)));
+const exhibitMentions = dictionary(list(1_000, string()),
+  (label) => /^[A-Z]+$/u.test(String(label)));
 const sourceFields = closed<SourceDocumentFields>({
   cover: sourceCover, exhibitLabels: list(MAX_EXHIBIT_LABELS, string(20)),
   exhibitMentions: maybe(exhibitMentions), explicitExhibitLabel: maybe(string()),
@@ -56,10 +42,8 @@ const sourceExhibits = closed<SourceExhibits>({ sourceSha256: hash,
     value.length <= MAX_EXHIBIT_LABELS &&
     value.every((label, index) => label === exhibitName(index)) });
 
-const snapshot = closed<FileSnapshot>({ name: string(500), size: natural,
-  modified: natural, sha256: maybe(hash) });
 const entry = closed<CourtRecordDraftEntry>({
-  id: identifier, kindId: identifier, title: string(1_000), lastSeen: snapshot,
+  id: identifier, kindId: identifier, title: string(1_000), lastSeen: fileSnapshot,
   date: maybe(string(500)),
   rule70CountedPages: maybe((value) => natural(value) && Number(value) >= 1),
   exhibitLabel: maybe(string(500)), sourceExhibits: maybe(sourceExhibits),

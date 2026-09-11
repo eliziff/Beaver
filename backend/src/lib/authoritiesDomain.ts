@@ -17,8 +17,9 @@ export type {
 
 import { attachAuthoritySource, attachedAuthoritySources,
   authoritiesBookPdfs, removeUnusedBinding, replaceSource } from "mike/shared/authorities-sources.mjs";
-import type { AuthoritySourceLanguage,
-  AuthoritiesBoundPdf, AuthoritiesBookSupplement } from "mike/shared/authorities-sources.mjs";
+import type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
+  AuthoritiesBoundPdf, AuthoritiesBookParts,
+  AuthoritiesBookSupplement } from "mike/shared/authorities-sources.mjs";
 export { attachedAuthoritySources, federalEnactmentCitation, hasBilingualAuthoritySource,
   authoritiesBookPdfs } from "mike/shared/authorities-sources.mjs";
 export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
@@ -27,9 +28,13 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { buildCanliiPdfUrl } from "./canliiUrls";
 import { sha256 } from "./hash";
 import { decodeWorkProductBindings, type WorkProductInput } from "./workProduct";
+import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list, literal,
+  maybe, nonempty, nullable, oneOf, plain, tagged, text, trimmed,
+  type Check, type FieldTable } from "./value";
 import profileValues from "mike/shared/authorities-profiles.json";
 
-import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
+import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
+  decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
 export { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds } from "./authoritiesActionContract";
 /** Filing defaults only; source receipts remain in the repository audit data. */
 const authoritiesProfiles = profileValues as AuthoritiesProfile[];
@@ -123,181 +128,135 @@ const exactSourceHash = (value: string) => /^(?:sha256:)?[a-f0-9]{64}$/u.test(va
 const sameSnapshot = (left: AuthoritiesDocumentSnapshot, right: AuthoritiesDocumentSnapshot) =>
   left.documentId === right.documentId && left.versionId === right.versionId &&
   left.sha256 === right.sha256;
-const object = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
-const exactKeys = (value: Record<string, unknown>, required: string[], optional: string[] = []) =>
-  required.every((key) => Object.hasOwn(value, key)) &&
-  Object.keys(value).every((key) => required.includes(key) || optional.includes(key));
-const nonempty = (value: unknown, max = 4_000) =>
-  typeof value === "string" && value.length > 0 && value.length <= max;
-const trimmed = (value: unknown, max = 500) => typeof value === "string" &&
-  value.length > 0 && value.length <= max && value.trim() === value &&
-  !/[\u0000-\u001f\u007f]/u.test(value);
-const closed = (fields: Record<string, (value: unknown) => boolean>) => {
-  const keys = Object.keys(fields), entries = Object.entries(fields);
-  return (value: unknown): boolean => {
-    const item = object(value);
-    return !!item && exactKeys(item, keys) &&
-      entries.every(([key, valid]) => valid(item[key]));
-  };
-};
-const text = (value: unknown) => typeof value === "string";
-const nullableText = (value: unknown) => value === null || text(value);
-const integer = (value: unknown) => Number.isSafeInteger(value);
-const list = (value: unknown, valid: (item: unknown) => boolean, limit = 50_000) =>
-  Array.isArray(value) && value.length <= limit && Array.from(value).every(valid);
-const strings = (value: unknown) => list(value, text);
-const pair = (value: unknown) => Array.isArray(value) && value.length === 2 &&
+const sourceHash: Check = (value) => typeof value === "string" && exactSourceHash(value);
+const strings = list(50_000, text);
+const pair: Check = (value) => Array.isArray(value) && value.length === 2 &&
   Array.from(value).every(integer);
-const oneOf = (value: unknown, choices: readonly string[]) =>
-  typeof value === "string" && choices.includes(value);
-const spanFields = { start: integer, end: integer, text };
-const authoritySpan = closed(spanFields);
-const buildSettings = (value: unknown) => {
-  const keys = Object.keys(AUTHORITIES_SETTINGS_CHOICES).filter((key) =>
-    key !== "filingMedium" && key !== "bookRole");
-  const item = object(value);
-  if (!item || !exactKeys(item, ["profileId", ...keys], ["filingMedium", "bookRole", "tabStart", "tabPrefix", "tabLabels", "allowIncomplete"])) {
-    return false;
-  }
-  const profile = typeof item.profileId === "string"
-    ? AUTHORITIES_PROFILES.get(item.profileId) : undefined;
+const choice = (key: keyof typeof AUTHORITIES_SETTINGS_CHOICES): Check =>
+  oneOf(AUTHORITIES_SETTINGS_CHOICES[key]);
+
+const settingsShape = closed<AuthoritiesSettings>({
+  profileId: text, sourceMode: choice("sourceMode"), tabStyle: choice("tabStyle"),
+  tabStart: maybe(integer), tabPrefix: maybe(text), tabLabels: maybe(list(10_000, text)),
+  allowIncomplete: maybe(flag), tableOrder: choice("tableOrder"),
+  tableDelivery: choice("tableDelivery"), tableLocation: choice("tableLocation"),
+  passageMarking: choice("passageMarking"), scannedPdfPolicy: choice("scannedPdfPolicy"),
+  missingSourcePolicy: choice("missingSourcePolicy"), filingMedium: maybe(choice("filingMedium")),
+  bookRole: maybe(choice("bookRole")),
+});
+/** Settings the chosen profile actually offers, read back through its own decoder. */
+const buildSettings: Check = (item) => {
+  if (!settingsShape(item)) return false;
+  const profile = AUTHORITIES_PROFILES.get(item.profileId);
   const filingMedia = profile?.options?.filingMedium?.map(({ value }) => value);
   const bookRoles = profile?.options?.bookRole?.map(({ value }) => value);
   const context = filingMedia
-    ? oneOf(item.filingMedium, filingMedia) : !Object.hasOwn(item, "filingMedium");
+    ? oneOf(filingMedia)(item.filingMedium) : !Object.hasOwn(item, "filingMedium");
   const roleContext = bookRoles
     ? profile?.id === "federal-court" && !Object.hasOwn(item, "bookRole") ||
-      oneOf(item.bookRole, bookRoles)
+      oneOf(bookRoles)(item.bookRole)
     : !Object.hasOwn(item, "bookRole");
   if (!profile || !context || !roleContext ||
       profile.requirements?.markedPassages && item.passageMarking === "none") return false;
   try { decodeAuthoritiesInitialSettings(item); return true; }
   catch { return false; }
 };
-const boundPdfFields = {
-  bindingRole: (value: unknown) => trimmed(value, 200), filename: trimmed,
-  sourceSha256: (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value),
+
+const boundPdfFields = { bindingRole: trimmed(200), filename: trimmed(500),
+  sourceSha256: hash } satisfies FieldTable<AuthoritiesBoundPdf>;
+const boundPdf = closed<AuthoritiesBoundPdf>(boundPdfFields);
+const bookSupplement = closed<AuthoritiesBookSupplement>({ id: trimmed(200), ...boundPdfFields });
+const bookParts = closed<AuthoritiesBookParts>({ cover: nullable(boundPdf),
+  index: nullable(boundPdf), supplements: list(500, bookSupplement) });
+
+const partyGroup = closed<AuthoritiesCover["partyGroups"][number]>({ role: plain(100),
+  parties: list(50, plain(500)) });
+const authoritiesCover = closed<AuthoritiesCover>({ courtFileNumber: plain(100),
+  applicationUnder: plain(2_000), title: plain(500), partyGroups: list(50, partyGroup) });
+
+const authorityKind = oneOf(authorityKinds);
+const pinpoint = closed<AuthorityOccurrence["pinpoints"][number]>({
+  kind: oneOf(AUTHORITIES_ACTION_CHOICES.locator), text });
+const locator = closed<AuthorityHighlightExclusion>({ kind: text, label: text });
+const snapshot = closed<AuthoritiesDocumentSnapshot>({ documentId: nonempty(200),
+  versionId: nonempty(200), sha256: sourceHash });
+const importedDocument = tagged<AuthoritiesImport>({ manual: {},
+  document: { bindingRole: literal("source"), filename: nonempty(500),
+    fileType: oneOf(["docx", "pdf"]), snapshot: nullable(snapshot) } });
+
+const sourceIdentity = closed<AuthoritySourceIdentity>({ provider: text, stableSourceId: text,
+  sourceSha256: sourceHash, version: nullable(text), externalUrl: nullable(text) });
+const attachedSource = closed<AttachedAuthoritySource>({ bindingRole: text, filename: text,
+  sourceSha256: text, sourceUrl: nullable(text),
+  origin: oneOf(["manual", "original", "reconstructed"]),
+  language: oneOf(["en", "fr", "bilingual"]) });
+const decisionShape = tagged<AuthoritySourceDecision>({ unresolved: {}, resolved: {},
+  attached: { sources: list(50_000, attachedSource) },
+  "pending-canlii": { authorityKey: text, pageUrl: text, pdfUrl: text } });
+/** One source per language, and a bilingual source stands alone. */
+const sourceDecision: Check = (value) => {
+  if (!decisionShape(value)) return false;
+  if (value.kind !== "attached") return true;
+  const languages = value.sources.map(({ language }) => language);
+  return languages.length > 0 && languages.length <= 2 &&
+    new Set(languages).size === languages.length &&
+    (!languages.includes("bilingual") || languages.length === 1);
 };
-const boundPdf = closed(boundPdfFields);
-const bookSupplement = closed({ id: (value) => trimmed(value, 200), ...boundPdfFields });
-const bookParts = closed({
-  cover: (value) => value === null || boundPdf(value),
-  index: (value) => value === null || boundPdf(value),
-  supplements: (value) => list(value, bookSupplement, 500),
-});
-const plain = (value: unknown, max: number) => typeof value === "string" &&
-  value.length <= max && value.trim() === value && !/[\u0000-\u001f\u007f]/u.test(value);
-const partyGroup = closed({ role: (value) => plain(value, 100),
-  parties: (value) => list(value, (party) => plain(party, 500), 50) });
-const authoritiesCover = closed({
-  courtFileNumber: (value) => plain(value, 100), applicationUnder: (value) => plain(value, 2_000),
-  title: (value) => plain(value, 500), partyGroups: (value) => list(value, partyGroup, 50),
-});
-const authorityKind = (value: unknown) => oneOf(value,
-  ["case", "legislation", "commentary", "other"]);
-const pinpoint = closed({ kind: (value) => oneOf(value, ["paragraph", "section", "page"]), text });
-const locator = closed({ kind: text, label: text });
-const snapshot = closed({ documentId: (value) => nonempty(value, 200),
-  versionId: (value) => nonempty(value, 200),
-  sha256: (value) => typeof value === "string" && exactSourceHash(value) });
-const importedDocument = (value: unknown) => {
-  const item = object(value);
-  if (!item) return false;
-  if (item.kind === "manual") return exactKeys(item, ["kind"]);
-  return exactKeys(item, ["kind", "bindingRole", "filename", "fileType", "snapshot"]) &&
-    item.kind === "document" && item.bindingRole === "source" &&
-    nonempty(item.filename, 500) && oneOf(item.fileType, ["docx", "pdf"]) &&
-    (item.snapshot === null || snapshot(item.snapshot));
-};
-const sourceIdentity = closed({ provider: text, stableSourceId: text,
-  sourceSha256: (value) => typeof value === "string" && exactSourceHash(value),
-  version: nullableText, externalUrl: nullableText });
-const attachedSource = closed({ bindingRole: text, filename: text, sourceSha256: text,
-  sourceUrl: nullableText, origin: (value) => oneOf(value, ["manual", "original", "reconstructed"]),
-  language: (value) => oneOf(value, ["en", "fr", "bilingual"]) });
-const sourceDecision = (value: unknown) => {
-  const item = object(value);
-  if (!item) return false;
-  if (item.kind === "unresolved" || item.kind === "resolved") {
-    return exactKeys(item, ["kind"]);
-  }
-  if (item.kind === "attached" && exactKeys(item, ["kind", "sources"]) &&
-      Array.isArray(item.sources) && list(item.sources, attachedSource)) {
-    const languages = item.sources.map((source) => object(source)?.language);
-    return languages.length > 0 && languages.length <= 2 &&
-      new Set(languages).size === languages.length &&
-      (!languages.includes("bilingual") || languages.length === 1);
-  }
-  return item.kind === "pending-canlii" && exactKeys(item,
-    ["kind", "authorityKey", "pageUrl", "pdfUrl"]) &&
-    text(item.authorityKey) && text(item.pageUrl) && text(item.pdfUrl);
-};
-const seed = closed({ key: text, kind: authorityKind, provider: text,
-  stableSourceId: text, sourceSha256: text, citation: text, name: nullableText,
-  version: nullableText, externalUrl: nullableText, evidenceIds: strings,
-  locators: (value) => list(value, locator) });
-const authority = (value: unknown) => {
-  const item = object(value), keys = ["id", "key", "kind", "citation", "name", "displayName",
-    "evidenceIds", "locators", "sourceIdentity", "excluded", "source"];
-  return !!item && exactKeys(item, keys, ["highlightExclusions", "annotations", "scanOnly", "userAdded"]) &&
-    (item.scanOnly === undefined || item.scanOnly === true) &&
-    (item.userAdded === undefined || item.userAdded === true) &&
-    !(item.scanOnly && item.userAdded) &&
-    text(item.id) && text(item.key) && authorityKind(item.kind) &&
-    text(item.citation) && nullableText(item.name) && nullableText(item.displayName) &&
-    strings(item.evidenceIds) && list(item.locators, locator) &&
-    (item.highlightExclusions === undefined || list(item.highlightExclusions, locator, 500)) &&
-    (item.sourceIdentity === null || sourceIdentity(item.sourceIdentity)) &&
-    typeof item.excluded === "boolean" && sourceDecision(item.source);
-};
-const unitFields = { id: text, kind: (value: unknown) => oneOf(value, ["body", "footnote"]),
-  ordinal: integer, footnoteId: (value: unknown) => value === null || integer(value),
-  footnoteRefs: (value: unknown) => list(value, pair),
-  pageNumbers: (value: unknown) => list(value, integer), text };
-const reviewUnit = closed({ ...unitFields, occurrenceIds: strings });
-const reference = closed({ kind: (value) => oneOf(value, ["supra", "ibid"]), targetAuthorityId: text });
-const occurrence = closed({ id: text, unitId: text, ...spanFields,
-  authoritySpan, coreSpan: authoritySpan, pinpointSpan: (value) => value === null || authoritySpan(value),
+
+const seed = closed<AuthoritySeed>({ key: text, kind: authorityKind, provider: text,
+  stableSourceId: text, sourceSha256: text, citation: text, name: nullable(text),
+  version: nullable(text), externalUrl: nullable(text), evidenceIds: strings,
+  locators: list(50_000, locator) });
+const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: authorityKind,
+  citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
+  locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
+  source: sourceDecision, highlightExclusions: maybe(list(500, locator)),
+  annotations: maybe(isJsonRecord), userAdded: maybe(literal(true)),
+  scanOnly: maybe(literal(true)) });
+/** Import provenance and hand entry are exclusive: one authority is only ever one of them. */
+const authority: Check = (value) =>
+  authorityShape(value) && !(value.scanOnly && value.userAdded);
+
+const spanFields = { start: integer, end: integer, text } satisfies FieldTable<AuthorityTextSpan>;
+const authoritySpan = closed<AuthorityTextSpan>(spanFields);
+const unitFields = { id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
+  footnoteId: nullable(integer), footnoteRefs: list(50_000, pair),
+  pageNumbers: list(50_000, integer), text,
+} satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;
+const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings });
+const reference = closed<NonNullable<AuthorityOccurrence["reference"]>>({
+  kind: oneOf(AUTHORITIES_ACTION_CHOICES.reference), targetAuthorityId: text });
+const occurrence = closed<AuthorityOccurrence>({ id: text, unitId: text, ...spanFields,
+  authoritySpan, coreSpan: authoritySpan, pinpointSpan: nullable(authoritySpan),
   kind: (value) => authorityKind(value) || value === "reference", citation: text,
-  authorityId: nullableText, reference: (value) => value === null || reference(value),
-  pinpoints: (value) => list(value, pinpoint), evidenceIds: strings, sourceTextSha256: text,
-  localOrdinal: integer, reviewed: (value) => typeof value === "boolean" });
-const ledgerUnit = closed({ ...unitFields, sourceTextSha256: text });
-const ledgerOccurrence = closed({ id: text, markerId: text, targetId: text, authorityKey: text,
-  unit: ledgerUnit, ...spanFields, displayedForm: (value) => oneOf(value, ["full", "short", "supra", "ibid"]),
-  pinpoints: (value) => list(value, pinpoint), evidenceIds: strings, localOrdinal: integer });
-const ledger = closed({ schemaVersion: (value) => value === "beaver.authority-ledger.v1",
-  document: snapshot, seeds: (value) => list(value, seed),
-  occurrences: (value) => list(value, ledgerOccurrence) });
+  authorityId: nullable(text), reference: nullable(reference),
+  pinpoints: list(50_000, pinpoint), evidenceIds: strings, sourceTextSha256: text,
+  localOrdinal: integer, reviewed: flag });
+const ledgerOccurrence = closed<AuthoritiesLedgerOccurrence>({ id: text, markerId: text,
+  targetId: text, authorityKey: text,
+  unit: closed<AuthoritiesLedgerOccurrence["unit"]>({ ...unitFields, sourceTextSha256: text }),
+  ...spanFields, displayedForm: oneOf(["full", "short", "supra", "ibid"]),
+  pinpoints: list(50_000, pinpoint), evidenceIds: strings, localOrdinal: integer });
+const ledger = closed<AuthorityCitationLedger>({
+  schemaVersion: literal("beaver.authority-ledger.v1"), document: snapshot,
+  seeds: list(50_000, seed), occurrences: list(50_000, ledgerOccurrence) });
+
+const draftShape = closed<AuthoritiesDraft>({
+  schemaVersion: literal("beaver.authorities-draft.v1"), import: importedDocument,
+  bindings: (value) => !!decodeWorkProductBindings(value),
+  outputMode: oneOf(AUTHORITIES_ACTION_CHOICES.outputMode),
+  stage: maybe(oneOf(AUTHORITIES_ACTION_CHOICES.stage)),
+  settings: buildSettings, cover: authoritiesCover, bookParts,
+  insertIntoDocument: flag, ledger: nullable(ledger), units: list(50_000, reviewUnit),
+  occurrences: dictionary(occurrence), authorities: dictionary(authority),
+  authorityOrder: list(50_000, nonempty(200)),
+  discrepancyDecisions: dictionary(oneOf(AUTHORITIES_ACTION_CHOICES.discrepancy), hash),
+});
 
 /** Rejects malformed generic JSON before it can enter the typed Authorities reducer. */
 export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null {
   try {
-    const keys = ["schemaVersion", "import", "bindings", "outputMode",
-      "settings", "cover", "bookParts", "insertIntoDocument", "ledger", "units", "occurrences",
-      "authorities", "authorityOrder", "discrepancyDecisions"];
-    const candidate = object(value);
-    const normalized = candidate && exactKeys(candidate, keys, ["stage"]) ? candidate : null;
-    const occurrences = object(normalized?.occurrences), authorities = object(normalized?.authorities),
-      decisions = object(normalized?.discrepancyDecisions);
-    if (!normalized || normalized.schemaVersion !== "beaver.authorities-draft.v1" ||
-        !importedDocument(normalized.import) || !decodeWorkProductBindings(normalized.bindings) ||
-        !oneOf(normalized.outputMode, ["table", "book", "both"]) ||
-        (normalized.stage !== undefined && !oneOf(normalized.stage, ["citations", "sources", "highlights", "build"])) ||
-        !buildSettings(normalized.settings) || !authoritiesCover(normalized.cover) ||
-        !bookParts(normalized.bookParts) ||
-        typeof normalized.insertIntoDocument !== "boolean" ||
-        !(normalized.ledger === null || ledger(normalized.ledger)) ||
-        !list(normalized.units, reviewUnit) ||
-        !occurrences || !Object.values(occurrences).every(occurrence) || !authorities ||
-        !Object.values(authorities).every(authority) || !list(normalized.authorityOrder,
-          (id) => nonempty(id, 200)) || !decisions || Object.entries(decisions).some(
-          ([id, action]) => !/^[a-f0-9]{64}$/u.test(id) || !oneOf(action,
-            ["ignore", "pinpoint", "quote_exact", "quote_editorial"]))) return null;
-    const result = normalized as unknown as AuthoritiesDraft;
-    return validateAuthoritiesDraft(result).length ? null : result;
+    return draftShape(value) && !validateAuthoritiesDraft(value).length ? value : null;
   } catch { return null; }
 }
 
@@ -1144,7 +1103,7 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
     }
     if (authority.annotations !== undefined) {
       try {
-        const values = object(authority.annotations);
+        const values = jsonRecord(authority.annotations);
         if (!values || Object.keys(values).length > 100) throw new Error();
         for (const [role, value] of Object.entries(values)) {
           if (!role.trim() || role.length > 300) throw new Error();
