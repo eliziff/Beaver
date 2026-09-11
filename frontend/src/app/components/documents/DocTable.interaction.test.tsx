@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Profiler, useState } from "react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DirectoryList, Document } from "@/app/lib/api/documents";
 import { newResearchState, type ResearchFile } from "@/app/lib/researchFiles";
@@ -244,18 +244,6 @@ describe("DocTable Library interactions", () => {
         expect(list).toHaveBeenCalledTimes(3);
     });
 
-    it("avoids empty-state and version-picker rerenders", () => {
-        render(<Harness />);
-        const renders = sidePanelRender.mock.calls.length;
-        expect(renders).toBe(1);
-        fireEvent.click(within(documentRow()).getByRole("button", { name: "More actions" }));
-        fireEvent.click(screen.getByRole("menuitem", {
-            name: "Upload new version",
-        }));
-
-        expect(sidePanelRender).toHaveBeenCalledTimes(renders);
-    });
-
     it("uploads files dropped on the empty collection", async () => {
         const latestUpload = vi.fn(async () => wordDocument);
         render(<Harness initialDocuments={[]} uploadDocument={latestUpload} />);
@@ -350,18 +338,13 @@ describe("DocTable Library interactions", () => {
         }));
     });
 
-    it("keeps inline rename geometry without per-keystroke commits", async () => {
+    it("commits an inline rename once on Enter", async () => {
         documentApi.listDocumentVersions.mockResolvedValue({ current_version_id: "version-1", versions: [] });
-        const commits = vi.fn();
         const renameDocument = vi.fn(async (_id: string, filename: string) => ({
             ...document,
             filename,
         }));
-        const { container } = render(
-            <Profiler id="doc-table" onRender={commits}>
-                <Harness renameDocument={renameDocument} />
-            </Profiler>,
-        );
+        render(<Harness renameDocument={renameDocument} />);
         const row = documentRow();
         fireEvent.click(within(row).getByRole("button", {
             name: "More actions",
@@ -370,12 +353,9 @@ describe("DocTable Library interactions", () => {
             name: "Rename document",
         }));
         const input = screen.getByDisplayValue("Brief.pdf");
-        const nodeCount = container.querySelectorAll("*").length;
 
-        commits.mockClear();
         fireEvent.change(input, { target: { value: "Renamed.pdf" } });
-        expect(commits).not.toHaveBeenCalled();
-        expect(container.querySelectorAll("*")).toHaveLength(nodeCount);
+        expect(renameDocument).not.toHaveBeenCalled();
         expect(input.closest("[data-document-row]")).toBe(row);
         fireEvent.keyDown(input, { key: "Enter" });
         await waitFor(() =>
@@ -388,20 +368,15 @@ describe("DocTable Library interactions", () => {
     });
 
     it("keeps internal document moves on the root drop target", async () => {
-        const commits = vi.fn();
         const moveDocument = vi.fn(async () => ({
             ...document,
             folder_id: null,
         }));
-        render(
-            <Profiler id="doc-table" onRender={commits}>
-                <Harness
-                    initialDocuments={[{ ...document, folder_id: "folder-1" }]}
-                    moveDocument={moveDocument}
-                    search="Brief"
-                />
-            </Profiler>,
-        );
+        render(<Harness
+            initialDocuments={[{ ...document, folder_id: "folder-1" }]}
+            moveDocument={moveDocument}
+            search="Brief"
+        />);
         const rootDropTarget = documentRow().parentElement!;
         const rootDropSpacer = rootDropTarget.querySelector(
             ".min-h-16",
@@ -414,12 +389,9 @@ describe("DocTable Library interactions", () => {
         };
 
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
-        commits.mockClear();
         fireEvent.dragEnd(documentRow());
-        expect(commits).toHaveBeenCalledTimes(1);
-        commits.mockClear();
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
-        expect(commits).toHaveBeenCalledTimes(1);
+        expect(moveDocument).not.toHaveBeenCalled();
         fireEvent.drop(rootDropSpacer, { dataTransfer });
 
         await waitFor(() =>

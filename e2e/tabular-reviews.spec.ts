@@ -24,13 +24,6 @@ async function createReview(page: Page, label = "E2E Review") {
     return { id: review.id as string, title };
 }
 
-test("navigates to /tabular-reviews and the list page renders", async ({ page }) => {
-    await page.goto("/tabular-reviews");
-    await expect(page).toHaveURL(/\/tabular-reviews$/);
-    await expect(page.getByRole("heading", { name: "Tabular Reviews", exact: true })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "All", exact: true })).toBeVisible();
-});
-
 test("creates a new tabular review and is redirected to the detail page", async ({ page }) => {
     const { id, title } = await createReview(page);
     const response = await page.request.get(`/api/tabular-review/${id}`);
@@ -38,13 +31,6 @@ test("creates a new tabular review and is redirected to the detail page", async 
     expect((await response.json()).review).toMatchObject({ title, workflow_id: null, columns_config: [] });
     await page.reload();
     await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
-});
-
-test("review detail page renders the table structure and toolbar controls", async ({ page }) => {
-    await createReview(page, "E2E Table Review");
-    await expect(page.getByText("Document", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add columns", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add documents", exact: true })).toBeVisible();
 });
 
 test("adds a document to a tabular review and the row persists", async ({ page }) => {

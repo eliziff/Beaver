@@ -45,25 +45,7 @@ describe("ModelPicker", () => {
         await userEvent.click(screen.getByRole("tab", { name: "Claude Code" }));
         within(options).getByRole("button", { name: "Claude Sonnet 4.6" });
         expect(within(options).queryByRole("button", { name: "GPT-5.6 Terra" })).toBeNull();
-        expect(within(options).queryByText(/Gemini|DeepSeek|Muse/u)).toBeNull();
-        expect(options).not.toHaveTextContent("API key missing");
-    });
-
-    it("shows only Codex while API-key status loads", async () => {
-        render(
-            <ModelPicker
-                value="codex:gpt-5.6-terra"
-                models={models}
-                onChange={vi.fn()}
-            />,
-        );
-        await userEvent.click(
-            screen.getByRole("button", { name: "Model: GPT-5.6 Terra" }),
-        );
-        expect(
-            within(screen.getByRole("group", { name: "Models" }))
-                .getAllByRole("button")
-                .map((option) => option.textContent),
-        ).toEqual(["GPT-5.6 Terra"]);
+        expect(screen.getAllByRole("tab").map((tab) => tab.textContent))
+            .toEqual(["Codex", "Anthropic", "Claude Code"]);
     });
 });

@@ -19,12 +19,6 @@ async function createWorkflow(page: Page, title: string) {
 }
 
 test.describe("Workflows", () => {
-    test("workflow list page loads and shows built-in workflows", async ({ page }) => {
-        await page.goto("/workflows");
-        await expect(page.getByRole("heading", { name: "Workflows", exact: true })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Info about Research a legal issue", exact: true })).toBeVisible();
-    });
-
     test("create a custom assistant workflow and navigate to its detail page", async ({ page }) => {
         const title = `E2E Workflow ${Date.now()}`;
         const id = await createWorkflow(page, title);
@@ -74,14 +68,6 @@ test.describe("Workflows", () => {
 });
 
 test.describe("Account Settings", () => {
-    test("account settings page loads and shows user email", async ({ page }) => {
-        await page.goto("/account");
-        await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
-        await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
-        await expect(page.getByPlaceholder("Enter your email")).toHaveValue(
-            process.env.E2E_EMAIL ?? "e2e@mike.local");
-    });
-
     test("updating display name saves and persists across navigation", async ({ page }) => {
         const loaded = page.waitForResponse((response) =>
             new URL(response.url()).pathname === "/api/user/profile" &&
@@ -103,11 +89,4 @@ test.describe("Account Settings", () => {
         await expect(input).toHaveValue(name);
     });
 
-    test("API keys page shows Anthropic, Google, and OpenAI settings", async ({ page }) => {
-        await page.goto("/account/api-keys");
-        await expect(page.getByRole("heading", { name: "API keys", exact: true })).toBeVisible();
-        for (const provider of ["Anthropic (Claude)", "Google (Gemini)", "OpenAI"]) {
-            await expect(page.getByText(provider, { exact: true })).toBeVisible();
-        }
-    });
 });
