@@ -10,7 +10,8 @@ import {
   streamRequest,
 } from "@/app/lib/api/client";
 
-export type WorkflowAudience = "general" | "solicitor" | "litigator";
+export type { WorkflowAudience } from "../../../../../backend/src/lib/systemWorkflows";
+import type { WorkflowAudience } from "../../../../../backend/src/lib/systemWorkflows";
 export interface WorkflowVariant {
   id: string;
   label: string;
