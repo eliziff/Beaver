@@ -9,6 +9,7 @@ import { Modal } from "@/app/components/modals/Modal";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
+import { dockedColumnStyle, useDockedColumnWidth } from "./assistantDockLayout";
 import type { LibraryKind, Document } from "@/app/lib/api/documents";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 import type { DirectoryTab } from "../shared/FileDirectory";
@@ -87,6 +88,9 @@ export function InitialView({
     const [{ quickActions: visibleActions }, updatePreferences] =
         useAssistantPreferences();
     const chatInputRef = useRef<ChatInputHandle>(null);
+    const scrollerRef = useRef<HTMLDivElement>(null);
+    // Same measure as the conversation: the dock's room is held back even while it is shut.
+    const columnStyle = dockedColumnStyle(useDockedColumnWidth(scrollerRef, dockOpen));
     const startedInitialWorkflow = useRef(false);
     const username =
         profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
@@ -188,12 +192,14 @@ export function InitialView({
         { id: "agents", label: "Agents", content: <div className="grid h-full place-items-center p-6 text-center text-sm text-gray-500">Agent activity will appear here.</div> },
     ];
     return (
-        <div className="relative flex h-full min-w-0 w-full">
+        <div data-dock-host className="relative flex h-full min-w-0 w-full">
         <div
-            className={`min-w-0 flex-1 overflow-y-auto px-4 sm:px-6 ${dockOpen ? "md:max-lg:pe-2" : ""}`}
+            ref={scrollerRef}
+            className="min-w-0 flex-1 overflow-y-auto px-4 sm:px-6"
             style={{ scrollbarGutter: "stable" }}
         >
-            <div className="mx-auto grid min-h-full w-full max-w-4xl grid-rows-[minmax(min-content,1fr)_auto_minmax(min-content,1fr)] py-4 xl:px-8">
+            <div className="mx-auto grid min-h-full w-full max-w-4xl grid-rows-[minmax(min-content,1fr)_auto_minmax(min-content,1fr)] py-4 xl:px-8"
+                style={columnStyle}>
             <div className="flex min-h-0 items-end justify-center pb-6">
                 <div className="flex min-h-10 min-w-0 w-full items-center justify-center gap-3">
                     <BeaverIcon size={30} />

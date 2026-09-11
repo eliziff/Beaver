@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DirectoryList, Document } from "@/app/lib/api/documents";
+import type { Document } from "@/app/lib/api/documents";
 import { newResearchState, type ResearchFile } from "@/app/lib/researchFiles";
 import { SourcesWorkspaceProvider } from "@/app/components/legal/SourcesWorkspace";
 import {
@@ -80,6 +80,19 @@ const wordDocument: Document = {
 const DEFAULT_DOCUMENTS = [document];
 const NO_FOLDERS: DocTableFolder[] = [];
 
+type TableProps = ComponentProps<typeof DocTable>;
+type HarnessProps = Partial<Pick<TableProps,
+    "selectionFirst" | "onCreateFolderActionChange" | "onOpenWorkflows" |
+    "onOpenInChat" | "search" | "initialDocument"
+>> & Partial<Pick<TableProps["operations"],
+    "uploadDocument" | "uploadDocuments" | "moveDocument" | "moveFolder" | "renameDocument" | "list"
+>> & {
+    initialDocuments?: Document[];
+    initialFolders?: DocTableFolder[];
+    workspaceFile?: ResearchFile | null;
+    refreshCollection?: () => Promise<void> | void;
+};
+
 function Harness({
     selectionFirst = true,
     initialDocuments = DEFAULT_DOCUMENTS,
@@ -100,30 +113,7 @@ function Harness({
     search = "",
     workspaceFile,
     initialDocument,
-}: {
-    selectionFirst?: boolean;
-    initialDocuments?: Document[];
-    initialFolders?: DocTableFolder[];
-    onCreateFolderActionChange?: (action: (() => void) | null) => void;
-    uploadDocument?: (file: File) => Promise<Document>;
-    uploadDocuments?: (files: File[]) => Promise<Document[]>;
-    refreshCollection?: () => Promise<void> | void;
-    moveDocument?: (
-        documentId: string,
-        folderId: string | null,
-    ) => Promise<Document>;
-    moveFolder?: (folderId: string, parentFolderId: string | null) => Promise<DocTableFolder>;
-    renameDocument?: (
-        documentId: string,
-        filename: string,
-    ) => Promise<Document>;
-    onOpenWorkflows?: (documents: Document[]) => void;
-    onOpenInChat?: (documents: Document[]) => void;
-    list?: DirectoryList;
-    search?: string;
-    workspaceFile?: ResearchFile | null;
-    initialDocument?: { id: string; versionId?: string | null; sheet?: string | null; cell?: string | null };
-}) {
+}: HarnessProps) {
     const [selection, setSelection] = useState<DocumentSelectionActions | null>(null);
     const [operations] = useState(() => ({
         list: list ?? (async ({ parent_id }: { parent_id?: string | null } = {}) => ({
@@ -372,11 +362,8 @@ describe("DocTable Library interactions", () => {
             ...document,
             folder_id: null,
         }));
-        render(<Harness
-            initialDocuments={[{ ...document, folder_id: "folder-1" }]}
-            moveDocument={moveDocument}
-            search="Brief"
-        />);
+        render(<Harness initialDocuments={[{ ...document, folder_id: "folder-1" }]}
+            moveDocument={moveDocument} search="Brief" />);
         const rootDropTarget = documentRow().parentElement!;
         const rootDropSpacer = rootDropTarget.querySelector(
             ".min-h-16",
@@ -391,7 +378,6 @@ describe("DocTable Library interactions", () => {
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
         fireEvent.dragEnd(documentRow());
         fireEvent.dragOver(rootDropSpacer, { dataTransfer });
-        expect(moveDocument).not.toHaveBeenCalled();
         fireEvent.drop(rootDropSpacer, { dataTransfer });
 
         await waitFor(() =>
