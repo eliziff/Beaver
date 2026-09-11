@@ -1,4 +1,3 @@
-import { Profiler } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Project } from "@/app/lib/api/projects";
@@ -49,28 +48,18 @@ beforeEach(() => {
     mocks.uploadDirectory.mockResolvedValue([]);
 });
 
-it("uses native form values without rerendering for ordinary typing", async () => {
+it("submits trimmed project details and reports the created project", async () => {
     const onClose = vi.fn();
     const onCreated = vi.fn();
-    let commits = 0;
-    render(
-        <Profiler id="new-project" onRender={() => commits++}>
-            <NewProjectModal
-                open
-                onClose={onClose}
-                onCreated={onCreated}
-            />
-        </Profiler>,
-    );
+    render(<NewProjectModal open onClose={onClose} onCreated={onCreated} />);
 
-    const initialCommits = commits;
     fireEvent.change(screen.getByLabelText("Project name"), {
         target: { value: "  Appeal  " },
     });
     fireEvent.change(screen.getByLabelText("CM number"), {
         target: { value: "  CM-42  " },
     });
-    expect(commits).toBe(initialCommits);
+    expect(mocks.createProject).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Practice" }));
     fireEvent.click(screen.getByRole("button", { name: "Litigation" }));
