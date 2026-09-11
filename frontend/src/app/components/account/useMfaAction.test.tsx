@@ -1,57 +1,32 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-    needsMfa: vi.fn(),
-    isMfaError: vi.fn(),
-}));
-
-vi.mock("@/app/components/popups/MfaVerificationPopup", () => ({
-    needsMfaVerification: mocks.needsMfa,
-    MfaVerificationPopup: ({
-        open,
-        onVerified,
-    }: {
-        open: boolean;
-        onVerified: () => void;
-    }) => open && <button onClick={onVerified}>Verify</button>,
-}));
-vi.mock("@/app/lib/api/auth", () => ({
-    isMfaRequiredError: mocks.isMfaError,
-}));
+const mocks = vi.hoisted(() => ({ getMfaAssurance: vi.fn(), listMfaFactors: vi.fn(),
+    challengeAndVerifyMfa: vi.fn(), isMfaRequiredError: vi.fn() }));
+vi.mock("@/app/lib/api/auth", () => mocks);
 
 import { useMfaAction } from "./useMfaAction";
 
-function Harness({
-    action,
-    onError,
-}: {
-    action: () => Promise<void>;
-    onError: (error: unknown) => void;
-}) {
-    const { runMfa, mfaPopup } = useMfaAction();
-    return (
-        <>
-            <button onClick={() => void runMfa(action, { onError })}>
-                Run
-            </button>
-            {mfaPopup}
-        </>
-    );
-}
-
 describe("useMfaAction", () => {
     it("defers sensitive work until verification", async () => {
-        mocks.needsMfa
-            .mockResolvedValueOnce(true)
-            .mockResolvedValueOnce(false);
+        mocks.getMfaAssurance.mockResolvedValueOnce({ currentLevel: "aal1", nextLevel: "aal2" })
+            .mockResolvedValueOnce({ currentLevel: "aal2", nextLevel: "aal2" });
+        mocks.listMfaFactors.mockResolvedValue({ totp: [{ id: "factor-1" }] });
+        mocks.challengeAndVerifyMfa.mockResolvedValue(undefined);
         const action = vi.fn().mockResolvedValue(undefined);
-        render(<Harness action={action} onError={vi.fn()} />);
+        function SensitiveAction() {
+            const { runMfa, mfaPopup } = useMfaAction();
+            return <><button onClick={() => void runMfa(action, { onError: vi.fn() })}>Run</button>{mfaPopup}</>;
+        }
+        render(<SensitiveAction />);
 
         await userEvent.click(screen.getByRole("button", { name: "Run" }));
         expect(action).not.toHaveBeenCalled();
-        await userEvent.click(screen.getByRole("button", { name: "Verify" }));
+        fireEvent.change(await screen.findByRole("textbox", { name: "Six digit verification code" }),
+            { target: { value: "123456" } });
+        await userEvent.click(screen.getByRole("button", { name: "Verify", exact: true }));
+        expect(mocks.challengeAndVerifyMfa).toHaveBeenCalledWith("factor-1", "123456");
         await waitFor(() => expect(action).toHaveBeenCalledOnce());
     });
 });
