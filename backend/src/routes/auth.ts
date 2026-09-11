@@ -79,6 +79,25 @@ function route(handler: (req: Request, res: Response) => Promise<void>) {
     authError(res, error));
 }
 
+/**
+ * Every MFA route has the same shape: validate the request, require the
+ * browser's own session, call Supabase and return its payload unchanged.
+ */
+const mfaRoute = <T, D>(
+  read: (req: Request) => T | null,
+  call: (mfa: ReturnType<typeof createRequestSupabase>["auth"]["mfa"],
+    value: T) => Promise<{ data: D; error: unknown }>,
+  status = 200,
+) => route(async (req, res) => {
+  const value = read(req);
+  if (value === null) return invalid(res);
+  const client = cookieClient(res);
+  if (!client) return;
+  const { data, error } = await call(client.auth.mfa, value);
+  if (error) return authError(res, error);
+  res.status(status).json(data);
+});
+
 function cookieClient(res: Response): ReturnType<typeof createRequestSupabase> | null {
   const client = res.locals.authClient as
     ReturnType<typeof createRequestSupabase> | undefined;
@@ -196,71 +215,32 @@ authRouter.patch("/password", requireAuth, requireMfaIfEnrolled, route(async (re
   res.json({ user: publicAuthUser(data.user) });
 }));
 
-authRouter.get("/mfa/factors", requireAuth, route(async (_req, res) => {
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } = await client.auth.mfa.listFactors();
-  if (error) return authError(res, error);
-  res.json(data);
-}));
+authRouter.get("/mfa/factors", requireAuth,
+  mfaRoute(() => true, (mfa) => mfa.listFactors()));
 
-authRouter.get("/mfa/assurance", requireAuth, route(async (_req, res) => {
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (error) return authError(res, error);
-  res.json(data);
-}));
+authRouter.get("/mfa/assurance", requireAuth,
+  mfaRoute(() => true, (mfa) => mfa.getAuthenticatorAssuranceLevel()));
 
-authRouter.post("/mfa/enroll", requireAuth, route(async (req, res) => {
-  const name = z.string().trim().min(1).max(100).safeParse(req.body?.friendlyName);
-  if (!name.success) return invalid(res);
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } =
-    await client.auth.mfa.enroll({ factorType: "totp", friendlyName: name.data });
-  if (error) return authError(res, error);
-  res.status(201).json(data);
-}));
+authRouter.post("/mfa/enroll", requireAuth, mfaRoute(
+  (req) => z.string().trim().min(1).max(100).safeParse(req.body?.friendlyName).data ?? null,
+  (mfa, friendlyName) => mfa.enroll({ factorType: "totp", friendlyName }), 201));
 
-authRouter.post("/mfa/challenge", requireAuth, route(async (req, res) => {
-  const parsed = factor.safeParse(req.body);
-  if (!parsed.success) return invalid(res);
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } = await client.auth.mfa.challenge(parsed.data);
-  if (error) return authError(res, error);
-  res.json(data);
-}));
+authRouter.post("/mfa/challenge", requireAuth, mfaRoute(
+  (req) => factor.safeParse(req.body).data ?? null, (mfa, value) => mfa.challenge(value)));
 
-authRouter.post("/mfa/verify", requireAuth, route(async (req, res) => {
-  const parsed = verification.safeParse(req.body);
-  if (!parsed.success || !parsed.data.challengeId) return invalid(res);
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } = await client.auth.mfa.verify({ factorId: parsed.data.factorId,
-    challengeId: parsed.data.challengeId, code: parsed.data.code });
-  if (error) return authError(res, error);
-  res.json(data);
-}));
+authRouter.post("/mfa/verify", requireAuth, mfaRoute(
+  (req) => {
+    const parsed = verification.safeParse(req.body);
+    return parsed.success && parsed.data.challengeId
+      ? { factorId: parsed.data.factorId, challengeId: parsed.data.challengeId,
+        code: parsed.data.code } : null;
+  },
+  (mfa, value) => mfa.verify(value)));
 
-authRouter.post("/mfa/challenge-and-verify", requireAuth, route(async (req, res) => {
-  const parsed = verification.safeParse(req.body);
-  if (!parsed.success) return invalid(res);
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } = await client.auth.mfa
-    .challengeAndVerify({ factorId: parsed.data.factorId, code: parsed.data.code });
-  if (error) return authError(res, error);
-  res.json(data);
-}));
+authRouter.post("/mfa/challenge-and-verify", requireAuth, mfaRoute(
+  (req) => verification.safeParse(req.body).data ?? null,
+  (mfa, { factorId, code }) => mfa.challengeAndVerify({ factorId, code })));
 
-authRouter.delete("/mfa/factors/:factorId", requireAuth, route(async (req, res) => {
-  const parsed = factor.safeParse({ factorId: req.params.factorId });
-  if (!parsed.success) return invalid(res);
-  const client = cookieClient(res);
-  if (!client) return;
-  const { data, error } = await client.auth.mfa.unenroll(parsed.data);
-  if (error) return authError(res, error);
-  res.json(data);
-}));
+authRouter.delete("/mfa/factors/:factorId", requireAuth, mfaRoute(
+  (req) => factor.safeParse({ factorId: req.params.factorId }).data ?? null,
+  (mfa, value) => mfa.unenroll(value)));
