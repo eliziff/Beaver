@@ -85,8 +85,11 @@ vi.mock("@/app/hooks/useAssistantChat", () => ({
   },
 }));
 
+/** Every draft a test builds, by id, so the default source gathering can hand back the
+ * draft it was asked to gather for instead of an unrelated stub. */
+const builtDrafts = new Map<string, AuthoritiesProduct>();
 function draft(id = "draft-1", title = "Book of Authorities"): AuthoritiesProduct {
-  return { id, kind: "authorities", title, projectId: null, revision: 1,
+  const built: AuthoritiesProduct = { id, kind: "authorities", title, projectId: null, revision: 1,
     createdAt: "2026-08-30T00:00:00Z", updatedAt: "2026-08-30T00:00:00Z", outputs: {},
     state: { schemaVersion: "beaver.authorities-draft.v1", import: { kind: "manual" }, stage: "build",
       bindings: {}, outputMode: "both", insertIntoDocument: false, ledger: null,
@@ -98,6 +101,8 @@ function draft(id = "draft-1", title = "Book of Authorities"): AuthoritiesProduc
       bookParts: { cover: null, index: null, supplements: [] },
       units: [], occurrences: {}, authorities: {}, authorityOrder: [],
       discrepancyDecisions: {} } };
+  builtDrafts.set(id, built);
+  return built;
 }
 
 function documentDraft(id = "draft-1", title = "Requested draft") {
@@ -166,12 +171,17 @@ function selectRange(root: HTMLElement, start: number, end = start) {
 describe("Authorities UI contracts", () => {
   beforeEach(() => {
     vi.clearAllMocks(); localStorage.clear(); assistant.options.length = 0;
+    builtDrafts.clear();
     assistant.handleChat.mockResolvedValue(null);
     api.listWorkProductMetadata.mockResolvedValue([]);
     api.listWorkProducts.mockResolvedValue([]);
     api.getWorkProductResolution.mockResolvedValue({ inputs: {} });
     api.getDocumentParseStates.mockResolvedValue([]);
-    api.prepareAuthoritiesSources.mockResolvedValue(draft());
+    // Opening a draft gathers its sources in the background; with nothing to gather the
+    // server hands the draft back as it is, so the stub must do the same or the workspace
+    // adopts a stranger over the draft under test.
+    api.prepareAuthoritiesSources.mockImplementation(async (id: string) =>
+      builtDrafts.get(id) ?? draft(id));
     api.reviewAuthorities.mockResolvedValue([]);
     api.directoryList.mockResolvedValue({ items: [], next_cursor: null });
     api.directoryResource.mockReturnValue({ list: api.directoryList });
@@ -772,7 +782,7 @@ describe("Authorities UI contracts", () => {
     expect(source).toHaveAttribute("aria-selected", "true");
   });
 
-  it("fetches after citation review and reveals Sources only when acquisition finishes", async () => {
+  it("gathers sources as the citations open and reveals Sources only when acquisition finishes", async () => {
     const saved = add(documentDraft(), authority("resolved", "Fetchable decision",
       { kind: "resolved" }), authority("missing", "Missing decision", { kind: "unresolved" }));
     saved.state.outputMode = "book";
@@ -785,10 +795,13 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
     await screen.findByRole("button", { name: "Next" });
+    // The gathering starts as soon as the citations are known, so Next waits on the fetch
+    // already under way rather than starting a second one.
+    expect(api.prepareAuthoritiesSources).toHaveBeenCalledExactlyOnceWith(saved.id, saved.revision, undefined);
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(api.prepareAuthoritiesSources).toHaveBeenCalledWith(saved.id, saved.revision, expect.any(AbortSignal));
+    expect(api.prepareAuthoritiesSources).toHaveBeenCalledOnce();
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     await act(async () => pending.resolve(saved));
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
@@ -1038,33 +1051,45 @@ describe("Authorities UI contracts", () => {
     expect(await screen.findByRole("button", { name: "Upload for Alpha" })).toBeVisible();
   });
 
-  it("refreshes a changed Beaver input in place", async () => {
-    const saved = documentDraft(), refreshed = { ...saved, revision: 2 };
+  // A Beaver input the last build read at an older version is not an issue: the next build
+  // reads the current file, and relinking it on open bumped the revision on every open
+  // (Eli, 2026-09-09).
+  it("leaves a changed Beaver input alone instead of relinking it", async () => {
+    const saved = documentDraft();
     api.getWorkProduct.mockResolvedValue(saved);
     api.getWorkProductResolution.mockResolvedValue({ inputs: { source: { status: "changed" } } });
-    api.refreshAuthoritiesInput.mockResolvedValue(refreshed);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Use updated source" }));
-    expect(api.refreshAuthoritiesInput).toHaveBeenCalledWith("draft-1", "source", 1);
+    expect(await screen.findByRole("heading", { name: "Requested draft" })).toBeVisible();
+    await waitFor(() => expect(api.getWorkProductResolution).toHaveBeenCalledWith("draft-1"));
+    await act(async () => undefined);
+    expect(api.refreshAuthoritiesInput).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Allow file access" })).not.toBeInTheDocument();
   });
 
   it("does not show source issues from the previous draft while the next draft resolves", async () => {
-    const first = documentDraft("first", "First draft"), second = documentDraft("second", "Second draft");
+    const attached = (id: string, title: string) => {
+      const item = add(documentDraft(id, title),
+        authority("alpha", "Alpha", attachedSource("authority:alpha", "alpha.pdf")));
+      item.state.stage = "sources"; item.state.outputMode = "book";
+      return item;
+    };
+    const first = attached("first", "First draft"), second = attached("second", "Second draft");
     const pending = deferred<{ inputs: Record<string, never> }>();
     api.getWorkProduct.mockImplementation(async (id) => id === "first" ? first : second);
     api.getWorkProductResolution.mockImplementation((id) => id === "first"
-      ? Promise.resolve({ inputs: { source: { status: "changed" } } }) : pending.promise);
+      ? Promise.resolve({ inputs: { "authority:alpha": { status: "missing", reason: "deleted" } } })
+      : pending.promise);
     const { rerender } = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("first")} /></MemoryRouter>);
-    expect(await screen.findByRole("button", { name: "Use updated source" })).toBeVisible();
+    expect(await screen.findByText("PDF unavailable")).toBeVisible();
 
     rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       route={workspaceRoute("second")} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Second draft" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Use updated source" })).not.toBeInTheDocument();
+    expect(screen.queryByText("PDF unavailable")).not.toBeInTheDocument();
     await act(async () => pending.resolve({ inputs: {} }));
   });
 
