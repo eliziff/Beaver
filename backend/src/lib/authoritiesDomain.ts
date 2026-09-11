@@ -599,13 +599,20 @@ function replaceOccurrences(
   unit.occurrenceIds.splice(positions[0], ids.length, ...replacements.map(({ id }) => id));
 }
 
+/**
+ * A detection nothing points at any more: the scan's leavings once the user has
+ * rejected or re-spanned the citation it came from. An authority an occurrence
+ * still cites - directly or as the target of a supra or ibid - is in the
+ * document, so it is never swept away.
+ */
 export function unusedScanOnlyAuthority(draft: AuthoritiesDraft, id: string) {
   const authority = draft.authorities[id];
   return !!authority?.scanOnly &&
     !attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual") &&
     !authority.evidenceIds.length && !authority.displayName && !authority.excluded &&
     !authority.locators.length &&
-    !Object.values(draft.occurrences).some(({ authorityId }) => authorityId === id);
+    !Object.values(draft.occurrences).some(({ authorityId, reference }) =>
+      authorityId === id || reference?.targetAuthorityId === id);
 }
 
 function resolvedNameSpan(value: string, name: string) {
@@ -694,6 +701,10 @@ function clearAutomaticSources(draft: AuthoritiesDraft) {
   }
 }
 
+/** Carries a source identity or a source PDF: the user's resolution, not scan leavings. */
+const resolvedAuthority = (authority: AuthorityIdentity) => !!authority.sourceIdentity ||
+  attachedAuthoritySources(authority.source).length > 0;
+
 const occurrenceCarryKey = ({ unitId, sourceTextSha256, localOrdinal }: AuthorityOccurrence) =>
   `${unitId}\0${sourceTextSha256}\0${localOrdinal}`;
 const ignoredOccurrenceKey = (item: AuthorityOccurrence) =>
@@ -733,11 +744,20 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     title: draft.cover.title || incoming.title,
   } : draft.cover;
   const fresh: AuthoritiesDraft = { ...draft, ...structuredClone(review),
-    cover: structuredClone(cover), ledger: null };
+    cover: structuredClone(cover), ledger: null,
+    discrepancyDecisions: { ...draft.discrepancyDecisions } };
+  // "Not a citation" holds only while the user leaves that text alone. A citation
+  // put back over the same words - by hand, by a span correction, by a split -
+  // withdraws the decision, which is otherwise unreachable: its id is a digest of
+  // the detection's own ordinal, which no later gesture can name.
+  const restored = (item: AuthorityOccurrence) => Object.values(draft.occurrences).some(
+    (kept) => kept.unitId === item.unitId && kept.sourceTextSha256 === item.sourceTextSha256 &&
+      kept.start < item.end && item.start < kept.end);
   for (const item of Object.values(fresh.occurrences)) {
-    if (draft.discrepancyDecisions[ignoredOccurrenceKey(item)] === "ignore") {
-      replaceOccurrences(fresh, [item.id], []);
-    }
+    const decision = ignoredOccurrenceKey(item);
+    if (draft.discrepancyDecisions[decision] !== "ignore") continue;
+    if (restored(item)) delete fresh.discrepancyDecisions[decision];
+    else replaceOccurrences(fresh, [item.id], []);
   }
   for (const { bindingRole } of authoritiesBookPdfs(draft)) {
     if (draft.bindings[bindingRole]) {
@@ -751,8 +771,19 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
       fresh.authorityOrder.push(id);
     }
   }
-  const oldByKey = new Map(Object.values(draft.authorities).map((item) => [item.key, item]));
-  const freshByKey = new Map(Object.values(fresh.authorities).map((item) => [item.key, item]));
+  // Two entries for one citation key are one authority: the resolved one - the
+  // one carrying a source identity or a source PDF - is the survivor the fresh
+  // scan inherits from, never an unresolved twin listed beside it.
+  const byKey = (items: AuthorityIdentity[]) => {
+    const map = new Map<string, AuthorityIdentity>();
+    for (const item of items) {
+      const held = map.get(item.key);
+      if (!held || !resolvedAuthority(held) && resolvedAuthority(item)) map.set(item.key, item);
+    }
+    return map;
+  };
+  const oldByKey = byKey(Object.values(draft.authorities));
+  const freshByKey = byKey(Object.values(fresh.authorities));
   const remap = new Map<string, string>();
   for (const authority of Object.values(fresh.authorities)) {
     const old = oldByKey.get(authority.key);
@@ -831,8 +862,12 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     items[0].reference = old.reference && target
       ? { kind: old.reference.kind, targetAuthorityId: target } : null;
   }
+  // A re-scan sweeps up its own leavings, never the user's resolutions: rejecting
+  // a citation is a decision they make, not something a refresh makes for them.
   for (const id of fresh.authorityOrder) {
-    if (unusedScanOnlyAuthority(fresh, id)) delete fresh.authorities[id];
+    if (unusedScanOnlyAuthority(fresh, id) && !resolvedAuthority(fresh.authorities[id])) {
+      delete fresh.authorities[id];
+    }
   }
   fresh.authorityOrder = fresh.authorityOrder.filter((id) => fresh.authorities[id]);
   const usedBindings = new Set<string>(fresh.import.kind === "document"
