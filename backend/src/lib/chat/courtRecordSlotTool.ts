@@ -15,7 +15,7 @@ import { safeErrorMessage } from "../safeError";
 import { isJsonRecord } from "../value";
 import type { WorkProductApplication } from "../workProductApplication";
 import { workProductEvent, workProductResult } from "./localWorkflowRun";
-import { toolText, type BeaverTool, type BeaverToolPolicy } from "./toolRegistry";
+import { objectSchema, toolText, type BeaverTool, type BeaverToolPolicy } from "./toolRegistry";
 
 const selectableProfiles = COURT_PROFILES.filter((profile) =>
   profile.selectable !== false);
@@ -70,15 +70,10 @@ const schema: Tool & BeaverToolPolicy = {
   "binds one Library document or compatible saved output, and edits its visible description, date, " +
     "or exhibit label. A description-only slot needs no file.",
   annotations: { readOnlyHint: false },
-  inputSchema: {
-    type: "object",
-    properties: {
-      action: { type: "string", enum: ["read", "update"] },
-      ...COURT_RECORD_TOOL_PROPERTIES,
-    },
-    required: ["action"],
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema({
+    action: { type: "string", enum: ["read", "update"] },
+    ...COURT_RECORD_TOOL_PROPERTIES,
+  }, ["action"]),
 };
 
 type Dependencies = {
@@ -254,19 +249,14 @@ const pageSchema: Tool & BeaverToolPolicy = {
     "garbled. Name a Library document with document_id from Read, or an entry of the open Court " +
     "Record with entry_id. Up to 6 pages a turn.",
   annotations: { readOnlyHint: true },
-  inputSchema: {
-    type: "object",
-    properties: {
-      entry_id: { type: "string", minLength: 1, maxLength: 200,
-        description: "Entry of the active Court Record, from its read result." },
-      document_id: { type: "string", maxLength: 300,
-        description: "Version-pinned Library document returned by Read." },
-      version_id: { type: "string", maxLength: 200 },
-      page: { type: "integer", minimum: 1, maximum: 5_000 },
-    },
-    required: ["page"],
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema({
+    entry_id: { type: "string", minLength: 1, maxLength: 200,
+      description: "Entry of the active Court Record, from its read result." },
+    document_id: { type: "string", maxLength: 300,
+      description: "Version-pinned Library document returned by Read." },
+    version_id: { type: "string", maxLength: 200 },
+    page: { type: "integer", minimum: 1, maximum: 5_000 },
+  }, ["page"]),
 };
 
 type PageDependencies = Pick<Dependencies, "scope" | "projectId" |

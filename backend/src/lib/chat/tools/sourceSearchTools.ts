@@ -3,7 +3,7 @@ import type { Tool } from "../../llm";
 import { researchSourceResource } from "../../researchFile";
 import { trimmedText as text } from "../../value";
 import { hasCaseNameInText } from "../legalEvidence";
-import type { BeaverToolPolicy } from "../toolRegistry";
+import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 
 const SEARCH_SOURCES_TOOL_NAME = "search_sources";
 
@@ -14,73 +14,68 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
   annotations: { readOnlyHint: true },
   description:
     "Discover legal authorities in installed corpora. Apply filters here and Read plausible hits; refine broad searches. Read known citations directly. Search snippets identify candidates; use retrieved passages for conclusions.",
-  inputSchema: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          minLength: 1,
-          maxLength: 256,
-          description:
-            "Exact tokens; with syntax=boolean use quoted phrases, prefix* (at least three characters), NEAR(...), AND, OR, NOT, and parentheses.",
-        },
-        source_types: {
-          type: "array",
-          minItems: 1,
-          maxItems: 2,
-          uniqueItems: true,
-          items: {
-            type: "string",
-            enum: ["case", "legislation", "journal", "hansard"],
-          },
-          description:
-            "Relevant source types.",
-        },
-        syntax: {
-          type: "string",
-          enum: ["terms", "boolean"],
-          description: "Defaults to terms (all tokens required).",
-        },
-        search_type: {
-          type: "string",
-          enum: ["full_text", "name"],
-          description:
-            "Use name only for a case style of cause; omit it for legal concepts, quotations, legislation, or commentary.",
-        },
-        jurisdiction: {
-          type: "string",
-          description:
-            "Country routing: US/United States or CA/Canada. Use collection for an exact court, tribunal, or legislation dataset.",
-        },
-        collection: {
-          type: "string",
-          description:
-            "Exact installed dataset or court collection code, such as ONCA. Availability is corpus-dependent.",
-        },
-        court: {
-          type: "string",
-          description: "Exact CourtListener court code when its indexed/API field is available.",
-        },
-        speaker: {
-          type: "string",
-          description: "Speaker-name substring for Hansard.",
-        },
-        date_from: { type: "string", description: "Inclusive YYYY-MM-DD lower bound." },
-        date_to: { type: "string", description: "Inclusive YYYY-MM-DD upper bound." },
-        sort: {
-          type: "string",
-          enum: ["relevance", "most_cited", "most_discussed", "newest", "oldest"],
-        },
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 20,
-          description: "Candidate count; start with 10.",
-        },
+  inputSchema: objectSchema({
+    query: {
+      type: "string",
+      minLength: 1,
+      maxLength: 256,
+      description:
+        "Exact tokens; with syntax=boolean use quoted phrases, prefix* (at least three characters), NEAR(...), AND, OR, NOT, and parentheses.",
+    },
+    source_types: {
+      type: "array",
+      minItems: 1,
+      maxItems: 2,
+      uniqueItems: true,
+      items: {
+        type: "string",
+        enum: ["case", "legislation", "journal", "hansard"],
       },
-      required: ["query", "source_types"],
-      additionalProperties: false,
-  },
+      description:
+        "Relevant source types.",
+    },
+    syntax: {
+      type: "string",
+      enum: ["terms", "boolean"],
+      description: "Defaults to terms (all tokens required).",
+    },
+    search_type: {
+      type: "string",
+      enum: ["full_text", "name"],
+      description:
+        "Use name only for a case style of cause; omit it for legal concepts, quotations, legislation, or commentary.",
+    },
+    jurisdiction: {
+      type: "string",
+      description:
+        "Country routing: US/United States or CA/Canada. Use collection for an exact court, tribunal, or legislation dataset.",
+    },
+    collection: {
+      type: "string",
+      description:
+        "Exact installed dataset or court collection code, such as ONCA. Availability is corpus-dependent.",
+    },
+    court: {
+      type: "string",
+      description: "Exact CourtListener court code when its indexed/API field is available.",
+    },
+    speaker: {
+      type: "string",
+      description: "Speaker-name substring for Hansard.",
+    },
+    date_from: { type: "string", description: "Inclusive YYYY-MM-DD lower bound." },
+    date_to: { type: "string", description: "Inclusive YYYY-MM-DD upper bound." },
+    sort: {
+      type: "string",
+      enum: ["relevance", "most_cited", "most_discussed", "newest", "oldest"],
+    },
+    limit: {
+      type: "integer",
+      minimum: 1,
+      maximum: 20,
+      description: "Candidate count; start with 10.",
+    },
+  }, ["query", "source_types"]),
 };
 
 type CachedSearch = { expires: number; value: Record<string, unknown> };

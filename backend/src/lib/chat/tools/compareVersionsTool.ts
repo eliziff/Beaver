@@ -2,7 +2,7 @@ import { compareDocxVersions } from "../../docxCompareVersions";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { Tool } from "../../llm";
 import { DOCUMENT_RESOURCE_PATTERN } from "../../resourceReferences";
-import type { BeaverToolPolicy } from "../toolRegistry";
+import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 
 export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {
   name: "compare_versions",
@@ -10,28 +10,23 @@ export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {
   sequential: (input) => input.save_redline === true,
   description:
     "Compare two Library DOCX versions in memory (default: current against the prior version). Returns bounded changes and typed abstentions. Set save_redline only when the user asked for a durable Word redline.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      document_id: {
-        type: "string",
-        pattern: DOCUMENT_RESOURCE_PATTERN,
-        description: "Version-pinned document resource to compare.",
-      },
-      baseline: {
-        type: "string",
-        pattern: DOCUMENT_RESOURCE_PATTERN,
-        description: "Earlier version-pinned resource of the same document; defaults to the prior version.",
-      },
-      save_redline: {
-        type: "boolean",
-        description:
-          "Persist a durable Word redline. Omit unless the user requested it.",
-      },
+  inputSchema: objectSchema({
+    document_id: {
+      type: "string",
+      pattern: DOCUMENT_RESOURCE_PATTERN,
+      description: "Version-pinned document resource to compare.",
     },
-    required: ["document_id"],
-    additionalProperties: false,
-  },
+    baseline: {
+      type: "string",
+      pattern: DOCUMENT_RESOURCE_PATTERN,
+      description: "Earlier version-pinned resource of the same document; defaults to the prior version.",
+    },
+    save_redline: {
+      type: "boolean",
+      description:
+        "Persist a durable Word redline. Omit unless the user requested it.",
+    },
+  }, ["document_id"]),
 };
 
 const MAX_REPORTED_ABSTENTIONS = 20;

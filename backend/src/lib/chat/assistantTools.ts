@@ -2788,16 +2788,15 @@ export function assistantTools<Context extends {
 
   const tools: BeaverTool<Context>[] = [
     definition({ name: "quote_check", specialist: true, sequential: true, description: "Mechanically compare document quotations with cited sources. Returns quote IDs, citation candidates and source passages; follow next_offset. Resolve ambiguous attribution with links. Read surrounding sources to assess proposition support and misconstruction. For a requested workbook, set export_workbook; optional per-quote analysis appears in a separate AI column. The complete workbook is saved beside the input.",
-      inputSchema: { type: "object", additionalProperties: false,
-        properties: { document_id: { type: "string" },
-          offset: { type: "integer", minimum: 0 },
-          export_workbook: { type: "boolean" },
-          analysis: { type: "array", maxItems: 500, items: { type: "object", additionalProperties: false,
-            properties: { quoteId: { type: "string" }, text: { type: "string", maxLength: 20000 } },
-            required: ["quoteId", "text"] } },
-          links: { type: "array", maxItems: 500, items: { type: "object", additionalProperties: false,
-            properties: { quoteId: { type: "string" }, occurrenceId: { type: "string" } },
-            required: ["quoteId", "occurrenceId"] } } }, required: ["document_id"] } },
+      inputSchema: objectSchema({ document_id: { type: "string" },
+        offset: { type: "integer", minimum: 0 },
+        export_workbook: { type: "boolean" },
+        analysis: { type: "array", maxItems: 500, items: objectSchema(
+          { quoteId: { type: "string" }, text: { type: "string", maxLength: 20000 } },
+          ["quoteId", "text"]) },
+        links: { type: "array", maxItems: 500, items: objectSchema(
+          { quoteId: { type: "string" }, occurrenceId: { type: "string" } },
+          ["quoteId", "occurrenceId"]) } }, ["document_id"]) },
       async (_call, input, signal, progress) => {
         const document = await authorizedDocument(input);
         if (!document) throw new Error("Select a version-pinned Library document.");
