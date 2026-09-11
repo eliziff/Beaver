@@ -24,7 +24,11 @@ export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
 
 function projectDocumentLink(entry: RegisteredEvidence) {
   const { receipt } = entry;
+  const started = Date.now();
   const presentation = presentLegalEvidence(entry);
+  const elapsed = Date.now() - started;
+  // Planning a passage link runs on this thread; a slow one is worth a line.
+  if (elapsed > 1000) console.warn("[link] planned in", elapsed, "ms", { citation: receipt.citation, locator: receipt.locator.label, span: receipt.span_text?.length ?? 0 });
   return {
     stableId: receipt.stable_source_id,
     sourceSha256: receipt.source_sha256,
