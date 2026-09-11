@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
 import { safeErrorLog } from "../safeError";
+import { jsonRecord } from "../value";
 import type { AskInputsEvent, AssistantEvent } from "./assistantEvents";
 import type { LegalEvidenceReceipt, PendingLegalResearchQueryReceipt,
   RegisteredEvidence } from "./legalEvidence";
@@ -75,6 +76,8 @@ export const toolText = (value: unknown, isError = false): CallToolResult => ({
   content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
   ...(isError && { isError: true }),
 });
+export const toolOutcome = (value: unknown): BeaverOutcome => ({ result: toolText(value, jsonRecord(value)?.ok === false) });
+export const failedOutcome = (error: string, detail?: string): BeaverOutcome => toolOutcome({ ok: false, error, ...(detail && { detail }) });
 export const withoutUrls = (value: unknown): unknown => Array.isArray(value)
   ? value.map(withoutUrls)
   : value && typeof value === "object"
@@ -115,9 +118,6 @@ type Check = ReturnType<AjvJsonSchemaValidator["getValidator"]>;
 type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Check };
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
 type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
-const errorOutcome = (error: string, detail?: string): BeaverOutcome => ({
-  result: toolText({ ok: false, error, ...(detail && { detail }) }, true),
-});
 
 export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
@@ -222,11 +222,11 @@ export class TurnToolRegistry<Context> {
     const results: Execution[] = [];
     for (const call of calls) {
       let executed = results.some(({ outcome }) => outcome.pause)
-        ? { call, outcome: errorOutcome("waiting_for_user") }
+        ? { call, outcome: failedOutcome("waiting_for_user") }
         : await this.#execute(call, context, signal);
       if (executed.outcome.pause && this.#mutated) executed = {
         call,
-        outcome: errorOutcome(
+        outcome: failedOutcome(
           "ask_inputs_after_mutation",
           "ask_inputs must run before document or workflow changes",
         ),
@@ -248,12 +248,12 @@ export class TurnToolRegistry<Context> {
         loader([...this.#byName.keys()]).inputSchema)(call.input);
       return { call, outcome: checked.valid
         ? { result: this.#load(call.input.names as string[]) }
-        : errorOutcome("invalid_arguments", checked.errorMessage) };
+        : failedOutcome("invalid_arguments", checked.errorMessage) };
     }
     const compiled = this.#byName.get(call.name);
     if (!compiled || !this.#active.has(call.name)) return {
       call,
-      outcome: errorOutcome(compiled ? "tool_not_loaded" : "unknown_tool",
+      outcome: failedOutcome(compiled ? "tool_not_loaded" : "unknown_tool",
         compiled ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
     };
     const checked = compiled.input(call.input);
@@ -261,7 +261,7 @@ export class TurnToolRegistry<Context> {
       // Rejected arguments never reach the tool, so log them here or the failure is invisible.
       console.error("[assistant-tool] rejected arguments",
         { tool: call.name, detail: checked.errorMessage?.slice(0, 500) });
-      return { call, outcome: errorOutcome("invalid_arguments", checked.errorMessage) };
+      return { call, outcome: failedOutcome("invalid_arguments", checked.errorMessage) };
     }
     try {
       if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
@@ -278,7 +278,7 @@ export class TurnToolRegistry<Context> {
     } catch (error) {
       console.error("[assistant-tool] execution failed", { tool: call.name, ...safeErrorLog(error) });
       return { call, outcome: {
-        ...errorOutcome("tool_error", "Tool execution failed"),
+        ...failedOutcome("tool_error", "Tool execution failed"),
         metadata: { status: "error" },
       } };
     }
