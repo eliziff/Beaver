@@ -1,8 +1,14 @@
 import "./lib/loadEnv";
+import { sizeNativeThreadPool } from "./lib/nativeThreadPool";
 import { fork, type ChildProcess } from "node:child_process";
 import { renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createJobNotificationRelay } from "./lib/jobNotifications";
+
+// The size only counts in the environment a process is spawned with (on Windows
+// libuv reads the C runtime's copy, which process.env writes never reach), so
+// the supervisor sets it and both services inherit it.
+sizeNativeThreadPool();
 
 const services = ["index", "worker"] as const;
 const children = new Map<string, ChildProcess>();
