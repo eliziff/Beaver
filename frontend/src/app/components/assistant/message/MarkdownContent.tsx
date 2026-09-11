@@ -115,6 +115,10 @@ export function CitationPill({
         <a href={href ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!href || undefined}
             // A chip to the user's own Library document opens in the dock; external sources open a new tab.
             onClick={onClick && citation.kind === "document" ? (event) => { event.preventDefault(); onClick(citation); } : undefined}
+            // A pointer click must not focus the chip: the browser scrolls a newly focused element fully
+            // into view, so a chip at the edge of the conversation moved the whole log by a line
+            // (measured: scrollTop 970 -> 943 on click, no script involved). Keyboard focus is untouched.
+            onMouseDown={(event) => event.preventDefault()}
             data-citation-ref={citation.ref} className={pillClassName} title={title ?? citationTooltip(citation)}>{children ?? content}</a>
     </span>;
 }
