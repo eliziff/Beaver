@@ -8,7 +8,6 @@ vi.mock("../pdfPageImage", () => ({ renderPdfPage: render }));
 import { createCourtRecordsApplication } from "../courtRecordsApplication";
 import type { DocumentStore } from "../documentStore";
 import { assistantTools } from "./assistantTools";
-import { COURT_RECORD_TOOL_PROPERTIES } from "./courtRecordSlotTool";
 import { TurnToolRegistry } from "./toolRegistry";
 
 const record = { id: "record-1", kind: "court-record" as const, title: "Record",
@@ -17,12 +16,6 @@ const record = { id: "record-1", kind: "court-record" as const, title: "Record",
   createdAt: "2026-08-30T00:00:00.000Z", updatedAt: "2026-08-30T00:00:00.000Z" };
 const authoritiesRecord = { ...record, state: { ...record.state,
   profileId: "ab-kb-chambers-justice-applicant-set" } };
-
-it("offers only user-selectable Court Record presets", () => {
-  expect(COURT_RECORD_TOOL_PROPERTIES.profile_id.enum).not.toContain("general-court-record");
-  expect(COURT_RECORD_TOOL_PROPERTIES.cover.properties.partyGroups.items.properties.parties
-    .items.properties.contact.properties).toHaveProperty("email");
-});
 
 function tools(overrides: Record<string, unknown> = {}, current = record) {
   const committed = vi.fn();

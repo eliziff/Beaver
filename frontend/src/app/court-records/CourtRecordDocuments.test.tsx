@@ -14,7 +14,6 @@ const required = { profile, entries: [], entryFindings: new Map(),
   onAssign: vi.fn(), onAssignKind: vi.fn() };
 
 describe("Court Record documents", () => {
-
   it("keeps affidavit files in a pool and assigns them to referenced slots", () => {
     const sourceSha256 = "a".repeat(64);
     const affidavit = { id: "affidavit", kindId: "affidavit",
