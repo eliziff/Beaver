@@ -63,6 +63,10 @@ export type WorkProduct<State = unknown, Kind extends WorkProductKind = WorkProd
 };
 export type WorkProductMetadata = Omit<WorkProduct, "state"> & { profileId?: string };
 
+/** The item a caller is working on, and the span selected within it. */
+export type WorkProductFocus = { itemId: string;
+  selection?: { start: number; end: number } };
+
 export type WorkProductInputResolution =
   | { status: "ready"; input: WorkProductInput; resolved: ResolvedWorkProductInput }
   | { status: "changed"; input: WorkProductInput; previous: ResolvedWorkProductInput;

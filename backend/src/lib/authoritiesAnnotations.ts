@@ -1,11 +1,12 @@
 import type { NativePdfPassageGeometry } from './structureNative';
 import { sha256 } from './hash';
 import { ANNOTATION_SCHEMA, decodeAnnotationSet, quadBounds, rectToPdfQuad, validRect,
-  type AnnotationFragment, type AnnotationRect, type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
+  type AnnotationFragment, type AnnotationRect, type PdfAnnotation, type PdfAnnotationSet,
+  type AnnotationPreparation } from 'mike/shared/pdf-annotations.mjs';
+export type { AnnotationPreparation } from 'mike/shared/pdf-annotations.mjs';
 
 type PdfModule = typeof import('pdf-lib');
 type PdfDocument = import('pdf-lib').PDFDocument;
-export type AnnotationPreparation = { annotations: PdfAnnotationSet; pageMarked: string[] };
 type Style = 'none' | 'margin' | 'paragraph' | 'text' | 'sidelined';
 const labelFor = (kind: string, value: string) => `${kind === 'paragraph' ? 'para' : kind === 'section' ? 's' : 'p'} ${value}`;
 const normal = (rect: number[], width: number, height: number): AnnotationRect =>

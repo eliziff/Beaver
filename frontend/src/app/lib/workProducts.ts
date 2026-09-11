@@ -4,13 +4,11 @@ import type { FileSnapshot, WorkProduct, WorkProductKind, WorkProductInput,
 export { WORK_PRODUCT_KINDS } from "../../../../shared/work-products.mjs";
 export type { FileSnapshot, WorkProductKind, WorkProductInput, WorkProductOutput,
   WorkProductOutputRef, ResolvedWorkProductInput, WorkProductBuildReceipt,
-  WorkProduct, WorkProductMetadata, WorkProductInputResolution,
+  WorkProduct, WorkProductMetadata, WorkProductInputResolution, WorkProductFocus,
   WorkProductResolution } from "../../../../shared/work-products.mjs";
 
 export type WorkProductContext = Pick<WorkProduct,
   "id" | "kind" | "revision" | "projectId">;
-export type WorkProductFocus = { itemId: string;
-  selection?: { start: number; end: number } };
 export type WorkProductRefresh = Pick<WorkProductContext, "id" | "revision">;
 
 export type WorkProductCreate<State> = Pick<WorkProduct<State>, "kind" | "title" | "state"> & {

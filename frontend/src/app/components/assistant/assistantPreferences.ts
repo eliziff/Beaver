@@ -136,10 +136,8 @@ export function useAssistantPreferences() {
     return [preferences, updateAssistantPreferences] as const;
 }
 
-export type JurisdictionPreference = {
-    mode: "ask" | "presume";
-    jurisdictions: string[];
-};
+export type { JurisdictionPreference } from "../../../../../shared/user-preferences.mjs";
+import type { JurisdictionPreference } from "../../../../../shared/user-preferences.mjs";
 
 export function jurisdictionPreferenceForChat(preference: JurisdictionPreference) {
     if (preference.mode !== "presume" || preference.jurisdictions.length === 0) {
