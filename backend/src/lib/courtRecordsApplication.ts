@@ -17,6 +17,7 @@ import { decodeWorkProductBuildReceipt, type WorkProductInput } from "./workProd
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
 import { canonicalJson, canonicalJsonSha256 } from "./hash";
+import { isJsonRecord } from "./value";
 import { sourceExhibitLabels } from "mike/shared/court-record-exhibits.mjs";
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
@@ -331,8 +332,6 @@ async function readPreparedPageText(documents: DocumentStore, projection: Projec
     parser_status: source.pdfProfile?.status ?? "ready", pages };
 }
 
-const object = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === "object" && !Array.isArray(value);
 const withoutExtension = (filename: string) => filename.replace(/\.(?:pdf|docx)$/iu, "");
 function upsertEntry(entries: CourtRecordDraftEntry[], kindId: string,
   replaceId: string | undefined, repeatable: boolean, title: string,
@@ -399,13 +398,13 @@ function parsePartyGroups(value: unknown, profile: CourtProfile,
   style: PartyStyle, requireNames = false): CasePartyGroup[] {
   const definitions = new Map(style.groups.map((group) => [group.id, group]));
   const partyGroups = !Array.isArray(value) ? value : value.map((raw) => {
-    const group = object(raw) ? raw : {};
+    const group = isJsonRecord(raw) ? raw : {};
     const definition = definitions.get(String(group.id));
     return {
       ...(definition && { id: definition.id, role: definition.role,
         ...(definition.roleBelow && { roleBelow: definition.roleBelow }) }),
       parties: !Array.isArray(group.parties) ? group.parties : group.parties.map((rawParty) => {
-        const party = object(rawParty) ? rawParty : {};
+        const party = isJsonRecord(rawParty) ? rawParty : {};
         const contact = decodeCourtRecordPartyContact(party.contact);
         return { id: party.id,
           name: typeof party.name === "string" ? party.name.trim() : party.name,
