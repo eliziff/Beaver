@@ -1,17 +1,15 @@
 import { structureNative } from "../structureNative";
-import type { LegalSourceReference } from ".";
 import {
   arrayValue,
   cachedLegalSourceJson,
   legalSourceUrl,
   objectValue,
+  remoteCaseProvider,
   remoteLegalSourceAttachment,
-  remoteLegalSourcePassages,
   stringValue,
   type JsonObject,
   type RemoteLegalSourceAttachment,
   type RemoteLegalSourceDocument,
-  type RemoteLegalSourceProvider,
 } from "./remoteProvider";
 
 const API_ORIGIN = "https://api.govinfo.gov";
@@ -127,29 +125,22 @@ async function fetchGovInfoCase(
   };
 }
 
-const reference = (result: GovInfoSearchResult) => ({
-  provider: "govinfo",
-  id: result.packageId,
-  kind: "case",
-  title: result.title,
-  citation: result.docket,
-  url: result.url,
-}) satisfies LegalSourceReference;
-
-export const govInfoLegalSourceProvider: RemoteLegalSourceProvider = {
+export const govInfoLegalSourceProvider = remoteCaseProvider({
   id: "govinfo",
-  canResolve: ({ kind, text }) => kind === "case" && Boolean(docketFrom(text)),
-  async resolve({ text, signal }) {
-    const result = await searchGovInfoCase(text, signal);
-    return result ? [reference(result)] : [];
-  },
-  async readPassage(request) {
-    const { source } = request;
-    return remoteLegalSourcePassages(request, {
-      docket: source.citation || source.id,
-      packageId: source.id,
-      title: source.title ?? null,
-      url: `${WEB_ORIGIN}/app/details/${source.id}`,
-    }, fetchGovInfoCase, reference);
-  },
-};
+  matches: docketFrom,
+  search: searchGovInfoCase,
+  fetch: fetchGovInfoCase,
+  reference: (result: GovInfoSearchResult) => ({
+    id: result.packageId,
+    title: result.title,
+    citation: result.docket,
+    url: result.url,
+  }),
+  /** Every govInfo reference names its package, so a read never searches again. */
+  fromSource: (source) => ({
+    docket: source.citation || source.id,
+    packageId: source.id,
+    title: source.title ?? null,
+    url: `${WEB_ORIGIN}/app/details/${source.id}`,
+  }),
+});

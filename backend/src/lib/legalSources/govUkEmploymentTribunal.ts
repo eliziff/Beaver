@@ -1,16 +1,14 @@
 import { structureNative } from "../structureNative";
-import type { LegalSourceReference } from ".";
 import {
   arrayValue,
   cachedLegalSourceJson,
   legalSourceUrl,
   objectValue,
+  remoteCaseProvider,
   remoteLegalSourceAttachment,
-  remoteLegalSourcePassages,
   stringValue,
   type RemoteLegalSourceAttachment,
   type RemoteLegalSourceDocument,
-  type RemoteLegalSourceProvider,
 } from "./remoteProvider";
 import { escapeXmlText } from "../text";
 
@@ -133,32 +131,22 @@ async function fetchEmploymentTribunalCase(
   };
 }
 
-const reference = (result: EmploymentTribunalSearchResult) => ({
-  provider: "govuk-et",
-  id: result.caseNumber,
-  kind: "case",
-  title: result.title,
-  citation: result.caseNumber,
-  url: result.url,
-}) satisfies LegalSourceReference;
-
-export const govUkEmploymentTribunalLegalSourceProvider: RemoteLegalSourceProvider = {
+export const govUkEmploymentTribunalLegalSourceProvider = remoteCaseProvider({
   id: "govuk-et",
-  canResolve: ({ kind, text }) => kind === "case" && Boolean(caseNumberFrom(text)),
-  async resolve({ text, signal }) {
-    const result = await searchEmploymentTribunalCase(text, signal);
-    return result ? [reference(result)] : [];
-  },
-  async readPassage(request) {
-    const { source, signal } = request;
-    const result = source.url
-      ? {
-          caseNumber: source.citation || source.id,
-          title: source.title || source.citation || source.id,
-          url: source.url,
-        }
-      : await searchEmploymentTribunalCase(source.citation || source.id, signal);
-    return remoteLegalSourcePassages(
-      request, result, fetchEmploymentTribunalCase, reference);
-  },
-};
+  matches: caseNumberFrom,
+  search: searchEmploymentTribunalCase,
+  fetch: fetchEmploymentTribunalCase,
+  reference: (result: EmploymentTribunalSearchResult) => ({
+    id: result.caseNumber,
+    title: result.title,
+    citation: result.caseNumber,
+    url: result.url,
+  }),
+  fromSource: (source) => source.url
+    ? {
+        caseNumber: source.citation || source.id,
+        title: source.title || source.citation || source.id,
+        url: source.url,
+      }
+    : null,
+});
