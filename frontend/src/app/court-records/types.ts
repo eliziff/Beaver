@@ -9,52 +9,22 @@ export type {
   EffectivePeriod, CourtProfile,
 } from "../../../../shared/court-record-profiles.mjs";
 
+import type { CoverValues, CasePartyGroup, SourceDocumentFields,
+  SourceExhibits } from "../../../../shared/court-record-contract.d.ts";
+export type { CaseParty, CasePartyGroup, CourtRecordPartyContact as PartyContact,
+  CoverValues, SourceDocumentFields, SourceExhibits, CourtRecordDraftEntry,
+  CourtRecordDraft } from "../../../../shared/court-record-contract.d.ts";
+import { exhibitIndex, exhibitName } from "../../../../shared/court-record-exhibits.mjs";
+export { MAX_EXHIBIT_LABELS, exhibitIndex, exhibitName }
+  from "../../../../shared/court-record-exhibits.mjs";
+
 export type CoverIssueId = CoverFieldId | "partyStyleId" | "partyGroups" | "partyContacts" |
   "filingPartyIds";
-
-export interface CaseParty {
-  id: string;
-  name: string;
-  contact?: PartyContact;
-}
-
-export type PartyContact = Partial<Record<"name" | "address" | "phone" | "fax" | "email", string>>;
-
-export interface CasePartyGroup {
-  id: string;
-  role: string;
-  roleBelow?: string;
-  parties: CaseParty[];
-}
 
 export const rule70MaximumPages = ({ rule70PageLimit }: Pick<DocumentKind,
   "rule70PageLimit">) => rule70PageLimit
   ? rule70PageLimit === "combined-cross-appeal" ? 60 : 30
   : undefined;
-
-export interface CoverValues extends Partial<Record<CoverFieldId, string>> {
-  partyStyleId?: string;
-  partyGroups?: CasePartyGroup[];
-  filingPartyIds?: string[];
-}
-
-export interface SourceDocumentFields {
-  cover: Partial<Pick<CoverValues,
-    "courtName" | "courtFileNumber" | "lowerCourtFileNumber" | "registry" |
-    "decisionMaker" | "decisionDate" | "decisionFileDate" | "affidavitNumber" |
-    "deponent" | "swornDate" | "swornPlace" | "recordTitle" | "counselName" |
-    "counselAddress" | "counselPhone" | "counselFax" | "counselEmail">>;
-  exhibitLabels: string[];
-  exhibitMentions?: Record<string, string[]>;
-  explicitExhibitLabel?: string;
-  entryTitle?: string;
-  entryDate?: string;
-}
-
-export interface SourceExhibits {
-  sourceSha256: string;
-  labels: string[];
-}
 
 export function coverPartyGroups(profile: CourtProfile, cover: CoverValues): CasePartyGroup[] {
   const styles = profile.cover.partyStyles;
@@ -134,17 +104,6 @@ export const ap5PartyGroups = (profile: CourtProfile, cover: CoverValues) =>
 export const ap5PartyLabel = (group: CasePartyGroup) =>
   ["PLAINTIFF/APPLICANT:", "DEFENDANT/RESPONDENT:", "INTERVENER:"][ap5PartyRank(group)];
 
-export const exhibitIndex = (label = "") => /^[A-Z]+$/u.test(label.trim().toUpperCase())
-  ? [...label.trim().toUpperCase()].reduce((value, character) =>
-    value * 26 + character.charCodeAt(0) - 64, 0) - 1 : -1;
-
-export function exhibitName(index: number) {
-  let value = index + 1, label = "";
-  while (value) { value -= 1; label = String.fromCharCode(65 + value % 26) + label;
-    value = Math.floor(value / 26); }
-  return label;
-}
-
 export interface RecordEntry {
   id: string;
   kindId: string;
@@ -206,28 +165,6 @@ export function sourceExhibitSlots(entries: RecordEntry[]): SourceExhibits | und
 export function hasMatchingExhibitCertificate(entry: RecordEntry) {
   const assigned = entry.exhibitLabel?.trim().toUpperCase();
   return !!assigned && entry.sourceFields?.explicitExhibitLabel?.trim().toUpperCase() === assigned;
-}
-
-export interface CourtRecordDraftEntry {
-  id: string;
-  kindId: string;
-  title: string;
-  date?: string;
-  rule70CountedPages?: number;
-  exhibitLabel?: string;
-  sourceExhibits?: SourceExhibits;
-  sourceFields?: SourceDocumentFields;
-  descriptionOnly?: boolean;
-  ocrAttemptedPages?: number[];
-  nonTextPagesConfirmed?: boolean;
-  lastSeen: FileSnapshot;
-}
-
-export interface CourtRecordDraft {
-  profileId: string;
-  cover: CoverValues;
-  entries: CourtRecordDraftEntry[];
-  bindings: Record<string, WorkProductInput>;
 }
 
 export interface SourceBookmark {
