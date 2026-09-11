@@ -30,9 +30,13 @@ export function useDockedColumnWidth(box: RefObject<HTMLElement | null>, dockOpe
             const reserve = !dock || dockOpen ? 0 : Math.min(
                 Number.isFinite(asked) ? asked : ASSISTANT_DOCK_DEFAULT_WIDTH, dockCap(row, rem))
                 + DOCK_GAP * rem;
+            // The column lives inside this box's padding, so the padding is not room it can use.
+            const style = getComputedStyle(element);
+            const inside = element.clientWidth
+                - Number.parseFloat(style.paddingInlineStart) - Number.parseFloat(style.paddingInlineEnd);
             // Whole pixels: the predicted reserve lands a fraction off the room the dock really takes,
             // and a fraction is enough to break a line differently on one side of the change.
-            setWidth(Math.max(0, Math.round(element.clientWidth - reserve)));
+            setWidth(Math.max(0, Math.round(inside - reserve)));
         };
         measure();
         const observer = new ResizeObserver(measure);
