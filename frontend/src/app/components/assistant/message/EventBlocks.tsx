@@ -184,9 +184,12 @@ export function ActivityRow({
     const citations = activity.tool === "search_sources" || activity.tool === "Grep"
         ? [] : activity.citations ?? [];
     const compactRead = activity.tool === "Read" && !markdown && citations.length > 0;
-    // The chip names the source, so the sentence stops at "Reading paras 1–8 of".
-    const chipName = compactRead ? citationPillParts(citations[0], true).styleOfCause : null;
-    const sentence = chipName && activity.label.endsWith(chipName) ? activity.label.slice(0, -chipName.length).trimEnd() : activity.label;
+    // The chip names the source, so the sentence never repeats it: "Reading paras 1–8 of" + chip,
+    // "Searching for “essence of a seizure”" + chip (Eli, 2026-09-10).
+    const parts = compactRead ? citationPillParts(citations[0], true) : null;
+    const chipName = parts?.styleOfCause || parts?.rest || null;
+    const sentence = chipName && activity.label.includes(chipName)
+        ? activity.label.replace(chipName, "").replace(/s{2,}/gu, " ").replace(/s+([,.;:])/gu, "$1").trim() : activity.label;
     const label = `${sentence}${{ running: busy && !activity.markdown ? "..." : "",
         completed: "", error: " — failed", interrupted: " — stopped" }[activity.status]}`;
     const labelNode = onClick ? (
