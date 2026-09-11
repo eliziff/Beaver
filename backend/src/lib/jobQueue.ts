@@ -39,6 +39,22 @@ export class PermanentJobError extends Error {
   name = "PermanentJobError";
 }
 
+// The abort reason used when a running job's lease was taken by another claim.
+// Nobody cancelled the work: the attempt that observes this must not record the
+// outcome as a cancellation, and the re-attempt has to resume rather than clash.
+export class JobLeaseLostError extends Error {
+  name = "JobLeaseLostError";
+  constructor(readonly jobId: string) { super("Job lease lost"); }
+}
+export const leaseWasLost = (signal: AbortSignal) =>
+  signal.aborted && signal.reason instanceof JobLeaseLostError;
+
+// A single synchronous step (document rendering, a stalled SQLite write) blocks
+// the renewal timer, so the lease has to outlast the longest such step by a wide
+// margin, not by one renewal period.
+const JOB_LEASE_MS = 120_000;
+const JOB_HEARTBEAT_MS = 10_000;
+
 const now = () => new Date().toISOString();
 const later = (milliseconds: number) => new Date(Date.now() + milliseconds).toISOString();
 const decode = (value: unknown): Json | null => {
@@ -147,14 +163,35 @@ async function claim(workerId: string, leaseMilliseconds: number, kinds: string[
   });
 }
 
-async function heartbeat(id: string, workerId: string, leaseMilliseconds: number) {
-  const db = await relationalDatabase(), timestamp = now();
-  const row = (await db.query<JobRow>(sql`UPDATE application_jobs SET
-      locked_until=${later(leaseMilliseconds)},updated_at=${timestamp}
-    WHERE id=${id} AND status='running' AND locked_by=${workerId}
-      AND interrupt_requested_at IS NULL AND cancel_requested_at IS NULL
-      RETURNING id`)).rows[0];
-  return !!row;
+// "stopped" is a cancel/interrupt the operator asked for, "lost" means the row
+// is no longer ours, and "unavailable" is a transient database failure that must
+// not end work while the lease it renews is still valid.
+type LeaseState = { state: "renewed"; until: number }
+  | { state: "stopped" | "lost" | "unavailable" };
+
+async function leaseHeld(id: string, workerId: string) {
+  const row = (await (await relationalDatabase()).query<JobRow>(sql`
+    SELECT status,locked_by,cancel_requested_at,interrupt_requested_at
+    FROM application_jobs WHERE id=${id}`)).rows[0];
+  if (!row || String(row.status) !== "running" || row.locked_by !== workerId) return "lost";
+  return row.cancel_requested_at || row.interrupt_requested_at ? "stopped" : "held";
+}
+
+async function heartbeat(
+  id: string, workerId: string, leaseMilliseconds: number,
+): Promise<LeaseState> {
+  try {
+    const db = await relationalDatabase(), timestamp = now();
+    const until = Date.now() + leaseMilliseconds;
+    const row = (await db.query<JobRow>(sql`UPDATE application_jobs SET
+        locked_until=${later(leaseMilliseconds)},updated_at=${timestamp}
+      WHERE id=${id} AND status='running' AND locked_by=${workerId}
+        AND interrupt_requested_at IS NULL AND cancel_requested_at IS NULL
+        RETURNING id`)).rows[0];
+    if (row) return { state: "renewed", until };
+    const held = await leaseHeld(id, workerId);
+    return { state: held === "held" ? "unavailable" : held };
+  } catch { return { state: "unavailable" }; }
 }
 
 async function finish(id: string, workerId: string, result: Json) {
@@ -402,8 +439,13 @@ export async function pruneJobs(
 
 const activeJobs = new Map<string, { job: ApplicationJob; controller: AbortController }>();
 
-export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
-  const workerId = randomUUID(), lease = 30_000, kinds = Object.keys(handlers);
+export function startJobWorker(
+  handlers: Readonly<Record<string, JobHandler>>,
+  options: { leaseMilliseconds?: number; heartbeatMilliseconds?: number } = {},
+) {
+  const workerId = randomUUID(), kinds = Object.keys(handlers);
+  const lease = options.leaseMilliseconds ?? JOB_LEASE_MS;
+  const renewEvery = options.heartbeatMilliseconds ?? JOB_HEARTBEAT_MS;
   let stopping = false;
   const shutdown = new AbortController();
   const execute = async (next: ApplicationJob) => {
@@ -411,24 +453,46 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
     const controller = new AbortController();
     if (next.cancelRequested || stopping) controller.abort();
     activeJobs.set(workerId, { job: next, controller });
+    if (next.attempts > 1) console.warn("[job] re-attempt", {
+      job: next.id, kind: next.kind, attempt: next.attempts, worker: workerId,
+    });
+    let leaseUntil = Date.now() + lease;
+    const leaseLost = (reason: string) => {
+      console.warn("[job] lease lost", {
+        job: next.id, kind: next.kind, attempt: next.attempts, worker: workerId, reason,
+      });
+      controller.abort(new JobLeaseLostError(next.id));
+    };
     const controls = await watchJob(next.id, "control");
     const controlStop = new AbortController();
     const controlTask = (async () => {
       while (!controlStop.signal.aborted && !controller.signal.aborted) {
         const version = controls.version;
-        const owned = await (await relationalDatabase()).query<{ id: string }>(sql`
-          SELECT id FROM application_jobs WHERE id=${next.id} AND locked_by=${workerId}
-            AND status='running' AND cancel_requested_at IS NULL AND interrupt_requested_at IS NULL`);
-        if (!owned.rows.length) { controller.abort(); return; }
+        const held = await leaseHeld(next.id, workerId);
+        if (held === "lost") { leaseLost("claimed by another worker"); return; }
+        if (held === "stopped") { controller.abort(); return; }
         await controls.wait(version, controlStop.signal);
       }
     })().catch(() => controller.abort());
+    // Renewal never queues behind itself: a stalled write must not stack timers,
+    // and a failed one keeps the handler running while the lease is still valid.
+    let renewing = false, settled = false;
     const pulse = setInterval(() => {
-      void heartbeat(next.id, workerId, lease).then((owned) => {
-        if (!owned) controller.abort();
-      }, () => controller.abort());
-    }, 5_000);
+      if (renewing || settled || controller.signal.aborted) return;
+      renewing = true;
+      void heartbeat(next.id, workerId, lease).then((result) => {
+        if (settled) return;
+        if (result.state === "renewed") leaseUntil = result.until;
+        else if (result.state === "stopped") controller.abort();
+        else if (result.state === "lost") leaseLost("claimed by another worker");
+        else if (Date.now() >= leaseUntil) leaseLost("renewal unavailable");
+        else console.warn("[job] lease renewal failed", {
+          job: next.id, kind: next.kind, msRemaining: leaseUntil - Date.now(),
+        });
+      }).finally(() => { renewing = false; });
+    }, renewEvery);
     pulse.unref();
+    const stopRenewal = () => { settled = true; clearInterval(pulse); };
     const releaseOrCancel = async () => {
       if (!stopping && controller.signal.aborted &&
           await jobCancellationRequested(next.id, workerId))
@@ -459,13 +523,16 @@ export function startJobWorker(handlers: Readonly<Record<string, JobHandler>>) {
         progress: (value) => checkpoint({ progress: value }),
         checkpoint,
       });
+      stopRenewal();
       if (stopping || controller.signal.aborted) await releaseOrCancel();
       else await finish(next.id, workerId, result);
     } catch (error) {
+      // The handler has ended: releasing the lease here is not losing it.
+      stopRenewal();
       if (stopping || controller.signal.aborted) await releaseOrCancel();
       else await fail(next, workerId, error);
     } finally {
-      clearInterval(pulse);
+      stopRenewal();
       controlStop.abort(); controls.close();
       await controlTask;
       activeJobs.delete(workerId);

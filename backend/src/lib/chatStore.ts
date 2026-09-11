@@ -21,7 +21,11 @@ export type ChatCommitResult = { status: "missing" }
   | { status: "conflict"; currentVersion: number }
   | { status: "committed"; currentVersion: number };
 
-export type ChatTurnCommit = { expectedVersion: number;
+// `expectedVersion: null` commits against whatever version the transaction reads.
+// A re-attempt of a turn whose lease was lost cannot carry a usable snapshot: the
+// attempt it replaces keeps writing while this one prepares. Turn identity checks
+// (already completed, mutation committed, a newer user message) still guard it.
+export type ChatTurnCommit = { expectedVersion: number | null;
   userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown };
   assistantMessage?: { id: string; turnId?: string; content: AssistantEvent[]; citations?: unknown[] } };
 

@@ -249,6 +249,86 @@ describe("application job queue", () => {
     await worker.stop();
   });
 
+  it("attributes a stolen lease instead of ending the work as a cancellation", async () => {
+    const queue = await import("../jobQueue");
+    const { relationalDatabase, sql } = await import("../relationalDatabase");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const started = deferred();
+    let reason: unknown, cancelled: boolean | undefined;
+    const worker = queue.startJobWorker({ test: async (job, { signal }) => {
+      started.resolve();
+      await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(),
+        { once: true }));
+      reason = signal.reason;
+      cancelled = job.cancelRequested;
+      throw new DOMException("Aborted", "AbortError");
+    } }, { leaseMilliseconds: 5_000, heartbeatMilliseconds: 10 });
+    const queued = await queue.enqueueJob({
+      kind: "test", dedupeKey: "stolen", userId: "owner", payload: {}, maxAttempts: 3,
+    });
+    await started.promise;
+    // Exactly what an expired lease leaves behind: another claim owns the row.
+    await (await relationalDatabase()).query(sql`UPDATE application_jobs
+      SET locked_by='successor',attempts=2 WHERE id=${queued.id}`);
+    await vi.waitFor(() => expect(reason).toBeInstanceOf(queue.JobLeaseLostError));
+    expect(queue.leaseWasLost(AbortSignal.abort(reason))).toBe(true);
+    expect(cancelled).toBe(false);
+    expect(warn.mock.calls.some(([message, detail]) => message === "[job] lease lost" &&
+      (detail as { job: string }).job === queued.id)).toBe(true);
+    await worker.stop();
+    warn.mockRestore();
+  });
+
+  it("keeps a running handler while renewal fails and its lease is still valid", async () => {
+    const queue = await import("../jobQueue");
+    const database = await (await import("../relationalDatabase")).relationalDatabase();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const query = database.query.bind(database), started = deferred(), release = deferred();
+    let aborted = false;
+    const fault = vi.spyOn(database, "query").mockImplementation((statement) => {
+      if (/UPDATE application_jobs SET\s+locked_until=/u.test(statement.text))
+        return Promise.reject(new Error("Fixture renewal failure"));
+      return query(statement);
+    });
+    const worker = queue.startJobWorker({ test: async (_job, { signal }) => {
+      signal.addEventListener("abort", () => { aborted = true; }, { once: true });
+      started.resolve();
+      await release.promise;
+      return { ok: true };
+    } }, { leaseMilliseconds: 60_000, heartbeatMilliseconds: 10 });
+    const queued = await queue.enqueueJob({
+      kind: "test", dedupeKey: "renewal", userId: "owner", payload: {},
+    });
+    await started.promise;
+    await vi.waitFor(() => expect(warn.mock.calls.some(([message]) =>
+      message === "[job] lease renewal failed")).toBe(true));
+    expect(aborted).toBe(false);
+    fault.mockRestore();
+    release.resolve();
+    await waitForJob(queue, queued.id, "owner");
+    await worker.stop();
+    expect(warn.mock.calls.some(([message]) => message === "[job] lease lost")).toBe(false);
+    warn.mockRestore();
+  });
+
+  it("records a re-attempt so a lost lease is attributable", async () => {
+    const queue = await import("../jobQueue");
+    const { relationalDatabase, sql } = await import("../relationalDatabase");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const queued = await queue.enqueueJob({
+      kind: "test", dedupeKey: "reattempt", userId: "owner", payload: {}, maxAttempts: 3,
+    });
+    await (await relationalDatabase()).query(sql`UPDATE application_jobs SET status='running',
+      attempts=1,locked_by='dead-worker',locked_until=${new Date(0).toISOString()}
+      WHERE id=${queued.id}`);
+    const worker = queue.startJobWorker({ test: async () => ({ ok: true }) });
+    await waitForJob(queue, queued.id, "owner");
+    await worker.stop();
+    expect(warn.mock.calls.some(([message, detail]) => message === "[job] re-attempt" &&
+      (detail as { attempt: number }).attempt === 2)).toBe(true);
+    warn.mockRestore();
+  });
+
   it("prunes only expired terminal jobs", async () => {
     const queue = await import("../jobQueue");
     const { relationalDatabase, sql } = await import("../relationalDatabase");
