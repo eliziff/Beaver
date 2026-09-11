@@ -79,29 +79,40 @@ function safeUrls(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
-export function resolveDocxEvidenceCitations(
+/**
+ * The passage entries a Write cites, checked against the registry but not yet
+ * linked: the draft integrity check reads only these, and planning passage links
+ * is the Write's costliest step, so a rejected draft never pays for it.
+ */
+export function docxCitationEntries(
   state: LegalEvidenceTurnState | undefined,
   rawCitations: unknown,
-): ResolvedDocxEvidenceCitations {
+) {
   const inputs = citationInputs(rawCitations);
   if (inputs.length && !state) {
     throw new Error("DOCX citations require this turn's legal evidence registry.");
   }
-  const resolved = inputs.map((input) => {
-    const entries = input.evidenceIds.map((evidenceId) => {
-      const entry = state?.evidence.get(evidenceId);
-      if (!entry) {
-        throw new Error(
-          `DOCX citation "${input.id}" has unknown evidence_id: ${evidenceId}.`,
-        );
-      }
-      if (entry.receipt.scope !== "passage" || !entry.receipt.span_text) {
-        throw new Error(
-          `DOCX citation "${input.id}" requires exact passage evidence: ${evidenceId}.`,
-        );
-      }
-      return entry;
-    });
+  return inputs.map((input) => ({ input, entries: input.evidenceIds.map((evidenceId) => {
+    const entry = state?.evidence.get(evidenceId);
+    if (!entry) {
+      throw new Error(
+        `DOCX citation "${input.id}" has unknown evidence_id: ${evidenceId}.`,
+      );
+    }
+    if (entry.receipt.scope !== "passage" || !entry.receipt.span_text) {
+      throw new Error(
+        `DOCX citation "${input.id}" requires exact passage evidence: ${evidenceId}.`,
+      );
+    }
+    return entry;
+  }) }));
+}
+
+export function resolveDocxEvidenceCitations(
+  state: LegalEvidenceTurnState | undefined,
+  rawCitations: unknown,
+): ResolvedDocxEvidenceCitations {
+  const resolved = docxCitationEntries(state, rawCitations).map(({ input, entries }) => {
     const projected = entries.map(legalEvidenceDocumentLink);
     const grouped = new Map<string, DocxCitation["sources"][number]>();
     for (const source of projected) {
