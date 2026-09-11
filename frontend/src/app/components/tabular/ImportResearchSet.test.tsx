@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchFile } from "@/app/lib/researchFiles";
 import { ImportResearchSet } from "./ImportResearchSet";
-const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), previewWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn() }));
+const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), previewWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn(),
+  previewWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
 const file = { document: { id: "workspace", filename: "Research.research.md" }, state: { labels: {}, sources: {} } } as ResearchFile;
@@ -58,6 +59,27 @@ it("shows a stale-preview rejection without navigating away or silently reinterp
   await ready(); fireEvent.click(create());
   expect(await screen.findByRole("alert")).toHaveTextContent("Research changed");
   expect(onOpen).not.toHaveBeenCalled(); expect(screen.getByDisplayValue("Finding")).toBeVisible();
+});
+it("applies a label proposal on the same reading of the research that produced it", async () => {
+  const plan = { title: "Duties", target: "sources" as const, propose: false, fingerprint: "b".repeat(64),
+    design: { title: "Duties", labels: [{ key: "honesty", name: "Honest performance" }],
+      assignments: [{ labelKey: "honesty", rowIds: ["source"] }] },
+    labels: [{ key: "honesty", name: "Honest performance", path: "Honest performance", parentKey: null,
+      color: "#d6b85a", existing: true, rows: [{ id: "source", title: "Case A", support: [] }] }], unassigned: [] };
+  api.previewWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(undefined);
+  const onOpen = vi.fn(), apply = () => screen.getByRole("button", { name: "Apply labels" });
+  render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" chatId="chat" />);
+  await waitFor(() => expect(apply()).toBeEnabled());
+  fireEvent.click(apply());
+  await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace",
+    { chatId: "chat", design: plan.design, fingerprint: plan.fingerprint }));
+  expect(onOpen).toHaveBeenCalledWith("/sources?research_file=workspace");
+  ask("group by the stage of the analysis");
+  await waitFor(() => expect(api.previewWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
+    { chatId: "chat", model: "model", request: "group by the stage of the analysis", repropose: true }));
+  fireEvent.click(apply());
+  await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
+    { chatId: "chat", repropose: true, design: plan.design, fingerprint: plan.fingerprint }));
 });
 it("ignores an older preview response after the selected research changes", async () => {
   let finish!: (value: unknown) => void;
