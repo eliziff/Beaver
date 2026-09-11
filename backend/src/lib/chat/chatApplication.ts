@@ -69,6 +69,7 @@ import type {
 } from "./types";
 import type { EditMode } from "../docxTrackedChanges";
 import { setChatTurnControl } from "../chatTurns";
+import { leaseWasLost } from "../jobQueue";
 import { wordClientTools, type WordClientCall } from "./wordClientTools";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { ChatCreateInput } from "../chatStore";
@@ -228,6 +229,9 @@ export type ChatApplicationFeatures = {
 };
 
 export type ChatTurnExecution = {
+  // A re-attempt after a lost lease or a provider continuation. Its caller cannot
+  // supply a version that survives preparation, so the commit takes the current one.
+  resume?: boolean;
   continuationId?: string;
   onContinuation?(continuationId: string): void | Promise<void>;
   onAccepted?(chatId: string): void | Promise<void>;
@@ -256,6 +260,8 @@ type Dependencies = {
 const LOCAL_MUTATION_COMMITTED_EVENT = "local_mutation_committed";
 const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
 const CHAT_PROGRESS_CHECKPOINT_MS = 30_000;
+const INTERRUPTED_TURN_MESSAGE =
+  "This response was interrupted before it finished and is being retried.";
 const REPLACEABLE_EVENT_TYPES = new Set(["workflow_run", "subagent_run", "tool_activity"]);
 const TRANSIENT_EVENT_TYPES = new Set(["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]);
 function pendingAskInputs(messages: ChatMessageRecord[]) {
@@ -551,6 +557,7 @@ export function createChatApplication(deps: Dependencies) {
       let retry = false;
       const turnId = input.current_turn.kind === "message"
         ? input.current_turn.turn_id : undefined;
+      const commitVersion = execution?.resume ? null : input.expected_version;
       let commit: ChatTurnCommit;
       if (input.current_turn.kind === "ask_inputs_response") {
         if (!pending) throw new ChatApplicationError(400,
@@ -575,7 +582,7 @@ export function createChatApplication(deps: Dependencies) {
           responses: canonical.responses,
         });
         commit = {
-          expectedVersion: input.expected_version,
+          expectedVersion: commitVersion,
           assistantMessage: {
             id: pending.assistant.id,
             turnId: pending.assistant.turn_id,
@@ -612,12 +619,12 @@ export function createChatApplication(deps: Dependencies) {
           assistantCitations = [];
           // A retried turn without an assistant receipt still needs one atomic CAS write.
           commit = {
-            expectedVersion: input.expected_version,
+            expectedVersion: commitVersion,
             assistantMessage: { id: assistant?.id ?? randomUUID(), turnId,
               content: assistantContent, citations: [] },
           };
         } else commit = {
-          expectedVersion: input.expected_version,
+          expectedVersion: commitVersion,
           userMessage: {
             id: randomUUID(), turnId,
             content: input.current_turn.content,
@@ -967,9 +974,12 @@ ${registeredWorkflow.skill_md}` : "",
             ...(error instanceof AssistantStreamError
               ? error.events.filter(({ type }) => !TRANSIENT_EVENT_TYPES.has(type))
               : []),
-            isAbortError(error)
-              ? { type: "turn_status", status: "cancelled" }
-              : { type: "error", message },
+            // Only a real cancellation is recorded as one. A lost lease ends this
+            // attempt while the turn is still owed an answer, so the transcript
+            // carries a visible interruption that the re-attempt replaces.
+            !isAbortError(error) ? { type: "error", message }
+              : leaseWasLost(signal) ? { type: "error", message: INTERRUPTED_TURN_MESSAGE }
+                : { type: "turn_status", status: "cancelled" },
           ], [], true)?.catch((persistError) => console.error(
             "[chat] failed to persist model error", safeErrorLog(persistError),
           ));
