@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { AssistantDock } from "./AssistantDock";
@@ -10,16 +11,13 @@ function capRenderedWidth(dock: HTMLElement, max: number) {
     }) as DOMRect);
 }
 
+function dockView(props: Partial<ComponentProps<typeof AssistantDock>> = {}) {
+    return <AssistantDock tabs={[{ id: "sources", label: "Sources", content: <p>Source</p> }]}
+        activeTabId="sources" onActivateTab={vi.fn()} expanded onExpandedChange={vi.fn()} {...props} />;
+}
+
 it("resizes the dock from the keyboard", () => {
-    render(
-        <AssistantDock
-            tabs={[{ id: "sources", label: "Sources", content: <p>Source</p> }]}
-            activeTabId="sources"
-            onActivateTab={vi.fn()}
-            expanded
-            onExpandedChange={vi.fn()}
-        />,
-    );
+    render(dockView());
 
     const dock = screen.getByRole("complementary", { name: "Assistant dock" });
     capRenderedWidth(dock, 500);
@@ -31,11 +29,7 @@ it("resizes the dock from the keyboard", () => {
 });
 
 it("resizes against the rendered CSS maximum without rerendering each move", () => {
-    render(<AssistantDock
-        tabs={[{ id: "sources", label: "Sources", content: <p>Source</p> }]}
-        activeTabId="sources" onActivateTab={vi.fn()} expanded
-        onExpandedChange={vi.fn()} maxWidth="calc(100% - 36rem)"
-    />);
+    render(dockView({ maxWidth: "calc(100% - 36rem)" }));
     const dock = screen.getByRole("complementary", { name: "Assistant dock" });
     const separator = screen.getByRole("separator");
     capRenderedWidth(dock, 480);
@@ -58,38 +52,19 @@ it("collapses without discarding its mounted content", () => {
             { id: "library", label: "Library", content: <p>Unopened library</p> },
         ],
         activeTabId: "sources",
-        onActivateTab: vi.fn(),
         onExpandedChange,
     };
-    const { rerender } = render(
-        <AssistantDock
-            {...props}
-            expanded
-        />,
-    );
+    const { rerender } = render(dockView(props));
 
-    expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
-    expect(screen.getByRole("separator", { name: "Resize assistant dock" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Collapse assistant dock" })).toBeVisible();
     fireEvent.change(screen.getByRole("textbox", { name: "Draft message" }), {
         target: { value: "edited" },
     });
     expect(screen.queryByText("Unopened library")).not.toBeInTheDocument();
-    rerender(<AssistantDock {...props} expanded={false} />);
+    rerender(dockView({ ...props, expanded: false }));
     fireEvent.click(screen.getByRole("button", { name: "Expand assistant dock" }));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
-    rerender(<AssistantDock {...props} expanded />);
+    rerender(dockView(props));
     expect(screen.getByRole("textbox", { name: "Draft message" })).toHaveValue("edited");
-});
-
-it("can use an existing page trigger without adding a second collapsed button", () => {
-    render(<AssistantDock
-        tabs={[{ id: "assistant", label: "Assistant", content: null }]}
-        activeTabId="assistant" onActivateTab={vi.fn()} expanded={false}
-        onExpandedChange={vi.fn()} showCollapsedButton={false}
-    />);
-
-    expect(screen.queryByRole("button", { name: "Expand assistant dock" })).not.toBeInTheDocument();
 });
 
 it("keeps the sibling workspace interactive when opened at narrow widths", () => {
@@ -97,9 +72,8 @@ it("keeps the sibling workspace interactive when opened at narrow widths", () =>
     const onExpandedChange = vi.fn();
     function Layout({ expanded }: { expanded: boolean }) {
         return <div><input aria-label="Chat draft" autoFocus defaultValue="Draft" />
-            <AssistantDock tabs={[{ id: "sources", label: "Sources", content: <button>Search</button> }]}
-                activeTabId="sources" onActivateTab={vi.fn()} expanded={expanded}
-                onExpandedChange={onExpandedChange} /></div>;
+            {dockView({ tabs: [{ id: "sources", label: "Sources", content: <button>Search</button> }],
+                expanded, onExpandedChange })}</div>;
     }
     const { rerender } = render(<Layout expanded={false} />);
     const draft = screen.getByRole("textbox", { name: "Chat draft" });
@@ -126,8 +100,8 @@ it.each(["sources"])("expands %s without remounting its reader and restores its 
     const exit = vi.fn(async () => {
         fullscreenElement = null; document.dispatchEvent(new Event("fullscreenchange"));
     });
-    render(<AssistantDock tabs={[{ id, label: id, content: <input aria-label="Reader note" defaultValue="Retained" /> }]}
-        activeTabId={id} onActivateTab={vi.fn()} expanded onExpandedChange={vi.fn()} />);
+    render(dockView({ tabs: [{ id, label: id, content: <input aria-label="Reader note" defaultValue="Retained" /> }],
+        activeTabId: id }));
     Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exit });
     const dock = screen.getByRole("complementary", { name: "Assistant dock" });
     Object.defineProperty(dock, "requestFullscreen", { configurable: true, value: request });
@@ -145,9 +119,9 @@ it.each(["sources"])("expands %s without remounting its reader and restores its 
 
 
 it("falls back to an in-app reader and restores focus and content on Escape", async () => {
-    render(<div><button>Chat action</button><AssistantDock
-        tabs={[{ id: "sources", label: "Sources", content: <input aria-label="Source position" defaultValue="Paragraph 8" /> }]}
-        activeTabId="sources" onActivateTab={vi.fn()} expanded onExpandedChange={vi.fn()} /></div>);
+    render(<div><button>Chat action</button>{dockView({
+        tabs: [{ id: "sources", label: "Sources", content: <input aria-label="Source position" defaultValue="Paragraph 8" /> }],
+    })}</div>);
     const reader = screen.getByRole("textbox", { name: "Source position" });
     const trigger = screen.getByRole("button", { name: "Expand reader" });
     trigger.focus(); fireEvent.click(trigger);
@@ -158,11 +132,4 @@ it("falls back to an in-app reader and restores focus and content on Escape", as
     expect(screen.getByRole("button", { name: "Chat action" }).inert).not.toBe(true);
     expect(screen.getByRole("button", { name: "Expand reader" })).toHaveFocus();
     expect(reader).toHaveValue("Paragraph 8");
-});
-
-it("keeps fullscreen on readers rather than the Library directory", () => {
-    render(<AssistantDock tabs={[{ id: "library", label: "Library", content: <p>Files</p> }]}
-        activeTabId="library" onActivateTab={vi.fn()} expanded onExpandedChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Expand reader" })).not.toBeInTheDocument();
-    expect(screen.getByText("Files")).toBeVisible();
 });

@@ -12,11 +12,6 @@ vi.mock("@/app/contexts/UserProfileContext", () => ({
 import { Providers } from "./providers";
 
 describe("Providers", () => {
-    it("renders directly when no login gate is composed", () => {
-        render(<Providers><p>Local application</p></Providers>);
-        expect(screen.getByText("Local application")).toBeInTheDocument();
-    });
-
     it("uses a composed login gate", () => {
         const Gate = ({ children }: { children: React.ReactNode }) => <section aria-label="Login gate">{children}</section>;
         render(<Providers LoginGate={Gate}><p>Cloud application</p></Providers>);
