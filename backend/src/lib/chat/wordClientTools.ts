@@ -1,9 +1,8 @@
-import type { Tool } from "../llm";
 import { MAX_WORD_EDITS, MAX_WORD_ANCHOR_CHARS, WORD_FORMATS, parseWordEdits } from
   "mike/shared/word-edits.mjs";
 import { jsonRecord } from "../value";
 import type { ChatToolContext } from "./turnEngine";
-import { toolText, type BeaverTool } from "./toolRegistry";
+import { objectSchema, toolText, type BeaverTool } from "./toolRegistry";
 
 export const READ_ACTIVE_DOCUMENT = "read_active_document";
 export const APPLY_WORD_EDITS = "apply_word_edits";
@@ -15,15 +14,6 @@ export type WordClientCall = (
   signal: AbortSignal,
 ) => Promise<unknown>;
 
-const objectSchema = (
-  properties: Record<string, object>,
-  required: string[] = [],
-): Tool["inputSchema"] => ({
-  type: "object",
-  properties,
-  ...(required.length ? { required } : {}),
-  additionalProperties: false,
-});
 
 function readResult(value: unknown) {
   const row = jsonRecord(value);

@@ -116,6 +116,7 @@ import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   toolText,
   toolOutcome as result, failedOutcome as fail,
+  objectSchema,
   type BeaverToolPolicy,
   type BeaverOutcome,
   type BeaverTool,
@@ -175,15 +176,6 @@ export function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuo
         errors: quote.receipt.errors, comparison: quote.receipt.comparison,
       } })) };
 }
-const objectSchema = (
-  properties: Record<string, object>,
-  required: string[] = [],
-): Tool["inputSchema"] => ({
-  type: "object",
-  properties,
-  ...(required.length ? { required } : {}),
-  additionalProperties: false,
-});
 const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
   name: "document_operation",
   specialist: true,
