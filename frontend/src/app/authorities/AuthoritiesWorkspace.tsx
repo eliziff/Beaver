@@ -157,7 +157,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
   const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
   const stayOnLanding = useRef(false);
-  const refreshSeen = useRef(0), refreshRequest = useRef(0);
+  const refreshRequest = useRef(0);
 
   const adopt = useCallback((next?: AuthoritiesProduct, navigate = false, preserveTab = false) => {
     const current = draftRef.current;
@@ -306,7 +306,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (changed && host.relinkSource) { relinked.current.add(`${current.id}\0${changed[0]}`); relinkSource(changed[0]); }
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
-  }, [draftId, sourceKey, refreshToken?.sequence, host]);
+  }, [draftId, sourceKey, refreshToken, host]);
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
   useEffect(() => {
     reviewRequest.current?.abort();
@@ -325,10 +325,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     return () => request.abort();
   }, [draftId, reviewKey, host]);
   useEffect(() => {
-    if (!draftId || refreshToken?.id !== draftId ||
-        refreshToken.sequence <= refreshSeen.current) return;
-    refreshSeen.current = refreshToken.sequence;
-    void refreshDraftEffect(refreshToken.revision);
+    if (draftId && refreshToken?.id === draftId) void refreshDraftEffect(refreshToken.revision);
   }, [draftId, refreshToken]);
 
   const occurrences = useMemo(() => orderedOccurrences(draft), [draft]);

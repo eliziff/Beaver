@@ -94,7 +94,7 @@ describe("CourtRecordsWorkspace", () => {
     fireEvent.change(await screen.findByLabelText(/Court file number/), { target: { value: "T-42" } });
     await waitFor(() => expect(revisions).toHaveLength(1));
     rerender(<CourtRecordsWorkspace host={host} initialDraftId={draft.id}
-      refreshToken={{ id: draft.id, revision: 2, sequence: 1 }} />);
+      refreshToken={{ id: draft.id, revision: 2 }} />);
     expect(await screen.findByDisplayValue("Remote exhibit")).toBeVisible();
     expect(screen.getByLabelText(/Court file number/)).toHaveValue("T-42");
     await act(async () => releaseSave());
@@ -414,14 +414,14 @@ describe("CourtRecordsWorkspace", () => {
       get } });
     const onDraftChange = vi.fn();
     const { rerender } = render(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
-      refreshToken={{ id: initial.id, revision: 1, sequence: 1 }} onDraftChange={onDraftChange} />);
+      refreshToken={{ id: initial.id, revision: 1 }} onDraftChange={onDraftChange} />);
 
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(initial, true));
     rerender(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
-      refreshToken={{ id: initial.id, revision: 2, sequence: 2 }} onDraftChange={onDraftChange} />);
+      refreshToken={{ id: initial.id, revision: 2 }} onDraftChange={onDraftChange} />);
     await waitFor(() => expect(pending).toHaveLength(1));
     rerender(<CourtRecordsWorkspace host={host} initialDraftId={initial.id}
-      refreshToken={{ id: initial.id, revision: 3, sequence: 3 }} onDraftChange={onDraftChange} />);
+      refreshToken={{ id: initial.id, revision: 3 }} onDraftChange={onDraftChange} />);
     await waitFor(() => expect(pending).toHaveLength(2));
 
     await act(async () => pending[1](revisions[1]));

@@ -11,9 +11,7 @@ export type WorkProductContext = Pick<WorkProduct,
   "id" | "kind" | "revision" | "projectId">;
 export type WorkProductFocus = { itemId: string;
   selection?: { start: number; end: number } };
-export type WorkProductRefresh = Pick<WorkProductContext, "id" | "revision"> & {
-  sequence: number;
-};
+export type WorkProductRefresh = Pick<WorkProductContext, "id" | "revision">;
 
 export type WorkProductCreate<State> = Pick<WorkProduct<State>, "kind" | "title" | "state"> & {
   projectId?: string | null;
