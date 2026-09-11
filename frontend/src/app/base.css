@@ -189,7 +189,7 @@ textarea,
     }
 }
 .pdf-text-layer {
-    overflow: hidden;
+    overflow: clip;
     opacity: 1;
     text-size-adjust: none;
     -webkit-text-size-adjust: none;
@@ -197,8 +197,7 @@ textarea,
     line-height: 1;
     text-align: initial;
     transform-origin: 0 0;
-    user-select: none;
-    pointer-events: none;
+    caret-color: CanvasText;
 }
 .pdf-text-layer :is(span, br) {
     color: transparent;
@@ -206,6 +205,12 @@ textarea,
     white-space: pre;
     cursor: text;
     transform-origin: 0% 0%;
+}
+/* pdf.js stacks the glyph spans above .endOfContent so a pointer over a glyph selects that
+   glyph while a pointer over the gaps between absolutely placed spans lands on endOfContent
+   instead of the layer. Stock addresses direct children; ours sit inside line wrappers. */
+.pdf-text-layer :is(span, br):not(.markedContent) {
+    z-index: 1;
 }
 .pdf-text-layer span.markedContent {
     top: 0;
