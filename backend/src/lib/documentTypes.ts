@@ -64,21 +64,13 @@ const SPREADSHEET_TYPES = types("xlsx xlsm xls");
 const PRESENTATION_TYPES = types("pptx ppt");
 const PLAIN_TEXT_TYPES = types("txt text md markdown mdown rst log");
 
-export function isWordDocumentType(fileType: string | null | undefined) {
-  return WORD_TYPES.has((fileType ?? "").toLowerCase());
-}
+const documentTypeCheck = (types: Set<string>) =>
+  (fileType: string | null | undefined) => types.has((fileType ?? "").toLowerCase());
 
-export function isSpreadsheetDocumentType(fileType: string | null | undefined) {
-  return SPREADSHEET_TYPES.has((fileType ?? "").toLowerCase());
-}
-
-export function isPresentationDocumentType(fileType: string | null | undefined) {
-  return PRESENTATION_TYPES.has((fileType ?? "").toLowerCase());
-}
-
-export function isPlainTextDocumentType(fileType: string | null | undefined) {
-  return PLAIN_TEXT_TYPES.has((fileType ?? "").toLowerCase());
-}
+export const isWordDocumentType = documentTypeCheck(WORD_TYPES);
+export const isSpreadsheetDocumentType = documentTypeCheck(SPREADSHEET_TYPES);
+export const isPresentationDocumentType = documentTypeCheck(PRESENTATION_TYPES);
+export const isPlainTextDocumentType = documentTypeCheck(PLAIN_TEXT_TYPES);
 
 export function shouldConvertToPdf(fileType: string | null | undefined) {
   const normalized = (fileType ?? "").toLowerCase();
