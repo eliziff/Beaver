@@ -37,6 +37,13 @@ import { exhibitName, propagatingSourceFields, sourceExhibitSlots } from "./type
 import { staleBuildSource, validateCourtRecord } from "./validation";
 
 const DEFAULT_PROFILE_ID = "general-affidavit-exhibits";
+const SAVE_DELAY = 300;
+
+/** The open draft: the revision the server holds, the state edited here, and the live files. */
+type DraftView = { profileId: string; cover: CoverValues; entries: RecordEntry[] };
+type OpenDraft = DraftView & { product: WorkProduct<CourtRecordDraft>; state: CourtRecordDraft };
+const NO_DRAFT: DraftView = { profileId: DEFAULT_PROFILE_ID, cover: {}, entries: [] };
+const NO_OPEN = { id: "", revision: 0, request: 0 };
 
 export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refreshToken,
   initialDraftId, initialDocuments, onDocumentsConsumed, projectId, locked = false, jurisdictionOrder = [] }: {
@@ -51,12 +58,9 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   locked?: boolean;
   jurisdictionOrder?: string[];
 }) {
-  const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID);
-  const [cover, setCover] = useState<CoverValues>({});
-  const [entries, setEntries] = useState<RecordEntry[]>([]);
+  const [session, setSession] = useState<OpenDraft>();
   const [drafts, setDrafts] = useState<WorkProductMetadata[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(true);
-  const [draft, setDraft] = useState<WorkProduct<CourtRecordDraft>>();
   const [draftBusy, setDraftBusy] = useState(!!initialDraftId);
   const [creating, setCreating] = useState(false);
   const pendingDocuments = useRef(initialDraftId ? undefined : initialDocuments);
@@ -76,15 +80,14 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [sourceEntryId, setSourceEntryId] = useState<string>();
   const [sourceExhibitLabel, setSourceExhibitLabel] = useState<string>();
   const [importingSource, setImportingSource] = useState(false);
-  const openRequest = useRef(0);
   const routeLoading = useRef(false);
-  const openingRevision = useRef<{ id: string; revision: number } | undefined>(undefined);
-  const draftRef = useRef(draft);
-  const stateRef = useRef<CourtRecordDraft>(undefined!);
-  const entriesRef = useRef(entries);
-  const mounted = useRef(true);
-  const savingDraft = useRef<Promise<WorkProduct<CourtRecordDraft> | undefined> | undefined>(undefined);
-  const stateVersion = useRef(0);
+  const sessionRef = useRef(session);
+  /** Which open is authoritative: a later request wins, an older revision never does. */
+  const opening = useRef(NO_OPEN);
+  const saveQueue = useRef(Promise.resolve<WorkProduct<CourtRecordDraft> | undefined>(undefined));
+  const { profileId, cover, entries } = session ?? NO_DRAFT;
+  const draft = session?.product;
+  const unsaved = !!session && session.state !== session.product.state;
   const profile = COURT_PROFILE_BY_ID.get(profileId) ?? COURT_PROFILE_BY_ID.get(DEFAULT_PROFILE_ID)!;
   const isAffidavit = profile.family === "affidavit";
   const hasCaseDetails = !!(profile.cover.fields.length || profile.cover.partyStyles?.length);
@@ -95,22 +98,13 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const clearDraftEffect = useEffectEvent(clearDraft);
   const readEntryEffect = useEffectEvent(ocr);
   useEffect(() => {
-    if (!host.runOcr || draftBusy || busyEntryId || importingSource || reading) return;
+    if (!host.runOcr || draftBusy || building || busyEntryId || importingSource || reading) return;
     const next = entries.find((entry) => entry.inputStatus !== "missing" &&
       sourceFormat(entry.file) === "pdf" && needsOcr(entry));
     if (next) void readEntryEffect(next);
-  }, [host, entries, draftBusy, busyEntryId, importingSource, reading]);
+  }, [host, entries, draftBusy, building, busyEntryId, importingSource, reading]);
 
-  stateRef.current = courtRecordDraft(profileId, cover, entries);
-  entriesRef.current = entries;
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      void saveDraftEffect();
-    };
-  }, []);
+  useEffect(() => () => { void saveDraftEffect(); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,13 +127,14 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }, [host, projectId]);
 
   useEffect(() => {
-    if (initialDraftId && initialDraftId === draftRef.current?.id &&
-        (draftRef.current.projectId ?? "") === (projectId ?? "")) return;
+    const current = sessionRef.current?.product;
+    if (initialDraftId && initialDraftId === current?.id &&
+        (current.projectId ?? "") === (projectId ?? "")) return;
     let cancelled = false;
-    routeLoading.current = !!initialDraftId || !!draftRef.current;
+    routeLoading.current = !!initialDraftId || !!current;
     setDraftBusy(routeLoading.current);
     void (async () => {
-      if (draftRef.current && !await saveDraftEffect()) return;
+      if (sessionRef.current && !await saveDraftEffect()) return;
       if (cancelled) return;
       if (!initialDraftId) {
         clearDraftEffect();
@@ -151,14 +146,14 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       if (!cancelled) await openDraftEffect(requested);
     })().catch((caught) => {
       if (!cancelled) {
-        if (projectId && draftRef.current?.projectId !== projectId) clearDraftEffect();
+        if (projectId && sessionRef.current?.product.projectId !== projectId) clearDraftEffect();
         setError(errorMessage(caught, "Drafts could not be opened."));
       }
     }).finally(() => { if (!cancelled) {
       routeLoading.current = false;
       setDraftBusy(false);
     } });
-    return () => { cancelled = true; openRequest.current += 1; };
+    return () => { cancelled = true; cancelOpen(); };
   }, [host, initialDraftId, projectId]);
 
   useEffect(() => {
@@ -169,19 +164,18 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }, [initialDraftId, initialDocuments]);
 
   useEffect(() => {
-    onDraftChange?.(draft, !routeLoading.current && draft === draftRef.current &&
-      !operationBusy && (!draft || sameState(draft.state, stateRef.current)));
-  }, [draft, operationBusy, profileId, cover, entries, onDraftChange]);
+    onDraftChange?.(draft, !routeLoading.current && !operationBusy && !unsaved);
+  }, [draft, operationBusy, unsaved, onDraftChange]);
 
   useEffect(() => {
     if (draft?.id && refreshToken?.id === draft.id) void refreshDraftEffect(refreshToken.revision);
   }, [draft?.id, refreshToken]);
 
   useEffect(() => {
-    if (!draft || draftBusy || building || saving || operationBusy && !reading ||
-        sameState(draft.state, stateRef.current)) return;
-    void saveDraftEffect();
-  }, [draft, operationBusy, reading, profileId, cover, entries]);
+    if (!unsaved || draftBusy || building || saving || busyEntryId || importingSource) return;
+    const timer = setTimeout(() => void saveDraftEffect(), SAVE_DELAY);
+    return () => clearTimeout(timer);
+  }, [session, unsaved, draftBusy, building, saving, busyEntryId, importingSource]);
 
   const report = useMemo(() => validateCourtRecord({
     profile,
@@ -192,15 +186,41 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const entryFindings = useMemo(() => findingsByEntry([...report.blockers, ...report.review]), [report]);
 
   function invalidate() {
-    stateVersion.current += 1;
     setResult(undefined);
     setError(undefined);
   }
 
-  function rememberDraft(next: WorkProduct<CourtRecordDraft>) {
-    draftRef.current = next;
-    if (!mounted.current) return;
-    setDraft(next);
+  function commit(next?: OpenDraft) { setSession(sessionRef.current = next); }
+
+  /** Every edit lands here: one next draft state, kept by reference when nothing changed. */
+  function edit(change: (current: OpenDraft) => DraftView) {
+    const current = sessionRef.current;
+    if (!current) return;
+    const next = change(current);
+    if (next.profileId === current.profileId && next.cover === current.cover &&
+        next.entries === current.entries) return;
+    const state = courtRecordDraft(next.profileId, next.cover, next.entries);
+    commit({ ...current, ...next,
+      state: sameState(state, current.state) ? current.state : state });
+  }
+
+  /** A prepared entry takes its place and lends its source fields to the cover. */
+  function putEntry(entry: RecordEntry, label?: string) {
+    edit((current) => ({ ...current, cover: sourceCover(current, entry),
+      entries: putPreparedEntry(current.entries, entry, label) }));
+    if (propagatingSourceFields(entry)) invalidate();
+  }
+
+  function sourceCover(view: DraftView, entry: RecordEntry) {
+    if (!propagatingSourceFields(entry)) return view.cover;
+    return fillSourceCover(COURT_PROFILE_BY_ID.get(view.profileId) ?? profile, view.cover,
+      [...coverSourceFields(view.entries.filter(({ id }) => id !== entry.id)),
+        entry.sourceFields!], coverSourceFields(view.entries));
+  }
+
+  function cancelOpen() { opening.current = { ...NO_OPEN, request: opening.current.request + 1 }; }
+
+  function listDraft(next: WorkProduct<CourtRecordDraft>) {
     if (projectId && next.projectId !== projectId) return;
     const { state, ...metadata } = next;
     setDrafts((current) => [{ ...metadata, profileId: state.profileId },
@@ -208,14 +228,18 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
   }
 
+  /** Adopt a revision the server just returned, keeping edits made while it was in flight. */
+  function adoptProduct(next: WorkProduct<CourtRecordDraft>, sent?: CourtRecordDraft) {
+    const current = sessionRef.current;
+    if (current?.product.id === next.id && next.revision >= current.product.revision) {
+      commit({ ...current, product: next,
+        state: current.state === (sent ?? current.product.state) ? next.state : current.state });
+    }
+    listDraft(next);
+  }
+
   function clearDraft() {
-    stateVersion.current += 1;
-    openRequest.current += 1;
-    openingRevision.current = undefined;
-    draftRef.current = undefined;
-    setDraft(undefined);
-    setProfileId(DEFAULT_PROFILE_ID);
-    setCover({}); setEntries([]);
+    cancelOpen(); commit();
     setResult(undefined); setShowErrors(false);
     setCreating(false); setSavedOpen(false);
     setSourceKindId(undefined); setSourceExhibitLabel(undefined);
@@ -224,75 +248,76 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   function saveCurrentDraft(): Promise<WorkProduct<CourtRecordDraft> | undefined> {
-    if (savingDraft.current) return savingDraft.current;
-    const current = draftRef.current;
-    if (!current || sameState(current.state, stateRef.current)) return Promise.resolve(current);
-    const operation = (async () => {
-      while (draftRef.current?.id === current.id) {
-        const basedOn = draftRef.current, state = stateRef.current;
-        if (sameState(basedOn.state, state)) return basedOn;
-        try {
-          const saved = await host.drafts.update<CourtRecordDraft>(current.id,
-            { revision: basedOn.revision, state });
-          if (!saved || draftRef.current?.id !== current.id) return saved;
-          if (saved.revision >= draftRef.current.revision) rememberDraft(saved);
-        } catch (caught) {
-          const latest = await host.drafts.get<CourtRecordDraft>(current.id);
-          if (latest.revision <= basedOn.revision) throw caught;
-          await openDraft(latest);
-          if (draftRef.current?.id === current.id && draftRef.current.revision < latest.revision) throw caught;
-        }
-      }
-    })().catch((caught) => {
-      if (mounted.current) setError(errorMessage(caught, "This draft could not be saved."));
+    return saveQueue.current = saveQueue.current.then(() => pushDraft().catch((caught) => {
+      setError(errorMessage(caught, "This draft could not be saved."));
       return undefined;
-    }).finally(() => { savingDraft.current = undefined; });
-    return savingDraft.current = operation;
+    }));
   }
 
-  async function openDraft(next: WorkProduct<CourtRecordDraft>, wasNew = false,
-    base = draftRef.current?.state) {
+  /** Send the draft on the revision it was based on; a conflict reopens and rebases here. */
+  async function pushDraft(): Promise<WorkProduct<CourtRecordDraft> | undefined> {
+    for (;;) {
+      const current = sessionRef.current;
+      if (!current) return undefined;
+      const { product, state } = current;
+      if (state === product.state) return product;
+      try {
+        const next = await host.drafts.update<CourtRecordDraft>(product.id,
+          { revision: product.revision, state });
+        if (!next || sessionRef.current?.product.id !== product.id) return next;
+        adoptProduct(next, state);
+      } catch (caught) {
+        const latest = await host.drafts.get<CourtRecordDraft>(product.id);
+        if (latest.revision <= product.revision) throw caught;
+        await openDraft(latest);
+        const rebased = sessionRef.current;
+        if (rebased?.product.id !== product.id ||
+            rebased.product.revision < latest.revision) throw caught;
+      }
+    }
+  }
+
+  async function openDraft(next: WorkProduct<CourtRecordDraft>, wasNew = false) {
     if (projectId && next.projectId !== projectId) {
       throw new Error("This Court Record draft is not in this project.");
     }
-    const opening = openingRevision.current;
-    if (opening?.id === next.id && opening.revision > next.revision) return;
-    openingRevision.current = { id: next.id, revision: next.revision };
-    const request = ++openRequest.current;
+    if (opening.current.id === next.id && opening.current.revision > next.revision) return;
+    const request = opening.current.request + 1;
+    opening.current = { id: next.id, revision: next.revision, request };
+    const before = sessionRef.current, resumed = before?.product.id === next.id;
     setDraftBusy(true);
     setError(undefined);
     setReading(undefined);
     setProgress("Opening draft");
     try {
-      const local = stateRef.current, live = entriesRef.current;
-      const state = base && draftRef.current?.id === next.id
-        ? rebaseDraft(base, local, next.state) : next.state;
+      const state = resumed ? rebaseDraft(before.product.state, before.state, next.state)
+        : next.state;
       const definition = COURT_PROFILE_BY_ID.get(state.profileId);
       if (!definition) throw new Error("This filing format is not available.");
+      const live = before?.entries ?? [];
       const restored = await restoreCourtRecordDraft({ ...next, state }, host, (message) => {
-        if (request === openRequest.current) setProgress(message);
-      },
-        draftRef.current?.id === next.id ? live : []);
-      if (request !== openRequest.current || draftRef.current?.id === next.id &&
-          draftRef.current.revision > next.revision) return;
-      stateVersion.current += 1;
-      setProfileId(definition.id);
-      const merged = fillExhibitLabels(rebaseDraft(live, entriesRef.current, restored));
-      const restoredCover = fillSourceCover(definition,
-        rebaseDraft(local.cover, stateRef.current.cover, state.cover),
-        coverSourceFields(merged), coverSourceFields(state.entries));
-      stateRef.current = courtRecordDraft(definition.id, restoredCover, merged);
-      setCover(restoredCover); setEntries(merged);
+        if (request === opening.current.request) setProgress(message);
+      }, resumed ? live : []);
+      const now = sessionRef.current;
+      if (request !== opening.current.request ||
+          now?.product.id === next.id && now.product.revision > next.revision) return;
+      const entries = fillExhibitLabels(rebaseDraft(live, now?.entries ?? live, restored));
+      const cover = fillSourceCover(definition,
+        rebaseDraft(before?.cover ?? {}, now?.cover ?? before?.cover ?? {}, state.cover),
+        coverSourceFields(entries), coverSourceFields(state.entries));
+      const edited = courtRecordDraft(definition.id, cover, entries);
+      commit({ product: next, profileId: definition.id, cover, entries,
+        state: sameState(edited, next.state) ? next.state : edited });
       setResult(undefined);
       setShowErrors(false);
       setCreating(false);
-      setRestoredEmpty(!wasNew && next.state.entries.length === 0); rememberDraft(next);
+      setRestoredEmpty(!wasNew && next.state.entries.length === 0); listDraft(next);
     } catch (caught) {
-      if (request === openRequest.current) {
+      if (request === opening.current.request) {
         setError(errorMessage(caught, "This draft could not be opened."));
       }
     } finally {
-      if (request === openRequest.current) {
+      if (request === opening.current.request) {
         setProgress(undefined);
         if (!routeLoading.current) setDraftBusy(false);
       }
@@ -300,11 +325,11 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   async function refreshDraft(expectedRevision = 0) {
-    const current = draftRef.current;
+    const current = sessionRef.current?.product;
     if (!current || current.revision >= expectedRevision) return;
     try {
       const latest = await host.drafts.get<CourtRecordDraft>(current.id);
-      const active = draftRef.current;
+      const active = sessionRef.current?.product;
       if (active?.id === current.id && latest.revision >= expectedRevision &&
           latest.revision > active.revision) {
         await openDraft(latest);
@@ -365,7 +390,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const current = await saveCurrentDraft();
     if (!current) return;
     try {
-      rememberDraft(await host.drafts.update(current.id, { revision: current.revision, title }));
+      adoptProduct(await host.drafts.update(current.id, { revision: current.revision, title }));
     } catch (caught) {
       setError(errorMessage(caught, "The draft could not be renamed."));
     }
@@ -389,22 +414,21 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
 
   async function ocr(entry: RecordEntry) {
     if (!host.runOcr) return;
-    const request = openRequest.current;
+    const request = opening.current.request;
     setReading({ id: entry.id });
     let patch: Partial<RecordEntry>;
     try {
       patch = await host.runOcr(entry, (message) => {
-        if (request === openRequest.current) setReading({ id: entry.id, message });
+        if (request === opening.current.request) setReading({ id: entry.id, message });
       });
     } catch {
       patch = { ocrAttemptedPages: [] };
     }
-    if (request !== openRequest.current || !mounted.current) return;
-    const current = entriesRef.current.find(({ id }) => id === entry.id);
+    if (request !== opening.current.request) return;
+    const current = sessionRef.current?.entries.find(({ id }) => id === entry.id);
     if (current && current.file === entry.file) {
-      const ready = applySourceEntryFields({ ...current, ...patch }, undefined, current.sourceFields);
-      setEntries((entries) => putPreparedEntry(entries, ready, current.exhibitLabel));
-      applySourceCover(ready);
+      putEntry(applySourceEntryFields({ ...current, ...patch }, undefined, current.sourceFields),
+        current.exhibitLabel);
     }
     setReading(undefined);
   }
@@ -413,41 +437,41 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const next = COURT_PROFILE_BY_ID.get(nextId);
     if (!next) return;
     if (next.id === profileId) { setCreating(false); return; }
-    const sourceFields = coverSourceFields(entries);
-    setCover((current) => {
+    const nextKinds = new Set(next.documentKinds.map(({ id }) => id));
+    const noteKinds = next.documentKinds.filter(({ descriptionOnly, requirement }) =>
+      descriptionOnly && requirement !== "forbidden");
+    edit((view) => {
+      const sourceFields = coverSourceFields(view.entries);
       const fields = new Set<string>(next.cover.fields.map(({ id }) => id));
-      const kept = Object.fromEntries(Object.entries(current)
+      const kept = Object.fromEntries(Object.entries(view.cover)
         .filter(([field]) => fields.has(field))) as CoverValues;
-      const styleId = current.partyStyleId;
       const styles = next.cover.partyStyles;
-      const style = styles?.find(({ id }) => id === styleId) ??
+      const style = styles?.find(({ id }) => id === view.cover.partyStyleId) ??
         (styles?.length === 1 ? styles[0] : undefined);
-      if (!style) return fillSourceCover(next, kept, sourceFields);
-      const groups = current.partyGroups?.flatMap((group) => {
+      const groups = style && view.cover.partyGroups?.flatMap((group) => {
         const definition = style.groups.find(({ id }) => id === group.id);
         return definition ? [{ ...group, role: definition.role,
           roleBelow: definition.roleBelow }] : [];
       });
       const eligible = new Set(groups?.filter((group) => !next.cover.filingGroupId ||
         group.id === next.cover.filingGroupId).flatMap((group) => group.parties.map(({ id }) => id)));
-      const retainedFilers = current.filingPartyIds?.filter((id) => eligible.has(id));
+      const retainedFilers = view.cover.filingPartyIds?.filter((id) => eligible.has(id));
       const filingPartyIds = retainedFilers?.length ? retainedFilers
         : next.cover.filingGroupId ? [...eligible] : undefined;
-      return fillSourceCover(next,
-        { ...kept, partyStyleId: style.id, partyGroups: groups, filingPartyIds }, sourceFields);
+      const oldKinds = new Set((COURT_PROFILE_BY_ID.get(view.profileId) ?? profile)
+        .documentKinds.map(({ id }) => id));
+      return { profileId: next.id,
+        cover: fillSourceCover(next, style
+          ? { ...kept, partyStyleId: style.id, partyGroups: groups, filingPartyIds }
+          : kept, sourceFields),
+        entries: fillExhibitLabels(view.entries.map((entry) =>
+          !oldKinds.has(entry.kindId) || nextKinds.has(entry.kindId) ? entry : {
+            ...entry, kindId: entry.descriptionOnly
+              ? noteKinds.length === 1 ? noteKinds[0].id : entry.kindId
+              : "unassigned",
+            exhibitLabel: undefined,
+          })) };
     });
-    setProfileId(next.id);
-    const oldKinds = new Set(profile.documentKinds.map(({ id }) => id));
-    const nextKinds = new Set(next.documentKinds.map(({ id }) => id));
-    const noteKinds = next.documentKinds.filter(({ descriptionOnly, requirement }) =>
-      descriptionOnly && requirement !== "forbidden");
-    setEntries((current) => fillExhibitLabels(current.map((entry) =>
-      !oldKinds.has(entry.kindId) || nextKinds.has(entry.kindId) ? entry : {
-        ...entry, kindId: entry.descriptionOnly
-          ? noteKinds.length === 1 ? noteKinds[0].id : entry.kindId
-          : "unassigned",
-        exhibitLabel: undefined,
-      })));
     setShowErrors(false);
     setCreating(false);
     invalidate();
@@ -457,14 +481,14 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     const kind = profile.documentKinds.find((item) => item.id === kindId &&
       item.requirement !== "forbidden" && !item.generated && !item.descriptionOnly);
     if (!kind) return;
-    const assigned = entries.find((entry) => entry.id === id);
-    setEntries((current) => fillExhibitLabels(current.map((entry) => {
-      if (entry.id !== id) return entry;
-      return applySourceEntryFields({ ...entry, kindId });
-    })));
-    if (assigned) {
-      applySourceCover(applySourceEntryFields({ ...assigned, kindId }));
-    }
+    edit((view) => {
+      const assigned = view.entries.find((entry) => entry.id === id);
+      return { ...view,
+        cover: assigned ? sourceCover(view, applySourceEntryFields({ ...assigned, kindId }))
+          : view.cover,
+        entries: fillExhibitLabels(view.entries.map((entry) => entry.id === id
+          ? applySourceEntryFields({ ...entry, kindId }) : entry)) };
+    });
     invalidate();
   }
 
@@ -493,25 +517,23 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         origin: { kind: "device" },
         binding: selection.input,
       };
-      setEntries((current) => current.some((entry) => entry.id === id)
-        ? current.map((entry) => entry.id === id ? pending : entry)
-        : [...current, pending]);
+      edit((view) => ({ ...view, entries: view.entries.some((entry) => entry.id === id)
+        ? view.entries.map((entry) => entry.id === id ? pending : entry)
+        : [...view.entries, pending] }));
       setBusyEntryId(id);
       setProgress(`Preparing ${file.name}`);
       invalidate();
       try {
         const prepared = await host.prepareDeviceFile(file, (message) => setProgress(message),
-          { workProductId: draftRef.current?.id, destination: kind });
-        const ready = applySourceEntryFields({ ...pending, ...prepared,
+          { workProductId: sessionRef.current?.product.id, destination: kind });
+        putEntry(applySourceEntryFields({ ...pending, ...prepared,
           binding: prepared.binding ?? selection.input }, previous ? undefined : pending.title,
-        previous?.sourceFields);
-        setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
-        applySourceCover(ready);
+        previous?.sourceFields), exhibitLabel);
       } catch (caught) {
-        setEntries((current) => current.map((entry) => entry.id === id
+        edit((view) => ({ ...view, entries: view.entries.map((entry) => entry.id === id
           ? previous ?? { ...entry,
             inspectionError: errorMessage(caught, "The PDF could not be prepared.") }
-          : entry));
+          : entry) }));
       } finally {
         setBusyEntryId(undefined);
         setProgress(undefined);
@@ -524,7 +546,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       (item.descriptionOnly || item.allowUnavailableNote));
     if (!kind) return;
     const id = crypto.randomUUID();
-    setEntries((current) => [...current, {
+    edit((view) => ({ ...view, entries: [...view.entries, {
       id,
       kindId,
       title: title ?? kind.defaultDescription ?? (kind.allowUnavailableNote
@@ -536,7 +558,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       encrypted: null,
       descriptionOnly: true,
       inputStatus: "ready",
-    }]);
+    }] }));
     invalidate();
     if (title === undefined) requestAnimationFrame(() =>
       document.getElementById(`entry-${id}-title`)?.focus());
@@ -552,7 +574,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       const resolved = await host.relinkInput(entry.binding);
       if (resolved.status === "missing") return;
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
-        (message) => setProgress(message), { workProductId: draftRef.current?.id,
+        (message) => setProgress(message), { workProductId: sessionRef.current?.product.id,
           destination: profile.documentKinds.find((kind) => kind.id === entry.kindId) });
       const ready = applySourceEntryFields({
         ...entry,
@@ -564,9 +586,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         ocrAttemptedPages: prepared.ocrAttemptedPages,
         nonTextPagesConfirmed: undefined,
       }, undefined, entry.sourceFields);
-      setEntries((current) => fillExhibitLabels(current.map((item) =>
-        item.id === id ? ready : item)));
-      applySourceCover(ready);
+      edit((view) => ({ ...view, cover: sourceCover(view, ready),
+        entries: fillExhibitLabels(view.entries.map((item) => item.id === id ? ready : item)) }));
       invalidate();
     } catch (caught) {
       if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -588,7 +609,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         return { ...entry, inputStatus: "missing" as const, missingReason: resolved.reason };
       }
       const prepared = resolved.prepared ?? await host.prepareDeviceFile(resolved.file,
-        (message) => setProgress(message), { workProductId: draftRef.current?.id, destination });
+        (message) => setProgress(message),
+        { workProductId: sessionRef.current?.product.id, destination });
       const next: RecordEntry = applySourceEntryFields({ ...entry, ...prepared,
         binding: resolved.input, inputStatus: resolved.status, missingReason: undefined,
         ocrAttemptedPages: resolved.status === "ready"
@@ -613,13 +635,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setBuilding(true);
     setError(undefined);
     setResult(undefined);
-    const version = stateVersion.current;
     try {
       const buildEntries = fillExhibitLabels(await currentInputs(entries));
       const buildCover = fillSourceCover(profile, cover, coverSourceFields(buildEntries),
         coverSourceFields(entries));
-      setEntries(buildEntries);
-      setCover(buildCover);
+      edit((view) => ({ ...view, cover: buildCover, entries: buildEntries }));
+      const buildBase = sessionRef.current?.state;
       const buildReport = validateCourtRecord({ profile, entries: buildEntries, cover: buildCover });
       if (!buildReport.ready) {
         setShowErrors(true);
@@ -634,7 +655,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         needsAttention: buildReport.review.map(({ title, detail }) => ({ title, detail })),
         onProgress: (message, completed, total) => setProgress(`${message} · ${completed}/${total}`),
       });
-      if (version !== stateVersion.current) {
+      if (buildBase !== sessionRef.current?.state) {
         throw new Error("The court record changed while it was building. Build it again.");
       }
       setResult(built);
@@ -650,7 +671,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   async function currentResultEntries() {
     if (!result) return;
     const current = await currentInputs(entries);
-    setEntries(current);
+    edit((view) => ({ ...view, entries: current }));
     const currentReport = validateCourtRecord({ profile, entries: current, cover });
     const stale = staleBuildSource(result.receipt, current);
     if (currentReport.ready && !stale) return current;
@@ -684,7 +705,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       if (!current) return;
       const saved = await host.saveArtifacts({ artifacts: result.artifacts,
         product: current, entries: currentEntries, receipt: result.receipt });
-      rememberDraft(saved.product);
+      adoptProduct(saved.product);
       setProgress(saved.notice ??
         `${result.artifacts.length} file${result.artifacts.length === 1 ? "" : "s"} saved`);
     } catch (caught) {
@@ -715,7 +736,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     setSourceOutputs([]);
     setSourceKindId(kindId);
     setSourceExhibitLabel(exhibitLabel);
-    const current = draftRef.current;
+    const current = sessionRef.current?.product;
     const kind = profile.documentKinds.find((item) => item.id === kindId);
     if (current && kind && host.searchDraftOutputs) {
       try { setSourceOutputs(await host.searchDraftOutputs("", kind, current)); }
@@ -745,10 +766,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
         ...(previous?.sourceExhibits ? { sourceExhibits: previous.sourceExhibits } : {}),
         ...prepared,
       };
-      const ready = applySourceEntryFields(entry,
-        previous ? undefined : entry.title, previous?.sourceFields);
-      setEntries((current) => putPreparedEntry(current, ready, exhibitLabel));
-      applySourceCover(ready);
+      putEntry(applySourceEntryFields(entry,
+        previous ? undefined : entry.title, previous?.sourceFields), exhibitLabel);
       setSourceKindId(undefined);
       setSourceExhibitLabel(undefined);
     } catch (caught) {
@@ -761,15 +780,6 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   }
 
   const sourceKind = profile.documentKinds.find((item) => item.id === sourceKindId);
-
-  function applySourceCover(entry?: RecordEntry) {
-    if (!entry || !propagatingSourceFields(entry)) return;
-    const previous = coverSourceFields(entries);
-    const sources = [...coverSourceFields(entries.filter(({ id }) => id !== entry.id)),
-      entry.sourceFields!];
-    setCover((current) => fillSourceCover(profile, current, sources, previous));
-    invalidate();
-  }
   const WorkspaceElement = host.mode === "standalone" ? "main" : "div";
   const documents = (heading: string, kindIds?: string[], showUnassigned = false, step?: number) => (
     <CourtRecordDocuments
@@ -783,21 +793,11 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       onFiles={(kindId, files, exhibitLabel) => void addFiles(kindId, files, exhibitLabel)}
       onDescription={addDescription}
       onChoose={(kindId, exhibitLabel, entryId) => void openSource(kindId, exhibitLabel, entryId)}
-      onEntry={(id, patch) => { setEntries((current) => current.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)); invalidate(); }}
-      onAssign={(id, label) => { setEntries((current) => assignExhibit(current, id, label)); invalidate(); }}
-      onAddExhibit={() => {
-        const slots = sourceExhibitSlots(entries);
-        const affidavit = entries.find((entry) => entry.kindId === "affidavit");
-        if (!slots || !affidavit || slots.labels.length >= 702) return;
-        setEntries((current) => current.map((entry) => entry.id === affidavit.id ? {
-          ...entry, sourceExhibits: { sourceSha256: slots.sourceSha256,
-            labels: [...slots.labels, exhibitName(slots.labels.length)] },
-        } : entry));
-        invalidate();
-      }}
+      onEntry={(id, patch) => { edit((view) => ({ ...view, entries: view.entries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry) })); invalidate(); }}
+      onAssign={(id, label) => { edit((view) => ({ ...view, entries: assignExhibit(view.entries, id, label) })); invalidate(); }}
+      onAddExhibit={() => { edit(addExhibitSlot); invalidate(); }}
       onAssignKind={assignKind}
-      onRemove={(id) => { setEntries((current) =>
-        fillExhibitLabels(current.filter((entry) => entry.id !== id))); invalidate(); }}
+      onRemove={(id) => { edit((view) => ({ ...view, entries: fillExhibitLabels(view.entries.filter((entry) => entry.id !== id)) })); invalidate(); }}
       reading={reading}
       onRelink={host.relinkInput ? (id) => void relinkEntry(id) : undefined}
     />
@@ -809,9 +809,11 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
     onSaveFilingContact={canSaveFilingContact ? () => void saveFilingContact() : undefined}
     savingFilingContact={savingFilingContact}
     onCover={(field, value) => {
-      setCover((current) => field === "partyStyleId" && typeof value === "string"
-        ? fillSourceCover(profile, { ...current, [field]: value }, coverSourceFields(entries))
-        : { ...current, [field]: value });
+      edit((view) => ({ ...view,
+        cover: field === "partyStyleId" && typeof value === "string"
+          ? fillSourceCover(profile, { ...view.cover, [field]: value },
+            coverSourceFields(view.entries))
+          : { ...view.cover, [field]: value } }));
       invalidate();
     }} />;
   const requiredInputs = profile.documentKinds.filter((kind) => kind.requirement === "required" &&
@@ -1010,6 +1012,17 @@ function fillExhibitLabels(entries: RecordEntry[]) {
     }
     return current ? { ...entry, exhibitLabel: undefined } : entry;
   });
+}
+
+/** One more slot on the affidavit's exhibit list. */
+function addExhibitSlot(view: DraftView): DraftView {
+  const slots = sourceExhibitSlots(view.entries);
+  const affidavit = view.entries.find((entry) => entry.kindId === "affidavit");
+  if (!slots || !affidavit || slots.labels.length >= 702) return view;
+  return { ...view, entries: view.entries.map((entry) => entry.id === affidavit.id ? {
+    ...entry, sourceExhibits: { sourceSha256: slots.sourceSha256,
+      labels: [...slots.labels, exhibitName(slots.labels.length)] },
+  } : entry) };
 }
 
 function assignExhibit(entries: RecordEntry[], id: string, label?: string) {
