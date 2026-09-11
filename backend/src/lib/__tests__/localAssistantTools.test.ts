@@ -1,10 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import {
-  Document,
-  Packer,
   Paragraph,
   Table,
   TableCell,
@@ -13,7 +10,7 @@ import {
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { zipDocumentBytes } from "./support/documentBytes";
+import { docxBytes } from "./support/docxFixtures";
 import { resourceReference } from "../resourceReferences";
 import { availableDocumentsPrompt, globPattern } from "../chat/resourceTools";
 
@@ -30,95 +27,20 @@ let temporaryDirectory: string | null = null;
 beforeEach(() => { process.env.AUTH_MODE = "local"; });
 
 const nativeTableBytes = () =>
-  Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph("1.01 Schedule."),
-            new Table({
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Alpha")] }),
-                    new TableCell({
-                      children: [new Paragraph("Unique cell value")],
-                    }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Director")] }),
-                    new TableCell({ children: [new Paragraph("$10,000")] }),
-                    new TableCell({ children: [new Paragraph("$50,000")] }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Secretary")] }),
-                    new TableCell({ children: [new Paragraph("$15,000")] }),
-                    new TableCell({ children: [new Paragraph("$75,000")] }),
-                  ],
-                }),
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph("Treasurer")] }),
-                    new TableCell({ children: [new Paragraph("$25,000")] }),
-                    new TableCell({ children: [new Paragraph("$100,000")] }),
-                  ],
-                }),
-              ],
-            }),
-            new Paragraph("2.01 Unique elsewhere."),
-          ],
-        },
-      ],
+  docxBytes([
+    new Paragraph("1.01 Schedule."),
+    new Table({
+      rows: [
+        ["Alpha", "Unique cell value"],
+        ["Director", "$10,000", "$50,000"],
+        ["Secretary", "$15,000", "$75,000"],
+        ["Treasurer", "$25,000", "$100,000"],
+      ].map((cells) => new TableRow({
+        children: cells.map((text) => new TableCell({ children: [new Paragraph(text)] })),
+      })),
     }),
-  );
-
-const numberedReferenceBytes = () =>
-  Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: [
-            "ARTICLE I",
-            "COVENANTS",
-            "",
-            "1.01 First. This points to Section 1.03.",
-            "",
-            "1.02 Delete Me. This provision is obsolete.",
-            "",
-            "1.03 Third. This provision remains.",
-            "",
-            "ARTICLE II",
-            "GENERAL",
-            "",
-            "2.01 Pointer. Section 1.03 controls.",
-          ].map((text) => new Paragraph(text)),
-        },
-      ],
-    }),
-  );
-
-async function expectReadRecipesAccepted(
-  tools: typeof import("./support/localAssistantTools"),
-  filePath: string,
-  rows: Array<{ read: Record<string, unknown> }>,
-) {
-  const reads = await tools.runLocalAssistantTools(
-    "local-user",
-    rows.map((row, index) => ({
-      id: `recipe-${index}`,
-      name: "Read",
-      input: { file_path: filePath, ...row.read },
-    })),
-  );
-  expect(reads).toHaveLength(rows.length);
-  for (const read of reads) {
-    expect(read.evidence?.length, read.content).toBeGreaterThan(0);
-  }
-}
+    new Paragraph("2.01 Unique elsewhere."),
+  ]);
 
 async function seedResearch(
   store: typeof import("./support/localDocumentFixtures"),
@@ -211,11 +133,7 @@ describe("local assistant tools", () => {
   }) => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-edit-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const bytes = await Packer.toBuffer(
-      new Document({
-        sections: [{ children: [new Paragraph("Original provision.")] }],
-      }),
-    );
+    const bytes = await docxBytes([new Paragraph("Original provision.")]);
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -329,9 +247,7 @@ describe("local assistant tools", () => {
       userId: "local-user",
       kind: "file",
       filename: "unrelated.docx",
-      bytes: await Packer.toBuffer(new Document({
-        sections: [{ children: [new Paragraph("Unrelated source.")] }],
-      })),
+      bytes: await docxBytes([new Paragraph("Unrelated source.")]),
     });
     const [
       { createChatToolRunner },
@@ -485,11 +401,7 @@ describe("local assistant tools", () => {
   it("applies deterministic DOCX operations through edit_docx_advanced", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-ref-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const bytes = await Packer.toBuffer(
-      new Document({
-        sections: [{ children: [new Paragraph("Original provision.")] }],
-      }),
-    );
+    const bytes = await docxBytes([new Paragraph("Original provision.")]);
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -728,20 +640,12 @@ describe("local assistant tools", () => {
       path.join(os.tmpdir(), "beaver-code-duplicate-handle-"),
     );
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const bytes = await Packer.toBuffer(
-      new Document({
-        sections: [
-          {
-            children: [
-              new Paragraph("1.01 First occurrence."),
-              new Paragraph("ordinary text"),
-              new Paragraph("1.01 Repeated occurrence."),
-              new Paragraph("UNIQUE NEEDLE"),
-            ],
-          },
-        ],
-      }),
-    );
+    const bytes = await docxBytes([
+      new Paragraph("1.01 First occurrence."),
+      new Paragraph("ordinary text"),
+      new Paragraph("1.01 Repeated occurrence."),
+      new Paragraph("UNIQUE NEEDLE"),
+    ]);
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -769,11 +673,7 @@ describe("local assistant tools", () => {
   it("keeps coding replace_all exact-case and no-match versionless", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-code-all-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    const bytes = await Packer.toBuffer(
-      new Document({
-        sections: [{ children: [new Paragraph("Term term TERM.")] }],
-      }),
-    );
+    const bytes = await docxBytes([new Paragraph("Term term TERM.")]);
     const store = await import("./support/localDocumentFixtures");
     const document = await store.createLocalDocument({
       userId: "local-user",
@@ -824,9 +724,7 @@ describe("local assistant tools", () => {
         userId: "local-user",
         kind: "file",
         filename: "shared.docx",
-        bytes: await Packer.toBuffer(
-          new Document({ sections: [{ children: [new Paragraph(text)] }] }),
-        ),
+        bytes: await docxBytes([new Paragraph(text)]),
       });
     const intended = await makeDoc("Alpha Beta.");
     const other = await makeDoc("Other document.");

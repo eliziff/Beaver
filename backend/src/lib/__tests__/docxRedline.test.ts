@@ -15,61 +15,36 @@ import {
   WidthType,
 } from "docx";
 import { beforeAll, describe, expect, it } from "vitest";
+import { docxBytes } from "./support/docxFixtures";
 
 import { projectDocxRedline } from "../docx/redline";
 import { extractDocxBodyText } from "../docxTrackedChanges";
-import { pathologyFixtureBuilders } from "./fixtures/docx-pathologies/generate";
+import { pathologyFixtureBuilders as fixtures } from "./fixtures/docx-pathologies/generate";
 
 const REVISION = { author: "Counsel", date: "2026-01-01T00:00:00Z" };
 
-const fixtures = new Map<string, Buffer>();
-
-async function fixture(name: string) {
-  const cached = fixtures.get(name);
-  if (cached) return cached;
-  const build = pathologyFixtureBuilders[name];
-  if (!build) throw new Error(`missing fixture ${name}`);
-  const bytes = await build();
-  fixtures.set(name, bytes);
-  return bytes;
-}
-
 /** The document scripts/probe-manual-redline.ts builds, byte for byte. */
 function manualRedlineProbe() {
-  return Packer.toBuffer(
-    new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph({
-              children: [
-                new TextRun("The Tenant shall pay Rent of "),
-                new TextRun({ text: "$117,000", strike: true }),
-                new TextRun({ text: " $125,000", color: "FF0000" }),
-                new TextRun(" per annum. "),
-                new TextRun({
-                  text: "This indemnity survives termination.",
-                  strike: true,
-                  color: "FF0000",
-                }),
-              ],
-            }),
-          ],
-        },
+  return docxBytes([
+    new Paragraph({
+      children: [
+        new TextRun("The Tenant shall pay Rent of "),
+        new TextRun({ text: "$117,000", strike: true }),
+        new TextRun({ text: " $125,000", color: "FF0000" }),
+        new TextRun(" per annum. "),
+        new TextRun({
+          text: "This indemnity survives termination.",
+          strike: true,
+          color: "FF0000",
+        }),
       ],
     }),
-  );
+  ]);
 }
-
-beforeAll(async () => {
-  for (const name of ["clean", "tracked-changes", "comments"]) {
-    await fixture(name);
-  }
-});
 
 describe("projectDocxRedline on native tracked changes", () => {
   it("wraps w:ins and restores w:del, with counts that match the markup", async () => {
-    const found = await projectDocxRedline(await fixture("tracked-changes"));
+    const found = await projectDocxRedline(await fixtures["tracked-changes"]());
     expect(found.text).toBe(
       "The seat of arbitration is {++Toronto++}{--Zurich--}.\n" +
         "Costs follow {++the cause++}.",
@@ -83,7 +58,6 @@ describe("projectDocxRedline on native tracked changes", () => {
     });
     expect(found.notes).toEqual([]);
   });
-
 });
 
 describe("projectDocxRedline on a manual ink redline", () => {
@@ -114,24 +88,16 @@ describe("projectDocxRedline on a manual ink redline", () => {
     // Same thresholds as the pathology sniffer: blue and dark grey are not
     // an edit, and `auto` is not a colour at all.
     const found = await projectDocxRedline(
-      await Packer.toBuffer(
-        new Document({
-          sections: [
-            {
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: "blue", color: "0000FF" }),
-                    new TextRun({ text: "grey", color: "808080" }),
-                    new TextRun({ text: "auto", color: "auto" }),
-                    new TextRun({ text: "dark red", color: "C00000" }),
-                  ],
-                }),
-              ],
-            },
+      await docxBytes([
+        new Paragraph({
+          children: [
+            new TextRun({ text: "blue", color: "0000FF" }),
+            new TextRun({ text: "grey", color: "808080" }),
+            new TextRun({ text: "auto", color: "auto" }),
+            new TextRun({ text: "dark red", color: "C00000" }),
           ],
         }),
-      ),
+      ]),
     );
     expect(found.text).toBe("bluegreyauto{++dark red++}[ink]");
     expect(found.counts.ink_insertions).toBe(1);
@@ -139,27 +105,19 @@ describe("projectDocxRedline on a manual ink redline", () => {
 
   it("does not call a tracked insertion ink because it is coloured red", async () => {
     const found = await projectDocxRedline(
-      await Packer.toBuffer(
-        new Document({
-          sections: [
-            {
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun("The term is "),
-                    new InsertedTextRun({
-                      text: "three years",
-                      color: "FF0000",
-                      id: 1,
-                      ...REVISION,
-                    }),
-                  ],
-                }),
-              ],
-            },
+      await docxBytes([
+        new Paragraph({
+          children: [
+            new TextRun("The term is "),
+            new InsertedTextRun({
+              text: "three years",
+              color: "FF0000",
+              id: 1,
+              ...REVISION,
+            }),
           ],
         }),
-      ),
+      ]),
     );
     expect(found.text).toBe("The term is {++three years++}");
     expect(found.counts.ink_insertions).toBe(0);
@@ -169,7 +127,7 @@ describe("projectDocxRedline on a manual ink redline", () => {
 
 describe("projectDocxRedline on comments", () => {
   it("renders each comment body at the end of the range it annotates", async () => {
-    const found = await projectDocxRedline(await fixture("comments"));
+    const found = await projectDocxRedline(await fixtures["comments"]());
     expect(found.text).toBe(
       "This agreement is governed by Ontario law." +
         "{>>Counsel: Confirm the governing law.<<}\n" +
@@ -182,40 +140,33 @@ describe("projectDocxRedline on comments", () => {
 
   it("notes a comment body that no range in the body anchors", async () => {
     const found = await projectDocxRedline(
-      await Packer.toBuffer(
-        new Document({
-          comments: {
-            children: [
-              {
-                id: 0,
-                author: "Counsel",
-                date: new Date("2026-01-01T00:00:00Z"),
-                children: [new Paragraph("Anchored.")],
-              },
-              {
-                id: 1,
-                author: "Counsel",
-                date: new Date("2026-01-01T00:00:00Z"),
-                children: [new Paragraph("Orphaned.")],
-              },
-            ],
-          },
-          sections: [
-            {
-              children: [
-                new Paragraph({
-                  children: [
-                    new CommentRangeStart(0),
-                    new TextRun("The indemnity is capped."),
-                    new CommentRangeEnd(0),
-                    new TextRun({ children: [new CommentReference(0)] }),
-                  ],
-                }),
-              ],
-            },
+      await docxBytes([
+        new Paragraph({
+          children: [
+            new CommentRangeStart(0),
+            new TextRun("The indemnity is capped."),
+            new CommentRangeEnd(0),
+            new TextRun({ children: [new CommentReference(0)] }),
           ],
         }),
-      ),
+      ], {
+        comments: {
+          children: [
+            {
+              id: 0,
+              author: "Counsel",
+              date: new Date("2026-01-01T00:00:00Z"),
+              children: [new Paragraph("Anchored.")],
+            },
+            {
+              id: 1,
+              author: "Counsel",
+              date: new Date("2026-01-01T00:00:00Z"),
+              children: [new Paragraph("Orphaned.")],
+            },
+          ],
+        },
+      }),
     );
     expect(found.counts.comments).toBe(1);
     expect(found.text).toContain("{>>Counsel: Anchored.<<}");
@@ -227,7 +178,7 @@ describe("projectDocxRedline on comments", () => {
 
 describe("projectDocxRedline on a clean document", () => {
   it("returns exactly the extracted body text, with no markers at all", async () => {
-    const bytes = await fixture("clean");
+    const bytes = await fixtures["clean"]();
     const found = await projectDocxRedline(bytes);
     expect(found.text).toBe(await extractDocxBodyText(bytes));
     expect(found.text).not.toMatch(/\{\+\+|\{--|\{>>|\[ink\]/u);
@@ -245,22 +196,14 @@ describe("projectDocxRedline on a clean document", () => {
 describe("projectDocxRedline marker collision", () => {
   it("notes literal marker text rather than escaping it silently", async () => {
     const found = await projectDocxRedline(
-      await Packer.toBuffer(
-        new Document({
-          sections: [
-            {
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun("The convention is to write {++ for an add, "),
-                    new DeletedTextRun({ text: "and --} for a cut", id: 1, ...REVISION }),
-                  ],
-                }),
-              ],
-            },
+      await docxBytes([
+        new Paragraph({
+          children: [
+            new TextRun("The convention is to write {++ for an add, "),
+            new DeletedTextRun({ text: "and --} for a cut", id: 1, ...REVISION }),
           ],
         }),
-      ),
+      ]),
     );
     expect(found.text).toBe(
       "The convention is to write {++ for an add, {--and --} for a cut--}",
@@ -276,49 +219,41 @@ describe("projectDocxRedline marker collision", () => {
 describe("projectDocxRedline coverage of the body walk", () => {
   it("reaches paragraphs inside tables and text inside hyperlinks", async () => {
     const found = await projectDocxRedline(
-      await Packer.toBuffer(
-        new Document({
-          sections: [
-            {
+      await docxBytes([
+        new Paragraph({
+          children: [
+            new ExternalHyperlink({
+              link: "https://example.org/act",
               children: [
-                new Paragraph({
-                  children: [
-                    new ExternalHyperlink({
-                      link: "https://example.org/act",
-                      children: [
-                        new DeletedTextRun({
-                          text: "the repealed Act",
-                          id: 1,
-                          ...REVISION,
-                        }),
-                      ],
-                    }),
-                  ],
+                new DeletedTextRun({
+                  text: "the repealed Act",
+                  id: 1,
+                  ...REVISION,
                 }),
-                new Table({
-                  width: { size: 9000, type: WidthType.DXA },
-                  rows: [
-                    new TableRow({
+              ],
+            }),
+          ],
+        }),
+        new Table({
+          width: { size: 9000, type: WidthType.DXA },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({
+                  children: [
+                    new Paragraph({
                       children: [
-                        new TableCell({
-                          children: [
-                            new Paragraph({
-                              children: [
-                                new TextRun("Fee: "),
-                                new TextRun({ text: "$500", strike: true }),
-                              ],
-                            }),
-                          ],
-                        }),
+                        new TextRun("Fee: "),
+                        new TextRun({ text: "$500", strike: true }),
                       ],
                     }),
                   ],
                 }),
               ],
-            },
+            }),
           ],
         }),
-      ),
+      ]),
     );
     expect(found.text).toBe("{--the repealed Act--}\nFee: {--$500--}[ink]");
     expect(found.counts.tracked_deletions).toBe(1);

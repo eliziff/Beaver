@@ -1,19 +1,13 @@
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
+import { docxXml as packageXml } from "./support/docxFixtures";
 
 import {
   parseDocxMarkdown,
   renderDocxMarkdown,
   renderDocxMarkdownDocument,
 } from "../chat/tools/docxMarkdown";
-
-async function packageXml(bytes: Buffer, name: string) {
-  const zip = await JSZip.loadAsync(bytes);
-  const file = zip.file(name);
-  if (!file) throw new Error(`Missing ${name}`);
-  return file.async("string");
-}
 
 const sample = `# Services {#services}
 
@@ -322,67 +316,6 @@ break
         { type: "footnote", id: "1" },
       ],
     });
-  });
-
-  it("recovers common legal-draft Markdown without leaking syntax or double numbering", () => {
-    const parsed = parseDocxMarkdown(`THIS IS THE LAST WILL of \\_\\_\\_\\_.
-
-# {-}
-## Part 1 — Interpretation
-### 1. Definitions and Interpretation
-
-(a) "my Partner" means A; (b) "my Children" means B; (c) "my Trustees" means C.`);
-
-    expect(parsed.blocks).toMatchObject([
-      {
-        type: "paragraph",
-        children: [{ type: "text", text: "THIS IS THE LAST WILL of ____." }],
-      },
-      {
-        type: "heading",
-        numbered: false,
-        children: [{ type: "text", text: "Part 1 — Interpretation" }],
-      },
-      {
-        type: "heading",
-        numbered: false,
-        children: [
-          { type: "text", text: "1. Definitions and Interpretation" },
-        ],
-      },
-      {
-        type: "list",
-        items: [
-          { ordered: true, level: 1 },
-          { ordered: true, level: 1 },
-          { ordered: true, level: 1 },
-        ],
-      },
-    ]);
-  });
-
-  it("keeps native controls when a model wraps a field in emphasis", async () => {
-    const parsed = parseDocxMarkdown(
-      "The premises are **{{premises_address}}** and the tenant is *{{tenant_name}}*.",
-    );
-    expect(parsed.blocks[0]).toMatchObject({
-      type: "paragraph",
-      children: [
-        { type: "text", text: "The premises are " },
-        { type: "control", tag: "premises_address" },
-        { type: "text", text: " and the tenant is " },
-        { type: "control", tag: "tenant_name" },
-        { type: "text", text: "." },
-      ],
-    });
-    const xml = await packageXml(
-      await renderDocxMarkdown(
-        "The premises are **{{premises_address}}** and the tenant is *{{tenant_name}}*.",
-      ),
-      "word/document.xml",
-    );
-    expect(xml).toContain('<w:tag w:val="premises_address"/>');
-    expect(xml).toContain('<w:tag w:val="tenant_name"/>');
   });
 
   it("recovers weak-model legal syntax without downgrading native controls", async () => {
