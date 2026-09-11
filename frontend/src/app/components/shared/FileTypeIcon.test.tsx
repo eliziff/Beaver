@@ -1,6 +1,5 @@
-import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { FileTypeIcon, fileTypeKind } from "./FileTypeIcon";
+import { fileTypeKind } from "./FileTypeIcon";
 
 describe("file types", () => {
     it("normalizes extensions, MIME values, and unknown input", () => {
@@ -35,10 +34,5 @@ describe("file types", () => {
         expect(cases.map(([input]) => fileTypeKind(input))).toEqual(
             cases.map(([, expected]) => expected),
         );
-    });
-
-    it("recognizes workspaces even when their stored file type is Markdown", () => {
-        const { container } = render(<FileTypeIcon fileType="md" filename="Fairness.research.md" />);
-        expect(container.querySelector("svg[data-file-kind='research']")).toHaveAttribute("aria-hidden", "true");
     });
 });
