@@ -985,21 +985,15 @@ export function DocTable({
             <input ref={versionUploadInputRef} type="file"
                 accept={SUPPORTED_DOCUMENT_ACCEPT}
                 className="hidden" onChange={handleVersionUploadInputChange} />
-            <input ref={documentUploadInputRef} type="file"
-                accept={SUPPORTED_DOCUMENT_ACCEPT} multiple className="hidden"
-                onChange={(event) => {
-                    const files = Array.from(event.target.files ?? []);
-                    event.target.value = "";
-                    void uploadCollection(files);
-                }} />
-            <input ref={directoryUploadInputRef} type="file"
-                accept={SUPPORTED_DOCUMENT_ACCEPT} multiple className="hidden"
-                {...{ webkitdirectory: "", directory: "" }}
-                onChange={(event) => {
-                    const files = Array.from(event.target.files ?? []);
-                    event.target.value = "";
-                    void uploadCollection(files, true);
-                }} />
+            {([[documentUploadInputRef, false], [directoryUploadInputRef, true]] as const)
+                .map(([ref, directory]) => <input key={String(directory)} ref={ref} type="file"
+                    accept={SUPPORTED_DOCUMENT_ACCEPT} multiple className="hidden"
+                    {...(directory ? { webkitdirectory: "", directory: "" } : {})}
+                    onChange={(event) => {
+                        const files = Array.from(event.target.files ?? []);
+                        event.target.value = "";
+                        void uploadCollection(files, directory);
+                    }} />)}
             {WARNING_KINDS.map((kind) => (
                 <WarningPopup key={kind} open={!!warnings[kind]}
                     onClose={() => setWarning(kind, null)}
