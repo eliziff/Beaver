@@ -88,12 +88,6 @@ function cookieClient(res: Response): ReturnType<typeof createRequestSupabase> |
   return null;
 }
 
-async function currentUser(client: ReturnType<typeof createRequestSupabase>) {
-  const { data, error } = await client.auth.getUser();
-  if (error || !data.user) throw error ?? new Error("Authentication session missing");
-  return data.user;
-}
-
 authRouter.post("/login", route(async (req, res) => {
   const parsed = credentials.safeParse(req.body);
   if (!parsed.success) return invalid(res);
@@ -160,7 +154,9 @@ authRouter.post("/password-reset", route(async (req, res) => {
 authRouter.get("/session", requireAuth, route(async (_req, res) => {
   const client = cookieClient(res);
   if (!client) return;
-  res.json({ user: publicAuthUser(await currentUser(client)) });
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) throw error ?? new Error("Authentication session missing");
+  res.json({ user: publicAuthUser(data.user) });
 }));
 
 authRouter.post("/logout", route(async (req, res) => {

@@ -45,20 +45,12 @@ function userId(res: Response) {
   return String(res.locals.userId);
 }
 
-function notModified(req: Request, etag: string) {
-  const supplied = req.headers["if-none-match"];
-  if (!supplied) return false;
-  return supplied
-    .split(",")
-    .map((value) => value.trim())
-    .some((value) => value === "*" || value === etag);
-}
-
 function sendViewer(req: Request, res: Response,
   resolved: Awaited<ReturnType<LegalSourceApplication["viewer"]>>, started: number) {
   res.set({ "Server-Timing": `legal-source;dur=${(performance.now() - started).toFixed(1)}`,
     "Cache-Control": "private, max-age=0, must-revalidate", ETag: resolved.etag, Vary: "Authorization" });
-  if (notModified(req, resolved.etag)) res.status(304).end();
+  if (req.headers["if-none-match"]?.split(",").map((value) => value.trim())
+    .some((value) => value === "*" || value === resolved.etag)) res.status(304).end();
   else res.json(resolved.payload);
 }
 

@@ -93,13 +93,6 @@ async function sendDraft(res: Response, state: AuthoritiesDraft,
       filename: "source.pdf", mimeType: "application/pdf", bytes: item.bytes })));
 }
 
-async function resolveDraft(res: Response, initial: AuthoritiesDraft,
-  resolveSources: typeof resolveAuthoritiesSources, signal?: AbortSignal) {
-  const prepared = await resolveSources(initial, undefined, signal);
-  await sendDraft(res, attachPreparedSources(prepared.draft, prepared.attachments),
-    prepared.attachments);
-}
-
 async function standaloneSource(req: Request): Promise<
   Parameters<typeof importStandaloneAuthoritiesFile>[0]
 > {
@@ -192,7 +185,10 @@ export function createAuthoritiesRuntimeRouter(
   }));
   router.post("/sources", asyncRoute(async (req, res) => {
     const preparation = new AbortController(); res.once("close", () => preparation.abort());
-    await resolveDraft(res, draft(req.body?.draft), resolveSources, preparation.signal);
+    const prepared = await resolveSources(draft(req.body?.draft), undefined,
+      preparation.signal);
+    await sendDraft(res, attachPreparedSources(prepared.draft, prepared.attachments),
+      prepared.attachments);
   }));
   router.post("/discrepancies", asyncRoute(async (req, res) => {
     const review = new AbortController(); res.once("close", () => review.abort());
