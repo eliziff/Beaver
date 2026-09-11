@@ -14,6 +14,7 @@ import { ApplicationError } from "./applicationError";
 import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
 import { compareDocxVersions } from "./docxCompareVersions";
 import { MAX_DRAFTING_DOCX_BYTES } from "./docx/core";
+import { mapBounded } from "./mapBounded";
 import { sha256 } from "./hash";
 import { normalizeDocumentMetadata, normalizeDocumentNotes,
   type LibraryKind } from "./normalize";
@@ -190,18 +191,6 @@ function revisedProvenance(value: DocumentProvenance | undefined, added: number,
     changeCount: (continuing ? previous?.changeCount ?? 0 : 0) + added,
     ...(previous?.generation && { generation: { ...previous.generation,
       authorityLedger: undefined } }) };
-}
-
-async function mapBounded<T, R>(input: readonly T[], fn: (value: T, index: number) => Promise<R>) {
-  const output = new Array<R>(input.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(4, input.length) }, async () => {
-    while (next < input.length) {
-      const index = next++;
-      output[index] = await fn(input[index], index);
-    }
-  }));
-  return output;
 }
 
 export function createDocumentApplication(repository: DocumentRepository,

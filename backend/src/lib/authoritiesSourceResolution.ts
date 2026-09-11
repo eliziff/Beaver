@@ -9,6 +9,7 @@ import { canonicalJsonSha256, sha256 } from "./hash";
 import { a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
+import { mapBounded } from "./mapBounded";
 import { downloadProviderOriginalPdf } from "./providerPdfLibraryBridge";
 import { structureNative } from "./structureNative";
 
@@ -61,18 +62,6 @@ const sourceIdentityLanguage = (authority: AuthorityIdentity) =>
   authority.sourceIdentity?.stableSourceId.match(/^a2aj:(en|fr):/u)?.[1] as
     "en" | "fr" | undefined;
 
-async function concurrentMap<T, R>(items: T[], operation: (item: T) => Promise<R>) {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
-    while (next < items.length) {
-      const index = next++;
-      results[index] = await operation(items[index]);
-    }
-  }));
-  return results;
-}
-
 export type PreparedAuthoritySource = {
   authorityId: string;
   filename: string;
@@ -105,7 +94,7 @@ export async function resolveAuthoritiesSources(
     return fetchable && authoritySourceRequirement(draft, authority, owed)
       ? [{ id, authority }] : [];
   });
-  const resolutions = await concurrentMap(candidates, async ({ id, authority }) => {
+  const resolutions = await mapBounded(candidates, async ({ id, authority }) => {
     signal?.throwIfAborted();
     if (authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj") return { source: null };
     let unavailable = false;
@@ -145,7 +134,7 @@ export async function resolveAuthoritiesSources(
   }
   // Authorities the Canadian corpus does not hold: US reporter and UK neutral
   // citations resolve through their own providers into the same source pipeline.
-  const foreign = await concurrentMap(candidates.flatMap(({ id, authority }, index) =>
+  const foreign = await mapBounded(candidates.flatMap(({ id, authority }, index) =>
     authority.kind === "case" && authority.sourceIdentity?.provider !== "a2aj" &&
       !("mismatch" in resolutions[index]) && !resolutions[index].source &&
       ["unresolved", "resolved"].includes(draft.authorities[id]?.source.kind) ? [id] : []), async (id) => {
@@ -179,7 +168,7 @@ export async function resolveAuthoritiesSources(
       unique.set(identity!.stableSourceId, { authorityId: id, authority, source });
     }
   }
-  const languageSources = (await concurrentMap([...unique.values()], async (item) => {
+  const languageSources = (await mapBounded([...unique.values()], async (item) => {
     const { authority, source } = item;
     const existing = new Set(attachedAuthoritySources(authority.source)
       .map(({ language }) => language));
@@ -199,7 +188,7 @@ export async function resolveAuthoritiesSources(
       .map((document) => ({ ...item, source: document,
         paired: documents.length === 2 || existing.size > 0 }));
   })).flat();
-  const prepared = await concurrentMap(languageSources, async (item) => {
+  const prepared = await mapBounded(languageSources, async (item) => {
     signal?.throwIfAborted();
     const { authority, source } = item;
     const pdfUrl = source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url)
