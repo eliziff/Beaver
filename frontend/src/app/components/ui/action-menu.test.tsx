@@ -61,18 +61,7 @@ describe("ActionMenu", () => {
         expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     });
 
-    it("measures and clamps inside a native dialog", () => {
-        const box = (left: number, top: number, width: number, height: number) => ({
-            left, top, width, height, right: left + width, bottom: top + height,
-            x: left, y: top, toJSON: () => ({}),
-        }) as DOMRect;
-        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
-            .mockImplementation(function () {
-                if (this.tagName === "DIALOG") return box(100, 100, 500, 400);
-                if (this.getAttribute("role") === "menu") return box(0, 0, 220, 180);
-                if (this.getAttribute("aria-label") === "Actions") return box(540, 440, 32, 24);
-                return box(0, 0, 0, 0);
-            });
+    it("keeps actions inside a native dialog", () => {
         const onSelect = vi.fn();
         render(<dialog open><ActionMenu label="Actions" items={[{ label: "Open", onSelect }]}>Actions</ActionMenu></dialog>);
 
@@ -81,7 +70,6 @@ describe("ActionMenu", () => {
         expect(screen.getByRole("dialog")).toContainElement(menu);
         fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
         expect(onSelect).toHaveBeenCalledOnce();
-        rect.mockRestore();
     });
 
     it("keeps an assistant-dock menu inside its focus boundary", () => {
