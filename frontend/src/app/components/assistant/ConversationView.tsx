@@ -76,8 +76,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     const [editState, setEditState] = useState(() => ({ docIds: new Set<string>(),
         editIds: new Set<string>(), statuses: {} as Record<string, "accepted" | "rejected"> }));
     const scrolledSearch = useRef<string | null>(null);
-    type Anchor = { element: HTMLElement; fraction: number; offset: number; citation?: number } | null;
-    const anchor = useRef<Anchor>(null), pinned = useRef<Anchor>(null),
+    type Anchor = { element: HTMLElement; fraction: number; offset: number } | null;
+    const anchor = useRef<Anchor>(null),
         reanchor = useRef(() => undefined as void);
     useImperativeHandle(ref, () => ({
         addDoc: (document: Document) => chatInputRef.current?.addDoc(document),
@@ -99,8 +99,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     useEffect(() => {
         const container = messagesContainerRef.current;
         if (!container) return;
-        // The message the reader is looking at, and how far down the viewport it sits. Opening the
-        // dock narrows this column and remeasures every message, so the offset is what we restore.
+        // The message at the top of the viewport and how far down it sits: what stays put when a
+        // message grows (streaming text, an edit accepted or rejected) or the window is resized.
         /** A place in the log: how far down a message, and where that sat in the viewport. The message
          *  survives re-rendering where the words inside it do not, so it is what the position is kept by. */
         const at = (element: HTMLElement, y: number): Anchor => { const rect = element.getBoundingClientRect();
@@ -114,26 +114,11 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
             anchor.current = element ? at(element, Math.max(element.getBoundingClientRect().top, top)) : null;
         };
         reanchor.current = update;
-        // What the reader just clicked — a citation chip, say — outranks the top of the viewport as the
-        // thing that must not move, until the layout the click provoked has settled.
-        const hold = (event: MouseEvent) => {
-            const message = (event.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-message-id]");
-            pinned.current = message ? at(message, event.clientY) : null;
-            const chip = (event.target as HTMLElement | null)?.closest?.<HTMLElement>("[data-citation-ref]");
-            if (message && chip && pinned.current) {
-                pinned.current.citation = Array.from(message.querySelectorAll("[data-citation-ref]")).indexOf(chip);
-                pinned.current.offset = chip.getBoundingClientRect().top - container.getBoundingClientRect().top;
-            }
-        };
-        container.addEventListener("click", hold, true);
         container.addEventListener("scroll", update);
         const observer = new ResizeObserver(() => {
-            const held = pinned.current ?? anchor.current;
-            pinned.current = null;
+            const held = anchor.current;
             if (held?.element.isConnected) { const rect = held.element.getBoundingClientRect();
-                const chip = held.citation === undefined ? null
-                    : held.element.querySelectorAll("[data-citation-ref]")[held.citation];
-                container.scrollTop += (chip?.getBoundingClientRect().top ?? rect.top + held.fraction * rect.height)
+                container.scrollTop += rect.top + held.fraction * rect.height
                     - container.getBoundingClientRect().top - held.offset; }
             update();
         });
@@ -143,7 +128,6 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         const frame = requestAnimationFrame(update);
         return () => {
             cancelAnimationFrame(frame); observer.disconnect();
-            container.removeEventListener("click", hold, true);
             container.removeEventListener("scroll", update);
         };
     }, []);
