@@ -18,7 +18,6 @@ export function useWorkProductAssistantState<T extends WorkProductContext>() {
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [refreshToken, setRefreshToken] = useState<WorkProductRefresh>();
-  const refreshSequence = useRef(0);
   const [chatIds, setChatIds] = useState<Record<string, string>>({});
   const onProductChange = useCallback((next: T | undefined, ready: boolean) => {
     setProduct(next); setSynced(!!next && ready);
@@ -40,8 +39,7 @@ export function useWorkProductAssistantState<T extends WorkProductContext>() {
   }, [productId]);
   const onProductUpdated = useCallback((revision: number) => {
     if (!productId) return;
-    setSynced(false); setRefreshToken({ id: productId, revision,
-      sequence: ++refreshSequence.current });
+    setSynced(false); setRefreshToken({ id: productId, revision });
   }, [productId]);
   return { product, synced, busy, setBusy, expanded, setExpanded, refreshToken, onProductChange,
     chatId: productId ? chatIds[productId] : undefined, onChatIdChange,

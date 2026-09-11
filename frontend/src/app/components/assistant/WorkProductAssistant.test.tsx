@@ -149,9 +149,9 @@ it("emits a fresh product-scoped refresh when the next draft has a lower revisio
   await user.click(screen.getByRole("button", { name: "High draft" }));
   await user.click(screen.getByRole("button", { name: "High update" }));
   expect(screen.getByRole("status", { name: "Refresh" })).toHaveTextContent(
-    JSON.stringify({ id: "record-1", revision: 11, sequence: 1 }));
+    JSON.stringify({ id: "record-1", revision: 11 }));
   await user.click(screen.getByRole("button", { name: "Low draft" }));
   await user.click(screen.getByRole("button", { name: "Low update" }));
   expect(screen.getByRole("status", { name: "Refresh" })).toHaveTextContent(
-    JSON.stringify({ id: "record-2", revision: 2, sequence: 2 }));
+    JSON.stringify({ id: "record-2", revision: 2 }));
 });
