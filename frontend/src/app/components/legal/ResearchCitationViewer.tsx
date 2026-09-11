@@ -17,7 +17,7 @@ export function ResearchCitationViewer({ citation, reference, onClose }: {
     <ResearchCitationContent citation={citation} reference={reference} />
   </Modal>;
 }
-export function ResearchCitationContent({ citation, reference, document }: {
+function ResearchCitationContent({ citation, reference, document }: {
   citation?: Citation; reference?: ResearchSourceReference; document?: Document;
 }) {
   const quoted = citation?.kind === "document" ? citation : null, source = reference?.kind === "document" ? reference : null,
