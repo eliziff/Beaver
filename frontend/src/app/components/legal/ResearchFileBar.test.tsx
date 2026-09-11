@@ -41,10 +41,12 @@ vi.mock("@/app/lib/api/projects", async (original) => ({
 
 const evidence: ResearchEvidence = {
   sourceId: "baker", labelIds: ["holding"], note: "Key passage",
-  receipt: { evidence_id: "e_1", provider: "a2aj", stable_source_id: "baker",
+  receipt: { evidence_id: "e_1", provider: "a2aj", jurisdiction: "ca", source_class: "case",
+    stable_source_id: "baker", scope: "passage", dataset: "scc", language: "en", version: null,
     source_sha256: "source-hash", span_sha256: "span-hash", block_id: "paragraph:5",
     span_text: "A duty of fairness applies.", citation: "[1999] 2 SCR 817", name: null,
-    external_url: null, locator: { kind: "paragraph", label: "para 5" } },
+    external_url: null, locator: { kind: "paragraph", label: "para 5" },
+    resolver_version: "a2aj-inline-v1" },
 };
 const receipt: ResearchQueryReceipt = {
   query_id: "q1", call_id: "c1", tool: "Read", executed_at: "2026-01-01T00:00:00Z",
