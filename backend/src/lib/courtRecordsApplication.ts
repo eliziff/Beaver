@@ -7,7 +7,10 @@ import { contentTypeForDocumentType } from "./documentTypes";
 import { COURT_PROFILE_BY_ID, type PartyStyle, type CourtProfile }
   from "mike/shared/court-record-profiles.mjs";
 import { decodeCourtRecordDraftState, decodeCourtRecordPartyContact,
-  type CourtRecordPartyContact } from "./courtRecordContract";
+  profileCoverKeys } from "./courtRecordContract";
+import type { CasePartyGroup, CourtRecordDraftEntry, CoverTextFieldId,
+  CoverValues } from "mike/shared/court-record-contract.d.ts";
+import type { FileSnapshot } from "mike/shared/work-products.mjs";
 import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentFile, DocumentStore } from "./documentStore";
 import { decodeWorkProductBuildReceipt, type WorkProductInput } from "./workProduct";
@@ -21,8 +24,6 @@ import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products
 type ProjectionReader = Pick<typeof documentProjectionService, "lookupPdf" | "preparePdf">;
 export const MAX_COURT_BUILD_OUTPUTS = 500;
 
-type PartyGroup = { id: string; role: string; roleBelow?: string;
-  parties: Array<{ id: string; name: string; contact?: CourtRecordPartyContact }> };
 type EntryPatch = { slotId: string; replaceEntryId?: string;
   document?: { documentId: string; versionId: string };
   description?: string; date?: string; exhibitLabel?: string };
@@ -102,16 +103,11 @@ export function createCourtRecordsApplication(
       if (record.revision !== input.revision) {
         throw new ApplicationError(409, "This court record changed. Reload it before editing");
       }
-      const state = record.state as { entries?: unknown; bindings?: unknown };
-      if (!Array.isArray(state.entries) || !state.bindings ||
-          typeof state.bindings !== "object" || Array.isArray(state.bindings)) {
-        throw new ApplicationError(409, "This court record draft is invalid");
-      }
-      const profile = COURT_PROFILE_BY_ID.get(String(record.state.profileId));
+      const profile = COURT_PROFILE_BY_ID.get(record.state.profileId);
       const slot = profile?.documentKinds.find(({ id }) => id === input.kindId);
       if (!slot || slot.requirement === "forbidden" || slot.generated || slot.descriptionOnly ||
           !acceptsWorkProductOutput(slot, { kind: child.kind,
-            profileId: child.kind === "court-record" ? String(child.state.profileId) : undefined,
+            profileId: child.kind === "court-record" ? child.state.profileId : undefined,
             role: input.role })) {
         throw new ApplicationError(409, "Select a saved output accepted by this Court Record slot");
       }
@@ -124,7 +120,7 @@ export function createCourtRecordsApplication(
           !version || version.source_sha256 !== output.sha256 || version.file_type !== fileType) {
         throw new ApplicationError(409, `The ${input.role} output is unavailable`);
       }
-      const entries = structuredClone(state.entries) as Array<Record<string, unknown>>;
+      const entries = structuredClone(record.state.entries);
       const lastSeen = { name: output.filename, size: version.size_bytes,
         modified: Date.parse(version.created_at) || 0, sha256: output.sha256 };
       const values = entryValues(input);
@@ -134,7 +130,7 @@ export function createCourtRecordsApplication(
       const entryId = upsertEntry(entries, input.kindId, input.replaceEntryId, !!slot.repeatable,
         withoutExtension(output.filename), lastSeen, values);
       const bindings: Record<string, WorkProductInput> = {
-        ...state.bindings as Record<string, WorkProductInput>,
+        ...record.state.bindings,
         [entryId]: { kind: "work-product-output", workProductId: child.id, role: input.role },
       };
       return { entryId, product: await workProducts.save(scope, record.id, {
@@ -153,12 +149,8 @@ export function createCourtRecordsApplication(
       if (record.revision !== input.revision) {
         throw new ApplicationError(409, "This court record changed. Reload it before editing");
       }
-      const state = record.state as { profileId?: unknown; cover?: unknown;
-        entries?: unknown; bindings?: unknown };
-      if (!Array.isArray(state.entries) || !object(state.cover) || !object(state.bindings)) {
-        throw new ApplicationError(409, "This court record draft is invalid");
-      }
-      const profileId = input.profileId ?? String(state.profileId ?? "");
+      const state = record.state;
+      const profileId = input.profileId ?? state.profileId;
       const profile = COURT_PROFILE_BY_ID.get(profileId);
       if (!profile) {
         throw new ApplicationError(400, "Select an available court record format");
@@ -175,12 +167,11 @@ export function createCourtRecordsApplication(
       if (requestedStyleId && !partyStyles.some(({ id }) => id === requestedStyleId)) {
         throw new ApplicationError(400, "Invalid cover field: partyStyleId");
       }
-      const currentStyleId = typeof cover.partyStyleId === "string"
-        ? cover.partyStyleId.trim() : "";
+      const currentStyleId = cover.partyStyleId?.trim() ?? "";
       const partyStyle = partyStyles.find(({ id }) => id === currentStyleId) ??
         partyStyles.find(({ id }) => id === requestedStyleId) ??
         (partyStyles.length === 1 ? partyStyles[0] : undefined);
-      const filled: string[] = [];
+      const filled: string[] = [], coverKeys = profileCoverKeys(profile);
       for (const [field, value] of Object.entries(input.cover ?? {})) {
         if (field === "partyGroups") {
           if (!partyStyle) throw new ApplicationError(400, "Invalid cover field: partyGroups");
@@ -205,17 +196,18 @@ export function createCourtRecordsApplication(
           }
           continue;
         }
-        if (![...profile.cover.fields.map(({ id }) => id), "partyStyleId"].includes(field) ||
+        const key = field as CoverTextFieldId;
+        if (!coverKeys.has(key) ||
             typeof value !== "string" || !value.trim() || value.length > 5_000) {
           throw new ApplicationError(400, `Invalid cover field: ${field}`);
         }
-        if (typeof cover[field] !== "string" || !String(cover[field]).trim()) {
-          cover[field] = value.trim();
+        if (!cover[key]?.trim()) {
+          cover[key] = value.trim();
           filled.push(field);
         }
       }
-      const entries = structuredClone(state.entries) as Array<Record<string, unknown>>;
-      const bindings = structuredClone(state.bindings) as Record<string, WorkProductInput>;
+      const entries = structuredClone(state.entries);
+      const bindings = structuredClone(state.bindings);
       let entryId: string | undefined;
       if (input.entry) {
         const patch = input.entry;
@@ -342,29 +334,29 @@ async function readPreparedPageText(documents: DocumentStore, projection: Projec
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const withoutExtension = (filename: string) => filename.replace(/\.(?:pdf|docx)$/iu, "");
-function upsertEntry(entries: Array<Record<string, unknown>>, kindId: string,
+function upsertEntry(entries: CourtRecordDraftEntry[], kindId: string,
   replaceId: string | undefined, repeatable: boolean, title: string,
-  lastSeen: Record<string, unknown> | undefined,
+  lastSeen: FileSnapshot | undefined,
   values: { description?: string; date?: string; exhibitLabel?: string } = {},
   descriptionOnly = false) {
   const index = replaceId ? entries.findIndex(({ id }) => id === replaceId) : -1;
-  if ((replaceId && (index < 0 || entries[index].kindId !== kindId)) ||
+  const existing = index < 0 ? undefined : entries[index];
+  if ((replaceId && (!existing || existing.kindId !== kindId)) ||
       (!replaceId && (!lastSeen || !repeatable && entries.some((entry) => entry.kindId === kindId)))) {
     throw new ApplicationError(409, "Select the exact existing slot entry to replace");
   }
-  const id = replaceId ?? randomUUID();
-  const current = index < 0 ? { id, kindId, title, lastSeen } : entries[index];
-  entries[index < 0 ? entries.length : index] = {
+  const current = existing ?? { id: randomUUID(), kindId, title, lastSeen: lastSeen! };
+  entries[existing ? index : entries.length] = {
     ...current, ...(lastSeen && { lastSeen }),
-    ...(values.description && (index < 0 || !String(current.title ?? "").trim()) &&
+    ...(values.description && (!existing || !current.title.trim()) &&
       { title: values.description }),
-    ...(values.date && (index < 0 || !String(current.date ?? "").trim()) &&
+    ...(values.date && (!existing || !current.date?.trim()) &&
       { date: values.date }),
-    ...(values.exhibitLabel && (index < 0 || !String(current.exhibitLabel ?? "").trim()) &&
+    ...(values.exhibitLabel && (!existing || !current.exhibitLabel?.trim()) &&
       { exhibitLabel: values.exhibitLabel }),
     ...(descriptionOnly && { descriptionOnly: true }),
   };
-  return id;
+  return current.id;
 }
 
 function entryValues(input: { description?: string; date?: string; exhibitLabel?: string }) {
@@ -382,16 +374,16 @@ function entryValues(input: { description?: string; date?: string; exhibitLabel?
 }
 
 async function assertExhibitAssignment(documents: DocumentStore, scope: ApplicationScope,
-  entries: Array<Record<string, unknown>>, bindings: Record<string, WorkProductInput>,
+  entries: CourtRecordDraftEntry[], bindings: Record<string, WorkProductInput>,
   label: string, replaceId?: string) {
   const affidavit = entries.find(({ kindId }) => kindId === "affidavit");
-  const source = object(affidavit?.sourceExhibits) ? affidavit.sourceExhibits : null;
-  if (!source || !Array.isArray(source.labels) || !source.labels.includes(label) ||
+  const source = affidavit?.sourceExhibits;
+  if (!source || !source.labels.includes(label) ||
       entries.some((entry) => entry.kindId === "exhibit" && entry.id !== replaceId &&
         entry.exhibitLabel === label)) {
     throw new ApplicationError(409, "Choose an unfilled exhibit slot from the source affidavit");
   }
-  const binding = bindings[String(affidavit?.id ?? "")];
+  const binding = bindings[affidavit.id];
   if (binding?.kind !== "document") return;
   const version = await documents.projectionSource(scope, binding.documentId,
     binding.version === "latest" ? null : binding.version.versionId);
@@ -404,7 +396,7 @@ async function assertExhibitAssignment(documents: DocumentStore, scope: Applicat
 
 
 function parsePartyGroups(value: unknown, profile: CourtProfile,
-  style: PartyStyle, requireNames = false): PartyGroup[] {
+  style: PartyStyle, requireNames = false): CasePartyGroup[] {
   const definitions = new Map(style.groups.map((group) => [group.id, group]));
   const partyGroups = !Array.isArray(value) ? value : value.map((raw) => {
     const group = object(raw) ? raw : {};
@@ -427,15 +419,15 @@ function parsePartyGroups(value: unknown, profile: CourtProfile,
     cover: { partyStyleId: style.id, partyGroups }, entries: [], bindings: {} })) {
     throw new ApplicationError(400, "Invalid cover field: partyGroups");
   }
-  const groups = partyGroups as PartyGroup[];
+  const groups = partyGroups as CasePartyGroup[];
   if (requireNames && groups.some(({ parties }) => parties.some(({ name }) => !name))) {
     throw new ApplicationError(400, "Party names and roles are required");
   }
   return groups;
 }
 
-function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] {
-  const groups = Array.isArray(value) ? structuredClone(value) as PartyGroup[] : [];
+function mergePartyGroups(value: unknown, incoming: CasePartyGroup[]): CasePartyGroup[] {
+  const groups = Array.isArray(value) ? structuredClone(value) as CasePartyGroup[] : [];
   for (const group of incoming) {
     const index = groups.findIndex(({ id }) => id === group.id);
     if (index < 0) { groups.push(group); continue; }
@@ -460,11 +452,11 @@ function mergePartyGroups(value: unknown, incoming: PartyGroup[]): PartyGroup[] 
   return groups;
 }
 
-function cleanCoverForProfile(cover: Record<string, unknown>, profile: CourtProfile) {
-  const styles = profile.cover.partyStyles ?? [];
-  const allowed = new Set([...profile.cover.fields.map(({ id }) => id),
-    ...(styles.length ? ["partyStyleId", "partyGroups", "filingPartyIds"] : [])]);
-  for (const key of Object.keys(cover)) if (!allowed.has(key)) delete cover[key];
+function cleanCoverForProfile(cover: CoverValues, profile: CourtProfile) {
+  const styles = profile.cover.partyStyles ?? [], allowed = profileCoverKeys(profile);
+  for (const key of Object.keys(cover) as Array<keyof CoverValues>) {
+    if (!allowed.has(key)) delete cover[key];
+  }
   const style = styles.find(({ id }) => id === cover.partyStyleId);
   if (!style) {
     delete cover.partyStyleId; delete cover.partyGroups; delete cover.filingPartyIds;
