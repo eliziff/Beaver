@@ -9,7 +9,7 @@ import {
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
-import type { AuthoritiesAction, AuthoritiesDraft,
+import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
@@ -232,13 +232,13 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     progress?.("Building outputs");
     const response = await (await runtimeResponse("build", form, false, signal)).formData();
     signal?.throwIfAborted();
-    const receipt = JSON.parse(String(response.get("receipt")));
-    const artifacts: Omit<StandaloneArtifact, "receipt">[] = await Promise.all(Object.entries(receipt.outputs).map(async ([role, output]) => {
-      const file = response.get(role), detail = output as {
-        filename: string; mimeType: string; sha256: string; pageCount: number | null };
-      if (!(file instanceof File)) throw new Error(`The ${role} output is missing.`);
-      return { role, ...detail, bytes: new Uint8Array(await file.arrayBuffer()) };
-    }));
+    const receipt = JSON.parse(String(response.get("receipt"))) as AuthoritiesBuildReceipt;
+    const artifacts: Omit<StandaloneArtifact, "receipt">[] = await Promise.all(
+      Object.entries(receipt.outputs).map(async ([role, detail]) => {
+        const file = response.get(role);
+        if (!detail || !(file instanceof File)) throw new Error(`The ${role} output is missing.`);
+        return { role, ...detail, bytes: new Uint8Array(await file.arrayBuffer()) };
+      }));
     const prepared = response.get("book");
     if (prepared) {
       const book = await mapAuthorityBookBytes(JSON.parse(String(prepared)) as PreparedAuthoritiesBook<string>,
