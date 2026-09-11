@@ -1,4 +1,6 @@
 import { sequenceOpcodes as opcodes } from "mike/shared/sequence-diff.mjs";
+import type { AuthoritiesDiscrepancy as SharedAuthoritiesDiscrepancy,
+  AuthoritiesSourcePassage } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesDiscrepancyAction, AuthoritiesDraft,
   AuthorityOccurrence } from "./authoritiesDomain";
 import { canonicalJsonSha256 } from "./hash";
@@ -8,10 +10,7 @@ import { structureNative } from "./structureNative";
 import { normalizeWhitespace } from "./text";
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 
-export type AuthoritiesSourcePassage = {
-  locator: { kind: "paragraph" | "section" | "page"; label: string };
-  text: string;
-};
+export type { AuthoritiesSourcePassage };
 
 export type AuthoritiesOccurrenceSource = {
   occurrenceId: string;
@@ -22,25 +21,8 @@ export type AuthoritiesOccurrenceSource = {
   citedPassage?: LegalSourcePassage;
 };
 
-type FindingBase = {
-  id: string;
-  actions: AuthoritiesDiscrepancyAction[];
-  occurrenceId: string;
-  authorityId: string;
-  footnoteId: number;
-  citation: string;
-  proposition: string;
-  authoredQuote: string;
-  authoredPinpoint: AuthorityOccurrence["pinpoints"][number];
-  cited: AuthoritiesSourcePassage;
-  citedPassage?: LegalSourcePassage;
-};
-
-export type AuthoritiesDiscrepancy = FindingBase & (
-  | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null }
-  | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage }
-  | { kind: "quote_unlocated"; found: null }
-);
+/** The server alone carries the retrieved passage behind `cited`. */
+export type AuthoritiesDiscrepancy = SharedAuthoritiesDiscrepancy<LegalSourcePassage>;
 
 export type AuthoritiesDiscrepancyCorrection = {
   unitId: string; start: number; end: number; expected: string; replacement: string;

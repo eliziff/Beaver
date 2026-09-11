@@ -34,6 +34,7 @@ type SourceDraft<Binding = unknown> = {
 type SourceAuthority = { source: AuthoritySourceDecision };
 
 export function attachedAuthoritySources(source: AuthoritySourceDecision): AttachedAuthoritySource[];
+export function federalEnactmentCitation(citation: string): boolean;
 export function hasBilingualAuthoritySource(source: AuthoritySourceDecision): boolean;
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
 export function removeUnusedBinding(draft: SourceDraft, role: string | undefined): void;

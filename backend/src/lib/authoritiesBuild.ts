@@ -6,6 +6,8 @@ const { addInternalLink: addLink, applyOutlines, appendPages } = pdfAssembly(pdf
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 import { legalSourceLocatorAnchor, sourceUrl as legalSourceUrl } from "./legalSourceLinks";
 import type { A2AJLocatorKind } from "./legalSources/a2aj";
+import type { AuthoritiesBuildReceipt,
+  AuthoritiesOutputRole } from "mike/shared/authorities-contract.d.ts";
 import {
   authoritiesBookPdfs,
   attachedAuthoritySources,
@@ -15,15 +17,10 @@ import {
   federalEnactmentCitation,
   hasBilingualAuthoritySource,
   type AttachedAuthoritySource,
-  type AuthoritiesBookParts,
   type AuthoritiesBoundPdf,
   type AuthoritiesDraft,
-  type AuthoritiesDocumentSnapshot,
-  type AuthoritiesSettings,
   type AuthorityIdentity,
   type AuthorityKind,
-  type AuthoritySourceDecision,
-  type AuthoritySourceIdentity,
 } from "./authoritiesDomain";
 import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
 import { initialAuthorityAnnotations, writeAuthorityAnnotations } from "./authoritiesAnnotations";
@@ -34,8 +31,7 @@ import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
 
-export type AuthoritiesOutputRole = "table" | "book" | `book-${number}` |
-  "annotated-document";
+export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
   role: AuthoritiesOutputRole;
   filename: string;
@@ -44,29 +40,6 @@ export type AuthoritiesBuildArtifact = {
   sha256: string;
   pageCount: number | null;
   receipt: WorkProductBuildReceipt;
-};
-export type AuthoritiesBuildReceipt = {
-  schemaVersion: "beaver.authorities-build.v1";
-  builtAt: string;
-  workProduct: { id: string; kind: "authorities"; revision: number };
-  inputs: WorkProductBuildReceipt["inputs"];
-  draft: { schemaVersion: AuthoritiesDraft["schemaVersion"];
-    outputMode: AuthoritiesDraft["outputMode"];
-    settings: AuthoritiesSettings;
-    cover: AuthoritiesDraft["cover"];
-    bookParts: AuthoritiesBookParts;
-    insertIntoDocument: boolean;
-    document: AuthoritiesDocumentSnapshot | null };
-  authorities: Array<{
-    id: string; key: string; kind: AuthorityKind; citation: string; name: string;
-    tab: string; excluded: boolean; source: AuthoritySourceDecision;
-    sourceIdentity: AuthoritySourceIdentity | null;
-    evidenceIds: string[]; locators: Array<{ kind: string; label: string }>;
-    bindings: WorkProductInput[];
-  }>;
-  outputs: Partial<Record<AuthoritiesOutputRole, {
-    filename: string; mimeType: string; sha256: string; pageCount: number | null;
-  }>>;
 };
 export type AuthoritiesBuildResult = {
   artifacts: Partial<Record<AuthoritiesOutputRole, AuthoritiesBuildArtifact>>;

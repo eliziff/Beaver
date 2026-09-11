@@ -1,5 +1,8 @@
 export const attachedAuthoritySources = (source) =>
   source.kind === "attached" ? source.sources : [];
+/** A federal enactment citation, which some courts require in both official languages. */
+export const federalEnactmentCitation = (citation) =>
+  /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(citation);
 export const hasBilingualAuthoritySource = (source) => {
   const languages = attachedAuthoritySources(source).map(({ language }) => language);
   return languages.includes("bilingual") ||

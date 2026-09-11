@@ -1,6 +1,8 @@
 /** Shared Authorities state and public commands; resolved reducer actions remain server-side. */
-import type { AuthoritySourceDecision } from "./authorities-sources.mjs";
+import type { AuthoritiesBookParts, AuthoritySourceDecision } from "./authorities-sources.mjs";
 import type { PdfAnnotationSet, PdfAnnotationSets } from "./pdf-annotations.mjs";
+import type { WorkProductBuildReceipt, WorkProductInput,
+  WorkProductState } from "./work-products.mjs";
 
 export type AuthorityKind = "case" | "legislation" | "commentary" | "other";
 
@@ -79,6 +81,8 @@ export type AuthorityIdentity = {
   highlightExclusions?: AuthorityHighlightExclusion[];
   annotations?: PdfAnnotationSets;
   userAdded?: true;
+  /** Import provenance: detected while scanning, never entered by hand. */
+  scanOnly?: true;
 };
 
 export type AuthoritiesReviewUnit = {
@@ -149,3 +153,127 @@ export type AuthoritiesUserAction =
   | { type: "set-document-output"; enabled: boolean }
   | { type: "set-highlight-exclusion"; authorityId: string;
       locator: { kind: string; label: string }; excluded: boolean };
+
+/** Filing defaults for one court; the values live in ./authorities-profiles.json. */
+export type AuthoritiesProfile = {
+  id: AuthoritiesProfileId;
+  label: string;
+  courtId: string;
+  bookTitle?: string;
+  sourceIds?: string[];
+  defaults: { outputMode: AuthoritiesOutputMode; settings: AuthoritiesBuildSettings };
+  locked?: { outputMode?: AuthoritiesOutputMode;
+    settings?: Partial<AuthoritiesBuildSettings> };
+  options?: {
+    filingMedium?: Array<{ value: "electronic" | "paper"; label: string }>;
+    bookRole?: Array<{ value: AuthoritiesBookRole; label: string }>;
+    missingSourcePolicy?: boolean;
+  };
+  requirements?: { completeBookSources?: boolean; documentOutputDefault?: boolean;
+    unlinkedPdfTableSources?: boolean; markedPassages?: boolean;
+    federalFormatting?: boolean; appealPaperCovers?: boolean; bilingualEnactments?: boolean;
+    electronicVolumes?: { maxPages: number; maxBytes: number;
+      completeToc: boolean; coverLabels: boolean } };
+};
+
+export type AuthoritySeed = AuthoritySourceIdentity & {
+  key: string;
+  kind: AuthorityKind;
+  citation: string;
+  name: string | null;
+  evidenceIds: string[];
+  locators: Array<{ kind: string; label: string }>;
+};
+
+export type AuthoritiesLedgerOccurrence = {
+  id: string;
+  markerId: string;
+  targetId: string;
+  authorityKey: string;
+  unit: Omit<AuthoritiesReviewUnit, "occurrenceIds"> & { sourceTextSha256: string };
+  start: number;
+  end: number;
+  text: string;
+  displayedForm: "full" | "short" | "supra" | "ibid";
+  pinpoints: Array<{ kind: "paragraph" | "section" | "page"; text: string }>;
+  evidenceIds: string[];
+  localOrdinal: number;
+};
+
+export type AuthorityCitationLedger = {
+  schemaVersion: "beaver.authority-ledger.v1";
+  document: AuthoritiesDocumentSnapshot;
+  seeds: AuthoritySeed[];
+  occurrences: AuthoritiesLedgerOccurrence[];
+};
+
+export type AuthoritiesDraft = WorkProductState & {
+  schemaVersion: "beaver.authorities-draft.v1";
+  import: AuthoritiesImport;
+  bindings: Record<string, WorkProductInput>;
+  outputMode: AuthoritiesOutputMode;
+  settings: AuthoritiesSettings;
+  cover: AuthoritiesCover;
+  bookParts: AuthoritiesBookParts;
+  insertIntoDocument: boolean;
+  ledger: AuthorityCitationLedger | null;
+  units: AuthoritiesReviewUnit[];
+  occurrences: Record<string, AuthorityOccurrence>;
+  authorities: Record<string, AuthorityIdentity>;
+  authorityOrder: string[];
+  stage?: "citations" | "sources" | "highlights" | "build";
+  discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
+};
+
+export type AuthoritiesSourcePassage = {
+  locator: { kind: "paragraph" | "section" | "page"; label: string };
+  text: string;
+};
+
+/** `Evidence` is the server's retrieved passage behind `cited`; browsers never receive one. */
+export type AuthoritiesDiscrepancy<Evidence = never> = {
+  id: string;
+  actions: AuthoritiesDiscrepancyAction[];
+  occurrenceId: string;
+  authorityId: string;
+  footnoteId: number;
+  citation: string;
+  proposition: string;
+  authoredQuote: string;
+  authoredPinpoint: AuthorityOccurrence["pinpoints"][number];
+  cited: AuthoritiesSourcePassage;
+  citedPassage?: Evidence;
+} & (
+  | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null }
+  | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage }
+  | { kind: "quote_unlocated"; found: null }
+);
+
+/** One book PDF per volume, so a split book numbers its parts after the first. */
+export type AuthoritiesOutputRole = "table" | "book" | `book-${number}` |
+  "annotated-document";
+export type AuthoritiesOutputFile = {
+  filename: string; mimeType: string; sha256: string; pageCount: number | null;
+};
+
+export type AuthoritiesBuildReceipt = {
+  schemaVersion: "beaver.authorities-build.v1";
+  builtAt: string;
+  workProduct: { id: string; kind: "authorities"; revision: number };
+  inputs: WorkProductBuildReceipt["inputs"];
+  draft: { schemaVersion: AuthoritiesDraft["schemaVersion"];
+    outputMode: AuthoritiesOutputMode;
+    settings: AuthoritiesSettings;
+    cover: AuthoritiesCover;
+    bookParts: AuthoritiesBookParts;
+    insertIntoDocument: boolean;
+    document: AuthoritiesDocumentSnapshot | null };
+  authorities: Array<{
+    id: string; key: string; kind: AuthorityKind; citation: string; name: string;
+    tab: string; excluded: boolean; source: AuthoritySourceDecision;
+    sourceIdentity: AuthoritySourceIdentity | null;
+    evidenceIds: string[]; locators: Array<{ kind: string; label: string }>;
+    bindings: WorkProductInput[];
+  }>;
+  outputs: Partial<Record<AuthoritiesOutputRole, AuthoritiesOutputFile>>;
+};
