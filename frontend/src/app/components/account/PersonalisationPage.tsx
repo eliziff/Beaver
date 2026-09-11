@@ -7,6 +7,7 @@ import { JurisdictionPreferenceEditor } from "@/app/components/settings/Jurisdic
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { CollectionState } from "@/app/components/shared/CollectionState";
+import { safeNext } from "@/app/lib/utils";
 
 /** One labelled profile input; the label carries the text and, where given, the hint under it. */
 function Field({ label, hint, className = "text-sm font-medium text-gray-700", ...props }:
@@ -130,9 +131,8 @@ export function OnboardingPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const state = location.state as { next?: string } | null;
-    const requested = state?.next ?? new URLSearchParams(location.search).get("next") ?? "";
-    const next = requested.startsWith("/") && !requested.startsWith("//") &&
-        !requested.includes("\\") ? requested : "/assistant";
+    const next = safeNext(
+        state?.next ?? new URLSearchParams(location.search).get("next"), "/assistant");
     return (
         <main className="min-h-dvh bg-gray-50 px-5 py-8 sm:py-12">
             <div className="mx-auto mb-8 w-fit"><SiteLogo size="lg" asLink /></div>

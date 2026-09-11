@@ -5,6 +5,7 @@ import { Input } from "@/app/components/ui/input";
 import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { googleSignIn, login, signup as createAccount } from "@/app/lib/api/auth";
+import { errorMessage, safeNext } from "@/app/lib/utils";
 
 const input =
     "mt-2 w-full rounded-lg border border-transparent bg-gray-100 px-3 shadow-none focus-visible:border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-300/45";
@@ -30,9 +31,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
     const [error, setError] = useState<string | null>(null);
     const creating = mode === "signup";
     const query = new URLSearchParams(search);
-    const requested = query.get("next");
-    const next = requested?.startsWith("/") && !requested.startsWith("//") &&
-        !requested.includes("\\") ? requested : "/assistant";
+    const next = safeNext(query.get("next"), "/assistant");
     const word = query.get("surface") === "word" || next.startsWith("/word");
     const onboardingNext = word
         ? `/onboarding?next=${encodeURIComponent(next)}&surface=word`
@@ -77,9 +76,8 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                 navigate(onboardingNext);
             }
         } catch (caught) {
-            setError(caught instanceof Error
-                ? caught.message
-                : `${creating ? "Sign-up" : "Login"} could not be completed.`);
+            setError(errorMessage(caught,
+                `${creating ? "Sign-up" : "Login"} could not be completed.`));
             setStatus("idle");
         }
     }
@@ -90,8 +88,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
         try {
             window.location.assign(await googleSignIn(onboardingNext));
         } catch (caught) {
-            setError(caught instanceof Error
-                ? caught.message : "Google sign-in could not be started.");
+            setError(errorMessage(caught, "Google sign-in could not be started."));
             setStatus("idle");
         }
     }

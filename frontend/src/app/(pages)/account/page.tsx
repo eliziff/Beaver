@@ -9,6 +9,7 @@ import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
 import { deleteAccount } from "@/app/lib/api/account";
+import { errorMessage } from "@/app/lib/utils";
 import {
     accountGlassDangerOutlineButtonClassName,
     accountGlassInputClassName,
@@ -92,10 +93,10 @@ export default function AccountPage() {
                 message:
                     "Email changes are sensitive. Enter a code from your authenticator app to continue.",
                 onError: (error) => {
-                    const message =
-                        error instanceof Error
-                            ? error.message
-                            : "Failed to update email. Please try again.";
+                    const message = errorMessage(
+                        error,
+                        "Failed to update email. Please try again.",
+                    );
                     if (message.toLowerCase().includes(
                         "a user with this email address has already been registered",
                     )) {

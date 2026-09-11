@@ -89,7 +89,6 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
     );
     const reviews = page.items;
     const loading = page.loading && reviews.length === 0;
-    const creatingReview = projectContext?.creatingReview ?? creating;
     const reportOwnerOnly = projectContext?.setOwnerOnlyAction ?? setOwnerOnlyAction;
 
     useEffect(() => setSelectedIds([]), [query, scope]);
@@ -228,9 +227,9 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
         <ProjectSectionTabs actions={
             <Button variant="outline" className="h-8 py-0"
                 onClick={projectContext.openNewReview}
-                disabled={creatingReview}
+                disabled={projectContext.creatingReview}
             >
-                {creatingReview ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {projectContext.creatingReview ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     : <Plus className="h-3.5 w-3.5" />}
                 Create review
             </Button>
