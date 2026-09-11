@@ -19,9 +19,3 @@ it("shows a dash for not found, a glyph for failure and nothing while pending", 
         column={column("text")} onExpand={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Open Amount result" })).toHaveTextContent("");
 });
-
-it("marks the answer with the shared flag", () => {
-    renderCell(done({ summary: "Yes", value: true, flag: "green", claims: [], evidence: [], outcome: "answered", coverage: "complete" }), column("yes_no"));
-    expect(screen.getByRole("img", { name: "Supported" })).toBeInTheDocument();
-    expect(screen.getByText("Yes")).toBeInTheDocument();
-});

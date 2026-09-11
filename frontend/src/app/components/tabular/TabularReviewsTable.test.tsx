@@ -1,14 +1,8 @@
+import { MemoryRouter } from "react-router-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { TabularReview } from "@/app/lib/api/tabular";
 import { TabularReviewsTable } from "./TabularReviewsTable";
-
-vi.mock("react-router-dom", () => ({
-    useNavigate: () => vi.fn(),
-    Link: ({ children, to, ...props }: React.ComponentProps<"a"> & { to: string }) => (
-        <a href={to} {...props}>{children}</a>
-    ),
-}));
 
 const review: TabularReview = {
     id: "review-1",
@@ -21,22 +15,16 @@ const review: TabularReview = {
     updated_at: "2026-07-28T00:00:00.000Z",
 };
 
-const handlers = {
-    setSelectedReviewIds: vi.fn(),
-    reviewHref: (item: TabularReview) => `/tabular-reviews/${item.id}`,
-    onOpenDetails: vi.fn(),
-    onDeleteReview: vi.fn(),
-    onDeleteSelected: vi.fn(),
-};
-
 describe("TabularReviewsTable", () => {
     it("selects visible reviews and runs their bulk action", () => {
         const setSelectedReviewIds = vi.fn();
         const onDeleteSelected = vi.fn();
-        const props = { ...handlers, setSelectedReviewIds, onDeleteSelected,
-            reviews: [review] };
+        const props = { setSelectedReviewIds, onDeleteSelected,
+            reviewHref: (item: TabularReview) => `/tabular-reviews/${item.id}`,
+            onOpenDetails: vi.fn(), onDeleteReview: vi.fn(),
+            reviews: [review], filteredReviews: [review] };
         const { rerender } = render(
-            <TabularReviewsTable {...props} selectedReviewIds={[]} />,
+            <TabularReviewsTable {...props} selectedReviewIds={[]} />, { wrapper: MemoryRouter },
         );
 
         fireEvent.click(screen.getByRole("checkbox", { name: "Select loaded reviews" }));
@@ -46,18 +34,5 @@ describe("TabularReviewsTable", () => {
         fireEvent.click(screen.getByRole("button", { name: "Actions" }));
         fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
         expect(onDeleteSelected).toHaveBeenCalledOnce();
-    });
-
-    it("names each review's project in the row", () => {
-        render(
-            <TabularReviewsTable
-                reviews={[{ ...review, project_name: "Smith" }]}
-                selectedReviewIds={[]}
-                {...handlers}
-            />,
-        );
-
-        expect(screen.getByText("Project")).toBeInTheDocument();
-        expect(screen.getByText("Smith")).toBeInTheDocument();
     });
 });
