@@ -1525,7 +1525,7 @@ async function runDocxWorkflow(
 export type { WorkProductFocus } from "mike/shared/work-products.mjs";
 import type { WorkProductFocus } from "mike/shared/work-products.mjs";
 
-type AssistantToolsDependencies = {
+export type AssistantToolsDependencies = {
   userId: string;
   userEmail?: string;
   documents: DocumentStore;
