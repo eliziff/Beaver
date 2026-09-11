@@ -1,16 +1,7 @@
 import type { Tool } from "../../llm";
 import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
-import type { BeaverToolPolicy } from "../toolRegistry";
+import { objectSchema as object, type BeaverToolPolicy } from "../toolRegistry";
 
-const object = (
-  properties: Record<string, object>,
-  required: string[] = [],
-) => ({
-  type: "object" as const,
-  properties,
-  ...(required.length ? { required } : {}),
-  additionalProperties: false,
-});
 
 export const ASK_INPUTS_TOOL: Tool = {
   name: "ask_inputs",

@@ -58,18 +58,20 @@ const schema = (tool: Tool): Tool => ({
   ...(tool.icons && { icons: tool.icons }),
   ...(tool._meta && { _meta: tool._meta }),
 });
+/** A tool input schema: named properties, nothing else accepted. */
+export const objectSchema = (properties: Record<string, object>,
+  required: string[] = []): Tool["inputSchema"] => ({
+  type: "object", properties,
+  ...(required.length ? { required } : {}),
+  additionalProperties: false,
+});
 const loader = (names: string[]): Tool => ({
   name: LOAD_TOOLS_NAME,
   description: "Load the specialist tools needed for this task by exact name.",
-  inputSchema: {
-    type: "object",
-    properties: { names: {
-      type: "array", minItems: 1, maxItems: names.length, uniqueItems: true,
-      items: names.length ? { type: "string", enum: names } : { type: "string" },
-    } },
-    required: ["names"],
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema({ names: {
+    type: "array", minItems: 1, maxItems: names.length, uniqueItems: true,
+    items: names.length ? { type: "string", enum: names } : { type: "string" },
+  } }, ["names"]),
 });
 
 export const toolText = (value: unknown, isError = false): CallToolResult => ({

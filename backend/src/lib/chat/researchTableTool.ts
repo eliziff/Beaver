@@ -9,13 +9,10 @@ import { safeErrorMessage } from "../safeError";
 import { tabularDtos, type TabularApplication } from "../tabular/application";
 import { researchArrangementToolSchema } from "../tabular/researchArrangement";
 import { modelEvidencePassage, type LegalEvidenceReceipt } from "./legalEvidence";
-import { toolText, type BeaverOutcome, type BeaverTool } from "./toolRegistry";
+import { objectSchema as object, toolText, type BeaverOutcome, type BeaverTool } from "./toolRegistry";
 
 const string = (maxLength: number) => ({ type: "string", minLength: 1, maxLength });
 const ids = { type: "array", maxItems: 500, uniqueItems: true, items: string(200) };
-const object = (properties: Record<string, object>, required: string[] = []) => ({
-  type: "object" as const, properties, required, additionalProperties: false,
-});
 const paging = { offset: z.number().int().min(0).max(1_000_000).default(0),
   limit: z.number().int().min(1).max(50).default(20) };
 const readInput = z.object({ column_index: z.number().int().nonnegative().optional(), ...paging }).strict();
