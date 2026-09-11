@@ -1,17 +1,18 @@
 import { z } from "zod";
+import { textField } from "./textField";
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
 import { researchLabelPath, type PublicResearchFileAction, type ResearchFile, type ResearchLabel } from "./researchFile";
 import type { ResearchImportCatalog } from "./tabular/researchImport";
 
 type BatchActions = Extract<PublicResearchFileAction, { type: "batch" }>["actions"];
-const key = z.string().trim().min(1).max(80), colour = z.string().regex(/^#[a-f0-9]{6}$/iu);
+const key = textField(80), colour = z.string().regex(/^#[a-f0-9]{6}$/iu);
 export const researchLabelDesignSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  labels: z.array(z.object({ key, name: z.string().trim().min(1).max(200), parentKey: key.nullish(),
+  title: textField(200),
+  labels: z.array(z.object({ key, name: textField(200), parentKey: key.nullish(),
     color: colour.nullish(), definition: z.string().trim().max(20_000).optional(), scope: z.enum(["source", "highlight"]).optional() }).strict()).min(1).max(100),
-  assignments: z.array(z.object({ labelKey: key, itemIds: z.array(z.string().trim().min(1).max(200)).max(2_000).optional(),
-    rowIds: z.array(z.string().trim().min(1).max(4_000)).min(1).max(5_000) }).strict()).max(200),
+  assignments: z.array(z.object({ labelKey: key, itemIds: z.array(textField(200)).max(2_000).optional(),
+    rowIds: z.array(textField(4_000)).min(1).max(5_000) }).strict()).max(200),
 }).strict();
 export type ResearchLabelDesign = z.infer<typeof researchLabelDesignSchema>;
 export type ResearchLabelTarget = "sources" | "passages";

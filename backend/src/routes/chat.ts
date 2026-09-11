@@ -10,7 +10,7 @@ import type { PublicAssistantEvent } from "../lib/chat/assistantEvents";
 import { CODEX_THREAD_ID } from "../lib/llm/codex";
 import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { safeErrorLog } from "../lib/safeError";
-import { jsonRecord } from "../lib/value";
+import { jsonRecord, trimmedText } from "../lib/value";
 import { ApplicationError } from "../lib/applicationError";
 import { z } from "zod";
 import { researchSelectionSchema } from "../lib/researchSelection";
@@ -25,7 +25,7 @@ const historyQuery = z.object({
   "Created through must be after Created from");
 
 const text = (value: unknown, max = 20_000) => {
-  const parsed = typeof value === "string" ? value.trim() : "";
+  const parsed = trimmedText(value);
   return parsed.length <= max ? parsed : "";
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;

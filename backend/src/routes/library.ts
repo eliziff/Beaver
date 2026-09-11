@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { trimmedText } from "../lib/value";
 import { type DocumentStore } from "../lib/documentStore";
 import {
   type LibraryScope,
@@ -43,7 +44,7 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
   router.use(requireAuth);
 
   router.get("/:kind", libraryRoute(async (req, res, scope) => {
-    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const q = trimmedText(req.query.q);
     const parentFolderId = nullableId(req.query.parent_id, "parent_id");
     if (q && parentFolderId) reject(400, "q and parent_id cannot be used together");
     const filters = { kind: scope.kind, q, parent_id: q ? null : parentFolderId };

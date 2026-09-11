@@ -1,7 +1,7 @@
 import { getCodexModelCatalog, type CodexModelCatalog } from "../codexCatalog";
 import { isSupportedModel } from "../llm/models";
 import type { NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
-import { jsonRecord as record } from "../value";
+import { jsonRecord as record, trimmedText } from "../value";
 import { objectSchema } from "./toolRegistry";
 import type { AssistantEvent, ReadSubagentAssignment, ReadSubagentCheckpoint,
   ReadSubagentEvent } from "./assistantEvents";
@@ -146,8 +146,8 @@ export function allowedReadSubagentRegions(
 }
 
 export function readSubagentAssignment(call: NormalizedToolCall): ReadSubagentAssignment | null {
-  const task = typeof call.input.task === "string" ? call.input.task.trim() : "";
-  const scope = typeof call.input.scope === "string" ? call.input.scope.trim() : "";
+  const task = trimmedText(call.input.task);
+  const scope = trimmedText(call.input.scope);
   return task && scope ? {
     task: task.slice(0, 4_000),
     scope: scope.slice(0, 240),
