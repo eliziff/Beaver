@@ -7,9 +7,10 @@ import type { AuthoritiesInitialSettings } from "./authoritiesActions";
 import type { AuthoritiesUserAction } from "../../../shared/authorities-contract.d.ts";
 import { isJsonRecord } from "./value";
 
-const bad = (): never => reject(400, "Invalid Authorities request");
-const object = (value: unknown) => isJsonRecord(value) ? value : bad();
-function text(value: unknown, max = 500) {
+/** The decoders every Authorities request field is read through, route included. */
+export const bad = (): never => reject(400, "Invalid Authorities request");
+export const object = (value: unknown) => isJsonRecord(value) ? value : bad();
+export function text(value: unknown, max = 500) {
   if (typeof value !== "string") return bad();
   const result = value.trim();
   return result && result.length <= max ? result : bad();
@@ -21,11 +22,11 @@ const plain = (value: unknown, max = 500) => {
       /[\u0000-\u001f\u007f]/u.test(value)) return bad();
   return value.trim();
 };
-function integer(value: unknown, min = 0) {
+export function integer(value: unknown, min = 0) {
   if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
   return Number(value);
 }
-function choice<T extends string>(value: unknown, choices: readonly T[]): T {
+export function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }
 export const AUTHORITIES_BOOK_ROLES = ["applicant", "respondent", "joint", "appellant",
