@@ -26,6 +26,9 @@ type CompatibleWireConfig = {
   mapError?: (error: unknown) => Error;
 };
 
+const imageBlock = (image: LlmImage) =>
+  ({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } });
+
 const wireTools = (tools: Tool[]) => tools.map((tool) => ({
   type: "function" as const,
   function: {
@@ -48,13 +51,7 @@ function messages(
     ...source.map((message): CompatibleMessage => ({
       role: message.role,
       content: message.role === "user" && message.images?.length
-        ? [
-            { type: "text", text: message.content },
-            ...message.images.map((image) => ({
-              type: "image_url",
-              image_url: { url: `data:${image.mimeType};base64,${image.data}` },
-            })),
-          ]
+        ? [{ type: "text", text: message.content }, ...message.images.map(imageBlock)]
         : message.content,
     })),
   ];
@@ -102,7 +99,7 @@ export function createCompatibleWireAdapter(
       if (returned.length) {
         requestMessages.push({ role: "user", content: returned.flatMap((image) => [
           { type: "text", text: `Image returned by tool: ${image.filename}` },
-          { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
+          imageBlock(image),
         ]) });
       }
       for (const steer of step.steering) requestMessages.push({ role: "user", content: steer.text });
