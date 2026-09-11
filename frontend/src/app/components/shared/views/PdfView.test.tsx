@@ -232,7 +232,7 @@ describe("PdfView", () => {
         selection.removeAllRanges(); selection.addRange(range);
         expect(selection.toString()).toBe("Page 1");
         expect(text.closest("[data-legal-block]")).toHaveAttribute("data-locator-value", "1");
-        expect(text.closest(".pdf-text-layer")).toHaveStyle({ userSelect: "text", pointerEvents: "auto" });
+        expect(text.closest(".pdf-text-layer")!.querySelector(".endOfContent")).not.toBeNull();
     });
 
     it("finishes exact mixed-size geometry and bounds canvases when jumping", async () => {
@@ -429,7 +429,7 @@ describe("PdfView", () => {
         await waitFor(() => expect(container.querySelector('.pdf-text-highlight')).not.toBeNull());
         expect(container.querySelectorAll('.pdf-text-layer')).toHaveLength(1);
         expect(mocks.textLayers).toEqual([1]);
-        expect(container.querySelector('.pdf-text-layer')).toHaveStyle({ userSelect: "text" });
+        expect(container.querySelector('.pdf-text-layer .endOfContent')).not.toBeNull();
     });
 
     it.each([false, true])("keeps the PDF readable when text extraction fails (quotes: %s)", async (withQuotes) => {

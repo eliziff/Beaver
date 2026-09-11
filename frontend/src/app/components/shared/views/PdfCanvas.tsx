@@ -233,8 +233,7 @@ export function PdfCanvas({
                     element.className = "pdf-text-layer";
                     element.dataset.legalText = String(index + 1);
                     Object.assign(element.style, { position: "absolute", left: "0", top: "0",
-                        width: `${viewport.width}px`, height: `${viewport.height}px`,
-                        userSelect: "text", pointerEvents: "auto", zIndex: "1" });
+                        width: `${viewport.width}px`, height: `${viewport.height}px`, zIndex: "1" });
                     element.style.setProperty("--scale-factor", String(scale));
                     pages[index].wrapper.appendChild(element);
                     const layer = new lib.TextLayer({ textContentSource: page.streamTextContent(),
