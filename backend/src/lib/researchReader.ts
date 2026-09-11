@@ -20,7 +20,7 @@ import { findTextMatches } from "./chat/tools/documentOps";
 import type { A2AJReferenceDirection } from "./chat/tools/a2ajTools";
 import type { ReadSubagentAssignment, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import type { NormalizedToolCall } from "./llm";
-import { toolText, withoutUrls, MAX_MODEL_TOOL_RESULT_CHARS, type BeaverOutcome } from "./chat/toolRegistry";
+import { withoutUrls, toolOutcome as result, failedOutcome as fail, MAX_MODEL_TOOL_RESULT_CHARS, type BeaverOutcome } from "./chat/toolRegistry";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "./value";
 import { utf16PrefixCeil } from "./text";
 import type { ResearchChange } from "./researchHistory";
@@ -29,8 +29,6 @@ import type { ResearchOperationContext } from "./researchProvenance";
 
 import { researchFindingReferenceSchema } from "./researchFindingReference";
 
-const result = (value: unknown): BeaverOutcome => ({ result: toolText(value, objectRecord(value)?.ok === false) });
-const fail = (error: string) => result({ ok: false, error });
 
 const readCursor = z.object({ resource: z.string().min(1).max(4_000), offset: z.number().int().min(1),
   start_char: z.number().int().nonnegative().optional() }).strict();
