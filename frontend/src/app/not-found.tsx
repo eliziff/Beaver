@@ -1,23 +1,5 @@
-import { Link } from "react-router-dom";
-import { buttonClassName } from "@/app/components/ui/button";
+import { MessagePage } from "@/app/error";
 export default function NotFound() {
-    return (
-        <div className="min-h-screen bg-white flex items-center justify-center px-4">
-            <div className="text-center max-w-md">
-                <h1 className="mb-3 text-3xl font-light text-gray-900">
-                    Page not found
-                </h1>
-                <p className="text-[0.9375rem] text-gray-500 leading-relaxed mb-8">
-                    The page you&apos;re looking for doesn&apos;t exist or may
-                    have been moved.
-                </p>
-                <Link
-                    to="/"
-                    className={buttonClassName()}
-                >
-                    Go home
-                </Link>
-            </div>
-        </div>
-    );
+    return <MessagePage title="Page not found" action="Go home"
+        message="The page you're looking for doesn't exist or may have been moved." />;
 }
