@@ -1,23 +1,11 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
-import { runtimeConstructor } from "./runtimeSdk";
+import type OpenAI from "openai";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type InputItem = Record<string, unknown>;
 type State = { responseId: string } | { history: InputItem[] };
-type OpenAIClient = {
-  responses: {
-    create(
-      request: Record<string, unknown>,
-      options: { signal?: AbortSignal; maxRetries: number },
-    ): Promise<AsyncIterable<unknown>>;
-  };
-};
-type OpenAIConstructor = new (options: {
-  apiKey: string; baseURL: string; maxRetries: number;
-  defaultHeaders?: Record<string, string>;
-}) => OpenAIClient;
-const openAI = runtimeConstructor<OpenAIConstructor>("openai");
+const openAI = import("openai").then((sdk) => sdk.default);
 
 type ResponsesWireConfig = {
   apiKey: string;
@@ -48,7 +36,7 @@ const input = (messages: LlmMessage[]): InputItem[] => messages.map((message) =>
   };
 });
 
-const wireTools = (tools: Tool[]) => tools.map((tool) => ({
+const wireTools = (tools: Tool[]): Omit<OpenAI.Responses.FunctionTool, "strict">[] => tools.map((tool) => ({
   type: "function" as const,
   name: tool.name,
   description: tool.description,
@@ -135,22 +123,23 @@ export function createResponsesWireAdapter(
       const requestInput = !step.iteration ? initial
         : config.persistent ? additions
         : [...(state as { history: InputItem[] }).history, ...additions];
-      const reasoning = params.enableThinking || params.reasoningEffort
+      const reasoning: OpenAI.Reasoning | undefined = params.enableThinking || params.reasoningEffort
         ? {
             summary: params.enableThinking && config.reasoningSummary ? "auto" : undefined,
-            effort: params.reasoningEffort,
+            effort: params.reasoningEffort as OpenAI.ReasoningEffort | undefined,
           }
         : undefined;
       const stream = await (await client).responses.create({
         model: config.model ?? params.model,
         instructions: params.systemPrompt || undefined,
-        input: requestInput,
-        tools: wireTools(step.tools),
+        input: requestInput as OpenAI.Responses.ResponseInput,
+        // Leave strictness to the provider, preserving the omitted wire field.
+        tools: wireTools(step.tools) as OpenAI.Responses.FunctionTool[],
         stream: true,
         max_output_tokens: params.maxTokens ?? 16_384,
         previous_response_id: responseId,
         reasoning,
-        service_tier: config.serviceTier,
+        service_tier: config.serviceTier as OpenAI.Responses.ResponseCreateParamsStreaming["service_tier"],
         prompt_cache_key: config.promptCacheKey,
         ...(config.nativeCompaction && params.compactThreshold
           ? { context_management: [{ type: "compaction", compact_threshold: params.compactThreshold }] }
