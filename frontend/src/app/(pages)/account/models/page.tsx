@@ -1,12 +1,23 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Info, Loader2 } from "lucide-react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import type { ApiKeyState } from "@/app/lib/api/account";
 import {
     ModelToggle,
 } from "@/app/components/assistant/ModelToggle";
 import { AccountSection } from "../AccountSection";
 type ModelPreferenceField = "titleModel" | "tabularModel";
+/** The panel rows, so a new preference is one entry rather than a copied block. */
+const MODEL_PREFERENCES: {
+    field: ModelPreferenceField; label: string; info: string;
+    fallback: string; includeSettingsModels?: boolean;
+}[] = [
+    { field: "titleModel", label: "Title generation model",
+        info: "Names chats and other short titles.",
+        fallback: "gemini-3.1-flash-lite-preview", includeSettingsModels: true },
+    { field: "tabularModel", label: "Tabular review model",
+        info: "Smaller models usually cost less for tabular reviews.",
+        fallback: "gemini-3-flash-preview" },
+];
 export default function ModelPreferencesPage() {
     const { profile, updateProfile } = useUserProfile();
     const [savingField, setSavingField] = useState<ModelPreferenceField | null>(
@@ -33,72 +44,34 @@ export default function ModelPreferencesPage() {
     };
     return (
         <AccountSection heading="Model preferences">
-                <div className="px-4 py-5">
-                    <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700">
-                        Title generation model
-                        <InfoButton text="Names chats and other short titles." />
-                    </div>
-                    <ModelPreferenceDropdown
-                        value={
-                            optimisticValues.titleModel ??
-                            profile?.titleModel ??
-                            "gemini-3.1-flash-lite-preview"
-                        }
-                        includeSettingsModels
-                        apiKeys={profile?.apiKeys}
-                        isSaving={savingField === "titleModel"}
-                        onChange={(id) => handleModelChange("titleModel", id)}
-                    />
-                </div>
-                <div className="mx-4 h-px bg-gray-200" />
-                <div className="px-4 py-5">
-                    <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700">
-                        Tabular review model
-                        <InfoButton text="Smaller models usually cost less for tabular reviews." />
-                    </div>
-                    <ModelPreferenceDropdown
-                        value={
-                            optimisticValues.tabularModel ??
-                            profile?.tabularModel ??
-                            "gemini-3-flash-preview"
-                        }
-                        apiKeys={profile?.apiKeys}
-                        isSaving={savingField === "tabularModel"}
-                        onChange={(id) => handleModelChange("tabularModel", id)}
-                    />
-                </div>
+                {MODEL_PREFERENCES.map(({ field, label, info, fallback, includeSettingsModels }, index) => {
+                    const isSaving = savingField === field;
+                    return <Fragment key={field}>
+                        {index > 0 && <div className="mx-4 h-px bg-gray-200" />}
+                        <div className="px-4 py-5">
+                            <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                                {label}
+                                <InfoButton text={info} />
+                            </div>
+                            <div className="flex w-full max-w-xs items-center gap-2">
+                                <ModelToggle
+                                    value={optimisticValues[field] ?? profile?.[field] ?? fallback}
+                                    disabled={isSaving}
+                                    includeSettingsModels={includeSettingsModels}
+                                    apiKeys={profile?.apiKeys}
+                                    onChange={(id) => handleModelChange(field, id)}
+                                    className="max-w-xs"
+                                />
+                                <span className="h-3.5 w-3.5 shrink-0">
+                                    {isSaving && (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" />
+                                    )}
+                                </span>
+                            </div>
+                        </div>
+                    </Fragment>;
+                })}
         </AccountSection>
-    );
-}
-function ModelPreferenceDropdown({
-    value,
-    onChange,
-    apiKeys,
-    includeSettingsModels,
-    isSaving,
-}: {
-    value: string;
-    onChange: (id: string) => void;
-    apiKeys?: ApiKeyState;
-    includeSettingsModels?: boolean;
-    isSaving?: boolean;
-}) {
-    return (
-        <div className="flex w-full max-w-xs items-center gap-2">
-            <ModelToggle
-                value={value}
-                disabled={isSaving}
-                includeSettingsModels={includeSettingsModels}
-                apiKeys={apiKeys}
-                onChange={onChange}
-                className="max-w-xs"
-            />
-            <span className="h-3.5 w-3.5 shrink-0">
-                {isSaving && (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" />
-                )}
-            </span>
-        </div>
     );
 }
 function InfoButton({ text }: { text: string }) {

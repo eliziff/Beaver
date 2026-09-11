@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { lookupUserByEmail, type UserLookupResult } from "@/app/lib/api/account";
 import { Button } from "@/app/components/ui/button";
-import { cn } from "@/app/lib/utils";
+import { cn, errorMessage } from "@/app/lib/utils";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 interface AddUserInputProps {
     onAdd: (user: UserLookupResult) => Promise<void> | void;
@@ -51,11 +51,7 @@ export function AddUserInput({
             await onAdd(user);
             setInput("");
         } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "Could not add this user. Try again.",
-            );
+            setError(errorMessage(err, "Could not add this user. Try again."));
         } finally {
             setChecking(false);
         }

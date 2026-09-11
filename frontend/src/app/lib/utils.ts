@@ -34,6 +34,11 @@ export function formatDateTime(iso: string | null | undefined): string | null {
 export const errorMessage = (error: unknown, fallback = "") =>
     error instanceof Error ? error.message : fallback;
 
+/** A `next` destination is only honoured when it is a path inside this app. */
+export const safeNext = (value: string | null | undefined, fallback: string) =>
+    value?.startsWith("/") && !value.startsWith("//") && !value.includes("\\")
+        ? value : fallback;
+
 export function formatLongDate(iso: string | null | undefined): string | null {
     if (!iso) return null;
     const date = new Date(/^\d{4}-\d{2}-\d{2}$/u.test(iso) ? `${iso}T00:00:00Z` : iso);

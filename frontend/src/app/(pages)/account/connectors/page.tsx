@@ -42,7 +42,6 @@ const emptyAddState = {
     step: "form" as "form" | "auth" | "success",
     result: null as McpConnectorSummary | null,
     error: null as string | null,
-    authMessage: null as string | null,
 };
 function parseCustomHeaders(raw: string): Record<string, string> | undefined {
     const text = raw.trim();
@@ -207,7 +206,7 @@ export default function ConnectorsPage() {
     };
     const refreshConnector = async (
         connector: McpConnectorSummary,
-        onOAuth: (connectorId: string, message: string) =>
+        onOAuth: (connectorId: string) =>
             Promise<McpConnectorSummary | null> = connectConnectorOAuth,
     ) => {
         try {
@@ -220,10 +219,7 @@ export default function ConnectorsPage() {
                 throw err;
             }
             replaceConnector(connector);
-            return onOAuth(
-                connector.id,
-                "Complete authorization in the popup to finish connecting this MCP server.",
-            );
+            return onOAuth(connector.id);
         }
     };
     const handleCreate = () => {
@@ -231,7 +227,7 @@ export default function ConnectorsPage() {
         return runSensitiveAction(
             "create",
             async () => {
-                updateAdd({ error: null, authMessage: null });
+                updateAdd({ error: null });
                 try {
                     const headers = parseCustomHeaders(add.draft.customHeaders);
                     const connector = await createMcpConnector({
@@ -242,20 +238,16 @@ export default function ConnectorsPage() {
                     });
                     const refreshed = await refreshConnector(
                         connector,
-                        (connectorId, message) => {
-                            updateAdd({ authMessage: message, step: "auth" });
+                        (connectorId) => {
+                            updateAdd({ step: "auth" });
                             return connectConnectorOAuth(connectorId);
                         },
                     );
                     if (refreshed) {
-                        updateAdd({
-                            authMessage: null,
-                            result: refreshed,
-                            step: "success",
-                        });
+                        updateAdd({ result: refreshed, step: "success" });
                     }
                 } catch (err) {
-                    updateAdd({ step: "form", authMessage: null });
+                    updateAdd({ step: "form" });
                     throw err instanceof Error
                         ? err
                         : new Error("Failed to add connector.");
@@ -470,8 +462,8 @@ export default function ConnectorsPage() {
                     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 pb-4 text-center">
                         <Loader2 className="size-4 animate-spin text-gray-700" />
                         <p className="max-w-sm text-sm text-gray-500">
-                            {add.authMessage ??
-                                "Complete authorization in the popup to finish connecting this MCP server."}
+                            Complete authorization in the popup to finish
+                            connecting this MCP server.
                         </p>
                     </div>
                 ) : (
