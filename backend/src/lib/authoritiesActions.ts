@@ -116,6 +116,23 @@ const parsedKind = ({ kind }: NativeCitationOccurrence): AuthorityKind => kind =
 const lookupKey = (sources: CitationServices, text: string) => {
   try { return sources.key(text).trim(); } catch { return ""; }
 };
+/**
+ * An authority is keyed by its core citation, as the scan keys it: "R. v. Grant,
+ * 2009 SCC 32" and "2009 SCC 32" are one authority, not two. Any citation text a
+ * user or the assistant supplies goes through the same core extraction the
+ * detector uses, so manual and detected identities cannot drift apart.
+ */
+const citationKey = (sources: CitationServices, citation: string) => {
+  const matches = sources.occurrences(citation);
+  return lookupKey(sources, matches.length === 1 ? matches[0].coreCitation.text : citation);
+};
+/** The authority a citation key already names, whatever citation form listed it. */
+const knownAuthority = (draft: AuthoritiesDraft, key: string, sources: CitationServices) => {
+  if (!key) return null;
+  const authorities = Object.values(draft.authorities);
+  return authorities.find((item) => item.key === key) ??
+    authorities.find((item) => citationKey(sources, item.citation) === key) ?? null;
+};
 const parsedAuthority = (match: NativeCitationOccurrence, key: string): AuthorityIdentity => ({
   id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
   name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
@@ -133,7 +150,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   const text = unit.text.slice(start, end);
   const matches = sources.occurrences(text), match = matches.length === 1 ? matches[0] : null;
   const key = match ? lookupKey(sources, match.coreCitation.text) : "";
-  const authority = key ? Object.values(draft.authorities).find((item) => item.key === key) : null;
+  const authority = knownAuthority(draft, key, sources);
   const donorIds = donors.map(({ authorityId }) => authorityId);
   const authorityId = authority?.id ?? (sameValue(donorIds) ? donorIds[0] : null);
   const donorReferences = donors.map(({ reference }) => reference);
@@ -252,7 +269,7 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     // but manualOccurrence's whitespace-trimmed bounds on the manual path.
     let basis = { start: selected.start, end: selected.end };
     if (match && key) {
-      const known = Object.values(draft.authorities).find((authority) => authority.key === key);
+      const known = knownAuthority(draft, key, sources);
       const discovered = known ?? parsedAuthority(match, key);
       if (!known) changed = updateAuthoritiesDraft(draft,
         { type: "add-authority", authority: discovered });
@@ -380,7 +397,11 @@ export function applyAuthoritiesUserAction(
 ) {
   if (action.type === "add-authority") {
     const citation = action.citation.trim();
-    const base = lookupKey(sources, citation) || `manual:${sha256(
+    const parsed = citationKey(sources, citation);
+    // One authority per citation: a styled re-add of a citation already listed is
+    // that authority, not a second, unresolved copy of it.
+    if (knownAuthority(draft, parsed, sources)) return draft;
+    const base = parsed || `manual:${sha256(
       `${action.kind}\0${citation}`).slice(0, 24)}`;
     let key = base;
     for (let suffix = 2; draft.authorities[key]; suffix += 1) key = `${base}:${suffix}`;
