@@ -1,8 +1,8 @@
 import { tmpdir } from "node:os";
 import { unlink } from "node:fs/promises";
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
 import multer from "multer";
-import { ApplicationError } from "./applicationError";
+import { ApplicationError, reject } from "./applicationError";
 import { documentFileType } from "./documentTypes";
 import { concurrentRequests } from "./requestConcurrency";
 
@@ -15,6 +15,11 @@ const uploadSlot = concurrentRequests(4, "The upload service is busy. Try again 
 export function singleFileUpload(fieldName: string): RequestHandler {
   return stagedFiles(stagedUpload(1).single(fieldName));
 }
+
+/** The one file a `singleFileUpload` route requires, raw or as the document it stands for. */
+export const requiredFile = (req: Request): Express.Multer.File =>
+  req.file ?? reject(400, "file is required");
+export const requiredUpload = (req: Request) => uploadedDocument(requiredFile(req));
 
 export function multipleFileUpload(fieldName: string, maxFiles: number): RequestHandler {
   if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > MAX_FILES_PER_UPLOAD) {

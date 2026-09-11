@@ -17,7 +17,7 @@ import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
 import { sha256 } from "../lib/hash";
-import { multipleFileUpload, singleFileUpload } from "../lib/upload";
+import { multipleFileUpload, requiredFile, singleFileUpload } from "../lib/upload";
 import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
   decodeAuthoritiesUserAction } from "../lib/authoritiesActionContract";
@@ -96,7 +96,7 @@ async function sendDraft(res: Response, state: AuthoritiesDraft,
 async function standaloneSource(req: Request): Promise<
   Parameters<typeof importStandaloneAuthoritiesFile>[0]
 > {
-  const file = req.file ?? reject(400, "file is required");
+  const file = requiredFile(req);
   const filename = file.originalname, extension = filename.split(".").at(-1)?.toLowerCase();
   const fileType = extension === "pdf" || extension === "docx" ? extension
     : reject(400, "Add a PDF or Word document");
@@ -134,7 +134,7 @@ export function createAuthoritiesRuntimeRouter(
     const source = authority && attachedAuthoritySources(authority.source).find(item =>
       item.bindingRole === req.body?.bindingRole);
     if (!authority || !source) return reject(400, "The authority PDF is not attached");
-    const file = req.file ?? reject(400, "file is required");
+    const file = requiredFile(req);
     const bytes = await readFile(file.path);
     if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
     const abort = new AbortController(); res.on("close", () => abort.abort());

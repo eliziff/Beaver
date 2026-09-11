@@ -6,7 +6,7 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
 import { requireAuth } from "../middleware/auth";
-import { singleFileUpload, uploadedDocument } from "../lib/upload";
+import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
 
 function digest(value: unknown) {
   const result = text(value, 64).toLowerCase();
@@ -73,9 +73,8 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
       applicationScope(res), documentImport(req.body)));
   }));
   router.post("/documents", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const file = req.file ?? reject(400, "file is required");
     res.status(201).json(await application.saveFile(
-      applicationScope(res), uploadedDocument(file),
+      applicationScope(res), requiredUpload(req),
       req.body?.projectId === undefined ? undefined : text(req.body.projectId)));
   }));
   router.get("/:id", asyncRoute(async (req, res) => {
@@ -112,7 +111,7 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
   }));
   router.post("/:id/attachments/:authorityId", singleFileUpload("file"),
     asyncRoute(async (req, res) => {
-      const file = req.file ?? reject(400, "file is required");
+      const file = requiredFile(req);
       res.json(await application.attachPdf(applicationScope(res), text(req.params.id), {
         revision: revision(req.body?.revision, true),
         authorityId: text(req.params.authorityId), file: uploadedDocument(file),
@@ -125,7 +124,7 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
   }));
   router.post("/:id/book-parts/:slot", singleFileUpload("file"),
     asyncRoute(async (req, res) => {
-      const file = req.file ?? reject(400, "file is required");
+      const file = requiredFile(req);
       res.json(await application.attachBookPdf(applicationScope(res), text(req.params.id), {
         revision: revision(req.body?.revision, true),
         slot: choice(req.params.slot, ["cover", "index", "supplemental"] as const),
