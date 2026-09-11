@@ -115,6 +115,7 @@ import {
 import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   toolText,
+  toolOutcome as result, failedOutcome as fail,
   type BeaverToolPolicy,
   type BeaverOutcome,
   type BeaverTool,
@@ -1129,7 +1130,6 @@ function pdfLocatorParams(args: Record<string, unknown>) {
   };
 }
 
-const result = (content: unknown): BeaverOutcome => ({ result: toolText(content, objectRecord(content)?.ok === false) });
 
 type DocumentArtifact = Extract<AssistantEvent, { type: "document_artifact" }>;
 type AssistantOutcome = BeaverOutcome |
@@ -1179,7 +1179,6 @@ const withEvent = (output: AssistantOutcome, event: AssistantEvent | null | unde
   ? { ...output, events: [...(output.events ?? []), event] }
   : output;
 
-const fail = (error: string) => result({ ok: false, error });
 
 /** Citation text, authority names and span text a work-product payload carries: the draft's
  * own words, which an answer about the draft quotes back rather than advances as authority. */
