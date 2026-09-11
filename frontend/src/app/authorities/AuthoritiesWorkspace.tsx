@@ -85,27 +85,26 @@ function libraryTitle(target: LibraryTarget | undefined, sourceLabel: string) {
   if (target?.kind === "book") return `Choose ${target.slot === "supplemental" ? "book PDF" : target.slot} from ${sourceLabel}`;
   return `Choose authority PDF from ${sourceLabel}`;
 }
-export type AuthoritiesRoute = { draftId: string; projectId?: string;
-  replaceDraft: (draftId?: string) => void };
 type ActionHandler = (action: AuthoritiesAction,
   done?: (next: AuthoritiesProduct) => void | Promise<void>) => void;
 type DiscrepancyHandler = (finding: AuthoritiesDiscrepancy,
   action: AuthoritiesDiscrepancyAction, done: () => void) => void;
 
-export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
-  onFocusChange, refreshToken, locked = false, LibraryPicker, route, jurisdictionOrder = [] }: {
+export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initialDraftId,
+  onFocusChange, refreshToken, locked = false, LibraryPicker, projectId, jurisdictionOrder = [] }: {
   host: AuthoritiesHost;
-  route: AuthoritiesRoute;
   headerActions?: ReactNode;
   onDraftChange?: (draft: AuthoritiesProduct | undefined, synced: boolean) => void;
   onFocusChange?: (focus?: WorkProductFocus) => void;
   refreshToken?: WorkProductRefresh;
+  initialDraftId?: string;
+  projectId?: string;
   locked?: boolean;
   LibraryPicker?: LibraryPicker;
   jurisdictionOrder?: string[];
 }) {
-  const { draftId: requested, projectId, replaceDraft } = route;
-  const routeTarget = useRef<string | null>(null), routeRequest = useRef(0);
+  const requested = initialDraftId ?? "";
+  const routeRequest = useRef(0);
   const [tab, setTab] = useState<WorkspaceTab>("automatic");
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -156,7 +155,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   const actionQueue = useRef(Promise.resolve());
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
   const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
-  const stayOnLanding = useRef(false);
   const refreshRequest = useRef(0);
 
   const adopt = useCallback((next?: AuthoritiesProduct, navigate = false, preserveTab = false) => {
@@ -182,12 +180,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     }
     return true;
   }, [projectId, host.mode]);
-  const open = useCallback((next?: AuthoritiesProduct) => {
-    stayOnLanding.current = false;
-    adopt(next, true); routeTarget.current = next?.id ?? "";
-    replaceDraft(next?.id);
-  }, [adopt, replaceDraft]);
-  const load = useCallback(async (id: string, navigate?: (next: AuthoritiesProduct) => void, preserveTab = false) => {
+  const load = useCallback(async (id: string, preserveTab = false, remembered = false) => {
     const request = ++routeRequest.current;
     setLoading(!draftRef.current);
     try {
@@ -195,11 +188,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (next.kind !== "authorities") throw new Error("This is not an Authorities draft.");
       if (request !== routeRequest.current || draftRef.current?.id === next.id &&
           draftRef.current.revision > next.revision) return;
-      if (navigate) navigate(next); else adopt(next, true, preserveTab);
+      adopt(next, true, preserveTab);
     } catch (caught) {
       if (request === routeRequest.current) {
         setError(errorText(caught));
-        if (navigate && localStorage.getItem(lastDraftKey(projectId, host.mode)) === id)
+        if (remembered && localStorage.getItem(lastDraftKey(projectId, host.mode)) === id)
           localStorage.removeItem(lastDraftKey(projectId, host.mode));
       }
     } finally { if (request === routeRequest.current) setLoading(false); }
@@ -231,24 +224,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     return () => { active = false; };
   }, [projectId, host]);
 
+  // Entering the workspace without a draft in the route resumes the last one; leaving a
+  // draft later is the reader's choice, and the scope is settled by then either way.
   useEffect(() => {
     const scope = projectId ?? "local";
-    if (restoredScope === scope || requested || draftRef.current ||
-        stayOnLanding.current) return;
-    const id = localStorage.getItem(lastDraftKey(projectId, host.mode));
+    if (restoredScope === scope || draftRef.current) return;
+    const id = requested ? "" : localStorage.getItem(lastDraftKey(projectId, host.mode));
     if (!id) { setRestoredScope(scope); return; }
-    void load(id, open).finally(() => setRestoredScope(scope));
-  }, [projectId, requested, restoredScope, load, open]);
+    void load(id, false, true).finally(() => setRestoredScope(scope));
+  }, [projectId, requested, restoredScope, load, host.mode]);
 
   useEffect(() => {
-    if (routeTarget.current !== null) {
-      const target = routeTarget.current;
-      routeTarget.current = null;
-      if (requested === target) return;
-    }
+    if (requested === (draftRef.current?.id ?? "")) return;
     if (!requested) { adopt(undefined, true); setLoading(false); return; }
-    void load(requested, undefined, tabRef.current === "drafts");
-    return () => { routeRequest.current += 1; };
+    void load(requested, tabRef.current === "drafts");
   }, [requested, projectId, adopt, load]);
 
   useEffect(() => {
@@ -355,14 +344,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
 
   function newDraft(forget = true) {
     routeRequest.current += 1;
-    stayOnLanding.current = true;
     if (forget) {
       const current = draftRef.current;
       if (current) delete modeDrafts.current[current.state.import.kind === "manual"
         ? "manual" : "automatic"];
       localStorage.removeItem(lastDraftKey(projectId, host.mode));
     }
-    adopt(undefined, true); routeTarget.current = ""; replaceDraft();
+    adopt(undefined, true);
   }
   function changeTab(next: WorkspaceTab) {
     if (next === "automatic" || next === "manual") {
@@ -371,7 +359,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
       if (!current || next !== activeMode) {
         const target = modeDrafts.current[next];
         if (target) {
-          adopt(undefined, true); void load(target, open);
+          adopt(undefined, true); void load(target);
         } else newDraft(false);
       }
     }
@@ -447,7 +435,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
     void run(() => host.create({ ...pendingImport, projectId,
       settings: pendingImport.preferences }), (next) => {
       setPreferences(pendingImport.preferences); setPendingImport(undefined);
-      open(next);
+      adopt(next, true);
     });
   }
   async function pickFiles(multiple: boolean, accept: "source" | "pdf",
@@ -467,7 +455,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         projectId, settings: { ...manualPreferences, sourceMode: "manual-originals",
           passageMarking: "margin", outputMode: "book" },
       });
-      if (current !== draft) { open(current); }
+      if (current !== draft) { adopt(current, true); }
       for (let index = 0; index < pdfs.length; index += 1) {
         const selected = pdfs[index], before = new Set(current.state.authorityOrder);
         const filename = pdfChoiceName(selected);
@@ -486,7 +474,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
         adopt(current);
       }
       return current;
-    }, (next) => { open(next); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
+    }, (next) => { adopt(next, true); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
   }
   function attach(authorityId: string, selected?: PdfChoice,
     language?: AuthoritySourceLanguage) {
@@ -551,7 +539,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
   function duplicate() {
     if (!draft) return;
     void run(() => host.drafts.duplicate<AuthoritiesProduct["state"]>(draft.id,
-      { title: `${draft.title} copy` }), (next) => { open(next); });
+      { title: `${draft.title} copy` }), (next) => { adopt(next, true); });
   }
   function removeDraft() {
     if (!draft) return;
@@ -717,12 +705,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange,
           busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />
         <div id="authorities-panel" role="tabpanel"
           aria-labelledby={`authorities-panel-tab-${TABS.findIndex(({ value }) => value === tab)}`}>
-        {loading || (!requested && !stayOnLanding.current &&
+        {loading || (!requested &&
           !!localStorage.getItem(lastDraftKey(projectId, host.mode)) &&
           restoredScope !== (projectId ?? "local")) ? <Loading /> : tab === "drafts"
           ? <DraftsPanel drafts={drafts} loading={draftsLoading} busy={busy} onOpen={(id) => void run(
               () => host.drafts.get<AuthoritiesProduct["state"]>(id), (next) => {
-                open(next);
+                adopt(next, true);
               }, "", "Opening draft")} />
             : !draft
               ? tab === "manual"

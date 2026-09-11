@@ -13,15 +13,14 @@ function StandaloneAuthorities() {
     const sync = () => setSearch(location.search);
     addEventListener("popstate", sync); return () => removeEventListener("popstate", sync);
   }, []);
-  const params = new URLSearchParams(search);
-  const replaceDraft = (id?: string) => {
-    const next = new URL(location.href);
-    if (id) next.searchParams.set("draft", id); else next.searchParams.delete("draft");
-    history.replaceState(history.state, "", next); setSearch(next.search);
-  };
-  return <AuthoritiesWorkspace host={standaloneAuthoritiesHost} route={{
-    draftId: params.get("draft") ?? "", replaceDraft,
-  }} />;
+  const draftId = new URLSearchParams(search).get("draft") ?? "";
+  return <AuthoritiesWorkspace host={standaloneAuthoritiesHost} initialDraftId={draftId}
+    onDraftChange={(draft) => {
+      if (draftId === (draft?.id ?? "")) return;
+      const next = new URL(location.href);
+      if (draft) next.searchParams.set("draft", draft.id); else next.searchParams.delete("draft");
+      history.replaceState(history.state, "", next); setSearch(next.search);
+    }} />;
 }
 
 createRoot(container).render(<StandaloneAuthorities />);
