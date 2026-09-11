@@ -405,11 +405,18 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
     const { file, catalog, resolveFinding, target } = await labelCatalog(scope, id, input);
-    const design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined)
-      : await (await dependencies.tabular()).designLabels(scope, catalog, file, target,
-        input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal }));
-    const { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
-    return { ...plan, design, fingerprint: catalog.fingerprint };
+    const modelDesign = () => (async () => (await dependencies.tabular()).designLabels(scope, catalog, file, target,
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal }))();
+    let design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined) : await modelDesign());
+    let { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
+    // A sparse hand-made ontology that files fewer than half the sources is no organization; propose a fresh one
+    // instead of "Not filed: everything" (Eli, 2026-09-10). The client then applies on the reproposed reading.
+    let reproposed = false;
+    if (!input.design && catalog.columns && input.columnIndex === undefined && plan.unassigned.length * 2 > catalog.rows.length) {
+      delete catalog.columns; design = await modelDesign();
+      ({ actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target)); reproposed = true;
+    }
+    return { ...plan, design, fingerprint: catalog.fingerprint, reproposed };
   }
   async function applyLabels(scope: Scope, id: string, input: LabelInput, actor?: Operation): Promise<ResearchFile> {
     const { file, catalog, target } = await labelCatalog(scope, id, input);

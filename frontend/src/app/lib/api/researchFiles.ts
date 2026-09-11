@@ -66,7 +66,7 @@ export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
 export type ResearchLabelDesign = { title: string;
   labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string; scope?: "source" | "highlight" }[];
   assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
-export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean;
+export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean; reproposed?: boolean;
   fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];
   labels: { key: string; name: string; path: string; parentKey: string | null; color: string | null;
     definition?: string; existing: boolean; rows: { id: string; title: string; support: string[] }[] }[] };

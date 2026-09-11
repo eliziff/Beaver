@@ -48,7 +48,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             const [current, next] = await Promise.all([getResearchFile(activeId),
                 labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body)]);
             if (run !== generation.current) return;
-            setFile(current); setRedesigned(repropose);
+            setFile(current); setRedesigned(repropose || (labelling && !!(next as ResearchLabelProposal).reproposed));
             if (labelling) { setPlan(next as ResearchLabelProposal); setProposedName((next as ResearchLabelProposal).title); }
             else { setPreview(next as ResearchTablePreview); setNote((next as ResearchTablePreview).fallback ?? ""); }
         } catch (reason) { if (run !== generation.current) return;
