@@ -1,20 +1,11 @@
 import { onApiMutation } from "./api/mutationEvents";
 // Invalidations carry collection identities only, never rows or document content.
 export type CollectionChange = { tags: readonly string[] };
-const listeners = new Set<(change: CollectionChange) => void>();
 export function onCollectionChange(listener: (change: CollectionChange) => void) {
-    listeners.add(listener);
-    const off = onApiMutation(({ path, method, fields }) => {
+    return onApiMutation(({ path, method, fields }) => {
         const tags = collectionMutationTags(path, method, fields);
         if (tags.length) listener({ tags });
     });
-    return () => { listeners.delete(listener); off(); };
-}
-export function invalidateCollections(tags: readonly string[]) {
-    if (!tags.length) return;
-    for (const listener of listeners) {
-        try { listener({ tags }); } catch { /* A cache observer must not fail a committed mutation. */ }
-    }
 }
 
 // Central mutation boundary covers writes made outside collection components too
