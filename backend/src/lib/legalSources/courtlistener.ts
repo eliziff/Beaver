@@ -4,7 +4,7 @@ import { searchJurisdiction } from ".";
 import type { LegalSourceProvider, LegalSourceReference } from ".";
 import { structureNative, type NativeDocument } from "../structureNative";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import { jsonRecord, nonemptyString as asString } from "../value";
+import { jsonRecord, nonemptyString as asString, trimmedText } from "../value";
 import { courtlistenerLocalBulkAvailable, getLocalCourtlistenerCase,
   lookupLocalCourtlistenerCitation, searchLocalCourtlistenerCases,
   type LocalCourtlistenerCluster } from "../courtlistenerLocalBulk";
@@ -271,7 +271,7 @@ async function citationCluster(
   apiToken?: string | null,
   signal?: AbortSignal,
 ): Promise<number | null> {
-  let text = typeof citation === "string" ? citation.trim() : "";
+  let text = trimmedText(citation);
   if (!text) return null;
   const localAvailable = courtlistenerLocalBulkAvailable();
   if (localAvailable) {

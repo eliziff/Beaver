@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources/reference";
 import { researchFindingReferenceSchema } from "./researchFindingReference";
+import { textField } from "./textField";
 const counts = z.object({ labels: z.number().int().nonnegative(), sources: z.number().int().nonnegative(),
   passages: z.number().int().nonnegative(), tables: z.number().int().nonnegative().optional(),
   results: z.number().int().nonnegative().optional() }).strict();
@@ -37,27 +38,27 @@ export type ResearchFileState = { schemaVersion: "beaver.research.v2";
   labels: Record<string, ResearchLabel>; sources: Record<string, ResearchSource>;
   queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
   history?: ResearchPartReference; proposals?: ResearchChangeSummary[] };
-const uuid = z.string().uuid(), text = (max: number) => z.string().trim().min(1).max(max);
+const uuid = z.string().uuid();
 const ids = z.array(uuid).max(10_000).transform((values) => [...new Set(values)]);
 const offset = z.number().int().min(0).max(50_000_000);
 export const researchMutationSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("label"), id: uuid.optional(), name: text(200),
+  z.object({ type: z.literal("label"), id: uuid.optional(), name: textField(200),
     parentId: uuid.nullable().optional(), color: z.string().regex(/^#[a-f0-9]{6}$/iu)
       .nullable().optional(), order: z.number().min(-1_000_000).max(1_000_000).optional(),
     scope: z.enum(["source", "highlight"]).optional(), definition: z.string().trim().max(20_000).optional() }).strict(),
   z.object({ type: z.literal("remove"), kind: z.enum(["label", "source", "evidence"]),
-    id: text(200), sourceId: uuid.optional() }).strict(),
+    id: textField(200), sourceId: uuid.optional() }).strict(),
   z.object({ type: z.literal("source"), reference: source, labelIds: ids.optional(),
     note: z.string().max(50_000).optional() }).strict(),
-  z.object({ type: z.literal("annotate"), kind: z.enum(["source", "evidence"]), id: text(200),
+  z.object({ type: z.literal("annotate"), kind: z.enum(["source", "evidence"]), id: textField(200),
     sourceId: uuid.optional(), labelIds: ids.optional(),
     note: z.string().max(50_000).optional() }).strict(),
-  z.object({ type: z.literal("passage"), sourceId: uuid, revision: text(200),
+  z.object({ type: z.literal("passage"), sourceId: uuid, revision: textField(200),
     start: offset, end: offset,
     labelIds: ids.optional() }).strict(),
   z.object({ type: z.literal("label-selection"), findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(), target: z.enum(["sources", "passages"]),
-    sourceIds: ids.optional(), evidenceIds: z.array(text(200)).max(100_000).optional(),
-    members: z.array(z.object({ sourceId: uuid, evidenceIds: z.array(text(200)).max(100_000).optional() }).strict()).max(100_000).optional(),
+    sourceIds: ids.optional(), evidenceIds: z.array(textField(200)).max(100_000).optional(),
+    members: z.array(z.object({ sourceId: uuid, evidenceIds: z.array(textField(200)).max(100_000).optional() }).strict()).max(100_000).optional(),
     labelIds: ids.optional(), unlabelled: z.boolean().optional(), assign: ids,
     mode: z.enum(["add", "remove", "replace"]) }).strict(),
   z.object({ type: z.literal("note"), markdown: z.string().max(250_000), expectedMarkdown: z.string().max(250_000).optional() }).strict(),
@@ -69,7 +70,7 @@ export const researchMutationSchema = z.discriminatedUnion("type", [
     context.addIssue({ code: "custom", message: "Evidence changes require sourceId" });
 });
 export const researchFileActionSchema = z.union([researchMutationSchema,
-  z.object({ type: z.literal("batch"), title: text(200), propose: z.boolean().optional(),
+  z.object({ type: z.literal("batch"), title: textField(200), propose: z.boolean().optional(),
     actions: z.array(researchMutationSchema.refine((action) =>
       action.type === "source" || action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
       action.type === "remove" && action.kind === "label", "Batch changes collect sources or organize labels and assignments"))

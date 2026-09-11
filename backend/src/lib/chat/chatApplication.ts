@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { textField } from "../textField";
 import type { BeaverTool } from "./toolRegistry";
 import {
   AssistantStreamError,
@@ -78,24 +79,24 @@ import { researchResultFilter } from "../researchReader";
 import type { AuditStore } from "../audit";
 
 const uuid = z.string().uuid();
-const userMessage = z.string().trim().min(1).max(200_000);
+const userMessage = textField(200_000);
 const documentSelection = z.object({
-  document_id: z.string().trim().min(1).max(200),
+  document_id: textField(200),
 }).strict();
 const wordContext = z.object({
-  document_name: z.string().trim().min(1).max(500),
+  document_name: textField(500),
 }).strict();
 const workflow = z.object({
-  id: z.string().trim().min(1).max(200),
-  variant_id: z.string().trim().min(1).max(200).optional(),
+  id: textField(200),
+  variant_id: textField(200).optional(),
 }).strict();
 const choiceResponse = z.object({
-  id: z.string().trim().min(1).max(80),
+  id: textField(80),
   kind: z.literal("choice"),
   answer: z.string().max(20_000).optional(),
 }).strict();
 const documentResponse = z.object({
-  id: z.string().trim().min(1).max(80),
+  id: textField(80),
   kind: z.literal("documents"),
   documents: z.array(documentSelection).max(50).default([]),
 }).strict();
@@ -124,17 +125,17 @@ export const chatTurnInputSchema = z.object({
   research_selection: researchSelectionSchema.nullish(),
   current_turn: currentTurn,
   expected_version: z.number().int().nonnegative(),
-  model: z.string().trim().min(1).max(200)
+  model: textField(200)
     .refine(isSupportedModel, "Unsupported model").optional(),
-  reasoning_effort: z.string().trim().min(1).max(32).optional(),
+  reasoning_effort: textField(32).optional(),
   edit_mode: z.enum(["manual", "auto"]).default("manual"),
   jurisdiction_preference: z.object({
     mode: z.enum(["ask", "presume"]),
-    jurisdictions: z.array(z.string().trim().min(1).max(100)).max(20),
+    jurisdictions: z.array(textField(100)).max(20),
   }).strict().nullable().optional(),
   subagent_mode: z.enum(["none", "beaver", "native"]).default("none"),
-  subagent_model: z.string().trim().min(1).max(128).optional(),
-  subagent_effort: z.string().trim().min(1).max(32).optional(),
+  subagent_model: textField(128).optional(),
+  subagent_effort: textField(32).optional(),
   activity_detail: z.enum(["auto", "standard", "tools", "trace"]).default("auto"),
   time_zone: z.string().max(100).refine((value) => {
     try {
@@ -148,7 +149,7 @@ export const chatTurnInputSchema = z.object({
   word_context: wordContext.optional(),
   work_product: z.object({ kind: z.enum(WORK_PRODUCT_KINDS), id: uuid,
     revision: z.number().int().positive(), focus: z.object({
-      item_id: z.string().trim().min(1).max(200),
+      item_id: textField(200),
       selection: z.object({ start: z.number().int().nonnegative(),
         end: z.number().int().nonnegative() }).strict()
         .refine(({ start, end }) => end >= start, "selection end precedes start").optional(),

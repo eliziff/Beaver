@@ -2,18 +2,19 @@ import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { trimmedText } from "../lib/value";
 import type { LegalSourceApplication } from "../lib/legalSourceApplication";
 import { searchFts5 } from "../lib/searchQuery";
 
 function text(value: unknown, name: string, maximum = 500) {
-  const result = typeof value === "string" ? value.trim() : "";
+  const result = trimmedText(value);
   if (!result) reject(400, `${name} is required`);
   if (result.length > maximum) reject(400, `${name} is too long`);
   return result;
 }
 
 function optionalText(value: unknown, maximum = 200) {
-  const result = typeof value === "string" ? value.trim() : "";
+  const result = trimmedText(value);
   if (result.length > maximum) reject(400, "value is too long");
   return result || undefined;
 }

@@ -1754,7 +1754,7 @@ export function assistantTools<Context extends {
   };
   const write: AssistantToolRun = async (_call, args) => {
     const requestedFilename = trimmed(args.filename);
-    const markdown = typeof args.content === "string" ? args.content.trim() : "";
+    const markdown = trimmed(args.content);
     const extension = /\.([^.]+)$/u.exec(requestedFilename)?.[1].toLowerCase();
     if (!markdown || !["docx", "xlsx", "pptx"].includes(extension ?? "")) {
       return fail("Write requires content and a .docx, .xlsx, or .pptx filename.");

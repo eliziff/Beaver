@@ -2,6 +2,7 @@ import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "../../resourceReferences";
 import { collapseProvisionLabels } from "../../provisionLabels";
 import type { LegalEvidenceReceipt } from "../legalEvidence";
+import { trimmedText } from "../../value";
 
 export type A2AJReferenceDirection = "none" | "inbound" | "outbound" | "both";
 
@@ -57,7 +58,7 @@ export function assistantToolActivityLabel(
     return query ? `Searching ${scope} for “${query}”` : `Searching ${scope}`;
   }
   if (name === "Read") {
-    const file = typeof args.file_path === "string" ? args.file_path.trim() : "";
+    const file = trimmedText(args.file_path);
     // A bare number is an index the model mistook for a file, not a document:
     // "Reading lines 1-5 of 11" names nothing the reader can recognise.
     if (!file || file.startsWith(".mike/") || /^\d+$/u.test(file)) return null;

@@ -11,7 +11,7 @@ import {
 } from "../lib/projectStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { requiredUpload, singleFileUpload } from "../lib/upload";
-import { isJsonRecord, jsonRecord } from "../lib/value";
+import { isJsonRecord, jsonRecord, trimmedText } from "../lib/value";
 
 const bodyOf = (req: Request): Record<string, unknown> =>
   jsonRecord(req.body) ?? {};
@@ -87,7 +87,7 @@ export function createProjectsRouter(
     handler(req, res, applicationScope(res)));
 
   router.get("/", route(async (req, res, scope) => {
-    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const q = trimmedText(req.query.q);
     const filter = req.query.scope === "mine" ||
       req.query.scope === "shared-with-me" ? req.query.scope : "all";
     const filters = { q, scope: filter };
@@ -112,7 +112,7 @@ export function createProjectsRouter(
 
   router.get("/:projectId/directory", route(async (req, res, scope) => {
     const { projectId } = req.params;
-    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const q = trimmedText(req.query.q);
     const parentFolderId = nullableId(req.query.parent_id, "parent_id");
     if (q && parentFolderId) reject(400, "q and parent_id cannot be used together");
     const filters = { project_id: projectId, q, parent_id: q ? null : parentFolderId };

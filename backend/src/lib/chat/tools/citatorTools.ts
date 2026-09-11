@@ -6,6 +6,7 @@ import {
   type StandsForCandidate,
 } from "../../caselawCitator";
 import type { Tool } from "../../llm";
+import { trimmedText } from "../../value";
 import { safeErrorLog } from "../../safeError";
 import { legalSourceResource } from "../../resourceReferences";
 import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
@@ -95,7 +96,7 @@ export function executeCitatorTool(
   args: Record<string, unknown>,
 ): CitatorToolExecution | null {
   if (name !== NOTE_UP_TOOL_NAME) return null;
-  const citation = typeof args.citation === "string" ? args.citation.trim() : "";
+  const citation = trimmedText(args.citation);
   if (!citation) return { payload: { ok: false, error: "citation is required" } };
   const courtScope = (["all", "scc", "appellate", "trial", "tribunal"] as const)
     .includes(args.court_scope as NoteUpCourtScope)

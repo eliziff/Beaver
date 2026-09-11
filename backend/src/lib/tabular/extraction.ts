@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { textField } from "../textField";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
@@ -20,7 +21,7 @@ import type { ResearchSubject } from "../researchSelection";
 
 type PriorResearch = { passages: ResearchEvidence[]; queries: ResearchQueryReceipt[] };
 
-const text = z.string().trim().min(1).max(8_000);
+const text = textField(8_000);
 const date = text.regex(/^\d{4}-\d{2}-\d{2}$/u).refine((value) => {
   const parsed = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
