@@ -68,6 +68,12 @@ afterEach(() => {
     vi.clearAllMocks();
 });
 
+function draftPanel(props: Omit<React.ComponentProps<typeof DocPanel>,
+    "documentId" | "filename" | "versionId" | "versionNumber">) {
+    return <DocPanel documentId="doc-1" filename="Draft agreement.docx"
+        versionId="version-1" versionNumber={1} {...props} />;
+}
+
 describe("edit document panel", () => {
     it("highlights citations in the rendered document without duplicating their text", async () => {
         const citation: DocumentCitation = {
@@ -77,15 +83,7 @@ describe("edit document panel", () => {
             filename: "Draft agreement.docx",
             quotes: [{ quote: "The term is five years." }],
         };
-        const { container } = render(
-            <DocPanel
-                documentId="doc-1"
-                filename="Draft agreement.docx"
-                versionId="version-1"
-                versionNumber={1}
-                mode={{ kind: "citation", citation }}
-            />,
-        );
+        const { container } = render(draftPanel({ mode: { kind: "citation", citation } }));
 
         expect(container).not.toHaveTextContent("The term is five years.");
         await waitFor(() =>
@@ -98,16 +96,10 @@ describe("edit document panel", () => {
     });
 
     it("leaves the redline as the only change preview", async () => {
-        const { container, rerender } = render(
-            <DocPanel
-                documentId="doc-1"
-                filename="Draft agreement.docx"
-                versionId="version-1"
-                versionNumber={1}
-                mode={{ kind: "edit", edit, focusKey: 1 }}
-                warning="Couldn't save accept — please retry."
-            />,
-        );
+        const { container, rerender } = render(draftPanel({
+            mode: { kind: "edit", edit, focusKey: 1 },
+            warning: "Couldn't save accept — please retry.",
+        }));
 
         expect(container).not.toHaveTextContent(
             /Draft agreement\.docx|Tracked Change|This repeats what the redline already shows|Inserted replacement|Deleted original/i,
@@ -133,15 +125,7 @@ describe("edit document panel", () => {
             }),
             ),
         );
-        rerender(
-            <DocPanel
-                documentId="doc-1"
-                filename="Draft agreement.docx"
-                versionId="version-1"
-                versionNumber={1}
-                mode={{ kind: "edit", edit, focusKey: 2 }}
-            />,
-        );
+        rerender(draftPanel({ mode: { kind: "edit", edit, focusKey: 2 } }));
         expect(mocks.docxView).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 highlightEdit: expect.objectContaining({ key: "edit-1:2" }),
@@ -150,15 +134,7 @@ describe("edit document panel", () => {
     });
 
     it("keeps the ordinary document header and download action", () => {
-        render(
-            <DocPanel
-                documentId="doc-1"
-                filename="Draft agreement.docx"
-                versionId="version-1"
-                versionNumber={1}
-                mode={{ kind: "document" }}
-            />,
-        );
+        render(draftPanel({ mode: { kind: "document" } }));
 
         screen.getByRole("heading", { name: /Draft agreement\.docx/ });
         screen.getByText("V1");

@@ -120,6 +120,11 @@ function Harness() {
     );
 }
 
+function chatView(props: Partial<React.ComponentProps<typeof ChatView>> = {}) {
+    return <ChatView chatId="chat-1" session={createAssistantSessionState({ chatId: "chat-1" })}
+        handleChat={vi.fn()} cancel={vi.fn()} {...props} />;
+}
+
 describe("ChatView rejected normal turn", () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -205,7 +210,7 @@ describe("ChatView rejected normal turn", () => {
                 },
             ] });
         const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
-        const { rerender } = render(<ChatView {...props} session={session("running")} />);
+        const { rerender } = render(chatView({ ...props, session: session("running") }));
 
         for (let index = 1; index <= 4; index += 1) {
             expect(await screen.findByRole("tab", { name: new RegExp(`Agent ${index}`) })).toBeVisible();
@@ -213,15 +218,15 @@ describe("ChatView rejected normal turn", () => {
         await userEvent.click(screen.getByRole("tab", { name: /Agent 1/u }));
         expect(screen.getByText("Assignment 1")).toBeVisible();
 
-        rerender(<ChatView {...props} session={session("completed")} />);
+        rerender(chatView({ ...props, session: session("completed") }));
         expect(screen.getByRole("tab", { name: /Agent 1/u })).toHaveAttribute("aria-selected", "true");
         expect(screen.getByText("Assignment 1")).toBeVisible();
         for (let index = 1; index <= 4; index += 1) {
             expect(screen.getByRole("tab", { name: new RegExp(`Agent ${index}`) })).toBeVisible();
         }
         await userEvent.click(screen.getByRole("button", { name: "Collapse assistant dock" }));
-        rerender(<ChatView {...props} session={createAssistantSessionState({ chatId: "chat-1" })} />);
-        rerender(<ChatView {...props} session={session("completed")} />);
+        rerender(chatView({ ...props, session: createAssistantSessionState({ chatId: "chat-1" }) }));
+        rerender(chatView({ ...props, session: session("completed") }));
         expect(screen.getByRole("button", { name: "Expand assistant dock" })).toBeVisible();
         await userEvent.click(screen.getByRole("button", { name: "Expand assistant dock" }));
         expect(screen.getByRole("tab", { name: /Agent 1/u })).toHaveAttribute("aria-selected", "true");
@@ -230,68 +235,61 @@ describe("ChatView rejected normal turn", () => {
     it("announces response progress and only reports successful completion", async () => {
         const handleChat = vi.fn().mockResolvedValue(null);
         const cancel = vi.fn();
-        const { rerender } = render(
-            <ChatView
-                chatId="chat-1"
-                session={createAssistantSessionState({ chatId: "chat-1" })}
-                handleChat={handleChat}
-                cancel={cancel}
-            />,
-        );
+        const { rerender } = render(chatView({ handleChat, cancel }));
         const status = screen.getByRole("status");
         expect(status).toBeEmptyDOMElement();
 
-        rerender(
-            <ChatView
-                chatId="chat-1"
-                session={{ ...createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { id: "user-1", role: "user", content: "Question" },
-                    { id: "assistant-1", role: "assistant", content: "" },
-                ] }), run: { id: "run-1", status: "running", chatId: "chat-1" } }}
-                handleChat={handleChat}
-                cancel={cancel}
-            />,
-        );
+        rerender(chatView({
+            session: {
+                ...createAssistantSessionState({
+                    chatId: "chat-1", messages: [
+                        { id: "user-1", role: "user", content: "Question" },
+                        { id: "assistant-1", role: "assistant", content: "" },
+                    ]
+                }), run: { id: "run-1", status: "running", chatId: "chat-1" }
+            },
+            handleChat,
+            cancel,
+        }));
         await waitFor(() =>
             expect(status).toHaveTextContent("Assistant is responding."),
         );
 
-        rerender(
-            <ChatView
-                chatId="chat-1"
-                session={createAssistantSessionState({ chatId: "chat-1", messages: [
+        rerender(chatView({
+            session: createAssistantSessionState({
+                chatId: "chat-1", messages: [
                     { id: "user-1", role: "user", content: "Question" },
                     { id: "assistant-1", role: "assistant", content: "Answer" },
-                ] })}
-                handleChat={handleChat}
-                cancel={cancel}
-            />,
-        );
+                ]
+            }),
+            handleChat,
+            cancel,
+        }));
         await waitFor(() =>
             expect(status).toHaveTextContent("Response ready."),
         );
 
-        rerender(
-            <ChatView
-                chatId="chat-1"
-                session={{ ...createAssistantSessionState({ chatId: "chat-1", messages: [
-                    { id: "user-1", role: "user", content: "Question" },
-                    { id: "assistant-1", role: "assistant", content: "" },
-                    { id: "user-2", role: "user", content: "Another question" },
-                    { id: "assistant-2", role: "assistant", content: "" },
-                ] }), run: { id: "run-2", status: "running", chatId: "chat-1" } }}
-                handleChat={handleChat}
-                cancel={cancel}
-            />,
-        );
+        rerender(chatView({
+            session: {
+                ...createAssistantSessionState({
+                    chatId: "chat-1", messages: [
+                        { id: "user-1", role: "user", content: "Question" },
+                        { id: "assistant-1", role: "assistant", content: "" },
+                        { id: "user-2", role: "user", content: "Another question" },
+                        { id: "assistant-2", role: "assistant", content: "" },
+                    ]
+                }), run: { id: "run-2", status: "running", chatId: "chat-1" }
+            },
+            handleChat,
+            cancel,
+        }));
         await waitFor(() =>
             expect(status).toHaveTextContent("Assistant is responding."),
         );
 
-        rerender(
-            <ChatView
-                chatId="chat-1"
-                session={createAssistantSessionState({ chatId: "chat-1", messages: [
+        rerender(chatView({
+            session: createAssistantSessionState({
+                chatId: "chat-1", messages: [
                     { id: "user-1", role: "user", content: "Question" },
                     { id: "assistant-1", role: "assistant", content: "" },
                     { id: "user-2", role: "user", content: "Another question" },
@@ -300,17 +298,16 @@ describe("ChatView rejected normal turn", () => {
                         role: "assistant",
                         content: [{ type: "error", message: "Provider unavailable." }],
                     },
-                ] })}
-                handleChat={handleChat}
-                cancel={cancel}
-            />,
-        );
+                ]
+            }),
+            handleChat,
+            cancel,
+        }));
         await waitFor(() => expect(status).toBeEmptyDOMElement());
 
-        rerender(
-            <ChatView
-                chatId="chat-1"
-                session={createAssistantSessionState({ chatId: "chat-1", messages: [
+        rerender(chatView({
+            session: createAssistantSessionState({
+                chatId: "chat-1", messages: [
                     { id: "user-1", role: "user", content: "Question" },
                     {
                         id: "assistant-1",
@@ -320,11 +317,11 @@ describe("ChatView rejected normal turn", () => {
                             { type: "turn_status", status: "cancelled" },
                         ],
                     },
-                ] })}
-                handleChat={handleChat}
-                cancel={cancel}
-            />,
-        );
+                ]
+            }),
+            handleChat,
+            cancel,
+        }));
         expect(screen.getByText("Response stopped")).toBeVisible();
     });
 });
