@@ -265,11 +265,7 @@ describe("useAssistantChat local transcript boundary", () => {
       useAssistantChat({ chatId: "chat-1", workProduct }),
     );
 
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Fix this citation",
-      editMode: "auto",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Fix this citation", editMode: "auto" }));
 
     expect(mocks.streamChat).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -329,17 +325,15 @@ describe("useAssistantChat local transcript boundary", () => {
       .mockResolvedValueOnce(completedTurn(5, 6))
       .mockResolvedValueOnce(completedTurn(7, 8));
     const { result } = renderHook(() =>
-      useAssistantChat({ chatId: "chat-1" }),
+      useAssistantChat({ chatId: "chat-1", projectId: "project-1" }),
     );
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "First current turn",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "First current turn" }));
     expect(mocks.streamChat).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
+        project_id: "project-1",
         chat_id: "chat-1",
         expected_version: 4,
         current_turn: {
@@ -353,61 +347,14 @@ describe("useAssistantChat local transcript boundary", () => {
     );
     expect(mocks.streamChat.mock.calls[0][0].messages).toBeUndefined();
 
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Second current turn",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Second current turn" }));
     expect(mocks.streamChat).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
+        project_id: "project-1",
         expected_version: 6,
         current_turn: expect.objectContaining({
           content: "Second current turn",
-        }),
-      }),
-    );
-  });
-
-  it("sends the durable project ID on every project chat turn", async () => {
-    mocks.streamChat
-      .mockResolvedValueOnce(completedTurn())
-      .mockResolvedValueOnce(completedTurn(3, 4));
-    const { result } = renderHook(() =>
-      useAssistantChat({
-        chatId: "chat-1",
-        projectId: "project-1",
-      }),
-    );
-
-    await act(async () => {
-      await result.current.handleChat({
-        role: "user",
-        content: "First project turn",
-      });
-      await result.current.handleChat({
-        role: "user",
-        content: "Second project turn",
-      });
-    });
-
-    expect(mocks.streamChat).toHaveBeenCalledTimes(2);
-    expect(mocks.streamChat).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        project_id: "project-1",
-        chat_id: "chat-1",
-        current_turn: expect.objectContaining({
-          content: "First project turn",
-        }),
-      }),
-    );
-    expect(mocks.streamChat).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        project_id: "project-1",
-        chat_id: "chat-1",
-        current_turn: expect.objectContaining({
-          content: "Second project turn",
         }),
       }),
     );
@@ -457,12 +404,9 @@ describe("useAssistantChat local transcript boundary", () => {
 
   it("reloads on a conflict and never replays the rejected turn", async () => {
     mocks.streamChat.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          code: "chat_version_conflict",
-          current_version: 3,
-        }),
-        { status: 409, headers: { "Content-Type": "application/json" } },
+      Response.json(
+        { code: "chat_version_conflict", current_version: 3 },
+        { status: 409 },
       ),
     );
     mocks.getChat
@@ -489,10 +433,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
 
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Rejected stale turn",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Rejected stale turn" }));
 
     expect(mocks.streamChat).toHaveBeenCalledTimes(1);
     expect(mocks.getChat).toHaveBeenCalledWith("chat-1");
@@ -512,12 +453,9 @@ describe("useAssistantChat local transcript boundary", () => {
   it("refreshes an in-progress turn and keeps the rejected draft", async () => {
     mocks.streamChat
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            code: "chat_turn_in_progress",
-            current_version: 1,
-          }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
+        Response.json(
+          { code: "chat_turn_in_progress", current_version: 1 },
+          { status: 409 },
         ),
       )
       .mockResolvedValueOnce(completedTurn(3, 4));
@@ -539,10 +477,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Keep this draft",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Keep this draft" }));
     await vi.waitFor(() => {
       expect(result.current.messages.map(({ role, content }) => ({ role, content }))).toEqual([
         { role: "user", content: "Accepted elsewhere" },
@@ -553,10 +488,7 @@ describe("useAssistantChat local transcript boundary", () => {
       content: "Keep this draft",
     });
 
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Send after refresh",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Send after refresh" }));
     expect(mocks.streamChat).toHaveBeenLastCalledWith(
       expect.objectContaining({ expected_version: 2 }),
     );
@@ -569,12 +501,9 @@ describe("useAssistantChat local transcript boundary", () => {
     };
     mocks.streamChat
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            code: "chat_version_conflict",
-            current_version: 2,
-          }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
+        Response.json(
+          { code: "chat_version_conflict", current_version: 2 },
+          { status: 409 },
         ),
       )
       .mockResolvedValueOnce(completedTurn(3, 4));
@@ -674,13 +603,9 @@ describe("useAssistantChat local transcript boundary", () => {
     const detail =
       "The prior continuation changed local data before it stopped. Review that result before sending a new instruction.";
     mocks.streamChat.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          code: "chat_retry_blocked_after_mutation",
-          current_version: 4,
-          detail,
-        }),
-        { status: 409, headers: { "Content-Type": "application/json" } },
+      Response.json(
+        { code: "chat_retry_blocked_after_mutation", current_version: 4, detail },
+        { status: 409 },
       ),
     );
     mocks.getChat.mockResolvedValue({
@@ -692,10 +617,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     await waitFor(() => expect(result.current.chatLoad.status).toBe("loaded"));
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Ontario",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Ontario" }));
 
     expect(result.current.rejectedTurn).toMatchObject({
       detail,
@@ -716,10 +638,7 @@ describe("useAssistantChat local transcript boundary", () => {
       useAssistantChat({ chatId: "chat-1" }),
     );
 
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Do not lose this",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Do not lose this" }));
 
     expect(result.current.rejectedTurn).toBeNull();
     expect(mocks.loadChats).not.toHaveBeenCalled();
@@ -774,10 +693,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     await waitFor(() => expect(result.current.chatLoad.status).toBe("error"));
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Create it once",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Create it once" }));
     const firstTurnId =
       mocks.streamChat.mock.calls[0][0].current_turn?.turn_id;
     expect(firstTurnId).toEqual(expect.any(String));
@@ -840,10 +756,7 @@ describe("useAssistantChat local transcript boundary", () => {
       pending = result.current.handleChat({ role: "user", content: "Draft a memo" });
     });
     await vi.waitFor(() => expect(result.current.isResponseLoading).toBe(true));
-    await act(() => result.current.handleChat({
-      role: "user",
-      content: "Focus on remedies",
-    }));
+    await act(() => result.current.handleChat({ role: "user", content: "Focus on remedies" }));
 
     expect(mocks.streamChat).toHaveBeenCalledOnce();
     expect(mocks.steerChat).toHaveBeenCalledWith(
@@ -857,7 +770,7 @@ describe("useAssistantChat local transcript boundary", () => {
     );
 
     releaseResponse(completedTurn());
-    await act(() => pending);
+    await act(async () => { await pending; });
   });
 
   it("uses the stop endpoint without revealing provisional prose", async () => {
@@ -936,7 +849,9 @@ describe("useAssistantChat local transcript boundary", () => {
     expect(result.current.messages.at(-1)?.content).toBe("");
 
     act(() => result.current.cancel());
-    await act(() => pending);
+    await act(async () => {
+      await pending;
+    });
 
     expect(mocks.stopChat).toHaveBeenCalledWith("chat-1");
     expect(requestSignal?.aborted).toBe(true);
