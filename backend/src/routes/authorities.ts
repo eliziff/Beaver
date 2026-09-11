@@ -1,30 +1,16 @@
 import { Router } from "express";
 import { applicationScope, reject } from "../lib/applicationError";
 import type { AuthoritiesWorkspaceApplication } from "../lib/authoritiesWorkspaceApplication";
-import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
-  decodeAuthoritiesUserAction } from "../lib/authoritiesActionContract";
+import { bad, choice, decodeAuthoritiesDiscrepancyAction,
+  decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, integer, object,
+  text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
-import { isJsonRecord } from "../lib/value";
 import { requireAuth } from "../middleware/auth";
 import { singleFileUpload, uploadedDocument } from "../lib/upload";
 
-const bad = (): never => reject(400, "Invalid Authorities request");
-const object = (value: unknown) => isJsonRecord(value) ? value : bad();
-function text(value: unknown, max = 500) {
-  if (typeof value !== "string") return bad();
-  const result = value.trim();
-  return result && result.length <= max ? result : bad();
-}
-function integer(value: unknown, min = 0) {
-  if (!Number.isSafeInteger(value) || Number(value) < min) return bad();
-  return Number(value);
-}
 function digest(value: unknown) {
   const result = text(value, 64).toLowerCase();
   return /^[a-f0-9]{64}$/u.test(result) ? result : bad();
-}
-function choice<T extends string>(value: unknown, choices: readonly T[]): T {
-  return typeof value === "string" && choices.includes(value as T) ? value as T : bad();
 }
 function revision(value: unknown, multipart = false) {
   return integer(multipart && typeof value === "string" ? Number(value) : value, 1);
