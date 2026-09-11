@@ -412,7 +412,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     // A sparse hand-made ontology that files fewer than half the sources is no organization; propose a fresh one
     // instead of "Not filed: everything" (Eli, 2026-09-10). The client then applies on the reproposed reading.
     let reproposed = false;
-    if (!input.design && catalog.columns && input.columnIndex === undefined && plan.unassigned.length * 2 > catalog.rows.length) {
+    const handMade = catalog.labels.every((label) => !label.definition);
+    if (!input.design && catalog.columns && handMade && input.columnIndex === undefined && plan.unassigned.length * 2 > catalog.rows.length) {
       delete catalog.columns; design = await modelDesign();
       ({ actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target)); reproposed = true;
     }
