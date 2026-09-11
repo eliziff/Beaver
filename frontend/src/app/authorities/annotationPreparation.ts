@@ -1,7 +1,7 @@
 import { apiResponse } from '@/app/lib/api/client';
-import { decodeAnnotationSet, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
+import { decodeAnnotationSet, type AnnotationPreparation } from '../../../../shared/pdf-annotations.mjs';
+export type { AnnotationPreparation } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesProduct } from './types';
-export type AnnotationPreparation = { annotations: PdfAnnotationSet; pageMarked: string[] };
 /** The same stateless runtime operation serves the local and integrated hosts. */
 export async function prepareAnnotations(product: AuthoritiesProduct, authorityId: string,
   bindingRole: string, file: Blob, signal?: AbortSignal): Promise<AnnotationPreparation> {
