@@ -686,6 +686,71 @@ describe("authorities draft domain", () => {
     expect(unmapped.occurrences.fresh).toMatchObject({ authorityId: "other", reviewed: false });
   });
 
+  it("withdraws a not-a-citation decision when a citation covers that text again", () => {
+    const text = "See Case A; Case A";
+    const unit = { id: "footnote:1", kind: "footnote" as const, ordinal: 1, footnoteId: 1,
+      footnoteRefs: [[1, 0]] as Array<[number, number]>, pageNumbers: [], text };
+    const scanned = () => ({ import: { kind: "manual" as const }, bindings: {},
+      units: [{ ...unit, occurrenceIds: ["scan-0", "scan-1"] }],
+      occurrences: { "scan-0": occurrence("scan-0", text, 4, 10, "a"),
+        "scan-1": occurrence("scan-1", text, 12, 18, "a", 1) },
+      authorities: { a: authority("a", "a-key") }, authorityOrder: ["a"] });
+    const draft: AuthoritiesDraft = { ...createAuthoritiesDraft({ kind: "manual" }),
+      ...structuredClone(scanned()) };
+
+    const rejected = reduceAuthoritiesDraft(draft,
+      { type: "remove-occurrence", occurrenceId: "scan-0" });
+    expect(Object.values(rejected.discrepancyDecisions)).toEqual(["ignore"]);
+    expect(reduceAuthoritiesDraft(rejected, { type: "refresh", review: scanned() })
+      .units[0].occurrenceIds).toEqual(["scan-1"]);
+
+    // A manual re-add carries a span-derived ordinal, so the decision's own id -
+    // a digest of the detection's ordinal - is beyond the reach of any later
+    // action. The citation standing over that text is what withdraws it.
+    const readded = reduceAuthoritiesDraft(rejected, { type: "add-occurrence",
+      occurrence: { ...occurrence("footnote:1:manual:4:10", text, 4, 10, "a", 4),
+        reviewed: true } });
+    const refreshed = reduceAuthoritiesDraft(readded, { type: "refresh", review: scanned() });
+    expect(refreshed.discrepancyDecisions).toEqual({});
+    expect(refreshed.units[0].occurrenceIds).toEqual(["footnote:1:manual:4:10", "scan-1"]);
+    expect(refreshed.occurrences["footnote:1:manual:4:10"].authorityId).toBe("a");
+  });
+
+  it("keeps a resolved authority a refresh leaves without occurrences", () => {
+    const text = "See Case A";
+    const unit = { id: "footnote:1", kind: "footnote" as const, ordinal: 1, footnoteId: 1,
+      footnoteRefs: [[1, 0]] as Array<[number, number]>, pageNumbers: [], text };
+    const scanned = () => ({ import: { kind: "manual" as const }, bindings: {},
+      units: [{ ...unit, occurrenceIds: ["scan-0"] }],
+      occurrences: { "scan-0": occurrence("scan-0", text, 4, 10, "scan") },
+      authorities: { scan: { ...authority("scan", "a-key"), scanOnly: true as const } },
+      authorityOrder: ["scan"] });
+    let draft: AuthoritiesDraft = { ...createAuthoritiesDraft({ kind: "manual" }),
+      ...structuredClone(scanned()) };
+    draft = reduceAuthoritiesDraft(draft, { type: "resolve-authority", authorityId: "scan",
+      citation: "Case A", name: "Case A", source: { provider: "a2aj", stableSourceId: "case-a",
+        sourceSha256: "c".repeat(64), version: "2009", externalUrl: null } });
+    draft = reduceAuthoritiesDraft(draft, { type: "attach-source", authorityId: "scan",
+      bindingRole: "authority:scan", binding: { kind: "local-file", handleId: "case-a-pdf" },
+      filename: "Case A.pdf", sourceSha256: "d".repeat(64), sourceUrl: null,
+      origin: "original", language: "en" });
+    draft = reduceAuthoritiesDraft(draft,
+      { type: "remove-occurrence", occurrenceId: "scan-0" });
+
+    // The decision suppresses the re-detection, so nothing cites the authority -
+    // but its source identity and its PDF are the user's, not the scan's leavings.
+    const refreshed = reduceAuthoritiesDraft(draft, { type: "refresh", review: scanned() });
+    expect(refreshed.units[0].occurrenceIds).toEqual([]);
+    expect(refreshed.authorityOrder).toEqual(["scan"]);
+    expect(refreshed.authorities.scan).toMatchObject({
+      sourceIdentity: { stableSourceId: "case-a" },
+      source: { kind: "attached", sources: [{ bindingRole: "authority:scan" }] },
+    });
+    expect(refreshed.bindings["authority:scan"]).toEqual({ kind: "local-file",
+      handleId: "case-a-pdf" });
+    expect(validateAuthoritiesDraft(refreshed)).toEqual([]);
+  });
+
   it("retains an explicit user-added authority when an imported source is rescanned", () => {
     let draft = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport, sourceBindings), {
       type: "add-authority", authority: { ...authority("added", "added-key"), userAdded: true },
