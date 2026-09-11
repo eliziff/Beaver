@@ -32,9 +32,8 @@ const chat = {
 };
 
 function renderSidebar(props: Partial<ComponentProps<typeof SidebarChatItem>> = {}) {
-    return render(<MemoryRouter>
-        <SidebarChatItem chat={chat} isActive to="/assistant/chat/chat-1" {...props} />
-    </MemoryRouter>);
+    return render(<MemoryRouter><SidebarChatItem chat={chat} isActive
+        to="/assistant/chat/chat-1" {...props} /></MemoryRouter>);
 }
 
 describe("SidebarChatItem inline actions", () => {

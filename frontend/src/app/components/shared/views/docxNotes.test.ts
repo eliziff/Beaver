@@ -7,6 +7,7 @@ import {
     Paragraph,
     type ParagraphChild,
     TextRun,
+    type ParagraphChild,
 } from "docx";
 import JSZip from "jszip";
 import { parseAsync, renderDocument } from "docx-preview";
@@ -43,13 +44,12 @@ async function renderFixture(
 }
 
 async function renderNotes(
-    footnotes: Record<number, string>,
-    paragraphs: ParagraphChild[][],
-    customMarkFirst = false,
+    notes: Record<number, string>, paragraphs: ParagraphChild[][], customMarkFirst = false,
 ): Promise<HTMLElement> {
     const source = new Document({
-        footnotes: Object.fromEntries(Object.entries(footnotes).map(([id, text]) =>
-            [id, { children: [new Paragraph(text)] }])),
+        footnotes: Object.fromEntries(Object.entries(notes).map(([id, text]) =>
+            [id, { children: [new Paragraph(text)] }],
+        )),
         sections: [{ children: paragraphs.map((children) => new Paragraph({ children })) }],
     });
     return renderFixture(await Packer.toArrayBuffer(source), customMarkFirst);
@@ -105,20 +105,11 @@ describe("DOCX notes", () => {
 
     it("keeps footnotes on the saved Word page that references them", async () => {
         const container = await renderNotes(
-            {
-                1: "First page footnote",
-                2: "Second page footnote",
-            },
+            { 1: "First page footnote", 2: "Second page footnote" },
             [
                 [
-                    new TextRun("First page body"),
-                    new FootnoteReferenceRun(1),
-                    new TextRun({
-                        children: [
-                            new LastRenderedPageBreak(),
-                            "Second page body",
-                        ],
-                    }),
+                    new TextRun("First page body"), new FootnoteReferenceRun(1),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Second page body"] }),
                     new FootnoteReferenceRun(2),
                 ],
             ],
@@ -146,27 +137,14 @@ describe("DOCX notes", () => {
             },
             [
                 [
-                    new TextRun("Page one"),
-                    new FootnoteReferenceRun(1),
+                    new TextRun("Page one"), new FootnoteReferenceRun(1),
                 ],
                 [
-                    new TextRun({
-                        children: [
-                            new LastRenderedPageBreak(),
-                            "Page two",
-                        ],
-                    }),
-                    new FootnoteReferenceRun(2),
-                    new TextRun(" more"),
-                    new FootnoteReferenceRun(3),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Page two"] }),
+                    new FootnoteReferenceRun(2), new TextRun(" more"), new FootnoteReferenceRun(3),
                 ],
                 [
-                    new TextRun({
-                        children: [
-                            new LastRenderedPageBreak(),
-                            "Page three",
-                        ],
-                    }),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Page three"] }),
                     new FootnoteReferenceRun(4),
                 ],
             ],
@@ -217,17 +195,8 @@ describe("DOCX notes", () => {
             [
                 [
                     new TextRun("Dense first page"),
-                    ...Array.from(
-                        { length: 8 },
-                        (_, index) =>
-                            new FootnoteReferenceRun(index + 1),
-                    ),
-                    new TextRun({
-                        children: [
-                            new LastRenderedPageBreak(),
-                            "Second page",
-                        ],
-                    }),
+                    ...Array.from( { length: 8 }, (_, index) => new FootnoteReferenceRun(index + 1), ),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Second page"] }),
                     new FootnoteReferenceRun(9),
                 ],
             ],
@@ -270,18 +239,11 @@ describe("DOCX notes", () => {
         // number, and does not consume one — so numbering starts at 1 on the
         // next note.
         const container = await renderNotes(
-            {
-                1: "Star note",
-                2: "First numbered note",
-                3: "Second numbered note",
-            },
+            { 1: "Star note", 2: "First numbered note", 3: "Second numbered note" },
             [
                 [
-                    new TextRun("Title"),
-                    new FootnoteReferenceRun(1),
-                    new TextRun("Body"),
-                    new FootnoteReferenceRun(2),
-                    new FootnoteReferenceRun(3),
+                    new TextRun("Title"), new FootnoteReferenceRun(1), new TextRun("Body"),
+                    new FootnoteReferenceRun(2), new FootnoteReferenceRun(3),
                 ],
             ],
             true,
@@ -304,16 +266,10 @@ describe("DOCX notes", () => {
 
     it("links every reference to its note and back", async () => {
         const container = await renderNotes(
-            {
-                1: "Alpha note",
-                2: "Beta note",
-                3: "Gamma note",
-            },
+            { 1: "Alpha note", 2: "Beta note", 3: "Gamma note" },
             [
                 [
-                    new TextRun("Body"),
-                    new FootnoteReferenceRun(1),
-                    new FootnoteReferenceRun(2),
+                    new TextRun("Body"), new FootnoteReferenceRun(1), new FootnoteReferenceRun(2),
                     new FootnoteReferenceRun(3),
                 ],
             ],
@@ -340,22 +296,12 @@ describe("DOCX notes", () => {
 
     it("renders a repeatedly referenced note once, keeping its number", async () => {
         const container = await renderNotes(
-            {
-                1: "Shared note",
-                2: "Later note",
-            },
+            { 1: "Shared note", 2: "Later note" },
             [
                 [
-                    new TextRun("One"),
-                    new FootnoteReferenceRun(1),
-                    new TextRun({
-                        children: [
-                            new LastRenderedPageBreak(),
-                            "Two",
-                        ],
-                    }),
-                    new FootnoteReferenceRun(1),
-                    new FootnoteReferenceRun(2),
+                    new TextRun("One"), new FootnoteReferenceRun(1),
+                    new TextRun({ children: [new LastRenderedPageBreak(), "Two"] }),
+                    new FootnoteReferenceRun(1), new FootnoteReferenceRun(2),
                 ],
             ],
         );

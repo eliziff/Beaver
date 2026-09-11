@@ -21,6 +21,7 @@ import { AskInputPopup } from "./AskInputPopup";
 import { AssistantMessage } from "./AssistantMessage";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { UserMessage } from "./UserMessage";
+import { dockedColumnStyle, useDockedColumnWidth } from "./assistantDockLayout";
 
 type OpenDocument = (args: { documentId: string; filename: string; versionId: string | null;
     versionNumber: number | null }) => void;
@@ -189,12 +190,13 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         onEditError?.(args);
     };
     const mergedStatuses = { ...resolvedEditStatuses, ...editState.statuses };
-    // One measure, dock open or shut: widening the column when the dock appears would re-wrap every
-    // line of the answer the reader clicked in. Only the space left over decides where it sits.
-    const columnClass = `max-w-4xl ${gutterVisible ? "ms-auto me-0" : "mx-auto"}`;
+    // One measure, dock open or shut: the column is always laid out at the width it has beside the
+    // dock, so opening the dock slides it without re-wrapping a line of the answer just clicked in.
+    const columnClass = gutterVisible ? "ms-auto me-0" : "mx-auto";
+    const columnStyle = dockedColumnStyle(useDockedColumnWidth(messagesContainerRef, gutterVisible));
 
     return (
-        <div className="h-full w-full flex relative">
+        <div data-dock-host className="h-full w-full flex relative">
             <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
                 {responseAnnouncement}
             </div>
@@ -203,7 +205,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                 <div ref={messagesContainerRef} className="flex-1 w-full overflow-y-auto"
                     style={{ scrollbarGutter: "stable both-edges" }}>
                     <div className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-6 pt-6 md:px-8 md:pt-8"} ${columnClass}`}
-                        style={{ paddingBottom: 116 }}>
+                        style={{ paddingBottom: 116, ...columnStyle }}>
                         <div className="space-y-6 md:space-y-8">
                             {messages.map((message, index) => (
                                 <div key={message.id} data-message-id={message.id}
@@ -250,7 +252,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                     </div>
                 </div>
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div className={`relative w-full px-4 md:px-6 ${columnClass}`}>
+                    <div className={`relative w-full px-4 md:px-6 ${columnClass}`} style={columnStyle}>
                         {showScrollButton && !activeInput && (
                             <button type="button" aria-label="Scroll to latest message" onClick={() =>
                                 { messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); reanchor.current(); }}
