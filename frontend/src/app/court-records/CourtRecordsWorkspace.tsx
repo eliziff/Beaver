@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 /** Loaded on demand: the picker reaches Beaver's Library, which the standalone bundle must not preload. */
 const AddDocumentsModal = lazy(() => import("@/app/components/modals/AddDocumentsModal")
   .then((m) => ({ default: m.AddDocumentsModal })));
@@ -1058,9 +1059,10 @@ function putPreparedEntry(entries: RecordEntry[], entry: RecordEntry, label?: st
     label ?? entry.sourceFields?.explicitExhibitLabel);
 }
 
+/** Key order and absent-vs-undefined never count as a change; opening a draft must not save it. */
 function sameState(left: CourtRecordDraft, right: CourtRecordDraft) {
-  return JSON.stringify([left.profileId, left.cover, left.entries, left.bindings]) ===
-    JSON.stringify([right.profileId, right.cover, right.entries, right.bindings]);
+  return canonicalJson([left.profileId, left.cover, left.entries, left.bindings]) ===
+    canonicalJson([right.profileId, right.cover, right.entries, right.bindings]);
 }
 
 function SavedRecordsModal({ drafts, onOpen, onClose }: {
