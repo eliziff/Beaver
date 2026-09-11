@@ -2422,7 +2422,7 @@ export function assistantTools<Context extends {
   };
   const activeCourtTool = courtRecord && courtRecords ? courtRecordSlotTool<Context>({
     scope, target: courtRecord, projectId: workProductProjectId,
-    allowedDocumentIds, library, workProducts, courtRecords, resolveArtifact,
+    allowedDocumentIds, library, workProducts, courtRecords, documents, resolveArtifact,
     onMutationCommitted: () => {},
   }) : null;
   // Every assistant can look at a page; the Court Record only adds entry_id (Eli, 2026-09-10).
@@ -2509,7 +2509,7 @@ export function assistantTools<Context extends {
         return courtRecordSlotTool<Context>({ scope,
           target: { id: product.id, revision: product.revision },
           projectId: workProductProjectId, allowedDocumentIds, library,
-          workProducts, courtRecords, resolveArtifact, onMutationCommitted: () => {},
+          workProducts, courtRecords, documents, resolveArtifact, onMutationCommitted: () => {},
         }).execute({ ...input, action: "update" }, {} as Context, signal, call);
       }
       const target = await targetWorkProduct(input);
