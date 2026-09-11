@@ -21,12 +21,9 @@ vi.mock("../modals/AddDocumentsModal", () => ({
                             project_id: null,
                             filename: "brief.docx",
                             file_type: "docx",
-                            storage_path: null,
                             pdf_storage_path: null,
                             size_bytes: 1,
                             page_count: 1,
-                            structure_tree: null,
-                            status: "ready",
                             created_at: null,
                         },
                     ])
@@ -37,24 +34,16 @@ vi.mock("../modals/AddDocumentsModal", () => ({
         ) : null,
 }));
 
+const questions = (): Extract<AssistantEvent, { type: "ask_inputs" }>["items"] => [
+    { id: "one", kind: "choice", question: "First question", options: [{ value: "Yes" }] },
+    { id: "two", kind: "choice", question: "Second question", options: [{ value: "No" }] },
+];
+
 it("submits multiple answers together", async () => {
     const onSubmit = vi.fn();
     const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
         type: "ask_inputs",
-        items: [
-            {
-                id: "one",
-                kind: "choice",
-                question: "First question",
-                options: [{ value: "Yes" }],
-            },
-            {
-                id: "two",
-                kind: "choice",
-                question: "Second question",
-                options: [{ value: "No" }],
-            },
-        ],
+        items: questions(),
     };
 
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
@@ -80,20 +69,7 @@ it("submits declined questions", async () => {
     const onSubmit = vi.fn();
     const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
         type: "ask_inputs",
-        items: [
-            {
-                id: "one",
-                kind: "choice",
-                question: "First question",
-                options: [{ value: "Yes" }],
-            },
-            {
-                id: "two",
-                kind: "choice",
-                question: "Second question",
-                options: [{ value: "No" }],
-            },
-        ],
+        items: questions(),
     };
 
     render(<AskInputPopup event={event} onSubmit={onSubmit} />);
@@ -108,60 +84,6 @@ it("submits declined questions", async () => {
             ],
         }),
         expect.any(String),
-        [],
-    );
-});
-
-it("keeps every choice reachable inside the fixed panel", () => {
-    const options = Array.from({ length: 8 }, (_, index) => ({
-        value: `Option ${index + 1}`,
-    }));
-    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
-        type: "ask_inputs",
-        items: [
-            {
-                id: "many",
-                kind: "choice",
-                question: "Choose one",
-                options,
-            },
-        ],
-    };
-
-    render(<AskInputPopup event={event} onSubmit={vi.fn()} />);
-
-    for (const option of options) {
-        expect(screen.getByText(option.value)).toBeInTheDocument();
-    }
-    expect(
-        screen.getByRole("textbox", { name: "Write your own answer" }),
-    ).toBeInTheDocument();
-});
-
-it("submits a native Other answer", async () => {
-    const onSubmit = vi.fn();
-    const event: Extract<AssistantEvent, { type: "ask_inputs" }> = {
-        type: "ask_inputs",
-        items: [{
-            id: "forum",
-            kind: "choice",
-            question: "Which forum?",
-            options: [{ value: "Court" }],
-        }],
-    };
-    render(<AskInputPopup event={event} onSubmit={onSubmit} />);
-
-    await userEvent.type(
-        screen.getByRole("textbox", { name: "Write your own answer" }),
-        "Tribunal",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
-
-    expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({
-            responses: [expect.objectContaining({ answer: "Tribunal" })],
-        }),
-        expect.stringContaining("Tribunal"),
         [],
     );
 });

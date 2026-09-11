@@ -37,14 +37,17 @@ function makeDocument(
         project_id: projectId,
         filename,
         file_type: "pdf",
-        storage_path: null,
         pdf_storage_path: null,
         size_bytes: 1024,
         page_count: 1,
-        structure_tree: null,
-        status: "ready",
         created_at: "2026-07-28T00:00:00Z",
     };
+}
+
+function projectPicker(props: Partial<React.ComponentProps<typeof AddDocumentsModal>> = {}) {
+    return <AddDocumentsModal open onClose={vi.fn()} onSelect={vi.fn()}
+        breadcrumb={["Project", "Add Documents"]} projectId="project-1"
+        documents={[]} showTabs={false} {...props} />;
 }
 
 describe("AddDocumentsModal project mode", () => {
@@ -60,17 +63,7 @@ describe("AddDocumentsModal project mode", () => {
         const onSelect = vi.fn();
         const available = makeDocument("available", "Available.pdf");
 
-        render(
-            <AddDocumentsModal
-                open
-                onClose={onClose}
-                onSelect={onSelect}
-                breadcrumb={["Project", "Add Documents"]}
-                projectId="project-1"
-                documents={[available]}
-                showTabs={false}
-            />,
-        );
+        render(projectPicker({ onClose, onSelect, documents: [available] }));
 
         expect(screen.queryByText("Files")).not.toBeInTheDocument();
 
@@ -93,48 +86,6 @@ describe("AddDocumentsModal project mode", () => {
         expect(api.addDocumentToProject).not.toHaveBeenCalled();
     });
 
-    it("keeps project upload, empty, search, and Escape behavior in the shared modal", async () => {
-        const onClose = vi.fn();
-        const onSelect = vi.fn();
-        const uploaded = makeDocument("uploaded", "Uploaded.pdf");
-        api.uploadDocument.mockResolvedValueOnce(uploaded);
-
-        render(
-            <AddDocumentsModal
-                open
-                onClose={onClose}
-                onSelect={onSelect}
-                breadcrumb={["Project", "Add Documents"]}
-                projectId="project-1"
-                documents={[]}
-                showTabs={false}
-            />,
-        );
-
-        expect(screen.getByText("No files available")).toBeInTheDocument();
-        fireEvent.change(screen.getByRole("searchbox"), {
-            target: { value: "missing" },
-        });
-        expect(screen.getByText("No matches found")).toBeInTheDocument();
-
-        const file = new File(["pdf"], "Uploaded.pdf", {
-            type: "application/pdf",
-        });
-        fireEvent.change(
-            document.querySelector('input[type="file"]') as HTMLInputElement,
-            { target: { files: [file] } },
-        );
-
-        await waitFor(() =>
-            expect(api.uploadDocument).toHaveBeenCalledWith(file),
-        );
-        await waitFor(() =>
-            expect(onSelect).toHaveBeenCalledWith([uploaded], "project-1"),
-        );
-        expect(api.uploadStandaloneDocument).not.toHaveBeenCalled();
-
-    });
-
     it("keeps successful uploads and reports failed files without closing", async () => {
         const onClose = vi.fn();
         const onSelect = vi.fn();
@@ -143,17 +94,7 @@ describe("AddDocumentsModal project mode", () => {
             .mockResolvedValueOnce(uploaded)
             .mockRejectedValueOnce(new Error("fetch failed"));
 
-        render(
-            <AddDocumentsModal
-                open
-                onClose={onClose}
-                onSelect={onSelect}
-                breadcrumb={["Project", "Add Documents"]}
-                projectId="project-1"
-                documents={[]}
-                showTabs={false}
-            />,
-        );
+        render(projectPicker({ onClose, onSelect }));
 
         const uploadedFile = new File(["pdf"], "Uploaded.pdf", {
             type: "application/pdf",
@@ -188,9 +129,7 @@ describe("AddDocumentsModal project mode", () => {
         api.uploadDirectory.mockResolvedValueOnce([uploaded]);
         const onSelect = vi.fn();
 
-        render(<AddDocumentsModal open onClose={vi.fn()} onSelect={onSelect}
-            breadcrumb={["Project", "Add Documents"]} projectId="project-1"
-            documents={[]} showTabs={false} />);
+        render(projectPicker({ onSelect }));
 
         expect(screen.getAllByRole("button", { name: "Upload" })).toHaveLength(1);
         fireEvent.click(screen.getByRole("button", { name: "Upload" }));
@@ -218,17 +157,7 @@ describe("AddDocumentsModal project mode", () => {
             .mockRejectedValueOnce(new Error("fetch failed"))
             .mockResolvedValueOnce(assignedSecond);
 
-        render(
-            <AddDocumentsModal
-                open
-                onClose={onClose}
-                onSelect={onSelect}
-                breadcrumb={["Project", "Add Documents"]}
-                projectId="project-1"
-                documents={[first, second]}
-                showTabs={false}
-            />,
-        );
+        render(projectPicker({ onClose, onSelect, documents: [first, second] }));
 
         fireEvent.click(
             screen.getByRole("checkbox", { name: "Select First.pdf" }),

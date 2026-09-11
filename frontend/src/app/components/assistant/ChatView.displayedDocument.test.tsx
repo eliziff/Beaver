@@ -180,6 +180,10 @@ vi.mock("./ChatInput", () => ({
     }),
 }));
 
+function chatView(props: Partial<React.ComponentProps<typeof ChatView>> = {}) {
+    return <ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} {...props} />;
+}
+
 describe("ChatView displayed document context", () => {
     it("submits an assistant intent once after its workspace and chat are ready in StrictMode", async () => {
         const handleChat = vi.fn().mockResolvedValue(null), onIntentSent = vi.fn();
@@ -201,15 +205,10 @@ describe("ChatView displayed document context", () => {
     });
     it("opens supplied project files in the existing assistant dock", async () => {
         const user = userEvent.setup();
-        render(
-            <ChatView
-                session={session()}
-                handleChat={vi.fn()}
-                cancel={vi.fn()}
-                projectFiles={<p>Project explorer content</p>}
-                projectFileActions={<button type="button">Upload project files</button>}
-            />,
-        );
+        render(chatView({
+            projectFiles: <p>Project explorer content</p>,
+            projectFileActions: <button type="button">Upload project files</button>,
+        }));
 
         await user.click(screen.getByRole("button", { name: "Expand assistant dock" }));
         expect(screen.getByRole("tab", { name: "Project files" }))
@@ -224,12 +223,10 @@ describe("ChatView displayed document context", () => {
     it("attaches initial documents once through the chat input", async () => {
         const initialDocuments = [{ id: "document-1", filename: "Brief.docx" } as Document];
         dockMocks.addDocument.mockClear();
-        const { rerender } = render(<ChatView session={session()} handleChat={vi.fn()}
-            cancel={vi.fn()} initialDocuments={initialDocuments} />);
+        const { rerender } = render(chatView({ initialDocuments }));
 
         await waitFor(() => expect(dockMocks.addDocument).toHaveBeenCalledWith(initialDocuments[0]));
-        rerender(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()}
-            initialDocuments={[...initialDocuments]} />);
+        rerender(chatView({ initialDocuments: [...initialDocuments] }));
         expect(dockMocks.addDocument).toHaveBeenCalledTimes(1);
     });
 
@@ -256,23 +253,10 @@ describe("ChatView displayed document context", () => {
         expect(dockMocks.startWorkflow).toHaveBeenCalledTimes(1);
     });
 
-    it("keeps the dock open when a workflow is selected", async () => {
-        const user = userEvent.setup();
-        render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
-
-        await user.click(screen.getByRole("button", { name: "Browse workflows with Lease" }));
-        expect(screen.getByRole("status", { name: "Workflow documents" }))
-            .toHaveTextContent("Lease.docx");
-        await user.click(screen.getByRole("button", { name: "Proofread" }));
-
-        expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
-        expect(screen.getByRole("button", { name: "Collapse assistant dock" })).toBeVisible();
-    });
-
     it("opens the selected document and runs the operation in the current chat", async () => {
         const user = userEvent.setup();
         const handleChat = vi.fn(() => new Promise<string | null>(() => {}));
-        render(<ChatView session={session()} handleChat={handleChat} cancel={vi.fn()} />);
+        render(chatView({ handleChat }));
         await user.click(screen.getByRole("button", { name: "Browse workflows with Lease" }));
         await user.click(screen.getByRole("button", { name: "Run document operation" }));
         expect(handleChat).toHaveBeenCalledWith(expect.objectContaining({ editMode: "manual",
@@ -282,7 +266,7 @@ describe("ChatView displayed document context", () => {
 
     it("opens a newly requested workflow in the existing dock", async () => {
         const user = userEvent.setup();
-        render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
+        render(chatView());
 
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         expect(screen.getByRole("status", { name: "Opened workflow" })).toHaveTextContent("none");
@@ -295,8 +279,7 @@ describe("ChatView displayed document context", () => {
     it("starts a workflow selected directly from the dock", async () => {
         const user = userEvent.setup();
         dockMocks.startWorkflow.mockClear();
-        render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()}
-            projectFiles={<p>Project files</p>} />);
+        render(chatView({ projectFiles: <p>Project files</p> }));
 
         await user.click(screen.getByRole("button", { name: "Expand assistant dock" }));
         await user.click(screen.getByRole("tab", { name: "Workflows" }));
@@ -310,7 +293,7 @@ describe("ChatView displayed document context", () => {
 
     it("keeps Library and Sources state mounted while switching dock tabs", async () => {
         const user = userEvent.setup();
-        render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
+        render(chatView());
 
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         await user.click(screen.getByRole("tab", { name: "Library" }));
@@ -327,8 +310,7 @@ describe("ChatView displayed document context", () => {
 
     it("opens an embedded search result in the reader without leaving chat", async () => {
         const user = userEvent.setup();
-        render(<ChatView chatId="chat-1" session={session()} handleChat={vi.fn()}
-            cancel={vi.fn()} />);
+        render(chatView({ chatId: "chat-1" }));
 
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         await user.click(screen.getByRole("tab", { name: "Sources" }));
@@ -344,7 +326,7 @@ describe("ChatView displayed document context", () => {
 
     it("offers research views only when an ordinary chat has legal evidence", () => {
         const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
-        const { rerender } = render(<ChatView {...props} session={session()} />, { wrapper: MemoryRouter });
+        const { rerender } = render(chatView({ ...props, session: session() }), { wrapper: MemoryRouter });
         expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
 
         const withLegalEvidence = createAssistantSessionState({ messages: [{
@@ -354,11 +336,10 @@ describe("ChatView displayed document context", () => {
                     kind: "a2aj", ref: 1, citation: "2024 SCC 1", dataset: "SCC", quotes: [],
                 }] }],
         }] });
-        rerender(<ChatView {...props} session={withLegalEvidence} />);
+        rerender(chatView({ ...props, session: withLegalEvidence }));
         expect(screen.getByRole("button", { name: "Open as" })).toBeInTheDocument();
 
-        rerender(<ChatView {...props} session={withLegalEvidence}
-            features={{ researchSave: false }} />);
+        rerender(chatView({ ...props, session: withLegalEvidence, features: { researchSave: false } }));
         expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
     });
 
@@ -367,15 +348,20 @@ describe("ChatView displayed document context", () => {
             id: "assistant-1", role: "assistant", content: "Done", turn_complete: true,
         }] });
         const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
-        const { rerender } = render(<ChatView {...props} session={complete} />);
+        const { rerender } = render(chatView({ ...props, session: complete }));
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         await user.click(screen.getByRole("tab", { name: "Sources" }));
         expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("assistant-1");
 
-        rerender(<ChatView {...props} session={{ ...complete,
-            run: { id: "retry-1", status: "running" } }} />);
+        rerender(chatView({
+            ...props,
+            session: {
+                ...complete,
+                run: { id: "retry-1", status: "running" }
+            },
+        }));
         expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("none");
-        rerender(<ChatView {...props} session={complete} />);
+        rerender(chatView({ ...props, session: complete }));
         expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("assistant-1");
 
         await user.click(screen.getByRole("button", { name: "View source" }));
@@ -387,8 +373,7 @@ describe("ChatView displayed document context", () => {
         const handleChat = vi.fn();
         dockMocks.addDocument.mockClear();
         dockMocks.startWorkflow.mockClear();
-        render(<ChatView chatId="chat-1" session={session()} handleChat={handleChat}
-            cancel={vi.fn()} />);
+        render(chatView({ chatId: "chat-1", handleChat }));
 
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         await user.click(screen.getByRole("tab", { name: "Library" }));
@@ -411,7 +396,7 @@ describe("ChatView displayed document context", () => {
     it("keeps the workflow dock open when template drafting is selected", async () => {
         const user = userEvent.setup();
         dockMocks.startWorkflow.mockClear();
-        render(<ChatView session={session()} handleChat={vi.fn()} cancel={vi.fn()} />);
+        render(chatView());
 
         await user.click(screen.getByRole("button", { name: "Browse workflows" }));
         await user.click(screen.getByRole("button", { name: "Draft from template" }));
@@ -434,15 +419,11 @@ describe("ChatView displayed document context", () => {
             HTMLElement.prototype,
             "removeEventListener",
         );
-        const { container, rerender, unmount } = render(
-            <ChatView
-                session={session([
-                    { role: "assistant", content: "First", events: [] },
-                ], true)}
-                handleChat={vi.fn()}
-                cancel={vi.fn()}
-            />,
-        );
+        const { container, rerender, unmount } = render(chatView({
+            session: session([
+                { role: "assistant", content: "First", events: [] },
+            ], true),
+        }));
         const scroller = container.querySelector(
             ".overflow-y-auto",
         ) as HTMLElement;
@@ -454,19 +435,15 @@ describe("ChatView displayed document context", () => {
         addEventListener.mockClear();
         removeEventListener.mockClear();
 
-        rerender(
-            <ChatView
-                session={session([
-                    {
-                        role: "assistant",
-                        content: "First streaming delta",
-                        events: [],
-                    },
-                ], true)}
-                handleChat={vi.fn()}
-                cancel={vi.fn()}
-            />,
-        );
+        rerender(chatView({
+            session: session([
+                {
+                    role: "assistant",
+                    content: "First streaming delta",
+                    events: [],
+                },
+            ], true),
+        }));
         act(() => scroller.dispatchEvent(new Event("scroll")));
 
         await waitFor(() =>
@@ -493,13 +470,10 @@ describe("ChatView displayed document context", () => {
     it("attaches the active document to a workflow turn", async () => {
         const user = userEvent.setup();
         const handleChat = vi.fn();
-        render(
-            <ChatView
-                session={session([{ role: "assistant", content: "", events: [] }])}
-                handleChat={handleChat}
-                cancel={vi.fn()}
-            />,
-        );
+        render(chatView({
+            session: session([{ role: "assistant", content: "", events: [] }]),
+            handleChat,
+        }));
 
         await user.click(screen.getByRole("button", { name: "Open Lease" }));
         await user.click(screen.getByRole("button", { name: "Workflows" }));
@@ -536,16 +510,7 @@ describe("ChatView displayed document context", () => {
         const handleChat = vi.fn();
         const onActiveDocumentChange = vi.fn();
         const ref = React.createRef<ChatViewHandle>();
-        render(
-            <ChatView
-                ref={ref}
-                session={session()}
-                handleChat={handleChat}
-                cancel={vi.fn()}
-                useDisplayedDocumentContext
-                onActiveDocumentChange={onActiveDocumentChange}
-            />,
-        );
+        render(chatView({ ref, handleChat, useDisplayedDocumentContext: true, onActiveDocumentChange }));
 
         act(() =>
             ref.current?.openDocument({

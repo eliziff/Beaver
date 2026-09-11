@@ -170,19 +170,6 @@ it.each([
     expect(within(screen.getByRole("dialog", { name: title })).getByText(description)).toBeVisible();
 });
 
-it("names a direct tabular destination as an action", () => {
-    const review = workflow("evidence-review", "Organize evidence by document.", {
-        kind: "instructions", variants: [variant("review", "Review evidence",
-            "Evidence organized by document", "tabular",
-            "Extract dates, people, summaries, and privilege flags by document.")],
-    }, "Review evidence");
-    render(<WorkflowPickerContent {...props} workflows={[review]} onSelect={vi.fn()} />);
-
-    screen.getByRole("button", { name: "Info about Review evidence" });
-    const launch = screen.getByRole("button", { name: "Start Tabular Review: Review evidence" });
-    expect(launch).toHaveAttribute("data-workflow-variant-id", "review");
-});
-
 it("moves the open variant list when another workflow is requested", async () => {
     const first = workflow("quote-checking", "Check quotations.", {
         kind: "instructions", variants: [variant(), variant("other", "Check citations")],

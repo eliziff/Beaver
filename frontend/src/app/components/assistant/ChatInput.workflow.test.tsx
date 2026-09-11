@@ -12,12 +12,9 @@ const selectedDocument: Document = {
     project_id: null,
     filename: "Lease.docx",
     file_type: "docx",
-    storage_path: "unused",
     pdf_storage_path: null,
     size_bytes: 100,
     page_count: 1,
-    structure_tree: null,
-    status: "ready",
     created_at: "2026-07-27T00:00:00Z",
 };
 const selectedTemplate: Document = {
@@ -116,6 +113,10 @@ function WorkflowHarness({ onSubmit }: { onSubmit: ReturnType<typeof vi.fn> }) {
     );
 }
 
+function chatInput(props: Partial<React.ComponentProps<typeof ChatInput>> = {}) {
+    return <ChatInput onSubmit={vi.fn()} onCancel={vi.fn()} isLoading={false} {...props} />;
+}
+
 beforeEach(() => window.localStorage.clear());
 afterEach(() => vi.unstubAllGlobals());
 
@@ -124,23 +125,24 @@ it("opens the loaded draft immediately and keeps it cleared after sending", () =
     vi.stubGlobal("fetch", fetch);
     const onSubmit = vi.fn();
     const draft = { role: "user" as const, content: "Ready to continue", documents: [selectedDocument] };
-    const view = render(<ChatInput draftChatId="loaded-draft-send" initialDraft={draft}
-        onSubmit={onSubmit} onCancel={vi.fn()} isLoading={false} />);
+    const view = render(chatInput({ draftChatId: "loaded-draft-send", initialDraft: draft, onSubmit }));
     expect(screen.getByRole("textbox")).toHaveValue(draft.content);
     expect(screen.getByText(selectedDocument.filename)).toBeVisible();
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ content: draft.content }));
     view.unmount();
-    render(<ChatInput draftChatId="loaded-draft-send" initialDraft={draft}
-        onSubmit={onSubmit} onCancel={vi.fn()} isLoading={false} />);
+    render(chatInput({ draftChatId: "loaded-draft-send", initialDraft: draft, onSubmit }));
     expect(screen.getByRole("textbox")).toHaveValue("");
 });
 
 it("restores the page's loaded draft before exposing the ready composer", () => {
     const props = { draftChatId: "late-page-draft", onSubmit: vi.fn(), onCancel: vi.fn(), isLoading: false };
-    const view = render(<ChatInput {...props} initialDraft={null} />);
-    view.rerender(<ChatInput {...props} initialDraft={{ role: "user", content: "Loaded with the conversation" }} />);
+    const view = render(chatInput({ ...props, initialDraft: null }));
+    view.rerender(chatInput({
+        ...props,
+        initialDraft: { role: "user", content: "Loaded with the conversation" },
+    }));
     expect(screen.getByRole("textbox")).toHaveValue("Loaded with the conversation");
 });
 
@@ -148,10 +150,10 @@ it("does not duplicate a saved interrupted request when restoring it again", asy
     const draft = { role: "user" as const, content: "A request to recover", turnId: "interrupted-turn" };
     const props = { draftChatId: "interrupted-saved-draft", initialDraft: draft,
         onSubmit: vi.fn(), onCancel: vi.fn(), isLoading: false };
-    const view = render(<ChatInput {...props} restoreDraft={draft} />);
+    const view = render(chatInput({ ...props, restoreDraft: draft }));
     await act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
     expect(screen.getByRole("textbox")).toHaveValue(draft.content);
-    view.rerender(<ChatInput {...props} restoreDraft={{ ...draft }} />);
+    view.rerender(chatInput({ ...props, restoreDraft: { ...draft } }));
     await act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
     expect(screen.getByRole("textbox")).toHaveValue(draft.content);
 });
@@ -184,7 +186,7 @@ it("opens and reopens a saved draft without writing it, then saves actual edits"
 
 it("keeps a failed draft in the composer and retries inline without a dialog", async () => {
     const save = vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined);
-    render(<ChatInput onDraftChange={save} onSubmit={vi.fn()} onCancel={vi.fn()} isLoading={false} />);
+    render(chatInput({ onDraftChange: save }));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Keep this question" } });
     const retry = await screen.findByRole("button", { name: "Retry saving" });
     expect(screen.queryByRole("alertdialog")).toBeNull();
@@ -197,21 +199,14 @@ it("keeps a failed draft in the composer and retries inline without a dialog", a
 describe("ChatInput workflow document selection", () => {
     it("opens the shared workflow dock with the current context", async () => {
         const onOpenWorkflows = vi.fn();
-        render(
-            <ChatInput
-                onSubmit={vi.fn()}
-                onCancel={vi.fn()}
-                isLoading={false}
-                onOpenWorkflows={onOpenWorkflows}
-            />,
-        );
+        render(chatInput({ onOpenWorkflows }));
 
         await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
         expect(onOpenWorkflows).toHaveBeenCalledWith(undefined, []);
     });
 
     it("does not let the closing workflow modal cancel its document handoff", async () => {
-        render(<ChatInput onSubmit={vi.fn()} onCancel={vi.fn()} isLoading={false} />);
+        render(chatInput());
 
         await userEvent.click(screen.getByRole("button", { name: "Workflows" }));
         await userEvent.click(screen.getByRole("button", { name: "Choose template workflow" }));
@@ -301,15 +296,12 @@ describe("ChatInput workflow document selection", () => {
     it("restores a draft and cancels a loading response", async () => {
         const onCancel = vi.fn();
         const onDraftRestored = vi.fn();
-        render(
-            <ChatInput
-                onSubmit={vi.fn()}
-                onCancel={onCancel}
-                isLoading
-                restoreDraft={{ role: "user", content: "restored" }}
-                onDraftRestored={onDraftRestored}
-            />,
-        );
+        render(chatInput({
+            onCancel,
+            isLoading: true,
+            restoreDraft: { role: "user", content: "restored" },
+            onDraftRestored,
+        }));
 
         await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("restored"));
         expect(onDraftRestored).toHaveBeenCalledOnce();
@@ -318,7 +310,7 @@ describe("ChatInput workflow document selection", () => {
     });
     it("preserves the latest unsent text when navigation unmounts the composer", async () => {
         const save = vi.fn().mockResolvedValue(undefined), submit = vi.fn();
-        const { unmount } = render(<ChatInput onSubmit={submit} onCancel={() => {}} isLoading={false} onDraftChange={save} />);
+        const { unmount } = render(chatInput({ onSubmit: submit, onCancel: () => { }, onDraftChange: save }));
         await userEvent.type(screen.getByRole("textbox", { name: "Message" }), "An unfinished question");
         unmount();
         expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ content: "An unfinished question" }));
@@ -327,13 +319,7 @@ describe("ChatInput workflow document selection", () => {
 
     it("replaces send with stop while a response is live", async () => {
         const onCancel = vi.fn();
-        render(
-            <ChatInput
-                onSubmit={vi.fn()}
-                onCancel={onCancel}
-                isLoading
-            />,
-        );
+        render(chatInput({ onCancel, isLoading: true }));
 
         expect(
             screen.queryByRole("button", { name: "Send message" }),
@@ -344,28 +330,14 @@ describe("ChatInput workflow document selection", () => {
 
     it("hides context usage when the display preference is off", () => {
         updateAssistantPreferences({ showContextUsage: false });
-        render(
-            <ChatInput
-                onSubmit={vi.fn()}
-                onCancel={vi.fn()}
-                isLoading={false}
-                contextUsage={{ usedTokens: 25, windowTokens: 100, compacting: false }}
-            />,
-        );
+        render(chatInput({ contextUsage: { usedTokens: 25, windowTokens: 100, compacting: false } }));
 
         expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
     it("navigates prompt history and restores the unsent draft", async () => {
         const user = userEvent.setup();
-        render(
-            <ChatInput
-                onSubmit={vi.fn()}
-                onCancel={vi.fn()}
-                isLoading={false}
-                promptHistory={["first prompt", "second prompt"]}
-            />,
-        );
+        render(chatInput({ promptHistory: ["first prompt", "second prompt"] }));
         const textbox = screen.getByRole("textbox", {
             name: "Message",
         }) as HTMLTextAreaElement;
