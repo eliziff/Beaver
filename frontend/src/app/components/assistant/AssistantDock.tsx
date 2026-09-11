@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bot, BookOpenText, Folder, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { ASSISTANT_DOCK_CLASS } from "./assistantDockLayout";
+import { ASSISTANT_DOCK_CLASS, ASSISTANT_DOCK_DEFAULT_WIDTH, ASSISTANT_DOCK_MAX_WIDTH,
+    ASSISTANT_DOCK_MIN_WIDTH } from "./assistantDockLayout";
 import { Tabs } from "@/app/components/ui/tabs";
 import { LibrarySkeuoIcon, WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons";
 import { ReaderExpandButton } from "../shared/ReaderExpandButton";
@@ -29,9 +30,9 @@ export function AssistantDock({
     inspectorOpen = false,
     onCloseInspector,
     showCollapsedButton = true,
-    defaultWidth = 520,
-    minWidth = 360,
-    maxWidth = "max(45%, calc(100% - 36rem))",
+    defaultWidth = ASSISTANT_DOCK_DEFAULT_WIDTH,
+    minWidth = ASSISTANT_DOCK_MIN_WIDTH,
+    maxWidth = ASSISTANT_DOCK_MAX_WIDTH,
 }: {
     tabs: AssistantDockTab[];
     activeTabId: string;

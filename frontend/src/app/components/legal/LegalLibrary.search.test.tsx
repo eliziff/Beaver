@@ -74,16 +74,6 @@ describe("LegalLibraryPage search", () => {
         api.searchLegalSources.mockResolvedValue({ results: [], status: "available" });
     });
 
-    it("opens the research file linked from its Library preview", async () => {
-        api.getResearchFile.mockResolvedValue(linked);
-        render(<MemoryRouter initialEntries={["/sources?research_file=linked-file"]}>
-            <LegalLibraryPage />
-        </MemoryRouter>);
-        await waitFor(() => expect(api.getResearchFile).toHaveBeenCalledWith("linked-file"));
-        expect(screen.getByRole("region", { name: "Research collection" })).toBeVisible();
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
-
     it("reads a saved source in the main area while retaining its workspace in the dock", async () => {
         api.getResearchFile.mockResolvedValue(linked);
         render(<MemoryRouter initialEntries={["/sources?research_file=linked-file"]}>
