@@ -1,7 +1,7 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
 import type OpenAI from "openai";
-import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
+import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type InputItem = Record<string, unknown>;
 type State = { responseId: string } | { history: InputItem[] };
@@ -20,19 +20,17 @@ type ResponsesWireConfig = {
   nativeCompaction?: boolean;
 };
 
+/** Text and any images it carries, as one content value. */
+const withImages = (text: string, images: LlmImage[] | undefined) => images?.length
+  ? [{ type: "input_text", text }, ...images.map((image) => ({ type: "input_image",
+      image_url: `data:${image.mimeType};base64,${image.data}` }))]
+  : text;
+
 const input = (messages: LlmMessage[]): InputItem[] => messages.map((message) => {
   if (message.contextCheckpoint?.provider === "openai") return message.contextCheckpoint.item;
   return {
     role: message.role,
-    content: message.role === "user" && message.images?.length
-      ? [
-          { type: "input_text", text: message.content },
-          ...message.images.map((image) => ({
-            type: "input_image",
-            image_url: `data:${image.mimeType};base64,${image.data}`,
-          })),
-        ]
-      : message.content,
+    content: withImages(message.content, message.role === "user" ? message.images : undefined),
   };
 });
 
@@ -101,15 +99,7 @@ export function createResponsesWireAdapter(
       const resultItems = step.results.map((result) => ({
         type: "function_call_output",
         call_id: result.tool_use_id,
-        output: result.images?.length
-          ? [
-              { type: "input_text", text: result.content },
-              ...result.images.map((image) => ({
-                type: "input_image",
-                image_url: `data:${image.mimeType};base64,${image.data}`,
-              })),
-            ]
-          : result.content,
+        output: withImages(result.content, result.images),
       }));
       const steeringItems = step.steering.map(({ text }) => ({ role: "user", content: text }));
       const additions = [...resultItems, ...steeringItems];

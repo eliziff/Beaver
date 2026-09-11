@@ -1,6 +1,6 @@
 import type { FunctionCallingConfigMode } from "@google/genai";
 import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
-import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
+import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type Part = Record<string, unknown>;
 type Content = { role: "user" | "model"; parts: Part[] };
@@ -16,14 +16,15 @@ function declarations(tools: Tool[]) {
   }));
 }
 
+const imagePart = (image: LlmImage) =>
+  ({ inlineData: { mimeType: image.mimeType, data: image.data } });
+
 function contents(messages: LlmMessage[]): Content[] {
   return messages.map((message) => ({
     role: message.role === "assistant" ? "model" : "user",
     parts: [
       { text: message.content },
-      ...(message.role === "user" ? (message.images ?? []).map((image) => ({
-        inlineData: { mimeType: image.mimeType, data: image.data },
-      })) : []),
+      ...(message.role === "user" ? (message.images ?? []).map(imagePart) : []),
     ],
   }));
 }
@@ -88,9 +89,7 @@ export function createGeminiWireAdapter(
           role: "user",
           parts: [
             ...responses,
-            ...step.results.flatMap((result) => result.images ?? []).map((image) => ({
-              inlineData: { mimeType: image.mimeType, data: image.data },
-            })),
+            ...step.results.flatMap((result) => result.images ?? []).map(imagePart),
             ...step.steering.map(({ text }) => ({ text })),
           ],
         });

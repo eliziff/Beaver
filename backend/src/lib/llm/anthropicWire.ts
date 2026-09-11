@@ -1,7 +1,7 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
+import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type Block = Record<string, unknown>;
 type Message = { role: "user" | "assistant"; content: string | Block[] };
@@ -14,20 +14,18 @@ const tools = (source: Tool[]) => source.map((tool) => ({
   input_schema: tool.inputSchema,
 }));
 
+/** Text and any images it carries, as one content value. */
+const withImages = (text: string, images: LlmImage[] | undefined) => images?.length
+  ? [{ type: "text", text }, ...images.map((image) => ({ type: "image",
+      source: { type: "base64", media_type: image.mimeType, data: image.data } }))]
+  : text;
+
 function messages(source: LlmMessage[], nativeCompaction: boolean): Message[] {
   return source.map((message) => ({
     role: message.role,
     content: nativeCompaction && message.contextCheckpoint?.provider === "claude"
       ? [message.contextCheckpoint.block]
-      : message.role === "user" && message.images?.length
-        ? [
-            { type: "text", text: message.content },
-            ...message.images.map((image) => ({
-              type: "image",
-              source: { type: "base64", media_type: image.mimeType, data: image.data },
-            })),
-          ]
-        : message.content,
+      : withImages(message.content, message.role === "user" ? message.images : undefined),
   }));
 }
 
@@ -81,15 +79,7 @@ export function createAnthropicWireAdapter(
             ...step.results.map((result) => ({
               type: "tool_result",
               tool_use_id: result.tool_use_id,
-              content: result.images?.length
-                ? [
-                    { type: "text", text: result.content },
-                    ...result.images.map((image) => ({
-                      type: "image",
-                      source: { type: "base64", media_type: image.mimeType, data: image.data },
-                    })),
-                  ]
-                : result.content,
+              content: withImages(result.content, result.images),
             })),
             ...step.steering.map(({ text }) => ({ type: "text", text })),
           ],
