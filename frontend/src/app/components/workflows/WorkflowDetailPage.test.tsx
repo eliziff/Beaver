@@ -5,21 +5,12 @@ import type { Workflow } from "@/app/lib/api/workflows";
 import { WorkflowDetailPage } from "./WorkflowDetailPage";
 
 const mocks = vi.hoisted(() => ({ getWorkflow: vi.fn() }));
-vi.mock("@/app/lib/api/workflows", () => ({
-  getWorkflow: mocks.getWorkflow,
-  deleteWorkflow: vi.fn(),
-  deleteWorkflowShare: vi.fn(),
-  listWorkflowShares: vi.fn(),
-  shareWorkflow: vi.fn(),
-  updateWorkflow: vi.fn(),
-  exportWorkflow: vi.fn()
+vi.mock("@/app/lib/api/workflows", async (original) => ({
+    ...await original<typeof import("@/app/lib/api/workflows")>(), getWorkflow: mocks.getWorkflow,
 }));
-vi.mock("@/app/lib/api/account", () => ({
-  lookupUserByEmail: vi.fn()
-}));
+
 vi.mock("@/app/contexts/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 vi.mock("@/app/contexts/UserProfileContext", () => ({ useUserProfile: () => ({ profile: null }) }));
-vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 
 const system = (id: string, launcher: Workflow["launcher"]): Workflow => ({
     id, user_id: null, is_system: true, created_at: "2026-08-30T00:00:00Z",

@@ -17,9 +17,6 @@ const cell: TabularCell = {
     column_index: 0,
     content: {
         summary: "Yes",
-        reasoning: "Because the term is express.",
-        flag: "green",
-        value: true,
         claims: [{ text: "Because the term is express.", evidence_ids: [] }],
         evidence: [], outcome: "answered", coverage: "complete",
     },
