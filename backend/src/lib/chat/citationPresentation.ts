@@ -39,6 +39,19 @@ function presentLegalEvidenceLocator(
   };
 }
 
+/** The pinpoint text an entry presents on its own, without planning a passage link. */
+export function legalEvidenceLocatorText(entry: RegisteredEvidence) {
+  return legalEvidenceLocator(entry, [entry.receipt.locator.label], entry.receipt.locator.kind)?.text ?? null;
+}
+
+function legalEvidenceLocator(entry: RegisteredEvidence, locatorLabels: readonly string[],
+  locatorKind: RegisteredEvidence["receipt"]["locator"]["kind"]) {
+  const { receipt } = entry;
+  return receipt.provider === "library" && locatorKind === "document" && receipt.locator.label !== "document"
+    ? { separator: " at " as const, text: receipt.locator.label, label: receipt.locator.label }
+    : presentLegalEvidenceLocator(locatorKind, locatorLabels);
+}
+
 export function presentLegalEvidence(
   entry: RegisteredEvidence,
   allQuotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
@@ -127,9 +140,7 @@ export function presentLegalEvidence(
       receipt.provider === "journal" ? citation.split(/, “/u)[0] || name || "Source"
         : name || citation || "Source",
     ),
-    locator: receipt.provider === "library" && locatorKind === "document" && receipt.locator.label !== "document"
-      ? { separator: " at ", text: receipt.locator.label, label: receipt.locator.label }
-      : presentLegalEvidenceLocator(locatorKind, locatorLabels),
+    locator: legalEvidenceLocator(entry, locatorLabels, locatorKind),
     sourceUrl: citationUrl,
     passageUrl,
   };
