@@ -161,7 +161,7 @@ describe("local assistant tools", () => {
         tabular: async () => { throw new Error("No table view in this fixture"); } }),
       library: localLibraryStore,
       projects: localProjects,
-      projectId: null,
+      matterId: null,
       allowedDocumentIds: new Set([document.id]),
       documentNames: new Map([[document.id, "draft.docx"]]),
       editMode: mode,
