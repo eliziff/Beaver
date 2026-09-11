@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";import { Loader2, Trash2, User } from "lucide-react";
 import type { ProjectPeople } from "@/app/lib/api/projects";
+import { errorMessage } from "@/app/lib/utils";
 import { AddUserInput } from "../shared/AddUserInput";
 import { Modal } from "./Modal";
 interface SharedResource {
@@ -131,9 +132,7 @@ export function PeopleModal({
             await onSharedWithChange([...sharedWith, user.email]);
         } catch (e) {
             throw new Error(
-                e instanceof Error
-                    ? e.message
-                    : "Couldn't add the member. Try again.",
+                errorMessage(e, "Couldn't add the member. Try again."),
                 { cause: e },
             );
         } finally {
@@ -150,11 +149,7 @@ export function PeopleModal({
             );
             await onSharedWithChange(next);
         } catch (e) {
-            setError(
-                e instanceof Error
-                    ? e.message
-                    : "Couldn't remove the member. Try again.",
-            );
+            setError(errorMessage(e, "Couldn't remove the member. Try again."));
         } finally {
             setPending(null);
         }

@@ -6,11 +6,7 @@ import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
 import { exchangeAuthCode, requestPasswordReset, updateAuthPassword } from "@/app/lib/api/auth";
-
-function safeNext(value: string | null, fallback: string) {
-    return value?.startsWith("/") && !value.startsWith("//") && !value.includes("\\")
-        ? value : fallback;
-}
+import { errorMessage, safeNext } from "@/app/lib/utils";
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
     return (
@@ -51,9 +47,7 @@ export function AuthCallbackPage() {
         }
         void exchangeAuthCode(code).then(refreshSession).then(() => {
             navigate(safeNext(query.get("next"), "/assistant"), { replace: true });
-        }).catch((caught) => {
-            setError(caught instanceof Error ? caught.message : "Sign-in could not be completed.");
-        });
+        }).catch((caught) => setError(errorMessage(caught, "Sign-in could not be completed.")));
     }, [navigate, refreshSession]);
 
     return (
@@ -84,7 +78,7 @@ export function ForgotPasswordPage() {
             );
             setSent(true);
         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : "The reset email could not be sent.");
+            setError(errorMessage(caught, "The reset email could not be sent."));
         } finally {
             setBusy(false);
         }
@@ -137,8 +131,7 @@ export function ResetPasswordPage() {
                 setBusy(false);
             }
         }, {
-            onError: (caught) => setError(caught instanceof Error
-                ? caught.message : "The password could not be changed."),
+            onError: (caught) => setError(errorMessage(caught, "The password could not be changed.")),
         });
     }
     return (

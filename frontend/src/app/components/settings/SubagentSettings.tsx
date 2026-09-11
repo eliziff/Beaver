@@ -21,10 +21,9 @@ export function SubagentSettings() {
     const catalog = useModelCatalog(), { profile } = useUserProfile();
     useEffect(() => { void preloadModelCatalog(); }, []);
 
-    const capability = catalog?.readSubagents;
     const loading = !catalog;
     const models = catalog?.models ?? []; // any model can read (Eli, 2026-09-10)
-    const serverEnabled = capability?.serverEnabled !== false;
+    const serverEnabled = catalog?.readSubagents?.serverEnabled !== false;
 
     return (
         <section aria-labelledby="reading-agents-heading">
@@ -81,10 +80,7 @@ export function SubagentSettings() {
                             onChange={(showDock) => update({ showDock })} />
                     </span>
                 </label>
-                <p
-                    id="reading-agents-consequence"
-                    className="px-4 py-3 text-xs leading-5 text-gray-500"
-                >
+                <p className="px-4 py-3 text-xs leading-5 text-gray-500">
                     Beaver runs use the model and effort above and appear in chat
                     activity. Native runs are managed by Codex.
                 </p>
