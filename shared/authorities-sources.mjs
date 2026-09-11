@@ -8,6 +8,47 @@ export const hasBilingualAuthoritySource = (source) => {
   return languages.includes("bilingual") ||
     ["en", "fr"].every((language) => languages.includes(language));
 };
+/** The public link an authority offers a table, before any host canonicalization. */
+export const authoritySourceUrl = (authority) =>
+  authority.source.kind === "attached"
+    ? authority.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl ?? null
+    : authority.source.kind === "pending-canlii" ? authority.source.pageUrl
+      : authority.sourceIdentity?.externalUrl ?? null;
+/** A federal enactment the court wants in both official languages. */
+export const bilingualEnactmentRequired = (authority, requirements) =>
+  !!requirements?.bilingualEnactments && authority.kind === "legislation" &&
+  federalEnactmentCitation(authority.citation);
+/** Whether a build needs authority PDFs at all: a book reproduces every authority,
+ *  and a PDF filing carries the table entries it cannot link to. */
+export const authorityBytesRequired = (draft, requirements) =>
+  draft.outputMode !== "table" || !!(draft.insertIntoDocument &&
+    requirements?.unlinkedPdfTableSources && draft.import.kind === "document" &&
+    draft.import.fileType === "pdf");
+/** Whether the build puts this one authority's own PDF in front of the court. */
+export const authorityPdfRequired = (draft, authority, requirements) =>
+  draft.outputMode !== "table" || !!(requirements?.unlinkedPdfTableSources &&
+    draft.import.kind === "document" && draft.import.fileType === "pdf" &&
+    !authoritySourceUrl(authority));
+
+/** The one rule for "does this authority still owe a source", asked by the builder
+ *  (which throws), the resolver (which fetches) and the workspace (which warns).
+ *  `requirements` names the obligations the caller enforces; `prepared` says whether
+ *  a source decision nobody has acted on yet already counts as missing. */
+export function authoritySourceRequirement(draft, authority, requirements, prepared = true) {
+  const attached = authority.source.kind === "attached";
+  if (!prepared && ["unresolved", "resolved"].includes(authority.source.kind)) return null;
+  if (!authority.excluded) {
+    if (attached && bilingualEnactmentRequired(authority, requirements) &&
+        !hasBilingualAuthoritySource(authority.source)) return "incomplete-enactment";
+    if (!attached && requirements?.completeBookSources) return "missing";
+  }
+  // A table links every authority it lists, one the book leaves out included; only
+  // the authority's own PDF, appended to a PDF filing, stands in for the link.
+  return requirements?.unlinkedPdfTableSources && !authoritySourceUrl(authority) &&
+    !(attached && draft.insertIntoDocument && draft.import.kind === "document" &&
+      draft.import.fileType === "pdf") ? "unlinked" : null;
+}
+
 export const authoritiesBookPdfs = (draft) => [
   ...(draft.bookParts.cover ? [draft.bookParts.cover] : []),
   ...(draft.bookParts.index ? [draft.bookParts.index] : []),
@@ -48,14 +89,13 @@ export function authoritiesInputPlan(draft, requirements) {
     attachedAuthoritySources(authority.source).map((source) => ({ authority, source })));
   const included = authoritySources.filter(({ authority }) => !authority.excluded);
   const needsBook = draft.outputMode !== "table";
-  const needsFilingPdfs = draft.insertIntoDocument && requirements?.unlinkedPdfTableSources &&
-    draft.import.kind === "document" && draft.import.fileType === "pdf";
   const bookPdfs = needsBook ? authoritiesBookPdfs(draft) : [];
   return {
     authoritySources, bookPdfs,
     bookRoles: new Set(needsBook ? included.map(({ source }) => source.bindingRole) : []),
     byteRoles: new Set([
-      ...(needsBook || needsFilingPdfs ? included.map(({ source }) => source.bindingRole) : []),
+      ...(authorityBytesRequired(draft, requirements)
+        ? included.map(({ source }) => source.bindingRole) : []),
       ...(draft.insertIntoDocument && draft.import.kind === "document"
         ? [draft.import.bindingRole] : []),
       ...bookPdfs.map(({ bindingRole }) => bindingRole),
