@@ -1,5 +1,5 @@
 import { createChatApplication, type ChatApplicationFeatures } from "./lib/chat/chatApplication";
-import { availableParallelism, constants, setPriority, totalmem } from "node:os";
+import { constants, setPriority } from "node:os";
 import type { ChatToolContext } from "./lib/chat/turnEngine";
 import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
 import { createChatStore, type ChatScope, type ChatStore } from "./lib/chatStore";
@@ -8,6 +8,7 @@ import { createDocumentApplication } from "./lib/documentApplication";
 import { encryptionSecret } from "./lib/secretEncryption";
 import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
+import { jobLaneConcurrency } from "./lib/nativeThreadPool";
 import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
 import { createSourceWorkspaceApplication, type SourceWorkspaceApplication } from "./lib/sourceWorkspaceApplication";
@@ -46,9 +47,7 @@ function enabled(name: string, fallback: boolean) {
   throw new Error(`${name} must be true or false`);
 }
 const capabilities = { connectors: enabled("MCP_CONNECTORS_ENABLED", !local) };
-const preparationWorkers = local ? 1 : Math.min(4,
-  Math.max(1, Math.floor(availableParallelism() / 8)),
-  Math.max(1, Math.floor(totalmem() / (8 * 1024 ** 3))));
+const lanes = jobLaneConcurrency();
 const connectors = lazy(async () => {
   if (!capabilities.connectors) throw new Error("MCP connectors are disabled.");
   const [{ createMcpApplication }, { relationalDatabase }] = await Promise.all([
@@ -195,11 +194,11 @@ async function startWorkers() {
   ]);
   await recoverLocalJobs();
   return startJobLanes([
-    { concurrency: local ? 2 : 4,
+    { concurrency: lanes.chatTurns,
       handlers: { [CHAT_TURN_JOB]: chatTurnJobHandler(chatApplication, chatStore) } },
-    { concurrency: preparationWorkers,
+    { concurrency: lanes.preparation,
       handlers: { ...pdfJobHandlers(documentStore), ...providerPdfJobHandlers() } },
-    { concurrency: local ? 1 : 2,
+    { concurrency: lanes.tabular,
       handlers: { [TABULAR_AGENT_JOB]: tabularAgentJobHandler(tabularApplication) } },
   ]);
 }

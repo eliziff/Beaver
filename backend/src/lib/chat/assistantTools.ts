@@ -1205,6 +1205,7 @@ type PdfLookupResult =
   | Awaited<ReturnType<typeof documentProjectionService.lookupPdf>>
   | Awaited<ReturnType<typeof documentProjectionService.rehydratePdfEvidence>>;
 const MAX_COMPACT_PDF_MATCHES = 20;
+const WRITE_STAGE_WARNING_MS = 20_000;
 
 function compactPdfLookup(filename: string, lookup: PdfLookupResult, evidence: LegalEvidenceReceipt[]) {
   if (lookup.status !== "found") {
@@ -1769,6 +1770,17 @@ export function assistantTools<Context extends {
     }
     const title = requestedFilename.replace(/\.[^.]+$/u, "");
     const filename = safeGeneratedFilename(title, extension!);
+    // A stage can wait on work this process cannot see: every long native call is a
+    // libuv thread-pool task, and a Write queued behind PDF preparation logs nothing
+    // at all while it waits. Name the stage that is still waiting.
+    const stage = async <T>(name: string, run: () => Promise<T>) => {
+      const started = Date.now();
+      const watchdog = setInterval(() => console.warn(
+        `[write] stage ${name} exceeded ${Math.round((Date.now() - started) / 1000)}s`,
+        { filename }), WRITE_STAGE_WARNING_MS);
+      watchdog.unref();
+      try { return await run(); } finally { clearInterval(watchdog); }
+    };
     try {
       if (extension !== "docx") {
         const bytes = extension === "xlsx"
@@ -1796,7 +1808,7 @@ export function assistantTools<Context extends {
           return fail(`Draft integrity check failed: ${integrityErrors.join("; ")}`);
         }
       }
-      const rendered = await renderMarkdownDocx(
+      const rendered = await stage("render", () => renderMarkdownDocx(
         title,
         markdown,
         args.fields,
@@ -1810,11 +1822,11 @@ export function assistantTools<Context extends {
           generatedAt,
           timeZone,
         },
-      );
-      const authorityLedger = await createDocxAuthorityLedger(
+      ));
+      const authorityLedger = await stage("authority-ledger", () => createDocxAuthorityLedger(
         legalEvidenceState, rendered.bytes, evidence, rendered.appearances,
-      );
-      return persistGenerated(
+      ));
+      return stage("persist", () => persistGenerated(
         filename,
         rendered.bytes,
         {
@@ -1832,7 +1844,7 @@ export function assistantTools<Context extends {
             ...(authorityLedger ? { authorityLedger } : {}),
           },
         },
-      );
+      ));
     } catch (error) {
       console.warn("[write] failed", { filename, error: error instanceof Error ? error.message : String(error) });
       return fail(

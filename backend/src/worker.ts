@@ -1,7 +1,9 @@
 import "./lib/loadEnv";
+import { sizeNativeThreadPool } from "./lib/nativeThreadPool";
 import { runtime } from "./runtime";
 import { safeErrorLog } from "./lib/safeError";
 
+sizeNativeThreadPool();
 process.umask(0o077);
 let stopping: Promise<void> | undefined;
 
