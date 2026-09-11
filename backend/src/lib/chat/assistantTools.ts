@@ -18,7 +18,7 @@ import {
 } from "../legalSources";
 import { fixDocxSupras } from "../docxDeterministicCleanup";
 import { createDocxAuthorityLedger,
-  resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
+  docxCitationEntries, resolveDocxEvidenceCitations } from "../docxEvidenceCitations";
 import {
   DEFAULT_DRAFTING_STYLE,
   resolveDraftingOptions,
@@ -1793,14 +1793,11 @@ export function assistantTools<Context extends {
         args,
         draftingStyle,
       );
-      const evidence = resolveDocxEvidenceCitations(
-        legalEvidenceState,
-        args.citations,
-      );
+      const cited = docxCitationEntries(legalEvidenceState, args.citations);
       if (legalEvidenceState) {
         const integrityErrors = legalEvidenceProseIntegrityErrors(
           markdown,
-          evidence.bindings.flatMap(({ evidenceIds }) => evidenceIds),
+          cited.flatMap(({ input }) => input.evidenceIds),
           legalEvidenceState,
         );
         if (integrityErrors.length) {
@@ -1808,6 +1805,8 @@ export function assistantTools<Context extends {
           return fail(`Draft integrity check failed: ${integrityErrors.join("; ")}`);
         }
       }
+      const evidence = await stage("passage-links", async () =>
+        resolveDocxEvidenceCitations(legalEvidenceState, args.citations));
       const rendered = await stage("render", () => renderMarkdownDocx(
         title,
         markdown,
