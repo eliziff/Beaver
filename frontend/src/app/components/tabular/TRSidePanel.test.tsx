@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ColumnConfig, TabularCell } from "@/app/lib/api/tabular";
 import type { Document } from "@/app/lib/api/documents";
+import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 import { TRSidePanel } from "./TRSidePanel";
 
 afterEach(() => {
@@ -61,9 +62,11 @@ it("uses a modal dialog on compact screens and restores its opener", async () =>
 });
 
 it("links a cited passage externally without offering a reader menu", () => {
-    const evidence = { evidence_id: "other", provider: "a2aj", stable_source_id: "other-case", source_reference: { id: "other-case" },
+    const evidence: GroundedEvidence = { evidence_id: "other", provider: "a2aj", jurisdiction: "ca", source_class: "case",
+        stable_source_id: "other-case", scope: "passage", source_reference: { id: "other-case" }, version: null,
         source_sha256: "a".repeat(64), span_sha256: "b".repeat(64), block_id: "par7", span_text: "The court distinguished the rule.",
-        citation: "2026 SCC 2", name: "Other case", external_url: "https://example.test/other", dataset: "scc", language: "fr" as const, locator: { kind: "paragraph", label: "7" } };
+        citation: "2026 SCC 2", name: "Other case", external_url: "https://example.test/other", dataset: "scc",
+        language: "fr", locator: { kind: "paragraph", label: "7" }, resolver_version: "a2aj-inline-v1" };
     render(<TRSidePanel cell={{ ...cell, content: { ...cell.content!, evidence: [evidence], claims: [{ text: "Distinguished", evidence_ids: ["other"] }] } }}
         document={{ ...sourceDocument, reference: { provider: "a2aj", id: "row-case", kind: "case", citation: "2026 SCC 1" } }}
         column={column} onClose={vi.fn()} />);

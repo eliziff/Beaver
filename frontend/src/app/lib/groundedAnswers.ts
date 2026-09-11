@@ -1,27 +1,9 @@
 import type { Citation } from "./citations";
+import type { LegalEvidenceReceipt } from "../../../../backend/src/lib/researchContract";
 
-export type GroundedAnswer = {
-  claims: { text: string; evidence_ids: string[] }[];
-  value?: string | number | boolean | string[] | null;
-};
-export type GroundedEvidence = {
-  evidence_id: string;
-  provider: string;
-  stable_source_id: string;
-  source_reference?: { id: string; family?: string; part?: string };
-  source_sha256: string;
-  span_sha256: string;
-  block_id: string;
-  span_text: string | null;
-  citation: string;
-  name: string | null;
-  external_url: string | null;
-  source_class?: "case" | "legislation" | "commentary";
-  dataset?: string;
-  language?: "en" | "fr";
-  version?: string | null;
-  locator: { kind: string; label: string; sheet?: string; cells?: string };
-};
+export type { GroundedClaim, GroundedAnswer } from "../../../../backend/src/lib/groundedAnswer";
+/** The evidence receipt the server attests; the browser only reads it. */
+export type GroundedEvidence = LegalEvidenceReceipt;
 
 export function evidenceCitation(receipt: GroundedEvidence, ref: number): Citation | null {
   if (!receipt.span_text) return null;

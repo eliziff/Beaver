@@ -28,8 +28,8 @@ export const runResearchFileQuery = (id: string,
     ...input, version_id: input.versionId, working_revision: input.workingRevision,
     versionId: undefined, workingRevision: undefined,
   });
-export type ResearchFindingReference = { kind: "answer"; chatId: string; answerId: string; resource: string; claimIndices?: number[] }
-  | { kind: "cell"; reviewId: string; rowId: string; columnIndex: number };
+export type { ResearchFindingReference } from "../../../../../backend/src/lib/researchFindingReference";
+import type { ResearchFindingReference } from "../../../../../backend/src/lib/researchFindingReference";
 export type ResearchFinding = {
   reference: ResearchFindingReference;
   sourceId: string;

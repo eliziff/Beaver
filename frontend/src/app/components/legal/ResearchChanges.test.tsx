@@ -11,7 +11,7 @@ vi.mock("@/app/lib/api/tabular", async (original) => ({ ...await original<typeof
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(),
   getResearchItems: api.getResearchItems }));
 const change: ResearchChange = { id: "change-1", title: "Refine delivery terms", createdAt: "2026-09-05T12:00:00Z",
-  executor: "assistant", status: "pending", counts: { labels: 1, sources: 0, passages: 0 }, changes: [
+  executor: "assistant", userId: "user-1", status: "pending", counts: { labels: 1, sources: 0, passages: 0 }, changes: [
     { target: "label", id: "label-1", field: "name", before: "Other terms", after: "Delivery deadlines" },
   ] };
 const original = { document: { id: "workspace" }, versionId: "v1", workingRevision: 0,

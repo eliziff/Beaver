@@ -9,7 +9,7 @@ vi.mock("@/app/lib/api/tabular", async (original) => ({ ...await original<typeof
   getTabularHistory: api.getTabularHistory, actOnTabularChange: api.actOnTabularChange, updateTabularReview: api.updateTabularReview }));
 
 const proposal: ResearchChange = { id: "change-1", title: "Rewrite the Amount prompt", createdAt: "2026-09-05T12:00:00Z",
-  executor: "assistant", status: "pending", counts: { labels: 0, sources: 0, passages: 0, tables: 1 }, changes: [
+  executor: "assistant", userId: "user-1", status: "pending", counts: { labels: 0, sources: 0, passages: 0, tables: 1 }, changes: [
     { target: "table", id: "table", field: "columns_config.0.prompt", before: "Find the amount", after: "Find the amount claimed" },
   ] };
 const review = { id: "table", title: "Claims", updated_at: "v1", proposals: [proposal],

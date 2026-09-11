@@ -18,9 +18,13 @@ import type { LegalEvidenceReceiptEvent } from "./assistantEvents";
 import { groundedSentenceCount, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
 
+import type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
+  LegalResearchQueryReceipt } from "../researchContract";
+export type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
+  LegalResearchQueryReceipt } from "../researchContract";
+
 export const LEGAL_EVIDENCE_TOOL_NAME = "submit_grounded_answer";
 export type LegalEvidenceMode = "citation_structure";
-export type LegalSourceClass = "case" | "legislation" | "commentary";
 
 const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
@@ -38,40 +42,6 @@ export function selectGroundedQuotationPolicy(flag?: string) {
 export const GROUNDED_QUOTATION_POLICY = selectGroundedQuotationPolicy(
   process.env.BEAVER_GROUNDED_QUOTATION_POLICY,
 );
-
-/** Providers whose documents are read directly; the rest carry attested or stored passages. */
-type DirectSourceProvider = "a2aj" | "courtlistener" | "tna" | "govuk-et" | "govinfo" | "hansard";
-
-export type LegalEvidenceReceipt = {
-  evidence_id: string;
-  provider: DirectSourceProvider | "citator" | "journal" | "library";
-  jurisdiction: string;
-  source_class: LegalSourceClass;
-  stable_source_id: string;
-  source_reference?: Pick<LegalSourceReference, "id" | "part" | "family">;
-  source_sha256: string;
-  scope: "document" | "passage";
-  block_id: string;
-  span?: { start: number; end: number };
-  exact_span_sha256?: string;
-  span_sha256: string;
-  span_text: string | null;
-  citation: string;
-  target_citation?: string;
-  name: string | null;
-  dataset: string;
-  language: "en" | "fr";
-  version: string | null;
-  external_url: string | null;
-  locator: {
-    kind: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
-    label: string;
-    sheet?: string;
-    cells?: string;
-  };
-  resolver_version: "a2aj-inline-v1" | `${Exclude<DirectSourceProvider, "a2aj">}-span-v1` |
-    "citator-analysis-v1" | "citator-noteup-v1" | "public-journal-v1" | "library-read-v1";
-};
 
 export function legalEvidenceSourceReference(receipt: LegalEvidenceReceipt): LegalSourceReference | null {
   const reference = receipt.source_reference;
@@ -100,20 +70,6 @@ export type RegisteredEvidence = {
 };
 
 export type PriorLegalEvidence = LegalEvidenceReceipt | RegisteredEvidence;
-
-export type LegalResearchQueryReceipt = {
-  query_id: string;
-  call_id: string;
-  tool: "search_sources" | "Read";
-  executed_at: string;
-  model: string;
-  executor_version: "legal-source-search-v1" | "legal-source-pattern-v1";
-  input: Record<string, unknown>;
-  results: Array<
-    | { rank: number; resource: string }
-    | { rank: number; evidence_id: string }
-  >;
-};
 
 export type PendingLegalResearchQueryReceipt = Omit<
   LegalResearchQueryReceipt,

@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { ColumnConfig, TabularCell } from "@/app/lib/api/tabular";
 import type { GroundedEvidence } from "@/app/lib/groundedAnswers";
 import { TabularResultDetails } from "./TabularResultDetails";
-const receipt: GroundedEvidence = { evidence_id: "e1", provider: "library", stable_source_id: "original",
-  version: "pinned-version", source_sha256: "a".repeat(64), span_sha256: "b".repeat(64), block_id: "page:3",
-  span_text: "The contract requires notice.", citation: "Agreement", name: "Agreement.pdf", external_url: null,
-  locator: { kind: "page", label: "3" } };
+const receipt: GroundedEvidence = { evidence_id: "e1", provider: "library", jurisdiction: "ca",
+  source_class: "commentary", stable_source_id: "original", scope: "passage", dataset: "library",
+  language: "en", version: "pinned-version", source_sha256: "a".repeat(64), span_sha256: "b".repeat(64),
+  block_id: "page:3", span_text: "The contract requires notice.", citation: "Agreement",
+  name: "Agreement.pdf", external_url: null, locator: { kind: "page", label: "3" },
+  resolver_version: "library-read-v1" };
 const answer: NonNullable<TabularCell["content"]> = { value: true, summary: "Yes", reasoning: "Notice is required.",
   claims: [{ text: "Notice is required.", evidence_ids: ["e1", "e1"] }, { text: "The term is express.", evidence_ids: ["e1"] }],
   evidence: [receipt, { ...receipt, evidence_id: "read-only", span_text: "Background read, not supporting this answer." }],
@@ -34,7 +36,7 @@ describe("tabular result inspection", () => {
     expect(screen.queryByRole("region", { name: "Explanation" })).not.toBeInTheDocument();
   });
   it("keeps distinct pinpointed passages from the same source independently openable", () => {
-    const other = { ...receipt, evidence_id: "e2", span_text: "The exception applies to cause.", locator: { kind: "page", label: "4" } };
+    const other: GroundedEvidence = { ...receipt, evidence_id: "e2", span_text: "The exception applies to cause.", locator: { kind: "page", label: "4" } };
     render(<TabularResultDetails answer={{ ...answer, claims: [{ text: "Notice subject to an exception.", evidence_ids: ["e1", "e2"] }], evidence: [receipt, other] }} column={column} />);
     expect(screen.queryByRole("button", { name: "Citation actions" })).toBeNull();
     const pills = screen.getAllByRole("link", { name: /Agreement/ });

@@ -77,3 +77,85 @@ export const researchFileActionSchema = z.union([researchMutationSchema,
   z.object({ type: z.enum(["accept", "reject", "undo"]), changeId: uuid }).strict(),
 ]);
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
+
+/** Providers whose documents are read directly; the rest carry attested or stored passages. */
+export type DirectSourceProvider = "a2aj" | "courtlistener" | "tna" | "govuk-et" | "govinfo" | "hansard";
+export type LegalSourceClass = "case" | "legislation" | "commentary";
+export type LegalEvidenceReceipt = {
+  evidence_id: string;
+  provider: DirectSourceProvider | "citator" | "journal" | "library";
+  jurisdiction: string;
+  source_class: LegalSourceClass;
+  stable_source_id: string;
+  source_reference?: Pick<LegalSourceReference, "id" | "part" | "family">;
+  source_sha256: string;
+  scope: "document" | "passage";
+  block_id: string;
+  span?: { start: number; end: number };
+  exact_span_sha256?: string;
+  span_sha256: string;
+  span_text: string | null;
+  citation: string;
+  target_citation?: string;
+  name: string | null;
+  dataset: string;
+  language: "en" | "fr";
+  version: string | null;
+  external_url: string | null;
+  locator: {
+    kind: "document" | "paragraph" | "page" | "section" | "footnote" | "sheet" | "cell";
+    label: string;
+    sheet?: string;
+    cells?: string;
+  };
+  resolver_version: "a2aj-inline-v1" | `${Exclude<DirectSourceProvider, "a2aj">}-span-v1` |
+    "citator-analysis-v1" | "citator-noteup-v1" | "public-journal-v1" | "library-read-v1";
+};
+export type LegalResearchQueryReceipt = {
+  query_id: string;
+  call_id: string;
+  tool: "search_sources" | "Read";
+  executed_at: string;
+  model: string;
+  executor_version: "legal-source-search-v1" | "legal-source-pattern-v1";
+  input: Record<string, unknown>;
+  results: Array<
+    | { rank: number; resource: string }
+    | { rank: number; evidence_id: string }
+  >;
+};
+
+/** No highlight label means an observation. One label means an intentional highlight of that type. */
+export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string; highlightId?: string;
+  labelIds: string[]; note: string };
+export type ResearchQueryReceipt = LegalResearchQueryReceipt & { sourceIds: string[];
+  matchedSourceIds: string[]; evidenceIds: string[]; failures: Array<{ sourceId: string; code: string }>;
+  slots: Record<string, string[]>; sourceFingerprints?: Record<string, string[]>;
+  sourceReferences?: Record<string, ResearchSourceReference>;
+  labelPaths?: Record<string, string> };
+/** The document is the store record on the server and the API document in the browser. */
+export type ResearchFileOf<Document> = { document: Document; versionId: string;
+  workingRevision: number; state: ResearchFileState };
+
+const changeField = z.object({ target: z.enum(["label", "source", "passage", "workspace", "table", "result"]),
+  id: z.string().min(1).max(200), sourceId: z.string().uuid().optional(),
+  field: z.string().min(1).max(300), before: z.unknown(), after: z.unknown() }).strict();
+export const researchChangeSchema = researchChangeSummarySchema.extend({ userId: z.string(),
+  status: z.enum(["pending", "applied", "rejected"]), undoOf: z.string().uuid().optional(),
+  resolvedBy: z.string().optional(), resolvedAt: z.string().datetime().optional(),
+  changes: z.array(changeField).max(500_000) }).strict();
+export type ResearchChangeField = z.infer<typeof changeField>;
+export type ResearchChange = z.infer<typeof researchChangeSchema>;
+export type { ResearchChangeSummary };
+export type ResearchPageItem = { kind: "passage" | "evidence"; index: number; value: ResearchEvidence }
+  | { kind: "query"; index: number; value: ResearchQueryReceipt }
+  | { kind: "change"; index: number; value: ResearchChange };
+
+const selectionIds = z.array(z.string().min(1).max(200)).max(100_000)
+  .transform((values) => [...new Set(values)]);
+export const researchSelectionSchema = z.object({ sourceIds: selectionIds.optional(), labelIds: selectionIds.optional(),
+  findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(),
+  evidenceIds: selectionIds.optional(), target: z.enum(["sources", "passages"]), unlabelled: z.boolean().optional(),
+  members: z.array(z.object({ sourceId: z.string().min(1).max(200), evidenceIds: selectionIds.optional() }).strict())
+    .max(100_000).optional() }).strict();
+export type ResearchSelection = z.infer<typeof researchSelectionSchema>;
