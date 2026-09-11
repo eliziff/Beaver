@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { textField } from "../lib/textField";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -14,13 +15,13 @@ import type { SourceWorkspaceApplication } from "../lib/sourceWorkspaceApplicati
 import { researchImportDesignSchema } from "../lib/tabular/researchImport";
 import { researchLabelDesignSchema } from "../lib/researchLabelDesign";
 
-const id = z.string().trim().min(1).max(200), revision = z.number().int().nonnegative();
+const id = textField(200), revision = z.number().int().nonnegative();
 const page = { offset: z.coerce.number().int().nonnegative().default(0),
   limit: z.coerce.number().int().min(1).max(200).default(50) };
-const placement = { title: z.string().trim().min(1).max(200).optional(),
+const placement = { title: textField(200).optional(),
   projectId: id.nullish(), folderId: id.nullish() };
 const query = z.object({ version_id: id, working_revision: revision,
-  text: z.string().trim().min(1).max(10_000).optional(),
+  text: textField(10_000).optional(),
   syntax: z.enum(["literal", "terms"]), target: z.enum(["sources", "passages"]),
   sourceIds: z.array(id).max(10_000).optional(), labelIds: z.array(id).max(1_000).optional(),
   evidenceIds: researchSelectionSchema.shape.evidenceIds, members: researchSelectionSchema.shape.members,
@@ -37,8 +38,8 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   rows: z.enum(["sources", "passages"]).optional(), labelId: id.optional(),
   findingRefs: z.array(researchFindingReferenceSchema).min(1).max(10_000).optional(),
   design: researchImportDesignSchema.optional(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
-  request: z.string().trim().min(1).max(4_000).optional(), model: z.string().trim().min(1).max(200).optional(),
-  reasoningEffort: z.string().trim().min(1).max(20).optional(),
+  request: textField(4_000).optional(), model: textField(200).optional(),
+  reasoningEffort: textField(20).optional(),
   repropose: z.boolean().optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
 const labelInput = tableInput.innerType().omit({ design: true })

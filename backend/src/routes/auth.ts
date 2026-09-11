@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { textField } from "../lib/textField";
 import { clearRequestAuthCookies, createRequestSupabase,
   publicAuthUser } from "../lib/authSession";
 import { safeErrorLog } from "../lib/safeError";
@@ -146,7 +147,7 @@ authRouter.post("/oauth", route(async (req, res) => {
 }));
 
 authRouter.post("/exchange", route(async (req, res) => {
-  const code = z.string().trim().min(1).max(4_096).safeParse(req.body?.code);
+  const code = textField(4_096).safeParse(req.body?.code);
   if (!code.success) return invalid(res);
   const { data, error } = await createRequestSupabase(req, res)
     .auth.exchangeCodeForSession(code.data);
@@ -222,7 +223,7 @@ authRouter.get("/mfa/assurance", requireAuth,
   mfaRoute(() => true, (mfa) => mfa.getAuthenticatorAssuranceLevel()));
 
 authRouter.post("/mfa/enroll", requireAuth, mfaRoute(
-  (req) => z.string().trim().min(1).max(100).safeParse(req.body?.friendlyName).data ?? null,
+  (req) => textField(100).safeParse(req.body?.friendlyName).data ?? null,
   (mfa, friendlyName) => mfa.enroll({ factorType: "totp", friendlyName }), 201));
 
 authRouter.post("/mfa/challenge", requireAuth, mfaRoute(
