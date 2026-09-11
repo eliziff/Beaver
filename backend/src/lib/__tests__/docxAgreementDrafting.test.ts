@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { docxXml as packageXml } from "./support/docxFixtures";
 
 import { applyTrackedEdits, extractDocxBodyText } from "../docxTrackedChanges";
 import {
@@ -23,18 +24,6 @@ const agreementFields = {
   termination_clause: "Either party may terminate on 30 days' notice.",
 };
 
-async function documentXml(bytes: Buffer) {
-  const JSZip = (await import("jszip")).default;
-  const zip = await JSZip.loadAsync(bytes);
-  return zip.file("word/document.xml")!.async("text");
-}
-
-async function packageXml(bytes: Buffer, path: string) {
-  const JSZip = (await import("jszip")).default;
-  const zip = await JSZip.loadAsync(bytes);
-  return zip.file(path)!.async("text");
-}
-
 describe("agreement DOCX drafting", () => {
   it("renders deterministic tagged Word content controls without leaking markers", async () => {
     const first = await renderMarkdownDocx(
@@ -50,8 +39,8 @@ describe("agreement DOCX drafting", () => {
     if ("error" in first) throw new Error(first.error);
     if ("error" in second) throw new Error(second.error);
 
-    const xml = await documentXml(first.bytes);
-    const secondXml = await documentXml(second.bytes);
+    const xml = await packageXml(first.bytes);
+    const secondXml = await packageXml(second.bytes);
     const ids = [...xml.matchAll(/<w:id w:val="(\d+)"\/>/gu)].map(
       (match) => match[1],
     );
@@ -90,7 +79,7 @@ describe("agreement DOCX drafting", () => {
     );
     if ("error" in rendered) throw new Error(rendered.error);
 
-    const xml = await documentXml(rendered.bytes);
+    const xml = await packageXml(rendered.bytes);
     expect(xml).toContain('<w:tag w:val="tenant_name"/>');
     expect(xml).toContain("Alex");
   });
@@ -103,7 +92,7 @@ describe("agreement DOCX drafting", () => {
     );
     if ("error" in rendered) throw new Error(rendered.error);
 
-    const xml = await documentXml(rendered.bytes);
+    const xml = await packageXml(rendered.bytes);
     const bindings = [...xml.matchAll(/<w:dataBinding\b([^>]*)\/>/gu)];
     expect(bindings).toHaveLength(2);
     expect(bindings.map((match) => match[1].match(/w:xpath="([^"]+)"/u)?.[1]))
@@ -148,5 +137,4 @@ describe("agreement DOCX drafting", () => {
       await expect(renderMarkdownDocx("Lease", "{{a}}", fields)).rejects.toThrow("DOCX fields");
     }
   });
-
 });
