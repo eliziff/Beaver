@@ -2,7 +2,7 @@ import { ApplicationError } from "./applicationError";
 import { authorityCitationServices, updateAuthoritiesDraft as update } from "./authoritiesActions";
 import { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
-  federalEnactmentCitation, hasBilingualAuthoritySource,
+  authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
   type AuthoritiesDraft, type AuthorityIdentity } from "./authoritiesDomain";
 import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl } from "./canliiUrls";
 import { canonicalJsonSha256, sha256 } from "./hash";
@@ -65,8 +65,6 @@ function isCanliiUrl(value: string) {
   } catch { return false; }
 }
 
-const bilingualEnactments = (draft: AuthoritiesDraft) =>
-  !!authoritiesProfile(draft.settings.profileId).requirements?.bilingualEnactments;
 const sourceIdentityLanguage = (authority: AuthorityIdentity) =>
   authority.sourceIdentity?.stableSourceId.match(/^a2aj:(en|fr):/u)?.[1] as
     "en" | "fr" | undefined;
@@ -102,17 +100,17 @@ export async function resolveAuthoritiesSources(
   const attachments: PreparedAuthoritySource[] = [];
   const reconstruct = draft.settings.sourceMode !== "manual-originals";
   const originals = draft.settings.sourceMode !== "render";
-  const needsPdf = draft.outputMode !== "table" || draft.insertIntoDocument &&
-    !!authoritiesProfile(draft.settings.profileId).requirements?.unlinkedPdfTableSources &&
-    draft.import.kind === "document" && draft.import.fileType === "pdf";
+  const requirements = authoritiesProfile(draft.settings.profileId).requirements;
+  const needsPdf = authorityBytesRequired(draft, requirements);
+  // Resolution fetches every source a filing could want, whatever this court
+  // enforces at build time; an attached PDF is final but for a missing language.
+  const owed = { completeBookSources: true,
+    bilingualEnactments: !!requirements?.bilingualEnactments };
   const candidates = draft.authorityOrder.flatMap((id) => {
     const authority = draft.authorities[id];
-    const incompleteEnactment = !!authority && bilingualEnactments(draft) &&
-      authority.kind === "legislation" && federalEnactmentCitation(authority.citation) &&
-      authority.sourceIdentity?.provider === "a2aj" &&
-      !hasBilingualAuthoritySource(authority.source);
-    return authority && !authority.excluded && ["case", "legislation"].includes(authority.kind) &&
-      (["unresolved", "resolved", "pending-canlii"].includes(authority.source.kind) || incompleteEnactment)
+    const fetchable = !!authority && ["case", "legislation"].includes(authority.kind) &&
+      (authority.source.kind !== "attached" || authority.sourceIdentity?.provider === "a2aj");
+    return fetchable && authoritySourceRequirement(draft, authority, owed)
       ? [{ id, authority }] : [];
   });
   const resolutions = await concurrentMap(candidates, async ({ id, authority }) => {
@@ -193,9 +191,9 @@ export async function resolveAuthoritiesSources(
     const { authority, source } = item;
     const existing = new Set(attachedAuthoritySources(authority.source)
       .map(({ language }) => language));
-    if (!bilingualEnactments(draft) || authority.kind !== "legislation" ||
-        !federalEnactmentCitation(source.citation || authority.citation)) return [{ ...item,
-          paired: false }];
+    if (!bilingualEnactmentRequired({ kind: authority.kind,
+      citation: source.citation || authority.citation }, requirements)) return [{ ...item,
+        paired: false }];
     const language = source.language === "en" ? "fr" : "en";
     let companion: ResolvedSource | null = null;
     for (const citation of [source.citation, source.alternateCitation].filter(
