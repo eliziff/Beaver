@@ -199,10 +199,13 @@ function ledgerInputs(state: LegalEvidenceTurnState,
 function textPositions(units: NativeAuthorityTextUnit[], kind: "body" | "footnote",
   text: string, noteId?: number) {
   const positions: Array<{ unit: NativeAuthorityTextUnit; start: number }> = [];
+  // An empty rendered citation has no position to bind, and searching for one never
+  // advances past the end of the unit: the ledger abstains instead of spinning.
+  if (!text) return positions;
   for (const unit of units) {
     if (unit.kind !== kind || (noteId !== undefined && unit.footnote_id !== noteId)) continue;
     for (let start = unit.text.indexOf(text); start >= 0;
-      start = unit.text.indexOf(text, start + Math.max(1, text.length))) {
+      start = unit.text.indexOf(text, start + text.length)) {
       positions.push({ unit, start });
     }
   }

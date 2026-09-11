@@ -193,4 +193,16 @@ describe("DOCX evidence citations", () => {
       expect(await createDocxAuthorityLedger(state, document, resolved, ambiguous)).toBeUndefined();
     }
   });
+
+  it("abstains instead of spinning when an appearance renders no citation text", async () => {
+    const state = createLegalEvidenceTurnState();
+    registerLegalEvidence(state, receipt("e_paragraph_5", "par5", { source_sha256: "a".repeat(64) }));
+    const resolved = resolveDocxEvidenceCitations(state, { rule: ["e_paragraph_5"] });
+    const appearances: DocxCitationAppearance[] = [];
+    const bytes = await renderDocxMarkdown("The rule applies.[@rule]", {
+      citations: resolved.citations }, [], appearances);
+    const empty = appearances.map((appearance) => ({ ...appearance,
+      sources: appearance.sources.map((source) => ({ ...source, text: "", parts: [] })) }));
+    expect(await createDocxAuthorityLedger(state, bytes, resolved, empty)).toBeUndefined();
+  });
 });

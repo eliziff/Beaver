@@ -396,6 +396,19 @@ describe("local assistant tools", () => {
       error: expect.stringContaining("Draft integrity check failed"),
     });
     expect(rejected.mutated).not.toBe(true);
+
+    // The corrected retry of a rejected draft, same filename, same registry.
+    const [corrected] = await runLocalAssistantTools("local-user", [{
+      id: "grounded-retry",
+      name: "Write",
+      input: {
+        filename: "Standing memo.docx",
+        content: `# Standing\n\n"${passage}" [@standing]`,
+        citations: { standing: [evidence.evidence_id] },
+      },
+    }], { legalEvidence: state });
+    expect(JSON.parse(corrected.content), corrected.content).toMatchObject({ ok: true });
+    expect(corrected.mutated).toBe(true);
   });
 
   it("applies deterministic DOCX operations through edit_docx_advanced", async () => {
