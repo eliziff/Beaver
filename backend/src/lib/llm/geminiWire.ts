@@ -1,22 +1,12 @@
+import type { FunctionCallingConfigMode } from "@google/genai";
 import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
-import { runtimeConstructor } from "./runtimeSdk";
 import type { LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type Part = Record<string, unknown>;
 type Content = { role: "user" | "model"; parts: Part[] };
 type Call = { name: string; providerId?: string };
 type State = { contents: Content[]; calls: Record<string, Call> };
-type GeminiClient = {
-  models: {
-    generateContentStream(request: Record<string, unknown>): Promise<AsyncIterable<unknown>>;
-  };
-};
-type GeminiConstructor = new (options: {
-  apiKey: string;
-  vertexai: boolean;
-  httpOptions: { baseUrl: string };
-}) => GeminiClient;
-const gemini = runtimeConstructor<GeminiConstructor>("@google/genai", "GoogleGenAI");
+const gemini = import("@google/genai").then((sdk) => sdk.GoogleGenAI);
 
 function declarations(tools: Tool[]) {
   return tools.map((tool) => ({
@@ -116,7 +106,7 @@ export function createGeminiWireAdapter(
             maxOutputTokens: params.maxTokens,
             tools: step.tools.length ? [{ functionDeclarations: declarations(step.tools) }] : undefined,
             toolConfig: step.newToolNames.length ? {
-              functionCallingConfig: { mode: "ANY", allowedFunctionNames: step.newToolNames },
+              functionCallingConfig: { mode: "ANY" as FunctionCallingConfigMode, allowedFunctionNames: step.newToolNames },
             } : undefined,
             thinkingConfig: params.enableThinking ? { includeThoughts: true } : { thinkingBudget: 0 },
           },
