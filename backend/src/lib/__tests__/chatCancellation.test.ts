@@ -157,6 +157,43 @@ it("releases the lease and chat registry on worker shutdown with stalled steerin
   expect(await turn.queue.pendingJobCommands(turn.first.id)).toHaveLength(1);
 });
 
+it("resumes the re-attempt after a lost lease instead of stopping the turn", async () => {
+  const queue = await import("../jobQueue");
+  const { chatTurnJobHandler } = await import("../chatTurnWorker");
+  const { relationalDatabase, sql } = await import("../relationalDatabase");
+  const chatId = randomUUID(), started = deferred(), resumes: Array<boolean | undefined> = [];
+  let reason: unknown;
+  const application = { turn: async (_scope, _input, sink, signal, execution) => {
+    resumes.push(execution?.resume);
+    expect(sink.claim(chatId)).toBe(true);
+    if (resumes.length > 1) { sink.emit({ type: "content", text: "resumed" }); return { chatId, transcriptVersion: 2 }; }
+    started.resolve();
+    await new Promise<void>(resolve => signal.addEventListener("abort", () => resolve(), { once: true }));
+    reason = signal.reason;
+    throw new DOMException("Aborted", "AbortError");
+  } } as ChatApplication;
+  const job = await queue.enqueueJob({ kind: "chat.turn", dedupeKey: randomUUID(),
+    userId: "owner", maxAttempts: 3, payload: { input: { expected_version: 0,
+      current_turn: { kind: "message", content: "fixture", turn_id: randomUUID() } } } });
+  const worker = queue.startJobWorker({ "chat.turn": chatTurnJobHandler(application,
+    { get: async () => null } as unknown as ChatStore) }, { leaseMilliseconds: 30_000, heartbeatMilliseconds: 10 });
+  workers.push(worker);
+  await within(started.promise);
+  // The state an expired lease leaves: another claim owns the row and it is claimable again.
+  await (await relationalDatabase()).query(sql`UPDATE application_jobs
+    SET locked_by='successor',locked_until=${new Date(0).toISOString()} WHERE id=${job.id}`);
+  const settled = await vi.waitFor(async () => {
+    const current = await queue.getJob(job.id, "owner");
+    expect(current?.status).toBe("succeeded");
+    return current;
+  }, { timeout: 3_000, interval: 10 });
+  expect(reason).toBeInstanceOf(queue.JobLeaseLostError);
+  expect(resumes).toEqual([false, true]);
+  expect(settled).toMatchObject({ attempts: 2, lastError: null });
+  expect((await queue.readJobEvents("owner", job.id, 0)).map(row => row.event))
+    .toEqual([{ type: "content", text: "resumed" }]);
+});
+
 it("releases the chat registry even when the final durable event flush fails", async () => {
   const queue = await import("../jobQueue"), registry = await import("../chatTurns");
   const { chatTurnJobHandler } = await import("../chatTurnWorker");

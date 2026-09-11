@@ -92,7 +92,7 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
     if (!current) return { status: "missing" };
     const expected = mutation.kind === "turn" ? mutation.turn.expectedVersion
       : current.transcript_version;
-    if (expected !== current.transcript_version)
+    if (expected !== null && expected !== current.transcript_version)
       return { status: "conflict", currentVersion: current.transcript_version };
     if (mutation.kind === "append") {
       const message = await one(sql`SELECT id FROM chat_messages WHERE id=${mutation.messageId}

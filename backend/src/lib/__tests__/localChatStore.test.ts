@@ -102,6 +102,32 @@ describe("local chat store", () => {
     await expect(store.transcript(scope(), chat.id)).resolves.toHaveLength(1);
   });
 
+  it("resolves the version inside the commit when a re-attempt resumes a turn", async () => {
+    const store = await loadStore();
+    const chat = await store.create(scope(), { projectId: null, tabularReviewId: null });
+    const turnId = randomUUID(), assistantId = randomUUID();
+    await expect(store.commitTurn(scope(), chat.id, { expectedVersion: 0,
+      userMessage: { id: randomUUID(), turnId, content: "Draft the memo" } }))
+      .resolves.toMatchObject({ status: "committed", currentVersion: 1 });
+    // The attempt that lost its lease keeps writing while the re-attempt prepares.
+    await expect(store.commitTurn(scope(), chat.id, { expectedVersion: 1,
+      assistantMessage: { id: assistantId, turnId, content: [
+        { type: "error", message: "This response was interrupted" }] } }))
+      .resolves.toMatchObject({ status: "committed", currentVersion: 2 });
+
+    await expect(store.commitTurn(scope(), chat.id, { expectedVersion: 1,
+      assistantMessage: { id: assistantId, turnId, content: [] } }))
+      .resolves.toMatchObject({ status: "conflict", currentVersion: 2 });
+    await expect(store.commitTurn(scope(), chat.id, { expectedVersion: null,
+      assistantMessage: { id: assistantId, turnId, content: [
+        { type: "content", text: "Answer" }] } }))
+      .resolves.toMatchObject({ status: "committed", currentVersion: 3 });
+    await expect(store.transcript(scope(), chat.id)).resolves.toMatchObject([
+      { role: "user", content: "Draft the memo" },
+      { role: "assistant", content: [{ type: "content", text: "Answer" }] },
+    ]);
+  });
+
   it("commits a turn once and rejects empty commits", async () => {
     const store = await loadStore();
     const chat = await store.create(scope(), { projectId: null, tabularReviewId: null });

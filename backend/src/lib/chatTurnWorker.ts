@@ -38,9 +38,11 @@ export function chatTurnJobHandler(
     const current = turn.chatId ? await chats.get(turn.scope, turn.chatId) : null;
     if (turn.chatId && !current) throw new PermanentJobError("ChatUnavailable");
     const controller = new AbortController();
-    const abort = () => controller.abort();
+    // Carry the reason across: the turn has to tell a cancellation apart from a
+    // lease it lost while it was still working.
+    const abort = () => controller.abort(context.signal.reason);
     context.signal.addEventListener("abort", abort, { once: true });
-    if (context.signal.aborted) controller.abort();
+    if (context.signal.aborted) abort();
     const clientTools = new Map<string, {
       settle(value: unknown): void;
       cancel(): void;
@@ -133,13 +135,17 @@ export function chatTurnJobHandler(
         commands.wake();
       },
     };
+    // A re-attempt replaces an attempt that may still be writing, so no version
+    // read here survives preparation. The commit resolves the version instead.
+    const resume = job.attempts > 1 || Boolean(turn.continuationId);
     try {
       const result = await application.turn(turn.scope, {
         ...turn.input,
         chat_id: turn.chatId ?? null,
-        expected_version: job.attempts > 1 || turn.continuationId
+        expected_version: resume
           ? current?.transcript_version ?? 0 : turn.input.expected_version,
       }, sink, controller.signal, {
+        resume,
         continuationId: turn.continuationId,
         clientTool,
         onContinuation: (continuationId) =>
