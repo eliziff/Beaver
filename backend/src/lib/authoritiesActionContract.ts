@@ -36,6 +36,8 @@ export const authorityKinds = ["case", "legislation", "commentary", "other"] as 
 export const AUTHORITIES_ACTION_CHOICES = {
   reference: ["supra", "ibid"], locator: ["paragraph", "section", "page"],
   outputMode: ["table", "book", "both"], slot: ["cover", "index"],
+  stage: ["citations", "sources", "highlights", "build"],
+  discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial"],
 } as const;
 export const AUTHORITIES_TOOL_ACTIONS = [
     "set-authority-span", "set-pinpoint-span", "clear-pinpoint", "add-occurrence",
@@ -131,7 +133,7 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
       }) };
     }
     case "set-stage": return { type,
-      stage: choice(item.stage, ["citations", "sources", "highlights", "build"] as const) };
+      stage: choice(item.stage, AUTHORITIES_ACTION_CHOICES.stage) };
     case "move-authority": return { type, authorityId: text(item.authorityId),
       toIndex: integer(item.toIndex) };
     case "remove-authority": return { type, authorityId: text(item.authorityId) };
@@ -199,7 +201,6 @@ export function decodeAuthoritiesDiscrepancyAction(value: unknown): {
   const item = object(value);
   if (Object.keys(item).sort().join(",") !== "action,id,revision") return bad();
   return { id: text(item.id, 64), action: choice(item.action,
-    ["ignore", "pinpoint", "quote_exact", "quote_editorial"] as const),
-  revision: integer(item.revision, 1) };
+    AUTHORITIES_ACTION_CHOICES.discrepancy), revision: integer(item.revision, 1) };
 }
 
