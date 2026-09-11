@@ -6,6 +6,7 @@ import type { AuthoritiesDiscrepancyAction, AuthoritiesDraft,
 import { canonicalJsonSha256 } from "./hash";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
+import { mapBounded } from "./mapBounded";
 import { structureNative } from "./structureNative";
 import { normalizeWhitespace } from "./text";
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
@@ -309,37 +310,34 @@ export async function reviewAuthoritiesDiscrepancies(
       (authority?.kind === "case" || authority?.kind === "legislation") && locator
       ? [{ occurrence, authority, identity, locator }] : [];
   });
-  const supplied: AuthoritiesOccurrenceSource[] = [];
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(4, candidates.length) }, async () => {
-    while (next < candidates.length) {
-      const { occurrence, authority, identity, locator } = candidates[next++];
-      signal?.throwIfAborted();
-      try {
-        const reference: LegalSourceReference = { provider: identity.provider,
-          id: identity.stableSourceId, kind: authority.kind as "case" | "legislation",
-          title: authority.name, citation: authority.citation, date: identity.version,
-          url: identity.externalUrl };
-        const values = await a2ajLegalSourceProvider.readPassage!({ source: reference,
-          locator, signal });
-        const selections = values.filter(({ role }) => role === "selected"), selected = selections[0];
-        if (!selected || selections.some(value => structureNative().documentRevision(value.documentArtifact) !==
-            identity.sourceSha256)) continue;
-        const viewer = structureNative().legalSourceViewer(selected.documentArtifact,
-          locator.kind === "section" ? "section" : "paragraph", 10_000);
-        const alternatives = viewer.slices.flatMap(({ primary, text }) => primary &&
-          primary.kind === locator.kind
-          ? [{ locator: { kind: primary.kind, label: primary.label }, text }] : []);
-        supplied.push({ occurrenceId: occurrence.id, sourceVersion: identity.sourceSha256,
-          citedPassage: selected,
-          cited: { locator: { kind: locator.kind, label: locator.endValue
-            ? `${locator.value}–${locator.endValue}` : selected.locator.label },
-            text: selections.map(value => value.text).join("\n\n") }, alternatives });
-      } catch (error) {
-        if (signal?.aborted) throw error;
-      }
+  const supplied = (await mapBounded(candidates, async ({ occurrence, authority, identity,
+    locator }): Promise<AuthoritiesOccurrenceSource[]> => {
+    signal?.throwIfAborted();
+    try {
+      const reference: LegalSourceReference = { provider: identity.provider,
+        id: identity.stableSourceId, kind: authority.kind as "case" | "legislation",
+        title: authority.name, citation: authority.citation, date: identity.version,
+        url: identity.externalUrl };
+      const values = await a2ajLegalSourceProvider.readPassage!({ source: reference,
+        locator, signal });
+      const selections = values.filter(({ role }) => role === "selected"), selected = selections[0];
+      if (!selected || selections.some(value => structureNative().documentRevision(value.documentArtifact) !==
+          identity.sourceSha256)) return [];
+      const viewer = structureNative().legalSourceViewer(selected.documentArtifact,
+        locator.kind === "section" ? "section" : "paragraph", 10_000);
+      const alternatives = viewer.slices.flatMap(({ primary, text }) => primary &&
+        primary.kind === locator.kind
+        ? [{ locator: { kind: primary.kind, label: primary.label }, text }] : []);
+      return [{ occurrenceId: occurrence.id, sourceVersion: identity.sourceSha256,
+        citedPassage: selected,
+        cited: { locator: { kind: locator.kind, label: locator.endValue
+          ? `${locator.value}–${locator.endValue}` : selected.locator.label },
+          text: selections.map(value => value.text).join("\n\n") }, alternatives }];
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      return [];
     }
-  }));
+  })).flat();
   return findAuthoritiesDiscrepancies(draft, supplied)
     .filter(({ id }) => !draft.discrepancyDecisions?.[id])
     .map(finding => draft.import.kind === "document" && draft.import.fileType === "docx"
