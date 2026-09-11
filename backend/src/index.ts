@@ -1,8 +1,10 @@
+import { sizeNativeThreadPool } from "./lib/nativeThreadPool";
 import { assertFrontendBuild, server } from "./server";
 import { acquireLocalRuntimeLock } from "./lib/localRuntimeLock";
 import { runtime } from "./runtime";
 import { safeErrorLog } from "./lib/safeError";
 
+sizeNativeThreadPool();
 process.umask(0o077);
 const PORT = Number.parseInt(process.env.PORT ?? (
   process.env.NODE_ENV === "production" ? "3000" : "3001"
