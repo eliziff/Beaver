@@ -7,7 +7,6 @@ import {
     Paragraph,
     type ParagraphChild,
     TextRun,
-    type ParagraphChild,
 } from "docx";
 import JSZip from "jszip";
 import { parseAsync, renderDocument } from "docx-preview";
