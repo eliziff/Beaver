@@ -59,20 +59,19 @@ const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
 
 // Case family (Word's Change Case menu + conventional title case)
 
+/** Case letters individually: lowercasing a whole word changes Greek final sigma. */
+function capitalizeLetters(text: string) {
+  let first = true;
+  return text.replace(/\p{L}/gu, (letter) => {
+    const result = first ? letter.toUpperCase() : letter.toLowerCase();
+    first = false;
+    return result;
+  });
+}
+
 /** First letter of every word upper, rest of the word lower (Word behavior). */
 function capitalizeEachWord(text: string) {
-  let out = "";
-  let atWordStart = true;
-  for (const ch of text) {
-    if (isLetter(ch)) {
-      out += atWordStart ? ch.toUpperCase() : ch.toLowerCase();
-      atWordStart = false;
-    } else {
-      out += ch;
-      if (!/[\p{L}\p{N}'’]/u.test(ch)) atWordStart = true;
-    }
-  }
-  return out;
+  return text.replace(/[\p{L}\p{N}'’]+/gu, capitalizeLetters);
 }
 
 /**
@@ -112,39 +111,23 @@ const TITLE_SMALL_WORDS = new Set([
  * line. ALL-CAPS words of 2+ letters are preserved as acronyms.
  */
 function titleCase(text: string) {
-  return text
-    .split("\n")
-    .map((line) => {
-      const tokens = line.split(/( +)/);
-      const wordIdx = tokens
-        .map((token, i) => (token && !/^ +$/.test(token) ? i : -1))
-        .filter((i) => i >= 0);
-      return tokens
-        .map((token, i) => {
-          if (!token || /^ +$/.test(token)) return token;
-          const letters = token.replace(/[^\p{L}]/gu, "");
-          if (letters.length >= 2 && letters === letters.toUpperCase()) {
-            return token; // acronym — preserve
-          }
-          const isEdge = i === wordIdx[0] || i === wordIdx[wordIdx.length - 1];
-          if (!isEdge && TITLE_SMALL_WORDS.has(letters.toLowerCase())) {
-            return token.toLowerCase();
-          }
-          let seenLetter = false;
-          return [...token]
-            .map((ch) => {
-              if (!isLetter(ch)) return ch;
-              if (!seenLetter) {
-                seenLetter = true;
-                return ch.toUpperCase();
-              }
-              return ch.toLowerCase();
-            })
-            .join("");
-        })
-        .join("");
-    })
-    .join("\n");
+  return text.split("\n").map((line) => {
+    // Preserve title tokens: ASCII spaces separate them; tabs do not.
+    const lastWord = (line.match(/[^ ]+/gu)?.length ?? 0) - 1;
+    let index = 0;
+    return line.replace(/[^ ]+/gu, (token) => {
+      const isEdge = index === 0 || index === lastWord;
+      index += 1;
+      const letters = token.replace(/[^\p{L}]/gu, "");
+      if (letters.length >= 2 && letters === letters.toUpperCase()) {
+        return token; // acronym — preserve
+      }
+      if (!isEdge && TITLE_SMALL_WORDS.has(letters.toLowerCase())) {
+        return token.toLowerCase();
+      }
+      return capitalizeLetters(token);
+    });
+  }).join("\n");
 }
 
 // replace_text — Word-style find/replace over the scope
