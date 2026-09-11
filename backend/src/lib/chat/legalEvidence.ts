@@ -777,8 +777,10 @@ export function legalEvidenceProseIntegrityErrors(text: string,
         labels: [receipt.name, receipt.citation].filter((value): value is string => Boolean(value)) }] : [];
     });
   const named = new Map<string, Set<string>>();
+  // One scan for the whole draft: rescanning per citation made the check quadratic.
+  const quoted = native.markedQuoteSpans(text);
   for (const citation of native.citationOccurrencesInText(text).filter((citation) =>
-    !native.markedQuoteSpans(text).some((quote) => citation.start >= quote.start && citation.end <= quote.end))) {
+    !quoted.some((quote) => citation.start >= quote.start && citation.end <= quote.end))) {
     const key = native.citationLookupKey(citation.coreCitation.text), labels = named.get(key) ?? new Set<string>();
     const paragraphs = citation.pinpoints.filter(({ kind }) => kind === "paragraph");
     if (!paragraphs.length) continue;
