@@ -41,10 +41,6 @@ export function a2ajCitationAliasGroups(citations: string[]): CitationAliasGroup
   });
 }
 
-export function a2ajCitationAliasKeysBatch(citations: string[]): string[][] | null {
-  return a2ajCitationAliasGroups(citations)?.map(({ keys }) => keys) ?? null;
-}
-
 function searchDatabasePath(docType: DocType) {
   const primary = a2ajLocalBulkPath();
   const indexed = path.join(path.dirname(primary), `a2aj-${docType}-fulltext.sqlite`);

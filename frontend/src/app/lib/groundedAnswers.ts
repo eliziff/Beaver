@@ -51,21 +51,3 @@ export function evidenceCitation(receipt: GroundedEvidence, ref: number): Citati
   return null;
 }
 
-export function groundedAnswerMarkdown(answer: GroundedAnswer & { evidence: GroundedEvidence[] }) {
-  const receipts = new Map(answer.evidence.map((receipt) => [receipt.evidence_id, receipt]));
-  const byEvidence = new Map<string, Citation>();
-  const text = answer.claims.map((claim) => {
-    const references = [...new Set(claim.evidence_ids)].flatMap((id) => {
-      let citation = byEvidence.get(id);
-      if (!citation) {
-        const receipt = receipts.get(id);
-        citation = receipt ? evidenceCitation(receipt, byEvidence.size + 1) ?? undefined : undefined;
-        if (citation) byEvidence.set(id, citation);
-      }
-      return citation ? [`[${citation.ref}]`] : [];
-    });
-    return `${claim.text}${references.length ? ` ${references.join("")}` : ""}`;
-  }).join("\n\n");
-  return { text, citations: [...byEvidence.values()] };
-}
-
