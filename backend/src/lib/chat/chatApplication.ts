@@ -769,7 +769,7 @@ ${registeredWorkflow.skill_md}` : "",
             { executor: "assistant", model: selectedModel, chatId: chat!.id, turnId });
           return deps.sources.get(auth, documentId);
         },
-        projectId,
+        matterId: projectId,
         allowedDocumentIds: context.allowed,
         documentNames: new Map([...context.records].map(([id, record]) => [
           id, record.filename,
@@ -787,8 +787,7 @@ ${registeredWorkflow.skill_md}` : "",
           selection: input.work_product.focus.selection,
         },
         courtRecords: deps.courtRecords,
-        courtRecordId: openWorkProduct("court-record")?.id,
-        courtRecordRevision: openWorkProduct("court-record")?.revision,
+        courtRecord: openWorkProduct("court-record"),
         workflows: features.workflows,
         researchTables: deps.tabular.create && deps.tabular.update && deps.tabular.generate && deps.tabular.stop &&
           deps.tabular.history && deps.tabular.change
