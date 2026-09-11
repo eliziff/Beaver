@@ -208,9 +208,13 @@ const nonempty = (value: unknown, max = 4_000) =>
 const trimmed = (value: unknown, max = 500) => typeof value === "string" &&
   value.length > 0 && value.length <= max && value.trim() === value &&
   !/[\u0000-\u001f\u007f]/u.test(value);
-const closed = (value: unknown, keys: string[]) => {
-  const item = object(value);
-  return item && exactKeys(item, keys) ? item : null;
+const closed = (fields: Record<string, (value: unknown) => boolean>) => {
+  const keys = Object.keys(fields), entries = Object.entries(fields);
+  return (value: unknown): boolean => {
+    const item = object(value);
+    return !!item && exactKeys(item, keys) &&
+      entries.every(([key, valid]) => valid(item[key]));
+  };
 };
 const text = (value: unknown) => typeof value === "string";
 const nullableText = (value: unknown) => value === null || text(value);
@@ -222,10 +226,8 @@ const pair = (value: unknown) => Array.isArray(value) && value.length === 2 &&
   Array.from(value).every(integer);
 const oneOf = (value: unknown, choices: readonly string[]) =>
   typeof value === "string" && choices.includes(value);
-const authoritySpan = (value: unknown) => {
-  const item = closed(value, ["start", "end", "text"]);
-  return !!item && integer(item.start) && integer(item.end) && text(item.text);
-};
+const spanFields = { start: integer, end: integer, text };
+const authoritySpan = closed(spanFields);
 const buildSettings = (value: unknown) => {
   const keys = Object.keys(AUTHORITIES_SETTINGS_CHOICES).filter((key) =>
     key !== "filingMedium" && key !== "bookRole");
@@ -248,49 +250,32 @@ const buildSettings = (value: unknown) => {
   try { decodeAuthoritiesInitialSettings(item); return true; }
   catch { return false; }
 };
-const boundPdf = (value: unknown) => {
-  const item = closed(value, ["bindingRole", "filename", "sourceSha256"]);
-  return !!item && trimmed(item.bindingRole, 200) && trimmed(item.filename) &&
-    typeof item.sourceSha256 === "string" && /^[a-f0-9]{64}$/u.test(item.sourceSha256);
+const boundPdfFields = {
+  bindingRole: (value: unknown) => trimmed(value, 200), filename: trimmed,
+  sourceSha256: (value: unknown) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value),
 };
-const bookSupplement = (value: unknown) => {
-  const item = object(value);
-  return !!item && exactKeys(item, ["id", "bindingRole", "filename", "sourceSha256"]) &&
-    trimmed(item.id, 200) && boundPdf({ bindingRole: item.bindingRole,
-      filename: item.filename, sourceSha256: item.sourceSha256 });
-};
-const bookParts = (value: unknown) => {
-  const item = closed(value, ["cover", "index", "supplements"]);
-  return !!item && (item.cover === null || boundPdf(item.cover)) &&
-    (item.index === null || boundPdf(item.index)) && list(item.supplements, bookSupplement, 500);
-};
-const authoritiesCover = (value: unknown) => {
-  const item = closed(value, ["courtFileNumber", "partyGroups", "applicationUnder", "title"]);
-  const plain = (field: unknown, max: number) => typeof field === "string" &&
-    field.length <= max && field.trim() === field && !/[\u0000-\u001f\u007f]/u.test(field);
-  return !!item && plain(item.courtFileNumber, 100) && plain(item.applicationUnder, 2_000) &&
-    plain(item.title, 500) && list(item.partyGroups, (value) => {
-      const group = closed(value, ["role", "parties"]);
-      return !!group && plain(group.role, 100) && list(group.parties,
-        (party) => plain(party, 500), 50);
-    }, 50);
-};
+const boundPdf = closed(boundPdfFields);
+const bookSupplement = closed({ id: (value) => trimmed(value, 200), ...boundPdfFields });
+const bookParts = closed({
+  cover: (value) => value === null || boundPdf(value),
+  index: (value) => value === null || boundPdf(value),
+  supplements: (value) => list(value, bookSupplement, 500),
+});
+const plain = (value: unknown, max: number) => typeof value === "string" &&
+  value.length <= max && value.trim() === value && !/[\u0000-\u001f\u007f]/u.test(value);
+const partyGroup = closed({ role: (value) => plain(value, 100),
+  parties: (value) => list(value, (party) => plain(party, 500), 50) });
+const authoritiesCover = closed({
+  courtFileNumber: (value) => plain(value, 100), applicationUnder: (value) => plain(value, 2_000),
+  title: (value) => plain(value, 500), partyGroups: (value) => list(value, partyGroup, 50),
+});
 const authorityKind = (value: unknown) => oneOf(value,
   ["case", "legislation", "commentary", "other"]);
-const pinpoint = (value: unknown) => {
-  const item = closed(value, ["kind", "text"]);
-  return !!item && oneOf(item.kind, ["paragraph", "section", "page"]) &&
-    text(item.text);
-};
-const locator = (value: unknown) => {
-  const item = closed(value, ["kind", "label"]);
-  return !!item && text(item.kind) && text(item.label);
-};
-const snapshot = (value: unknown) => {
-  const item = closed(value, ["documentId", "versionId", "sha256"]);
-  return !!item && nonempty(item.documentId, 200) && nonempty(item.versionId, 200) &&
-    typeof item.sha256 === "string" && exactSourceHash(item.sha256);
-};
+const pinpoint = closed({ kind: (value) => oneOf(value, ["paragraph", "section", "page"]), text });
+const locator = closed({ kind: text, label: text });
+const snapshot = closed({ documentId: (value) => nonempty(value, 200),
+  versionId: (value) => nonempty(value, 200),
+  sha256: (value) => typeof value === "string" && exactSourceHash(value) });
 const importedDocument = (value: unknown) => {
   const item = object(value);
   if (!item) return false;
@@ -300,20 +285,12 @@ const importedDocument = (value: unknown) => {
     nonempty(item.filename, 500) && oneOf(item.fileType, ["docx", "pdf"]) &&
     (item.snapshot === null || snapshot(item.snapshot));
 };
-const sourceIdentity = (value: unknown) => {
-  const item = closed(value,
-    ["provider", "stableSourceId", "sourceSha256", "version", "externalUrl"]);
-  return !!item && text(item.provider) && text(item.stableSourceId) &&
-    typeof item.sourceSha256 === "string" && exactSourceHash(item.sourceSha256) &&
-    nullableText(item.version) && nullableText(item.externalUrl);
-};
-const attachedSource = (value: unknown) => {
-  const item = closed(value, ["bindingRole", "filename", "sourceSha256", "sourceUrl",
-    "origin", "language"]);
-  return !!item && text(item.bindingRole) && text(item.filename) && text(item.sourceSha256) &&
-    nullableText(item.sourceUrl) && oneOf(item.origin, ["manual", "original", "reconstructed"]) &&
-    oneOf(item.language, ["en", "fr", "bilingual"]);
-};
+const sourceIdentity = closed({ provider: text, stableSourceId: text,
+  sourceSha256: (value) => typeof value === "string" && exactSourceHash(value),
+  version: nullableText, externalUrl: nullableText });
+const attachedSource = closed({ bindingRole: text, filename: text, sourceSha256: text,
+  sourceUrl: nullableText, origin: (value) => oneOf(value, ["manual", "original", "reconstructed"]),
+  language: (value) => oneOf(value, ["en", "fr", "bilingual"]) });
 const sourceDecision = (value: unknown) => {
   const item = object(value);
   if (!item) return false;
@@ -331,14 +308,10 @@ const sourceDecision = (value: unknown) => {
     ["kind", "authorityKey", "pageUrl", "pdfUrl"]) &&
     text(item.authorityKey) && text(item.pageUrl) && text(item.pdfUrl);
 };
-const seed = (value: unknown) => {
-  const item = closed(value, ["key", "kind", "provider", "stableSourceId", "sourceSha256",
-    "citation", "name", "version", "externalUrl", "evidenceIds", "locators"]);
-  return !!item && text(item.key) && authorityKind(item.kind) && text(item.provider) &&
-    text(item.stableSourceId) && text(item.sourceSha256) && text(item.citation) &&
-    nullableText(item.name) && nullableText(item.version) && nullableText(item.externalUrl) &&
-    strings(item.evidenceIds) && list(item.locators, locator);
-};
+const seed = closed({ key: text, kind: authorityKind, provider: text,
+  stableSourceId: text, sourceSha256: text, citation: text, name: nullableText,
+  version: nullableText, externalUrl: nullableText, evidenceIds: strings,
+  locators: (value) => list(value, locator) });
 const authority = (value: unknown) => {
   const item = object(value), keys = ["id", "key", "kind", "citation", "name", "displayName",
     "evidenceIds", "locators", "sourceIdentity", "excluded", "source"];
@@ -353,54 +326,25 @@ const authority = (value: unknown) => {
     (item.sourceIdentity === null || sourceIdentity(item.sourceIdentity)) &&
     typeof item.excluded === "boolean" && sourceDecision(item.source);
 };
-const reviewUnit = (value: unknown) => {
-  const item = closed(value, ["id", "kind", "ordinal", "footnoteId", "footnoteRefs",
-    "pageNumbers", "text", "occurrenceIds"]);
-  return !!item && text(item.id) && oneOf(item.kind, ["body", "footnote"]) &&
-    integer(item.ordinal) && (item.footnoteId === null || integer(item.footnoteId)) &&
-    list(item.footnoteRefs, pair) && list(item.pageNumbers, integer) && text(item.text) &&
-    strings(item.occurrenceIds);
-};
-const reference = (value: unknown) => {
-  const item = closed(value, ["kind", "targetAuthorityId"]);
-  return !!item && oneOf(item.kind, ["supra", "ibid"]) &&
-    text(item.targetAuthorityId);
-};
-const occurrence = (value: unknown) => {
-  const item = closed(value, ["id", "unitId", "start", "end", "text", "kind", "citation",
-    "authorityId", "reference", "pinpoints", "evidenceIds", "sourceTextSha256",
-    "localOrdinal", "reviewed", "authoritySpan", "coreSpan", "pinpointSpan"]);
-  return !!item && text(item.id) && text(item.unitId) && integer(item.start) &&
-    integer(item.end) && text(item.text) && authoritySpan(item.authoritySpan) &&
-    authoritySpan(item.coreSpan) && (item.pinpointSpan === null || authoritySpan(item.pinpointSpan)) &&
-    (authorityKind(item.kind) || item.kind === "reference") && text(item.citation) &&
-    (item.authorityId === null || text(item.authorityId)) &&
-    (item.reference === null || reference(item.reference)) && list(item.pinpoints, pinpoint) &&
-    strings(item.evidenceIds) && text(item.sourceTextSha256) && integer(item.localOrdinal) &&
-    typeof item.reviewed === "boolean";
-};
-
-const ledgerUnit = (value: unknown) => {
-  const item = closed(value, ["id", "kind", "ordinal", "footnoteId", "footnoteRefs",
-    "pageNumbers", "text", "sourceTextSha256"]);
-  return !!item && text(item.id) && oneOf(item.kind, ["body", "footnote"]) &&
-    integer(item.ordinal) && (item.footnoteId === null || integer(item.footnoteId)) &&
-    list(item.footnoteRefs, pair) && list(item.pageNumbers, integer) && text(item.text) &&
-    text(item.sourceTextSha256);
-};
-const ledgerOccurrence = (value: unknown) => {
-  const item = closed(value, ["id", "markerId", "targetId", "authorityKey", "unit", "start",
-    "end", "text", "displayedForm", "pinpoints", "evidenceIds", "localOrdinal"]);
-  return !!item && [item.id, item.markerId, item.targetId, item.authorityKey].every(text) &&
-    ledgerUnit(item.unit) && integer(item.start) && integer(item.end) && text(item.text) &&
-    oneOf(item.displayedForm, ["full", "short", "supra", "ibid"]) &&
-    list(item.pinpoints, pinpoint) && strings(item.evidenceIds) && integer(item.localOrdinal);
-};
-const ledger = (value: unknown) => {
-  const item = closed(value, ["schemaVersion", "document", "seeds", "occurrences"]);
-  return !!item && item.schemaVersion === "beaver.authority-ledger.v1" &&
-    snapshot(item.document) && list(item.seeds, seed) && list(item.occurrences, ledgerOccurrence);
-};
+const unitFields = { id: text, kind: (value: unknown) => oneOf(value, ["body", "footnote"]),
+  ordinal: integer, footnoteId: (value: unknown) => value === null || integer(value),
+  footnoteRefs: (value: unknown) => list(value, pair),
+  pageNumbers: (value: unknown) => list(value, integer), text };
+const reviewUnit = closed({ ...unitFields, occurrenceIds: strings });
+const reference = closed({ kind: (value) => oneOf(value, ["supra", "ibid"]), targetAuthorityId: text });
+const occurrence = closed({ id: text, unitId: text, ...spanFields,
+  authoritySpan, coreSpan: authoritySpan, pinpointSpan: (value) => value === null || authoritySpan(value),
+  kind: (value) => authorityKind(value) || value === "reference", citation: text,
+  authorityId: nullableText, reference: (value) => value === null || reference(value),
+  pinpoints: (value) => list(value, pinpoint), evidenceIds: strings, sourceTextSha256: text,
+  localOrdinal: integer, reviewed: (value) => typeof value === "boolean" });
+const ledgerUnit = closed({ ...unitFields, sourceTextSha256: text });
+const ledgerOccurrence = closed({ id: text, markerId: text, targetId: text, authorityKey: text,
+  unit: ledgerUnit, ...spanFields, displayedForm: (value) => oneOf(value, ["full", "short", "supra", "ibid"]),
+  pinpoints: (value) => list(value, pinpoint), evidenceIds: strings, localOrdinal: integer });
+const ledger = closed({ schemaVersion: (value) => value === "beaver.authority-ledger.v1",
+  document: snapshot, seeds: (value) => list(value, seed),
+  occurrences: (value) => list(value, ledgerOccurrence) });
 
 /** Rejects malformed generic JSON before it can enter the typed Authorities reducer. */
 export function decodeAuthoritiesDraft(value: unknown): AuthoritiesDraft | null {
