@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { applyAuthoritiesUserAction } from "./authoritiesActions";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
-import { createAuthoritiesDraft, type AuthoritiesDraft } from "./authoritiesDomain";
+import { createAuthoritiesDraft, reduceAuthoritiesDraft,
+  type AuthoritiesDraft } from "./authoritiesDomain";
 
 /** A body sentence carrying two citations and one pinpoint, as the scan leaves it. */
 const TEXT = "The duty of honest performance was recognized in Bhasin v Hrynew, 2014 SCC 71 " +
@@ -35,6 +36,32 @@ describe("Authorities citation boundary actions", () => {
     expect(() => applyAuthoritiesUserAction(draft,
       { type: "add-occurrence", unitId: "body:7", start: 0, end: TEXT.length + 1 }))
       .toThrow(/citation unit/u);
+  });
+
+  it("lists one authority for a citation however its style of cause introduces it", () => {
+    const styled = applyAuthoritiesUserAction(bodyDraft(),
+      { type: "add-authority", kind: "case", citation: "Bhasin v Hrynew, 2014 SCC 71" });
+    expect(styled.authorityOrder).toEqual(["2014scc71"]);
+    expect(applyAuthoritiesUserAction(styled,
+      { type: "add-authority", kind: "case", citation: "2014 SCC 71" }).authorityOrder)
+      .toEqual(["2014scc71"]);
+
+    const added = add(styled, "Bhasin v Hrynew, 2014 SCC 71");
+    expect(added.authorityOrder).toEqual(["2014scc71"]);
+    expect(added.occurrences[added.units[0].occurrenceIds[0]])
+      .toMatchObject({ citation: "2014 SCC 71", authorityId: "2014scc71" });
+
+    // A draft already listing the citation under its styled key links to it too,
+    // rather than minting the scan's key beside it.
+    const legacy = reduceAuthoritiesDraft(bodyDraft(), { type: "add-authority", authority: {
+      id: "bhasinvhrynew2014scc71", key: "bhasinvhrynew2014scc71", kind: "case",
+      citation: "Bhasin v Hrynew, 2014 SCC 71", name: "Bhasin v Hrynew", displayName: null,
+      excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+      source: { kind: "unresolved" }, userAdded: true } });
+    const linked = add(legacy, "Bhasin v Hrynew, 2014 SCC 71");
+    expect(linked.authorityOrder).toEqual(["bhasinvhrynew2014scc71"]);
+    expect(linked.occurrences[linked.units[0].occurrenceIds[0]].authorityId)
+      .toBe("bhasinvhrynew2014scc71");
   });
 
   it("splits and merges citations in a body unit, not only in a footnote", () => {
