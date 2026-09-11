@@ -2,6 +2,7 @@ import { getCodexModelCatalog, type CodexModelCatalog } from "../codexCatalog";
 import { isSupportedModel } from "../llm/models";
 import type { NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
 import { jsonRecord as record } from "../value";
+import { objectSchema } from "./toolRegistry";
 import type { AssistantEvent, ReadSubagentAssignment, ReadSubagentCheckpoint,
   ReadSubagentEvent } from "./assistantEvents";
 
@@ -61,33 +62,18 @@ export const READ_SUBAGENT_TOOL: Tool = {
   name: READ_SUBAGENT_TOOL_NAME,
   description:
     "Delegate independent legal research assignments with distinct scopes. Compare each reader's findings and exact evidence before answering. Assess misses as research gaps, not proof of absence; keep small lookups in the main turn.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      assignments: {
-        type: "array", minItems: 2, maxItems: 4,
-        items: assignmentSchema,
-      },
-    },
-    required: ["assignments"],
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema({
+    assignments: { type: "array", minItems: 2, maxItems: 4, items: assignmentSchema },
+  }, ["assignments"]),
 };
 
 export const RESUME_SUBAGENT_TOOL: Tool = {
   name: RESUME_SUBAGENT_TOOL_NAME,
   description: "Resume unfinished or failed readers in their existing sessions by run ID.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      ids: {
-        type: "array", minItems: 1, maxItems: 4, uniqueItems: true,
-        items: { type: "string", minLength: 1, maxLength: 200 },
-      },
-    },
-    required: ["ids"],
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema({
+    ids: { type: "array", minItems: 1, maxItems: 4, uniqueItems: true,
+      items: { type: "string", minLength: 1, maxLength: 200 } },
+  }, ["ids"]),
 };
 
 const strings = (value: unknown) => Array.isArray(value)
