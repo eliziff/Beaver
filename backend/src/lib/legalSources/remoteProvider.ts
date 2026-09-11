@@ -44,7 +44,7 @@ export function stringValue(value: unknown): string | null {
   return typeof text === "string" ? text.trim() || null : null;
 }
 
-export function nonnegativeNumber(value: unknown): number | null {
+function nonnegativeNumber(value: unknown): number | null {
   const number = typeof value === "number"
     ? value
     : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
