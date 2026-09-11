@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { textField } from "../lib/textField";
 import { trimmedText } from "../lib/value";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import type { DocumentStore } from "../lib/documentStore";
@@ -17,7 +18,7 @@ import { z } from "zod";
 import { documentProjectionService } from "../lib/documentProjectionService";
 import { structureNative } from "../lib/structureNative";
 const scope = applicationScope, MAX_ZIP_FILES = 100;
-const researchVersion = z.string().trim().min(1).max(200);
+const researchVersion = textField(200);
 const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const workingRevision = z.union([
   revisionNumber, z.string().regex(/^\d+$/u).transform(Number),

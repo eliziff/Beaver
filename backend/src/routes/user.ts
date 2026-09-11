@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { textField } from "../lib/textField";
 import { requireAuth, requireMfaIfEnrolled } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
 import { ApplicationError, applicationScope } from "../lib/applicationError";
@@ -12,23 +13,23 @@ import { API_KEY_PROVIDERS } from "../lib/userCredentials";
 import type { UserApplication } from "../lib/userApplication";
 import type { UserPreferencesPatch } from "../lib/userPreferences";
 
-const optionalModel = z.string().trim().min(1).max(160)
+const optionalModel = textField(160)
   .refine(isSupportedModel, "Unsupported model").nullable().optional();
 const fileTarget = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("library"), folderId: z.string().trim().min(1).max(160) })
+  z.object({ kind: z.literal("library"), folderId: textField(160) })
     .strict(),
-  z.object({ kind: z.literal("project"), projectId: z.string().trim().min(1).max(160),
-    folderId: z.string().trim().min(1).max(160) }).strict(),
+  z.object({ kind: z.literal("project"), projectId: textField(160),
+    folderId: textField(160) }).strict(),
 ]);
 const profileInput = z.object({
   displayName: z.string().trim().max(160).nullable().optional(),
   organisation: z.string().trim().max(240).nullable().optional(),
   practiceSetting: z.string().trim().max(80).nullable().optional(),
   professionalTitle: z.string().trim().max(120).nullable().optional(),
-  practiceAreas: z.array(z.string().trim().min(1).max(80)).max(12).optional(),
+  practiceAreas: z.array(textField(80)).max(12).optional(),
   jurisdictionPreference: z.object({
     mode: z.enum(["ask", "presume"]),
-    jurisdictions: z.array(z.string().trim().min(1).max(80)).max(100),
+    jurisdictions: z.array(textField(80)).max(100),
   }).strict().optional(),
   onboardingCompleted: z.boolean().optional(),
   titleModel: optionalModel,
@@ -53,7 +54,7 @@ const keyInput = z.object({
   api_key: z.string().trim().max(32_768).nullable().optional(),
 }).strict();
 const connectorCreateInput = z.object({
-  name: z.string().trim().min(1).max(120),
+  name: textField(120),
   serverUrl: z.string().trim().url().max(2_048),
   bearerToken: z.string().max(32_768).nullable().optional(),
   headers: z.record(z.unknown()).optional(),
