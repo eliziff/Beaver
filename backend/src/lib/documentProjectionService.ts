@@ -700,31 +700,20 @@ async function preparedForEvidence(
   return { document, receipt };
 }
 
-async function rehydrateEvidence(
-  handle: string,
-  expected: ProjectionReference,
-) {
-  const prepared = await preparedForEvidence(handle, expected);
-  return rehydratePdfEvidence(prepared.document, prepared.receipt);
-}
-
-async function verifyEvidence(
-  bytes: Buffer,
-  handle: string,
-  expected: ProjectionReference,
-) {
-  if (sha256(bytes) !== expected.sourceSha256)
-    throw new Error("PDF evidence source bytes no longer match their version");
-  const prepared = await preparedForEvidence(handle, expected);
-  return verifyPdfEvidence(prepared.document, prepared.receipt);
-}
-
 export const documentProjectionService = Object.freeze({
   read,
   text,
   preparePdf,
   lookupPdf,
   pdfPassageGeometry,
-  rehydratePdfEvidence: rehydrateEvidence,
-  verifyPdfEvidence: verifyEvidence,
+  async rehydratePdfEvidence(handle: string, expected: ProjectionReference) {
+    const { document, receipt } = await preparedForEvidence(handle, expected);
+    return rehydratePdfEvidence(document, receipt);
+  },
+  async verifyPdfEvidence(bytes: Buffer, handle: string, expected: ProjectionReference) {
+    if (sha256(bytes) !== expected.sourceSha256)
+      throw new Error("PDF evidence source bytes no longer match their version");
+    const { document, receipt } = await preparedForEvidence(handle, expected);
+    return verifyPdfEvidence(document, receipt);
+  },
 });
