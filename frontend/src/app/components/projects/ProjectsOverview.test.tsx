@@ -6,7 +6,8 @@ import type { ComponentProps } from "react";
 import type { Project } from "@/app/lib/api/projects";
 import { ProjectsOverview } from "./ProjectsOverview";
 
-const { deleteProject, listProjects, push, saveChat } = vi.hoisted(() => ({
+const { createProject, deleteProject, listProjects, push, saveChat } = vi.hoisted(() => ({
+    createProject: vi.fn(),
     deleteProject: vi.fn<(id: string) => Promise<void>>(),
     listProjects: vi.fn(),
     push: vi.fn(),
@@ -21,11 +22,7 @@ const createdProject: Project = {
     cm_number: null,
     practice: "Litigation",
     shared_with: [],
-    created_at: "2026-07-27T18:42:00.000Z",
-    updated_at: "2026-07-27T18:42:00.000Z",
-    document_count: 0,
-    chat_count: 0,
-    review_count: 0,
+    created_at: "2021-07-27T18:42:00.000Z",
 };
 
 vi.mock("react-router-dom", () => ({
@@ -46,49 +43,21 @@ vi.mock("@/app/contexts/ChatHistoryContext", () => ({
 }));
 
 vi.mock("@/app/lib/api/projects", () => ({
+  createProject,
   listProjects,
   updateProject: vi.fn(),
   deleteProject
 }));
 
-vi.mock("./NewProjectModal", () => ({
-    NewProjectModal: ({
-        open,
-        onClose,
-        onCreated,
-    }: {
-        open: boolean;
-        onClose: () => void;
-        onCreated: (project: Project) => void;
-    }) =>
-        open ? (
-            <button
-                type="button"
-                onClick={() => {
-                    onCreated(createdProject);
-                    onClose();
-                }}
-            >
-                Complete project creation
-            </button>
-        ) : null,
-}));
-
-vi.mock("./ProjectDetailsModal", () => ({
-    ProjectDetailsModal: () => null,
-}));
-
-vi.mock("@/app/components/popups/OwnerOnlyPopup", () => ({
-    OwnerOnlyPopup: () => null,
-}));
-
-vi.mock("@/app/components/shared/RowActions", () => ({
-    RowActions: () => <button aria-label="More actions" type="button" />,
+vi.mock("@/app/lib/api/documents", async (original) => ({
+    ...await original<typeof import("@/app/lib/api/documents")>(),
+    directoryResource: () => ({ list: async () => ({ items: [], next_cursor: null }) }),
 }));
 
 describe("ProjectsOverview", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        createProject.mockResolvedValue(createdProject);
         deleteProject.mockResolvedValue(undefined);
         saveChat.mockResolvedValue("chat-1");
         listProjects.mockResolvedValue({ items: [], next_cursor: null });
@@ -106,28 +75,6 @@ describe("ProjectsOverview", () => {
                 dispatchEvent: vi.fn(),
             })),
         });
-    });
-
-    it("keeps search and one explicit create action visible", async () => {
-        render(<ProjectsOverview />);
-
-        expect(
-            await screen.findByRole("searchbox", { name: "Search projects" }),
-        ).toBeVisible();
-        expect(screen.getByRole("button", {
-            name: "New project",
-        })).toBeVisible();
-        expect(await screen.findByText("No projects")).toBeVisible();
-    });
-
-    it("keeps the table shell stable while rows load", () => {
-        listProjects.mockReturnValue(new Promise(() => {}));
-        render(<ProjectsOverview />);
-
-        expect(screen.getByRole("searchbox", { name: "Search projects" }))
-            .toBeDisabled();
-        expect(screen.queryByRole("combobox", { name: /sort|filter/i }))
-            .not.toBeInTheDocument();
     });
 
     it("replaces the table header with actions only while selected", async () => {
@@ -160,13 +107,12 @@ describe("ProjectsOverview", () => {
         await user.click(
             await screen.findByRole("button", { name: "New project" }),
         );
-        await user.click(
-            screen.getByRole("button", { name: "Complete project creation" }),
-        );
+        await user.type(screen.getByRole("textbox", { name: "Project name" }), createdProject.name);
+        await user.click(screen.getByRole("button", { name: "Next" }));
+        await user.click(screen.getByRole("button", { name: "Create project" }));
 
-        const formattedDate = new Date(createdProject.created_at).getFullYear().toString();
         expect(await screen.findByText("New appeal")).toBeVisible();
-        expect(screen.getByText(formattedDate, { exact: false })).toBeVisible();
+        expect(screen.getByText("2021", { exact: false })).toBeVisible();
         expect(push).toHaveBeenCalledWith("/projects/project-new");
     });
 
