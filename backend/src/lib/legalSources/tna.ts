@@ -2,15 +2,13 @@ import { XMLParser } from "fast-xml-parser";
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch } from "../remoteUrlSafety";
 import { structureNative } from "../structureNative";
-import type { LegalSourceReference } from ".";
 import {
   arrayValue,
   legalSourceUrl,
   objectValue,
-  remoteLegalSourcePassages,
+  remoteCaseProvider,
   stringValue,
   type RemoteLegalSourceDocument,
-  type RemoteLegalSourceProvider,
 } from "./remoteProvider";
 
 const ORIGIN = "https://caselaw.nationalarchives.gov.uk";
@@ -158,16 +156,6 @@ async function fetchTnaCase(
   };
 }
 
-const reference = (result: TnaSearchResult) => ({
-  provider: "tna",
-  id: result.citation,
-  part: result.xmlUrl,
-  kind: "case",
-  title: result.title,
-  citation: result.citation,
-  url: result.url,
-}) satisfies LegalSourceReference;
-
 /**
  * Judgment metadata, official PDF, and full text for one UK neutral citation.
  * Find Case Law publishes every judgment rendition under its neutral-citation
@@ -183,23 +171,24 @@ export async function tnaCaseSource(citation: string, signal?: AbortSignal) {
     text: structureNative().documentText(document.native) };
 }
 
-export const tnaLegalSourceProvider: RemoteLegalSourceProvider = {
+export const tnaLegalSourceProvider = remoteCaseProvider({
   id: "tna",
-  canResolve: ({ kind, text }) => kind === "case" && !!citationFrom(text),
-  async resolve({ text, signal }) {
-    const result = await searchTnaCase(text, signal);
-    return result ? [reference(result)] : [];
-  },
-  async readPassage(request) {
-    const { source, signal } = request;
-    const result = source.url && source.part
-      ? {
-          citation: source.citation || source.id,
-          title: source.title ?? null,
-          url: source.url,
-          xmlUrl: source.part,
-        }
-      : await searchTnaCase(source.citation || source.id, signal);
-    return remoteLegalSourcePassages(request, result, fetchTnaCase, reference);
-  },
-};
+  matches: citationFrom,
+  search: searchTnaCase,
+  fetch: fetchTnaCase,
+  reference: (result: TnaSearchResult) => ({
+    id: result.citation,
+    part: result.xmlUrl,
+    title: result.title,
+    citation: result.citation,
+    url: result.url,
+  }),
+  fromSource: (source) => source.url && source.part
+    ? {
+        citation: source.citation || source.id,
+        title: source.title ?? null,
+        url: source.url,
+        xmlUrl: source.part,
+      }
+    : null,
+});
