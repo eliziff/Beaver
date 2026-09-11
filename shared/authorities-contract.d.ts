@@ -230,8 +230,8 @@ export type AuthoritiesSourcePassage = {
   text: string;
 };
 
-/** `Evidence` is the server's retrieved passage behind `cited`; browsers never receive one. */
-export type AuthoritiesDiscrepancy<Evidence = never> = {
+/** `Evidence` is the retrieved passage behind `cited`; only the server reads its shape. */
+export type AuthoritiesDiscrepancy<Evidence = unknown> = {
   id: string;
   actions: AuthoritiesDiscrepancyAction[];
   occurrenceId: string;
