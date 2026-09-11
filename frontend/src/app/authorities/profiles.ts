@@ -1,23 +1,7 @@
 import values from "../../../../shared/authorities-profiles.json";
 import { registeredCourt, registeredJurisdiction } from "@/app/lib/courtRegistry";
-import type { AuthoritiesBuildSettings, AuthoritiesOutputMode,
-  AuthoritiesProfileId } from "./types";
-
-export type AuthoritiesProfile = {
-  id: AuthoritiesProfileId;
-  label: string;
-  courtId: string;
-  defaults: { outputMode: AuthoritiesOutputMode; settings: AuthoritiesBuildSettings };
-  locked?: { outputMode?: AuthoritiesOutputMode; settings?: Partial<AuthoritiesBuildSettings> };
-  options?: {
-    filingMedium?: Array<{ value: "electronic" | "paper"; label: string }>;
-    bookRole?: Array<{ value: NonNullable<AuthoritiesBuildSettings["bookRole"]>; label: string }>;
-    missingSourcePolicy?: boolean;
-  };
-  requirements?: { completeBookSources?: boolean; documentOutputDefault?: boolean;
-    unlinkedPdfTableSources?: boolean; markedPassages?: boolean;
-    federalFormatting?: boolean; appealPaperCovers?: boolean; bilingualEnactments?: boolean };
-};
+import type { AuthoritiesProfile, AuthoritiesProfileId } from "./types";
+export type { AuthoritiesProfile };
 
 export const AUTHORITIES_PROFILES = (values as AuthoritiesProfile[]).map((profile) => {
   const court = registeredCourt(profile.courtId);

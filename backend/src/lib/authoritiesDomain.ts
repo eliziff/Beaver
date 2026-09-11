@@ -1,58 +1,36 @@
 import type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
   AuthoritiesBuildSettings, AuthoritiesSettings, AuthoritiesDocumentSnapshot, AuthoritiesImport,
-  AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion,
-  AuthorityIdentity as SharedAuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan,
-  AuthorityOccurrence, AuthoritiesDiscrepancyAction,
+  AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
+  AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
+  AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
+  AuthoritiesLedgerOccurrence,
 } from "mike/shared/authorities-contract.d.ts";
 export type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
   AuthoritiesBuildSettings, AuthoritiesSettings, AuthoritiesDocumentSnapshot, AuthoritiesImport,
-  AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion,
-  AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityOccurrence, AuthoritiesDiscrepancyAction,
+  AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
+  AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
+  AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
+  AuthoritiesLedgerOccurrence,
 };
-
-// Import provenance is reducer-private; it is not part of the browser contract.
-export type AuthorityIdentity = SharedAuthorityIdentity & { scanOnly?: true };
 
 import { attachAuthoritySource, attachedAuthoritySources,
   authoritiesBookPdfs, removeUnusedBinding, replaceSource } from "mike/shared/authorities-sources.mjs";
 import type { AuthoritySourceLanguage,
-  AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
-export { attachedAuthoritySources, hasBilingualAuthoritySource, authoritiesBookPdfs } from
-  "mike/shared/authorities-sources.mjs";
+  AuthoritiesBoundPdf, AuthoritiesBookSupplement } from "mike/shared/authorities-sources.mjs";
+export { attachedAuthoritySources, federalEnactmentCitation, hasBilingualAuthoritySource,
+  authoritiesBookPdfs } from "mike/shared/authorities-sources.mjs";
 export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
   AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { buildCanliiPdfUrl } from "./canliiUrls";
 import { sha256 } from "./hash";
-import { decodeWorkProductBindings, type WorkProductInput,
-  type WorkProductState } from "./workProduct";
+import { decodeWorkProductBindings, type WorkProductInput } from "./workProduct";
 import profileValues from "mike/shared/authorities-profiles.json";
 
 import { AUTHORITIES_SETTINGS_CHOICES, decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
 export { AUTHORITIES_BOOK_ROLES, authoritiesProfileIds } from "./authoritiesActionContract";
-type AuthoritiesProfile = {
-  id: AuthoritiesProfileId;
-  label: string;
-  courtId: string;
-  bookTitle?: string;
-  sourceIds?: string[];
-  defaults: { outputMode: AuthoritiesOutputMode; settings: AuthoritiesBuildSettings };
-  locked?: { outputMode?: AuthoritiesOutputMode;
-    settings?: Partial<AuthoritiesBuildSettings> };
-  options?: {
-    filingMedium?: Array<{ value: "electronic" | "paper"; label: string }>;
-    bookRole?: Array<{ value: AuthoritiesBookRole; label: string }>;
-    missingSourcePolicy?: boolean;
-  };
-  requirements?: { completeBookSources?: boolean; documentOutputDefault?: boolean;
-    unlinkedPdfTableSources?: boolean; markedPassages?: boolean;
-    federalFormatting?: boolean; appealPaperCovers?: boolean; bilingualEnactments?: boolean;
-    electronicVolumes?: { maxPages: number; maxBytes: number;
-      completeToc: boolean; coverLabels: boolean } };
-};
-
 /** Filing defaults only; source receipts remain in the repository audit data. */
 const authoritiesProfiles = profileValues as AuthoritiesProfile[];
 const AUTHORITIES_PROFILES = new Map(authoritiesProfiles.map((profile) => [profile.id, profile]));
@@ -62,59 +40,7 @@ export function authoritiesProfile(id: AuthoritiesProfileId) {
   return profile;
 }
 
-export const federalEnactmentCitation = (citation: string) =>
-  /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(citation);
-
-export type AuthoritySeed = AuthoritySourceIdentity & {
-  key: string;
-  kind: AuthorityKind;
-  citation: string;
-  name: string | null;
-  evidenceIds: string[];
-  locators: Array<{ kind: string; label: string }>;
-};
-
-export type AuthoritiesLedgerOccurrence = {
-  id: string;
-  markerId: string;
-  targetId: string;
-  authorityKey: string;
-  unit: Omit<AuthoritiesReviewUnit, "occurrenceIds"> & { sourceTextSha256: string };
-  start: number;
-  end: number;
-  text: string;
-  displayedForm: "full" | "short" | "supra" | "ibid";
-  pinpoints: Array<{ kind: "paragraph" | "section" | "page"; text: string }>;
-  evidenceIds: string[];
-  localOrdinal: number;
-};
-
-export type AuthorityCitationLedger = {
-  schemaVersion: "beaver.authority-ledger.v1";
-  document: AuthoritiesDocumentSnapshot;
-  seeds: AuthoritySeed[];
-  occurrences: AuthoritiesLedgerOccurrence[];
-};
-
 import { decodeAnnotationSet, type PdfAnnotationSet } from "mike/shared/pdf-annotations.mjs";
-
-export type AuthoritiesDraft = WorkProductState & {
-  schemaVersion: "beaver.authorities-draft.v1";
-  import: AuthoritiesImport;
-  bindings: Record<string, WorkProductInput>;
-  outputMode: AuthoritiesOutputMode;
-  settings: AuthoritiesSettings;
-  cover: AuthoritiesCover;
-  bookParts: AuthoritiesBookParts;
-  insertIntoDocument: boolean;
-  ledger: AuthorityCitationLedger | null;
-  units: AuthoritiesReviewUnit[];
-  occurrences: Record<string, AuthorityOccurrence>;
-  authorities: Record<string, AuthorityIdentity>;
-  authorityOrder: string[];
-  stage?: "citations" | "sources" | "highlights" | "build";
-  discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
-};
 
 export type AuthoritiesFreshReview = Pick<AuthoritiesDraft,
   "import" | "bindings" | "units" | "occurrences" | "authorities" | "authorityOrder"> &

@@ -1,4 +1,5 @@
-import { hasBilingualAuthoritySource } from "../../../../shared/authorities-sources.mjs";
+import { federalEnactmentCitation,
+  hasBilingualAuthoritySource } from "../../../../shared/authorities-sources.mjs";
 import type { AuthorityIdentity, AuthorityOccurrence, AuthoritiesProduct, AuthoritySourceLanguage } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
@@ -18,7 +19,7 @@ export function authorityCitationForms(item: AuthorityIdentity, occurrences: Aut
 }
 export function requiresBilingualSources(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   return !!authoritiesProfile(state.settings.profileId).requirements?.bilingualEnactments &&
-    item.kind === "legislation" && /\b(?:R\.?S\.?C\.?|S\.?C\.?|C\.?R\.?C\.?|SOR|SI|DORS|TR)\b/iu.test(item.citation);
+    item.kind === "legislation" && federalEnactmentCitation(item.citation);
 }
 function hasRequiredSources(state: AuthoritiesProduct["state"], item: AuthorityIdentity) {
   if (item.source.kind !== "attached" || !item.source.sources.length) return false;
