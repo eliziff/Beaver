@@ -78,32 +78,28 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
     return false;
   }
 
-  async function removeChat() {
+  /** A chat action reports one failure and owns the busy flag around it. */
+  async function chatAction(failure: string, run: () => Promise<void>) {
     setChatActionBusy(true);
     setChatActionError(null);
-    try {
+    try { await run(); }
+    catch { setChatActionError(failure); }
+    finally { setChatActionBusy(false); }
+  }
+
+  const removeChat = () =>
+    chatAction("The chat could not be moved to the Recycling bin.", async () => {
       await deleteChat(chatId);
       navigate(`/projects/${projectId}/assistant`);
-    } catch {
-      setChatActionError("The chat could not be moved to the Recycling bin.");
-    } finally {
-      setChatActionBusy(false);
-    }
-  }
+    });
 
   async function submitRename() {
     const title = renameValue.trim();
     if (!title || title === route.chatTitle) return setRenameOpen(false);
-    setChatActionBusy(true);
-    setChatActionError(null);
-    try {
+    await chatAction("The chat could not be renamed.", async () => {
       await history.renameChat(chatId, title);
       setRenameOpen(false);
-    } catch {
-      setChatActionError("The chat could not be renamed.");
-    } finally {
-      setChatActionBusy(false);
-    }
+    });
   }
 
   async function upload(uploaded: File[], directory = false) {
