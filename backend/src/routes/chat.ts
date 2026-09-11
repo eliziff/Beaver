@@ -288,20 +288,11 @@ export function createChatRouter(
     res.json({ id: chat.id, title: chat.title, project_id: chat.project_id });
   }));
 
-  router.delete("/:chatId", route(async (req, res, scope) => {
-    if (!await chats.trash(scope, req.params.chatId)) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
-    res.status(204).send();
-  }));
-  router.post("/:chatId/restore", route(async (req, res, scope) => {
-    if (!await chats.restore(scope, req.params.chatId)) {
-      return void res.status(404).json({ detail: "Chat not found" });
-    }
-    res.status(204).send();
-  }));
-  router.delete("/:chatId/permanent", route(async (req, res, scope) => {
-    if (!await chats.remove(scope, req.params.chatId)) {
+  for (const [method, path, action] of [
+    ["delete", "/:chatId", "trash"], ["post", "/:chatId/restore", "restore"],
+    ["delete", "/:chatId/permanent", "remove"],
+  ] as const) router[method](path, route(async (req, res, scope) => {
+    if (!await chats[action](scope, req.params.chatId)) {
       return void res.status(404).json({ detail: "Chat not found" });
     }
     res.status(204).send();

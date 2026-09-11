@@ -21,8 +21,6 @@ import {
 } from "./lib/userPreferences";
 import { createUserApplication, type UserApplication } from "./lib/userApplication";
 import type { UserCredentials } from "./lib/userCredentials";
-import type { AuthoritiesWorkspaceApplication } from "./lib/authoritiesWorkspaceApplication";
-import type { CourtRecordsApplication } from "./lib/courtRecordsApplication";
 
 type Lazy<T> = (() => Promise<T>) & { loaded: () => Promise<T> | undefined };
 const lazy = <T>(load: () => Promise<T>): Lazy<T> => {
@@ -163,27 +161,16 @@ const authoritiesWorkspace = lazy(async () =>
       await documents(), await workProducts(), await workflowFiles()));
 const courtRecords = lazy(async () => (await import("./lib/courtRecordsApplication"))
   .createCourtRecordsApplication(await documents(), await workflowFiles(), await workProducts()));
-const chatAuthorities: Pick<AuthoritiesWorkspaceApplication,
-  "importDraft" | "act" | "refresh" | "refreshInput" | "prepareSources" |
-    "discrepancies" | "build" |
-    "addReceipts" | "attachLibraryPdf"> = Object.freeze({
-  async importDraft(...args) { return (await authoritiesWorkspace()).importDraft(...args); },
-  async act(...args) { return (await authoritiesWorkspace()).act(...args); },
-  async refresh(...args) { return (await authoritiesWorkspace()).refresh(...args); },
-  async refreshInput(...args) { return (await authoritiesWorkspace()).refreshInput(...args); },
-  async prepareSources(...args) { return (await authoritiesWorkspace()).prepareSources(...args); },
-  async discrepancies(...args) { return (await authoritiesWorkspace()).discrepancies(...args); },
-  async build(...args) { return (await authoritiesWorkspace()).build(...args); },
-  async addReceipts(...args) { return (await authoritiesWorkspace()).addReceipts(...args); },
-  async attachLibraryPdf(...args) {
-    return (await authoritiesWorkspace()).attachLibraryPdf(...args);
-  },
-});
-const chatCourtRecords: Pick<CourtRecordsApplication,
-  "bindOutput" | "updateDraft"> = Object.freeze({
-  async bindOutput(...args) { return (await courtRecords()).bindOutput(...args); },
-  async updateDraft(...args) { return (await courtRecords()).updateDraft(...args); },
-});
+/** Forwards the named methods to a lazily constructed application. */
+const delegate = <T, K extends keyof T>(load: Lazy<T>, keys: readonly K[]) =>
+  Object.freeze(Object.fromEntries(keys.map((key) => [key,
+    async (...args: unknown[]) =>
+      ((await load())[key] as (...rest: unknown[]) => unknown)(...args),
+  ])) as Pick<T, K>);
+const chatAuthorities = delegate(authoritiesWorkspace, ["importDraft", "act", "refresh",
+  "refreshInput", "prepareSources", "discrepancies", "build", "addReceipts",
+  "attachLibraryPdf"] as const);
+const chatCourtRecords = delegate(courtRecords, ["bindOutput", "updateDraft"] as const);
 const legalSources = lazy(async () => {
   const [{ createLegalSourceApplication }, { createLegalSourceStore }, { relationalDatabase }] =
     await Promise.all([import("./lib/legalSourceApplication"), import("./lib/legalSourceStore"),

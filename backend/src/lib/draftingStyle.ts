@@ -104,17 +104,10 @@ export function resolveDraftingOptions(
   if (placement === "after-paragraph" && documentType !== "factum") {
     throw new Error("after-paragraph citations are available only for factums.");
   }
-  if (
-    raw.number_headings !== undefined &&
-    typeof raw.number_headings !== "boolean"
-  ) {
-    throw new Error("DOCX number_headings must be true or false.");
-  }
-  if (
-    raw.citation_hyperlinks !== undefined &&
-    typeof raw.citation_hyperlinks !== "boolean"
-  ) {
-    throw new Error("DOCX citation_hyperlinks must be true or false.");
+  for (const field of ["number_headings", "citation_hyperlinks"] as const) {
+    if (raw[field] !== undefined && typeof raw[field] !== "boolean") {
+      throw new Error(`DOCX ${field} must be true or false.`);
+    }
   }
 
   let memoHeader: ResolvedDraftingOptions["memoHeader"];
