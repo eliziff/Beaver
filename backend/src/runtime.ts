@@ -8,7 +8,7 @@ import { createDocumentApplication } from "./lib/documentApplication";
 import { encryptionSecret } from "./lib/secretEncryption";
 import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
-import { jobLaneConcurrency } from "./lib/nativeThreadPool";
+import { jobLaneConcurrency } from "./jobLanes";
 import { createProjectStore } from "./lib/projectStore";
 import { createTabularApplication } from "./lib/tabular/application";
 import { createSourceWorkspaceApplication, type SourceWorkspaceApplication } from "./lib/sourceWorkspaceApplication";

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-describe("native thread pool", () => {
+describe("job lanes", () => {
   const previous = { auth: process.env.AUTH_MODE, size: process.env.UV_THREADPOOL_SIZE };
   beforeEach(() => { process.env.AUTH_MODE = "local"; delete process.env.UV_THREADPOOL_SIZE; });
   afterEach(() => {
@@ -10,7 +10,7 @@ describe("native thread pool", () => {
   });
 
   it("reserves a pool thread for every job slot that can hold one", async () => {
-    const { jobLaneConcurrency, sizeNativeThreadPool } = await import("../nativeThreadPool");
+    const { jobLaneConcurrency, sizeNativeThreadPool } = await import("./jobLanes");
     const lanes = jobLaneConcurrency();
     sizeNativeThreadPool();
     expect(Number(process.env.UV_THREADPOOL_SIZE))
@@ -20,7 +20,7 @@ describe("native thread pool", () => {
 
   it("keeps an operator's own pool size", async () => {
     process.env.UV_THREADPOOL_SIZE = "32";
-    const { sizeNativeThreadPool } = await import("../nativeThreadPool");
+    const { sizeNativeThreadPool } = await import("./jobLanes");
     sizeNativeThreadPool();
     expect(process.env.UV_THREADPOOL_SIZE).toBe("32");
   });
