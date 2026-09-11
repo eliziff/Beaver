@@ -1,9 +1,3 @@
-export type SourceDocumentFields = {
-  cover: Record<string, string>;
-  exhibitLabels: string[];
-  exhibitMentions?: Record<string, string[]>;
-  explicitExhibitLabel?: string;
-  entryTitle?: string;
-  entryDate?: string;
-};
+import type { SourceDocumentFields } from "./court-record-contract.d.ts";
+export type { SourceDocumentFields };
 export function sourceDocumentFields(pages: string[]): SourceDocumentFields | undefined;

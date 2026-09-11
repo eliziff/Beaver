@@ -9,7 +9,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { cn, formatBytes } from "@/app/lib/utils";
 import { acceptedSourceFormats, sourceFormat } from "./formats";
-import { rule70MaximumPages, sourceExhibitSlots } from "./types";
+import { MAX_EXHIBIT_LABELS, rule70MaximumPages, sourceExhibitSlots } from "./types";
 import type { ComplianceFinding, CourtProfile, DocumentKind, RecordEntry } from "./types";
 
 export type OcrRun = { id: string; message?: string };
@@ -289,7 +289,7 @@ function ExhibitPool(props: Props & { kind: DocumentKind }) {
         </section>;
       })}
     </div>}
-    {slots && labels.length < 702 && onAddExhibit && <Button type="button" variant="outline"
+    {slots && labels.length < MAX_EXHIBIT_LABELS && onAddExhibit && <Button type="button" variant="outline"
       className="mt-3 h-9 border-gray-500/80 px-3" onClick={onAddExhibit}>
       <FilePlus2 /> Add exhibit
     </Button>}
