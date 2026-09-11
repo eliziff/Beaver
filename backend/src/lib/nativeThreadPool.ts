@@ -18,8 +18,10 @@ export function jobLaneConcurrency() {
   };
 }
 
-// libuv builds the pool when it first needs it and reads the size then, so this
-// has to run before the process starts any asynchronous file, DNS or native work.
+// libuv reads the size from the environment a process was spawned with (setting
+// process.env inside the process reaches libuv on Linux only if nothing has used
+// the pool yet, and never on Windows), so the supervisor sets it before it forks
+// the services. Measured here: the pool stayed at four when a service set it.
 export function sizeNativeThreadPool() {
   if (process.env.UV_THREADPOOL_SIZE) return;
   const lanes = jobLaneConcurrency();
