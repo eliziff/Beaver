@@ -34,7 +34,8 @@ import type {
   RecordEntry,
   SourceDocumentFields,
 } from "./types";
-import { exhibitName, propagatingSourceFields, sourceExhibitSlots } from "./types";
+import { MAX_EXHIBIT_LABELS, exhibitName, propagatingSourceFields,
+  sourceExhibitSlots } from "./types";
 import { staleBuildSource, validateCourtRecord } from "./validation";
 
 const DEFAULT_PROFILE_ID = "general-affidavit-exhibits";
@@ -1019,7 +1020,7 @@ function fillExhibitLabels(entries: RecordEntry[]) {
 function addExhibitSlot(view: DraftView): DraftView {
   const slots = sourceExhibitSlots(view.entries);
   const affidavit = view.entries.find((entry) => entry.kindId === "affidavit");
-  if (!slots || !affidavit || slots.labels.length >= 702) return view;
+  if (!slots || !affidavit || slots.labels.length >= MAX_EXHIBIT_LABELS) return view;
   return { ...view, entries: view.entries.map((entry) => entry.id === affidavit.id ? {
     ...entry, sourceExhibits: { sourceSha256: slots.sourceSha256,
       labels: [...slots.labels, exhibitName(slots.labels.length)] },

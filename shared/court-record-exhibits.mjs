@@ -28,17 +28,27 @@ function extractExhibitMentions(text) {
 function sourceExhibitLabels(pages) {
   const labels = Object.keys(extractExhibitMentions(pages.filter((page) => page.trim())
     .join("\n.\n")));
-  const highest = Math.max(0, ...labels.map((label) => [...label].reduce((value, character) =>
-    value * 26 + character.charCodeAt(0) - 64, 0)));
-  return Array.from({ length: highest }, (_, index) => {
-    let value = index + 1, label = "";
-    while (value) { value -= 1; label = String.fromCharCode(65 + value % 26) + label;
-      value = Math.floor(value / 26); }
-    return label;
-  });
+  return exhibitNames(Math.max(-1, ...labels.map(exhibitIndex)) + 1);
 }
+
+function exhibitName(index) {
+  let value = index + 1, label = "";
+  while (value) { value -= 1; label = String.fromCharCode(65 + value % 26) + label;
+    value = Math.floor(value / 26); }
+  return label;
+}
+
+const exhibitNames = (count) => Array.from({ length: count }, (_, index) => exhibitName(index));
+
+const exhibitIndex = (label = "") => /^[A-Z]+$/u.test(label.trim().toUpperCase())
+  ? [...label.trim().toUpperCase()].reduce((value, character) =>
+    value * 26 + character.charCodeAt(0) - 64, 0) - 1 : -1;
 
 const mentionKey = (value) => value.normalize("NFKC").toLocaleLowerCase()
   .replace(/[^\p{L}\p{N}]+/gu, "");
 
-export { extractExhibitMentions, mentionKey, sourceExhibitLabels };
+/** Exhibit labels stay single letters through ZZ; one affidavit cannot exceed them. */
+const MAX_EXHIBIT_LABELS = 702;
+
+export { MAX_EXHIBIT_LABELS, exhibitIndex, exhibitName, exhibitNames, extractExhibitMentions,
+  mentionKey, sourceExhibitLabels };
