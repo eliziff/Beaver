@@ -10,7 +10,8 @@ const subscribe = (listener: () => void) => {
     listeners.add(listener);
     return () => { listeners.delete(listener); };
 };
-export const useModelCatalog = () => useSyncExternalStore(subscribe, getSessionModelCatalog, () => null);
+export const useModelCatalog = () =>
+    useSyncExternalStore(subscribe, () => catalog ??= readCachedCatalog(), () => null);
 function readCachedCatalog() {
     if (typeof window === "undefined") return null;
     try {
@@ -37,9 +38,6 @@ function cacheCatalog(value: ModelCatalog) {
     } catch {
         // Storage can be unavailable in private browsing or hardened contexts.
     }
-}
-function getSessionModelCatalog() {
-    return catalog ??= readCachedCatalog();
 }
 export function preloadModelCatalog() {
     catalog ??= readCachedCatalog();

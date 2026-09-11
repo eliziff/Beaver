@@ -16,6 +16,12 @@ import { isJsonRecord, jsonRecord } from "../lib/value";
 const bodyOf = (req: Request): Record<string, unknown> =>
   jsonRecord(req.body) ?? {};
 
+/** A PATCH only touches the fields the body actually carries. */
+const patcher = <T extends object>(body: Record<string, unknown>, update: T) =>
+  <K extends keyof T>(key: string, field: K, read: () => T[K]) => {
+    if (Object.hasOwn(body, key)) update[field] = read();
+  };
+
 function requiredText(value: unknown, name: string, max: number) {
   if (typeof value !== "string" || !value.trim()) {
     return reject(400, `${name} is required`);
@@ -133,24 +139,13 @@ export function createProjectsRouter(
   router.patch("/:projectId", route(async (req, res, scope) => {
     const body = bodyOf(req);
     const update: Parameters<ProjectStore["update"]>[2] = {};
-    if (Object.hasOwn(body, "name")) {
-      update.name = requiredText(body.name, "name", 120);
-    }
-    if (Object.hasOwn(body, "cm_number")) {
-      update.cmNumber = optionalText(body.cm_number, "cm_number", 200);
-    }
-    if (Object.hasOwn(body, "practice")) {
-      update.practice = optionalText(body.practice, "practice", 200);
-    }
-    if (Object.hasOwn(body, "shared_with")) {
-      update.sharedWith = sharing(body.shared_with, scope.userEmail);
-    }
-    if (Object.hasOwn(body, "metadata")) {
-      update.metadata = projectMetadata(body.metadata) ?? {};
-    }
-    if (Object.hasOwn(body, "notes")) {
-      update.notes = optionalText(body.notes, "notes", 500);
-    }
+    const set = patcher(body, update);
+    set("name", "name", () => requiredText(body.name, "name", 120));
+    set("cm_number", "cmNumber", () => optionalText(body.cm_number, "cm_number", 200));
+    set("practice", "practice", () => optionalText(body.practice, "practice", 200));
+    set("shared_with", "sharedWith", () => sharing(body.shared_with, scope.userEmail));
+    set("metadata", "metadata", () => projectMetadata(body.metadata) ?? {});
+    set("notes", "notes", () => optionalText(body.notes, "notes", 500));
     const project = await store.update(scope, req.params.projectId, update);
     if (!project) reject(404, "Project not found");
     res.json(project);
@@ -226,14 +221,10 @@ export function createProjectsRouter(
     async (req, res, scope) => {
       const body = bodyOf(req);
       const update: Parameters<ProjectStore["updateFolder"]>[3] = {};
-      if (Object.hasOwn(body, "name")) {
-        update.name = requiredText(body.name, "name", 200);
-      }
-      if (Object.hasOwn(body, "parent_folder_id")) {
-        update.parentFolderId = nullableId(
-          body.parent_folder_id, "parent_folder_id",
-        );
-      }
+      const set = patcher(body, update);
+      set("name", "name", () => requiredText(body.name, "name", 200));
+      set("parent_folder_id", "parentFolderId",
+        () => nullableId(body.parent_folder_id, "parent_folder_id"));
       res.json(await store.updateFolder(
         scope, req.params.projectId, req.params.folderId, update,
       ));

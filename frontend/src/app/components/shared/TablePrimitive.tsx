@@ -15,15 +15,13 @@ type DivProps = HTMLAttributes<HTMLDivElement>;
 export function SkeletonLine({ className }: { className?: string }) {
     return <div className={cn("beaver-loading-indicator h-3 rounded bg-gray-200", className)} />;
 }
-function TableSelectionPlaceholder() {
-    return <span aria-hidden="true" className="-ml-2 mr-1 inline-flex min-h-9 min-w-9 shrink-0" />;
-}
 export function TableSelectionCheckbox({
     className, indeterminate = false, loading = false, onClick, ...props
 }: Omit<ComponentProps<typeof CheckboxControl>, "ref"> & {
     "aria-label": string; indeterminate?: boolean; loading?: boolean;
 }) {
-    if (loading) return <TableSelectionPlaceholder />;
+    if (loading) return <span aria-hidden="true"
+        className="-ml-2 mr-1 inline-flex min-h-9 min-w-9 shrink-0" />;
     return (
         <CheckboxControl
             {...props}
