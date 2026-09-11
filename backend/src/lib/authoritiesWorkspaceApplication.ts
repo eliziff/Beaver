@@ -16,7 +16,7 @@ import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./au
 import { authoritySourceServices, resolveAuthoritiesSources, type SourceServices } from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
-import { sha256 } from "./hash";
+import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { documentProjectionService } from "./documentProjectionService";
 import type { WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
@@ -381,7 +381,11 @@ export function createAuthoritiesWorkspaceApplication(
       const { product, draft } = await edit(scope, id, revision);
       const resolved = await resolveSources(scope,
         await followLatestBindings(scope, draft, signal), product.projectId, signal);
-      if (resolved.draft === draft && !resolved.created.length) return product;
+      // Every reducer hands back a fresh object, so re-offering a CanLII handoff
+      // the draft already holds reads as a change. Opening a draft that needed
+      // nothing must not spend a revision: compare the state, not the reference.
+      if (!resolved.created.length && (resolved.draft === draft ||
+        canonicalJsonSha256(resolved.draft) === canonicalJsonSha256(draft))) return product;
       return withRollback(scope, resolved.created, () =>
         workProducts.save(scope, id, { revision, state: resolved.draft }));
     },
