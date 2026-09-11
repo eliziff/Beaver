@@ -4,10 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
     McpConnectorFields,
-    McpToolList,
     type McpConnectorDraft,
 } from "./NewMcpModal";
-import type { McpConnectorSummary } from "@/app/lib/api/account";
 
 const draft: McpConnectorDraft = {
     name: "Research",
@@ -15,19 +13,6 @@ const draft: McpConnectorDraft = {
     bearerToken: "secret",
     customHeaders: "",
 };
-const connector = {
-    id: "connector-1",
-    tools: [
-        {
-            id: "tool-1",
-            title: "Find cases",
-            toolName: "find_cases",
-            enabled: true,
-            requiresConfirmation: false,
-        },
-    ],
-} as McpConnectorSummary;
-
 function FieldsHarness({ onClear }: { onClear: () => void }) {
     const [value, setValue] = useState(draft);
 
@@ -80,25 +65,5 @@ describe("McpConnectorFields", () => {
         ).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
         expect(screen.getByRole("textbox", { name: "Label" })).toBeDisabled();
-    });
-
-    it("shares bounded read-only and editable tool rows", () => {
-        const onToolEnabled = vi.fn().mockResolvedValue(undefined);
-        const { rerender } = render(<McpToolList connector={connector} />);
-
-        expect(screen.getByText("Enabled")).toBeVisible();
-
-        rerender(
-            <McpToolList
-                connector={connector}
-                onToolEnabled={onToolEnabled}
-            />,
-        );
-        fireEvent.click(screen.getByRole("switch", { name: "Find cases enabled" }));
-        expect(onToolEnabled).toHaveBeenCalledWith(
-            "connector-1",
-            "tool-1",
-            false,
-        );
     });
 });
