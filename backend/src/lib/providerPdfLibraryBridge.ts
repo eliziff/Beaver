@@ -20,6 +20,7 @@ import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
 import { resourceReference } from "./resourceReferences";
 import { structureNative } from "./structureNative";
+import { isCanliiUrl } from "./canliiUrls";
 import {
   decodePdfProfileSelection,
   type PdfProfileSelection,
@@ -78,11 +79,7 @@ const text = (value: string | null | undefined, maximum: number) => {
 function publicUrl(raw: string) {
   const url = normalizeRemoteHttpsUrl(raw, { label: "Source PDF URL", maxUrlLength: 8_192,
     defaultPortOnly: true, allowIpLiterals: false, blockedHostSuffixes: [".local"] }).url;
-  const hostname = url.hostname.toLowerCase().replace(/\.+$/u, "");
-  if (["canlii.ca", "canlii.org"].some((domain) =>
-    hostname === domain || hostname.endsWith(`.${domain}`))) {
-    throw new Error("Source PDF URL points to a blocked host.");
-  }
+  if (isCanliiUrl(url)) throw new Error("Source PDF URL points to a blocked host.");
   return url;
 }
 

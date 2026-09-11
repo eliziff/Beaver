@@ -21,8 +21,9 @@ import type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceD
   AuthoritiesBoundPdf, AuthoritiesBookParts,
   AuthoritiesBookSupplement } from "mike/shared/authorities-sources.mjs";
 export { attachedAuthoritySources, federalEnactmentCitation, hasBilingualAuthoritySource,
-  authoritiesBookPdfs, authorityBytesRequired, authoritySourceRequirement,
-  authoritySourceUrl, bilingualEnactmentRequired } from "mike/shared/authorities-sources.mjs";
+  authoritiesBookPdfs, authorityBytesRequired, authorityReproducedInBook,
+  authoritySourceRequirement, authoritySourceUrl,
+  bilingualEnactmentRequired } from "mike/shared/authorities-sources.mjs";
 export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritySourceDecision,
   AuthoritiesBoundPdf, AuthoritiesBookSupplement, AuthoritiesBookParts } from "mike/shared/authorities-sources.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";

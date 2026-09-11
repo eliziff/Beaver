@@ -105,6 +105,20 @@ export function buildCanliiCaseUrlFromCitation(
   return resolvedCanliiCaseUrl(citations, language);
 }
 
+/** A hostname ready to compare or print: lowercased, without the root's trailing dot. */
+export const urlHostname = (value: string | URL) =>
+  (typeof value === "string" ? new URL(value) : value).hostname.toLowerCase().replace(/\.+$/u, "");
+
+/** CanLII serves from both registries and from any subdomain of either (www.canlii.org,
+ *  primary.canlii.ca). The scheme is not part of the test, and a value that is not a URL
+ *  is not CanLII. */
+export function isCanliiUrl(value: string | URL) {
+  let host;
+  try { host = urlHostname(value); } catch { return false; }
+  return ["canlii.ca", "canlii.org"].some((domain) =>
+    host === domain || host.endsWith(`.${domain}`));
+}
+
 /** Returns only the exact PDF sibling of a canonical CanLII decision page. */
 export function buildCanliiPdfUrl(pageUrl: string) {
   try {

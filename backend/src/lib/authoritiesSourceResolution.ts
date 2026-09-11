@@ -4,7 +4,7 @@ import { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
   type AuthoritiesDraft, type AuthorityIdentity } from "./authoritiesDomain";
-import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl } from "./canliiUrls";
+import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl, isCanliiUrl } from "./canliiUrls";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
@@ -56,14 +56,6 @@ export type SourceServices = typeof authoritySourceServices;
 const pdfFilename = (value: string) => `${value.trim().replace(
   /[<>:"/\\|?*\u0000-\u001f]/gu, "-",
 ).replace(/[. ]+$/u, "").slice(0, 180) || "Authority"}.pdf`;
-
-function isCanliiUrl(value: string) {
-  try {
-    const host = new URL(value).hostname.toLowerCase().replace(/\.+$/u, "");
-    return ["canlii.ca", "canlii.org"].some((domain) =>
-      host === domain || host.endsWith(`.${domain}`));
-  } catch { return false; }
-}
 
 const sourceIdentityLanguage = (authority: AuthorityIdentity) =>
   authority.sourceIdentity?.stableSourceId.match(/^a2aj:(en|fr):/u)?.[1] as
