@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { applicationScope, notFound as missing, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { textField } from "../lib/textField";
 import { downloadHeaders } from "../lib/storage";
 import {
   SYSTEM_WORKFLOW_IDS,
@@ -28,26 +29,25 @@ const DEFAULT_CONTRIBUTOR: WorkflowContributor = {
 const DEFAULT_LANGUAGE = "English";
 const DEFAULT_JURISDICTIONS = ["General"];
 const CONTRIBUTIONS_ENABLED = process.env.WORKFLOW_CONTRIBUTIONS_ENABLED === "true";
-const text = (max: number) => z.string().trim().min(1).max(max);
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
 const contributorSchema = z.object({
-  name: text(200),
+  name: textField(200),
   organisation: z.string().trim().max(200).nullable().default(null),
   role: z.string().trim().max(200).nullable().default(null),
   linkedin: z.string().trim().max(2_000).nullable().default(null),
 }).strict();
 const audienceSchema = z.enum(WORKFLOW_AUDIENCES);
 const metadataSchema = z.object({
-  title: text(300),
+  title: textField(300),
   category: z.enum(WORKFLOW_CATEGORIES),
   audiences: z.array(audienceSchema).min(1).max(WORKFLOW_AUDIENCES.length)
     .transform((items) => [...new Set(items)]),
   language: optionalText(100),
-  jurisdictions: z.array(text(100)).max(50).nullable().optional()
+  jurisdictions: z.array(textField(100)).max(50).nullable().optional()
     .transform((items) => items?.length ? [...new Set(items)] : null),
 }).strict();
 const instructionInputSchema = z.object({
-  label: text(200),
+  label: textField(200),
   result: optionalText(200),
   execution: z.enum(["assistant", "tabular"]),
   skill_md: z.string().max(1_000_000).nullable().optional(),

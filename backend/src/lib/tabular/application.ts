@@ -1,6 +1,7 @@
 import type { ResearchFinding } from "../researchChat";
 import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
 import { z } from "zod";
+import { textField } from "../textField";
 import { randomUUID } from "node:crypto";
 import { runChatTurn } from "../chat/turnEngine";
 import { throwIfAborted } from "../llm/abort";
@@ -39,17 +40,17 @@ import { defaultResearchImport, researchImportDesignSchema, researchImportPlan, 
 import { legalEvidenceResourceReference } from "../chat/legalEvidence";
 
 const MAX_MODEL_CHARS = 1_000_000;
-const id = z.string().trim().min(1).max(200);
+const id = textField(200);
 const projectId = z.string({
   required_error: "project_id must be a non-empty string or null",
   invalid_type_error: "project_id must be a non-empty string or null",
 }).trim().min(1, "project_id must be a non-empty string or null").max(200);
 const column = z.object({
   index: z.number().int().nonnegative().max(10_000),
-  name: z.string().trim().min(1).max(200),
-  prompt: z.string().trim().min(1).max(20_000),
-  format: z.string().trim().min(1).max(80).optional(),
-  tags: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+  name: textField(200),
+  prompt: textField(20_000),
+  format: textField(80).optional(),
+  tags: z.array(textField(200)).max(100).optional(),
 }).strict();
 const columns = z.array(column).max(100).superRefine((value, context) => {
   const seen = new Set<number>();
@@ -59,11 +60,11 @@ const columns = z.array(column).max(100).superRefine((value, context) => {
     seen.add(index);
   });
 });
-const rowId = z.string().trim().min(1).max(4_000);
+const rowId = textField(4_000);
 const rowIds = z.array(rowId).max(500).transform((value) => [...new Set(value)]);
 const modelOptions = {
-  model: z.string().trim().min(1).max(200).optional(),
-  reasoning_effort: z.string().trim().min(1).max(32).optional(),
+  model: textField(200).optional(),
+  reasoning_effort: textField(32).optional(),
 };
 const researchSelection = researchSelectionSchema;
 const researchInput = { research_file_id: id.optional(), research_selection: researchSelection.optional(),
@@ -96,16 +97,16 @@ export const tabularDtos = {
     expected_version: z.string().max(100).optional(),
   }).strict(),
   design: z.object({
-    request: z.string().trim().min(1).max(4_000),
+    request: textField(4_000),
     title: z.string().trim().max(300).optional(),
     current: columns.optional(),
-    documentNames: z.array(z.string().trim().min(1).max(300)).max(50).optional(),
+    documentNames: z.array(textField(300)).max(50).optional(),
   }).strict(),
   prompt: z.object({
-    title: z.string().trim().min(1).max(200),
-    format: z.string().trim().min(1).max(80).default("text"),
+    title: textField(200),
+    format: textField(80).default("text"),
     documentName: z.string().trim().max(500).default(""),
-    tags: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
+    tags: z.array(textField(200)).max(100).default([]),
   }).strict(),
   clear: z.object({ document_ids: z.array(rowId, {
     required_error: "document_ids is required",

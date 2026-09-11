@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { requireAuth } from "../middleware/auth";
 import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { trimmedText } from "../lib/value";
 import { contentTypeForDocumentType } from "../lib/documentTypes";
 import type { DocumentStore } from "../lib/documentStore";
 import type { LibraryStore } from "../lib/libraryStore";
@@ -60,7 +61,7 @@ export function createDocumentsRouter(
   router.use(requireAuth);
 
   router.get("/", asyncRoute(async (req, res) => {
-    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const q = trimmedText(req.query.q);
     const filters = { q };
     const { after, limit } = pageRequest<[number, string, string]>(
       req.query,

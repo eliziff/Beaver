@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { textField } from "../textField";
 import { ApplicationError } from "../applicationError";
 import { sha256 } from "../hash";
 import { researchLabelPath, researchSourceResource, type ResearchEvidence, type ResearchFile } from "../researchFile";
@@ -20,11 +21,11 @@ export type ResearchImportCatalog = { title: string; question: string | null; fi
   rows: ResearchArrangement["rows"]; entries: Entry[] };
 const id = z.string().min(1).max(200);
 export const researchImportDesignSchema = z.object({
-  title: z.string().trim().min(1).max(300),
+  title: textField(300),
   columns: z.array(z.object({ index: z.number().int().min(0).max(10_000),
-    name: z.string().trim().min(1).max(200), prompt: z.string().trim().min(1).max(20_000),
+    name: textField(200), prompt: textField(20_000),
     format: z.enum(["text", "bulleted_list", "number", "currency", "yes_no", "date", "tag", "percentage", "monetary_amount"]).optional(),
-    tags: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+    tags: z.array(textField(200)).max(100).optional(),
   }).strict()).min(1).max(100),
   cells: z.array(z.object({ rowId: id, columnIndex: z.number().int().min(0).max(10_000),
     itemIds: z.array(id).min(1).max(500) }).strict()).max(50_000),

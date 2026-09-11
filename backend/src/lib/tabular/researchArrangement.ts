@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { textField } from "../textField";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
 import { researchLabelPath, researchSourceResource, visitResearchEvidenceParts,
@@ -17,7 +18,7 @@ const item = z.discriminatedUnion("kind", [
   ...researchFindingReferenceSchema.options,
 ]);
 export const researchArrangementSchema = z.object({
-  rows: z.array(z.object({ id, title: z.string().trim().min(1).max(500), sourceId: id,
+  rows: z.array(z.object({ id, title: textField(500), sourceId: id,
     evidenceIds: ids.optional(), group: ids.optional() }).strict()).max(500),
   cells: z.array(z.object({ rowId: id, columnIndex: z.number().int().min(0).max(10_000),
     items: z.array(item).max(500) }).strict()).max(50_000),

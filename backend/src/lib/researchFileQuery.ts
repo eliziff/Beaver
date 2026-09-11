@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { textField } from "./textField";
 import type { ResearchOperationContext } from "./researchProvenance";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { createLegalEvidenceTurnState, createLibraryEvidence, legalSourceEvidence, registerLegalResearchQueries,
@@ -22,9 +23,9 @@ import { resolveResearchSelection, researchSelectionSchema, researchSelectionLab
   type ResearchSelection } from "./researchSelection";
 import type { ResearchReadContext } from "./researchReader";
 
-export const researchCaptureRuleSchema = z.object({ phrase: z.string().trim().min(1).max(500),
+export const researchCaptureRuleSchema = z.object({ phrase: textField(500),
   direction: z.enum(["before", "after", "around"]), unit: z.enum(["sentence", "line", "paragraph", "chars"]),
-  chars: z.number().int().min(1).max(50_000).optional(), slot: z.string().trim().min(1).max(200).optional() }).strict();
+  chars: z.number().int().min(1).max(50_000).optional(), slot: textField(200).optional() }).strict();
 export type ResearchCaptureRule = z.infer<typeof researchCaptureRuleSchema>;
 export type ResearchFileQueryInput = ResearchSelection & { versionId: string; workingRevision: number; text?: string;
   syntax: "literal" | "terms"; limit?: number; after?: string; rules?: ResearchCaptureRule[];

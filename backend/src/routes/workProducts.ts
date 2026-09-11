@@ -2,27 +2,27 @@ import { Router } from "express";
 import { z } from "zod";
 import { applicationScope } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
+import { textField } from "../lib/textField";
 import type { WorkProductApplication } from "../lib/workProductApplication";
 import { WORK_PRODUCT_KINDS } from "../lib/workProduct";
 import { requireAuth } from "../middleware/auth";
 
 const id = z.string().uuid();
-const label = (max: number) => z.string().trim().min(1).max(max);
-const outputRefs = z.record(z.object({ documentId: label(200), versionId: label(200) }).strict())
+const outputRefs = z.record(z.object({ documentId: textField(200), versionId: textField(200) }).strict())
   .refine((value) => Object.keys(value).length <= 100 && Object.keys(value).every((key) =>
     key.length > 0 && key.length <= 100), "Too many or invalid output roles");
 const project = id.nullable().optional();
 const create = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("court-record"), title: label(300),
+  z.object({ kind: z.literal("court-record"), title: textField(300),
     project_id: project, state: z.unknown() }).strict(),
-  z.object({ kind: z.literal("authorities"), title: label(300),
+  z.object({ kind: z.literal("authorities"), title: textField(300),
     project_id: project, state: z.unknown() }).strict(),
 ]);
-const update = z.object({ revision: z.number().int().positive(), title: label(300).optional(),
+const update = z.object({ revision: z.number().int().positive(), title: textField(300).optional(),
   project_id: project, state: z.unknown().optional(), outputs: outputRefs.optional() }).strict()
   .refine((value) => ["title", "project_id", "state", "outputs"]
     .some((key) => Object.hasOwn(value, key)), "No draft changes supplied");
-const duplicate = z.object({ title: label(300).optional(), project_id: project }).strict();
+const duplicate = z.object({ title: textField(300).optional(), project_id: project }).strict();
 const query = z.object({ kind: z.enum(WORK_PRODUCT_KINDS).optional(),
   project_id: id.optional(), limit: z.coerce.number().int().min(1).max(100).optional(),
   metadata: z.literal("true").optional() }).strict();

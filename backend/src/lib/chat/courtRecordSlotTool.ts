@@ -12,7 +12,7 @@ import type { LibraryStore } from "../libraryStore";
 import { renderPdfPage } from "../pdfPageImage";
 import { DOCUMENT_OR_DRAFT_PATTERN, parseResourceReference } from "../resourceReferences";
 import { safeErrorMessage } from "../safeError";
-import { isJsonRecord } from "../value";
+import { isJsonRecord, trimmedText as text } from "../value";
 import type { WorkProductApplication } from "../workProductApplication";
 import { workProductEvent, workProductResult } from "./localWorkflowRun";
 import { objectSchema, toolText, type BeaverTool, type BeaverToolPolicy } from "./toolRegistry";
@@ -101,7 +101,6 @@ async function entryDocuments(dependencies: Pick<Dependencies, "scope" | "docume
   }))).flat();
 }
 
-const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const draftOutputChoices = async (dependencies: Dependencies,
   profile: CourtProfile) =>
   (await dependencies.workProducts.list(dependencies.scope, {

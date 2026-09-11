@@ -3,9 +3,10 @@ import type {
   AskInputOption,
   AskInputsEvent,
 } from "./assistantEvents";
+import { trimmedText } from "../value";
 
 function clean(value: unknown, fallback = "") {
-  const text = typeof value === "string" ? value.trim() : "";
+  const text = trimmedText(value);
   return text || fallback;
 }
 
