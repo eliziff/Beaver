@@ -256,13 +256,9 @@ export function noteUpCitations(args: {
                 COUNT(*) AS occurrences,
                 COUNT(DISTINCT edge.paragraph) AS distinct_paragraphs,
                 MIN(edge.text_offset) AS first_offset
-         FROM edge
-         JOIN case_doc ON case_doc.id = edge.case_id
-         WHERE edge.cited_key IN (${placeholders})
-           ${citedParagraph === null ? "" : "AND instr(',' || edge.pinpoints || ',', ?) > 0"}
-         GROUP BY edge.case_id`,
+         ${citingEdges(placeholders, citedParagraph)}`,
       )
-      .all(...keys, ...(citedParagraph === null ? [] : [`,par${citedParagraph},`])) as Row[])
+      .all(...keys, ...pinpointBind(citedParagraph)) as Row[])
       .filter((group) => matchesCourt(group.court, courtScope, courtCode));
     const byNewest = (left: Row, right: Row) =>
       (left.date === null ? 1 : 0) - (right.date === null ? 1 : 0) ||
@@ -382,6 +378,16 @@ export type NoteUpAnalysis = {
 
 const STANDS_FOR_CONSIDERED = 300;
 
+/** The citing-edge join both read paths share, with the optional cited-paragraph filter. */
+const citingEdges = (placeholders: string, citedParagraph: number | null) =>
+  `FROM edge
+         JOIN case_doc ON case_doc.id = edge.case_id
+         WHERE edge.cited_key IN (${placeholders})
+           ${citedParagraph === null ? "" : "AND instr(',' || edge.pinpoints || ',', ?) > 0"}
+         GROUP BY edge.case_id`;
+const pinpointBind = (citedParagraph: number | null) =>
+  citedParagraph === null ? [] : [`,par${citedParagraph},`];
+
 function journalCommentaryPath() {
   const configured = process.env.MIKE_JOURNAL_COMMENTARY_DB?.trim();
   if (configured) return path.resolve(configured);
@@ -430,11 +436,7 @@ function commentaryCandidates(keys: string[], citedParagraph: number | null): {
          ORDER BY (article.date IS NULL), article.date DESC, note.id
          LIMIT ?`,
       )
-      .all(
-        ...keys,
-        ...(citedParagraph === null ? [] : [`,par${citedParagraph},`]),
-        STANDS_FOR_CONSIDERED,
-      ) as Row[];
+      .all(...keys, ...pinpointBind(citedParagraph), STANDS_FOR_CONSIDERED) as Row[];
     const propositions = rows.map((row) => String(row.proposition).trim());
     const verdicts = structureNative().classifyCitatorExcerpts(propositions);
     let rejected = 0;
@@ -506,19 +508,11 @@ export function noteUpAnalysis(args: {
                 case_doc.id AS case_id, case_doc.url, case_doc.language,
                 COUNT(*) AS occurrences, MIN(edge.text_offset) AS first_offset,
                 edge.paragraph AS first_paragraph, edge.excerpt AS first_excerpt
-         FROM edge
-         JOIN case_doc ON case_doc.id = edge.case_id
-         WHERE edge.cited_key IN (${placeholders})
-           ${citedParagraph === null ? "" : "AND instr(',' || edge.pinpoints || ',', ?) > 0"}
-         GROUP BY edge.case_id
+         ${citingEdges(placeholders, citedParagraph)}
          ORDER BY (case_doc.date IS NULL), case_doc.date DESC, case_doc.id
          LIMIT ?`,
       )
-      .all(
-        ...keys,
-        ...(citedParagraph === null ? [] : [`,par${citedParagraph},`]),
-        STANDS_FOR_CONSIDERED,
-      )
+      .all(...keys, ...pinpointBind(citedParagraph), STANDS_FOR_CONSIDERED)
       .filter((group) => matchesCourt(group.court, courtScope, courtCode)) as Row[];
     const verdicts = structureNative().classifyCitatorExcerpts(
       groups.map((group) => String(group.first_excerpt)),
