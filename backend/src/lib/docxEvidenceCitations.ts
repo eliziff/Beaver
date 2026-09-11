@@ -1,4 +1,5 @@
 import { legalEvidenceDocumentLink } from "./chat/citations";
+import { legalEvidenceLocatorText } from "./chat/citationPresentation";
 import {
   registerDocumentLegalEvidence,
   type LegalEvidenceReceipt,
@@ -176,7 +177,7 @@ function ledgerInputs(state: LegalEvidenceTurnState,
         receipts.set(key, known);
         const pinpoints = source.pinpoints.map((pinpoint) => {
           const entry = grouped.find((candidate) =>
-            legalEvidenceDocumentLink(candidate).pinpoint?.text === pinpoint.text);
+            legalEvidenceLocatorText(candidate) === pinpoint.text);
           const kind = entry?.receipt.locator.kind;
           if (kind !== "paragraph" && kind !== "section" && kind !== "page") {
             throw new Error("Citation pinpoint is unavailable");
