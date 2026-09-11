@@ -4,9 +4,6 @@ import { Minus, RectangleHorizontal, Rows3 } from "lucide-react";
 export type CitationQuoteHeaderItem = {
     id: string;
     quote: string;
-    eyebrow?: string | null;
-    inlineDetail?: string | null;
-    detail?: string | null;
 };
 const QUOTE_CARD_SURFACE = "rounded-2xl bg-gray-100";
 const VIEW_OPTIONS = [
@@ -191,7 +188,6 @@ function QuoteItem({
     isActive: boolean;
     onClick: () => void;
 }) {
-    const metaTone = isActive ? "text-red-900" : "text-gray-500";
     return (
         <button
             type="button"
@@ -201,29 +197,13 @@ function QuoteItem({
             }`}
         >
             <div className="flex flex-col gap-1.5">
-                {quote.eyebrow && (
-                    <p className={`font-serif text-xs ${metaTone}`}>
-                        {quote.eyebrow}
-                    </p>
-                )}
                 <p
                     className={`font-serif text-sm leading-6 ${
                         isActive ? "text-red-950" : "text-gray-700"
                     }`}
                 >
                     &ldquo;{quote.quote.replace(/"/g, "'")}&rdquo;
-                    {quote.inlineDetail && (
-                        <span className={`text-sm ${metaTone}`}>
-                            {" "}
-                            ({quote.inlineDetail})
-                        </span>
-                    )}
                 </p>
-                {quote.detail && (
-                    <p className={`font-serif text-xs ${metaTone}`}>
-                        {quote.detail}
-                    </p>
-                )}
             </div>
         </button>
     );
