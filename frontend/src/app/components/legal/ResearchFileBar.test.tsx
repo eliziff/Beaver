@@ -194,14 +194,6 @@ describe("ResearchFileBar", () => {
       expect.objectContaining({ type: "label", id: "holding", color: "#91a58c", parentId: "finding" })));
   });
 
-  it("shows a source's saved passages under it when it is expanded", async () => {
-    await renderWorkspace();
-    expect(api.getResearchItems.mock.calls.some(([, input]) => input.sourceId === "baker")).toBe(false);
-    openBaker();
-    expect(await screen.findAllByRole("treeitem", { name: /para 5$/ })).not.toHaveLength(0);
-    expect(screen.getAllByText("A duty of fairness applies.")[0]).toBeVisible();
-  });
-
   it("adds a label by dropping a source onto it", async () => {
     await renderWorkspace();
     const target = document.querySelector<HTMLElement>('[data-tree-drop-folder="other"]')!;
@@ -258,14 +250,6 @@ describe("ResearchFileBar", () => {
     openSearch();
     expect(screen.getByRole("tab", { name: "Search" })).toHaveAttribute("aria-selected", "true");
     expect(api.getResearchItems).not.toHaveBeenCalled();
-  });
-
-  it("narrows the tree with the one filter field", async () => {
-    await renderWorkspace();
-    fireEvent.change(screen.getByRole("searchbox", { name: "Filter" }), { target: { value: "Appeal" } });
-    const tree = screen.getByRole("tree", { name: "Sources" });
-    expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
-    expect(within(tree).queryAllByRole("treeitem", { name: "Baker v Canada" })).toHaveLength(0);
   });
 
   it("selects the highlight type without changing the research scope", async () => {

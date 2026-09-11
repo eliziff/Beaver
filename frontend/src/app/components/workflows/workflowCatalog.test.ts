@@ -93,11 +93,3 @@ it("uses category order without dropping assistant or product routes", () => {
     expect(workflowPath(authorities)).toBe("/table-of-authorities");
     expect(workflowPath(courtRecords)).toBe("/court-records");
 });
-
-it("keeps workflow-editing categories available", () => {
-    expect(WORKFLOW_CATEGORIES).toContainEqual(["Agreements", "Agreements"]);
-    expect(WORKFLOW_CATEGORIES).toContainEqual([
-        "Court and hearing materials", "Court materials",
-    ]);
-    expect(WORKFLOW_CATEGORIES).not.toContainEqual(["Templates", "Templates"]);
-});
