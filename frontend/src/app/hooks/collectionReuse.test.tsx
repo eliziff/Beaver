@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { CollectionProvider } from "@/app/contexts/CollectionContext";
 import { apiFetch } from "@/app/lib/api/client";
 import { CollectionCache } from "@/app/lib/collections";
-import { collectionMutationTags, invalidateCollections } from "@/app/lib/collectionEvents";
+import { collectionMutationTags } from "@/app/lib/collectionEvents";
+import { notifyApiMutation } from "@/app/lib/api/mutationEvents";
 import { usePagedQuery } from "./usePagedQuery";
 import { usePagedDirectory } from "./usePagedDirectory";
 import type { Document } from "@/app/lib/api/documents";
@@ -81,7 +82,7 @@ it("does not let an invalidated pre-mutation response resurrect deleted rows", a
     const load = vi.fn().mockImplementationOnce(() => stale.promise)
         .mockResolvedValue({ items: ["current"], next_cursor: null });
     const view = renderHook(() => usePagedQuery<string>(load, [], true, spec), { wrapper });
-    act(() => invalidateCollections(["projects"]));
+    act(() => notifyApiMutation("/projects", "POST"));
     await waitFor(() => expect(view.result.current.items).toEqual(["current"]));
     await act(async () => stale.resolve({ items: ["deleted"], next_cursor: null }));
     expect(view.result.current.items).toEqual(["current"]);
@@ -93,7 +94,7 @@ it("invalidates inactive filters too, without issuing requests for them", async 
         { wrapper, initialProps: { enabled: true } });
     await waitFor(() => expect(view.result.current.loaded).toBe(true));
     view.rerender({ enabled: false });
-    act(() => invalidateCollections(["projects"]));
+    act(() => notifyApiMutation("/projects", "POST"));
     expect(load).toHaveBeenCalledTimes(1);
     load.mockReturnValue(new Promise(() => {}));
     view.rerender({ enabled: true });
@@ -239,7 +240,7 @@ it("broadcasts invalidation identities, accepts only the current account, and cl
     act(() => channels[0].onmessage?.({ data: { owner: "one", tags: ["projects"] } } as MessageEvent));
     await waitFor(() => expect(view.result.current.items).toEqual(["after"]));
     expect(channels[0].postMessage).not.toHaveBeenCalled();
-    act(() => invalidateCollections(["projects"]));
+    act(() => notifyApiMutation("/projects", "POST"));
     expect(channels[0].postMessage).toHaveBeenCalledWith({ owner: "one", tags: ["projects"] });
     view.unmount();
     expect(channels[0].close).toHaveBeenCalledOnce();
