@@ -8,7 +8,21 @@ import {
 } from "./legalEvidence";
 import { presentLegalEvidence } from "./citationPresentation";
 
+const documentLinks = new WeakMap<RegisteredEvidence, ReturnType<typeof projectDocumentLink>>();
+
+/**
+ * One link per registered entry. Planning the passage fragment replays the
+ * browser's text search over the whole judgment, which measured 9 s for one
+ * Bhasin passage; a Write resolves every citation's entries and a ledger builds
+ * on them again, so the link is derived once and read from the entry after that.
+ */
 export function legalEvidenceDocumentLink(entry: RegisteredEvidence) {
+  let link = documentLinks.get(entry);
+  if (!link) { link = projectDocumentLink(entry); documentLinks.set(entry, link); }
+  return link;
+}
+
+function projectDocumentLink(entry: RegisteredEvidence) {
   const { receipt } = entry;
   const presentation = presentLegalEvidence(entry);
   return {
