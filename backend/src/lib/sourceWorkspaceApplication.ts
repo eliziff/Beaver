@@ -394,12 +394,17 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     const { arrangement: _arrangement, columns_config: _columns, ...preview } = researchImportPlan(catalog, design);
     return { ...preview, question: catalog.question, proposed: !!proposed, fallback };
   }
-  async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
-    const { file, catalog, resolveFinding } = await importCatalog(scope, id, input);
-    const target = input.rows ?? "sources";
+  /** One reading of the research for both the proposal and its acceptance: an existing ontology is
+   *  offered as the columns to re-file under, so acceptance validates the design it produced. */
+  async function labelCatalog(scope: Scope, id: string, input: LabelInput) {
+    const opened = await importCatalog(scope, id, input), { catalog } = opened, target = input.rows ?? "sources";
     if (!catalog.columns && catalog.labels.length && !input.repropose && input.columnIndex === undefined) catalog.columns = catalog.labels.filter(label =>
       label.scope === (target === "sources" ? "source" : "highlight")).map((label, index) => ({ index,
         name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, scope: label.scope }));
+    return { ...opened, target };
+  }
+  async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
+    const { file, catalog, resolveFinding, target } = await labelCatalog(scope, id, input);
     const design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined)
       : await (await dependencies.tabular()).designLabels(scope, catalog, file, target,
         input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal }));
@@ -407,11 +412,11 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return { ...plan, design, fingerprint: catalog.fingerprint };
   }
   async function applyLabels(scope: Scope, id: string, input: LabelInput, actor?: Operation): Promise<ResearchFile> {
-    const { file, catalog } = await importCatalog(scope, id, input);
+    const { file, catalog, target } = await labelCatalog(scope, id, input);
     if (input.fingerprint !== catalog.fingerprint)
       return conflict("This research changed after the proposal. Review the refreshed proposal before applying it.");
     const { title, propose, actions } = researchLabelPlan(file, catalog,
-      input.design ?? fail(400, "Propose a label set before applying it"), input.rows ?? "sources");
+      input.design ?? fail(400, "Propose a label set before applying it"), target);
     return await commitResearchFile(documents, scope, file, { type: "batch", title, actions, ...(propose ? { propose } : {}) },
       undefined, operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
   }

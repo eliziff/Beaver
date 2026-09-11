@@ -33,6 +33,8 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [pickerModel] = useSelectedModel(), [pickerEffort] = useSelectedReasoningEffort();
     // The chat's own model first; if its provider fails, one retry on the picker's model.
     const [lane, setLane] = useState<"chat" | "picker">(chatModel ? "chat" : "picker");
+    // Accept the proposal on the reading that produced it: a redesign is not re-filed under the existing ontology.
+    const [redesigned, setRedesigned] = useState(false);
     const model = lane === "chat" && chatModel ? chatModel : pickerModel, effort = lane === "chat" && chatModel ? chatEffort ?? undefined : pickerEffort;
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
@@ -46,7 +48,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             const [current, next] = await Promise.all([getResearchFile(activeId),
                 labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body)]);
             if (run !== generation.current) return;
-            setFile(current);
+            setFile(current); setRedesigned(repropose);
             if (labelling) { setPlan(next as ResearchLabelProposal); setProposedName((next as ResearchLabelProposal).title); }
             else { setPreview(next as ResearchTablePreview); setNote((next as ResearchTablePreview).fallback ?? ""); }
         } catch (reason) { if (run !== generation.current) return;
@@ -63,7 +65,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         if (!activeId || creating || busy || !valid) return;
         setCreating(true); setError("");
         try {
-            if (labelling) { await applyWorkspaceLabels(activeId, { ...input, fingerprint: plan!.fingerprint, design: plan!.design });
+            if (labelling) { await applyWorkspaceLabels(activeId, { ...input, ...(redesigned ? { repropose: true } : {}), fingerprint: plan!.fingerprint, design: plan!.design });
                 onOpen(`/sources?research_file=${encodeURIComponent(activeId)}`); }
             else onOpen(tabularReviewPath(await openWorkspaceTable(activeId, { ...input, fingerprint: preview!.fingerprint, design: preview!.design })));
             onClose();
