@@ -14,8 +14,8 @@ import {
   authoritiesProfile,
   validateAuthoritiesDraft,
   authorityCitationForms,
-  federalEnactmentCitation,
-  hasBilingualAuthoritySource,
+  authoritySourceRequirement,
+  authoritySourceUrl,
   type AttachedAuthoritySource,
   type AuthoritiesBoundPdf,
   type AuthoritiesDraft,
@@ -178,19 +178,17 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
 }
 
 const reproducedInBook = (draft: AuthoritiesDraft, authority: AuthorityIdentity) =>
-  !authority.excluded && (authority.source.kind === "attached" ||
-    (draft.settings.allowIncomplete || draft.settings.missingSourcePolicy === "placeholder"));
+  !authority.excluded && !authoritySourceRequirement(draft, authority, {
+    completeBookSources: !draft.settings.allowIncomplete &&
+      draft.settings.missingSourcePolicy !== "placeholder" });
 
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
   deriveAuthorityProcedure(authorityProcedureInput(draft, {
     purpose, reproduced: (authority) => reproducedInBook(draft, authority),
   }));
 
-function authoritySourceUrl(authority: AuthorityIdentity) {
-  const value = authority.source.kind === "attached"
-    ? authority.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl ?? null
-    : authority.source.kind === "pending-canlii" ? authority.source.pageUrl
-      : authority.sourceIdentity?.externalUrl ?? null;
+function authoritySourceLink(authority: AuthorityIdentity) {
+  const value = authoritySourceUrl(authority);
   if (!value) return null;
   // Same canonicalization every other legal link gets: the Decisia iframe and
   // mobile parameters without which the document text never renders, the
@@ -206,7 +204,7 @@ function authoritySourceUrl(authority: AuthorityIdentity) {
 
 function freePublicDatabaseReference(authority: AuthorityIdentity) {
   if (authority.kind !== "case") return null;
-  const value = authoritySourceUrl(authority);
+  const value = authoritySourceLink(authority);
   if (!value) return null;
   const host = new URL(value).hostname.toLowerCase().replace(/\.+$/u, "");
   const canlii = ["canlii.ca", "canlii.org"].some((domain) =>
@@ -220,7 +218,7 @@ function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
   const entry = ({ id, tab }: typeof planned[number]): Entry => {
     const authority = draft.authorities[id]; return { authority,
     name: authorityName(draft, authority), citedAt: citedAt(draft, authority.id),
-    tab, sourceUrl: authoritySourceUrl(authority) }; };
+    tab, sourceUrl: authoritySourceLink(authority) }; };
   return [...new Set(planned.map(({ group }) => group))].map((label): Group =>
     ({ label, entries: planned.filter(({ group }) => group === label).map(entry) }));
 }
@@ -636,9 +634,9 @@ async function prepareAuthorityBook(
         ? await loadAuthorityPdf(pdf, source.sources, entry.name, attached,
           { draft, authority: entry.authority })
         : { document: await missingSourcePdf(pdf, entry.name, federal) };
-      if (draft.settings.allowIncomplete && profile.requirements?.bilingualEnactments &&
-          entry.authority.kind === "legislation" && federalEnactmentCitation(entry.authority.citation) &&
-          source.kind === "attached" && !hasBilingualAuthoritySource(source)) {
+      if (source.kind === "attached" && draft.settings.allowIncomplete &&
+          authoritySourceRequirement(draft, entry.authority, profile.requirements) ===
+            "incomplete-enactment") {
         const missingLanguage = source.sources.some(({ language }) => language === "en") ? "French" : "English";
         const stub = await missingSourcePdf(pdf, entry.name, federal,
           `${missingLanguage} version not attached. This draft is incomplete.`);
@@ -846,34 +844,32 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
   const wanted: RequestedRole[] = input.draft.outputMode === "both"
     ? ["table", "book"] : [input.draft.outputMode];
   const profile = authoritiesProfile(input.draft.settings.profileId);
-  const completeBook = profile.requirements?.completeBookSources ? profile.label : null;
-  if (wanted.includes("book") && completeBook && !input.draft.settings.allowIncomplete) {
-    const missing = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
-      .filter((authority) => !authority.excluded && authority.source.kind !== "attached");
-    if (missing.length) throw new Error(
-      `Attach a complete PDF or exclude ${authorityName(input.draft, missing[0])} before building this ${completeBook} book.`,
-    );
-  }
-  if (wanted.includes("book") && profile.requirements?.bilingualEnactments && !input.draft.settings.allowIncomplete) {
-    const incomplete = input.draft.authorityOrder.map((id) => input.draft.authorities[id])
-      .find((authority) => !authority.excluded && authority.kind === "legislation" &&
-        federalEnactmentCitation(authority.citation) && authority.source.kind === "attached" &&
-        !hasBilingualAuthoritySource(authority.source));
-    if (incomplete) throw new Error(
-      `Attach one bilingual PDF or both English and French PDFs for ${authorityName(input.draft, incomplete)}.`,
-    );
-  }
-  if (profile.requirements?.unlinkedPdfTableSources) {
-    const unlinked = tableGroups.flatMap(({ entries }) => entries).find(({ sourceUrl, authority }) =>
-      !sourceUrl && !(input.draft.insertIntoDocument &&
-        input.draft.import.kind === "document" && input.draft.import.fileType === "pdf" &&
-        authority.source.kind === "attached"))?.authority;
-    if (unlinked) {
-      throw new Error(input.draft.import.kind === "document" &&
-        input.draft.import.fileType === "docx" && unlinked.source.kind === "attached"
-        ? `Add a publicly accessible source link for ${authorityName(input.draft, unlinked)}. To append an unlinked authority, use the final filing PDF.`
-        : `Add a publicly accessible source link or PDF for ${authorityName(input.draft, unlinked)}.`);
-    }
+  const strictBook = wanted.includes("book") && !input.draft.settings.allowIncomplete;
+  const requirements = {
+    completeBookSources: strictBook && !!profile.requirements?.completeBookSources,
+    bilingualEnactments: strictBook && !!profile.requirements?.bilingualEnactments,
+    unlinkedPdfTableSources: !!profile.requirements?.unlinkedPdfTableSources,
+  };
+  const owed = (authority: AuthorityIdentity) => authorityName(input.draft, authority);
+  const sourceMessage = {
+    missing: (authority: AuthorityIdentity) =>
+      `Attach a complete PDF or exclude ${owed(authority)} before building this ${profile.label} book.`,
+    "incomplete-enactment": (authority: AuthorityIdentity) =>
+      `Attach one bilingual PDF or both English and French PDFs for ${owed(authority)}.`,
+    unlinked: (authority: AuthorityIdentity) => input.draft.import.kind === "document" &&
+      input.draft.import.fileType === "docx" && authority.source.kind === "attached"
+      ? `Add a publicly accessible source link for ${owed(authority)}. To append an unlinked authority, use the final filing PDF.`
+      : `Add a publicly accessible source link or PDF for ${owed(authority)}.`,
+  };
+  // Book obligations are reported in the user's book order, the table's link
+  // obligation in the order the court reads the table.
+  for (const [reason, order] of [["missing", "book"], ["incomplete-enactment", "book"],
+    ["unlinked", "table"]] as const) {
+    const owing = (order === "book"
+      ? input.draft.authorityOrder.map((id) => input.draft.authorities[id])
+      : tableGroups.flatMap(({ entries }) => entries).map(({ authority }) => authority))
+      .find((authority) => authoritySourceRequirement(input.draft, authority, requirements) === reason);
+    if (owing) throw new Error(sourceMessage[reason](owing));
   }
   if (input.draft.insertIntoDocument) wanted.push("annotated-document");
   const imported = input.draft.import.kind === "document" ? (() => {
