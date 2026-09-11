@@ -4,15 +4,14 @@ import { asyncRoute } from "../lib/asyncRoute";
 import { MAX_COURT_BUILD_OUTPUTS, type CourtRecordsApplication } from
   "../lib/courtRecordsApplication";
 import { requireAuth } from "../middleware/auth";
-import { multipleFileUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
+import { multipleFileUpload, requiredFile, requiredUpload, singleFileUpload,
+  uploadedDocument } from "../lib/upload";
 
 export function createCourtRecordsRouter(application: CourtRecordsApplication) {
   const router = Router();
   router.use(requireAuth);
   router.post("/documents", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const file = req.file ?? reject(400, "file is required");
-    const uploaded = uploadedDocument(file);
-    res.status(201).json(await application.saveFile(applicationScope(res), uploaded,
+    res.status(201).json(await application.saveFile(applicationScope(res), requiredUpload(req),
       textField(req.body?.work_product_id, "work_product_id")));
   }));
   router.post("/builds", multipleFileUpload("files", MAX_COURT_BUILD_OUTPUTS),
@@ -27,12 +26,11 @@ export function createCourtRecordsRouter(application: CourtRecordsApplication) {
       }))));
     }));
   router.post("/docx-rendition", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const file = req.file ?? reject(400, "file is required");
-    const pdf = await application.pdfRendition(uploadedDocument(file));
+    const pdf = await application.pdfRendition(requiredUpload(req));
     res.type("application/pdf").send(pdf);
   }));
   router.post("/pdf-preparation", singleFileUpload("file"), asyncRoute(async (req, res) => {
-    const file = req.file ?? reject(400, "file is required");
+    const file = requiredFile(req);
     let pages: unknown;
     try { pages = JSON.parse(String(req.body?.pages)); }
     catch { reject(400, "pages must be JSON"); }

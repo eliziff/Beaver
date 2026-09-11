@@ -11,7 +11,7 @@ import type { LibraryStore } from "../lib/libraryStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { downloadHeaders, MAX_OBJECT_SIZE_BYTES,
   normalizeDownloadFilename } from "../lib/storage";
-import { singleFileUpload, uploadedDocument } from "../lib/upload";
+import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
 import { z } from "zod";
 import { documentProjectionService } from "../lib/documentProjectionService";
 import { structureNative } from "../lib/structureNative";
@@ -119,9 +119,8 @@ export function createDocumentsRouter(
     "/",
     singleFileUpload("file"),
     asyncRoute(async (req, res) => {
-      const file = req.file ?? reject(400, "file is required");
       res.status(201).json(await documents.create(scope(res), {
-        ...uploadedDocument(file),
+        ...requiredUpload(req),
         libraryKind: "file",
       }));
     }),
@@ -206,7 +205,7 @@ export function createDocumentsRouter(
     "/:documentId/versions",
     singleFileUpload("file"),
     asyncRoute(async (req, res) => {
-      const file = req.file ?? reject(400, "file is required");
+      const file = requiredFile(req);
       const resolvedName = filename(req, file.originalname);
       const expectedCurrentVersionId = researchVersion.parse(
         req.body?.expected_current_version_id);
