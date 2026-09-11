@@ -9,6 +9,7 @@ export type PdfAnnotationSet = {
   schemaVersion: 'beaver.pdf-annotations.v1'; sourceSha256: string; marks: PdfAnnotation[];
 };
 export type PdfAnnotationSets = Record<string, PdfAnnotationSet>;
+export type AnnotationPreparation = { annotations: PdfAnnotationSet; pageMarked: string[] };
 export const ANNOTATION_SCHEMA: 'beaver.pdf-annotations.v1';
 export function validRect(rect: unknown): rect is AnnotationRect;
 export function decodeAnnotationSet(value: unknown): PdfAnnotationSet;

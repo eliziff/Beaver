@@ -21,10 +21,8 @@ DOCUMENT WORK:
 
 Present substantive findings and completed work in professional prose, using filenames or natural document descriptions. Italicize styles of cause. Use Markdown tables for comparisons and fenced blocks for ASCII diagrams. Omit process narration, separate citation lists and emojis.`;
 
-export type JurisdictionPreference = {
-  mode: "ask" | "presume";
-  jurisdictions: string[];
-};
+export type { JurisdictionPreference } from "mike/shared/user-preferences.mjs";
+import type { JurisdictionPreference } from "mike/shared/user-preferences.mjs";
 
 export function jurisdictionPreferencePrompt(
   preference: JurisdictionPreference | null,

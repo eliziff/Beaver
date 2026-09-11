@@ -41,13 +41,18 @@ export type FilingContact = {
   email: string;
 };
 
+export type JurisdictionPreference = {
+  mode: "ask" | "presume";
+  jurisdictions: string[];
+};
+
 export type UserPreferences = {
   displayName: string | null;
   organisation: string | null;
   practiceSetting: string | null;
   professionalTitle: string | null;
   practiceAreas: string[];
-  jurisdictionPreference: { mode: "ask" | "presume"; jurisdictions: string[] };
+  jurisdictionPreference: JurisdictionPreference;
   onboardingCompleted: boolean;
   titleModel: string | null;
   tabularModel: string | null;

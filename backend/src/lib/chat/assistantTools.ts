@@ -1521,8 +1521,8 @@ async function runDocxWorkflow(
   });
 }
 
-export type WorkProductFocus = { itemId: string;
-  selection?: { start: number; end: number } };
+export type { WorkProductFocus } from "mike/shared/work-products.mjs";
+import type { WorkProductFocus } from "mike/shared/work-products.mjs";
 
 type AssistantToolsDependencies = {
   userId: string;
