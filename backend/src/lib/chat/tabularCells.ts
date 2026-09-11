@@ -1,16 +1,13 @@
 import type { TabularApplication } from "../tabular/application";
 import { appUrl } from "../appRoutes";
 import { modelEvidencePassage, type LegalEvidenceReceipt } from "./legalEvidence";
-import { toolText, type BeaverTool } from "./toolRegistry";
+import { objectSchema as object, toolText, type BeaverTool } from "./toolRegistry";
 import { researchResultFilter, type ResearchReadContext } from "../researchReader";
 import { tabularSubjectId } from "../tabularStore";
 
 export type ResearchTableDetail = NonNullable<Awaited<ReturnType<TabularApplication["detail"]>>>;
 export type ResearchTableResolver = (reviewId?: string) => Promise<ResearchTableDetail | null>;
 
-const object = (properties: Record<string, object>) => ({
-  type: "object" as const, properties, additionalProperties: false,
-});
 
 export const tabularTool = <Context>(resolveTable: ResearchTableResolver, context?: ResearchReadContext): BeaverTool<Context> => ({
   name: "read_table_cells",
