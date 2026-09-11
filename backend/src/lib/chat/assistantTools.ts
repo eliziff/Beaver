@@ -132,8 +132,8 @@ import type { AuthoritiesUserAction } from "../authoritiesActions";
 import type { AuthoritiesWorkspaceApplication } from "../authoritiesWorkspaceApplication";
 import { AUTHORITIES_SETTINGS_CHOICES, AUTHORITIES_TOOL_ACTIONS, AUTHORITIES_ACTION_CHOICES, authorityKinds, decodeAuthoritiesUserAction } from
   "../authoritiesActionContract";
-import { authoritiesProfileIds,
-  decodeAuthoritiesDraft } from "../authoritiesDomain";
+import { authoritiesProfileIds, decodeAuthoritiesDraft, type AuthoritiesDraft,
+  type AuthorityOccurrence, type AuthorityTextSpan } from "../authoritiesDomain";
 import { footnotePropositions, singleSourceFootnote } from "../authoritiesQuotations";
 import type { CourtRecordsApplication } from "../courtRecordsApplication";
 import { COURT_PROFILE_BY_ID } from "mike/shared/court-record-profiles.mjs";
@@ -318,7 +318,9 @@ const workProductTool = (authoritiesEnabled: boolean, bound = false,
     "selection, and each is a button beside it: " +
     "set-authority-span (Use selection as citation), set-pinpoint-span (Use selection as pinpoint), split-occurrence (Split at cursor), merge-occurrence (Merge with previous), remove-occurrence (Not a citation); clear-pinpoint and add-occurrence (unitId + span_text) have no button. Update with authorities_action, " +
     "evidence_ids, authority_id + document_id + source_language, or book_slot + document_id. " +
-    "Reuse supplement_id to replace a supplemental PDF or authorities_action.id to remove it.",
+    "Reuse supplement_id to replace a supplemental PDF or authorities_action.id to remove it. " +
+    "An authorities_action returns change.changed: the occurrences this edit altered, added or " +
+    "removed, each with before and after, and an empty array where it altered nothing.",
   annotations: { readOnlyHint: false },
   inputSchema: objectSchema({
     action: { type: "string", enum: bound ? ["read", "review", "update", "refresh", "build"]
@@ -2218,6 +2220,58 @@ export function assistantTools<Context extends {
     workProductRevisions.set(product.id, product.revision);
     return workProductResult(product, values);
   };
+  // Boundary work reads spans, not just rows: every listing carries what it would correct.
+  const span = (value: AuthorityTextSpan | null) => value && ({ start: value.start,
+    end: value.end, text: clip(value.text, 500) });
+  const boundaries = (item: AuthorityOccurrence) => ({
+    start: item.start, end: item.end, kind: item.kind, citation: clip(item.citation, 300),
+    authority_id: item.authorityId, authority_span: span(item.authoritySpan),
+    pinpoint_span: span(item.pinpointSpan), pinpoints: item.pinpoints,
+    ...(item.reference ? { reference: item.reference } : {}) });
+  const authorityLabel = (draft: AuthoritiesDraft, id: string | null) => {
+    const item = id ? draft.authorities[id] : null;
+    return id ? { id, label: clip([item?.displayName ?? item?.name, item?.citation]
+      .filter(Boolean).join(", "), 200) || id } : null;
+  };
+  // The reply narrates the edit, not the draft: unless the mutation result says what
+  // this call moved, the model reads back the final state and reports nothing changed.
+  const authoritiesChanges = (before: AuthoritiesDraft, after: AuthoritiesDraft) => {
+    const ids = [...new Set([...Object.keys(before.occurrences),
+      ...Object.keys(after.occurrences)])];
+    const changed = ids.flatMap((id) => {
+      const was = before.occurrences[id], now = after.occurrences[id];
+      if (!now) return [{ occurrence_id: id, unit_id: was.unitId,
+        status: "removed", ...boundaries(was) }];
+      if (!was) return [{ occurrence_id: id, unit_id: now.unitId,
+        status: "added", ...boundaries(now) }];
+      const fields: Record<string, unknown> = {};
+      const differs = (key: string, left: unknown, right: unknown) => {
+        if (JSON.stringify(left ?? null) !== JSON.stringify(right ?? null)) {
+          fields[key] = { before: left ?? null, after: right ?? null };
+        }
+      };
+      differs("citation", clip(was.citation, 300), clip(now.citation, 300));
+      differs("kind", was.kind, now.kind);
+      differs("authority_span", span(was.authoritySpan), span(now.authoritySpan));
+      differs("pinpoint_span", span(was.pinpointSpan), span(now.pinpointSpan));
+      differs("pinpoints", was.pinpoints, now.pinpoints);
+      differs("authority", authorityLabel(before, was.authorityId),
+        authorityLabel(after, now.authorityId));
+      differs("reference", was.reference, now.reference);
+      return Object.keys(fields).length ? [{ occurrence_id: id, unit_id: now.unitId,
+        status: "updated", ...fields }] : [];
+    });
+    // add-occurrence and relink-occurrence mint and orphan authorities, and the
+    // authority list is the half of the edit the occurrence rows cannot show.
+    const minted = (from: AuthoritiesDraft, to: AuthoritiesDraft) => to.authorityOrder
+      .filter((id) => !from.authorityOrder.includes(id)).slice(0, 20)
+      .flatMap((id) => { const item = authorityLabel(to, id); return item ? [item] : []; });
+    const added = minted(before, after), removed = minted(after, before);
+    return { changed: changed.slice(0, 50),
+      ...(changed.length > 50 ? { changed_truncated: true } : {}),
+      ...(added.length ? { authorities_added: added } : {}),
+      ...(removed.length ? { authorities_removed: removed } : {}) };
+  };
   const authoritiesPayload = (product: Awaited<ReturnType<typeof authorities.importDraft>>,
     input: Record<string, unknown> = {}, values: Record<string, unknown> = {}) => {
     const draft = decodeAuthoritiesDraft(product.state);
@@ -2303,15 +2357,6 @@ export function assistantTools<Context extends {
       authority_page: { offset: authorityOffset, limit: authorityLimit,
         has_more: authorityOffset + authorityLimit < authorityIds.length },
     };
-    // Boundary work reads spans, not just rows: every listing carries what it would correct.
-    type Span = { start: number; end: number; text: string } | null;
-    const span = (value: Span) => value && ({ start: value.start, end: value.end,
-      text: clip(value.text, 500) });
-    const boundaries = (item: (typeof draft.occurrences)[string]) => ({
-      start: item.start, end: item.end, kind: item.kind, citation: clip(item.citation, 300),
-      authority_id: item.authorityId, authority_span: span(item.authoritySpan),
-      pinpoint_span: span(item.pinpointSpan), pinpoints: item.pinpoints,
-      ...(item.reference ? { reference: item.reference } : {}) });
     if (!occurrenceId && !requestedUnitId) {
       const ids = draft.units.flatMap(({ occurrenceIds }) => occurrenceIds);
       summary.occurrence_index = ids.slice(occurrenceOffset,
@@ -2351,9 +2396,11 @@ export function assistantTools<Context extends {
   const authoritiesMutationPayload = (
     product: Awaited<ReturnType<typeof authorities.importDraft>>,
     change: Record<string, unknown>,
+    before?: AuthoritiesDraft | null,
   ) => {
     const draft = decodeAuthoritiesDraft(product.state), outputRoles = Object.keys(product.outputs ?? {});
-    return workProductPayload(product, { change,
+    return workProductPayload(product, {
+      change: { ...change, ...(before && draft ? authoritiesChanges(before, draft) : {}) },
       ...(draft && { state: { output_mode: draft.outputMode,
         profile_id: draft.settings.profileId,
         counts: { units: draft.units.length, occurrences: Object.keys(draft.occurrences).length,
@@ -2609,9 +2656,11 @@ export function assistantTools<Context extends {
         throw new Error("Update Authorities with exactly one edit, PDF attachment, or evidence list");
       }
       if (action) {
+        const before = decodeAuthoritiesDraft(target.product.state);
         const product = await authorities.act(scope, target.product.id, target.revision, action);
         return respond(authoritiesMutationPayload(product, { type: action.type,
-          ...(action.type === "remove-book-supplement" ? { supplement_id: action.id } : {}) }), true);
+          ...(action.type === "remove-book-supplement" ? { supplement_id: action.id } : {}) },
+        before), true);
       }
       if (attachment) {
         if (supplementId && bookSlot !== "supplemental") {
