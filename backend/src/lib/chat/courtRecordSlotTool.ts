@@ -65,7 +65,8 @@ const schema: Tool & BeaverToolPolicy = {
   sequential: true,
   activity: (input) => input.action === "read" ? "Reading Court Record" : "Updating Court Record",
   description: "Read or update the active Court Record. Read returns its current preset, visible " +
-    "cover fields, parties, slots, entries, and bindings. Update fills empty cover or party fields, " +
+    "cover fields, parties, slots, entries, bindings, and entry_documents: the version-pinned " +
+    "document_id to pass to Read or view_page for each bound entry (never the binding's 'latest'). Update fills empty cover or party fields, " +
   "binds one Library document or compatible saved output, and edits its visible description, date, " +
     "or exhibit label. A description-only slot needs no file.",
   annotations: { readOnlyHint: false },
@@ -88,9 +89,22 @@ type Dependencies = {
   library: LibraryStore;
   workProducts: Pick<WorkProductApplication, "get" | "list">;
   courtRecords: Pick<CourtRecordsApplication, "bindOutput" | "updateDraft">;
+  documents: Pick<DocumentStore, "metadata">;
   resolveArtifact?(value: string): string | undefined;
   onMutationCommitted(): void;
 };
+
+/** Each bound entry as a version-pinned resource the Read and view_page tools accept ("latest" resolved). */
+async function entryDocuments(dependencies: Pick<Dependencies, "scope" | "documents">, product: CourtRecordProduct) {
+  const bindings = isJsonRecord(product.state.bindings) ? product.state.bindings : {};
+  return (await Promise.all(Object.entries(bindings).map(async ([entryId, binding]) => {
+    if (!isJsonRecord(binding) || binding.kind !== "document") return [];
+    const documentId = String(binding.documentId);
+    const versionId = isJsonRecord(binding.version) ? String(binding.version.versionId)
+      : (await dependencies.documents.metadata(dependencies.scope, documentId))?.current_version_id;
+    return versionId ? [{ entry_id: entryId, document_id: `document://${documentId}/version/${versionId}` }] : [];
+  }))).flat();
+}
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const draftOutputChoices = async (dependencies: Dependencies,
@@ -154,6 +168,7 @@ export function courtRecordSlotTool<Context>(dependencies: Dependencies): Beaver
         const before = revision;
         if (input.action === "read") {
           const result = payload(product, {
+            entry_documents: await entryDocuments(dependencies, product),
             draft_outputs: await draftOutputChoices(dependencies,
               COURT_PROFILE_BY_ID.get(String(product.state.profileId))!),
           });
