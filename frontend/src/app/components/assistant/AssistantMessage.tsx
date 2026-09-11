@@ -22,7 +22,6 @@ interface Props {
     isStreaming?: boolean;
     onCitationClick?: (citation: Citation) => void;
     citationTitle?: (citation: Citation) => string;
-    showCopyAction?: boolean;
     onWorkflowRunClick?: (run: WorkflowRunEvent) => void;
     onReaderClick?: (readerId: string) => void;
     minHeight?: string;
@@ -46,7 +45,6 @@ export function AssistantMessage({
     isStreaming = false,
     onCitationClick,
     citationTitle,
-    showCopyAction = true,
     onWorkflowRunClick,
     onReaderClick,
     minHeight = "0px",
@@ -309,21 +307,19 @@ export function AssistantMessage({
                         {message.artifacts.map(downloadBlock)}
                     </div>
                 )}
-                {showCopyAction && (
-                    <div className="flex items-center justify-start gap-2 py-2 font-sans">
-                        {!isStreaming && (
-                            <button
-                                type="button"
-                                className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                                onClick={handleCopy}
-                                title={isCopied ? "Response copied" : "Copy response"}
-                                aria-label={isCopied ? "Response copied" : "Copy response"}
-                            >
-                                {isCopied ? <Check aria-hidden="true" className="h-3.5 w-3.5 text-green-600" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
-                            </button>
-                        )}
-                    </div>
-                )}
+                <div className="flex items-center justify-start gap-2 py-2 font-sans">
+                    {!isStreaming && (
+                        <button
+                            type="button"
+                            className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            onClick={handleCopy}
+                            title={isCopied ? "Response copied" : "Copy response"}
+                            aria-label={isCopied ? "Response copied" : "Copy response"}
+                        >
+                            {isCopied ? <Check aria-hidden="true" className="h-3.5 w-3.5 text-green-600" /> : <Copy aria-hidden="true" className="h-3.5 w-3.5" />}
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
