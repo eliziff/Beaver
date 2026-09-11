@@ -1,11 +1,9 @@
 import { cachedContent } from "../contentCache";
 import { guardedRemoteFetch, normalizeRemoteHttpsUrl } from "../remoteUrlSafety";
-import {
-  type NativeDocument,
-} from "../structureNative";
+import { type NativeDocument } from "../structureNative";
 import { jsonRecord as objectValue } from "../value";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import type { LegalSourcePassageRequest, LegalSourceReference, LegalSourceProvider } from ".";
+import type { LegalSourceReference, LegalSourceProvider } from ".";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -62,24 +60,44 @@ export const remoteLegalSourceAttachment = (url: string | null, fields: {
 }] : [];
 
 /**
- * The passage path every remote provider shares: fetch the document for one
- * search result, then read it through the requested locator. The provider's own
- * reference wins over the stored one except for the freshly fetched title.
+ * The three remote case providers are one provider: match a citation, answer a
+ * resolve with the single search result, and read passages from the document
+ * that result names -- searching again when a stored reference names none. Only
+ * the search, the document fetch and the reference fields differ. On a read the
+ * provider's own reference wins over the stored one, bar the fetched title.
  */
-export async function remoteLegalSourcePassages<Result>(
-  request: LegalSourcePassageRequest,
-  result: Result | null,
-  fetchDocument: (result: Result, signal?: AbortSignal) => Promise<RemoteLegalSourceDocument>,
-  reference: (result: Result) => LegalSourceReference,
-) {
-  if (!result) return [];
-  const document = await fetchDocument(result, request.signal);
-  return nativeDocumentPassages({
-    request,
-    reference: { ...request.source, ...reference(result), title: document.title },
-    document: document.native,
-    native: document,
-  });
+export function remoteCaseProvider<Result>(spec: {
+  id: RemoteLegalSourceDocument["provider"];
+  /** The citation this provider recognizes in a resolve request's text. */
+  matches: (text: string) => unknown;
+  search: (text: string, signal?: AbortSignal) => Promise<Result | null>;
+  fetch: (result: Result, signal?: AbortSignal) => Promise<RemoteLegalSourceDocument>;
+  /** The reference fields of one result; `provider` and `kind` are shared. */
+  reference: (result: Result) => Omit<LegalSourceReference, "provider" | "kind">;
+  /** A stored reference read back as a search result, or null to search again. */
+  fromSource: (source: LegalSourceReference) => Result | null;
+}): RemoteLegalSourceProvider {
+  const reference = (result: Result) =>
+    ({ provider: spec.id, kind: "case", ...spec.reference(result) }) satisfies
+      LegalSourceReference;
+  return {
+    id: spec.id,
+    canResolve: ({ kind, text }) => kind === "case" && Boolean(spec.matches(text)),
+    async resolve({ text, signal }) {
+      const result = await spec.search(text, signal);
+      return result ? [reference(result)] : [];
+    },
+    async readPassage(request) {
+      const { source, signal } = request;
+      const result = spec.fromSource(source) ??
+        await spec.search(source.citation || source.id, signal);
+      if (!result) return [];
+      const document = await spec.fetch(result, signal);
+      return nativeDocumentPassages({ request, document: document.native,
+        reference: { ...source, ...reference(result), title: document.title },
+        native: document });
+    },
+  };
 }
 
 export function legalSourceUrl(
