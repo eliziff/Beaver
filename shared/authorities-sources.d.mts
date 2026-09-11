@@ -33,9 +33,38 @@ type SourceDraft<Binding = unknown> = {
 };
 type SourceAuthority = { source: AuthoritySourceDecision };
 
+/** The obligations a caller enforces, named after the court profile requirements. */
+export type AuthoritySourceRequirements = {
+  completeBookSources?: boolean;
+  bilingualEnactments?: boolean;
+  unlinkedPdfTableSources?: boolean;
+};
+export type AuthoritySourceReason = "missing" | "incomplete-enactment" | "unlinked";
+type RequirementDraft = {
+  import: { kind: "manual" } | { kind: "document"; fileType: "pdf" | "docx" };
+  outputMode: "table" | "book" | "both";
+  insertIntoDocument: boolean;
+};
+type RequirementAuthority = {
+  kind: string;
+  citation: string;
+  excluded?: boolean;
+  source: AuthoritySourceDecision;
+  sourceIdentity?: { externalUrl?: string | null } | null;
+};
+
 export function attachedAuthoritySources(source: AuthoritySourceDecision): AttachedAuthoritySource[];
 export function federalEnactmentCitation(citation: string): boolean;
 export function hasBilingualAuthoritySource(source: AuthoritySourceDecision): boolean;
+export function authoritySourceUrl(authority: RequirementAuthority): string | null;
+export function bilingualEnactmentRequired(authority: Pick<RequirementAuthority, "kind" | "citation">,
+  requirements?: AuthoritySourceRequirements | null): boolean;
+export function authorityBytesRequired(draft: RequirementDraft,
+  requirements?: AuthoritySourceRequirements | null): boolean;
+export function authorityPdfRequired(draft: RequirementDraft, authority: RequirementAuthority,
+  requirements?: AuthoritySourceRequirements | null): boolean;
+export function authoritySourceRequirement(draft: RequirementDraft, authority: RequirementAuthority,
+  requirements?: AuthoritySourceRequirements | null, prepared?: boolean): AuthoritySourceReason | null;
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
 export function removeUnusedBinding(draft: SourceDraft, role: string | undefined): void;
 export function replaceSource(draft: SourceDraft, authority: SourceAuthority,
@@ -50,7 +79,7 @@ export function authoritiesInputPlan<A extends SourceAuthority & { excluded: boo
   bookParts: AuthoritiesBookParts;
   outputMode: "table" | "book" | "both";
   insertIntoDocument: boolean;
-}, requirements?: { unlinkedPdfTableSources?: boolean }): {
+}, requirements?: AuthoritySourceRequirements | null): {
   authoritySources: Array<{ authority: A; source: AttachedAuthoritySource }>;
   bookPdfs: AuthoritiesBoundPdf[];
   bookRoles: Set<string>;
