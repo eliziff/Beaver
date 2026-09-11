@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import QuoteCheckWorkflow from "./QuoteCheckWorkflow";
+import { QuoteReviewModal } from "./QuoteReviewModal";
+import type { Workflow } from "@/app/lib/api/workflows";
 
 const api = vi.hoisted(() => ({ response: vi.fn(), upload: vi.fn(), download: vi.fn(), save: vi.fn(), directory: vi.fn() }));
 vi.mock("@/app/lib/api/workflows", () => ({ streamQuoteCheck: api.response }));
@@ -22,7 +24,12 @@ beforeEach(() => {
 });
 
 it("checks the selected document version and downloads its saved workbook", async () => {
-  render(<QuoteCheckWorkflow documents={[source]} />);
+  const workflow: Workflow = { id: "quote-checking", user_id: null, is_system: true, created_at: "",
+    metadata: { title: "Review quotations", description: "Check wording.", category: "Research and verification",
+      audiences: ["general"], contributors: [], language: "English", version: "1", jurisdictions: [] },
+    launcher: { kind: "quote_check", variants: [] } };
+  render(<QuoteReviewModal workflow={workflow} documents={[source]} onClose={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Check quotations" }));
   const download = await screen.findByRole("button", { name: workbook.filename });
   expect(api.response).toHaveBeenCalledWith("source-1", "version-1");
