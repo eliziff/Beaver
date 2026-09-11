@@ -1,6 +1,6 @@
 type Entry = {
   expires: number;
-  bytes: number;
+  bytes: number; // Zero until this entry is admitted to the byte budget.
   value: Promise<unknown>;
 };
 
@@ -16,14 +16,6 @@ function remove(key: string) {
   entries.delete(key);
 }
 
-function trim() {
-  while (cachedBytes > MAX_CACHE_BYTES) {
-    const oldest = entries.keys().next().value as string | undefined;
-    if (!oldest) return;
-    remove(oldest);
-  }
-}
-
 /** Bounded, process-local cache for public provider responses. */
 export async function cachedContent<T>(params: {
   scope: string;
@@ -33,9 +25,7 @@ export async function cachedContent<T>(params: {
   ttlMs?: number;
   produce: () => Promise<T>;
 }): Promise<T> {
-  const key = JSON.stringify([
-    params.scope, params.kind, params.key, params.version,
-  ]);
+  const key = JSON.stringify([params.scope, params.kind, params.key, params.version]);
   const hit = entries.get(key);
   if (hit && hit.expires > Date.now()) {
     entries.delete(key);
@@ -45,31 +35,27 @@ export async function cachedContent<T>(params: {
   remove(key);
 
   const value = Promise.resolve().then(params.produce);
-  const entry: Entry = {
-    expires: Infinity,
-    bytes: 0,
-    value,
-  };
+  const entry: Entry = { expires: Infinity, bytes: 0, value };
   entries.set(key, entry);
   try {
     const resolved = await value;
     if (entries.get(key) !== entry) return resolved;
+    let snapshot: unknown, bytes: number;
     try {
       const serialized = JSON.stringify(resolved);
-      entry.bytes = Buffer.byteLength(serialized);
-      entry.value = Promise.resolve(JSON.parse(serialized));
+      bytes = Buffer.byteLength(serialized);
+      if (bytes > MAX_ENTRY_BYTES) return resolved;
+      snapshot = JSON.parse(serialized);
     } catch {
-      remove(key);
       return resolved;
     }
-    entry.expires = params.ttlMs === undefined
-      ? Infinity
-      : Date.now() + params.ttlMs;
-    if (entry.bytes > MAX_ENTRY_BYTES) remove(key);
-    else { cachedBytes += entry.bytes; trim(); }
+    entry.value = Promise.resolve(snapshot);
+    entry.expires = params.ttlMs === undefined ? Infinity : Date.now() + params.ttlMs;
+    entry.bytes = bytes;
+    cachedBytes += bytes;
+    while (cachedBytes > MAX_CACHE_BYTES) remove(entries.keys().next().value!);
     return resolved;
-  } catch (error) {
-    if (entries.get(key) === entry) remove(key);
-    throw error;
+  } finally {
+    if (!entry.bytes && entries.get(key) === entry) remove(key);
   }
 }
