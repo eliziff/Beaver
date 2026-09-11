@@ -13,7 +13,7 @@ const storageFactoryUse = /\b(?:createFilesystemObjectStorage|createS3ObjectStor
 const allow = (...groups) => new Set(groups.flatMap(([base, names, extension = "ts"]) =>
   names.split(" ").map((name) => `${base}/${name}.${extension}`)));
 const modeFiles = allow(
-  ["backend/src", "api index runtime runtimeConfig server"],
+  ["backend/src", "api index jobLanes runtime runtimeConfig server"],
   ["backend/src/lib", "localMode relationalDatabase"],
   ["backend/src", "middleware/auth"],
   ["frontend/src/app", "(pages)/account/layout (pages)/layout (pages)/projects/[id]/assistant/chat/[chatId]/page components/documents/DocumentAutomation components/projects/ProjectDocumentsView components/projects/ProjectWorkspace components/settings/ApiKeySettings components/settings/AppSettingsModal components/shared/AppSidebar components/workflows/WorkflowDetailPage contexts/AuthContext contexts/UserProfileContext", "tsx"],

@@ -1,5 +1,5 @@
 import { availableParallelism, totalmem } from "node:os";
-import { isLocalRuntime } from "./localMode";
+import { isLocalRuntime } from "./lib/localMode";
 
 // Every long native call - DOCX and PDF derivation, OCR, passage geometry, the
 // authority ledger's text units - is a libuv thread-pool task that holds its
