@@ -70,29 +70,23 @@ export async function deleteUserAccountData(
         { projectIds: ownedProjectIds, includeOwned: true },
     );
 
-    const deletions = [
-        db.from("tabular_reviews").delete().eq("user_id", userId),
-        db.from("chats").delete().eq("user_id", userId),
-        db.from("project_subfolders").delete().eq("user_id", userId),
-        db
-            .from("workflow_open_source_submissions")
-            .delete()
-            .eq("submitted_by_user_id", userId),
-        db.from("workflow_shares").delete().eq("shared_by_user_id", userId),
+    const owned = (table: string, column = "user_id", value = userId) =>
+        db.from(table).delete().eq(column, value);
+    const results = await Promise.all([
+        owned("tabular_reviews"),
+        owned("chats"),
+        owned("project_subfolders"),
+        owned("workflow_open_source_submissions", "submitted_by_user_id"),
+        owned("workflow_shares", "shared_by_user_id"),
         userEmail
-            ? db
-                  .from("workflow_shares")
-                  .delete()
-                  .eq("shared_with_email", userEmail.trim().toLowerCase())
+            ? owned("workflow_shares", "shared_with_email", userEmail.trim().toLowerCase())
             : Promise.resolve({ error: null }),
-        db.from("workflows").delete().eq("user_id", userId),
-        db.from("work_products").delete().eq("user_id", userId),
-        db.from("audit_events").delete().eq("user_id", userId),
-        db.from("user_preferences").delete().eq("user_id", userId),
-        db.from("projects").delete().eq("user_id", userId),
-    ];
-
-    const results = await Promise.all(deletions);
+        owned("workflows"),
+        owned("work_products"),
+        owned("audit_events"),
+        owned("user_preferences"),
+        owned("projects"),
+    ]);
     for (const result of results) {
         throwIfError(result.error, "Failed to delete account data");
     }

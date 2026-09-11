@@ -29,6 +29,10 @@ const route = (
   lazy: LazyRoute,
   extra: { handle?: unknown; children?: RouteObject[] } = {},
 ): RouteObject => ({ path, lazy, ...extra });
+/** The four auth-flow screens share one lazily loaded chunk. */
+const authFlowRoute = (path: string,
+  name: "CheckEmailPage" | "AuthCallbackPage" | "ForgotPasswordPage" | "ResetPasswordPage") =>
+  route(path, namedPage(() => import("@/app/components/account/AuthFlowPages"), name));
 
 const libraryPage: LazyRoute = async () => {
   const { LibraryCollectionPage, LibraryWorkspaceProvider } = await import(
@@ -181,27 +185,15 @@ function routes(LoginGate?: LoginGate): RouteObject[] {
     { index: true, element: <Navigate to="/assistant" replace /> },
     route("login", page(() => import("@/app/login/page"))),
     route("signup", page(() => import("@/app/signup/page"))),
-    route("signup/check-email", namedPage(
-      () => import("@/app/components/account/AuthFlowPages"), "CheckEmailPage",
-    )),
-    route("auth/callback", namedPage(
-      () => import("@/app/components/account/AuthFlowPages"), "AuthCallbackPage",
-    )),
-    route("forgot-password", namedPage(
-      () => import("@/app/components/account/AuthFlowPages"), "ForgotPasswordPage",
-    )),
-    route("reset-password", namedPage(
-      () => import("@/app/components/account/AuthFlowPages"), "ResetPasswordPage",
-    )),
+    authFlowRoute("signup/check-email", "CheckEmailPage"),
+    authFlowRoute("auth/callback", "AuthCallbackPage"),
+    authFlowRoute("forgot-password", "ForgotPasswordPage"),
+    authFlowRoute("reset-password", "ResetPasswordPage"),
     route("onboarding", namedPage(
       () => import("@/app/components/account/PersonalisationPage"), "OnboardingPage",
     )),
-    route("word", namedPage(
-      () => import("@/app/components/word/WordPage"), "WordPage",
-    )),
-    route("word.html", namedPage(
-      () => import("@/app/components/word/WordPage"), "WordPage",
-    )),
+    ...["word", "word.html"].map((path) => route(path, namedPage(
+      () => import("@/app/components/word/WordPage"), "WordPage"))),
     { lazy: page(() => import("@/app/(pages)/layout")), children: appRoutes },
     route("*", page(() => import("@/app/not-found"))),
   ],

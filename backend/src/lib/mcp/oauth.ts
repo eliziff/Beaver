@@ -397,16 +397,21 @@ async function sdk() {
   return { Client, StreamableHTTPClientTransport };
 }
 
+/** The connector's transport, carrying its auth provider and guarded fetch. */
+async function mcpTransport(connector: ConnectorRow, provider: DbMcpOAuthProvider) {
+  return new (await sdk()).StreamableHTTPClientTransport(new URL(connector.server_url), {
+    authProvider: provider, fetch: connectorFetch(connector, provider),
+    requestInit: { redirect: "manual" },
+  });
+}
+
 export async function withRemoteMcp<T>(connector: ConnectorRow,
   run: (client: Client) => Promise<T>, db: Db) {
   await validateMcpUrl(connector.server_url);
   const provider = new DbMcpOAuthProvider(db, connector, "connect");
-  const { Client, StreamableHTTPClientTransport } = await sdk();
-  const transport = new StreamableHTTPClientTransport(new URL(connector.server_url), {
-    authProvider: provider, fetch: connectorFetch(connector, provider),
-    requestInit: { redirect: "manual" },
-  });
-  const client = new Client(CLIENT_INFO, { capabilities: {}, enforceStrictCapabilities: true });
+  const transport = await mcpTransport(connector, provider);
+  const client = new (await sdk()).Client(CLIENT_INFO,
+    { capabilities: {}, enforceStrictCapabilities: true });
   try {
     await client.connect(transport, { timeout: MCP_REQUEST_TIMEOUT_MS });
     return await run(client);
@@ -453,11 +458,6 @@ export async function completeMcpConnectorOAuthAuthorization(state: string, code
   const binding = await validateDiscovery(config.discovery, connector.server_url);
   const provider = new DbMcpOAuthProvider(db, connector, "complete", config, binding,
     state as ReturnType<typeof globalThis.crypto.randomUUID>);
-  const { StreamableHTTPClientTransport } = await sdk();
-  const transport = new StreamableHTTPClientTransport(new URL(connector.server_url), {
-    authProvider: provider, fetch: connectorFetch(connector, provider),
-    requestInit: { redirect: "manual" },
-  });
-  await transport.finishAuth(code);
+  await (await mcpTransport(connector, provider)).finishAuth(code);
   return { userId: config.userId, connectorId: config.connectorId };
 }
