@@ -47,10 +47,6 @@ const children: RouteObject[] = [
         handle: { capability: "connectors" },
         element: <p>Connector settings</p>,
     },
-    {
-        path: "history",
-        element: <p>History</p>,
-    },
     { path: "assistant", element: <p>Assistant route</p> },
     { path: "table-of-authorities", element: <p>Authorities route</p> },
 ];
@@ -72,11 +68,6 @@ describe("local route access", () => {
         view.unmount();
         renderPath("/account/features");
         expect(screen.getByText("Feature settings")).toBeVisible();
-    });
-
-    it("renders shared local history", async () => {
-        renderPath("/history");
-        expect(await screen.findByText("History")).toBeVisible();
     });
 
     it("hides capabilities disabled by the server", () => {

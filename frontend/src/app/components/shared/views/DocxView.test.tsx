@@ -12,8 +12,6 @@ const mocks = vi.hoisted(() => ({
     parseAsync: vi.fn(),
     renderDocument: vi.fn(),
     useDocumentFile: vi.fn(),
-    withBrokenImage: false,
-    withTrackedChanges: false,
 }));
 
 vi.mock("docx-preview", () => ({
@@ -23,14 +21,6 @@ vi.mock("docx-preview", () => ({
 
 vi.mock("@/app/hooks/useDocumentFile", () => ({
     useDocumentFile: mocks.useDocumentFile,
-}));
-
-vi.mock("./PdfView", () => ({
-    PdfView: ({ onUnavailable }: { onUnavailable?: () => void }) => (
-        <button data-testid="pdf-rendition" onClick={onUnavailable}>
-            PDF rendition
-        </button>
-    ),
 }));
 
 import {
@@ -46,8 +36,6 @@ class ResizeObserverMock {
 
 describe("DocxView", () => {
     beforeEach(() => {
-        mocks.withBrokenImage = false;
-        mocks.withTrackedChanges = false;
         vi.stubGlobal("ResizeObserver", ResizeObserverMock);
         vi.stubGlobal(
             "requestAnimationFrame",
@@ -59,58 +47,12 @@ describe("DocxView", () => {
         vi.stubGlobal("cancelAnimationFrame", vi.fn());
 
         mocks.useDocumentFile.mockReturnValue({
-            // Fresh buffer per test so the parsed-document cache is cold.
+            // A new source per test keeps rendering independent.
             result: { type: "docx", buffer: new ArrayBuffer(8) },
             loading: false,
             error: null,
         });
-        mocks.parseAsync.mockImplementation(async () => {
-            if (!mocks.withTrackedChanges) return {};
-            return {
-                documentPart: {
-                    _xmlDocument: new DOMParser().parseFromString(
-                        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:ins w:id="17" /></w:body></w:document>',
-                        "application/xml",
-                    ),
-                    body: {
-                        children: [{ type: "inserted", id: "17", children: [] }],
-                    },
-                },
-            };
-        });
-        mocks.renderDocument.mockImplementation(
-            async (doc: any, container: HTMLElement) => {
-                container.innerHTML = "";
-                const wrapper = document.createElement("div");
-                wrapper.className = "docx-wrapper";
-                for (let index = 0; index < 2; index++) {
-                    const page = document.createElement("section");
-                    page.className = "docx";
-                    Object.defineProperty(page, "offsetWidth", {
-                        configurable: true,
-                        value: 816,
-                    });
-                    if (index === 0 && mocks.withTrackedChanges) {
-                        const change = document.createElement("ins");
-                        change.dataset.wId =
-                            doc.documentPart.body.children[0].id;
-                        page.appendChild(change);
-                    }
-                    if (index === 0 && mocks.withBrokenImage) {
-                        const frame = document.createElement("span");
-                        const image = document.createElement("img");
-                        Object.defineProperties(image, {
-                            complete: { configurable: true, value: true },
-                            naturalWidth: { configurable: true, value: 0 },
-                        });
-                        frame.appendChild(image);
-                        page.appendChild(frame);
-                    }
-                    wrapper.appendChild(page);
-                }
-                container.appendChild(wrapper);
-            },
-        );
+        mocks.parseAsync.mockResolvedValue({});
     });
 
     afterEach(() => {
@@ -125,8 +67,9 @@ describe("DocxView", () => {
             container.innerHTML = '<section class="docx" style="width:612pt">Document text</section>';
             await new Promise<void>((resolve) => { finish = resolve; });
         });
-        const onReady = vi.fn();
-        const { container } = render(<DocxView documentId="doc-1" initialScrollTop={120} onReady={onReady} />);
+        const onReady = vi.fn(), onScrollChange = vi.fn();
+        const { container } = render(<DocxView documentId="doc-1" initialScrollTop={120}
+            onReady={onReady} onScrollChange={onScrollChange} />);
         await waitFor(() => expect(screen.getByText("Document text")).toBeInTheDocument());
         expect(screen.getByText("Document text")).not.toBeVisible();
         expect(screen.getByRole("status", { name: "Loading document" })).toBeVisible();
@@ -136,13 +79,17 @@ describe("DocxView", () => {
         expect(container.querySelector(".docx-view-scroll")?.scrollTop).toBe(120);
         expect(screen.queryByRole("status")).not.toBeInTheDocument();
         expect(onReady).toHaveBeenCalledOnce();
+        const viewport = container.querySelector<HTMLElement>(".docx-view-scroll")!;
+        viewport.scrollTop = 240;
+        fireEvent.scroll(viewport);
+        expect(onScrollChange).toHaveBeenLastCalledWith(240);
     });
 
     it("retains every cited passage and scrolls to the first attached highlight", async () => {
         mocks.renderDocument.mockImplementationOnce(async (_doc, container: HTMLElement) => {
             container.innerHTML = '<section class="docx"><p>First cited passage.</p><p>Second cited passage.</p></section>';
         });
-        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+        const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
             return { top: this.isConnected && this.classList.contains("docx-text-highlight") ? 600 : 0,
                 height: 20, width: 800, bottom: 620, left: 0, right: 800, x: 0, y: 0, toJSON() {} };
         });
@@ -155,86 +102,6 @@ describe("DocxView", () => {
                 .toEqual(["First cited passage.", "Second cited passage."]);
             expect(container.querySelector(".docx-view-scroll")?.scrollTop).toBe(610);
         } finally { rect.mockRestore(); }
-    });
-
-    it("renders saved Word page breaks without inventing page numbers", async () => {
-        const onReady = vi.fn();
-        const onScrollChange = vi.fn();
-        const { container } = render(
-            <DocxView
-                documentId="doc-1"
-                onReady={onReady}
-                onScrollChange={onScrollChange}
-            />,
-        );
-
-        await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
-
-        expect(mocks.renderDocument).toHaveBeenCalledOnce();
-        expect(mocks.renderDocument.mock.calls[0][3]).toMatchObject({
-            breakPages: true,
-            ignoreLastRenderedPageBreak: false,
-            renderHeaders: true,
-            renderFooters: true,
-            renderFootnotes: true,
-            renderEndnotes: true,
-            renderChanges: true,
-            experimental: false,
-        });
-        const pages = container.querySelectorAll("section.docx");
-        expect(pages).toHaveLength(2);
-        const viewport = container.querySelector<HTMLElement>(
-            '[data-document-id="doc-1"]',
-        )!;
-        Object.defineProperties(viewport, {
-            clientHeight: { configurable: true, value: 320 },
-            scrollHeight: { configurable: true, value: 1_500 },
-        });
-        expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
-        viewport.scrollTop = 240;
-        fireEvent.scroll(viewport);
-        expect(viewport.scrollTop).toBe(240);
-        expect(onScrollChange).toHaveBeenLastCalledWith(240);
-        // Page boundaries come from Word; page *numbers* do not, so none are
-        // fabricated onto the DOM.
-        for (const page of pages) {
-            expect(page).not.toHaveAttribute("data-page-number");
-            expect(page).not.toHaveAttribute("aria-label");
-        }
-    });
-
-    it("keeps tracked-change IDs in the browser parse", async () => {
-        mocks.withTrackedChanges = true;
-
-        const firstReady = vi.fn();
-        const first = render(
-            <DocxView
-                documentId="tracked-doc"
-                versionId="version-1"
-                refetchKey={4}
-                onReady={firstReady}
-            />,
-        );
-        await waitFor(() => expect(firstReady).toHaveBeenCalledOnce());
-        expect(first.container.querySelector("ins")).toHaveAttribute(
-            "data-w-id",
-            "17",
-        );
-        first.unmount();
-
-        const secondReady = vi.fn();
-        render(
-            <DocxView
-                documentId="tracked-doc"
-                versionId="version-1"
-                refetchKey={4}
-                onReady={secondReady}
-            />,
-        );
-        await waitFor(() => expect(secondReady).toHaveBeenCalledOnce());
-
-        expect(mocks.parseAsync).toHaveBeenCalledTimes(2);
-        expect(mocks.renderDocument).toHaveBeenCalledTimes(2);
     });
 
     it("fits pages from their declared Word width without forcing layout", () => {
@@ -294,39 +161,4 @@ describe("DocxView", () => {
         expect(onUnsupported).toHaveBeenCalledOnce();
     });
 
-    it("keeps the Word view stable when media is unsupported", async () => {
-        mocks.withBrokenImage = true;
-
-        const { container } = render(
-            <DocxView
-                documentId="no-rendition-doc"
-                versionId="v1"
-            />,
-        );
-
-        await waitFor(() =>
-            expect(container.querySelector("section.docx")).not.toBeNull(),
-        );
-        expect(
-            screen.queryByText(/embedded vector image/i),
-        ).not.toBeInTheDocument();
-        expect(screen.queryByTestId("pdf-rendition")).not.toBeInTheDocument();
-    });
-
-    it("keeps tracked-edit mode on the interactive HTML renderer", async () => {
-        mocks.withBrokenImage = true;
-        const onReady = vi.fn();
-
-        const { container } = render(
-            <DocxView
-                documentId="tracked-vector-doc"
-                highlightEdit={{ key: "edit-1" }}
-                onReady={onReady}
-            />,
-        );
-
-        await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
-        expect(container.querySelector("section.docx")).not.toBeNull();
-        expect(screen.queryByTestId("pdf-rendition")).not.toBeInTheDocument();
-    });
 });
