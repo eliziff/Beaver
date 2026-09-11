@@ -17,6 +17,7 @@ import { collapseProvisionLabels } from "../provisionLabels";
 import type { LegalEvidenceReceiptEvent } from "./assistantEvents";
 import { groundedSentenceCount, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
+import { objectSchema } from "./toolRegistry";
 
 import type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
   LegalResearchQueryReceipt } from "../researchContract";
@@ -864,14 +865,9 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
     GROUNDED_QUOTATION_POLICY,
     GROUNDED_CLAIM_GRANULARITY,
   ].join(" "),
-  inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        claims: { type: "array", minItems: 1, maxItems: 64, items: claimSchema },
-      },
-      required: ["claims"],
-  },
+  inputSchema: objectSchema({
+    claims: { type: "array", minItems: 1, maxItems: 64, items: claimSchema },
+  }, ["claims"]),
 };
 
 export function finalizeLegalEvidence(

@@ -8,7 +8,7 @@ import {
 import type { Tool } from "../../llm";
 import { safeErrorLog } from "../../safeError";
 import { legalSourceResource } from "../../resourceReferences";
-import type { BeaverToolPolicy } from "../toolRegistry";
+import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 import {
   attestedPassageReceipt,
   citatorNoteUpReceipt,
@@ -27,46 +27,41 @@ export const CITATOR_TOOL: Tool & BeaverToolPolicy = {
   reader: ["CA"],
   annotations: { readOnlyHint: true },
   description: NOTE_UP_DESCRIPTION,
-  inputSchema: {
-      type: "object",
-      properties: {
-        citation: {
-          type: "string",
-          description: "One Canadian decision citation, such as 2019 SCC 65.",
-        },
-        cited_paragraph: {
-          type: "integer",
-          minimum: 1,
-          description:
-            "Target paragraph in the cited decision; filters judicial and journal passages.",
-        },
-        size: {
-          type: "integer",
-          minimum: 1,
-          maximum: 24,
-          description: "Maximum per lane; defaults to 10 citing decisions and 8 analysis passages.",
-        },
-        court_scope: {
-          type: "string",
-          enum: ["all", "scc", "appellate", "trial", "tribunal"],
-          description:
-            "Filters judicial sources; default all. Journals remain included.",
-        },
-        court_code: {
-          type: "string",
-          description:
-            "Exact court code, e.g. ONCA; requires court_scope all.",
-        },
-        sort: {
-          type: "string",
-          enum: ["newest", "most_discussed"],
-          description:
-            "Citing-decision order; other lanes keep their own ranking.",
-        },
-      },
-      required: ["citation"],
-      additionalProperties: false,
-  },
+  inputSchema: objectSchema({
+    citation: {
+      type: "string",
+      description: "One Canadian decision citation, such as 2019 SCC 65.",
+    },
+    cited_paragraph: {
+      type: "integer",
+      minimum: 1,
+      description:
+        "Target paragraph in the cited decision; filters judicial and journal passages.",
+    },
+    size: {
+      type: "integer",
+      minimum: 1,
+      maximum: 24,
+      description: "Maximum per lane; defaults to 10 citing decisions and 8 analysis passages.",
+    },
+    court_scope: {
+      type: "string",
+      enum: ["all", "scc", "appellate", "trial", "tribunal"],
+      description:
+        "Filters judicial sources; default all. Journals remain included.",
+    },
+    court_code: {
+      type: "string",
+      description:
+        "Exact court code, e.g. ONCA; requires court_scope all.",
+    },
+    sort: {
+      type: "string",
+      enum: ["newest", "most_discussed"],
+      description:
+        "Citing-decision order; other lanes keep their own ranking.",
+    },
+  }, ["citation"]),
 };
 
 export type CitatorToolExecution = {

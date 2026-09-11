@@ -1,5 +1,6 @@
 import type { Tool } from "../llm";
 import type { DocIndex } from "./types";
+import { objectSchema } from "./toolRegistry";
 import {
   DOCUMENT_OR_DRAFT_PATTERN,
   DOCUMENT_RESOURCE_PATTERN,
@@ -17,12 +18,7 @@ const tool = (
   name,
   description,
   annotations: { readOnlyHint: readOnly },
-  inputSchema: {
-    type: "object",
-    properties,
-    ...(required.length ? { required } : {}),
-    additionalProperties: false,
-  },
+  inputSchema: objectSchema(properties, required),
 });
 
 const resource = "A version-pinned document resource returned by Glob.";
