@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
@@ -146,7 +146,10 @@ function addReviewCandidate(saved: AuthoritiesProduct) {
   add(saved, item);
   return citation;
 }
-const workspaceRoute = (draftId = "") => ({ draftId, replaceDraft: vi.fn() });
+const workspaceRoute = (initialDraftId = "") => ({ initialDraftId });
+function LocationProbe() {
+  return <output aria-label="Location">{useLocation().search}</output>;
+}
 function deferred<T>() {
   let resolve!: (value: T) => void, reject!: (error: unknown) => void;
   const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
@@ -192,7 +195,7 @@ describe("Authorities UI contracts", () => {
       (({ state: _state, ...item }) => item)(draft("other", "Other draft")),
     ]);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Automatic", "Manual", "Drafts",
@@ -207,7 +210,7 @@ describe("Authorities UI contracts", () => {
   it("searches the active project's files from the primary picker", async () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       LibraryPicker={LibraryDocumentPicker}
-      route={{ ...workspaceRoute(), projectId: "matter-1" }} /></MemoryRouter>);
+      {...workspaceRoute()} projectId="matter-1" /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("button", { name: "Project" }));
     await waitFor(() => expect(api.directoryResource).toHaveBeenCalledWith({ projectId: "matter-1" }));
@@ -225,7 +228,7 @@ describe("Authorities UI contracts", () => {
     api.directoryList.mockResolvedValue({ items: [{ kind: "document", document }], next_cursor: null });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       LibraryPicker={LibraryDocumentPicker}
-      route={{ ...workspaceRoute(saved.id), projectId: "matter-1" }} /></MemoryRouter>);
+      {...workspaceRoute(saved.id)} projectId="matter-1" /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("tab", { name: "Sources", exact: true }));
     await userEvent.click(screen.getByRole("button", { name: "Upload for R v Grant" }));
@@ -247,9 +250,8 @@ describe("Authorities UI contracts", () => {
     const saved = documentDraft("last-draft", "Last draft"), load = deferred<AuthoritiesProduct>();
     localStorage.setItem("beaver.authorities.last.library", saved.id);
     api.getWorkProduct.mockReturnValue(load.promise);
-    const route = workspaceRoute();
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={route} /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/table-of-authorities"]}>
+      <TableOfAuthoritiesPage /><LocationProbe /></MemoryRouter>);
 
     expect(screen.getByText("Loading authorities")).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Import and review" })).not.toBeInTheDocument();
@@ -257,20 +259,22 @@ describe("Authorities UI contracts", () => {
     expect(screen.queryByRole("heading", { name: "Import and review" })).not.toBeInTheDocument();
     load.resolve(saved);
     expect(await screen.findByRole("heading", { name: "Last draft" })).toBeVisible();
-    expect(api.getWorkProduct).toHaveBeenCalledWith("last-draft");
+    // The page owns the route: the resumed draft is named there without the workspace asking.
+    await waitFor(() => expect(screen.getByRole("status", { name: "Location" }))
+      .toHaveTextContent("?draft=last-draft"));
     await userEvent.click(screen.getByRole("button", { name: "New" }));
 
     expect(screen.getByRole("heading", { name: "Import and review" })).toBeVisible();
     expect(localStorage.getItem("beaver.authorities.last.library")).toBeNull();
-    expect(route.replaceDraft).toHaveBeenLastCalledWith();
+    expect(screen.getByRole("status", { name: "Location" }).textContent).toBe("");
   });
 
   it("restores the saved draft after briefly opening the other start mode", async () => {
     const saved = documentDraft("active", "Active authorities");
     api.getWorkProduct.mockResolvedValue(saved);
-    const route = workspaceRoute(saved.id);
+    const onDraftChange = vi.fn();
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={route} /></MemoryRouter>);
+      {...workspaceRoute(saved.id)} onDraftChange={onDraftChange} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Active authorities" })).toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
@@ -278,11 +282,11 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("heading", { name: "Build a book from PDFs" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Manual" })).toHaveAttribute("aria-selected", "true");
     expect(localStorage.getItem("beaver.authorities.last.library")).toBe("active");
-    expect(route.replaceDraft).toHaveBeenLastCalledWith();
+    expect(onDraftChange).toHaveBeenLastCalledWith(undefined, false);
 
     await userEvent.click(screen.getByRole("tab", { name: "Automatic" }));
     expect(screen.getByRole("heading", { name: "Active authorities" })).toBeVisible();
-    expect(route.replaceDraft).toHaveBeenLastCalledWith("active");
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(saved, true));
   });
 
   it("keeps an automatic draft title out of a new manual book", async () => {
@@ -291,7 +295,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.updateWorkProduct.mockResolvedValue(renamed);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute(saved.id)} /></MemoryRouter>);
+      {...workspaceRoute(saved.id)} /></MemoryRouter>);
 
     await screen.findByRole("heading", { name: "Imported factum" });
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
@@ -315,7 +319,7 @@ describe("Authorities UI contracts", () => {
     api.listWorkProductMetadata.mockResolvedValue([rememberedMetadata]);
     api.getWorkProduct.mockResolvedValue(requested);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute(requested.id)} /></MemoryRouter>);
+      {...workspaceRoute(requested.id)} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Requested" })).toBeVisible();
     expect(api.getWorkProduct).toHaveBeenCalledTimes(1);
@@ -329,7 +333,7 @@ describe("Authorities UI contracts", () => {
     created.state.settings.sourceMode = "manual-originals";
     api.createAuthorities.mockResolvedValue(created);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
     const file = new File(["PK\x03\x04"], "Factum.docx", { type:
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 
@@ -354,7 +358,7 @@ describe("Authorities UI contracts", () => {
       profileId: "general", sourceMode: "render", passageMarking: "margin",
     }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("radio", { name: /Rebuild all sources from text/ })).toBeChecked();
@@ -372,7 +376,7 @@ describe("Authorities UI contracts", () => {
       profileId: "federal-court", sourceMode: "automatic", passageMarking: "none",
     }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("radio", { name: /Paragraph line and exact quote/ })).toBeChecked();
@@ -394,7 +398,7 @@ describe("Authorities UI contracts", () => {
       profileId: "ab-court-of-appeal", sourceMode: "automatic", passageMarking: "none",
     }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
     const file = new File(["%PDF-1.7"], "First decision.pdf", { type: "application/pdf" });
@@ -421,7 +425,7 @@ describe("Authorities UI contracts", () => {
     api.attachAuthoritiesLibraryPdf.mockResolvedValue(attached);
     api.directoryList.mockResolvedValue({ items: [{ kind: "document", document }], next_cursor: null });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      LibraryPicker={LibraryDocumentPicker} route={workspaceRoute()} /></MemoryRouter>);
+      LibraryPicker={LibraryDocumentPicker} {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
     await userEvent.click(screen.getByRole("button", { name: "Library" }));
@@ -450,7 +454,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.attachAuthorityPdf.mockResolvedValue(updated);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByRole("button", { name: "View PDF for Criminal Code" })).toBeVisible();
     const row = screen.getByRole("heading", { name: "Criminal Code" }).closest("article")!;
@@ -470,7 +474,7 @@ describe("Authorities UI contracts", () => {
     ]);
     api.getWorkProduct.mockResolvedValue(documentDraft("wanted", "Wanted draft"));
     render(<MemoryRouter initialEntries={["/table-of-authorities?draft=wanted"]}>
-      <AuthoritiesWorkspace host={beaverAuthoritiesHost} route={workspaceRoute("wanted")} />
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} {...workspaceRoute("wanted")} />
     </MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Wanted draft" })).toBeVisible();
@@ -483,7 +487,7 @@ describe("Authorities UI contracts", () => {
     const load = deferred<AuthoritiesProduct>();
     api.getWorkProduct.mockReturnValue(load.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(screen.getByText("Loading authorities")).toBeVisible();
     load.resolve(draft());
@@ -494,13 +498,13 @@ describe("Authorities UI contracts", () => {
     const loads = new Map(["a", "b", "c"].map((id) => [id, deferred<AuthoritiesProduct>()]));
     api.getWorkProduct.mockImplementation((id: string) => loads.get(id)!.promise);
     const view = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("a")} /></MemoryRouter>);
+      {...workspaceRoute("a")} /></MemoryRouter>);
     await waitFor(() => expect(api.getWorkProduct).toHaveBeenCalledWith("a"));
 
     view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("b")} /></MemoryRouter>);
+      {...workspaceRoute("b")} /></MemoryRouter>);
     view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("c")} /></MemoryRouter>);
+      {...workspaceRoute("c")} /></MemoryRouter>);
     loads.get("b")!.resolve(draft("b", "Draft B"));
     loads.get("a")!.resolve(draft("a", "Draft A"));
     loads.get("c")!.resolve(draft("c", "Draft C"));
@@ -514,7 +518,7 @@ describe("Authorities UI contracts", () => {
     const load = deferred<AuthoritiesProduct>();
     api.getWorkProduct.mockReturnValue(load.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
     await waitFor(() => expect(api.getWorkProduct).toHaveBeenCalledWith("draft-1"));
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
 
@@ -529,11 +533,11 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValueOnce(documentDraft("a", "Draft A"))
       .mockReturnValueOnce(next.promise);
     const view = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("a")} /></MemoryRouter>);
+      {...workspaceRoute("a")} /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Draft A" })).toBeVisible();
 
     view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("missing")} /></MemoryRouter>);
+      {...workspaceRoute("missing")} /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Draft A" })).toBeVisible();
     next.reject(new Error("Draft missing"));
     expect(await screen.findByText("Draft missing")).toBeVisible();
@@ -543,7 +547,7 @@ describe("Authorities UI contracts", () => {
   it("opens settings over the selected workspace section", async () => {
     api.getWorkProduct.mockResolvedValue(documentDraft());
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Requested draft" })).toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
@@ -558,7 +562,7 @@ describe("Authorities UI contracts", () => {
     const { state: _state, ...metadata } = saved;
     api.listWorkProductMetadata.mockReturnValue(load.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
     expect(screen.getByText("Loading saved drafts")).toBeVisible();
@@ -574,7 +578,7 @@ describe("Authorities UI contracts", () => {
     api.listWorkProductMetadata.mockResolvedValue([metadata]);
     api.getWorkProduct.mockReturnValue(load.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} /></MemoryRouter>);
+      {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("tab", { name: "Drafts" }));
     await userEvent.click(await screen.findByText("Saved book"));
@@ -587,7 +591,7 @@ describe("Authorities UI contracts", () => {
     const outputFolder = { get: vi.fn().mockResolvedValue("Court outputs"),
       choose: vi.fn().mockResolvedValue("Appeal outputs"), clear: vi.fn().mockResolvedValue(undefined) };
     render(<MemoryRouter><AuthoritiesWorkspace
-      host={{ ...beaverAuthoritiesHost, outputFolder }} route={workspaceRoute()} /></MemoryRouter>);
+      host={{ ...beaverAuthoritiesHost, outputFolder }} {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(await screen.findByText("Court outputs")).toBeVisible();
@@ -613,7 +617,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValue({ ...saved, revision: 2 });
     render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
-      <AuthoritiesWorkspace host={beaverAuthoritiesHost} route={workspaceRoute("draft-1")} />
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} {...workspaceRoute("draft-1")} />
     </MemoryRouter>);
 
     const item = await screen.findByRole("option", { name: /In-text citation 1/ });
@@ -650,7 +654,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.actOnAuthorities.mockReturnValue(update.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} onDraftChange={onDraftChange} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} onDraftChange={onDraftChange} /></MemoryRouter>);
 
     const context = await screen.findByRole("textbox", { name: "In-text citation context" });
     expect(api.reviewAuthorities).not.toHaveBeenCalled();
@@ -698,7 +702,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValue(changed);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const context = await screen.findByRole("textbox", { name: "Footnote context" });
     selectRange(context, split);
@@ -730,7 +734,7 @@ describe("Authorities UI contracts", () => {
       citation: neutral });
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByRole("option", { name: new RegExp(neutral) })).toBeVisible();
     expect(screen.getByRole("option", { name: /\[2009\] 2 SCR 353/u })).toBeVisible();
@@ -766,7 +770,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValue(changed);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const source = await screen.findByRole("option", { name: /Ibid/ });
     await userEvent.click(source);
@@ -793,7 +797,7 @@ describe("Authorities UI contracts", () => {
       ...saved, revision: 2, state: { ...saved.state, stage: action.stage },
     }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
     await screen.findByRole("button", { name: "Next" });
     // The gathering starts as soon as the citations are known, so Next waits on the fetch
     // already under way rather than starting a second one.
@@ -824,7 +828,7 @@ describe("Authorities UI contracts", () => {
     saved.state.stage = "sources";
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
     expect(sources).toBeVisible();
@@ -839,7 +843,7 @@ describe("Authorities UI contracts", () => {
     saved.state.stage = "build";
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await screen.findByRole("heading", { name: "Build outputs" });
     await userEvent.click(screen.getByText("Options"));
@@ -862,7 +866,7 @@ describe("Authorities UI contracts", () => {
     corrected.state.discrepancyDecisions[findingId] = "quote_editorial";
     api.resolveAuthoritiesDiscrepancy.mockResolvedValue(corrected);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByText("Check quotation")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Review quotation" }));
@@ -884,12 +888,12 @@ describe("Authorities UI contracts", () => {
     api.actOnAuthorities.mockReturnValue(update.promise);
     api.reviewAuthorities.mockReturnValue(review.promise);
     const view = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("first")} /></MemoryRouter>);
+      {...workspaceRoute("first")} /></MemoryRouter>);
     await userEvent.selectOptions(await screen.findByLabelText("Create"), "book");
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("first", 1,
       { type: "set-output-mode", outputMode: "book" }));
     view.rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("second")} /></MemoryRouter>);
+      {...workspaceRoute("second")} /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Second draft" })).toBeVisible();
     await act(async () => {
       update.resolve({ ...first, revision: 2, state: { ...first.state, outputMode: "book" } });
@@ -911,7 +915,7 @@ describe("Authorities UI contracts", () => {
     api.prepareAuthoritiesSources.mockResolvedValue(saved);
     api.buildAuthorities.mockResolvedValue({ product: built, receipt: {} });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByText("Source check unavailable. Source service unavailable"))
       .toBeVisible();
@@ -933,7 +937,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProductResolution.mockResolvedValue({ inputs: {}, freshness: "current" });
     api.actOnAuthorities.mockReturnValue(update.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const download = await screen.findByRole("button", { name: "Download Book of Authorities.pdf" });
     await waitFor(() => expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1));
@@ -966,7 +970,7 @@ describe("Authorities UI contracts", () => {
       parse_state: { status: "ready" } }]);
     api.buildAuthorities.mockRejectedValue(new Error("The book could not be built"));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
@@ -994,7 +998,7 @@ describe("Authorities UI contracts", () => {
       api.prepareAuthoritiesSources.mockResolvedValue(prepared);
       api.buildAuthorities.mockResolvedValue({ product: prepared, receipt: {} });
       render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-        route={workspaceRoute("draft-1")} /></MemoryRouter>);
+        {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
       await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
@@ -1015,7 +1019,7 @@ describe("Authorities UI contracts", () => {
       "authority:alpha": { status: "missing", reason: "deleted" },
     } });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const row = (await screen.findByRole("heading", { name: "Alpha" })).closest("article")!;
     expect(await within(row).findByText("PDF unavailable")).toBeVisible();
@@ -1035,7 +1039,7 @@ describe("Authorities UI contracts", () => {
     api.attachAuthorityPdf.mockResolvedValue(replaced);
     api.actOnAuthorities.mockResolvedValue(cleared);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const row = (await screen.findByRole("heading", { name: "Alpha" })).closest("article")!;
     const replacement = new File(["%PDF-1.7"], "replacement.pdf", { type: "application/pdf" });
@@ -1059,7 +1063,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.getWorkProductResolution.mockResolvedValue({ inputs: { source: { status: "changed" } } });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Requested draft" })).toBeVisible();
     await waitFor(() => expect(api.getWorkProductResolution).toHaveBeenCalledWith("draft-1"));
@@ -1082,11 +1086,11 @@ describe("Authorities UI contracts", () => {
       ? Promise.resolve({ inputs: { "authority:alpha": { status: "missing", reason: "deleted" } } })
       : pending.promise);
     const { rerender } = render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("first")} /></MemoryRouter>);
+      {...workspaceRoute("first")} /></MemoryRouter>);
     expect(await screen.findByText("PDF unavailable")).toBeVisible();
 
     rerender(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("second")} /></MemoryRouter>);
+      {...workspaceRoute("second")} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Second draft" })).toBeVisible();
     expect(screen.queryByText("PDF unavailable")).not.toBeInTheDocument();
@@ -1104,7 +1108,7 @@ describe("Authorities UI contracts", () => {
     saved.state.stage = "sources";
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
     const rows = within(sources).getAllByRole("listitem");
@@ -1125,7 +1129,7 @@ describe("Authorities UI contracts", () => {
       tabPrefix: "Record ", tabLabels: ["Front", "", "End"] });
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;
     const rows = within(sources).getAllByRole("listitem");
     rows.forEach((row, i) => {
@@ -1150,7 +1154,7 @@ describe("Authorities UI contracts", () => {
       current = next; return next;
     });
     render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
-      <AuthoritiesWorkspace host={beaverAuthoritiesHost} route={workspaceRoute("draft-1")} />
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} {...workspaceRoute("draft-1")} />
     </MemoryRouter>);
 
     await screen.findByRole("heading", { name: "Book of Authorities" });
@@ -1191,7 +1195,7 @@ describe("Authorities UI contracts", () => {
     api.actOnAuthorities.mockResolvedValue(added);
     api.attachAuthorityPdf.mockResolvedValue(attached);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Alpha" });
     const file = new File(["%PDF-1.7"], "beta.pdf", { type: "application/pdf" });
 
@@ -1221,7 +1225,7 @@ describe("Authorities UI contracts", () => {
     } });
     api.actOnAuthorities.mockResolvedValue(corrected);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const row = (await screen.findByRole("heading", { name: "2009scc32" })).closest("article")!;
     expect(await within(row).findByText("PDF unavailable")).toBeVisible();
@@ -1256,7 +1260,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.attachAuthorityPdf.mockResolvedValue({ ...saved, revision: 2 });
     render(<MemoryRouter initialEntries={["/table-of-authorities?draft=draft-1"]}>
-      <AuthoritiesWorkspace host={beaverAuthoritiesHost} route={workspaceRoute("draft-1")} />
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} {...workspaceRoute("draft-1")} />
     </MemoryRouter>);
 
     const known = (await screen.findByRole("heading", { name: "R v Oakes" })).closest("article")!;
@@ -1289,7 +1293,7 @@ describe("Authorities UI contracts", () => {
     api.actOnAuthorities.mockResolvedValue(added);
     api.prepareAuthoritiesSources.mockResolvedValue(prepared);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("button", { name: "Add authority" }));
     const dialog = screen.getByRole("dialog");
@@ -1316,7 +1320,7 @@ describe("Authorities UI contracts", () => {
     api.buildAuthorities.mockResolvedValue({ product: { ...saved, revision: 2 }, receipt: {},
       notice: "Saved to Court outputs" });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const contents = await screen.findByRole("heading", { name: "Cover and index" });
     const cover = screen.getByText("Cover").parentElement!;
@@ -1348,7 +1352,7 @@ describe("Authorities UI contracts", () => {
     api.attachAuthoritiesBookPdf.mockResolvedValueOnce(added).mockResolvedValueOnce(replaced);
     api.actOnAuthorities.mockResolvedValue(removed);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Other book PDFs" })).toBeVisible();
     const file = new File(["%PDF-other"], "Other material.pdf", { type: "application/pdf" });
@@ -1383,7 +1387,7 @@ describe("Authorities UI contracts", () => {
     api.getWorkProduct.mockResolvedValue(saved);
     api.actOnAuthorities.mockResolvedValueOnce(covered).mockResolvedValue({ ...covered, revision: 3 });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     expect(await screen.findByLabelText("Filing")).toHaveValue("electronic");
     expect(screen.getByText("Details required")).toBeVisible();
@@ -1412,7 +1416,7 @@ describe("Authorities UI contracts", () => {
 
   it("selects courts across jurisdictions directly in one chooser and keeps book-only choices valid", async () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute()} jurisdictionOrder={["ca-ab"]} /></MemoryRouter>);
+      {...workspaceRoute()} jurisdictionOrder={["ca-ab"]} /></MemoryRouter>);
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Court: No court preset" }));
     let chooser = screen.getByRole("dialog", { name: "Choose court" });
@@ -1446,7 +1450,7 @@ describe("Authorities UI contracts", () => {
     saved.state.settings.profileId = "ab-court-of-kings-bench";
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await screen.findByRole("button", { name: /Court:/u });
     expect(screen.getByText("1 missing PDF.")).toBeVisible();
@@ -1460,7 +1464,7 @@ describe("Authorities UI contracts", () => {
       filingMedium: "electronic" as const, bookRole: "joint" as const });
     api.getWorkProduct.mockResolvedValue(saved);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      route={workspaceRoute("draft-1")} /></MemoryRouter>);
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const filedBy = await screen.findByLabelText("Filed by");
     expect(within(filedBy).getAllByRole("option").map(({ textContent }) => textContent))
@@ -1562,7 +1566,7 @@ it("advances immediately to Highlights and revisits completed steps without savi
       return current;
     }),
   };
-  render(<MemoryRouter><AuthoritiesWorkspace host={host} route={workspaceRoute("draft-1")} /></MemoryRouter>);
+  render(<MemoryRouter><AuthoritiesWorkspace host={host} {...workspaceRoute("draft-1")} /></MemoryRouter>);
   await userEvent.click(await screen.findByRole("button", { name: "Next" }));
   expect(await screen.findByRole("button", { name: "Edit in PDF" })).toBeVisible();
   expect(current.state.stage).toBe("highlights");

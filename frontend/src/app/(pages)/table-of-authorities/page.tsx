@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
@@ -15,20 +15,24 @@ export default function TableOfAuthoritiesPage() {
   const assistant = useWorkProductAssistantState<AuthoritiesProduct>();
   const [focus, setFocus] = useState<WorkProductFocus>();
   const draftId = assistant.product?.id;
-  const replaceDraft = (id?: string) => {
+  const { onProductChange } = assistant;
+  const onDraftChange = useCallback((draft: AuthoritiesProduct | undefined, synced: boolean) => {
+    onProductChange(draft, synced);
+    const routeId = params.get("draft");
+    if (routeId === draft?.id || !routeId && !draft) return;
     const next = new URLSearchParams(params);
-    if (id) next.set("draft", id); else next.delete("draft");
+    if (draft) next.set("draft", draft.id); else next.delete("draft");
     setParams(next, { replace: true });
-  };
+  }, [onProductChange, params, setParams]);
   return <div className="relative flex h-full min-h-0 w-full">
     <div className="min-h-0 min-w-0 flex-1">
       <AuthoritiesWorkspace host={beaverAuthoritiesHost} LibraryPicker={LibraryDocumentPicker}
         jurisdictionOrder={profile?.jurisdictionPreference.jurisdictions}
-        route={{ draftId: params.get("draft") ?? "",
-          projectId: params.get("project") || undefined, replaceDraft }}
+        initialDraftId={params.get("draft") ?? undefined}
+        projectId={params.get("project") || undefined}
         locked={assistant.busy}
         onFocusChange={setFocus}
-        onDraftChange={assistant.onProductChange} refreshToken={assistant.refreshToken}
+        onDraftChange={onDraftChange} refreshToken={assistant.refreshToken}
         headerActions={assistant.product ? <WorkProductAssistantButton available
           expanded={assistant.expanded} onClick={() => assistant.setExpanded((open) => !open)} />
           : undefined} />
