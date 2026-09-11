@@ -11,7 +11,7 @@ import {
   normalizeLibraryKind,
 } from "../lib/normalize";
 import { pageRequest, pageResponse } from "../lib/pagination";
-import { singleFileUpload, uploadedDocument } from "../lib/upload";
+import { requiredUpload, singleFileUpload } from "../lib/upload";
 import {
   inspectDocxWorkflowCapabilities,
 } from "../lib/docxDeterministicCleanup";
@@ -66,9 +66,8 @@ export function createLibraryRouter(store: LibraryStore, documents: DocumentStor
     "/:kind/documents",
     singleFileUpload("file"),
     libraryRoute(async (req, res, scope) => {
-      const file = req.file ?? reject(400, "file is required");
       res.status(201).json(await documents.create(scope, {
-        ...uploadedDocument(file),
+        ...requiredUpload(req),
         libraryKind: scope.kind,
         folderId: nullableId(req.body?.folder_id, "folder_id"),
       }));

@@ -10,7 +10,7 @@ import {
   type ProjectStore,
 } from "../lib/projectStore";
 import { pageRequest, pageResponse } from "../lib/pagination";
-import { singleFileUpload, uploadedDocument } from "../lib/upload";
+import { requiredUpload, singleFileUpload } from "../lib/upload";
 import { isJsonRecord, jsonRecord } from "../lib/value";
 
 const bodyOf = (req: Request): Record<string, unknown> =>
@@ -189,9 +189,8 @@ export function createProjectsRouter(
     "/:projectId/documents",
     singleFileUpload("file"),
     route(async (req, res, scope) => {
-      const file = req.file ?? reject(400, "file is required");
       res.status(201).json(await documents.create(scope, {
-        ...uploadedDocument(file),
+        ...requiredUpload(req),
         projectId: req.params.projectId,
         folderId: nullableId(req.body?.folder_id, "folder_id"),
       }));
