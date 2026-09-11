@@ -3,6 +3,7 @@ import { decodeAuthoritiesDraft } from "./authoritiesDomain";
 import { acceptsWorkProductOutput } from "mike/shared/court-record-work-products.mjs";
 import { COURT_PROFILE_BY_ID } from "mike/shared/court-record-profiles.mjs";
 import { decodeCourtRecordDraftState } from "./courtRecordContract";
+import type { CourtRecordDraft } from "mike/shared/court-record-contract.d.ts";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -17,6 +18,8 @@ function title(value: string) {
   return result;
 }
 
+function state(kind: "court-record", value: unknown): CourtRecordDraft;
+function state(kind: WorkProductKind, value: unknown): WorkProductState;
 function state(kind: WorkProductKind, value: unknown): WorkProductState {
   const decoded = decodeWorkProductState(value);
   const name = kind === "court-record" ? "Court Record" : "Authorities";
@@ -30,12 +33,11 @@ function state(kind: WorkProductKind, value: unknown): WorkProductState {
   return valid;
 }
 
-async function validateCourtRecordOutputs(scope: ApplicationScope, draft: WorkProductState,
+async function validateCourtRecordOutputs(scope: ApplicationScope, draft: CourtRecordDraft,
   repository: WorkProductRepository) {
-  const profile = COURT_PROFILE_BY_ID.get(String(draft.profileId));
-  const entries = new Map((draft.entries as Array<{ id: string; kindId: string }>).map(
-    ({ id, kindId }) => [id, kindId]));
-  const bindings = draft.bindings ?? {};
+  const profile = COURT_PROFILE_BY_ID.get(draft.profileId);
+  const entries = new Map(draft.entries.map(({ id, kindId }) => [id, kindId]));
+  const bindings = draft.bindings;
   const ids = [...new Set(Object.values(bindings).flatMap((input) =>
     input.kind === "work-product-output" ? [input.workProductId] : []))];
   const children = new Map(await Promise.all(ids.map(async (id) =>
@@ -45,13 +47,14 @@ async function validateCourtRecordOutputs(scope: ApplicationScope, draft: WorkPr
     const child = children.get(input.workProductId);
     const slot = profile?.documentKinds.find(({ id }) => id === entries.get(entryId));
     if (child && (!slot || !acceptsWorkProductOutput(slot, { kind: child.kind,
-      profileId: child.kind === "court-record" ? String(child.state.profileId) : undefined,
+      profileId: child.kind === "court-record" ? child.state.profileId : undefined,
       role: input.role }))) reject(400, "A saved draft output does not match this Court Record slot");
   }
 }
 
-const checked = <T extends WorkProduct>(product: T): T =>
-  ({ ...product, state: state(product.kind, product.state) });
+const checked = (product: WorkProduct): WorkProduct => product.kind === "court-record"
+  ? { ...product, state: state("court-record", product.state) }
+  : { ...product, state: state("authorities", product.state) };
 
 const populated = (state: WorkProductState, outputs: Record<string, unknown> = {}) =>
   workProductInputs(state).length > 0 || Object.keys(outputs).length > 0;
@@ -109,15 +112,11 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
       kind: WorkProductKind; title: string; projectId?: string | null; state?: unknown;
     }) {
       const name = title(input.title), projectId = input.projectId ?? null;
-      const initial = input.state === undefined
-        ? reject(400, "Draft state is required")
-        : state(input.kind, input.state);
-      if (input.kind === "court-record") {
-        await validateCourtRecordOutputs(scope, initial, repository);
-      }
-      return created(await repository.create(scope, {
-        kind: input.kind, title: name, projectId, state: initial,
-      }));
+      if (input.state === undefined) reject(400, "Draft state is required");
+      const draft = input.kind === "court-record" ? state("court-record", input.state) : undefined;
+      if (draft) await validateCourtRecordOutputs(scope, draft, repository);
+      return created(await repository.create(scope, { kind: input.kind, title: name, projectId,
+        state: draft ?? state(input.kind, input.state) }));
     },
     async save(scope: ApplicationScope, id: string, input: {
       revision: number; title?: string; projectId?: string | null; state?: unknown;
@@ -125,14 +124,17 @@ export function createWorkProductApplication(repository: WorkProductRepository) 
     }) {
       const found = await repository.get(scope, id);
       if (!found) throw new ApplicationError(404, "Draft not found");
-      const nextState = input.state === undefined ? found.product.state
-        : state(found.product.kind, input.state);
-      if (input.projectId !== undefined && input.projectId !== found.product.projectId &&
-          populated(nextState, input.outputs ?? found.product.outputs)) {
+      const product = found.product;
+      const draft = product.kind === "court-record" && input.state !== undefined
+        ? state("court-record", input.state) : undefined;
+      const nextState = draft ?? (input.state === undefined ? product.state
+        : state(product.kind, input.state));
+      if (input.projectId !== undefined && input.projectId !== product.projectId &&
+          populated(nextState, input.outputs ?? product.outputs)) {
         reject(409, "Remove this draft's inputs and outputs before moving it to another matter");
       }
-      if (found.product.kind === "court-record") {
-        await validateCourtRecordOutputs(scope, nextState, repository);
+      if (product.kind === "court-record") {
+        await validateCourtRecordOutputs(scope, draft ?? product.state, repository);
       }
       const result = await repository.save(scope, id, {
         ...input,

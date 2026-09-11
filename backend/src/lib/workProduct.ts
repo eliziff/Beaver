@@ -2,6 +2,7 @@ import { WORK_PRODUCT_KINDS, type WorkProductKind, type WorkProductInput,
   type WorkProductState, type WorkProductMetadata, type WorkProductBuildReceipt, type WorkProductOutputRef,
   type WorkProduct as Product, type WorkProductResolution as Resolution,
 } from "mike/shared/work-products.mjs";
+import type { CourtRecordDraft } from "mike/shared/court-record-contract.d.ts";
 import type { ApplicationScope } from "./applicationError";
 import { jsonRecord as record } from "./value";
 
@@ -118,7 +119,7 @@ export function decodeWorkProductBuildReceipt(value: unknown): WorkProductBuildR
   return receipt as unknown as WorkProductBuildReceipt;
 }
 
-export type WorkProduct = Product<WorkProductState, "court-record"> |
+export type WorkProduct = Product<CourtRecordDraft, "court-record"> |
   Product<WorkProductState, "authorities">;
 export type WorkProductReference = Pick<WorkProduct, "id" | "kind" | "revision">;
 export type WorkProductResolution = Omit<Resolution<WorkProductState>, "product"> & {
