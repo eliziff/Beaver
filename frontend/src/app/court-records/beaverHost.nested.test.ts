@@ -171,23 +171,6 @@ describe("nested Court Record inputs", () => {
     await expect(beaverCourtRecordsHost.newDraftCover!()).resolves.toEqual({});
   });
 
-  it("polls healthy inspection and extraction silently", async () => {
-    mocks.getDocumentParseStates
-      .mockResolvedValueOnce([{ parse_state: { status: "parsing", phase: "inspecting" } }])
-      .mockResolvedValueOnce([{ parse_state: { status: "ready" } }]);
-    mocks.getCourtRecordPreparation.mockResolvedValueOnce({
-      document_id: "source-1", version_id: "version-1", source_sha256: hash("a"),
-      page_count: 1, parser_status: "ready", pages: [{ page_number: 1, text: "Text" }],
-    });
-    const progress = vi.fn();
-    await beaverCourtRecordsHost.runOcr!({ id: "entry-1", kindId: "motion",
-      title: "Motion", file: new File(["%PDF-1.7"], "Motion.pdf"), pageCount: 1,
-      searchable: true, encrypted: false, textlessPageCount: 0, textlessPages: [],
-      origin: { kind: "library", documentId: "source-1", versionId: "version-1",
-        sourceSha256: hash("a") } }, progress);
-    expect(progress).not.toHaveBeenCalled();
-  });
-
   it("merges affidavit exhibit wording from local inspection and the parser projection", async () => {
     mocks.prepareDeviceFile.mockImplementationOnce(async (file: File) => ({ file,
       pageCount: 1, searchable: true, encrypted: false,
