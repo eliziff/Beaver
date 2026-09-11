@@ -99,6 +99,8 @@ const visibleText = (result: CallToolResult) => {
 };
 const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => {
   const visible = visibleText(outcome.result);
+  // A failed tool result is otherwise invisible outside the model's context; name it in the server log.
+  if (outcome.result.isError) console.warn("[assistant-tool] failed", { id, detail: visible.text.slice(0, 600) });
   return {
     tool_use_id: id,
     content: visible.text,
