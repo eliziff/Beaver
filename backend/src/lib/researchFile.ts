@@ -18,27 +18,18 @@ import { RESEARCH_HISTORY_PART, readResearchHistory, researchChangeCounts, resea
 export { researchSourceKey } from "./resourceReferences";
 export { readResearchHistory } from "./researchHistory";
 import { researchSourceReferenceSchema as source, researchFileActionSchema, researchMutationSchema, type ResearchLabel, type ResearchFileState,
-  type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction } from "./researchContract";
+  type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction,
+  type ResearchEvidence, type ResearchQueryReceipt, type ResearchFileOf,
+  type ResearchPageItem } from "./researchContract";
 export { researchFileActionSchema, researchSourceReferenceSchema, type ResearchLabel, type ResearchFileState,
-  type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction } from "./researchContract";
+  type ResearchSource, type ResearchSourceReference, type PublicResearchFileAction,
+  type ResearchEvidence, type ResearchQueryReceipt, type ResearchPageItem } from "./researchContract";
 
-/** No highlight label means an observation. One label means an intentional highlight of that type. */
-export type ResearchEvidence = { receipt: LegalEvidenceReceipt; sourceId: string; highlightId?: string;
-  labelIds: string[]; note: string };
-export type ResearchQueryReceipt = LegalResearchQueryReceipt & { sourceIds: string[];
-  matchedSourceIds: string[]; evidenceIds: string[]; failures: Array<{ sourceId: string; code: string }>;
-  slots: Record<string, string[]>; sourceFingerprints?: Record<string, string[]>;
-  sourceReferences?: Record<string, ResearchSourceReference>;
-  labelPaths?: Record<string, string> };
 export const researchQueryReceipt = (receipt: LegalResearchQueryReceipt): ResearchQueryReceipt => ({
   sourceIds: [], matchedSourceIds: [], evidenceIds: receipt.results.flatMap((item) =>
     "evidence_id" in item ? [item.evidence_id] : []), failures: [], slots: {}, ...receipt,
 });
-export type ResearchFile = { document: DocumentRecord;
-  versionId: string; workingRevision: number; state: ResearchFileState };
-export type ResearchPageItem = { kind: "passage" | "evidence"; index: number; value: ResearchEvidence }
-  | { kind: "query"; index: number; value: ResearchQueryReceipt }
-  | { kind: "change"; index: number; value: ResearchChange };
+export type ResearchFile = ResearchFileOf<DocumentRecord>;
 
 export type ResearchFileAction = PublicResearchFileAction | { type: "merge";
   evidence?: LegalEvidenceReceipt[]; queries?: ResearchQueryReceipt[];

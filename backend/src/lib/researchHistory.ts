@@ -5,18 +5,10 @@ import { canonicalJson } from "./hash";
 import type { ResearchEvidence, ResearchFile, ResearchFileState } from "./researchFile";
 
 export const RESEARCH_HISTORY_PART = "history.json";
-const changeField = z.object({ target: z.enum(["label", "source", "passage", "workspace", "table", "result"]),
-  id: z.string().min(1).max(200), sourceId: z.string().uuid().optional(),
-  field: z.string().min(1).max(300), before: z.unknown(), after: z.unknown() }).strict();
-import { researchChangeSummarySchema } from "./researchContract";
+import { researchChangeSchema as changeSchema } from "./researchContract";
 export { researchChangeSummarySchema } from "./researchContract";
-const changeSchema = researchChangeSummarySchema.extend({ userId: z.string(),
-  status: z.enum(["pending", "applied", "rejected"]), undoOf: z.string().uuid().optional(),
-  resolvedBy: z.string().optional(), resolvedAt: z.string().datetime().optional(),
-  changes: z.array(changeField).max(500_000) }).strict();
-export type ResearchChangeField = z.infer<typeof changeField>;
-export type ResearchChangeSummary = z.infer<typeof researchChangeSummarySchema>;
-export type ResearchChange = z.infer<typeof changeSchema>;
+export type { ResearchChangeField, ResearchChangeSummary, ResearchChange } from "./researchContract";
+import type { ResearchChangeField, ResearchChangeSummary, ResearchChange } from "./researchContract";
 export const sameResearchValue = (left: unknown, right: unknown) =>
   canonicalJson(left ?? null) === canonicalJson(right ?? null);
 export function assertResearchChangeBase(changes: ResearchChangeField[],
