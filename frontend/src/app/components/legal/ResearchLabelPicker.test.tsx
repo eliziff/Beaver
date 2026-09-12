@@ -59,6 +59,23 @@ describe("ResearchLabelPicker", () => {
     })));
   });
 
+  it("finds a nested label from any level and walks back up by its crumbs", async () => {
+    const nested = { ...file, state: { ...file.state, labels: { ...labels,
+      child: { ...label("child", 0), parentId: "a", name: "Damages" } } } }, act = vi.fn().mockResolvedValue(nested);
+    render(<ResearchLabelEditor target={{ file: nested, kind: "source", itemId: "source-1",
+      labelIds: [], title: "Source" }} mutations={lane(act)} onClose={vi.fn()} />);
+    const filter = screen.getByRole("combobox", { name: "Find a label" });
+    fireEvent.change(filter, { target: { value: "dama" } });
+    expect(screen.queryByRole("button", { name: "B" })).not.toBeInTheDocument();
+    fireEvent.keyDown(filter, { key: "Enter" });
+    await waitFor(() => expect(act).toHaveBeenLastCalledWith(expect.objectContaining({ labelIds: ["child"] })));
+    // The list reopens inside the chosen label's own level, and the crumbs lead back out of it.
+    expect(screen.getByRole("button", { name: "Damages" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "A" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Labels" }));
+    expect(screen.getByRole("button", { name: "B" })).toBeInTheDocument();
+  });
+
   it("does not turn arbitrary drags on label choices into membership changes", () => {
     const act = vi.fn().mockResolvedValue(file);
     render(<ResearchLabelEditor target={{ file, kind: "source", itemId: "source-1",
@@ -74,7 +91,7 @@ describe("ResearchLabelPicker", () => {
     const trigger = screen.getByRole("button", { name: "Label Source: A" });
     trigger.focus(); fireEvent.click(trigger);
     expect(screen.getByRole("dialog", { name: "Labels and note" }).parentElement).toBe(document.body);
-    expect(screen.getByRole("button", { name: "Close label palette" })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Find a label" })).toHaveFocus());
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(parentKeyDown).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -96,8 +113,8 @@ describe("ResearchLabelPicker", () => {
     render(<ResearchLabelEditor target={{ file: nested, kind: "source", itemId: "source-1",
       labelIds: [], title: "Source" }} mutations={lane(act)} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "CHILD" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "A" }));
-    fireEvent.click(screen.getByRole("button", { name: "CHILD" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open CHILD" }));
     fireEvent.click(screen.getByRole("button", { name: "LEAF" }));
     await waitFor(() => expect([...filings]).toEqual(["leaf"]));
     fireEvent.click(screen.getByRole("button", { name: "Add a label" }));
@@ -107,6 +124,7 @@ describe("ResearchLabelPicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "B" }));
     await waitFor(() => expect([...filings]).toEqual(["leaf", "a", "b"]));
     fireEvent.click(screen.getByRole("button", { name: "Filed under A / CHILD / LEAF" }));
+    fireEvent.click(screen.getByRole("button", { name: "Labels" }));
     fireEvent.click(screen.getByRole("button", { name: "D" }));
     await waitFor(() => expect([...filings]).toEqual(["a", "b", "d"]));
   });
