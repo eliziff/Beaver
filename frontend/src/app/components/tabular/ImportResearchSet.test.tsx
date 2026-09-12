@@ -6,7 +6,20 @@ const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), proposeWorkspaceTable:
   proposeWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
-const file = { document: { id: "workspace", filename: "Research.research.md" }, state: { labels: {}, sources: {} } } as ResearchFile;
+const savedSource = (id: string, title: string) => ({ id, reference: { provider: "a2aj", kind: "case", id, title },
+  labelIds: [], note: "", passages: null });
+const file = { document: { id: "workspace", filename: "Research.research.md" }, versionId: "v1", workingRevision: 0,
+  state: { labels: {}, sources: { source: savedSource("source", "Case A"), other: savedSource("other", "Case B") } } } as unknown as ResearchFile;
+const proposal = { title: "Duties", target: "sources" as const, propose: false, fingerprint: "b".repeat(64),
+  design: { title: "Duties", labels: [{ key: "honesty", name: "Honest performance" }],
+    assignments: [{ labelKey: "honesty", rowIds: ["source"] }] },
+  labels: [{ key: "honesty", id: "honesty", name: "Honest performance", path: "Honest performance", parentKey: null, parentId: null,
+    order: 0, scope: "source" as const, color: "#d6b85a", definition: "What the parties owed each other", existing: true,
+    rows: [{ id: "source", title: "Case A", support: ["a duty of honest performance"] }] },
+    { key: "ratio", id: "ratio", name: "Ratio", path: "Ratio", parentKey: null, parentId: null, order: 1,
+      scope: "highlight" as const, color: "#8aa8c7", existing: false,
+      rows: [{ id: "source", title: "Case A", support: ["it applies to every contract"] }] }],
+  unassigned: [{ id: "other", title: "Case B" }] };
 const preview = { fingerprint: "a".repeat(64), design: { title: "Research", columns: [{ index: 0, name: "Finding", prompt: "Question?" }],
   cells: [{ rowId: "source", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "source", sourceId: "source", title: "Case A" }],
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
@@ -62,12 +75,26 @@ it("shows a stale-preview rejection without navigating away or silently reinterp
   expect(await screen.findByRole("alert")).toHaveTextContent("Research changed");
   expect(onOpen).not.toHaveBeenCalled(); expect(screen.getByDisplayValue("Finding")).toBeVisible();
 });
+it("shows a label proposal as the workspace tree it would create", async () => {
+  api.proposeWorkspaceLabels.mockResolvedValue(proposal);
+  render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" mode="labels" />);
+  launch("Propose labels");
+  // A label is a folder holding the sources it files, with what it means beside its name.
+  expect(await screen.findByRole("treeitem", { name: "Honest performance" })).toBeVisible();
+  expect(screen.getByText("What the parties owed each other")).toBeVisible();
+  expect(screen.getByRole("treeitem", { name: "Case A" })).toBeVisible();
+  // The passages behind the filing are open with it, and the source folds them away.
+  expect(await screen.findByRole("treeitem", { name: "a duty of honest performance" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Passages in Case A" }));
+  expect(screen.queryByRole("treeitem", { name: "a duty of honest performance" })).not.toBeInTheDocument();
+  // Highlight types own their own hierarchy, holding the passages that carry them.
+  fireEvent.click(screen.getByRole("button", { name: "Show 1 passage of Ratio" }));
+  expect(screen.getByRole("treeitem", { name: "it applies to every contract" })).toBeVisible();
+  // What the proposal leaves unfiled stays visible at the root, as it is in the workspace.
+  expect(screen.getByRole("treeitem", { name: "Case B" })).toBeVisible();
+});
 it("applies a label proposal on the same reading of the research that produced it", async () => {
-  const plan = { title: "Duties", target: "sources" as const, propose: false, fingerprint: "b".repeat(64),
-    design: { title: "Duties", labels: [{ key: "honesty", name: "Honest performance" }],
-      assignments: [{ labelKey: "honesty", rowIds: ["source"] }] },
-    labels: [{ key: "honesty", name: "Honest performance", path: "Honest performance", parentKey: null,
-      color: "#d6b85a", existing: true, rows: [{ id: "source", title: "Case A", support: [] }] }], unassigned: [] };
+  const plan = proposal;
   api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(undefined);
   const onOpen = vi.fn(), apply = () => screen.getByRole("button", { name: "Apply labels" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" chatId="chat" />);
