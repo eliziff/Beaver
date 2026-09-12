@@ -101,6 +101,7 @@ describe("DocumentSidePanel highlight", () => {
     }));
     // The reader sends a span bound to the served revision.
     expect(api.act.mock.calls[0][3]).not.toHaveProperty("locator");
+    await waitFor(() => expect(window.getSelection()?.isCollapsed).toBe(true));
     expect(highlight).toHaveAttribute("aria-pressed", gesture === "arm-first" ? "true" : "false");
   });
 });
