@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelPath, type ResearchFile, type ResearchLabel,
@@ -54,9 +54,6 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   </>;
 }
 
-const CHIP = (active: boolean) => `flex min-h-6 min-w-0 items-center gap-1 rounded border-2 px-[7px] py-[3px] text-xs ${
-  active ? "border-gray-800 bg-gray-200 font-medium text-gray-900" : "border-transparent bg-gray-100 text-gray-700 hover:bg-gray-200"}`;
-
 /** One scope's labels grouped under their parent, each level in its saved order. */
 export function researchLabelChildren(labels: Record<string, ResearchLabel>, scope: ResearchLabel["scope"]) {
   const map = new Map<string | null, ResearchLabel[]>();
@@ -65,26 +62,77 @@ export function researchLabelChildren(labels: Record<string, ResearchLabel>, sco
   return map;
 }
 
-/** Horizontal siblings give way to the selected parent's children below, as in Case Marker. */
-export function ResearchLabelWaterfall({ labels, scope, selectedId, onChoose, noneLabel }: {
+const ROW_CHOICE = (chosen: boolean, cursor: boolean) => `flex min-h-7 min-w-0 flex-1 items-center gap-1.5 rounded px-1.5 py-1 text-start text-xs ${
+  chosen ? "bg-gray-200 font-medium text-gray-900" : "text-gray-700 hover:bg-gray-100"} ${cursor ? "ring-1 ring-inset ring-gray-400" : ""}`;
+
+/** One level at a time: crumbs back up, a filter that reaches every level, and a vertical list. */
+export function ResearchLabelBrowser({ labels, scope, selectedId, onChoose, noneLabel }: {
   labels: Record<string, ResearchLabel>; scope: ResearchLabel["scope"];
   selectedId: string | null; onChoose: (id: string | null) => void; noneLabel?: string }) {
   const tree = useMemo(() => researchLabelChildren(labels, scope), [labels, scope]);
-  const path = selectedId && labels[selectedId] ? researchLabelPath(labels, selectedId) : [];
+  const selected = selectedId && labels[selectedId]?.scope === scope ? labels[selectedId] : null;
+  /** Open where the current choice lives, so the user sees it without walking back down. */
+  const [levelId, setLevelId] = useState<string | null>(selected?.parentId ?? null);
+  const [filter, setFilter] = useState(""), [active, setActive] = useState(0);
+  const crumbs = levelId && labels[levelId] ? researchLabelPath(labels, levelId) : [];
+  const query = filter.trim().toLowerCase();
+  const rows = useMemo(() => {
+    if (!query) return tree.get(levelId) ?? [];
+    return [...tree.values()].flat().filter((label) => label.name.toLowerCase().includes(query));
+  }, [tree, levelId, query]);
+  const none = !query && !levelId && !!noneLabel;
+  const choices: (ResearchLabel | null)[] = none ? [null, ...rows] : rows;
+  const at = Math.min(active, Math.max(choices.length - 1, 0));
+  const descend = (label: ResearchLabel) => { setLevelId(label.id); setFilter(""); setActive(0); };
+  function key(event: React.KeyboardEvent) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault();
+      setActive((index) => (Math.min(index, choices.length - 1) + (event.key === "ArrowDown" ? 1 : choices.length - 1)) % Math.max(choices.length, 1)); }
+    else if (event.key === "Enter" && choices.length) { event.preventDefault(); onChoose(choices[at]?.id ?? null); }
+    else if (event.key === "ArrowRight" && choices[at] && tree.get(choices[at]!.id)?.length) { event.preventDefault(); descend(choices[at]!); }
+    else if (event.key === "ArrowLeft" && levelId) { event.preventDefault(); setLevelId(labels[levelId]?.parentId ?? null); setActive(0); }
+  }
+  /** Escape reaches the panel natively, so the filter has to claim it at the target before the popover closes. */
+  const filterRef = (node: HTMLInputElement | null) => { if (!node || node.dataset.labelEscape) return;
+    node.dataset.labelEscape = "on";
+    node.addEventListener("keydown", (event) => { if (event.key === "Escape" && node.value) {
+      event.preventDefault(); event.stopPropagation(); setFilter(""); setActive(0); } }); };
   if (!tree.size) return <p className="my-2 text-xs text-gray-500">No {scope === "source" ? "labels" : "highlight types"} yet.</p>;
-  return <div className="mb-1.5 min-w-0 overflow-x-hidden pb-0.5">
-    {[null, ...path].map((parent, row) => { const items = tree.get(parent?.id ?? null) ?? [], active = path[row]?.id ?? null;
-      return !!items.length && <div key={row} role="group" aria-label={`Label level ${row + 1}`}
-        style={{ marginInlineStart: row ? 8 + (row - 1) * 20 : 0 }}
-        className={`flex min-w-0 flex-wrap items-center py-[5px] ${row ? "gap-[5px] border-s-2 border-gray-200 ps-3" : "gap-1 [&>button]:px-[5px] [&>button]:py-0.5 [&>button]:text-[11px]"}`}>
-        {!row && noneLabel && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={CHIP(!selectedId)}>
-          <FolderSvgIcon className="size-3 shrink-0 text-gray-400" /><span className="max-w-40 truncate">{noneLabel}</span></button>}
-        {items.map((label) => <button key={label.id} type="button" onClick={() => onChoose(label.id)}
-          aria-pressed={active === label.id} title={label.name} className={CHIP(active === label.id)}>
-          {/* A label reads as a filled folder wherever the dock shows one (Eli, 2026-09-09). */}
-          <FolderSvgIcon fill="currentColor" className="shrink-0" style={{ color: researchLabelColor(label), width: [12, 13, 10][row] ?? 10, height: [12, 13, 10][row] ?? 10 }} />
-          <span className="max-w-40 truncate">{label.name}</span></button>)}
-      </div>; })}
+  /** The deepest crumbs stay legible: the middle ones collapse to an ellipsis before they wrap. */
+  const shown = crumbs.length > 2 ? [crumbs[crumbs.length - 2], crumbs[crumbs.length - 1]] : crumbs;
+  return <div className="mb-1.5 grid min-w-0 gap-1 overflow-x-hidden">
+    <div role="group" aria-label="Label levels" className="flex min-w-0 items-center gap-0.5 text-[11px] text-gray-600">
+      <button type="button" onClick={() => { setLevelId(null); setActive(0); }} title={noneLabel ?? "All"}
+        className="max-w-32 shrink-0 truncate rounded px-1 py-0.5 hover:bg-gray-100">{scope === "source" ? "Labels" : "Highlight types"}</button>
+      {crumbs.length > 2 && <span aria-hidden className="shrink-0">/ …</span>}
+      {shown.map((crumb) => <span key={crumb.id} className="flex min-w-0 items-center gap-0.5">
+        <span aria-hidden className="shrink-0">/</span>
+        <button type="button" onClick={() => { setLevelId(crumb.id); setActive(0); }} title={crumb.name}
+          className="min-w-0 truncate rounded px-1 py-0.5 hover:bg-gray-100">{crumb.name}</button></span>)}
+    </div>
+    <input ref={filterRef} value={filter} onChange={(event) => { setFilter(event.target.value); setActive(0); }} onKeyDown={key}
+      data-label-filter autoFocus role="combobox" aria-expanded aria-controls="research-label-list"
+      aria-label={scope === "source" ? "Find a label" : "Find a highlight type"} placeholder="Type to find"
+      className="block min-h-7 w-full rounded border border-gray-300 px-[7px] py-[3px] text-xs" />
+    <div id="research-label-list" role="listbox" aria-label="Labels"
+      className="grid max-h-[22rem] min-w-0 gap-px overflow-y-auto overflow-x-hidden overscroll-contain">
+      {none && <button type="button" onClick={() => onChoose(null)} aria-pressed={!selectedId} className={ROW_CHOICE(!selectedId, at === 0)}>
+        <FolderSvgIcon className="size-3.5 shrink-0 text-gray-400" /><span className="min-w-0 truncate">{noneLabel}</span></button>}
+      {rows.map((label, index) => { const children = tree.get(label.id)?.length,
+        path = query ? researchLabelPath(labels, label.id).slice(0, -1).map((step) => step.name).join(" / ") : "";
+        return <div key={label.id} className="flex min-w-0 items-center gap-0.5">
+          <button type="button" onClick={() => onChoose(label.id)} aria-pressed={selectedId === label.id}
+            title={label.name} className={ROW_CHOICE(selectedId === label.id, at === index + (none ? 1 : 0))}>
+            {/* A label reads as a filled folder wherever the dock shows one (Eli, 2026-09-09). */}
+            <FolderSvgIcon fill="currentColor" className="size-3.5 shrink-0" style={{ color: researchLabelColor(label) }} />
+            <span className="min-w-0 truncate">{label.name}</span>
+            {!!path && <span className="min-w-0 shrink truncate text-[10px] text-gray-500">{path}</span>}
+          </button>
+          {!!children && <button type="button" onClick={() => descend(label)} aria-label={`Open ${label.name}`}
+            title={`Open ${label.name}`} className="grid size-6 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-100">
+            <ChevronRight aria-hidden className="size-4" /></button>}
+        </div>; })}
+      {!choices.length && <p className="px-1.5 py-1 text-xs text-gray-500">No matches.</p>}
+    </div>
   </div>;
 }
 
@@ -102,6 +150,8 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
   const [error, setError] = useState(""), labels = file.state.labels;
   const scope = target.kind === "source" ? "source" : "highlight";
   const popover = useAnchoredPopover({ anchor: target.anchor, below: true, stationary: true, onDismiss: () => close.current() });
+  useEffect(() => { const timer = setTimeout(() => popover.current?.querySelector<HTMLInputElement>("[data-label-filter]")?.focus(), 0);
+    return () => clearTimeout(timer); }, [popover]);
   useEffect(() => () => { const trigger = target.returnFocus ?? (target.anchor instanceof HTMLElement ? target.anchor : null);
     (trigger?.isConnected ? trigger : [...document.querySelectorAll<HTMLElement>("[data-source-marker]")].find((node) => node.dataset.sourceMarker === target.itemId))?.focus();
   }, [target.anchor, target.returnFocus, target.itemId]);
@@ -164,7 +214,7 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
         </button>; })}
     </div>}
     <div className={`min-w-0 ${scope === "highlight" ? "pt-6" : "mt-0.5"}`}>
-      <ResearchLabelWaterfall labels={labels} scope={scope} selectedId={slot} onChoose={put}
+      <ResearchLabelBrowser key={slot ?? "none"} labels={labels} scope={scope} selectedId={slot} onChoose={put}
         noneLabel={scope === "source" ? "None" : undefined} />
     </div>
     <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"

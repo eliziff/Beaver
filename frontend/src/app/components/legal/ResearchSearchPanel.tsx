@@ -12,7 +12,7 @@ import { researchLabelPath, type ResearchLabel, type ResearchPageItem, type Rese
 import { errorMessage } from "@/app/lib/utils";
 import { passageLabel, trimPassageMarker } from "@/app/lib/researchPassage";
 import { ResearchLabelFolder } from "./ResearchLabelMarker";
-import { ResearchLabelWaterfall } from "./ResearchLabelPicker";
+import { ResearchLabelBrowser } from "./ResearchLabelPicker";
 import { sourceName, type SourceReader } from "./useSourceReader";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 
@@ -80,7 +80,7 @@ function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onCr
     {scopes.map((scope) => { const noun = scope === "source" ? "label" : "highlight type", parentId = parentOf(scope);
       return <div key={scope} className="grid min-w-0 gap-0.5">
       {scopes.length > 1 && <p className="px-1.5 text-[11px] leading-4 text-gray-500">{scope === "source" ? "Labels" : "Highlight types"}</p>}
-      <ResearchLabelWaterfall labels={labels} scope={scope}
+      <ResearchLabelBrowser labels={labels} scope={scope}
         selectedId={labels[selectedId ?? ""]?.scope === scope ? selectedId : null}
         noneLabel={scope === "source" ? noneLabel : undefined} onChoose={walk} />
       {naming === scope ? <div className="flex h-7 items-center px-1.5">
