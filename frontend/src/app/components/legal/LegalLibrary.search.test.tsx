@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LegalLibraryPage } from "./LegalLibrary";
@@ -31,7 +31,8 @@ vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: ({ onReadSource }: { onRe
         provider: "a2aj", id: "case-1", kind: "case", title: "Saved decision" } })}>Read saved decision</button></>); } }));
 vi.mock("./LegalSourceViewer", async (original) => ({
     ...await original<typeof import("./LegalSourceViewer")>(),
-    LegalSourceViewer: () => <div>Decision text</div>,
+    LegalSourceViewer: ({ onBack }: { onBack?: () => void }) => <div>Decision text
+        {onBack && <button onClick={onBack}>Back</button>}</div>,
 }));
 const linked = { document: { id: "linked-file", filename: "Linked.research.md" },
     versionId: "version-1", workingRevision: 0,
@@ -82,6 +83,7 @@ describe("LegalLibraryPage search", () => {
         fireEvent.click(await screen.findByRole("button", { name: "Read saved decision" }));
         const reader = screen.getByRole("region", { name: "Source reader" });
         expect(reader).toHaveTextContent("Decision text");
+        expect(within(reader).queryByRole("button", { name: "Back" })).toBeNull();
         const workspace = screen.getByRole("complementary", { name: "Workspace" });
         expect(workspace).not.toContainElement(reader);
         expect(workspace).toContainElement(screen.getByRole("region", { name: "Research collection" }));
@@ -89,6 +91,10 @@ describe("LegalLibraryPage search", () => {
         expect(reader).toBeVisible();
         fireEvent.click(screen.getByRole("button", { name: "Open research workspace" }));
         expect(screen.getByRole("region", { name: "Research collection" })).toBeVisible();
+        // A second read from the workspace is a jump, so the reader offers the way back.
+        fireEvent.click(await screen.findByRole("button", { name: "Read saved decision" }));
+        fireEvent.click(within(reader).getByRole("button", { name: "Back" }));
+        expect(within(reader).queryByRole("button", { name: "Back" })).toBeNull();
     });
 
     it("shows an unavailable workspace error in the open collection", async () => {

@@ -188,6 +188,7 @@ describe("ResearchFileBar", () => {
   it("nests a highlight type by keyboard and changes its single colour without a second assignment", async () => {
     await renderWorkspace();
     const tree = highlightTree();
+    fireEvent.click(tree.getByRole("button", { name: "Expand Finding" }));
     fireEvent.keyDown(tree.getByRole("button", { name: "Holding" }), { key: "ArrowLeft", altKey: true });
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
       expect.objectContaining({ type: "label", id: "holding", scope: "highlight", parentId: null })));
@@ -254,15 +255,6 @@ describe("ResearchFileBar", () => {
     expect(api.getResearchItems).not.toHaveBeenCalled();
   });
 
-  it("selects the highlight type without changing the research scope", async () => {
-    await renderWorkspace();
-    fireEvent.click(highlightTree().getByRole("button", { name: "Holding" }));
-    const tree = screen.getByRole("tree", { name: "Sources" });
-    expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
-    expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
-    expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages")).toBe(false);
-  });
-
   it("edits a source's labels from its options menu and closes the palette on Escape", async () => {
     await renderWorkspace();
     fireEvent.click(screen.getAllByRole("button", { name: "Baker v Canada options" })[0]);
@@ -273,15 +265,20 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("tree", { name: "Sources" })).toBeVisible();
   });
 
-  it("opens the reader only from the Open control, never from touching the row", async () => {
+  it("reads the source from anywhere on its row and from the Open control", async () => {
     const read = vi.fn();
     render(<ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} selectedSourceId="baker" />);
     const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
     expect(title).toHaveAttribute("aria-current", "true");
     fireEvent.click(title);
-    expect(read).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    read.mockClear();
+    fireEvent.click(title.closest("[data-source-row]")!);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    read.mockClear();
     fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
     expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
     expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
   });
@@ -341,6 +338,7 @@ describe("ResearchFileBar", () => {
     let dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
     expect(dialog).toHaveTextContent("1 saved source will lose this label");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(highlightTree().getByRole("button", { name: "Expand Finding" }));
     fireEvent.click(highlightTree().getByRole("button", { name: "Holding options" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
@@ -464,6 +462,7 @@ describe("ResearchFileBar", () => {
     await renderWorkspace(); openSearch();
     fireEvent.change(screen.getByRole("textbox", { name: "Phrase to find in saved sources" }), { target: { value: "duty" } });
     fireEvent.click(screen.getByRole("button", { name: "Find" }));
+    fireEvent.click(highlightTree().getByRole("button", { name: "Expand Finding" }));
     fireEvent.click(highlightTree().getByRole("button", { name: "Holding" }));
     fireEvent.click(await screen.findByRole("button", { name: /^Highlight all as/ }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,

@@ -47,7 +47,6 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   // A highlight type lists its passages on request; nothing loads before that. `wanted` only grows,
   // so two open types never take the request list away from each other.
   const [wanted, setWanted] = useState<ReadonlySet<string>>(() => new Set());
-  const [shownTypes, setShownTypes] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     for (const id of wanted) if (!passagePages.chains[id]) void passagePages.fetchPage(id, null, false);
   }, [wanted, passagePages.chains, passagePages.fetchPage]);
@@ -73,13 +72,16 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   }
   function sourceRow(source: ResearchSource) {
     const name = sourceName(source), open = opened.has(source.id), expandable = hasPassages(source);
+    const jump = () => { if (!preview && reader?.canRead(source)) void reader.readSource(source); };
     return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
+      onClick={(event) => { if (!(event.target as Element).closest("button,a")) jump(); }}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {/* No caret where there is nothing to show: an empty group used to flash "Loading…" and vanish (Eli, 2026-09-09). */}
       {expandable ? chevron(open, `Passages in ${name}`, () => openSource(source.id)) : <span className="size-6 shrink-0" />}
       {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText, icon = <Icon aria-hidden className="size-3.5" />;
         return openControl(source, name, undefined, undefined, undefined, icon) ?? <span className="grid size-6 shrink-0 place-items-center text-gray-500">{icon}</span>; })()}
-      <button type="button" disabled={!!preview} onClick={() => { if (expandable) openSource(source.id); }} title={[name, source.note].filter(Boolean).join(NEWLINE)}
+      {/* Clicking the row name reads the source; the chevron alone opens it. */}
+      <button type="button" disabled={!!preview} onClick={jump} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
@@ -112,13 +114,15 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     // The other hierarchy flattens to one leaf name here: a type under source labels, a source under
     // highlight types. Neither tree ever mirrors the other's folders (Eli, 2026-09-09).
     const context = scope === "source" ? labels[item.labelIds[0]]?.name : sourceName(source);
+    const jump = () => { setSelectedHighlight(id);
+      if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); };
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
+      onClick={(event) => { if (!(event.target as Element).closest("button,a")) jump(); }}
       title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
       className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
       {passageLine(color, context, <>
       {/* The passage row is the open action: it selects the passage and reads it (Eli, 2026-09-10). */}
-      <button type="button" onClick={() => { setSelectedHighlight(id);
-          if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); }}
+      <button type="button" onClick={jump}
         className="min-w-0 flex-1 truncate text-start text-xs text-gray-600">
         <span className="font-medium text-gray-700">{locator}</span> {quote}
       </button>
@@ -168,14 +172,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       .reduce((sum, [id, count]) => sum + (ofType(typeId)(id) ? count : 0), 0);
     const carrying = sources.filter((source) => counted(source) > 0), total = carrying.reduce((sum, source) => sum + counted(source), 0);
     if (!total) return [];
-    const shown = shownTypes.has(typeId), typeName = labels[typeId]?.name ?? "type", plural = total === 1 ? "" : "s";
-    const toggle = <button key={`${typeId}:toggle`} type="button" aria-expanded={shown}
-      aria-label={`${shown ? "Hide" : "Show"} ${total} passage${plural} of ${typeName}`}
-      onClick={() => setShownTypes((current) => { const next = new Set(current); if (!next.delete(typeId)) next.add(typeId); return next; })}
-      className={`${ROW} w-full text-xs text-gray-500 hover:bg-gray-50`}>
-      <span className="grid size-6 shrink-0 place-items-center"><ChevronRight aria-hidden className={`size-3.5 ${shown ? "rotate-90" : ""}`} /></span>
-      <span className="min-w-0 flex-1 truncate text-start">{total} passage{plural}</span></button>;
-    if (!shown) return [toggle];
+    // The type row's own caret is the only caret: the tree renders this list only once that row is open.
     const missing = preview ? [] : carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
     if (missing.length) setWanted((current) => new Set([...current, ...missing]));
     const rows = preview
@@ -186,8 +183,8 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
         ? [passageNode(source, item.value, `${typeId}:`)] : []));
     // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
     const pending = !preview && carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);
-    return [toggle, ...rows.length || !pending ? rows
-      : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>]];
+    return rows.length || !pending ? rows
+      : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>];
   };
   const under = (labelId: string | null) => sources.filter((source) => scope === "highlight"
     ? false : labelId
