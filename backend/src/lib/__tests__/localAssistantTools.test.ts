@@ -1548,7 +1548,7 @@ describe("local assistant tools", () => {
     expect(rehydrated.evidence).toEqual(exact.evidence);
     expect(plain.evidence!.map(({ evidence_id }) => evidence_id)).toContain(receipt!.evidence_id);
     expect(paragraph.evidence![0].evidence_id).toBe(receipt!.evidence_id);
-    expect(footnote.evidence![0].span_text).toBe(footnoteText);
+    expect(footnote.evidence![0].span_text).toBe(`1 ${footnoteText}`);
     expect(plain.evidence!.map(({ evidence_id }) => evidence_id)).toContain(footnote.evidence![0].evidence_id);
     expect(JSON.parse(footnote.content).passages[0]).toMatchObject({ note: { label: "1" },
       proposition: { sentence: firstPage } });
