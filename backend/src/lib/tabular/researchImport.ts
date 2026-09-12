@@ -12,7 +12,7 @@ import { researchConceptKey } from "../researchLabelDesign";
 
 export type ResearchImportInput = { rows: "sources" | "passages"; labelId?: string };
 type Item = ResearchArrangement["cells"][number]["items"][number];
-type Kind = "classification" | "passages" | "note" | "answer";
+type Kind = "classification" | "passages" | "cited" | "note" | "answer";
 type Entry = { id: string; rowId: string; reference: Item; kind: Kind; text: string;
   column: TabularColumn; evidenceIds: string[]; default: boolean;
   /** What the source itself says at the cited passages; a proposal types passages by these, not by the finding's words. */
@@ -107,6 +107,16 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
         if (finding.reference.kind === "answer" && (!complete || finding.answer.claims.length > 1)) for (const { claim, index } of relevant)
           add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, question,
             claim.evidence_ids.filter((id) => owned.has(id)), !complete);
+      }
+      // Each passage the research cited but never highlighted is an item of its own, quoted once: the grain a
+      // highlight type attaches to and the support a filing points at (Eli, 2026-09-11).
+      if (input.rows === "sources") {
+        const highlighted = new Set(rowPassages.map(({ receipt }) => receipt.evidence_id));
+        for (const id of new Set(entries.filter((entry) => entry.rowId === rowId && entry.kind === "answer").flatMap(({ evidenceIds }) => evidenceIds))) {
+          const text = highlighted.has(id) ? null : quote(sourceId, id);
+          if (text) add(rowId, { kind: "passage", sourceId, evidenceId: id }, "cited", text,
+            { name: "Cited passage", prompt: "An exact passage the research relied on.", format: "text" }, [id], false);
+        }
       }
     }
   }

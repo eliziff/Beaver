@@ -52,7 +52,9 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             const request = [defaultRequest.trim(), instruction.trim()].filter(Boolean).join("\n");
             const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
                 ...(effort ? { reasoningEffort: effort } : {}) };
-            const report = (event: ProposalProgress) => { if (run === generation.current) setProgress(event); };
+            // A rejected first attempt stays on screen through the corrected one, so the lawyer sees why it took longer.
+            const report = (event: ProposalProgress) => { if (run !== generation.current) return;
+                setProgress((current) => event.stage === "asking" && current?.note ? { ...event, note: current.note } : event); };
             const [current, next] = await Promise.all([getResearchFile(activeId), labelling
                 ? proposeWorkspaceLabels(activeId, body, report, controller.signal) : proposeWorkspaceTable(activeId, body, report, controller.signal)]);
             if (run !== generation.current) return;
@@ -71,7 +73,8 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer); }, [busy]);
     const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0, shortModel = (value = model) => value.split(":").pop() ?? value;
     const working = progress?.stage === "reading" ? "Reading the research…"
-        : progress?.stage === "asking" ? [`Asking ${shortModel(progress.model)}…`, progress.chars ? `${progress.chars.toLocaleString()} characters` : "", `${elapsed} s`].filter(Boolean).join(" · ")
+        : progress?.stage === "asking" ? [progress.note ? `Second attempt (the first was rejected: ${progress.note})` : "", `Asking ${shortModel(progress.model)}…`,
+            progress.chars ? `${progress.chars.toLocaleString()} characters` : "", `${elapsed} s`].filter(Boolean).join(" · ")
         : progress?.stage === "checking" ? "Checking the proposal against the research…"
         : progress?.stage === "retrying" ? `The first proposal was rejected (${progress.note}); asking for a correction…` : "";
     const columns = preview?.design.columns ?? [];
