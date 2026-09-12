@@ -29,6 +29,8 @@ import { researchSelectionSchema } from "../researchSelection";
 import { researchSourceResource, type ResearchFile } from "../researchFile";
 import { modelLabelDesign, researchLabelDesignSchema, researchLabelInventory, researchLabelPlan,
   type ProposalOptions, type ResearchLabelTarget } from "../researchLabelDesign";
+import { FOLDER_PROMPT, folderDesignSchema, folderInventory, folderOrganizePlan,
+  type OrganizeDocument } from "../folderOrganize";
 import { extractTabularAnswers, tabularFormatDescription, TABULAR_FORMATS } from "./extraction";
 import type { TabularAgents, TabularAgentSnapshot } from "./agents";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
@@ -692,6 +694,17 @@ export function createTabularApplication(
       return proposal(scope, options, RESEARCH_LABEL_PROMPT, `${request ? `Organization requested: ${request}\n` : ""}Research inventory:\n${inventory}`,
         (raw) => { const design = researchLabelDesignSchema.parse(modelLabelDesign(json(raw), catalog)); researchLabelPlan(file, catalog, design, target); return design; },
         "The suggested label set was invalid; your research was not changed");
+    },
+    /** One reading of a library or project: the folders those files belong in, and the filing of each file. */
+    async designFolders(scope: TabularScope, documents: OrganizeDocument[], request: string,
+      options: ProposalOptions = {}) {
+      const inventory = folderInventory(documents);
+      if (inventory.length > 160_000) return fail(413, "Organize fewer files at a time");
+      return proposal(scope, options, FOLDER_PROMPT, `Organization requested: ${request}
+Files:
+${inventory}`,
+        (raw) => { const design = folderDesignSchema.parse(json(raw)); folderOrganizePlan(design, documents); return design; },
+        "The proposed folders were invalid; nothing was moved");
     },
     async design(scope: TabularScope, input: z.infer<typeof tabularDtos.design>,
       signal?: AbortSignal) {

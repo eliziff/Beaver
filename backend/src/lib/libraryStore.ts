@@ -41,6 +41,25 @@ export type LibraryStore = Pick<LibraryRepository, "folder" | "createFolder" |
     metadata?: unknown; notes?: string | null }): Promise<DocumentRecord | null>;
 };
 
+/** Every file of one library, deepest folders included, each carrying the folder path it sits in today. */
+export async function libraryDocuments(library: LibraryStore, scope: LibraryScope) {
+  const queue: Array<{ id: string | null; path: string }> = [{ id: null, path: "" }],
+    documents: Array<DocumentRecord & { folder_path?: string }> = [];
+  for (const parent of queue) {
+    let after: [number, string, string] | null = null;
+    do {
+      const page = await library.page(scope, { q: "", parentFolderId: parent.id, limit: 100, after });
+      for (const item of page.items) {
+        if (item.kind === "folder") queue.push({ id: item.folder.id,
+          path: [parent.path, item.folder.name.trim()].filter(Boolean).join(" / ") });
+        else documents.push({ ...item.document, ...(parent.path ? { folder_path: parent.path } : {}) });
+      }
+      after = page.nextAfter;
+    } while (after);
+  }
+  return documents;
+}
+
 const isLibraryDocument = (scope: LibraryScope, document: DocumentRecord | null) =>
   document?.project_id === null && document.library_kind === scope.kind
     ? document : null;

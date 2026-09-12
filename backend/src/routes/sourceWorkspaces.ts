@@ -2,10 +2,11 @@ import { Router, type Response } from "express";
 import { z } from "zod";
 import { textField } from "../lib/textField";
 import { requireAuth } from "../middleware/auth";
-import { ApplicationError, applicationScope, reject } from "../lib/applicationError";
+import { applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { pageRequest, pageResponse } from "../lib/pagination";
-import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
+import { requestAbortController } from "../lib/httpStreaming";
+import { proposalRoute } from "../lib/proposalRoute";
 import { researchFileActionSchema } from "../lib/researchFile";
 import { researchCaptureRuleSchema } from "../lib/researchFileQuery";
 import { researchSelectionSchema } from "../lib/researchSelection";
@@ -109,17 +110,9 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
       .refine(({ chatId, tableId }) => Boolean(chatId) !== Boolean(tableId), "Choose a chat or table").parse(req.body);
     res.json(await app.bind(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
-  /** A proposal answers as JSON, or as a progress stream ending in the result when the modal asks for one. */
   const proposal = <I>(parse: (body: unknown) => I, run: (res: Response, documentId: string, input: I, signal: AbortSignal,
-    progress: (event: ProposalProgress) => void) => Promise<unknown>) => asyncRoute(async (req, res) => {
-    const input = parse(req.body ?? {}), documentId = id.parse(req.params.id), { signal } = requestAbortController(req, res);
-    if (req.accepts(["json", "text/event-stream"]) !== "text/event-stream") return res.json(await run(res, documentId, input, signal, () => {}));
-    startSse(res);
-    try { writeSse(res, { done: true, result: await run(res, documentId, input, signal, (event) => writeSse(res, event)) }); }
-    catch (error) { if (!signal.aborted) writeSse(res, { error: error instanceof Error ? error.message : String(error),
-      status: error instanceof ApplicationError ? error.status : 500 }); }
-    res.end();
-  });
+    progress: (event: ProposalProgress) => void) => Promise<unknown>) =>
+    proposalRoute(parse, (req, res, input, signal, progress) => run(res, id.parse(req.params.id), input, signal, progress));
   router.post("/:id/table/preview", proposal((body) => tableInput.parse(body), (res, documentId, input, signal, progress) =>
     app.previewTable(scope(res), documentId, input, signal, progress)));
   router.post("/:id/table", asyncRoute(async (req, res) => {
