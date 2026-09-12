@@ -69,7 +69,9 @@ export function researchLabelInventory(catalog: ResearchImportCatalog, file: Res
       const items = catalog.entries.filter((entry) => entry.rowId === row.id),
         labels = items.filter(({ kind }) => kind === "classification").map(({ text }) => text),
         notes = items.filter(({ kind }) => kind === "note").map(({ text }) => clip(text, 300));
-      return { id: row.id, title: row.title, ...(labels.length ? { labels } : {}), ...(notes.length ? { notes } : {}) };
+      const reference = file.state.sources[row.sourceId]?.reference, shown = reference && reference.kind !== "document"
+        ? [reference.collection, reference.date?.slice(0, 4), reference.kind].filter(Boolean).join(" ") : undefined;
+      return { id: row.id, title: row.title, ...(shown ? { shown } : {}), ...(labels.length ? { labels } : {}), ...(notes.length ? { notes } : {}) };
     }) });
 }
 
@@ -151,6 +153,14 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     const leaves = parsed.labels.filter((label) => concept(label.key) && !parents.has(label.key) && members.get(label.key)?.size);
     if (catalog.rows.length >= 2 && leaves.length >= 2 && leaves.every((label) => members.get(label.key)!.size === 1))
       bad("Every label holds one source, so the labels copy the source list; a label must group sources, and what single passages say belongs to highlight types");
+    // A label whose members are exactly one court's sources restates what every row already shows.
+    for (const label of parsed.labels.filter((label) => concept(label.key))) {
+      const rows = [...(members.get(label.key)?.keys() ?? [])].map((rowId) => file.state.sources[rowById.get(rowId)?.sourceId ?? ""]?.reference),
+        courts = new Set(rows.map((reference) => reference?.kind === "document" ? undefined : reference?.collection));
+      if (rows.length >= 2 && courts.size === 1 && [...courts][0] && rows.length === catalog.rows.filter((row) =>
+          file.state.sources[row.sourceId]?.reference.collection === [...courts][0]).length)
+        bad(`“${clip(label.name, 80)}” holds exactly the ${[...courts][0]} sources, which every row already shows; say what those sources do for the question instead`);
+    }
   }
   // A filed source must have something to open: a passage typed in this proposal or a cited passage in the filing's own
   // support. Support the model left untyped becomes a highlight of the default type; a bare assertion is refused.
