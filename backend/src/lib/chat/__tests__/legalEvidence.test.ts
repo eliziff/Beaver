@@ -111,6 +111,38 @@ describe("production legal evidence", () => {
     expect(validateGroundedClaims(claims, state).errors.join(" ")).toContain("damaged passage");
   });
 
+  it("keeps a rejected submission as the draft and takes back only the claims that failed", () => {
+    const state = createLegalEvidenceTurnState(), evidence = passage();
+    registerLegalEvidence(state, evidence);
+    const claim = (text: string) => ({ text, evidence_ids: [evidence.evidence_id] });
+    const rejected = submitLegalEvidenceAnswer({ claims: [claim("The appeal is allowed."),
+      claim("Supporting analysis. ".repeat(80)), claim("The appeal is allowed.")] }, state);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.draft_claims).toBe(3);
+    expect(rejected.errors).toEqual([expect.stringContaining("claims[1].text is 1679 characters and the limit is 1200")]);
+    expect(rejected.next).toContain("replace");
+    const twoSentences = submitLegalEvidenceAnswer({ replace: [{ index: 1,
+      ...claim("The appeal is allowed. The appeal is allowed.") }] }, state);
+    expect(twoSentences.errors).toEqual([expect.stringContaining("claims[1] contains multiple sentences")]);
+    expect(twoSentences.draft_claims).toBe(3);
+    expect(submitLegalEvidenceAnswer({ replace: [{ index: 1, ...claim("The appeal is allowed.") }] }, state))
+      .toEqual({ ok: true, terminal: true });
+    expect(state.answer).toHaveLength(3);
+  });
+
+  it("refuses a replacement that names no draft or a claim outside it", () => {
+    const state = createLegalEvidenceTurnState(), evidence = passage();
+    registerLegalEvidence(state, evidence);
+    const claim = { text: "The appeal is allowed.", evidence_ids: [evidence.evidence_id] };
+    expect(submitLegalEvidenceAnswer({ replace: [{ index: 0, ...claim }] }, state).errors)
+      .toEqual(["there is no draft to replace; send the whole answer in claims"]);
+    submitLegalEvidenceAnswer({ claims: [{ ...claim, text: "" }] }, state);
+    expect(submitLegalEvidenceAnswer({ replace: [{ index: 2, ...claim }] }, state).errors)
+      .toEqual(["replace names claim 2; the draft holds claims 0 to 0"]);
+    expect(submitLegalEvidenceAnswer({ replace: [{ index: 0, ...claim }] }, state))
+      .toEqual({ ok: true, terminal: true });
+  });
+
   it("recognizes named cases even when the model omits their citations", () => {
     expect(hasCaseNameInText("My favourite is *R. v. Oakes*.")).toBe(true);
     expect(hasCaseNameInText("I prefer Baker v. Canada for this point.")).toBe(true);
@@ -650,7 +682,7 @@ describe("production legal evidence", () => {
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "x".repeat(1_201),
       evidence_ids: [evidence[0].evidence_id],
-    }] }, state).errors).toContain("claims[0].text is invalid");
+    }] }, state).errors).toContain("claims[0].text is 1201 characters and the limit is 1200; split it into separate claims, each one sentence with its own evidence_ids");
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "One proposition.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
