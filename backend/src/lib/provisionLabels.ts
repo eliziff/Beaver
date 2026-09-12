@@ -23,7 +23,7 @@ function sections(labels: readonly string[]) {
     const endpoints = unique[0].split(/[–—-]/u).map(parse);
     return endpoints.some((value) => !value)
       ? null
-      : [(endpoints as Provision[]).map(text).join("–")];
+      : [renderSectionSpan((endpoints as Provision[]).map(text)) ?? (endpoints as Provision[]).map(text).join("–")];
   }
   const parsed = unique.flatMap((label) => label.split(/[–—-]/u).map(parse));
   if (parsed.some((value) => !value)) return null;
@@ -36,10 +36,32 @@ function sections(labels: readonly string[]) {
     group.push(value);
     groups.set(value.root, group);
   }
-  return [...groups.values()].map((group) => group.length === 1
-    ? text(group[0])
-    : group.length === 2 && renderSectionSpan(group.map(text)) ||
-      `${text(group[0])}–${text(group.at(-1)!)}`);
+  return [...groups.values()].flatMap((group) => {
+    const spans: string[] = [];
+    for (let index = 0; index < group.length; index += 1) {
+      const first = group[index];
+      let last = first;
+      while (index + 1 < group.length && consecutiveSiblings(last, group[index + 1]))
+        last = group[++index];
+      spans.push(first === last ? text(first) : renderSectionSpan([text(first), text(last)])!);
+    }
+    return spans;
+  });
+}
+
+function consecutiveSiblings(left: Provision, right: Provision) {
+  if (!left.tokens.length || left.tokens.length !== right.tokens.length ||
+      !left.tokens.slice(0, -1).every((token, index) => token === right.tokens[index])) return false;
+  const a = left.tokens.at(-1)!.slice(1, -1);
+  const b = right.tokens.at(-1)!.slice(1, -1);
+  if (/^\d+(?:\.\d+)*$/u.test(a) && /^\d+(?:\.\d+)*$/u.test(b)) {
+    const from = a.split(".").map(Number);
+    const to = b.split(".").map(Number);
+    return b === `${a}.1` || to.length <= from.length &&
+      to.slice(0, -1).every((part, index) => part === from[index]) &&
+      to.at(-1) === from[to.length - 1] + 1;
+  }
+  return /^[a-z]$/u.test(a) && /^[a-z]$/u.test(b) && b.charCodeAt(0) === a.charCodeAt(0) + 1;
 }
 
 function numericRanges(labels: readonly string[]) {

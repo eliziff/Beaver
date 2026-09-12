@@ -94,6 +94,15 @@ export function normalizeLegalSourceLocator(value: string | null | undefined) {
   return locator.match(/^(?:par(?:a(?:graph)?)?|sec(?:tion)?)s?\.?\s*(\d+)$/iu)?.[1] ?? locator;
 }
 
+function marginLabel(anchor: Anchor) {
+  const { label, parentLabel } = anchor;
+  if (anchor.kind === "section" && parentLabel && label.startsWith(parentLabel)) {
+    const relative = label.slice(parentLabel.length);
+    if (/^(?:\([^()]+\))+$/u.test(relative)) return relative;
+  }
+  return locatorLabel(label);
+}
+
 function locatorLabel(label: string) {
   if (label.startsWith("page")) return `Page ${label.slice(4)}`;
   if (label.startsWith("par")) return `[${label.slice(3)}]`;
@@ -460,7 +469,7 @@ function LegalSourceViewerContent({
                 ? slice.primary
                 : slice.anchors.find(({ kind }) => kind === "page");
               const marker = slice.primary?.kind !== "page" && slice.primary
-                ? locatorLabel(slice.primary.label)
+                ? marginLabel(slice.primary)
                 : null;
               const selectionAnchor = slice.primary ?? slice.anchors.find(({ kind }) =>
                 kind === "paragraph" || kind === "section" || kind === "page" || kind === "footnote");
