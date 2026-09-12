@@ -40,18 +40,20 @@ export const researchConceptKey = (name: string) => name.normalize("NFKC").toLow
 export function researchLabelInventory(catalog: ResearchImportCatalog, file: ResearchFile, target: ResearchLabelTarget) {
   const hierarchy = (kind: ResearchLabel["scope"]) => Object.values(file.state.labels).filter((label) => label.scope === kind)
     .map(({ id, name, parentId, definition }) => ({ key: id, name, parentKey: parentId, ...(definition ? { definition } : {}) }));
-  // A whole answer duplicates its claims; the claims are the grain a type attaches to.
-  const cited = catalog.entries.filter(({ evidenceIds }) => evidenceIds.length),
-    finding = (entry: ResearchImportCatalog["entries"][number]) => entry.reference.kind === "answer" ? `${entry.rowId}:${entry.reference.answerId}` : null,
-    claimed = new Set(cited.filter((entry) => entry.reference.kind === "answer" && entry.reference.claimIndices).map(finding));
+  // Lean by construction: every passage once, quoted; every source once, with a one-line gist. The chat's own
+  // claims are not repeated, so the model types what the source says and files by what the source is.
+  const own = (rowId: string) => catalog.entries.filter((entry) => entry.rowId === rowId);
   return JSON.stringify({ title: catalog.title, sourceKind: target === "sources" ? "source" : "saved passage",
     existingHighlightTypes: hierarchy("highlight"), existingLabels: hierarchy("source"),
-    passages: cited.filter((entry) => !(entry.reference.kind === "answer" && !entry.reference.claimIndices && claimed.has(finding(entry))))
-      .map(({ id, rowId, kind, column, text, quotes }) => ({ id, source: rowId, kind, ...(kind === "passages" ? { type: column.name } : {}),
-        ...(kind === "passages" ? {} : { finding: clip(text, 500) }), quotes: quotes.map((value) => clip(value, 600)) })),
-    sources: catalog.rows.map((row) => ({ id: row.id, title: row.title,
-      items: catalog.entries.filter((entry) => entry.rowId === row.id && !entry.evidenceIds.length)
-        .map(({ id, kind, text }) => ({ id, kind, text: clip(text, 700) })) })) });
+    passages: catalog.entries.filter(({ kind }) => kind === "passages" || kind === "cited")
+      .map(({ id, rowId, kind, column, text }) => ({ id, source: rowId, ...(kind === "passages" ? { type: column.name } : {}), quote: clip(text, 500) })),
+    sources: catalog.rows.map((row) => {
+      const items = own(row.id), labels = items.filter(({ kind }) => kind === "classification").map(({ text }) => text),
+        notes = items.filter(({ kind }) => kind === "note").map(({ text }) => clip(text, 300)),
+        whole = items.filter((entry) => entry.kind === "answer" && !(entry.reference.kind === "answer" && entry.reference.claimIndices)),
+        gist = [...new Set((whole.length ? whole : items.filter(({ kind }) => kind === "answer")).map(({ text }) => clip(text, 300)))].slice(0, 3);
+      return { id: row.id, title: row.title, ...(labels.length ? { labels } : {}), ...(notes.length ? { notes } : {}), ...(gist.length ? { gist } : {}) };
+    }) });
 }
 
 /** The model answers passages first: highlight types with their highlights, then labels with their filings. One design results. */
