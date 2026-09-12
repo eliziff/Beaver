@@ -30,7 +30,7 @@ export type LegalEvidenceMode = "citation_structure";
 const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
-  "Use one sentence per claim and the smallest supporting passage. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose its exact evidence_id, not a neighbouring paragraph or a broader range; Read that paragraph if needed.";
+  "Use one sentence per claim and the smallest supporting passage. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -845,7 +845,7 @@ const claimSchema = {
     text: {
       type: "string",
       maxLength: 1_200,
-      description: "Answer segment in Markdown. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
+      description: "One sentence of the answer in Markdown, at most 1,200 characters; a section heading may open the first sentence of its section, and the whole answer holds at most 64 claims. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
     },
     evidence_ids: {
       type: "array",

@@ -70,7 +70,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, legal source, saved evidence_id or query_id. Reuse passages and evidence_ids; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. List prior receipts with file_path evidence or queries, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To find where a source you already hold says something, Read it with pattern instead of searching again. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. List prior receipts with file_path evidence or queries, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
@@ -98,17 +98,17 @@ export const RESOURCE_TOOLS = [
       },
       locator: {
         type: "string",
-        description: "Exact locator value; required with locator_kind (for example, 5 for PDF page 5).",
+        description: "First unit to read: 58 for paragraph 58, 5 for PDF page 5, or a section label.",
       },
-      end_locator: { type: "string", description: "Inclusive range end; read adjacent paragraphs or sections together." },
-      context_blocks: { type: "integer", minimum: 0, maximum: 2 },
+      end_locator: { type: "string", description: "Last unit of the run, inclusive: locator 58 with end_locator 63 reads paragraphs 58 to 63 in one call." },
+      context_blocks: { type: "integer", minimum: 0, maximum: 2, description: "Neighbouring units returned on each side of the run." },
       page: { type: "integer", minimum: 1 },
       occurrence: { type: "integer", minimum: 1 },
       pattern: {
         type: "string",
         minLength: 1,
         maxLength: 256,
-        description: "Literal phrase within a legal source, or an exact support ID returned by a findings read.",
+        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id. Or an exact support ID returned by a findings read.",
       },
       max_results: { type: "integer", minimum: 1, maximum: 50 },
       context_chars: { type: "integer", minimum: 40, maximum: 2000 },
