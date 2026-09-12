@@ -7,6 +7,7 @@ export type PickerModel = {
 };
 const STATIC_MODELS = [
     { id: "claude-fable-5", label: "Claude Fable 5", group: "Anthropic" },
+    { id: "claude-opus-5", label: "Claude Opus 5", group: "Anthropic" },
     { id: "claude-opus-4-8", label: "Claude Opus 4.8", group: "Anthropic" },
     { id: "claude-opus-4-7", label: "Claude Opus 4.7", group: "Anthropic" },
     { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", group: "Anthropic" },
@@ -24,13 +25,15 @@ const STATIC_MODELS = [
     { id: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite", group: "Google", settingsOnly: true },
     { id: "gpt-5.4-lite", label: "GPT-5.4 Lite", group: "OpenAI", settingsOnly: true },
     // The contributor tier trains on inputs and stays out of the chat picker.
-    { id: "muse-spark-1.2-contributor", label: "Muse Spark 1.2 (contributor · trains on input)", group: "Meta", settingsOnly: true },
+    { id: "muse-spark-1.2-contributor", label: "Muse Spark 1.2 (contributor ï¿½ trains on input)", group: "Meta", settingsOnly: true },
     { id: "gpt-5.6-luna", label: "GPT-5.6 Luna", group: "OpenAI", hidden: true },
 ];
 
 export function pickerModel(model: Omit<PickerModel, "provider">): PickerModel {
     const reasoning = model.id.startsWith("deepseek-")
         ? { reasoningEfforts: ["low", "high", "max"], defaultReasoningEffort: "high" }
+        : model.id.startsWith("claude-p:")
+            ? { reasoningEfforts: ["low", "medium", "high", "xhigh", "max"], defaultReasoningEffort: "high" }
         : model.id.includes("muse-spark-")
             ? { reasoningEfforts: ["xhigh", "high", "medium", "low", "minimal"], defaultReasoningEffort: "medium" }
             : {};

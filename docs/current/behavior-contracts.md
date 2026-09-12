@@ -231,6 +231,10 @@ scope.
 - Specialists load by exact registered name without a cumulative capability cap.
 - A successful legal Read supplies exact passages and usable continuation;
   model-facing compaction preserves native source, opinion and evidence identity.
+- The tool schema states how to read economically: a run of paragraphs is one
+  Read with locator and end_locator (one evidence_id per unit), a passage inside a
+  held source is found with pattern, one search serves a question, and a source the
+  search omits is not installed.
 - Grounded answer segments are written once with their supporting evidence
   IDs. The runtime validates and renders them through the common claim and
   citation contracts.
