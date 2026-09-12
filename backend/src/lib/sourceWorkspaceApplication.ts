@@ -408,7 +408,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     progress?.({ stage: "reading" });
     const { file, catalog, resolveFinding, target } = await labelCatalog(scope, id, input);
     const modelDesign = () => (async () => (await dependencies.tabular()).designLabels(scope, catalog, file, target,
-      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal, progress }))();
+      input.request, { model: input.model, reasoningEffort: input.reasoningEffort, signal, progress }))();
     let design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined) : await modelDesign());
     let { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
     // A sparse hand-made ontology that files fewer than half the sources is no organization; propose a fresh one
