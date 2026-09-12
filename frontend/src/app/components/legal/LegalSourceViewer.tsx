@@ -1,3 +1,4 @@
+import { ChevronLeft } from "lucide-react";
 import { ReaderExpandButton } from "../shared/ReaderExpandButton";
 import { useReaderExpansion } from "../shared/useReaderExpansion";
 import {
@@ -70,6 +71,12 @@ export type LegalSourceViewerProps = {
   researchSourceId?: string | null;
   projectId?: string;
   onOpenResearch?: (intent?: "source-drop") => void;
+  /** Where the reader stands, so a host can come back to it after a jump from the tree. */
+  onScrollTop?: (top: number) => void;
+  /** Set instead of the locator when returning: the exact place the reader left. */
+  restoreScrollTop?: number | null;
+  /** Given only after a jump from the tree: shows the pop-up Back control over the reader. */
+  onBack?: () => void;
 };
 
 function legalSourceAnchorId(label: string) {
@@ -230,6 +237,9 @@ function LegalSourceViewerContent({
   initialLocator,
   researchSourceId,
   onOpenResearch,
+  onScrollTop,
+  restoreScrollTop,
+  onBack,
 }: LegalSourceViewerProps) {
   const { file: researchFile, mutations: commit, loading: researchLoading, error: workspaceError,
     passages, highlight } = useSourcesWorkspace();
@@ -328,6 +338,11 @@ function LegalSourceViewerContent({
     payload ? { revision: payload.reference.sourceSha256, slices } : null, setResearchError);
   useEffect(() => {
     if (!payload || !root.current) return;
+    // Coming back takes the reader to the exact place it left, not to a locator.
+    if (typeof restoreScrollTop === "number") {
+      const back = requestAnimationFrame(() => { if (root.current) root.current.scrollTop = restoreScrollTop; });
+      return () => cancelAnimationFrame(back);
+    }
     const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1)).replace(/^legal-/u, "");
     if (!targetLocator) return;
     const frame = requestAnimationFrame(() => {
@@ -335,7 +350,7 @@ function LegalSourceViewerContent({
       if (root.current && target) scrollTo(root.current, target, true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [locator, payload, navigationRequest]);
+  }, [locator, payload, navigationRequest, restoreScrollTop]);
 
   if (!payload) {
     return <div className="grid h-full place-items-center p-6">
@@ -443,7 +458,11 @@ function LegalSourceViewerContent({
         This unusually long source is displayed through the first five million characters.
       </p>}
       <div className="relative min-h-0 flex-1">
+      {onBack && <button type="button" onClick={onBack}
+        className="absolute left-4 top-3 z-10 inline-flex h-7 items-center gap-1 rounded-full border border-gray-300 bg-white/95 px-3 text-xs font-medium text-gray-700 shadow hover:bg-gray-50">
+        <ChevronLeft aria-hidden className="size-3.5" />Back</button>}
       <div ref={root} data-highlighter={highlight.armed ? "" : undefined}
+        onScroll={(event) => onScrollTop?.(event.currentTarget.scrollTop)}
         onDragStart={(event) => {
           const span = readerSelectionSpan(event.currentTarget, window.getSelection(), slices);
           if (span) event.dataTransfer.setData(RESEARCH_PASSAGE_REFERENCE_DRAG,

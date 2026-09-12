@@ -273,15 +273,20 @@ describe("ResearchFileBar", () => {
     expect(screen.getByRole("tree", { name: "Sources" })).toBeVisible();
   });
 
-  it("opens the reader only from the Open control, never from touching the row", async () => {
+  it("reads the source from anywhere on its row and from the Open control", async () => {
     const read = vi.fn();
     render(<ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} selectedSourceId="baker" />);
     const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
     expect(title).toHaveAttribute("aria-current", "true");
     fireEvent.click(title);
-    expect(read).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    read.mockClear();
+    fireEvent.click(title.closest("[data-source-row]")!);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    read.mockClear();
     fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
     expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
     expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
   });

@@ -176,6 +176,16 @@ describe("legal source reader", () => {
             .toBeInTheDocument();
     });
 
+    it("shows Back over the reader and restores its scroll position", async () => {
+        const onBack = vi.fn();
+        api.direct.mockResolvedValue(viewerPayload());
+        const { container } = render(sourceViewer({ onBack, restoreScrollTop: 275 }));
+        await screen.findByRole("heading", { name: "Fixture v. Test" });
+        await waitFor(() => expect(container.querySelector<HTMLElement>(".overflow-y-auto")!.scrollTop).toBe(275));
+        fireEvent.click(screen.getByRole("button", { name: "Back" }));
+        expect(onBack).toHaveBeenCalledOnce();
+    });
+
     it("maps a selected passage to its exact offsets in the served text", () => {
         const root = document.createElement("div");
         root.innerHTML = '<section data-legal-text="0">Before <span>the exact holding</span> after</section>';
