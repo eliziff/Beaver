@@ -14,7 +14,9 @@ export type ResearchImportInput = { rows: "sources" | "passages"; labelId?: stri
 type Item = ResearchArrangement["cells"][number]["items"][number];
 type Kind = "classification" | "passages" | "note" | "answer";
 type Entry = { id: string; rowId: string; reference: Item; kind: Kind; text: string;
-  column: TabularColumn; evidenceIds: string[]; default: boolean };
+  column: TabularColumn; evidenceIds: string[]; default: boolean;
+  /** What the source itself says at the cited passages; a proposal types passages by these, not by the finding's words. */
+  quotes: string[] };
 export type ResearchImportCatalog = { title: string; question: string | null; fingerprint: string;
   columns?: Array<TabularColumn & { scope: "source" | "highlight" }>;
   labels: { id: string; path: string; scope: "source" | "highlight"; definition?: string }[];
@@ -46,10 +48,14 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
   }
   const rows: ResearchArrangement["rows"] = [], entries: Entry[] = [];
   const questions = [...new Set(findings.filter(({ reference }) => reference.kind === "answer").map(({ question }) => question.prompt))];
+  const quote = (sourceId: string | undefined, evidenceId: string) => sourceId
+    ? Object.values(parts.get(sourceId) ?? {}).find(({ receipt }) => receipt.evidence_id === evidenceId)?.receipt.span_text ?? null : null;
   const add = (rowId: string, reference: Item, kind: Kind, text: string,
     column: Omit<TabularColumn, "index">, evidenceIds: string[] = [], use = true) => {
+    const sourceId = rows.find((row) => row.id === rowId)?.sourceId;
     entries.push({ id: `item${entries.length}`, rowId, reference, kind, text,
-      column: { ...column, index: 0 }, evidenceIds, default: use });
+      column: { ...column, index: 0 }, evidenceIds, default: use,
+      quotes: evidenceIds.flatMap((id) => { const value = quote(sourceId, id); return value ? [value] : []; }) });
   };
   for (const [sourceId, permitted] of allowed) {
     const source = file.state.sources[sourceId];
@@ -115,7 +121,9 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
 
 export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchImportDesign {
   const columns = new Map<string, TabularColumn>(), cells = new Map<string, ResearchImportDesign["cells"][number]>();
-  for (const label of catalog.labels) if (!columns.has(label.path)) columns.set(label.path,
+  // The bare default highlight type asks no question, so it is never a column (Eli, C0709); a defined type is.
+  for (const label of catalog.labels) if (!columns.has(label.path) && !(label.scope === "highlight" && !label.definition &&
+    researchConceptKey(label.path) === "highlight")) columns.set(label.path,
     { index: columns.size, name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, format: "text" });
   const structured = columns.size > 0;
   if (!structured) columns.set("Finding", { index: 0, name: "Finding", format: "text",

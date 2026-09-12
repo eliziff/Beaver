@@ -1,4 +1,5 @@
-import { apiRequest, segment, pagePath, post, type Page } from "@/app/lib/api/client";
+import { apiRequest, BeaverApiError, segment, pagePath, post, streamRequest, type Page } from "@/app/lib/api/client";
+import { readSseData } from "@/app/lib/sse";
 import type { ResearchFile, ResearchAction, ResearchActionResult, ResearchPageItem, ResearchQueryInput, ResearchQueryResult, ResearchSelection } from "@/app/lib/researchFiles";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
 import type { ColumnConfig, TabularReview } from "./tabular";
@@ -59,8 +60,21 @@ export type ResearchTablePreview = { fingerprint: string; design: ResearchTableD
   rows: { id: string; title: string; sourceId: string; evidenceIds?: string[] }[];
   stats: { index: number; reused: number; kinds: string[]; evidence: number; existing: boolean }[];
   samples: { rowId: string; columnIndex: number; text: string; kinds: string[] }[] };
-export const previewWorkspaceTable = (id: string, input: ResearchTableInput) =>
-  post<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input);
+/** What the organizing step is doing right now, as the server streams it. */
+export type ProposalProgress = { stage: "reading" | "asking" | "checking" | "retrying"; model?: string; chars?: number; note?: string };
+async function propose<T>(path: string, input: unknown, onProgress: (event: ProposalProgress) => void, signal?: AbortSignal): Promise<T> {
+  const response = await streamRequest(path, input, { accept: "text/event-stream", signal });
+  if (!response.body) throw new Error("The proposal could not be read");
+  for await (const data of readSseData(response.body, { signal })) {
+    const event = JSON.parse(data) as ProposalProgress & { done?: true; result?: T; error?: string; status?: number };
+    if (event.error) throw new BeaverApiError({ message: event.error, status: event.status ?? 500 });
+    if (event.done) return event.result as T;
+    onProgress(event);
+  }
+  throw new Error("The proposal ended before a result arrived");
+}
+export const proposeWorkspaceTable = (id: string, input: ResearchTableInput, onProgress: (event: ProposalProgress) => void, signal?: AbortSignal) =>
+  propose<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input, onProgress, signal);
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
 export type ResearchLabelDesign = { title: string;
@@ -68,9 +82,9 @@ export type ResearchLabelDesign = { title: string;
   assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
 export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean; reproposed?: boolean;
   fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];
-  labels: { key: string; name: string; path: string; parentKey: string | null; color: string | null;
+  labels: { key: string; name: string; scope?: "source" | "highlight"; path: string; parentKey: string | null; color: string | null;
     definition?: string; existing: boolean; rows: { id: string; title: string; support: string[] }[] }[] };
-export const previewWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design">) =>
-  post<ResearchLabelProposal>(`/source-workspaces/${segment(id)}/labels/preview`, input);
+export const proposeWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design">, onProgress: (event: ProposalProgress) => void, signal?: AbortSignal) =>
+  propose<ResearchLabelProposal>(`/source-workspaces/${segment(id)}/labels/preview`, input, onProgress, signal);
 export const applyWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { design: ResearchLabelDesign }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/labels`, input);

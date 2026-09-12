@@ -347,13 +347,14 @@ it.each([false, true])("round trips every table column with joint evidence and u
       workingRevision: current.workingRevision, action: { type: "label", name: "Honesty", scope: "source", definition: "Honesty?" } }); }
   const before = await f.sources.ensure(owner, { tableId: review.id }), input = { tableId: review.id },
     preview = await f.sources.previewLabels(owner, before.document.id, input);
-  expect(preview.labels.map(({ name }) => name)).toEqual(columns.map(({ name }) => name));
+  // Cell evidence becomes highlights of the default type, so every filing has a passage to open (Eli, 2026-09-11).
+  expect(preview.labels.map(({ name }) => name)).toEqual([...columns.map(({ name }) => name), "Highlight"]);
   expect(await f.sources.get(owner, before.document.id)).toEqual(before);
   const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
     page = await f.sources.items(owner, saved.document.id, { kind: "evidence", offset: 0, limit: 50 }),
     passages = page.items.flatMap((item) => item.kind === "evidence" ? [item.value] : []);
   expect(passages.map(({ receipt }) => receipt.evidence_id).sort()).toEqual(evidence.map(({ evidence_id }) => evidence_id).sort());
-  expect(passages.every((passage) => passage.labelIds.length === 0)).toBe(true);
+  expect(passages.every((passage) => saved.state.labels[passage.labelIds[0]]?.name === "Highlight")).toBe(true);
   for (const receipt of evidence) {
     const source = Object.values(saved.state.sources).find(({ reference }) =>
       f.research.researchSourceResource(reference) === f.legal.legalEvidenceResourceReference(receipt))!;

@@ -119,16 +119,18 @@ it("groups by actual question, not an entire chat, and offers individual origina
   expect(plan.arrangement.cells[0].items).toEqual([{ ...first.reference, claimIndices: [1] }]);
   expect(plan.samples[0].text).toBe("Second reason");
 });
-it("names the default highlight type for what it holds and reimports a question into its own column", () => {
+it("never makes the bare default highlight type a column, keeps a defined type named Highlight, and reimports a question once", () => {
   const f = fixture();
   f.file.state.labels[notice] = { ...f.file.state.labels[notice], name: "Highlight" };
   const repeat = finding(f, "Contract");
   // A review made from this research earlier comes back as a finding; it must not double the column.
   repeat.question = { ...repeat.question, title: "Classification",
     prompt: "Recorded source classifications; preserve their full paths." };
-  const catalog = researchImportCatalog(f.file, f.subjects, f.parts, [repeat], { rows: "sources" });
-  expect(defaultResearchImport(catalog).columns.map(({ name }) => name))
-    .toEqual(["Contract", "Highlight", "Payment"]);
+  const columns = () => defaultResearchImport(researchImportCatalog(f.file, f.subjects, f.parts, [repeat], { rows: "sources" })).columns.map(({ name }) => name);
+  // A context-free "Highlight" column is never a question (Eli, C0709); a type with a definition asks one.
+  expect(columns()).toEqual(["Contract", "Payment"]);
+  f.file.state.labels[notice].definition = "Notice periods and how they were computed";
+  expect(columns()).toEqual(["Contract", "Highlight", "Payment"]);
 });
 it("keeps narrowed answer claim indices and row support rather than re-indexing the original answer", () => {
   const f = fixture(), answer = finding(f, "Why?", ["Only selected claim"]);

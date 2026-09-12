@@ -129,6 +129,8 @@ export async function runChatTurn(options: {
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
   onResearchObserved?: ResearchObserver;
   onActivity?: () => void;
+  /** Every streamed answer fragment, for callers that show the model working without keeping a transcript. */
+  onContentDelta?: (delta: string) => void;
 }) {
   const { emit, activityDetail = "auto", subagentMode = "none", signal } = options;
   const events: AssistantEvent[] = [];
@@ -478,6 +480,7 @@ export async function runChatTurn(options: {
     onContentDelta(delta: string) {
       if (delta) providerActivity = true;
       append(delta);
+      options.onContentDelta?.(delta);
     },
     onContentBlockEnd() {
       if (!paused && options.separateContentBlocks !== false) boundary = Boolean(text);
