@@ -82,6 +82,28 @@ retained; transient native DOCX drafting fallback is not cached as a drafting
 result. Cold reads add metadata checks and can be slower. There is no disk cache,
 cross-process reuse, polling timer or new persistence root.
 
+## PDF preparation corpus
+
+From `backend`, set `LEGAL_STRUCTURE_NATIVE` to the exact native library being
+measured, then run:
+
+```sh
+node --import tsx scripts/pdf-corpus.ts <manifest.json> <source-root> <output-root> baseline
+node --import tsx scripts/pdf-corpus.ts <manifest.json> <source-root> <output-root> candidate
+```
+
+The runner uses the application's preparation service, concurrency policy and
+native thread pool. It verifies source hashes and page counts, starts with an
+empty application cache, and records preparation and product-inspection times
+separately. This digital-born profile disables OCR and external layout analysis.
+The receipt includes hardware, runtime, profile and native-library identity.
+
+Create the baseline once. Later runs replace the owned `candidate` directory and
+compare against the frozen baseline under matching conditions. Identical products
+retain only hashes; changed products retain compressed text and anchors. The
+runner removes its application cache after recording the result and returns a
+failure status when candidate preparation fails.
+
 ## PDF rendering and transport
 
 The shared PDF.js renderer loads page-one fit geometry and the requested page
