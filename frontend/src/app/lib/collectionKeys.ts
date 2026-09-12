@@ -18,6 +18,8 @@ export const tabularReviewsCollection = (options: Omit<NonNullable<Parameters<ty
 export const chatsCollection = (options: ChatSearchOptions = {}) =>
     identity("/chat", { ...options, search_scope: options.search_scope ?? "all",
         search_context: options.search_context ?? "assistant", sort: options.sort ?? "newest", limit: 21 }, ["chats", "reviews"]);
+export const libraryDocumentsCollection = (q = "") =>
+    identity("/single-documents", { q: q.trim() }, ["directories", "directory:/library/files"]);
 export function directoryCollection(scope: DirectoryScope, q = "") {
     const root = "projectId" in scope ? `/projects/${encodeURIComponent(scope.projectId)}` : `/library/${scope.library}`;
     return identity(`${root}/collection`, { q: q.trim() }, ["directories", `directory:${root}`]);
