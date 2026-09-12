@@ -8,6 +8,8 @@ import {
     Search,
 } from "lucide-react";
 import { PageHeader } from "@/app/components/shared/PageHeader";
+import { CollectionState } from "@/app/components/shared/CollectionState";
+import { FileTypeIcon } from "@/app/components/shared/FileTypeIcon";
 import {
   getLegalSourceCoverage,
   searchLegalSources,
@@ -15,7 +17,11 @@ import {
   type LegalSourceCoverage,
   type LegalSourceSearchResult,
 } from "@/app/lib/api/legalSources";
-import { researchSourceKey, type ResearchFile, type ResearchSource,
+import { listLibraryDocuments, type Document } from "@/app/lib/api/documents";
+import { libraryDocumentsCollection } from "@/app/lib/collectionKeys";
+import { usePagedQuery } from "@/app/hooks/usePagedQuery";
+import type { Citation } from "@/app/lib/citations";
+import { isResearchDocument, researchSourceKey, type ResearchFile, type ResearchSource,
     type ResearchSourceReference } from "@/app/lib/researchFiles";
 import {
     LegalSourceViewer,
@@ -28,6 +34,7 @@ import { safeAssistantUrl } from "@/app/lib/safeAssistantUrl";
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { Button } from "@/app/components/ui/button";
 import { TabList } from "@/app/components/ui/tabs";
+import { ResearchCitationViewer } from "./ResearchCitationViewer";
 import { ResearchLabelPicker } from "./ResearchLabelPicker";
 import { ResearchWorkspaceHost } from "./ResearchWorkspaceHost";
 import { SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
@@ -43,13 +50,14 @@ const FILTER_INPUT =
 const DATE_FILTERS = [["from", "From year"], ["to", "To year"]] as const;
 const SORT_OPTIONS = [["default", "Most relevant"], ["newest_first", "Newest first"],
     ["oldest_first", "Oldest first"]] as const;
-type SourceTab = "all" | LegalSearchDocumentType;
+type SourceTab = "all" | LegalSearchDocumentType | "library";
 const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["all", "All"],
     ["cases", "Cases"],
     ["laws", "Legislation"],
     ["articles", "Journals"],
     ["hansard", "Hansard"],
+    ["library", "Library"],
 ];
 /** Free-text filters that only some source categories carry: name, label, placeholder, grid span. */
 const TEXT_FILTERS: Partial<Record<SourceTab, ReadonlyArray<readonly [string, string, string, string]>>> = {
@@ -95,6 +103,51 @@ function SearchSnippet({ children }: { children: string }) {
     });
 }
 
+/** The lawyer's own library, filed into the open research set with the same marker as a search result. */
+function LibraryFiles({ query, sourceIndex, busy, save, onError, onNeedFile, onSourceDrag }: {
+    query: string; sourceIndex: Map<string, ResearchSource>; busy: boolean;
+    save: (reference: ResearchSourceReference, file: ResearchFile) => Promise<{ file: ResearchFile; itemId: string }>;
+    onError: (message: string) => void; onNeedFile: () => void; onSourceDrag: () => void }) {
+    const { file: researchFile, mutations } = useSourcesWorkspace();
+    const [reading, setReading] = useState<Citation | null>(null);
+    const documents = usePagedQuery<Document>((cursor, signal) => listLibraryDocuments({ q: query, cursor }, signal),
+        [query], true, libraryDocumentsCollection(query));
+    const files = documents.items.filter((item) => !isResearchDocument(item));
+    if (documents.error) return <CollectionState error>Your library could not be opened.</CollectionState>;
+    if (documents.loading && !files.length) return <CollectionState loading>Loading…</CollectionState>;
+    return <section className="grid gap-2">
+        {files.map((item) => {
+            const reference: ResearchSourceReference | null = item.current_version_id
+                ? { provider: "library", kind: "document", id: item.id,
+                    versionId: item.current_version_id, title: item.filename } : null;
+            const saved = reference ? sourceIndex.get(researchSourceKey(reference)) : undefined;
+            return <article key={item.id} className="flex min-w-0 items-center gap-3 rounded-md border border-gray-200 bg-white p-4">
+                <ResearchLabelPicker file={researchFile} size="lg" kind="source" itemId={saved?.id}
+                    labelIds={saved?.labelIds ?? []} note={saved?.note} title={item.filename}
+                    disabled={busy || !reference} mutations={mutations} onError={onError}
+                    sourceReference={reference ?? undefined} onSourceDrag={onSourceDrag} onNeedFile={onNeedFile}
+                    prepare={saved || !reference ? undefined : (target) => save(reference, target)} />
+                <FileTypeIcon fileType={item.file_type} filename={item.filename} className="size-4" />
+                <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-base font-semibold text-gray-900">{item.filename}</h3>
+                    <p className="mt-1 text-sm leading-5 text-gray-600">{formatLongDate(item.created_at)}</p>
+                </div>
+                <button type="button" aria-label={`View ${item.filename}`}
+                    onClick={() => setReading({ kind: "document", ref: 1, document_id: item.id,
+                        version_id: item.current_version_id ?? undefined, filename: item.filename, quotes: [] })}
+                    className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
+                    View
+                </button>
+            </article>;
+        })}
+        {!files.length && <p role="status" className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-600">
+            {query ? "No library files matched this search." : "No library files yet."}
+        </p>}
+        {documents.hasMore && <Button variant="outline" onClick={documents.loadMore}>Load more</Button>}
+        {reading && <ResearchCitationViewer citation={reading} onClose={() => setReading(null)} />}
+    </section>;
+}
+
 type LibraryProps = {
     embedded?: boolean; projectId?: string;
     onResearchFileChange?: (file: ResearchFile | null) => void;
@@ -122,6 +175,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     const [searched, setSearched] = useState(false);
     const [notInstalled, setNotInstalled] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [libraryQuery, setLibraryQuery] = useState("");
     const [coverage, setCoverage] = useState<LegalSourceCoverage[]>([]);
     const [filters, setFilters] = useState({
         docType: "all" as SourceTab,
@@ -160,11 +214,10 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         if (embedded && onOpenSource) onOpenSource(tab);
         else setReadingSource(tab);
     }
-    async function saveResult(result: LegalSourceSearchResult, file = researchFile) {
-        if (!file) throw new Error("Choose or create a workspace first");
+    async function saveReference(reference: ResearchSourceReference, file: ResearchFile) {
         setResearchBusy(true);
         try {
-            const next = await mutations.act({ type: "source", reference: researchReference(result),
+            const next = await mutations.act({ type: "source", reference,
                 labelIds: (selection.labelIds ?? []).filter((id) => file.state.labels[id]?.scope === "source") });
             if (!next.sourceId) throw new Error("Saved source was not returned");
             return { file: next, itemId: next.sourceId };
@@ -186,6 +239,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     );
     async function runSearch(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (docType === "library") return setLibraryQuery(searchQuery.trim());
         const form = new FormData(event.currentTarget);
         const text = (name: string) => form.get(name)?.toString().trim() || undefined;
         const query = searchQuery.trim();
@@ -280,13 +334,15 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                             ariaLabel="Source category"
                             className="mb-3" />
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
-                            <SearchBar name="query" required value={searchQuery}
+                            <SearchBar name="query" required={docType !== "library"} value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch
                                 aria-label="Search sources"
                                 wrapperClassName="col-span-2 min-w-0 @min-[42rem]:col-span-1"
                                 placeholder={
                                         docType === "all"
                                             ? "Search cases, legislation, journals, and Hansard"
+                                            : docType === "library"
+                                              ? "File name in your library"
                                             : docType === "hansard"
                                               ? "Speaker, subject, or Hansard text"
                                             : docType === "laws"
@@ -311,7 +367,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                 <PanelsTopLeft className="size-4" aria-hidden="true" />
                             </Button>
                         </div>
-                        {docType !== "all" && (
+                        {docType !== "all" && docType !== "library" && (
                             <div className="mt-3 grid gap-2 @min-[28rem]:grid-cols-2 @min-[48rem]:grid-cols-4">
                                 {(docType === "cases" || docType === "laws") && <>
                                     <FilterSelect id="legal-jurisdiction" label="Jurisdiction" value={jurisdiction}
@@ -394,7 +450,11 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                             {error}
                         </p>
                     )}
-                    {searched && (
+                    {docType === "library" ? <LibraryFiles query={libraryQuery} sourceIndex={sourceIndex}
+                        busy={researchBusy} save={saveReference} onError={setError}
+                        onNeedFile={() => setResearchOpen(true)}
+                        onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }} />
+                    : searched && (
                         <section>
                             {notInstalled && <p role="status" className="text-sm text-gray-600">Hansard is not installed.</p>}
                             {results.length ? <div className="grid gap-2">
@@ -432,7 +492,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                                     mutations={mutations} onError={setError} sourceReference={researchReference(result)}
                                                     onSourceDrag={() => { setResearchOpen(true); setSourceDropNonce((value) => value + 1); }}
                                                     onNeedFile={() => setResearchOpen(true)}
-                                                    prepare={saved ? undefined : (file) => saveResult(result, file)} />
+                                                    prepare={saved ? undefined : (file) => saveReference(researchReference(result), file)} />
                                                 <div className="min-w-0 flex-1">
                                                 <h3 className="mt-0.5 text-base font-semibold text-gray-900">
                                                     {result.title || sourceCitation}
