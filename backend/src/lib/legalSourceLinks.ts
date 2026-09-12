@@ -419,6 +419,7 @@ export function shouldUseA2AJWebFallback(
 export function buildA2AJDocumentPinpointUrl(
   source: A2AJCompiledDocument, locator: { kind: A2AJLocatorKind; label: string },
   blockText: string, quotes: string[],
+  requireComplete = false,
 ) {
   const document = source.searchNative;
   const publisher = source.url
@@ -428,12 +429,15 @@ export function buildA2AJDocumentPinpointUrl(
         blockText, documentText: document,
       }, quotes, source.docType === "laws")
     : null;
-  if (publisher && !shouldUseA2AJWebFallback(
-    source.docType, publisher.target, publisher.plan, source.searchText, blockText,
-  )) return publisher.target;
+  const usablePublisher = publisher && (!requireComplete || publisher.plan?.sourceSafeComplete)
+    ? publisher : null;
+  if (usablePublisher && !shouldUseA2AJWebFallback(
+    source.docType, usablePublisher.target, usablePublisher.plan, source.searchText, blockText,
+  )) return usablePublisher.target;
   const plan = structureNative()
     .textFragmentPlan(blockText, quotes, false, false, true, document);
-  return buildA2AJWebPinpointUrl(source, plan) ?? publisher?.target ?? null;
+  if (requireComplete && !plan.sourceSafeComplete) return usablePublisher?.target ?? null;
+  return buildA2AJWebPinpointUrl(source, plan) ?? usablePublisher?.target ?? null;
 }
 
 export function buildLegalSourcePinpoint(
