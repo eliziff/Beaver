@@ -11,6 +11,63 @@ import { presentLegalEvidence } from "../citationPresentation";
 import { structureNative } from "../../structureNative";
 
 describe("legal evidence citation presentation", () => {
+  it("highlights every grouped passage without filling gaps, and bounds oversized groups", async () => {
+    const paragraphs = [
+      "[43] Consultation must be meaningful.",
+      "[44] Deep consultation requires submissions and written reasons.",
+      "[45] Every case must be approached individually and flexibly.",
+      "[46] This intervening passage is not cited.",
+      "[47] Accommodation may require changes to the proposed action.",
+      "[48] The process does not confer a veto.",
+      "[49] The parties must seek a reasonable compromise.",
+    ];
+    const text = paragraphs.join("\n\n");
+    const url = "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do";
+    const source = await structureNative().deriveDocumentStructure({ kind: "provider_text",
+      input: { provider: "a2aj", citation: "2004 SCC 73", source_kind: "cases", text } });
+    const entries = paragraphs.map((spanText, index) => ({ source,
+      receipt: createA2AJPassageEvidence({ citation: "2004 SCC 73", name: "Haida Nation",
+        dataset: "SCC", language: "en", sourceText: text, spanText,
+        start: text.indexOf(spanText), end: text.indexOf(spanText) + spanText.length,
+        externalUrl: url, sourceClass: "case", locator: { kind: "paragraph", label: `par${43 + index}` } }),
+    }));
+    const fragment = (selected: typeof entries) => {
+      const [citation] = createLegalEvidenceCitationsFromEntries(selected);
+      return { citation, text: decodeURIComponent(String(citation.url).split(":~:text=")[1] ?? "") };
+    };
+    const pair = fragment(entries.slice(1, 3));
+    expect(pair.citation.pinpoint).toBe("paras 44\u201345");
+    expect(pair.text).toContain("Deep");
+    expect(pair.text).toContain("Every");
+    expect(pair.text).not.toContain("[44]");
+    const distant = fragment([entries[1], entries[4]]);
+    expect(distant.text).toContain("Accommodation");
+    expect(distant.text).not.toContain("intervening");
+    expect(fragment(entries.slice(0, 5)).text).not.toBe("");
+    const overLimit = fragment(entries.slice(0, 6));
+    expect(overLimit.citation.pinpoint).toBe("paras 43\u201348");
+    expect(overLimit.text).toBe("");
+    expect(overLimit.citation.quotes).toHaveLength(6);
+    const changedVersion = fragment([entries[1], { ...entries[2],
+      receipt: { ...entries[2].receipt, source_sha256: "different-version" } }]);
+    expect(changedVersion.text).toBe("");
+    const missingPassage = fragment([entries[1], { ...entries[2],
+      receipt: { ...entries[2].receipt, span_text: "This passage does not occur in the source." } }]);
+    expect(missingPassage.text).toBe("");
+  });
+
+  it("uses a plain source link for a passage beyond the highlight word budget", async () => {
+    const text = Array.from({ length: 1_501 }, (_, index) => `word${index}`).join(" ");
+    const source = await structureNative().deriveDocumentStructure({ kind: "provider_text",
+      input: { provider: "tna", citation: "Fixture", source_kind: "cases", text } });
+    const receipt = createTnaEvidence({ jurisdiction: "UK", sourceClass: "case",
+      stableSourceId: "fixture", sourceText: text, spanText: text, citation: "Fixture",
+      name: "Fixture", dataset: "fixture", externalUrl: "https://example.test/long-case",
+      locatorKind: "paragraph", locatorLabel: "par1" });
+    expect(presentLegalEvidence({ receipt, source })).toMatchObject({
+      passageUrl: "https://example.test/long-case", locator: { text: "para 1" },
+    });
+  });
   it("keeps discovered public source identity while preserving exact passage links and receipts", async () => {
     const text = "The appeal is allowed.";
     const document = await structureNative().deriveDocumentStructure({
