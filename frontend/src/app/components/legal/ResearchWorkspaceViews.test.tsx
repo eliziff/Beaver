@@ -5,10 +5,10 @@ import type { ResearchFile, ResearchSelection } from "@/app/lib/researchFiles";
 import { ResearchWorkspaceViews } from "./ResearchWorkspaceViews";
 import { SourcesWorkspaceProvider } from "./SourcesWorkspace";
 const api = vi.hoisted(() => ({ getWorkspaceViews: vi.fn(), openWorkspaceTable: vi.fn(),
-  getResearchFile: vi.fn(), previewWorkspaceTable: vi.fn(), createChat: vi.fn(), getWorkspaceFindings: vi.fn(), bindWorkspaceView: vi.fn() }));
+  getResearchFile: vi.fn(), proposeWorkspaceTable: vi.fn(), createChat: vi.fn(), getWorkspaceFindings: vi.fn(), bindWorkspaceView: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(),
   getWorkspaceViews: api.getWorkspaceViews, openWorkspaceTable: api.openWorkspaceTable,
-  previewWorkspaceTable: api.previewWorkspaceTable, getResearchFile: api.getResearchFile, getWorkspaceFindings: api.getWorkspaceFindings, bindWorkspaceView: api.bindWorkspaceView }));
+  proposeWorkspaceTable: api.proposeWorkspaceTable, getResearchFile: api.getResearchFile, getWorkspaceFindings: api.getWorkspaceFindings, bindWorkspaceView: api.bindWorkspaceView }));
 vi.mock("@/app/lib/api/chat", async (original) => ({ ...await original<typeof import("@/app/lib/api/chat")>(), createChat: api.createChat }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
 const file = { document: { id: "workspace", filename: "Research.research.md", project_id: "project" },
@@ -26,10 +26,11 @@ function setup(selection: ResearchSelection = { target: "sources" }) {
 function open(name: "Table" | "Chat") { fireEvent.click(screen.getByRole("button", { name: "Open as" }));
   fireEvent.click(screen.getByRole("menuitem", { name })); }
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); api.getResearchFile.mockResolvedValue(file);
-  api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] }); api.previewWorkspaceTable.mockResolvedValue(preview); });
+  api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] }); api.proposeWorkspaceTable.mockResolvedValue(preview); });
 it("opens a table through the deterministic Research-set import", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table", project_id: "project" }); setup(); open("Table");
   expect(await screen.findByRole("dialog", { name: /Extract a table/u })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Propose a table" }));
   await screen.findByDisplayValue("Finding");
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Create table" }));

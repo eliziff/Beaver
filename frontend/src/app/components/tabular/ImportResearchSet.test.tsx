@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchFile } from "@/app/lib/researchFiles";
 import { ImportResearchSet } from "./ImportResearchSet";
-const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), previewWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn(),
-  previewWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
+const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), proposeWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn(),
+  proposeWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
 const file = { document: { id: "workspace", filename: "Research.research.md" }, state: { labels: {}, sources: {} } } as ResearchFile;
@@ -11,18 +11,20 @@ const preview = { fingerprint: "a".repeat(64), design: { title: "Research", colu
   cells: [{ rowId: "source", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "source", sourceId: "source", title: "Case A" }],
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
 const create = () => screen.getByRole("button", { name: "Create table" });
-async function ready() { await waitFor(() => expect(create()).toBeEnabled()); return create(); }
+const launch = (name = "Propose a table") => fireEvent.click(screen.getByRole("button", { name }));
+const streamed = expect.any(Function), aborted = expect.any(AbortSignal);
+async function ready() { launch(); await waitFor(() => expect(create()).toBeEnabled()); return create(); }
 const ask = (text: string) => { fireEvent.change(screen.getByLabelText("Change the proposal"), { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "Propose again" })); };
 
-beforeEach(() => { vi.clearAllMocks(); api.getResearchFile.mockResolvedValue(file); api.previewWorkspaceTable.mockResolvedValue(preview); });
+beforeEach(() => { vi.clearAllMocks(); api.getResearchFile.mockResolvedValue(file); api.proposeWorkspaceTable.mockResolvedValue(preview); });
 it("preserves exact scope in previews and submits only the accepted reference mapping", async () => {
   const onOpen = vi.fn(), selection = { target: "passages" as const, members: [{ sourceId: "source", evidenceIds: ["e_saved"] }] };
   api.openWorkspaceTable.mockResolvedValue({ id: "review" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" selection={selection} />);
   await ready(); expect(screen.getByDisplayValue("Finding")).toBeVisible();
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
-  expect(api.previewWorkspaceTable).toHaveBeenCalledWith("workspace", { selection, model: "model" });
+  expect(api.proposeWorkspaceTable).toHaveBeenCalledWith("workspace", { selection, model: "model" }, streamed, aborted);
   fireEvent.click(create());
   await waitFor(() => expect(onOpen).toHaveBeenCalledWith("/tabular-reviews/review"));
   expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { selection,
@@ -30,14 +32,14 @@ it("preserves exact scope in previews and submits only the accepted reference ma
 });
 it("keeps a failed suggestion from replacing the last usable preview", async () => {
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
-  await ready(); api.previewWorkspaceTable.mockRejectedValueOnce(new Error("No model configured"));
+  await ready(); api.proposeWorkspaceTable.mockRejectedValueOnce(new Error("No model configured"));
   ask("The reasons given");
   expect(await screen.findByRole("alert")).toHaveTextContent("No model configured");
   expect(await screen.findByDisplayValue("Finding")).toBeVisible();
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
 });
 it("shows the proposal rejection alongside the preserved workspace columns", async () => {
-  api.previewWorkspaceTable.mockResolvedValueOnce({ ...preview, fallback: "The proposal omitted the saved concept Notice" });
+  api.proposeWorkspaceTable.mockResolvedValueOnce({ ...preview, fallback: "The proposal omitted the saved concept Notice" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
   await ready();
   expect(screen.getByRole("status")).toHaveTextContent("omitted the saved concept Notice");
@@ -45,12 +47,12 @@ it("shows the proposal rejection alongside the preserved workspace columns", asy
 });
 it("shows proposed columns and marks genuinely unanswered questions", async () => {
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
-  await ready(); api.previewWorkspaceTable.mockResolvedValueOnce({ ...preview, design: { ...preview.design,
+  await ready(); api.proposeWorkspaceTable.mockResolvedValueOnce({ ...preview, design: { ...preview.design,
     columns: [...preview.design.columns, { index: 2, name: "Costs", prompt: "Were costs awarded?" }] },
     stats: [...preview.stats, { index: 2, reused: 0, kinds: [], evidence: 0 }] });
   ask("Costs too");
   await screen.findByDisplayValue("Costs");
-  expect(api.previewWorkspaceTable).toHaveBeenLastCalledWith("workspace", { model: "model", request: "Costs too", repropose: true });
+  expect(api.proposeWorkspaceTable).toHaveBeenLastCalledWith("workspace", { model: "model", request: "Costs too", repropose: true }, streamed, aborted);
   expect(await screen.findByText(/New · Extracted for every source/)).toBeVisible();
 });
 it("shows a stale-preview rejection without navigating away or silently reinterpreting it", async () => {
@@ -66,27 +68,43 @@ it("applies a label proposal on the same reading of the research that produced i
       assignments: [{ labelKey: "honesty", rowIds: ["source"] }] },
     labels: [{ key: "honesty", name: "Honest performance", path: "Honest performance", parentKey: null,
       color: "#d6b85a", existing: true, rows: [{ id: "source", title: "Case A", support: [] }] }], unassigned: [] };
-  api.previewWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(undefined);
+  api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(undefined);
   const onOpen = vi.fn(), apply = () => screen.getByRole("button", { name: "Apply labels" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" chatId="chat" />);
+  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled(); launch("Propose labels");
   await waitFor(() => expect(apply()).toBeEnabled());
   fireEvent.click(apply());
   await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace",
     { chatId: "chat", design: plan.design, fingerprint: plan.fingerprint }));
   expect(onOpen).toHaveBeenCalledWith("/sources?research_file=workspace");
   ask("group by the stage of the analysis");
-  await waitFor(() => expect(api.previewWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
-    { chatId: "chat", model: "model", request: "group by the stage of the analysis", repropose: true }));
+  await waitFor(() => expect(api.proposeWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
+    { chatId: "chat", model: "model", request: "group by the stage of the analysis", repropose: true }, streamed, aborted));
   fireEvent.click(apply());
   await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
     { chatId: "chat", repropose: true, design: plan.design, fingerprint: plan.fingerprint }));
 });
 it("ignores an older preview response after the selected research changes", async () => {
   let finish!: (value: unknown) => void;
-  api.previewWorkspaceTable.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  api.proposeWorkspaceTable.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
   const props = { open: true, onClose: vi.fn(), onOpen: vi.fn() };
-  const view = render(<ImportResearchSet {...props} fileId="old" />);
+  const view = render(<ImportResearchSet {...props} fileId="old" />); launch();
   view.rerender(<ImportResearchSet {...props} fileId="new" />); await ready();
   await act(async () => finish({ ...preview, design: { ...preview.design, title: "Obsolete work" } }));
   expect(screen.queryByDisplayValue("Obsolete work")).not.toBeInTheDocument();
+});
+it("waits for the lawyer to launch the step, shows the model working and can be cancelled", async () => {
+  let report!: (event: { stage: string; model?: string; chars?: number }) => void;
+  api.proposeWorkspaceTable.mockImplementationOnce((_id, _input, onProgress) => new Promise(() => { report = onProgress; }));
+  render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
+  expect(api.proposeWorkspaceTable).not.toHaveBeenCalled();
+  expect(screen.getByText(/Runs on model/u)).toBeVisible();
+  launch();
+  await waitFor(() => expect(api.proposeWorkspaceTable).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole("status")).toHaveTextContent("Reading the research");
+  await act(async () => report({ stage: "asking", model: "claude-p:claude-sonnet-4-6", chars: 1200 }));
+  expect(screen.getByRole("status")).toHaveTextContent(/Asking claude-sonnet-4-6.*1,200 characters/u);
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(await screen.findByRole("button", { name: "Propose a table" })).toBeEnabled();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });

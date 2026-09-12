@@ -144,8 +144,9 @@ pagination or downloading.
 
 ## Research interoperability
 
-- Sources and Chat Open as Table propose a structure on opening the read-only
-  preview. The research question describes the whole table; model columns divide
+- Sources and Chat Open as Table open ready to propose; Propose a table launches
+  the model's step and shows it working (reading, asking with characters received
+  and elapsed time, checking, one corrected attempt) until the read-only preview. The research question describes the whole table; model columns divide
   it into legal issues, factors and outcomes, never raw passage dumps. Labels,
   highlight types, notes and grounded findings supply the bounded inventory.
 - The title and columns are editable, columns can be removed or added, and Change
@@ -156,8 +157,13 @@ pagination or downloading.
   Invalid/cross-row/overlapping mappings receive one corrected attempt; a failed
   table proposal falls back to deterministic columns with a visible explanation.
   New questions stay pending. Accepting never performs another model call.
-- Chat Open as Workspace proposes conceptual labels on opening, using the research
-  question unless a request is supplied. Apply labels accepts the reviewed plan.
+- Chat Open as Workspace opens ready to propose; Propose labels launches the step
+  on the research question unless a request is supplied. The model works passages
+  first: highlight types describe passages and every cited passage gets one; labels
+  describe sources and must add what the highlights do not already say. Every filed
+  source shows the passages behind it; a filing without a passage, a type without a
+  passage, a type named like a label, or a label set that copies the source list is
+  refused. Apply labels accepts the reviewed plan.
 - Open review rechecks the preview fingerprint and source revision. Stale previews
   require review again. Accepted inputs and cell answers are persisted together
   through the normal table repository, preserving source versions, receipts and

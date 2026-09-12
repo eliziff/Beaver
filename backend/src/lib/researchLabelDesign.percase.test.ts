@@ -7,20 +7,26 @@ const file = { document: { id: "f" }, state: { labels: {}, sources: {} } } as un
 const catalog = { title: "Detention", fingerprint: "x", entries: [],
   rows: [{ id: "r1", sourceId: "s1", title: "R. v. Grant" }, { id: "r2", sourceId: "s2", title: "R. v. Omar" },
     { id: "r3", sourceId: "s3", title: "R. v. White" }] } as unknown as ResearchImportCatalog;
-const design = (labels: { key: string; name: string; parentKey?: string | null }[],
+const design = (labels: { key: string; name: string; parentKey?: string | null; scope?: "source" | "highlight" }[],
   assignments: { labelKey: string; rowIds: string[] }[]) => ({ title: "Detention", labels, assignments });
 
 describe("a label is a concept, never a document", () => {
   it("refuses a label named after one of the documents", () => {
     expect(() => researchLabelPlan(file, catalog,
       design([{ key: "a", name: "R. v. Grant" }], [{ labelKey: "a", rowIds: ["r1"] }]), "sources"))
-      .toThrow(/names one document/u);
+      .toThrow(/names one source/u);
   });
-  it("accepts distinct concepts even when each has only one supporting document", () => {
+  it("refuses a label set that copies the source list, one label per source (Eli, 2026-09-11)", () => {
     expect(() => researchLabelPlan(file, catalog, design(
       [{ key: "a", name: "Psychological detention" }, { key: "b", name: "Arbitrariness" }, { key: "c", name: "Exclusion" }],
       [{ labelKey: "a", rowIds: ["r1"] }, { labelKey: "b", rowIds: ["r2"] }, { labelKey: "c", rowIds: ["r3"] }]), "sources"))
-      .not.toThrow();
+      .toThrow(/copy the source list/u);
+  });
+  it("refuses one idea sitting in both hierarchies", () => {
+    expect(() => researchLabelPlan(file, catalog, design(
+      [{ key: "a", name: "Psychological detention" }, { key: "t", name: "Psychological detention", scope: "highlight" }],
+      [{ labelKey: "a", rowIds: ["r1", "r2"] }]), "sources"))
+      .toThrow(/both a label and a highlight type/u);
   });
   it("accepts a concept ontology with the documents filed under it", () => {
     const plan = researchLabelPlan(file, catalog, design(

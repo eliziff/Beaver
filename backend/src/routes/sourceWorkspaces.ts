@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { z } from "zod";
 import { textField } from "../lib/textField";
 import { requireAuth } from "../middleware/auth";
-import { applicationScope, reject } from "../lib/applicationError";
+import { ApplicationError, applicationScope, reject } from "../lib/applicationError";
 import { asyncRoute } from "../lib/asyncRoute";
 import { pageRequest, pageResponse } from "../lib/pagination";
-import { requestAbortController } from "../lib/httpStreaming";
+import { requestAbortController, startSse, writeSse } from "../lib/httpStreaming";
 import { researchFileActionSchema } from "../lib/researchFile";
 import { researchCaptureRuleSchema } from "../lib/researchFileQuery";
 import { researchSelectionSchema } from "../lib/researchSelection";
@@ -13,7 +13,7 @@ import { researchFindingReferenceSchema } from "../lib/researchFindingReference"
 import type { SourceWorkspaceApplication } from "../lib/sourceWorkspaceApplication";
 
 import { researchImportDesignSchema } from "../lib/tabular/researchImport";
-import { researchLabelDesignSchema } from "../lib/researchLabelDesign";
+import { researchLabelDesignSchema, type ProposalProgress } from "../lib/researchLabelDesign";
 
 const id = textField(200), revision = z.number().int().nonnegative();
 const page = { offset: z.coerce.number().int().nonnegative().default(0),
@@ -109,19 +109,26 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
       .refine(({ chatId, tableId }) => Boolean(chatId) !== Boolean(tableId), "Choose a chat or table").parse(req.body);
     res.json(await app.bind(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
-  router.post("/:id/table/preview", asyncRoute(async (req, res) => {
-    res.json(await app.previewTable(scope(res), id.parse(req.params.id), tableInput.parse(req.body ?? {}),
-      requestAbortController(req, res).signal));
-  }));
+  /** A proposal answers as JSON, or as a progress stream ending in the result when the modal asks for one. */
+  const proposal = <I>(parse: (body: unknown) => I, run: (res: Response, documentId: string, input: I, signal: AbortSignal,
+    progress: (event: ProposalProgress) => void) => Promise<unknown>) => asyncRoute(async (req, res) => {
+    const input = parse(req.body ?? {}), documentId = id.parse(req.params.id), { signal } = requestAbortController(req, res);
+    if (req.accepts(["json", "text/event-stream"]) !== "text/event-stream") return res.json(await run(res, documentId, input, signal, () => {}));
+    startSse(res);
+    try { writeSse(res, { done: true, result: await run(res, documentId, input, signal, (event) => writeSse(res, event)) }); }
+    catch (error) { if (!signal.aborted) writeSse(res, { error: error instanceof Error ? error.message : String(error),
+      status: error instanceof ApplicationError ? error.status : 500 }); }
+    res.end();
+  });
+  router.post("/:id/table/preview", proposal((body) => tableInput.parse(body), (res, documentId, input, signal, progress) =>
+    app.previewTable(scope(res), documentId, input, signal, progress)));
   router.post("/:id/table", asyncRoute(async (req, res) => {
     const input = tableInput.parse(req.body ?? {});
     if (input.request) reject(400, "Preview an assisted layout before creating it");
     res.json(await app.table(scope(res), id.parse(req.params.id), input, { executor: "human" }));
   }));
-  router.post("/:id/labels/preview", asyncRoute(async (req, res) => {
-    res.json(await app.previewLabels(scope(res), id.parse(req.params.id), labelInput.parse(req.body ?? {}),
-      requestAbortController(req, res).signal));
-  }));
+  router.post("/:id/labels/preview", proposal((body) => labelInput.parse(body), (res, documentId, input, signal, progress) =>
+    app.previewLabels(scope(res), documentId, input, signal, progress)));
   router.post("/:id/labels", asyncRoute(async (req, res) => {
     const input = labelInput.parse(req.body ?? {});
     if (!input.design) reject(400, "Review a proposed label set before applying it");

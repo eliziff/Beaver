@@ -13,14 +13,14 @@ const mocks = vi.hoisted(() => ({
     design: vi.fn(),
     getResearchFile: vi.fn(),
     openWorkspaceTable: vi.fn(),
-    previewWorkspaceTable: vi.fn(),
+    proposeWorkspaceTable: vi.fn(),
 }));
 vi.mock("@/app/lib/api/tabular", async (original) => ({
   ...await original<typeof import("@/app/lib/api/tabular")>(), designTabularReview: mocks.design,
 }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   ...await original<typeof import("@/app/lib/api/researchFiles")>(),
-  getResearchFile: mocks.getResearchFile, openWorkspaceTable: mocks.openWorkspaceTable, previewWorkspaceTable: mocks.previewWorkspaceTable,
+  getResearchFile: mocks.getResearchFile, openWorkspaceTable: mocks.openWorkspaceTable, proposeWorkspaceTable: mocks.proposeWorkspaceTable,
 }));
 vi.mock("@/app/lib/api/workflows", () => ({
   getWorkflow: mocks.getWorkflow,
@@ -242,13 +242,14 @@ it("imports a research set and opens the created review", async () => {
     const preview = { fingerprint: "a".repeat(64), design: { title: "Appeal", columns: [{ index: 0, name: "Key", prompt: "Saved key passages" }],
         cells: [{ rowId: "passage", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "passage", sourceId: "source", title: "Case" }],
         stats: [{ index: 0, reused: 1, kinds: ["passages"], evidence: 1 }], samples: [{ rowId: "passage", columnIndex: 0, text: "Saved passage", kinds: ["passages"] }] };
-    mocks.previewWorkspaceTable.mockResolvedValue(preview);
+    mocks.proposeWorkspaceTable.mockResolvedValue(preview);
     mocks.openWorkspaceTable.mockResolvedValue({ id: "review-9", project_id: null });
     const onOpen = vi.fn();
     render(newReview({ onOpen }));
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
     fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
     fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Propose a table" }));
     const create = () => screen.getByRole("button", { name: "Create table" });
     await waitFor(() => expect(create()).toBeEnabled());
     fireEvent.click(create());

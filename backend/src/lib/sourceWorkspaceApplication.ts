@@ -23,7 +23,7 @@ import { parseResourceReference } from "./resourceReferences";
 import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign, type ResearchImportCatalog } from "./tabular/researchImport";
-import { researchConceptKey, researchLabelPlan, type ResearchLabelDesign } from "./researchLabelDesign";
+import { researchConceptKey, researchLabelPlan, type ProposalProgress, type ResearchLabelDesign } from "./researchLabelDesign";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId,
   type TabularRepository, type TabularReview } from "./tabularStore";
@@ -383,11 +383,12 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return { file, catalog, resolveFinding: async (ref: ResearchFindingReference): Promise<ResearchFinding | null> =>
       captured.get(JSON.stringify(ref)) ?? null };
   }
-  async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal) {
+  async function previewTable(scope: Scope, id: string, input: TableInput, signal?: AbortSignal, progress?: (event: ProposalProgress) => void) {
+    progress?.({ stage: "reading" });
     const { catalog } = await importCatalog(scope, id, input);
     let fallback: string | undefined;
     const proposed = input.design || catalog.labels.length && !input.repropose ? null : await (await dependencies.tabular()).designResearch(scope, catalog,
-      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal })
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal, progress })
       .catch((error: unknown) => { if (signal?.aborted) throw error;
         fallback = error instanceof Error ? error.message : String(error); return null; });
     const design = input.design ?? proposed ?? defaultResearchImport(catalog);
@@ -403,10 +404,11 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, scope: label.scope }));
     return { ...opened, target };
   }
-  async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal) {
+  async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal, progress?: (event: ProposalProgress) => void) {
+    progress?.({ stage: "reading" });
     const { file, catalog, resolveFinding, target } = await labelCatalog(scope, id, input);
     const modelDesign = () => (async () => (await dependencies.tabular()).designLabels(scope, catalog, file, target,
-      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal }))();
+      input.request ?? catalog.question ?? catalog.title, { model: input.model, reasoningEffort: input.reasoningEffort, signal, progress }))();
     let design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined) : await modelDesign());
     let { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
     // A sparse hand-made ontology that files fewer than half the sources is no organization; propose a fresh one
