@@ -267,8 +267,10 @@ describe("CourtRecordsWorkspace", () => {
     render(<CourtRecordsWorkspace host={host}
       initialDocuments={[{ id: "notice", filename: "Notice.pdf" }]}
       onDocumentsConsumed={consumed} />);
-    await screen.findByRole("dialog", { name: "Choose document" });
+    const chooser = await screen.findByRole("dialog", { name: "Choose document" });
+    await userEvent.click(within(chooser).getByLabelText("Search documents"));
     await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Choose document" })).not.toBeInTheDocument());
     expect(create).not.toHaveBeenCalled();
     expect(consumed).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole("button", { name: "New court record" }));
