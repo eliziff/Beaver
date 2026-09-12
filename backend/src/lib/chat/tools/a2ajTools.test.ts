@@ -93,7 +93,7 @@ describe("legal-source assistant activity", () => {
       locator_kind: "section",
       locator: "sec49(1)",
       end_locator: "sec49(4)",
-    })).toBe("Reading ss 49(1)–49(4) of 2012 SCC 45");
+    })).toBe("Reading s 49(1)–(4) of 2012 SCC 45");
     expect(assistantToolActivityLabel("Read", {
       file_path: "document://record/version/v1",
       section: "Damages",
@@ -130,7 +130,14 @@ describe("legal-source assistant activity", () => {
     expect(assistantReadEvidenceActivityLabel([{
       ...evidence,
       locator: { kind: "section", label: "sec49(1)–sec49(4)" },
-    }], "Family Law Act")).toBe("Reading ss 49(1)–49(4) of Family Law Act");
+    }], "Family Law Act")).toBe("Reading s 49(1)–(4) of Family Law Act");
+    const sectionParts = ["32(1)(a)", "32(1)(b)", "32(2)"].map(label => ({
+      ...evidence, locator: { kind: "section" as const, label: `sec${label}` },
+    }));
+    expect(assistantReadEvidenceActivityLabel(sectionParts, "Fixture Act", {
+      locator_kind: "section", locator: "32",
+    })).toBe("Reading s 32 of Fixture Act");
+    expect(sectionParts.map(part => part.locator.label)).toEqual(["sec32(1)(a)", "sec32(1)(b)", "sec32(2)"]);
     expect(assistantReadEvidenceActivityLabel([1, 2, 3].map((number) => ({
       ...evidence,
       locator: { kind: "paragraph" as const, label: `par${number}` },
@@ -146,13 +153,13 @@ describe("legal-source assistant activity", () => {
     ].map((label) => ({
       ...evidence,
       locator: { kind: "section" as const, label: `sec${label}` },
-    })), "Divorce Act")).toBe("Reading ss 17(1)–17(11) of Divorce Act");
+    })), "Divorce Act")).toBe("Reading s 17(1)–(11) of Divorce Act");
     expect(assistantReadEvidenceActivityLabel([
       "49(1)", "49(2)", "49(2)(a)", "49(2)(b)", "49(3)", "49(4)",
     ].map((label) => ({
       ...evidence,
       locator: { kind: "section" as const, label: `sec${label}` },
-    })), "Family Law Act")).toBe("Reading ss 49(1)–49(4) of Family Law Act");
+    })), "Family Law Act")).toBe("Reading s 49(1)–(4) of Family Law Act");
   });
 
   it("never presents the no-locator fallback as a place in the document", () => {
