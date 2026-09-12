@@ -318,6 +318,9 @@ export const compareDocumentVersions = (
 ));
 export const uploadStandaloneDocument = (file: File) =>
   multipartRequest<Document>("/single-documents", file);
+/** Every library file, folders flattened, so one list answers "which of my files is this?". */
+export const listLibraryDocuments = (options: PageQuery = {}, signal?: AbortSignal) =>
+  apiRequest<Page<Document>>(pagePath("/single-documents", options), { signal });
 export const getDocument = (documentId: string) =>
   apiRequest<Document>(`/single-documents/${segment(documentId)}`);
 export const getDocumentParseStates = async (documentIds: string[]) => {
