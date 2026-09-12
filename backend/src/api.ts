@@ -12,6 +12,7 @@ import { sha256 } from "./lib/hash";
 import { concurrentRequests } from "./lib/requestConcurrency";
 import { safeErrorLog } from "./lib/safeError";
 import { publicOrigin } from "./lib/publicOrigin";
+import type { FolderDesigner } from "./lib/folderOrganize";
 
 export const api = express();
 
@@ -130,6 +131,10 @@ if (runtime.mode === "cloud") api.use(
     mod.createAuthRouter(publicOrigin()))),
 );
 
+/** The Organize step of a library or project reads one model, the same one the research step reads. */
+const designFolders: FolderDesigner = async (scope, documents, instruction, options) =>
+  (await runtime.tabular()).designFolders(scope, documents, instruction, options);
+
 /** Mounted in order; Express resolves the first matching prefix. */
 type Mount = [path: string, load: () => Promise<Router>];
 const mounts: Mount[] = [
@@ -146,7 +151,7 @@ const mounts: Mount[] = [
     const [projects, chats, documents] = await Promise.all([
       runtime.projects(), runtime.chats(), runtime.documents(),
     ]);
-    return createProjectsRouter(projects, chats, documents);
+    return createProjectsRouter(projects, chats, documents, designFolders);
   }],
   ["/single-documents", async () => {
     const { createDocumentsRouter } = await import("./routes/documentRoutes");
@@ -164,7 +169,7 @@ const mounts: Mount[] = [
     const [library, documents] = await Promise.all([
       runtime.library(), runtime.documents(),
     ]);
-    return createLibraryRouter(library, documents);
+    return createLibraryRouter(library, documents, designFolders);
   }],
   ["/court-records", async () => (await import("./routes/courtRecords"))
     .createCourtRecordsRouter(await runtime.courtRecords())],

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Highlighter, Plus } from "lucide-react";
 import { buttonClassName } from "../ui/button";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { InlineNameInput } from "../shared/InlineNameInput";
@@ -26,7 +26,9 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
   const { file, mutations } = useSourcesWorkspace();
   const noun = (shape: string) => shape.replace("{x}", NOUN[scope]).replace(/^./, (first) => first.toUpperCase());
   const labels = preview?.labels ?? file?.state.labels ?? {};
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  // Source folders start open; highlight types start closed so their passages load only when the caret asks.
+  const [toggled, setToggled] = useState<Set<string>>(() => new Set());
+  const isOpen = (id: string) => toggled.has(id) === (scope === "highlight");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null | undefined>();
   const [busy, setBusy] = useState(false), [drop, setDrop] = useState<{ id: string; mode: "before" | "inside" | "after" } | null>(null);
@@ -41,8 +43,8 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     try { await mutations.act(action); return true; }
     catch (error) { onStatus(errorMessage(error, "Could not update labels")); return false; }
   }
-  function expand(id: string) { setCollapsed((current) => { const next = new Set(current); next.delete(id); return next; }); }
-  function toggle(id: string) { setCollapsed((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; }); }
+  function expand(id: string) { setToggled((current) => { const next = new Set(current); if (scope === "highlight") next.add(id); else next.delete(id); return next; }); }
+  function toggle(id: string) { setToggled((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; }); }
   function canMove(id: string, parentId: string | null) {
     return labels[id]?.scope === scope && (!parentId || labels[parentId]?.scope === scope &&
       !researchLabelPath(labels, parentId).some((label) => label.id === id));
@@ -77,7 +79,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
   function branch(parentId: string | null): React.ReactNode {
     return <>{(children.get(parentId) ?? []).map((label) => {
       const hasChildren = !!children.get(label.id)?.length || (!!renderSources && direct.has(label.id)),
-        open = !collapsed.has(label.id);
+        open = isOpen(label.id);
       return <div key={label.id} role="treeitem" aria-label={label.name} aria-selected={selectedId === label.id}
         aria-expanded={hasChildren ? open : undefined}>
         <div data-tree-drop-folder={label.id} draggable={!preview && !busy}
@@ -105,8 +107,10 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
           {hasChildren ? <button type="button" aria-label={`${open ? "Collapse" : "Expand"} ${label.name}`} onClick={() => toggle(label.id)} className="grid size-6 shrink-0 place-items-center rounded">
             <ChevronRight aria-hidden className={`size-3.5 text-gray-500 ${open ? "rotate-90" : ""}`} /></button> : <span className="w-6 shrink-0" />}
           <label className="relative grid size-5 shrink-0 place-items-center rounded text-gray-500 focus-within:outline focus-within:outline-2" title={`${label.name} colour`}>
-            {/* Filled in the label's colour, never an outline; the chevron already says open or closed (Eli, 2026-09-09). */}
-            <FolderSvgIcon fill="currentColor" className="size-4" style={{ color: researchLabelColor(label) }} />
+            {/* Filled in the label's colour, never an outline; the chevron already says open or closed.
+                A highlight type is a highlighter, not a folder. */}
+            {scope === "highlight" ? <Highlighter aria-hidden className="size-4" style={{ color: researchLabelColor(label) }} />
+              : <FolderSvgIcon fill="currentColor" className="size-4" style={{ color: researchLabelColor(label) }} />}
             {!preview && <input type="color" disabled={busy} aria-label={`${label.name} colour`} value={researchLabelColor(label)}
               onChange={(event) => void act({ type: "label", ...label, color: event.target.value })} className="absolute inset-0 size-5 cursor-pointer opacity-0" />}
           </label>
@@ -145,7 +149,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
       const buttons = Array.from(tree.current?.querySelectorAll<HTMLButtonElement>("[data-label-select]") ?? []), index = buttons.indexOf(button);
       if (event.key === "ArrowRight" && label && children.has(id)) { expand(id); return; }
       if (event.key === "ArrowLeft" && label) {
-        if (children.has(id) && !collapsed.has(id)) toggle(id);
+        if (children.has(id) && isOpen(id)) toggle(id);
         else buttons.find((item) => item.dataset.labelSelect === label.parentId)?.focus();
         return;
       }

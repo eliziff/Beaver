@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
     ExternalLink,
@@ -189,6 +189,10 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     const [researchRail, setResearchRail] = useState<HTMLElement | null>(null);
     const [readingSource, setReadingSource] = useState<LegalSourceTab | null>(null);
     const [sourceDropNonce, setSourceDropNonce] = useState(0);
+    // Where the reader stood before the last jump from the workspace tree, so Back returns to it.
+    const viewerTop = useRef(0);
+    const [back, setBack] = useState<{ tab: LegalSourceTab; top: number } | null>(null);
+    const [restoreTop, setRestoreTop] = useState<number | null>(null);
     const [researchBusy, setResearchBusy] = useState(false);
     const { docType, jurisdiction, sourceKind, dataset } = filters;
     const updateFilters = (next: Partial<typeof filters>) =>
@@ -211,8 +215,11 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     function readSavedSource(source: ResearchSource, locator?: string) {
         const ref = source.reference;
         const tab = legalTab(ref, ref.citation || ref.id, { researchSourceId: source.id, initialLocator: locator });
-        if (embedded && onOpenSource) onOpenSource(tab);
-        else setReadingSource(tab);
+        if (embedded && onOpenSource) return onOpenSource(tab);
+        // Never on a first open: there is nowhere to go back to.
+        setBack(readingSource ? { tab: { ...readingSource, initialLocator: null }, top: viewerTop.current } : null);
+        setRestoreTop(null);
+        setReadingSource(tab);
     }
     async function saveReference(reference: ResearchSourceReference, file: ResearchFile) {
         setResearchBusy(true);
@@ -297,7 +304,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     return (
         <div className="relative flex h-full min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
-            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: readingSource ? () => setReadingSource(null) : undefined },
+            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: readingSource ? () => { setBack(null); setReadingSource(null); } : undefined },
                 ...(readingSource ? [{ label: "Source" }] : [])]}
                 actions={readingSource ? [{ label: "Workspace", title: "Open research workspace",
                     icon: <PanelsTopLeft className="size-4" />, onClick: () => setResearchOpen(true) }]
@@ -310,12 +317,14 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                     <ExternalLink className="size-4" aria-hidden="true" />
                 </Link>}
                 <Button variant="outline" size="icon-sm" className="size-9" aria-label="Close workspace" title="Close workspace"
-                    onClick={() => { setResearchOpen(false); setReadingSource(null); }}>
+                    onClick={() => { setResearchOpen(false); setBack(null); setReadingSource(null); }}>
                     <PanelRightClose aria-hidden className="size-4" />
                 </Button>
             </div>}
             {readingSource && <section aria-label="Source reader" className="min-h-0 min-w-0 flex-1">
                 <LegalSourceViewer key={readingSource.id} {...readingSource} navigationRequest={readingSource}
+                    onScrollTop={(top) => { viewerTop.current = top; }} restoreScrollTop={restoreTop}
+                    onBack={back ? () => { setRestoreTop(back.top); setReadingSource(back.tab); setBack(null); } : undefined}
                     onOpenResearch={(intent) => { setResearchOpen(true);
                         if (intent) setSourceDropNonce((value) => value + 1); }} />
             </section>}
@@ -511,11 +520,11 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                             </div>
                                             <div className="flex shrink-0 flex-wrap gap-2">
                                                 {result.provider !== "hansard" && <button type="button"
-                                                    onClick={() => (embedded && onOpenSource ? onOpenSource : setReadingSource)(
-                                                        legalTab(researchReference(result), sourceCitation, {
+                                                    onClick={() => { const tab = legalTab(researchReference(result), sourceCitation, {
                                                             id: `legal:${result.provider}:${result.id ?? result.citation}`,
                                                             researchSourceId: saved?.id,
-                                                        }))} aria-label={`View ${result.title || sourceCitation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
+                                                        }); setBack(null); (embedded && onOpenSource ? onOpenSource : setReadingSource)(tab); }}
+                                                    aria-label={`View ${result.title || sourceCitation}`} className="inline-flex h-8 items-center justify-center rounded-md bg-brand px-3 text-xs font-medium text-white hover:bg-brand-dark">
                                                         View
                                                     </button>}
                                                 {sourceHref && (

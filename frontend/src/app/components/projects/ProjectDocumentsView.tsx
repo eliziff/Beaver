@@ -42,7 +42,9 @@ export function ProjectDocumentsView() {
             onCreateFolder={createFolderAction} selection={selectionActions}
             resolveDocuments={() => listDirectoryDocuments(operations.list)}
             onOpenSelectionInChat={(documents) => { void createChat(documents); }}
-            onAssistantWorkflowSelect={openAssistantWorkflow} />
+            onAssistantWorkflowSelect={openAssistantWorkflow}
+            organize={{ projectId }} organizeTitle={project ? projectBreadcrumbLabel(project) : "Project"}
+            onOrganized={() => void operations.refreshCollection(null)} />
         : null;
     return (
         <ProjectSectionTabs actions={toolbarActions}>
