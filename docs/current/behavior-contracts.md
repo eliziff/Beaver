@@ -158,7 +158,10 @@ pagination or downloading.
   table proposal falls back to deterministic columns with a visible explanation.
   New questions stay pending. Accepting never performs another model call.
 - Chat Open as Workspace opens ready to propose; Propose labels launches the step
-  on the research question unless a request is supplied. The model works passages
+  on the memo: the research question and the answer's claims in order, each naming
+  the passages it cites, plus every passage quoted once and every source named once,
+  with a typed request added only when the user supplies one. The model answers in
+  keys and ids and never retypes the research. It works passages
   first: highlight types describe passages and every cited passage gets one; labels
   describe sources and must add what the highlights do not already say. Every filed
   source shows the passages behind it; a filing without a passage, a type without a

@@ -47,7 +47,6 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
     else allowed.set(subject.sourceId, new Set([...(allowed.get(subject.sourceId) ?? []), ...subject.evidence.map(({ evidence_id }) => evidence_id)]));
   }
   const rows: ResearchArrangement["rows"] = [], entries: Entry[] = [];
-  const questions = [...new Set(findings.filter(({ reference }) => reference.kind === "answer").map(({ question }) => question.prompt))];
   const quote = (sourceId: string | undefined, evidenceId: string) => sourceId
     ? Object.values(parts.get(sourceId) ?? {}).find(({ receipt }) => receipt.evidence_id === evidenceId)?.receipt.span_text ?? null : null;
   const add = (rowId: string, reference: Item, kind: Kind, text: string,
@@ -123,7 +122,8 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
   if (rows.length > 500 || entries.length > 25_000)
     throw new ApplicationError(413, "Narrow this research selection before converting it; no rows were dropped");
   const title = clip((file.document.filename ?? "Research").replace(/\.research\.md$/iu, ""), 300) || "Research";
-  return { title, question: questions[0] ?? null, rows, entries,
+  return { title, rows, entries,
+    question: findings.find(({ reference }) => reference.kind === "answer")?.question.prompt ?? null,
     labels: Object.values(file.state.labels).map(({ id, scope, definition }) => ({ id, path: researchLabelPath(file.state, id), scope,
       ...(definition ? { definition } : {}) })),
     fingerprint: sha256(JSON.stringify([file.document.id, file.versionId, file.workingRevision, subjects, rows, entries, findings])) };

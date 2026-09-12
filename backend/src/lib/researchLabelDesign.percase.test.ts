@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { researchLabelPlan } from "./researchLabelDesign";
+import { researchLabelInventory, researchLabelPlan } from "./researchLabelDesign";
 import type { ResearchFile } from "./researchFile";
 import type { ResearchImportCatalog } from "./tabular/researchImport";
 
@@ -44,5 +44,36 @@ describe("a label is a concept, never a document", () => {
         [{ labelKey: "again", rowIds: ["r1", "r2", "r3"] }]), "sources");
     expect(second.actions.some(action => action.type === "label")).toBe(false);
     expect(second.labels).toMatchObject([{ name: "Administrative outcome", existing: true }]);
+  });
+});
+
+describe("the memo frames the inventory", () => {
+  const answer = (id: string, rowId: string, text: string, evidenceIds: string[], claimIndex?: number) =>
+    ({ id, rowId, kind: "answer", text, evidenceIds, quotes: [], default: true, column: { index: 0, name: "Finding", prompt: "" },
+      reference: { kind: "answer", chatId: "c1", answerId: "a1", resource: "case:1",
+        ...(claimIndex === undefined ? {} : { claimIndices: [claimIndex] }) } });
+  const passage = (id: string, rowId: string, text: string, evidenceId: string) =>
+    ({ id, rowId, kind: "cited", text, evidenceIds: [evidenceId], quotes: [text], default: false,
+      column: { index: 0, name: "Cited passage", prompt: "" }, reference: { kind: "passage", sourceId: rowId, evidenceId } });
+  const framed = { ...catalog, question: "At what point was the client detained?", rows: catalog.rows.slice(0, 2),
+    entries: [passage("item0", "r1", "A detention is a significant restraint.", "e1"),
+      answer("item1", "r1", "Race and age inform the reasonable person.", ["e1"], 1),
+      answer("item2", "r1", "Detention runs from the first show of authority.", ["e1"], 0),
+      answer("item3", "r1", "Detention runs from the first show of authority.\n\nRace and age inform the reasonable person.", ["e1"]),
+      passage("item4", "r2", "The officers were exerting dominion from entry.", "e2"),
+      answer("item5", "r2", "Detention runs from the first show of authority.", ["e2"], 0)] } as unknown as ResearchImportCatalog;
+
+  it("carries the question and each claim once, in order, with the passages it cites", () => {
+    const inventory = JSON.parse(researchLabelInventory(framed, file, "sources"));
+    expect(inventory.question).toBe("At what point was the client detained?");
+    expect(inventory.memo).toEqual([
+      { claim: "Detention runs from the first show of authority.", evidence: ["item0", "item4"] },
+      { claim: "Race and age inform the reasonable person.", evidence: ["item0"] }]);
+  });
+  it("describes each source once and never restates the claims under it", () => {
+    const inventory = JSON.parse(researchLabelInventory(framed, file, "sources"));
+    expect(inventory.sources).toEqual([{ id: "r1", title: "R. v. Grant" }, { id: "r2", title: "R. v. Omar" }]);
+    expect(inventory.passages).toEqual([{ id: "item0", source: "r1", quote: "A detention is a significant restraint." },
+      { id: "item4", source: "r2", quote: "The officers were exerting dominion from entry." }]);
   });
 });
