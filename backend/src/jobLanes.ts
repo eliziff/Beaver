@@ -1,5 +1,4 @@
 import { availableParallelism, totalmem } from "node:os";
-import { isLocalRuntime } from "./lib/localMode";
 
 // Every long native call - DOCX and PDF derivation, OCR, passage geometry, the
 // authority ledger's text units - is a libuv thread-pool task that holds its
@@ -8,13 +7,12 @@ import { isLocalRuntime } from "./lib/localMode";
 // PDF preparation and logs nothing at all while it waits (measured: 9.3 s behind
 // four occupied threads). Size the pool from the lanes that can occupy it.
 export function jobLaneConcurrency() {
-  const local = isLocalRuntime();
   return {
-    chatTurns: local ? 2 : 4,
-    preparation: local ? 1 : Math.min(4,
+    chatTurns: 4,
+    preparation: Math.min(4,
       Math.max(1, Math.floor(availableParallelism() / 8)),
       Math.max(1, Math.floor(totalmem() / (8 * 1024 ** 3)))),
-    tabular: local ? 1 : 2,
+    tabular: 2,
   };
 }
 
