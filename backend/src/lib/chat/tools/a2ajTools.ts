@@ -83,8 +83,11 @@ export function assistantToolActivityLabel(
     if (kind && locator) {
       const first = activityLocatorLabel(locator, kind);
       const last = end ? activityLocatorLabel(end, kind) : undefined;
-      const plural = Boolean(last && last !== first);
-      return `Reading ${activityLocatorNoun(kind, plural)} ${first}${plural ? `–${last}` : ""} of ${title}`;
+      const range = last && last !== first ? `${first}–${last}` : first;
+      const scope = collapseProvisionLabels([range], kind) ?? [range];
+      const plural = scope.length > 1 || /[–—-]/u.test(scope[0]) &&
+        !(kind === "section" && /[–—-]\(/u.test(scope[0]));
+      return `Reading ${activityLocatorNoun(kind, plural)} ${scope.join(", ")} of ${title}`;
     }
     const page = Number.isInteger(args.page) && Number(args.page) > 0
       ? Number(args.page) : 0;
@@ -174,7 +177,13 @@ export function assistantReadEvidenceActivityLabel(
     return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}`;
   }
   const groups = collapseProvisionLabels(labels, first.locator.kind);
-  const scope = groups ?? labels;
-  const plural = scope.length > 1 || /[–—-]/u.test(scope[0]);
+  const requested = first.locator.kind === "section" && args.locator_kind === "section" &&
+    typeof args.locator === "string" && !args.end_locator
+    ? collapseProvisionLabels([args.locator], "section")?.[0] : undefined;
+  // Describe the requested section without changing its separately addressable receipts.
+  const scope = requested && labels.every(label => label === requested || label.startsWith(`${requested}(`))
+    ? [requested] : groups ?? labels;
+  const plural = scope.length > 1 || /[–—-]/u.test(scope[0]) &&
+    !(first.locator.kind === "section" && /[–—-]\(/u.test(scope[0]));
   return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}`;
 }

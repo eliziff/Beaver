@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { within, act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LegalSourceViewerPayload } from "@/app/lib/api/legalSources";
 import { highlightDocxQuotes } from "@/app/components/shared/views/highlightDocxQuote";
@@ -174,6 +174,34 @@ describe("legal source reader", () => {
         render(sourceViewer());
         expect(await screen.findByRole("heading", { name: "Fixture v. Test" }))
             .toBeInTheDocument();
+    });
+
+    it("shows relative provision markers while retaining full lookup addresses", async () => {
+        const payload = viewerPayload();
+        payload.reference.docType = "laws";
+        payload.reference.kind = "legislation";
+        let start = 0;
+        payload.slices = [
+            ["sec32", undefined, "32 Application"],
+            ["sec32(1)", "sec32", "(1) This section applies."],
+            ["sec32(1)(a)", "sec32(1)", "(a) The first class."],
+            ["sec32(2)", "sec32", "(2) An exception applies."],
+        ].map(([label, parentLabel, text], depth) => {
+            const from = start; start += text!.length + 1;
+            const primary = { kind: "section" as const, label: label!, parentLabel,
+                start: from, end: start - 1 };
+            return { start: from, end: start - 1, text: text!, depth, primary, anchors: [] };
+        });
+        api.direct.mockResolvedValue(payload);
+        const { container } = render(<LegalSourceViewer citation="Fixture Act" docType="laws" />);
+        await screen.findByText("The first class.");
+        for (const [address, marker] of [["sec32", "32"], ["sec32(1)", "(1)"],
+            ["sec32(1)(a)", "(a)"], ["sec32(2)", "(2)"]]) {
+            const block = container.querySelector(`[data-legal-block="${address}"]`)!;
+            expect(within(block as HTMLElement).getByText(marker)).toBeVisible();
+            expect(block).toHaveAttribute("data-locator-value", address);
+        }
+        expect(screen.queryByText("32(1)(a)")).not.toBeInTheDocument();
     });
 
     it("maps a selected passage to its exact offsets in the served text", () => {
