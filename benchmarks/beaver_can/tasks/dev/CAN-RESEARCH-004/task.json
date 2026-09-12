@@ -5,18 +5,19 @@
   "task_type": "open_source_research",
   "deliverable": {
     "type": "memorandum",
-    "approximate_words": 800,
+    "approximate_words": 1000,
     "then": [
       "organize into workspace",
       "open as table"
     ]
   },
-  "minimum_distinct_sources": 7,
+  "minimum_distinct_sources": 10,
   "fatal_errors": [
     "fabricated_authority",
     "fabricated_quotation",
     "invalid_pinpoint",
     "wrong_jurisdiction",
     "superseded_instruction"
-  ]
+  ],
+  "minimum_source_kinds": 3
 }

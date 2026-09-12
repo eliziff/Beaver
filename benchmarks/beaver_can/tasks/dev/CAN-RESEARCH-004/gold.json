@@ -1,48 +1,69 @@
 {
-  "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03", "ISSUE-04"],
+  "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03", "ISSUE-04", "ISSUE-05"],
   "required_authorities": [
-    { "match": "Waksdale", "proposition_id": "PROP-01", "acceptable_pinpoints": [10, 14] },
-    { "match": "Rahman", "proposition_id": "PROP-02", "acceptable_pinpoints": [24] },
-    { "match": "Dufault|Wigdor|2024 ONCA 915|2026 ONCA 572", "proposition_id": "PROP-03", "acceptable_pinpoints": [24, 27, 62] },
-    { "match": "Matthews", "proposition_id": "PROP-04", "acceptable_pinpoints": [52, 55] },
-    { "match": "Employment Standards Act, 2000|SO 2000, c 41", "proposition_id": "PROP-05", "acceptable_pinpoints": ["57"] },
-    { "match": "Employment Standards Act, 2000|SO 2000, c 41", "proposition_id": "PROP-06", "acceptable_pinpoints": ["61"] },
-    { "match": "Employment Standards Act, 2000|SO 2000, c 41", "proposition_id": "PROP-07", "acceptable_pinpoints": ["64"] },
-    { "match": "288/01", "proposition_id": "PROP-08", "acceptable_pinpoints": ["2"] },
-    { "match": "Employment Standards Code|RSA 2000, c E-9", "proposition_id": "PROP-09", "acceptable_pinpoints": ["56"] }
+    { "match": "Employment Standards Act, 2000|SO 2000, c 41", "proposition_id": "PROP-01", "acceptable_pinpoints": ["67.2", "67.1", "67"] },
+    { "match": "Shafron", "proposition_id": "PROP-02", "acceptable_pinpoints": [27, 43] },
+    { "match": "Shafron", "proposition_id": "PROP-03", "acceptable_pinpoints": [2, 36] },
+    { "match": "ConCreate|Martin", "proposition_id": "PROP-04", "acceptable_pinpoints": [58, 59] },
+    { "match": "MEDIchair|Medequip", "proposition_id": "PROP-05", "acceptable_pinpoints": [47, 51] },
+    { "match": "GasTOPS", "proposition_id": "PROP-06", "acceptable_pinpoints": [34, 41, 42] },
+    { "match": "Strother", "proposition_id": "PROP-07", "acceptable_pinpoints": [77] },
+    { "match": "Bhasin", "proposition_id": "PROP-08", "acceptable_pinpoints": [33, 73] },
+    { "match": "Callow", "proposition_id": "PROP-09", "acceptable_pinpoints": [3, 38] },
+    { "match": "Wastech", "proposition_id": "PROP-10", "acceptable_pinpoints": [63, 88] },
+    { "match": "Babstock|Atlantic Lottery", "proposition_id": "PROP-11", "acceptable_pinpoints": [30] },
+    { "match": "Equustek", "proposition_id": "PROP-12", "acceptable_pinpoints": [1, 25] }
+  ],
+  "required_sets": [
+    { "match": "SCC", "min": 4, "note": "at least four Supreme Court of Canada decisions" },
+    { "match": "ONCA", "min": 2, "note": "at least two Ontario Court of Appeal decisions" },
+    { "match": "SO 2000, c 41|RSO 1990", "min": 1, "note": "the governing statute, cited by section" },
+    { "match": "“.{5,}?”\\s*\\(\\d{4}\\)|Law Review|Law Journal|L\\.? ?Rev\\b|L\\.? ?J\\b|Journal", "min": 1, "note": "at least one journal article with a real pinpoint" }
   ],
   "acceptable_alternative_authorities": [
-    { "match": "Wood v. Fred Deeley|2017 ONCA 158", "proposition_id": "PROP-01", "acceptable_pinpoints": [28, 37, 57] },
-    { "match": "Machtinger", "proposition_id": "PROP-05", "acceptable_pinpoints": [] },
-    { "match": "Employment Standards Code|RSA 2000, c E-9", "proposition_id": "PROP-09", "acceptable_pinpoints": ["55", "57"] }
+    { "match": "Whiten", "proposition_id": "PROP-13", "acceptable_pinpoints": [94] },
+    { "match": "Cadbury Schweppes", "proposition_id": "PROP-14", "acceptable_pinpoints": [67] },
+    { "match": "Business Corporations Act|RSO 1990, c B16", "proposition_id": "PROP-07", "acceptable_pinpoints": ["134"] },
+    { "match": "Can\\. Aero|Canadian Aero|O'Malley", "proposition_id": "PROP-07", "acceptable_pinpoints": [] },
+    { "match": "Elsley", "proposition_id": "PROP-05", "acceptable_pinpoints": [] },
+    { "match": "Donaldson", "proposition_id": "PROP-04", "acceptable_pinpoints": [] }
   ],
   "required_quotations": [
-    { "match": "Waksdale", "quote": "The correct analytical approach is to determine whether the termination provisions in an employment agreement read as a whole violate the ESA", "acceptable_pinpoints": [10] }
+    { "match": "Shafron", "quote": "an ambiguous restrictive covenant is, by definition, prima facie unreasonable and unenforceable", "acceptable_pinpoints": [43] }
   ],
   "required_conclusions": [
-    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
-    { "id": "CONCLUSION-02", "acceptable": ["yes", "qualified_yes"] }
+    { "id": "CONCLUSION-01", "acceptable": ["no", "qualified_no"] },
+    { "id": "CONCLUSION-02", "acceptable": ["yes", "qualified_yes"] },
+    { "id": "CONCLUSION-03", "acceptable": ["yes", "qualified_yes"] }
   ],
-  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04"],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04", "CLAIM-05"],
   "definitions": {
-    "ISSUE-01": "Whether the termination clause is enforceable when the just-cause clause permits dismissal without notice for conduct short of the ESA wilful-misconduct standard, and whether a severability clause changes that.",
-    "ISSUE-02": "How common-law reasonable notice is assessed and whether the discretionary bonus is recoverable during the notice period.",
-    "ISSUE-03": "The statutory minimum entitlements: notice or pay in lieu, severance pay and its thresholds, and the wilful-misconduct exemption.",
-    "ISSUE-04": "The minimum termination notice under Alberta's Employment Standards Code for the same employee.",
-    "PROP-01": "Termination provisions are read as a whole; an illegal just-cause clause renders the without-cause clause unenforceable, and a severability clause is not applied to provisions that contract out of the ESA (Waksdale paras 10 and 14).",
-    "PROP-02": "An employee's sophistication and access to independent legal advice do not override the plain language of a clause that contravenes the ESA (Rahman para 24).",
-    "PROP-03": "The Court of Appeal has continued to apply Waksdale: Dufault v Ignace (Township), 2024 ONCA 915, para 24 (both clauses unenforceable; appeal dismissed para 27) and Wigdor v Facebook Canada Ltd., 2026 ONCA 572, para 62.",
-    "PROP-04": "A dismissed employee recovers a lost bonus for the reasonable notice period unless the contract or plan unambiguously removes that right: the two questions in Matthews paras 52 and 55.",
-    "PROP-05": "ESA s. 57 sets the minimum notice by length of employment; the employee here (eleven years) is entitled to eight weeks.",
-    "PROP-06": "ESA s. 61 permits termination pay in a lump sum in lieu of notice.",
-    "PROP-07": "ESA s. 64 severance pay requires five or more years' employment and an employer payroll of $2.5 million or more (or a mass termination).",
-    "PROP-08": "O Reg 288/01 s. 2(1) para 3 exempts an employee guilty of wilful misconduct, disobedience or wilful neglect of duty that is not trivial and has not been condoned.",
-    "PROP-09": "Alberta's Employment Standards Code s. 56 sets written termination notice by length of employment, eight weeks at ten years or more; s. 57 allows termination pay instead.",
-    "CONCLUSION-01": "The termination clause is unenforceable and the employee is entitled to common-law reasonable notice.",
-    "CONCLUSION-02": "The bonus is recoverable during the reasonable notice period unless the plan unambiguously takes that right away.",
-    "CLAIM-01": "A severability clause preserves the without-cause termination clause when the just-cause clause violates the ESA.",
-    "CLAIM-02": "The ESA minimum notice is the presumptive measure of common-law reasonable notice.",
-    "CLAIM-03": "An employee's sophistication or access to legal advice validates a clause that contravenes the ESA.",
-    "CLAIM-04": "Severance pay under s. 64 is owed regardless of the employer's payroll size or the employee's length of service."
+    "ISSUE-01": "Whether the non-competition covenant survives the statutory prohibition in the Employment Standards Act, 2000 and whether the employee falls within the executive exception; and whether the non-solicitation covenant is enforceable at common law given its ambiguity and its open-ended duration.",
+    "ISSUE-02": "Whether a senior employee who was neither a director nor an officer owed a fiduciary duty, and whether taking the contract renewal after resigning breached it.",
+    "ISSUE-03": "Whether silence about the state of the renewal negotiations while still employed breached a duty of good faith in contractual performance, and the limits of that duty.",
+    "ISSUE-04": "Whether taking the customer list and pricing model founds a separate claim in breach of confidence and what it adds.",
+    "ISSUE-05": "Remedies and quantum: an account of profits against lost profits, the period over which relief is measured, whether gain-stripping is available for breach of contract alone, punitive damages, and the interlocutory injunction test.",
+    "PROP-01": "Part XV.1 of the Employment Standards Act, 2000 prohibits an employer from entering into a non-compete agreement with an employee and makes any such agreement void (ss. 67.1 and 67.2(1)-(2)); the exceptions are a sale of a business (s. 67.2(3)) and an employee who is an 'executive', defined in s. 67.2(5) as a closed list of chief officer positions.",
+    "PROP-02": "A restrictive covenant is prima facie unenforceable unless shown to be reasonable, and where what is prohibited is unclear as to activity, time or geography it cannot be shown reasonable, so an ambiguous covenant is by definition prima facie unreasonable and unenforceable (Shafron paras 27 and 43).",
+    "PROP-03": "Notional severance is not available to cure a defective restrictive covenant, and blue-pencil severance only in rare cases where the part removed is trivial and not part of the main purport of the covenant (Shafron paras 2 and 36).",
+    "PROP-04": "A covenant whose duration depends on consents of third parties is for an indeterminate period with no fixed outside limit and is therefore unreasonable (Martin v. ConCreate USL paras 58 and 59).",
+    "PROP-05": "Enforceability turns on whether the covenant is reasonable in scope for the legitimate or proprietary interest the party is actually entitled to protect; where there is nothing left to protect in the territory, the covenant will not be enforced (MEDIchair paras 47 and 51).",
+    "PROP-06": "Where former employees breach fiduciary duties and duties of confidence, a court may order the new corporation to disgorge its profits over the period the wrongful head start endured and order the individuals to pay damages measured over the same period, the length of that period reflecting the nature of the business and the useful life of what was taken (GasTOPS paras 34, 41 and 42).",
+    "PROP-07": "Where a conflict or a significant possibility of conflict exists between duty and personal interest, equity requires disgorgement of profits received even if the beneficiary suffered no loss; the relevant causation is between the breach and the fiduciary's gain, not the plaintiff's loss (Strother para 77).",
+    "PROP-08": "Good faith contractual performance is a general organizing principle, and there is a common law duty applying to all contracts to act honestly in performance — parties must not lie or otherwise knowingly mislead each other about matters directly linked to performance, without any duty of loyalty or disclosure (Bhasin paras 33 and 73).",
+    "PROP-09": "The absence of a positive duty of disclosure does not preclude an obligation to correct a false impression a party created by its own conduct; misleading a counterparty in the exercise of a contractual right breaches the duty of honest performance (Callow paras 3 and 38).",
+    "PROP-10": "Contractual discretion must be exercised in a manner consistent with the purposes for which it was granted; the duty is breached where the exercise is unreasonable in the sense of being unconnected to those purposes (Wastech paras 63 and 88).",
+    "PROP-11": "Waiver of tort should be abandoned as a term, and a plaintiff seeking disgorgement must first establish actionable misconduct; disgorgement is not a free-standing cause of action (Atlantic Lottery v. Babstock para 30).",
+    "PROP-12": "An interlocutory injunction requires a serious issue to be tried, irreparable harm and a balance of convenience favouring the order, the ultimate question being whether the injunction is just and equitable in all the circumstances (Google v. Equustek paras 1 and 25).",
+    "PROP-13": "Punitive damages are exceptional, imposed only for high-handed, malicious, arbitrary or highly reprehensible misconduct departing markedly from ordinary standards of decent behaviour, and are proportionate and no greater than necessary (Whiten para 94).",
+    "PROP-14": "Where confidential information gives a wrongful head start, a court may measure relief by the springboard the breach conferred rather than by proven lost profits (Cadbury Schweppes para 67).",
+    "CONCLUSION-01": "The non-competition covenant is void under the Employment Standards Act, 2000 because a Vice-President, Operations is not an 'executive' within the closed statutory definition, and the non-solicitation covenant is very likely unenforceable for ambiguity and indeterminate duration.",
+    "CONCLUSION-02": "Notwithstanding the covenants, the employee is realistically a fiduciary given his seniority and his conduct of the renewal negotiations, so the corporate opportunity claim survives independently of the contract.",
+    "CONCLUSION-03": "An account of the defendants' profits is available for the fiduciary and confidence claims, measured over the head-start period, rather than proof of the client's own lost profits.",
+    "CLAIM-01": "A twelve-month North America-wide non-competition covenant in an Ontario employment contract signed in 2023 is enforceable if the employee was senior.",
+    "CLAIM-02": "A court will read down an overly broad restrictive covenant to what it considers reasonable.",
+    "CLAIM-03": "Only directors and officers can owe fiduciary duties to a corporate employer.",
+    "CLAIM-04": "The duty of honest performance imposes a positive duty to disclose an intention to compete.",
+    "CLAIM-05": "Disgorgement of the defendant's profits is available as a remedy for breach of contract alone."
   }
 }

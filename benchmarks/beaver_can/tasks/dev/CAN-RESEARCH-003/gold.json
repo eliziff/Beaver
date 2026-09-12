@@ -1,52 +1,67 @@
 {
   "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03", "ISSUE-04", "ISSUE-05"],
   "required_authorities": [
-    { "match": "Grant", "proposition_id": "PROP-01", "acceptable_pinpoints": [44] },
-    { "match": "Grant", "proposition_id": "PROP-02", "acceptable_pinpoints": [71, 85] },
-    { "match": "\\bLe\\b", "proposition_id": "PROP-03", "acceptable_pinpoints": [30] },
-    { "match": "\\bLe\\b", "proposition_id": "PROP-04", "acceptable_pinpoints": [75, 81, 97] },
-    { "match": "Mann", "proposition_id": "PROP-05", "acceptable_pinpoints": [45] },
-    { "match": "Suberu", "proposition_id": "PROP-06", "acceptable_pinpoints": [42] },
-    { "match": "Chehil", "proposition_id": "PROP-07", "acceptable_pinpoints": [27, 29] },
-    { "match": "Tim", "proposition_id": "PROP-08", "acceptable_pinpoints": [39] },
-    { "match": "Zacharias", "proposition_id": "PROP-09", "acceptable_pinpoints": [47, 48, 49, 52, 108, 109] },
-    { "match": "Thompson|Tutu|Scopel|Pahal|2020 ONCA 264|2021 ONCA 805|2022 ONCA 316|2025 ONCA 668", "proposition_id": "PROP-10", "acceptable_pinpoints": [8, 27, 38, 39, 48, 49, 56, 57, 64, 89, 110] }
+    { "match": "Fraser", "proposition_id": "PROP-01", "acceptable_pinpoints": [30, 50, 52, 67, 71] },
+    { "match": "Sharma", "proposition_id": "PROP-02", "acceptable_pinpoints": [31, 48, 49] },
+    { "match": "Corbiere", "proposition_id": "PROP-03", "acceptable_pinpoints": [6, 13, 14] },
+    { "match": "Tanudjaja", "proposition_id": "PROP-04", "acceptable_pinpoints": [19, 20, 33] },
+    { "match": "Downtown Eastside", "proposition_id": "PROP-05", "acceptable_pinpoints": [37] },
+    { "match": "2022 SCC 27", "proposition_id": "PROP-06", "acceptable_pinpoints": [31, 78] },
+    { "match": "2020 SCC 38|Ontario \\(Attorney General\\) v\\. G", "proposition_id": "PROP-07", "acceptable_pinpoints": [126, 133] },
+    { "match": "2020 SCC 38|Ontario \\(Attorney General\\) v\\. G", "proposition_id": "PROP-08", "acceptable_pinpoints": [142, 165] },
+    { "match": "Ward", "proposition_id": "PROP-09", "acceptable_pinpoints": [4, 20, 39] },
+    { "match": "Power", "proposition_id": "PROP-10", "acceptable_pinpoints": [4, 7, 111] },
+    { "match": "Ontario Disability Support Program Act|SO 1997, c 25", "proposition_id": "PROP-11", "acceptable_pinpoints": ["4"] },
+    { "match": "222/98", "proposition_id": "PROP-12", "acceptable_pinpoints": ["46"] }
   ],
   "required_sets": [
-    { "match": "ONCA", "min": 3, "note": "at least three Ontario Court of Appeal decisions applying Le, compared by outcome" }
+    { "match": "SCC", "min": 5, "note": "at least five Supreme Court of Canada decisions" },
+    { "match": "ONCA|BCCA|FCA|NSCA|ONSC|BCSC", "min": 1, "note": "at least one decision from a court below the Supreme Court of Canada" },
+    { "match": "SO 1997, c 25|222/98|RSO 1990", "min": 2, "note": "the statute and the regulation, each cited by section" },
+    { "match": "“.{5,}?”\\s*\\(\\d{4}\\)|Law Review|Law Journal|L\\.? ?Rev\\b|L\\.? ?J\\b|Journal", "min": 1, "note": "at least one journal article with a real pinpoint" }
   ],
   "acceptable_alternative_authorities": [
-    { "match": "Lafrance", "proposition_id": "PROP-03", "acceptable_pinpoints": [63] }
+    { "match": "Withler", "proposition_id": "PROP-02", "acceptable_pinpoints": [60] },
+    { "match": "Hutterian", "proposition_id": "PROP-13", "acceptable_pinpoints": [53] },
+    { "match": "Mackin", "proposition_id": "PROP-10", "acceptable_pinpoints": [78] },
+    { "match": "Vriend", "proposition_id": "PROP-07", "acceptable_pinpoints": [148, 150, 154] },
+    { "match": "2020 BCCA 241", "proposition_id": "PROP-06", "acceptable_pinpoints": [] }
   ],
   "required_quotations": [
-    { "match": "Grant", "quote": "suspension of the individual's liberty interest by a significant physical or psychological restraint", "acceptable_pinpoints": [44] }
+    { "match": "Power", "quote": "the defence of immunity will be available to the state unless it is established that the law was clearly unconstitutional, or that its enactment was in bad faith or an abuse of power", "acceptable_pinpoints": [4] }
   ],
   "required_conclusions": [
     { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
-    { "id": "CONCLUSION-02", "acceptable": ["yes", "qualified_yes"] }
+    { "id": "CONCLUSION-02", "acceptable": ["yes", "qualified_yes"] },
+    { "id": "CONCLUSION-03", "acceptable": ["no", "qualified_no"] }
   ],
-  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04"],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04", "CLAIM-05"],
   "definitions": {
-    "ISSUE-01": "When the client was detained under ss. 9 and 10, applying Grant as developed in Le, including race and age in the reasonable-person analysis.",
-    "ISSUE-02": "Whether any detention was a lawful investigative detention under Mann on the reasonable-suspicion standard explained in Chehil.",
-    "ISSUE-03": "When the s. 10(b) right to counsel was triggered under Suberu and whether earlier questioning breached it.",
-    "ISSUE-04": "The s. 24(2) analysis under Grant, including cumulative or downstream breaches under Le, Tim and Zacharias.",
-    "ISSUE-05": "How the Ontario Court of Appeal has applied Le since 2019, compared by outcome across at least three decisions.",
-    "PROP-01": "Detention under ss. 9 and 10 is a suspension of the individual's liberty interest by a significant physical or psychological restraint; psychological detention exists where the individual has a legal obligation to comply or a reasonable person would conclude there was no choice but to comply (Grant para 44).",
-    "PROP-02": "Under s. 24(2) the court weighs the seriousness of the Charter-infringing state conduct, the impact of the breach on the accused's Charter-protected interests, and society's interest in adjudication on the merits (Grant paras 71 and 85).",
-    "PROP-03": "In Le the detention crystallized when the police entered the backyard and made contact; no statutory or common-law power authorized it, so it was arbitrary (Le para 30).",
-    "PROP-04": "The reasonable-person analysis takes account of the relationship between the police and racialized communities and of the individual's age and stature (Le paras 75, 81 and 97).",
-    "PROP-05": "Police may detain for investigative purposes where there are reasonable grounds to suspect in all the circumstances that the individual is connected to a particular crime and the detention is reasonably necessary (Mann para 45).",
-    "PROP-06": "The s. 10(b) duties arise immediately upon detention, 'without delay' meaning 'immediately', subject only to officer or public safety concerns (Suberu para 42).",
-    "PROP-07": "Reasonable suspicion is assessed against the totality of the circumstances and must rest on a constellation of objectively discernible facts (Chehil paras 27 and 29).",
-    "PROP-08": "An arrest founded on a mistake of law is unlawful and arbitrary contrary to s. 9 (Tim para 39).",
-    "PROP-09": "A consequential breach flowing from an initial breach is treated as such in the s. 24(2) analysis, and the dissent would weigh cascading breaches cumulatively (Zacharias paras 47 to 52 and 108 to 109).",
-    "PROP-10": "The Court of Appeal has applied Le to find detention and exclude evidence in Thompson (2020 ONCA 264), Tutu (2021 ONCA 805) and Scopel-Cessel (2022 ONCA 316), and to find detention but admit the statements in Pahal (2025 ONCA 668).",
-    "CONCLUSION-01": "The client was detained when the officers entered the yard and began directing and questioning the group, before any physical contact.",
-    "CONCLUSION-02": "The detention was not a lawful investigative detention because the officers had no reasonable suspicion connecting the client to a particular crime.",
-    "CLAIM-01": "A detention requires physical restraint.",
-    "CLAIM-02": "Reasonable suspicion is the same standard as reasonable and probable grounds.",
-    "CLAIM-03": "The right to counsel may be delayed until the investigative detention is complete.",
-    "CLAIM-04": "Exclusion under s. 24(2) follows automatically from a Charter breach."
+    "ISSUE-01": "Whether the verification requirement in the Ontario Disability Support Program Act, 1997 and the list of permitted professionals in O Reg 222/98 limit s. 15(1) as adverse-effect discrimination, on which grounds, and what must be proved at the first step and with what evidence.",
+    "ISSUE-02": "Whether the claim is justiciable rather than a complaint about the adequacy of social policy, and whether the organization can have public interest standing as sole plaintiff with the affected individual as a non-party witness.",
+    "ISSUE-03": "How the government would justify the requirement under s. 1 and the deference given to benefits choices.",
+    "ISSUE-04": "The s. 52(1) remedy: striking down, severance or reading in; whether the declaration is suspended, who bears the onus, and whether the claimant may be exempted from a suspension.",
+    "ISSUE-05": "Whether damages are available for the 26 months, whether a damages claim can be joined to a declaration of invalidity, and the threshold for damages arising from unconstitutional legislation.",
+    "PROP-01": "Adverse impact discrimination occurs when a seemingly neutral law has a disproportionate impact on members of a protected group; at step one the claimant must show that disproportionate impact, and neither statistical disparity nor evidence of group disadvantage is mandatory, nor need the law have created the background barriers (Fraser paras 30, 50, 52, 67 and 71).",
+    "PROP-02": "The first step asks whether the impugned law created or contributed to a disproportionate impact on the claimant group based on a protected ground, which entails a comparison; the second step asks whether that impact reinforces, perpetuates or exacerbates disadvantage (Sharma paras 31, 48 and 49).",
+    "PROP-03": "Aboriginality-residence — whether an Aboriginal band member lives on or off reserve — is an analogous ground under s. 15 (Corbiere paras 6, 13 and 14).",
+    "PROP-04": "A claim that government has given insufficient priority to a social problem in general is not justiciable because there is no judicially discoverable and manageable standard for it; justiciability is a normative inquiry into the appropriateness of a court deciding the issue (Tanudjaja paras 19, 20 and 33).",
+    "PROP-05": "Public interest standing turns on three factors applied purposively and flexibly: a serious justiciable issue, a real stake or genuine interest, and whether the suit is a reasonable and effective way to bring the issue before the courts (Downtown Eastside para 37).",
+    "PROP-06": "Downtown Eastside remains the governing authority and no single purpose takes precedence; a directly affected co-plaintiff is not required so long as the public interest litigant can establish a concrete and well-developed factual setting, which affected non-party witnesses can supply (Council of Canadians with Disabilities, 2022 SCC 27, paras 31 and 78).",
+    "PROP-07": "The government bears the onus of showing that a compelling interest grounded in the Constitution outweighs the continued breach; suspensions of declarations of invalidity will be rare (Ontario (AG) v G paras 126 and 133).",
+    "PROP-08": "There is no hard-and-fast rule against combining s. 24(1) and s. 52(1) remedies, and an individual exemption from a suspension will often be appropriate and just; but reading in is unavailable where it would intrude on the legislative sphere because there are many ways to fill the gap (Ontario (AG) v G paras 142 and 165).",
+    "PROP-09": "Charter damages are available where appropriate and just on a four-step inquiry — breach, functional justification (compensation, vindication, deterrence), countervailing factors, and quantum (Ward paras 4, 20 and 39).",
+    "PROP-10": "The state has only a limited immunity for its law-making power: damages may be awarded under s. 24(1) for enacting legislation that breaches a Charter right unless the state establishes immunity, which fails where the law was clearly unconstitutional or its enactment was in bad faith or an abuse of power — a high but not insurmountable threshold, and one that must be particularized and proved on admissible evidence (Power paras 4, 7 and 111).",
+    "PROP-11": "Section 4(1) of the Ontario Disability Support Program Act, 1997 requires a substantial impairment that is continuous or recurrent and expected to last a year or more, a substantial restriction in activities of daily living, and verification of the impairment, its duration and the restriction by a person with the prescribed qualifications.",
+    "PROP-12": "Section 46 of O Reg 222/98 sets out the closed lists of professionals who may verify the impairment and its duration (s. 46(1)) and the restriction in activities of daily living (s. 46(2)).",
+    "PROP-13": "At minimal impairment the court asks whether the limit is reasonably tailored to the objective and accords the legislature a measure of deference on complex social issues (Hutterian Brethren para 53).",
+    "CONCLUSION-01": "The verification requirement is open to a strong adverse-effects claim under s. 15(1) on the intersecting grounds of disability and Aboriginality-residence, with the ministry data and evidence of group disadvantage carrying the first step.",
+    "CONCLUSION-02": "The organization can be granted public interest standing as the sole plaintiff, with the affected individual giving evidence as a non-party.",
+    "CONCLUSION-03": "Charter damages for the 26 months are unlikely on these facts: the immunity defence applies to the enactment and administration of the regulation, and nothing yet shows the law was clearly unconstitutional or that its enactment was in bad faith or an abuse of power.",
+    "CLAIM-01": "A s. 15(1) claimant must identify a mirror comparator group.",
+    "CLAIM-02": "A public interest litigant cannot be granted standing without a directly affected co-plaintiff.",
+    "CLAIM-03": "A declaration of invalidity is routinely suspended, and the claimant bears the onus of showing a suspension is unnecessary.",
+    "CLAIM-04": "A remedy under s. 24(1) can never be combined with a declaration of invalidity under s. 52(1).",
+    "CLAIM-05": "Damages follow automatically once legislation is declared unconstitutional."
   }
 }

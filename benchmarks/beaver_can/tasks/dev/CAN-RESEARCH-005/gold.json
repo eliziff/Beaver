@@ -1,58 +1,68 @@
 {
   "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03", "ISSUE-04", "ISSUE-05"],
   "required_authorities": [
-    { "match": "Haida", "proposition_id": "PROP-01", "acceptable_pinpoints": [35] },
-    { "match": "Haida", "proposition_id": "PROP-02", "acceptable_pinpoints": [43, 44, 45] },
-    { "match": "Rio Tinto|Carrier Sekani", "proposition_id": "PROP-03", "acceptable_pinpoints": [31] },
-    { "match": "Clyde River", "proposition_id": "PROP-05", "acceptable_pinpoints": [30, 45, 53] },
-    { "match": "Chippewas", "proposition_id": "PROP-07", "acceptable_pinpoints": [32, 51, 66] },
-    { "match": "Mikisew", "proposition_id": "PROP-08", "acceptable_pinpoints": [2, 102] },
-    { "match": "Ktunaxa", "proposition_id": "PROP-09", "acceptable_pinpoints": [83, 114] },
-    { "match": "Coldwater", "proposition_id": "PROP-11", "acceptable_pinpoints": [27, 77, 83] },
-    { "match": "Tsleil-Waututh", "proposition_id": "PROP-12", "acceptable_pinpoints": [557, 558, 562] },
-    { "match": "Declaration on the Rights of Indigenous Peoples|SC 2021, c 14", "proposition_id": "PROP-13", "acceptable_pinpoints": ["4", "5"] },
-    { "match": "Impact Assessment Act|SC 2019, c 28", "proposition_id": "PROP-15", "acceptable_pinpoints": ["22", "6"] }
+    { "match": "Succession Law Reform Act|RSO 1990, c S26", "proposition_id": "PROP-01", "acceptable_pinpoints": ["57", "58"] },
+    { "match": "Succession Law Reform Act|RSO 1990, c S26", "proposition_id": "PROP-02", "acceptable_pinpoints": ["61"] },
+    { "match": "Succession Law Reform Act|RSO 1990, c S26", "proposition_id": "PROP-03", "acceptable_pinpoints": ["72"] },
+    { "match": "Cummings", "proposition_id": "PROP-04", "acceptable_pinpoints": [27, 32] },
+    { "match": "Ingram|Kulynych", "proposition_id": "PROP-05", "acceptable_pinpoints": [56, 66, 67] },
+    { "match": "Trustee Act|RSO 1990, c T23", "proposition_id": "PROP-06", "acceptable_pinpoints": ["38"] },
+    { "match": "Dagg|Cameron Estate", "proposition_id": "PROP-07", "acceptable_pinpoints": [1, 2, 4] },
+    { "match": "Kerr", "proposition_id": "PROP-08", "acceptable_pinpoints": [30, 55, 60] },
+    { "match": "Moore v\\. Sweet|2018 SCC 52", "proposition_id": "PROP-09", "acceptable_pinpoints": [37, 91] },
+    { "match": "Neuberger", "proposition_id": "PROP-10", "acceptable_pinpoints": [88] },
+    { "match": "Vout", "proposition_id": "PROP-11", "acceptable_pinpoints": [27] }
   ],
   "required_sets": [
-    { "match": "Journal|Law Review|L\\. ?Rev|L\\. ?J\\.|Hansard|Debates|Osgoode|McGill|Queen's|Dalhousie|Alberta Law|Manitoba Law|UBC Law|Ottawa Law", "min": 1, "note": "one journal article or Hansard debate with its actual pinpoint" }
+    { "match": "SCC", "min": 3, "note": "at least three Supreme Court of Canada decisions" },
+    { "match": "ONCA", "min": 3, "note": "at least three Ontario Court of Appeal decisions" },
+    { "match": "RSO 1990", "min": 2, "note": "the Succession Law Reform Act and the Trustee Act, each cited by section" },
+    { "match": "“.{5,}?”\\s*\\(\\d{4}\\)|Law Review|Law Journal|L\\.? ?Rev\\b|L\\.? ?J\\b|Journal", "min": 1, "note": "at least one journal article with a real pinpoint" }
   ],
   "acceptable_alternative_authorities": [
-    { "match": "Rio Tinto|Carrier Sekani", "proposition_id": "PROP-04", "acceptable_pinpoints": [48, 49, 54] },
-    { "match": "Ktunaxa", "proposition_id": "PROP-10", "acceptable_pinpoints": [77] },
-    { "match": "Taku River|2004 SCC 74", "proposition_id": "PROP-02", "acceptable_pinpoints": [] }
+    { "match": "Pecore", "proposition_id": "PROP-12", "acceptable_pinpoints": [24, 36] },
+    { "match": "Cowper", "proposition_id": "PROP-13", "acceptable_pinpoints": [15] },
+    { "match": "Spence", "proposition_id": "PROP-14", "acceptable_pinpoints": [1] },
+    { "match": "Limitations Act, 2002|SO 2002, c 24", "proposition_id": "PROP-05", "acceptable_pinpoints": ["2", "4", "5"] },
+    { "match": "Madore-Ogilvie|Ogilvie Estate", "proposition_id": "PROP-03", "acceptable_pinpoints": [] },
+    { "match": "Tataryn", "proposition_id": "PROP-04", "acceptable_pinpoints": [] }
   ],
   "required_quotations": [
-    { "match": "Haida", "quote": "the duty arises when the Crown has knowledge, real or constructive, of the potential existence of the Aboriginal right or title and contemplates conduct that might adversely affect it", "acceptable_pinpoints": [35] }
+    { "match": "Ingram|Kulynych", "quote": "s. 38(3) of the Trustee Act, and not s. 4 of the RPLA, applies to the respondent's equitable trust claims", "acceptable_pinpoints": [66] }
   ],
   "required_conclusions": [
     { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
-    { "id": "CONCLUSION-02", "acceptable": ["no", "qualified_no"] }
+    { "id": "CONCLUSION-02", "acceptable": ["no", "qualified_no"] },
+    { "id": "CONCLUSION-03", "acceptable": ["no", "qualified_no"] }
   ],
-  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04"],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04", "CLAIM-05"],
   "definitions": {
-    "ISSUE-01": "When the duty to consult is triggered and whether a regulator's approval decision is Crown conduct that triggers it.",
-    "ISSUE-02": "Where on the Haida spectrum the consultation falls and what meaningful consultation and accommodation require, contrasting Tsleil-Waututh and Coldwater.",
-    "ISSUE-03": "Whether the Nation can insist on consent or a veto, and whether the duty attaches to Parliament's law-making.",
-    "ISSUE-04": "What the UNDRIP Act and the Impact Assessment Act add, by section.",
-    "ISSUE-05": "One journal article or Hansard debate bearing on the question, with its actual pinpoint.",
-    "PROP-01": "The duty arises when the Crown has knowledge, real or constructive, of the potential existence of the Aboriginal right or title and contemplates conduct that might adversely affect it (Haida para 35).",
-    "PROP-02": "Consultation runs along a spectrum from notice to deep consultation depending on the strength of the claim and the seriousness of the potential effect (Haida paras 43 to 45).",
-    "PROP-03": "The trigger has three elements: Crown knowledge, contemplated Crown conduct, and the potential that the conduct adversely affects the claim or right (Rio Tinto para 31).",
-    "PROP-04": "Past wrongs or continuing effects of earlier decisions do not alone trigger a fresh duty; the contemplated conduct must put current claims and rights in jeopardy (Rio Tinto paras 48, 49 and 54).",
-    "PROP-05": "The Crown may rely on a regulatory agency's process to fulfil the duty, ultimate responsibility remaining with the Crown; in Clyde River the consultation fell short and the duty was breached (Clyde River paras 30, 45 and 53).",
-    "PROP-07": "The NEB process was sufficient to satisfy the duty in Chippewas of the Thames; the Crown may rely on an agency with the statutory powers to do what the duty requires (Chippewas paras 32, 51 and 66).",
-    "PROP-08": "The law-making process does not constitute Crown conduct that triggers the duty to consult (Mikisew 2018 para 2, Karakatsanis J.; para 102, Brown J. concurring).",
-    "PROP-09": "Section 35 gives no veto over development; where adequate consultation has occurred a development may proceed without consent, and the process is one of give and take (Ktunaxa paras 83 and 114).",
-    "PROP-10": "The consultation decision is reviewed for reasonableness (Ktunaxa para 77).",
-    "PROP-11": "Reasonableness, not perfection, is the standard; the renewed Trans Mountain consultation was reasonable (Coldwater paras 27, 77 and 83).",
-    "PROP-12": "Phase III of the earlier Trans Mountain consultation was unacceptably flawed because Canada's team acted essentially as note-takers rather than engaging in two-way dialogue (Tsleil-Waututh paras 557, 558 and 562).",
-    "PROP-13": "The UNDRIP Act affirms the Declaration as a universal international human rights instrument with application in Canadian law and provides a framework for implementation (s. 4); the Government must take all measures necessary to ensure the laws of Canada are consistent with the Declaration (s. 5).",
-    "PROP-15": "The Impact Assessment Act requires consideration of impacts on Indigenous groups and their rights and of Indigenous knowledge (s. 22(1)(c) and (g)); the Act's purposes include respecting the rights recognized and affirmed by s. 35 (s. 6(2)).",
-    "CONCLUSION-01": "The regulator's approval decision is Crown conduct that triggers the duty, and the Crown may rely on an adequate regulatory process.",
-    "CONCLUSION-02": "The Nation cannot insist on consent or a veto; adequate consultation and accommodation are the measure.",
-    "CLAIM-01": "The duty to consult applies to Parliament's process of enacting legislation.",
-    "CLAIM-02": "The UNDRIP Act makes the Declaration directly enforceable law that overrides inconsistent statutes.",
-    "CLAIM-03": "The First Nation holds a veto over the pipeline approval.",
-    "CLAIM-04": "The Crown must always conduct its own consultation separate from the regulator's process."
+    "ISSUE-01": "Whether the adult child is a dependant and whether adequate provision has been made for her proper support; what the Act directs the court to consider; and whether moral as well as needs-based claims may be weighed in Ontario.",
+    "ISSUE-02": "The time limits: the period governing the support application, the effect of the certificate having issued ten months ago and the estate having been distributed, the discretion that remains; and separately which limitation period governs the unjust enrichment and constructive trust claim 26 months after death.",
+    "ISSUE-03": "Which non-estate assets are brought back into the net estate for support purposes and under which provision, and what independent claim lies to the insurance proceeds, the joint account or the farm.",
+    "ISSUE-04": "The claims for nine years of care: unjust enrichment and the joint family venture, the measure of a money award, and proprietary estoppel over the farm.",
+    "ISSUE-05": "The will challenge: the threshold for an order that the will be proved in solemn form, the effect of suspicious circumstances on the burden, and whether a court will look behind an unambiguous bequest because of the testator's alleged motive.",
+    "PROP-01": "A 'dependant' under s. 57(1) of the Succession Law Reform Act is a spouse, parent, child or sibling of the deceased to whom the deceased was providing support, or was under a legal obligation to provide support, immediately before death; s. 58(1) allows the court to order adequate provision out of the estate where the deceased has not made adequate provision for the proper support of a dependant, and s. 58(4) fixes the date of the hearing as the date for assessing adequacy.",
+    "PROP-02": "Section 61(1) bars a support application more than six months after the grant of letters probate or letters of administration; s. 61(2) allows the court, if it considers it proper, to permit an application at any time as to any portion of the estate remaining undistributed at the date of the application.",
+    "PROP-03": "Section 72(1) deems the capital value of listed transactions to be part of the net estate for Part V purposes, including joint bank accounts payable to the survivor (s. 72(1)(c)), dispositions creating a joint tenancy (s. 72(1)(d)), amounts payable under a policy of insurance on the life of the deceased and owned by the deceased (s. 72(1)(f)), and beneficiary designations (s. 72(1)(g)).",
+    "PROP-04": "In deciding whether adequate provision has been made, an Ontario court examines the claims of all dependants, whether based on need or on legal or moral and ethical obligations; moral considerations have a part to play under s. 58(1), though not necessarily the same weight as in British Columbia (Cummings v. Cummings paras 27 and 32).",
+    "PROP-05": "The two-year limitation in s. 38(3) of the Trustee Act, not the ten-year period in s. 4 of the Real Property Limitations Act, governs an equitable trust claim against an estate; the period runs from the death, and a claim brought more than two years after death is statute-barred (Ingram v. Kulynych Estate paras 56, 66 and 67).",
+    "PROP-06": "Section 38(2) of the Trustee Act permits an action against the executor or administrator for a wrong committed by the deceased, and s. 38(3) provides that an action under that section shall not be brought after two years from the death of the deceased.",
+    "PROP-07": "Section 72(1)(f) claws back into the net estate any amount payable under a policy of insurance effected on the life of the deceased and owned by the deceased, and s. 72(7) preserves the rights of a creditor in a transaction with respect to which a creditor has rights, which is how a support recipient designated irrevocable beneficiary is ranked (Dagg v. Cameron Estate paras 1, 2 and 4).",
+    "PROP-08": "Unjust enrichment requires enrichment, corresponding deprivation and the absence of a juristic reason; where a joint family venture links the parties' joint efforts to an accumulation of wealth the claim addresses a disproportionate share of jointly earned assets, and a monetary award need not be confined to quantum meruit but may be assessed on a value-survived basis (Kerr v. Baranow paras 30, 55 and 60).",
+    "PROP-09": "The principled unjust enrichment framework governs; a constructive trust is imposed only where a personal remedy would be inadequate and the contribution is linked to the property, and then only to the extent of the proportionate contribution (Moore v. Sweet paras 37 and 91).",
+    "PROP-10": "An interested person must meet a minimal evidentiary threshold before a court will order a testamentary instrument proved in solemn form (Neuberger v. York para 88).",
+    "PROP-11": "Where suspicious circumstances are present the presumption of knowledge and approval is spent and the propounder reassumes the legal burden of proving knowledge and approval, and testamentary capacity where the circumstances relate to capacity, on the civil standard (Vout v. Hay para 27).",
+    "PROP-12": "The presumption of resulting trust applies to gratuitous transfers, and the presumption of advancement does not apply to independent adult children, so a joint account opened with an adult transferee is presumed to be held in trust (Pecore paras 24 and 36).",
+    "PROP-13": "Proprietary estoppel arises where a representation or assurance is made, the claimant reasonably relies on the expectation it creates, and suffers detriment such that it would be unjust for the representor to go back on her word (Cowper-Smith v. Morgan para 15).",
+    "PROP-14": "A court will not scrutinize an unambiguous residual bequest that contains no discriminatory condition on public policy grounds using third-party extrinsic evidence of the testator's motive (Spence v. BMO Trust Company para 1).",
+    "CONCLUSION-01": "The client is a dependant and has a strong claim that adequate provision was not made, and the court may weigh the moral obligation arising from nine years of unpaid care.",
+    "CONCLUSION-02": "The support application is out of time under s. 61(1) and can now reach only the roughly $9,000 remaining undistributed, if the court exercises its s. 61(2) discretion; the unjust enrichment and constructive trust claim against the estate is statute-barred because more than two years have passed since the death.",
+    "CONCLUSION-03": "A challenge to the will on the basis of the testator's alleged motive will not succeed; the viable challenge is knowledge and approval and capacity through suspicious circumstances, and it requires the minimal evidentiary threshold to be met first.",
+    "CLAIM-01": "The two-year discoverability rule in the Limitations Act, 2002 governs a dependant's support application under the Succession Law Reform Act.",
+    "CLAIM-02": "Section 61(2) allows the court to extend time as to the whole estate, including assets already distributed.",
+    "CLAIM-03": "Assets passing outside the will by survivorship or beneficiary designation are beyond the reach of a dependant's support order.",
+    "CLAIM-04": "An equitable trust claim against an estate is governed by the ten-year period in s. 4 of the Real Property Limitations Act.",
+    "CLAIM-05": "A monetary award for unjust enrichment must be calculated on a quantum meruit basis."
   }
 }
