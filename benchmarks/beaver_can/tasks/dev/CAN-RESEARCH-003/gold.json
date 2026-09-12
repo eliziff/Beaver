@@ -2,29 +2,28 @@
   "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03", "ISSUE-04", "ISSUE-05"],
   "required_authorities": [
     { "match": "Fraser", "proposition_id": "PROP-01", "acceptable_pinpoints": [30, 50, 52, 67, 71] },
-    { "match": "Sharma", "proposition_id": "PROP-02", "acceptable_pinpoints": [31, 48, 49] },
+    { "match": "Sharma", "proposition_id": "PROP-02", "acceptable_pinpoints": [31, 48] },
     { "match": "Corbiere", "proposition_id": "PROP-03", "acceptable_pinpoints": [6, 13, 14] },
     { "match": "Tanudjaja", "proposition_id": "PROP-04", "acceptable_pinpoints": [19, 20, 33] },
     { "match": "Downtown Eastside", "proposition_id": "PROP-05", "acceptable_pinpoints": [37] },
-    { "match": "2022 SCC 27", "proposition_id": "PROP-06", "acceptable_pinpoints": [31, 78] },
+    { "match": "2022 SCC 27", "proposition_id": "PROP-06", "acceptable_pinpoints": [31, 59, 63, 66, 67] },
     { "match": "2020 SCC 38|Ontario \\(Attorney General\\) v\\. G", "proposition_id": "PROP-07", "acceptable_pinpoints": [126, 133] },
     { "match": "2020 SCC 38|Ontario \\(Attorney General\\) v\\. G", "proposition_id": "PROP-08", "acceptable_pinpoints": [142, 165] },
     { "match": "Ward", "proposition_id": "PROP-09", "acceptable_pinpoints": [4, 20, 39] },
-    { "match": "Power", "proposition_id": "PROP-10", "acceptable_pinpoints": [4, 7, 111] },
+    { "match": "Power", "proposition_id": "PROP-10", "acceptable_pinpoints": [4, 100, 111] },
     { "match": "Ontario Disability Support Program Act|SO 1997, c 25", "proposition_id": "PROP-11", "acceptable_pinpoints": ["4"] },
     { "match": "222/98", "proposition_id": "PROP-12", "acceptable_pinpoints": ["46"] }
   ],
   "required_sets": [
     { "match": "SCC", "min": 5, "note": "at least five Supreme Court of Canada decisions" },
-    { "match": "ONCA|BCCA|FCA|NSCA|ONSC|BCSC", "min": 1, "note": "at least one decision from a court below the Supreme Court of Canada" },
+    { "match": "ONCA|BCCA|FCA|FC|NSCA|ONSC|BCSC|CHRT|ONSSAB", "min": 1, "note": "at least one decision from a court or tribunal below the Supreme Court of Canada" },
     { "match": "SO 1997, c 25|222/98|RSO 1990", "min": 2, "note": "the statute and the regulation, each cited by section" },
     { "match": "“.{5,}?”\\s*\\(\\d{4}\\)|Law Review|Law Journal|L\\.? ?Rev\\b|L\\.? ?J\\b|Journal", "min": 1, "note": "at least one journal article with a real pinpoint" }
   ],
   "acceptable_alternative_authorities": [
-    { "match": "Withler", "proposition_id": "PROP-02", "acceptable_pinpoints": [60] },
     { "match": "Hutterian", "proposition_id": "PROP-13", "acceptable_pinpoints": [53] },
     { "match": "Mackin", "proposition_id": "PROP-10", "acceptable_pinpoints": [78] },
-    { "match": "Vriend", "proposition_id": "PROP-07", "acceptable_pinpoints": [148, 150, 154] },
+    { "match": "2016 CHRT 2|Caring Society", "proposition_id": "PROP-01", "acceptable_pinpoints": [] },
     { "match": "2020 BCCA 241", "proposition_id": "PROP-06", "acceptable_pinpoints": [] }
   ],
   "required_quotations": [
