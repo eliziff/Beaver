@@ -80,11 +80,9 @@ export function modelLabelDesign(value: Record<string, unknown>, catalog: Resear
   if (!("highlightTypes" in value) && !("filings" in value)) return value;
   const list = (key: string) => Array.isArray(value[key]) ? value[key] as Record<string, unknown>[] : [];
   const rowOf = new Map(catalog.entries.map(({ id, rowId }) => [id, rowId]));
-  for (const label of list("labels")) if (!String(label.adds ?? "").trim())
-    throw new Error(`Say in adds what “${clip(String(label.name ?? ""), 80)}” tells a lawyer about a source beyond its highlights, or drop it`);
   return { title: value.title,
     labels: [...list("highlightTypes").map((type) => ({ ...type, scope: "highlight" })),
-      ...list("labels").map(({ adds: _adds, ...label }) => ({ ...label, scope: "source" }))],
+      ...list("labels").map((label) => ({ ...label, scope: "source" }))],
     assignments: [...list("highlights").map(({ typeKey, itemIds }) => ({ labelKey: typeKey, itemIds,
       rowIds: [...new Set((Array.isArray(itemIds) ? itemIds : []).map((id) => rowOf.get(String(id)) ?? String(id)))] })), ...list("filings")] };
 }
