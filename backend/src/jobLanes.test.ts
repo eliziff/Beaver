@@ -18,6 +18,18 @@ describe("job lanes", () => {
     expect(Number(process.env.UV_THREADPOOL_SIZE)).toBeGreaterThan(4);
   });
 
+  it("uses the same resource limits regardless of authentication mode", async () => {
+    const { jobLaneConcurrency } = await import("./jobLanes");
+    process.env.AUTH_MODE = "local";
+    const local = jobLaneConcurrency();
+    process.env.AUTH_MODE = "cloud";
+    expect(jobLaneConcurrency()).toEqual(local);
+    delete process.env.AUTH_MODE;
+    expect(jobLaneConcurrency()).toEqual(local);
+    expect(local.preparation).toBeGreaterThanOrEqual(1);
+    expect(local.preparation).toBeLessThanOrEqual(4);
+  });
+
   it("keeps an operator's own pool size", async () => {
     process.env.UV_THREADPOOL_SIZE = "32";
     const { sizeNativeThreadPool } = await import("./jobLanes");
