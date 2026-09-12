@@ -112,10 +112,14 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
           </label>
           {renaming === label.id ? <InlineNameInput kind="folder" value={label.name} label={noun("{x} name")}
             onCancel={() => setRenaming(null)} onCommit={(name) => { setRenaming(null); if (name.trim() && name !== label.name) void act({ type: "label", ...label, name: name.trim() }); }} />
-            : <button type="button" data-label-select={label.id} aria-pressed={selectedId === label.id} onClick={() => onSelect(label.id)}
+            : <><button type="button" data-label-select={label.id} aria-pressed={selectedId === label.id} onClick={() => onSelect(label.id)}
               title={researchLabelPath(labels, label.id).map(({ name }) => name).join(" / ")}
-              className="min-w-0 flex-1 truncate py-1 text-start text-sm text-gray-700 aria-pressed:font-semibold"
-              data-mark={preview?.marks[label.id]}>{label.name}</button>}
+              className={`min-w-0 flex-1 truncate py-1 text-start text-sm text-gray-700 aria-pressed:font-semibold ${
+                preview?.marks[label.id] ? "font-semibold underline decoration-gray-400" : ""}`}
+              data-mark={preview?.marks[label.id]}>{label.name}</button>
+              {/* What the label means rides its own row as secondary text, so a proposal reads as the tree it becomes. */}
+              {!!(preview && label.definition) && <span title={label.definition}
+                className="min-w-0 max-w-[45%] shrink truncate text-xs text-gray-500">{label.definition}</span>}</>}
           <span className={ROW_ACTIONS}>
             {!preview && <MoreActionsMenu label={`${label.name} options`} items={[
               { label: "Rename", onSelect: () => setRenaming(label.id) },

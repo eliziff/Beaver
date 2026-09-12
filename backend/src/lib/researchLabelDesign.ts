@@ -21,8 +21,9 @@ export type ProposalProgress = { stage: "reading" | "asking" | "checking" | "ret
 export type ProposalOptions = { model?: string; reasoningEffort?: string; signal?: AbortSignal; progress?: (event: ProposalProgress) => void };
 export type ResearchLabelPlan = {
   title: string; target: ResearchLabelTarget; propose: boolean;
-  labels: Array<{ key: string; name: string; scope: ResearchLabel["scope"]; path: string; parentKey: string | null; color: string | null;
-    definition?: string; existing: boolean; rows: Array<{ id: string; title: string; support: string[] }> }>;
+  /** Each proposed label is a whole label: applying it puts exactly this into the workspace tree. */
+  labels: Array<ResearchLabel & { key: string; path: string; parentKey: string | null;
+    existing: boolean; rows: Array<{ id: string; title: string; support: string[] }> }>;
   unassigned: Array<{ id: string; title: string }>;
   actions: BatchActions;
 };

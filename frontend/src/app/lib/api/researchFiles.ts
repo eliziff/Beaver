@@ -1,6 +1,6 @@
 import { apiRequest, BeaverApiError, segment, pagePath, post, streamRequest, type Page } from "@/app/lib/api/client";
 import { readSseData } from "@/app/lib/sse";
-import type { ResearchFile, ResearchAction, ResearchActionResult, ResearchPageItem, ResearchQueryInput, ResearchQueryResult, ResearchSelection } from "@/app/lib/researchFiles";
+import type { ResearchFile, ResearchAction, ResearchActionResult, ResearchLabel, ResearchPageItem, ResearchQueryInput, ResearchQueryResult, ResearchSelection } from "@/app/lib/researchFiles";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
 import type { ColumnConfig, TabularReview } from "./tabular";
 
@@ -82,8 +82,9 @@ export type ResearchLabelDesign = { title: string;
   assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
 export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean; reproposed?: boolean;
   fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];
-  labels: { key: string; name: string; scope?: "source" | "highlight"; path: string; parentKey: string | null; color: string | null;
-    definition?: string; existing: boolean; rows: { id: string; title: string; support: string[] }[] }[] };
+  /** Each proposed label is a whole label: applying it puts exactly this into the workspace tree. */
+  labels: (ResearchLabel & { key: string; path: string; parentKey: string | null;
+    existing: boolean; rows: { id: string; title: string; support: string[] }[] })[] };
 export const proposeWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design">, onProgress: (event: ProposalProgress) => void, signal?: AbortSignal) =>
   propose<ResearchLabelProposal>(`/source-workspaces/${segment(id)}/labels/preview`, input, onProgress, signal);
 export const applyWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { design: ResearchLabelDesign }) =>
