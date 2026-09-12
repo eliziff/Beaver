@@ -96,13 +96,15 @@ The runner uses the application's preparation service, concurrency policy and
 native thread pool. It verifies source hashes and page counts, starts with an
 empty application cache, and records preparation and product-inspection times
 separately. This digital-born profile disables OCR and external layout analysis.
-The receipt includes hardware, runtime, profile and native-library identity.
+The receipt includes hardware, runtime, profile, native-library identity and
+preparation CPU time to help distinguish processing work from wall-clock delays.
 
 Create the baseline once. Later runs replace the owned `candidate` directory and
 compare against the frozen baseline under matching conditions. Identical products
 retain only hashes; changed products retain compressed text and anchors. The
 runner removes its application cache after recording the result and returns a
-failure status when candidate preparation fails.
+failure status when candidate preparation fails or exceeds the frozen baseline's
+preparation time.
 
 ## PDF rendering and transport
 
