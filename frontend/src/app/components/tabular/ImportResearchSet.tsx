@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { applyWorkspaceLabels, getResearchFile, openWorkspaceTable, previewWorkspaceLabels, previewWorkspaceTable,
-    type ResearchLabelProposal, type ResearchTablePreview, type ResearchTableInput } from "@/app/lib/api/researchFiles";
+import { applyWorkspaceLabels, getResearchFile, openWorkspaceTable, proposeWorkspaceLabels, proposeWorkspaceTable,
+    type ProposalProgress, type ResearchLabelProposal, type ResearchTablePreview, type ResearchTableInput } from "@/app/lib/api/researchFiles";
 import { isResearchDocument, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import { errorMessage } from "@/app/lib/utils";
@@ -30,35 +30,50 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState(""), [name, setProposedName] = useState("");
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
-    const generation = useRef(0), activeId = fileId ?? picked[0]?.id, [pickerModel] = useSelectedModel(), [pickerEffort] = useSelectedReasoningEffort();
+    // The step is launched by the user, never on opening; while it runs the modal shows what the model is doing.
+    const [progress, setProgress] = useState<ProposalProgress | null>(null), [started, setStarted] = useState(0), [now, setNow] = useState(0);
+    const generation = useRef(0), running = useRef<AbortController | null>(null), activeId = fileId ?? picked[0]?.id,
+        [pickerModel] = useSelectedModel(), [pickerEffort] = useSelectedReasoningEffort();
     // The chat's own model first; if its provider fails, one retry on the picker's model.
     const [lane, setLane] = useState<"chat" | "picker">(chatModel ? "chat" : "picker");
     // Accept the proposal on the reading that produced it: a redesign is not re-filed under the existing ontology.
     const [redesigned, setRedesigned] = useState(false);
-    const model = lane === "chat" && chatModel ? chatModel : pickerModel, effort = lane === "chat" && chatModel ? chatEffort ?? undefined : pickerEffort;
+    const laneModel = (which: "chat" | "picker") => which === "chat" && chatModel
+        ? { model: chatModel, effort: chatEffort ?? undefined } : { model: pickerModel, effort: pickerEffort };
+    const { model, effort } = laneModel(lane);
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
-    async function propose(instruction = "", repropose = false) {
+    async function propose(instruction = "", repropose = false, which = lane) {
         if (!activeId) return;
-        const run = ++generation.current; setBusy(true); setError(""); setNote("");
+        running.current?.abort(); const controller = new AbortController(); running.current = controller;
+        const run = ++generation.current, { model, effort } = laneModel(which);
+        setBusy(true); setError(""); setNote(""); setProgress({ stage: "reading" }); setStarted(Date.now()); setNow(Date.now());
         try {
             const request = [defaultRequest.trim(), instruction.trim()].filter(Boolean).join("\n");
             const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
                 ...(effort ? { reasoningEffort: effort } : {}) };
-            const [current, next] = await Promise.all([getResearchFile(activeId),
-                labelling ? previewWorkspaceLabels(activeId, body) : previewWorkspaceTable(activeId, body)]);
+            const report = (event: ProposalProgress) => { if (run === generation.current) setProgress(event); };
+            const [current, next] = await Promise.all([getResearchFile(activeId), labelling
+                ? proposeWorkspaceLabels(activeId, body, report, controller.signal) : proposeWorkspaceTable(activeId, body, report, controller.signal)]);
             if (run !== generation.current) return;
             setFile(current); setRedesigned(repropose || (labelling && !!(next as ResearchLabelProposal).reproposed));
             if (labelling) { setPlan(next as ResearchLabelProposal); setProposedName((next as ResearchLabelProposal).title); }
             else { setPreview(next as ResearchTablePreview); setNote((next as ResearchTablePreview).fallback ?? ""); }
-        } catch (reason) { if (run !== generation.current) return;
-            if (lane === "chat" && chatModel && pickerModel && pickerModel !== chatModel) { setLane("picker"); return; }
+        } catch (reason) { if (run !== generation.current || controller.signal.aborted) return;
+            if (which === "chat" && chatModel && pickerModel && pickerModel !== chatModel) { setLane("picker"); return propose(instruction, repropose, "picker"); }
             setError(errorMessage(reason, labelling
             ? "Could not propose labels; nothing was changed" : "Could not propose a table; nothing was changed")); }
-        finally { if (run === generation.current) setBusy(false); }
+        finally { if (run === generation.current) { setBusy(false); setProgress(null); } }
     }
-    useEffect(() => { setPreview(null); setPlan(null); void propose(); return () => { generation.current++; }; },
-        [activeId, inputKey, labelling, lane]); // eslint-disable-line react-hooks/exhaustive-deps
+    const cancel = () => { running.current?.abort(); generation.current++; setBusy(false); setProgress(null); };
+    useEffect(() => { setPreview(null); setPlan(null); setBusy(false); setProgress(null); setError("");
+        return () => { generation.current++; running.current?.abort(); }; }, [activeId, inputKey, labelling]);
+    useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer); }, [busy]);
+    const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0, shortModel = (value = model) => value.split(":").pop() ?? value;
+    const working = progress?.stage === "reading" ? "Reading the research…"
+        : progress?.stage === "asking" ? [`Asking ${shortModel(progress.model)}…`, progress.chars ? `${progress.chars.toLocaleString()} characters` : "", `${elapsed} s`].filter(Boolean).join(" · ")
+        : progress?.stage === "checking" ? "Checking the proposal against the research…"
+        : progress?.stage === "retrying" ? `The first proposal was rejected (${progress.note}); asking for a correction…` : "";
     const columns = preview?.design.columns ?? [];
     const valid = labelling ? !!plan : columns.length > 0 && columns.every((column) => column.name.trim() && column.prompt.trim());
     async function create() {
@@ -89,32 +104,49 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             : "Partly from your research; extracted for the rest";
     };
     const setName = (file?.document.filename ?? picked[0]?.filename ?? "").replace(/\.research\.md$/iu, "");
-    const proposing = busy && (labelling ? !plan : !preview);
+    const proposed = labelling ? !!plan : !!preview;
     const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize this research" : "Extract a table"]}
-        footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p> : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
-        secondaryAction={activeId ? { label: busy ? "Proposing…" : "Propose again", disabled: busy || creating, onClick: () => void propose(adjust, true) } : undefined}
-        primaryAction={activeId ? { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table",
-            onClick: () => void create(), disabled: busy || creating || !valid } : undefined}>
+        footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p>
+            : busy && proposed ? <p role="status" className={`me-auto ${META}`}>{working}</p>
+            : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
+        secondaryAction={!activeId ? undefined : busy ? { label: "Cancel", onClick: cancel }
+            : proposed ? { label: "Propose again", disabled: creating, onClick: () => void propose(adjust, true) } : undefined}
+        primaryAction={!activeId ? undefined : busy ? { label: "Proposing…", disabled: true }
+            : !proposed ? { label: labelling ? "Propose labels" : "Propose a table", onClick: () => void propose(adjust, !!adjust.trim()) }
+            : { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table", onClick: () => void create(), disabled: creating || !valid }}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
             {!activeId ? <div className="min-h-0 flex-1"><FileDirectory selectedDocuments={picked} showTabs
                 multiple={false} noun="research sets" documentFilter={isResearchDocument} onChange={setPicked}
                 initialLocation={projectId ? { projectId } : { library: "files" }} /></div>
             : <>
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pe-1" aria-busy={busy}>
-                    {proposing ? <div role="status" className="flex flex-col gap-3">
-                        <p className={META}>Proposing a structure from your research…</p>
+                    {busy && !proposed ? <div role="status" className="flex flex-col gap-3">
+                        <p className={META}>{working}</p>
                         {[0, 1, 2].map((key) => <div key={key} className="h-20 shrink-0 animate-pulse rounded-lg bg-gray-100" />)}
+                    </div>
+                    : !proposed ? <div className="flex flex-col gap-2">
+                        <p className="text-sm text-gray-700">{labelling
+                            ? "The model reads this research's sources, saved passages and findings and proposes a label set to file them under. Nothing changes until you apply it."
+                            : "The model reads this research's sources, saved passages and findings and proposes a table: one row per source, one column per thing a lawyer wants to see. Nothing is created until you accept it."}</p>
+                        <p className={META}>Runs on {shortModel()}{effort ? ` · ${effort} reasoning` : ""}</p>
                     </div>
                     : labelling ? plan && <>
                         <input aria-label="Workspace name" value={name} className={`${FIELD} ${HEAD}`} onChange={(event) => setProposedName(event.target.value)} />
-                        <ul className="flex min-w-0 flex-col gap-3">{plan.labels.map((label) => <li key={label.key} className={CARD}>
-                        <p className={HEAD}><span aria-hidden className="me-2 inline-block size-2.5 rounded-full"
-                            style={{ background: label.color ?? "#cbd5e1" }} />{label.path} <span className={META}>{label.existing ? "Existing" : "New"}</span></p>
-                        {!!label.definition && <p className="mt-1 text-sm text-gray-700">{label.definition}</p>}
-                        <ul className="mt-2 space-y-1">{label.rows.map((row) => <li key={row.id} className="text-sm text-gray-700">{row.title}</li>)}</ul>
-                    </li>)}
-                        {!!plan.unassigned.length && <li className={META}>Not filed: {plan.unassigned.map(({ title }) => title).join(", ")}</li>}</ul></>
+                        {/* Labels describe sources, highlight types describe passages; each filing shows the passages behind it. */}
+                        {([["Labels", plan.labels.filter((label) => label.scope !== "highlight")],
+                            ["Highlight types", plan.labels.filter((label) => label.scope === "highlight")]] as const)
+                            .filter(([, group]) => group.length).map(([heading, group]) => <section key={heading} className="flex min-w-0 flex-col gap-2">
+                            <h3 className={META}>{heading}</h3>
+                            <ul className="flex min-w-0 flex-col gap-3">{group.map((label) => <li key={label.key} className={CARD}>
+                                <p className={HEAD}><span aria-hidden className="me-2 inline-block size-2.5 rounded-full"
+                                    style={{ background: label.color ?? "#cbd5e1" }} />{label.path} <span className={META}>{label.existing ? "Existing" : "New"}</span></p>
+                                {!!label.definition && <p className="mt-1 text-sm text-gray-700">{label.definition}</p>}
+                                <ul className="mt-2 space-y-1">{label.rows.map((row) => <li key={row.id} className="text-sm text-gray-700">{row.title}
+                                    {!!row.support.length && <ul className={`ms-3 ${META}`}>{row.support.slice(0, 3).map((line, index) => <li key={index} className="truncate">{line}</li>)}
+                                        {row.support.length > 3 && <li>+{row.support.length - 3} more</li>}</ul>}</li>)}</ul>
+                            </li>)}</ul></section>)}
+                        {!!plan.unassigned.length && <p className={META}>Not filed: {plan.unassigned.map(({ title }) => title).join(", ")}</p>}</>
                     : preview && <>
                         <input aria-label="Table name" value={preview.design.title} className={`${FIELD} ${HEAD}`}
                             onChange={(event) => edit((design) => ({ ...design, title: event.target.value }))} />
@@ -132,9 +164,9 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                     </>}
                 </div>
                 {!tableId && <label className="flex shrink-0 flex-col gap-1">
-                    <span className={META}>Change the proposal</span>
+                    <span className={META}>{proposed ? "Change the proposal" : "Organization to follow (optional)"}</span>
                     <input value={adjust} disabled={busy || creating} className={INPUT} onChange={(event) => setAdjust(event.target.value)}
-                        onKeyDown={onEnter(() => void propose(adjust, true))}
+                        onKeyDown={onEnter(() => void propose(adjust, proposed || !!adjust.trim()))}
                         placeholder={labelling ? "e.g. group by the stage of the analysis" : "e.g. one column per Grant factor"} />
                 </label>}
             </>}

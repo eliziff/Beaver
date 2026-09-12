@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     startGeneration: vi.fn(),
     regenerateCell: vi.fn(),
     updateReview: vi.fn(),
-    previewWorkspaceLabels: vi.fn(),
+    proposeWorkspaceLabels: vi.fn(),
     applyWorkspaceLabels: vi.fn(),
     getResearchFile: vi.fn(),
     ensureWorkspace: vi.fn(),
@@ -52,7 +52,7 @@ vi.mock("@/app/lib/api/tabular", async (original) => ({
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   ...await original<typeof import("@/app/lib/api/researchFiles")>(),
   getResearchFile: mocks.getResearchFile,
-  previewWorkspaceLabels: mocks.previewWorkspaceLabels,
+  proposeWorkspaceLabels: mocks.proposeWorkspaceLabels,
   applyWorkspaceLabels: mocks.applyWorkspaceLabels,
   ensureSourcesWorkspace: mocks.ensureWorkspace,
   getResearchItems: vi.fn().mockResolvedValue({ items: [], next_cursor: null, total: 0 }),
@@ -193,14 +193,15 @@ it("reviews a tag column in the shared dialog before filing it in the workspace"
     mocks.getResearchFile.mockResolvedValue(file);
     mocks.ensureWorkspace.mockResolvedValue(file);
     const proposal = { title: "Outcome", labels: [], unassigned: [], fingerprint: "a".repeat(64), design: { labels: [], assignments: [] } };
-    mocks.previewWorkspaceLabels.mockResolvedValue(proposal);
+    mocks.proposeWorkspaceLabels.mockResolvedValue(proposal);
     mocks.applyWorkspaceLabels.mockResolvedValue(file);
     renderReview();
     await screen.findByRole("checkbox", { name: "Select lease.pdf" });
 
     chooseColumnAction("Outcome", "Labels from this column");
-    await waitFor(() => expect(mocks.previewWorkspaceLabels).toHaveBeenCalledWith("workspace-1", {
-      tableId: "review-1", columnIndex: 3, selection: { target: "sources", members: [{ sourceId: "source-1" }] }, model: "gpt-5", reasoningEffort: "medium" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Propose labels" }));
+    await waitFor(() => expect(mocks.proposeWorkspaceLabels).toHaveBeenCalledWith("workspace-1", {
+      tableId: "review-1", columnIndex: 3, selection: { target: "sources", members: [{ sourceId: "source-1" }] }, model: "gpt-5", reasoningEffort: "medium" }, expect.any(Function), expect.any(AbortSignal)));
     const apply = await screen.findByRole("button", { name: "Apply labels" });
     await waitFor(() => expect(apply).toBeEnabled());
     expect(mocks.applyWorkspaceLabels).not.toHaveBeenCalled();
