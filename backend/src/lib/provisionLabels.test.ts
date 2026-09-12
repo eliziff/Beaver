@@ -13,6 +13,8 @@ describe("collapseProvisionLabels", () => {
     ["section", ["sec49(1)", "sec49(2)", "sec49(3)", "sec49(4)"], ["49(1)–(4)"]],
     ["section", ["sec32(1)", "sec32(3)"], ["32(1)", "32(3)"]],
     ["section", ["sec32(1)(a)", "sec32(1)(b)", "sec32(1)(d)"], ["32(1)(a)\u2013(b)", "32(1)(d)"]],
+    ["section", ["sec32(1)-sec32(3)", "sec32(5)"], ["32(1)\u2013(3)", "32(5)"]],
+    ["section", ["sec32", "sec32(1)-sec32(3)"], ["32"]],
   ] as const)("deduplicates and collapses %s locators", (kind, labels, expected) => {
     expect(collapseProvisionLabels(labels, kind)).toEqual(expected);
   });
