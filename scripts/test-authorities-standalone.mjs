@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createServer } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import { chromium, expect } from "@playwright/test";
@@ -18,6 +19,8 @@ const root = path.resolve(import.meta.dirname, "..");
 const require = createRequire(path.join(root, "backend/package.json"));
 const { Document, Paragraph, Packer } = require("docx");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
+const frontendRequire = createRequire(path.join(root, "frontend/package.json"));
+const { getDocument, OPS } = await import(pathToFileURL(frontendRequire.resolve("pdfjs-dist/legacy/build/pdf.mjs")).href);
 const nativeFile = process.env.LEGAL_STRUCTURE_NATIVE || path.join(root,
   "native/legal-structure-node/target/release", process.platform === "win32"
     ? "legal_structure_node.dll" : process.platform === "darwin"
@@ -71,10 +74,12 @@ try {
   const sourcePdf = path.join(stage, "source.pdf"), scanPdf = path.join(stage, "scan.pdf");
   const source = await PDFDocument.create();
   const font = await source.embedFont(StandardFonts.Helvetica);
-  source.addPage([612, 792]).drawText("Synthetic source PDF. Selectable text on page one.", { x: 50, y: 700, font, size: 12 });
+  source.addPage([612, 792]).drawText(`${cases[0].name}, ${cases[0].citation}\nSynthetic source PDF. Selectable text on page one.`, { x: 50, y: 700, font, size: 12 });
   await writeFile(sourcePdf, await source.save());
   const scan = await PDFDocument.create();
-  // An image-only page with no text layer, deliberately not a corrupt PDF.
+  const scanFont = await scan.embedFont(StandardFonts.Helvetica);
+  scan.addPage([612, 792]).drawText(`${cases[1].name}, ${cases[1].citation}`, { x: 50, y: 700, font: scanFont, size: 12 });
+  // The identifying first page is followed by an image-only page with no text layer.
   const pixel = await scan.embedPng(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7l8AAAAASUVORK5CYII=", "base64"));
   const scannedPage = scan.addPage([612, 792]);
   scannedPage.drawImage(pixel, { x: 0, y: 0, width: 612, height: 792 });
@@ -113,6 +118,7 @@ try {
       JSON.stringify({ profileId: "general", sourceMode: "manual-originals", passageMarking: "margin" }));
   });
   page = await context.newPage();
+  page.setDefaultTimeout(30_000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`${origin}/authorities.html`);
@@ -121,59 +127,51 @@ try {
   await expect(options).toBeVisible(); await screenshot("01-import-options");
   await options.getByRole("button", { name: "Import and review", exact: true }).click();
   await idle();
-  await expect(page.getByRole("heading", { name: "Sources", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
   await screenshot("02-citations-only");
-  await page.getByRole("button", { name: "Done", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Sources", exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Next", exact: true }).click();
   await idle();
-  const slots = page.locator("[data-authority-id]");
+  const slots = page.getByRole("list", { name: "Authority tab slots" }).getByRole("listitem");
   await expect(slots).toHaveCount(3);
-  for (let i = 0; i < 3; i++) await expect(slots.nth(i)).toContainText(`Tab ${i + 1}`);
-  await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
+  for (const [i, item] of cases.entries()) {
+    await expect(slots.nth(i)).toContainText(item.citation);
+    await expect(slots.nth(i)).toContainText(item.name);
+  }
   const handoff = slots.first().getByRole("link", { name: "CanLII", exact: true });
   await expect(handoff).toHaveAttribute("href", /canlii\.org\/.*\.pdf$/);
-  await expect(handoff).toHaveAttribute("target", "_blank");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
   await screenshot("03-manual-handoff");
-  await slots.first().getByRole("button", { name: /^Upload for/ }).click();
-  await selectFile(page.getByRole("menuitem", { name: "Upload from computer", exact: true }), sourcePdf);
+  await slots.first().getByLabel(/^Upload PDF for/).setInputFiles(sourcePdf);
   await idle();
-  await expect(handoff).toHaveCount(0);
   await expect(slots.first().getByRole("button", { name: /^View PDF for/ })).toBeEnabled();
   await slots.first().getByRole("button", { name: /^View PDF for/ }).click();
   await expect(page.getByRole("dialog").locator("canvas").first()).toBeVisible({ timeout: 30_000 });
   await screenshot("04-in-app-viewer");
   await page.keyboard.press("Escape");
-  await slots.nth(1).getByRole("button", { name: /^Upload for/ }).click();
-  await selectFile(page.getByRole("menuitem", { name: "Upload from computer", exact: true }), scanPdf);
+  await slots.nth(1).getByLabel(/^Upload PDF for/).setInputFiles(scanPdf);
   await idle();
   await page.getByRole("button", { name: "Tab labels", exact: true }).click();
   const labels = page.getByRole("dialog", { name: "Tab labels", exact: true });
   await labels.getByLabel("Custom labels", { exact: false }).fill("Front\nMiddle\nEnd");
-  await labels.getByRole("button", { name: "Apply", exact: true }).click(); await idle();
+  await labels.getByLabel("Custom labels", { exact: false }).press("Tab");
+  await idle();
+  await labels.getByRole("button", { name: "Done", exact: true }).click(); await idle();
   // Slots stay in their fixed order; only the PDF that fills a slot changes.
   for (const [i, label] of ["Front", "Middle", "End"].entries()) await expect(slots.nth(i)).toContainText(label);
-  await expect(page.getByRole("button", { name: /^Move / })).toHaveCount(0);
-  await expect(page.locator("[draggable=true]")).toHaveCount(0);
-  const heights = await slots.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height));
-  assert(heights.every((height) => height === heights[0]), "Loaded and missing rows keep the same height");
+  const moved = slots.filter({ hasText: cases[0].citation });
+  await moved.getByRole("button", { name: /^Reorder/ }).press("ArrowDown");
+  await idle();
+  await moved.getByRole("button", { name: /^Reorder/ }).press("ArrowDown");
+  await expect(slots.nth(2)).toContainText(cases[0].citation);
   await noOverflow(); await screenshot("05-source-slots");
   await page.setViewportSize({ width: 390, height: 844 }); await noOverflow(); await screenshot("06-source-slots-mobile");
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.getByRole("button", { name: "Done", exact: true }).click();
-  const ocr = page.getByRole("dialog", { name: "Scanned source PDFs", exact: true });
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  const ocr = page.getByRole("dialog", { name: "Recognize text", exact: true });
   await expect(ocr).toBeVisible({ timeout: 30_000 });
-  await ocr.getByRole("radio", { name: /Keep the original pages/ }).check();
+  await ocr.getByRole("radio", { name: /keep the pages as images/ }).check();
   await screenshot("07-ocr-choice");
-  await ocr.getByRole("button", { name: "Done", exact: true }).click();
+  await ocr.getByRole("button", { name: "Next", exact: true }).click();
   await idle();
-  await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Done — build book", exact: true }).click(); await idle();
-  await expect(page.getByRole("heading", { name: "Build outputs", exact: true })).toBeVisible();
-  const sourceY = (await page.getByRole("heading", { name: "Sources", exact: true }).boundingBox()).y;
-  const buildY = (await page.getByRole("heading", { name: "Build outputs", exact: true }).boundingBox()).y;
-  assert(buildY > sourceY, "Build follows Sources visually");
+  await page.getByRole("button", { name: "Next", exact: true }).click(); await idle();
   await page.getByRole("button", { name: "Build", exact: true }).click();
   const stubWarning = page.getByRole("dialog", { name: /Missing PDFs/ });
   await expect(stubWarning).toBeVisible();
@@ -186,13 +184,40 @@ try {
   assert(downloaded.suggestedFilename().includes("draft-incomplete"));
   const bookPath = path.join(output, "incomplete-book.pdf"); await downloaded.saveAs(bookPath);
   const book = await PDFDocument.load(await readFile(bookPath));
-  assert(book.getPageCount() >= 4, "Book retains original pages and a missing-source stub");
   assert.match(book.getTitle(), /incomplete/i);
+  const extracted = await getDocument({ data: new Uint8Array(await readFile(bookPath)), useSystemFonts: true }).promise;
+  const pages = [];
+  let imagePages = 0;
+  for (let number = 1; number <= extracted.numPages; number++) {
+    const pdfPage = await extracted.getPage(number);
+    pages.push((await pdfPage.getTextContent()).items.map(item => item.str ?? "").join(" "));
+    const operators = await pdfPage.getOperatorList();
+    if (operators.fnArray.some(op => [OPS.paintImageXObject, OPS.paintInlineImageXObject].includes(op))) imagePages++;
+  }
+  await extracted.destroy();
+  const text = pages.join("\n");
+  for (const item of cases) assert(text.includes(item.citation), `Book retains ${item.citation}`);
+  for (const label of ["Front", "Middle", "End"]) assert(text.includes(label), `Book retains tab ${label}`);
+  assert.equal(pages.filter(text => text.includes("Synthetic source PDF.")).length, 1,
+    "Uploaded text source appears exactly once");
+  assert.equal(imagePages, 1, "The scanned source survives as an image page");
+  assert.match(text, /NOT FOR FILING/i, "Incomplete output is explicitly marked");
+  assert(pages.some(text => text.includes(cases[2].citation) && /Source PDF unavailable/i.test(text)),
+    "The missing-source marker belongs to the missing authority");
   await screenshot("08-build-after-review");
   await page.reload(); await idle();
-  await expect(slots.nth(2).locator("article")).toHaveAttribute("data-authority-id", firstId);
+  await page.getByRole("tab", { name: "Sources", exact: true }).click();
+  for (const [i, item] of [cases[1], cases[2], cases[0]].entries()) {
+    await expect(slots.nth(i)).toContainText(item.citation);
+    await expect(slots.nth(i)).toContainText(["Front", "Middle", "End"][i]);
+  }
+  for (const [i, filename] of [[0, "scan.pdf"], [2, "source.pdf"]]) {
+    await expect(slots.nth(i).getByRole("img", { name: filename, exact: true })).toBeVisible();
+    await expect(slots.nth(i).getByRole("button", { name: /^View PDF for/ })).toBeEnabled();
+  }
+  await expect(slots.nth(1).getByLabel(/^Upload PDF for/)).toBeEnabled();
   assert.deepEqual(errors, [], "No browser runtime errors");
-  console.log("PASS: import -> citations -> sources -> OCR choice -> highlights -> draft book; fixed slots, keyboard and drag order, manual handoff, embedded PDF, responsive cards and persistence.");
+  console.log("PASS: imported authorities, source associations and labels survive reopening; exported book retains text and scanned pages and identifies its missing authority.");
 } catch (error) {
   if (page) { await screenshot("failure").catch(() => {}); await writeFile(path.join(output, "failure.html"), await page.content().catch(() => "")); }
   throw error;

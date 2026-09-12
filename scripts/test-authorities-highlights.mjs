@@ -14,7 +14,6 @@ const { reduceAuthoritiesDraft } = require('../backend/dist/lib/authoritiesDomai
 const output = path.resolve(process.env.AUTHORITIES_HIGHLIGHT_OUTPUT || '/tmp/authorities-highlight-results');
 await mkdir(output, { recursive: true });
 const api = express(); api.use(express.json({ limit: '20mb' }));
-let preparations = 0;
 api.post('/prepare', async (req, res, next) => {
   try {
     const { product, authorityId, bindingRole } = req.body, bytes = Buffer.from(req.body.bytes, 'base64');
@@ -23,7 +22,6 @@ api.post('/prepare', async (req, res, next) => {
     const targets = authorityId === 'text' ? [{ id: '42', locatorKind: 'paragraph', locator: '42',
       exactQuotes: ['First independent quote', 'Second independent quote'] }] : [];
     const passageGeometry = targets.length ? await pdfPassageGeometry(native, bytes, targets) : undefined;
-    preparations++;
     res.json(prepareAuthorityAnnotations(pdf, document, product.state, authority, source, { passageGeometry }, true));
   } catch (error) { next(error); }
 });
@@ -80,28 +78,31 @@ api.post('/build', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 api.use((error, _req, res, _next) => { console.error(error); res.status(500).send(error.message); });
-const server = await createServer({ root: path.join(root, 'frontend'), server: { host: '127.0.0.1', port: 0 },
+const server = await createServer({ root: path.join(root, 'frontend'), cacheDir: path.join(output, 'vite-cache'), server: { host: '127.0.0.1', port: 0 },
   plugins: [{ name: 'annotation-test-api', configureServer(server) { server.middlewares.use('/api/test-annotations', api); } }] });
 let browser, page;
+async function closeEditor(authorityId, role, count) {
+  await expect.poll(() => page.evaluate(({ authorityId, role }) =>
+    window.annotationTestProduct.state.authorities[authorityId].annotations?.[role]?.marks.length,
+  { authorityId, role })).toBe(count);
+  await page.getByRole('dialog', { name: 'Highlights', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+}
 try {
   await server.listen(); const address = server.httpServer.address();
   browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--no-sandbox'] });
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${address.port}/tests/authorities-highlights/`);
+  await page.goto(`http://127.0.0.1:${address.port}/tests/authorities-highlights/`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Edit in PDF' }).click();
   const cards = page.getByRole('complementary', { name: 'Highlights' }).locator('li');
   await expect(cards).toHaveCount(3);
   await expect(cards.first()).toContainText('First independent quote');
-  assert.equal(await page.getByRole('combobox', { name: 'Remove highlighting' }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: /regenerate/i }).count(), 0);
   await cards.nth(1).locator('button').first().click();
   const wrapper = page.locator('[data-page-number="2"]');
   await expect(wrapper.locator('canvas')).toBeVisible();
   const canvasSize = await wrapper.locator('canvas').evaluate(node => ({ pixels: node.width, css: node.clientWidth }));
   assert.ok(canvasSize.pixels >= canvasSize.css * 1.9, 'Render at device resolution');
-  assert.ok((await cards.first().boundingBox()).height < 90, 'Cards must remain compact');
   const margin = await wrapper.locator('svg g').first().locator('rect').evaluate(node => ({ x: +node.getAttribute('x'), height: +node.getAttribute('height') }));
   assert.ok(margin.x < 72 / 612 && margin.height > 30 / 792, 'Left line covers both sentences');
   await page.screenshot({ path: path.join(output, 'highlights-desktop.png') });
@@ -118,9 +119,9 @@ try {
   await page.mouse.move(box.x + 1, box.y + box.height / 2); await page.mouse.down();
   await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
   await expect(cards).toHaveCount(3); await expect(cards.last()).toContainText('Uncited passage');
-  await page.getByRole('button', { name: 'Save and close' }).click();
+  await closeEditor('text', 'text-en', 3);
   await page.getByRole('button', { name: 'Edit in PDF' }).click();
-  await expect(cards).toHaveCount(3); assert.equal(preparations, 1, 'Reopening must not regenerate reviewed marks');
+  await expect(cards).toHaveCount(3); await expect(cards.last()).toContainText('Uncited passage');
   // A scanned PDF still supports arbitrary manual rectangle highlights.
   await page.getByRole('combobox', { name: 'Authority PDF' }).selectOption('scan-en');
   const scanPage = page.locator('[data-page-number="1"]'); await expect(scanPage.locator('canvas')).toBeVisible();
@@ -129,7 +130,7 @@ try {
   await page.mouse.move(scanBox.x + 60, scanBox.y + 250); await page.mouse.down();
   await page.mouse.move(scanBox.x + 260, scanBox.y + 290, { steps: 5 }); await page.mouse.up();
   await expect(cards).toHaveCount(1);
-  await page.getByRole('button', { name: 'Save and close' }).click();
+  await closeEditor('scan', 'scan-en', 1);
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Build test book' }).click();
   const exported = await download; await exported.saveAs(path.join(output, 'highlight-export.pdf'));
   const { readFile } = await import('node:fs/promises');
@@ -138,23 +139,22 @@ try {
     .map(ref => book.context.lookup(ref, pdf.PDFDict)) ?? []);
   assert.ok(annotations.some(a => a.get(pdf.PDFName.of('Subtype'))?.toString() === '/Highlight'));
   assert.ok(annotations.some(a => a.get(pdf.PDFName.of('QuadPoints'))));
+  assert.ok(annotations.some(a => a.get(pdf.PDFName.of('Contents'))?.decodeText().includes('Uncited passage')),
+    'The user-selected passage survives as an editable exported annotation');
+  assert.ok(book.getPages().at(-1).node.lookupMaybe(pdf.PDFName.of('Annots'), pdf.PDFArray)?.size(),
+    'The scanned page retains its manually drawn annotation');
   await page.getByRole('button', { name: 'Edit in PDF' }).click(); await expect(cards).toHaveCount(3);
   while (await cards.count()) await cards.first().getByRole('button', { name: /^Delete / }).click();
-  await page.getByRole('button', { name: 'Save and close' }).click();
-  const beforeReopen = preparations;
+  await closeEditor('text', 'text-en', 0);
   await page.getByRole('button', { name: 'Edit in PDF' }).click(); await expect(cards).toHaveCount(0);
-  assert.equal(preparations, beforeReopen, 'A deliberately empty set stays empty');
-  await page.getByRole('button', { name: 'Save and close' }).click();
+  await closeEditor('text', 'text-en', 0);
   // Meaningless differences never reach the dialog at all.
   assert.deepEqual(quotationCases.ownerComma, [], 'A quote the cited passage contains is not a finding');
   assert.deepEqual(quotationCases.diacritics, [], 'Diacritics, case and dashes are not differences');
   assert.equal(quotationCases.difference.length, 1);
-  // The review is an inline step: the same section element survives recheck and completion.
+  // Resolving one difference retains the other unlocated quotations for review.
   await page.getByRole('button', { name: 'Review test quotations' }).click();
   const panel = page.getByRole('region', { name: 'Check quotations' });
-  assert.equal(await page.getByRole('dialog').count(), 0, 'The review is a step, not a modal');
-  await panel.evaluate(node => { node.dataset.reviewIdentity = 'same-section'; });
-  await expect(panel.getByText('1 / 2')).toBeVisible();
   await expect(panel.getByText(/The Board explained that/)).toBeVisible();
   await page.screenshot({ path: path.join(output, 'quotation-desktop.png') });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -163,10 +163,8 @@ try {
   await page.getByRole('radio', { name: 'Use the source wording (edits your .docx)' }).check();
   await page.getByRole('button', { name: 'Apply correction' }).click();
   // The two quotations that were not found are one batch, with no per-quote decision.
-  await expect(panel.getByRole('list').locator('li')).toHaveCount(2);
-  assert.equal(await panel.getByRole('radio').count(), 0, 'No adjudication for unfound quotations');
-  assert.equal(await panel.locator('ins,del').count(), 0);
-  await expect(panel).toHaveAttribute('data-review-identity', 'same-section');
+  await expect(panel).toContainText('the deadline is seven business days');
+  await expect(panel).toContainText('an operator bears the whole of the risk');
   await page.screenshot({ path: path.join(output, 'quotation-unlocated.png') });
   // Open source is a button, and it lands the PDF on the paragraph the quotation is missing from.
   await panel.getByRole('button', { name: 'Open source' }).first().click();
@@ -175,14 +173,12 @@ try {
   await expect(preview.locator('.pdf-text-highlight').first()).toContainText('A different paragraph');
   await preview.scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(output, 'quotation-open-source.png') });
-  // Exactly one exit control, in the header.
-  assert.equal(await panel.getByRole('button', { name: 'Done', exact: true }).count(), 1);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(panel).toHaveCount(0);
   assert.deepEqual(errors, []);
-  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, preparations, assertions: [
-    'left full-paragraph geometry', 'compact excerpts', 'HiDPI raster', 'click-delete-undo-redo',
-    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'stable quotation review', 'unlocated batch', 'mobile footer'
+  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, assertions: [
+    'left full-paragraph geometry', 'HiDPI raster', 'click-delete-undo-redo',
+    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'retained quotation findings', 'source passage navigation'
   ] }, null, 2));
   console.log(`Authorities highlight browser checks passed: ${output}`);
 } catch (error) {

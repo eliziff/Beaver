@@ -66,7 +66,7 @@ function citationsFromGroups(
           ...(receipt.provider === "library" && receipt.locator.kind === "page" && { page: receipt.locator.label.replace(/^page\s*/iu, "") }) }] : []);
       const presentation = presentLegalEvidence(
         entry,
-        quotes.map(({ quote }) => quote),
+        group.members,
         group.locatorLabels,
         group.locatorKind,
       );

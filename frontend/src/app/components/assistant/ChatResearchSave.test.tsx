@@ -10,7 +10,9 @@ vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model
 vi.mock("@/app/lib/api/chat", async (original) => ({ ...await original<typeof import("@/app/lib/api/chat")>(),
   getChat: vi.fn().mockResolvedValue({ chat: { model: "model", reasoning_effort: null }, messages: [] }) }));
 const file = { document: { id: "workspace", filename: "Research.research.md", project_id: null },
-  versionId: "v1", workingRevision: 0, state: { sources: {}, labels: {} } } as ResearchFile;
+  versionId: "v1", workingRevision: 0, state: { sources: { source: { id: "source",
+    reference: { provider: "a2aj", kind: "case", id: "source", title: "Case A" },
+    labelIds: [], note: "", passages: null } }, labels: {} } } as ResearchFile;
 const preview = { fingerprint: "a".repeat(64), design: { title: "Research", columns: [{ index: 0, name: "Finding", prompt: "Question?" }],
   cells: [{ rowId: "source", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "source", sourceId: "source", title: "Case A" }],
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
@@ -30,11 +32,12 @@ it("organizes the chat into a proposed label set before landing in the workspace
   const plan = { title: "Cases stating the test", target: "sources" as const, propose: false, fingerprint: "b".repeat(64),
     design: { title: "Cases stating the test", labels: [{ key: "l1", name: "States the test" }],
       assignments: [{ labelKey: "l1", rowIds: ["source"], itemIds: ["item"] }] },
-    labels: [{ key: "l1", name: "States the test", path: "States the test", parentKey: null, color: "#d6b85a",
+    labels: [{ key: "l1", id: "l1", name: "States the test", path: "States the test", parentKey: null,
+      parentId: null, order: 0, scope: "source" as const, color: "#d6b85a",
       existing: false, rows: [{ id: "source", title: "Case A", support: ["The test is stated at para 21."] }] }],
     unassigned: [] };
   api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(file); setup(); open("Workspace"); await act("Propose labels");
-  expect(await screen.findByText("States the test")).toBeVisible(); expect(screen.getByText("The test is stated at para 21.")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
+  expect(await screen.findByText("States the test")).toBeVisible(); expect(await screen.findByText("The test is stated at para 21.")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply labels" }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
   expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace", { chatId: "chat",

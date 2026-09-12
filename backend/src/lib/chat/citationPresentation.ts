@@ -1,5 +1,5 @@
-import { buildA2AJDocumentPinpointUrl, buildA2AJParagraphRangeUrl,
-  buildLegalSourcePinpointUrl, legalSourceLocatorAnchor } from "../legalSourceLinks";
+import { buildA2AJDocumentPinpointUrl,
+  buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "../legalSourceLinks";
 import { buildCanliiCaseUrl } from "../canliiUrls";
 import { plainInlineText } from "../legalSourcePresentation";
 import type { RegisteredEvidence } from "./legalEvidence";
@@ -54,16 +54,23 @@ function legalEvidenceLocator(entry: RegisteredEvidence, locatorLabels: readonly
 
 export function presentLegalEvidence(
   entry: RegisteredEvidence,
-  allQuotes: string[] = entry.receipt.span_text ? [entry.receipt.span_text] : [],
+  members: readonly RegisteredEvidence[] = [entry],
   locatorLabels: readonly string[] = [entry.receipt.locator.label],
   // The citation group's locator system, which its unpinpointed members share.
   locatorKind: RegisteredEvidence["receipt"]["locator"]["kind"] = entry.receipt.locator.kind,
 ): CitationPresentation {
   const { receipt, document } = entry;
-  // Citation groups merge sibling receipts, so `allQuotes` can carry passages
-  // from other blocks. The fragment is planned inside this entry's block, and
-  // a quote that is not in it cannot be located there.
-  const quotes = allQuotes.filter((quote) => receipt.span_text?.includes(quote));
+  const quotes = [...new Set(members.flatMap(({ receipt }) => receipt.span_text ? [receipt.span_text] : []))];
+  // Each quotation keeps its own island; joining the search scope does not
+  // authorize painting the text between disjoint receipts.
+  const blockText = quotes.join("\n\n");
+  const paragraphCount = locatorKind === "paragraph" ? locatorLabels.reduce((count, label) => {
+    const range = locatorValue(label).match(/^(\d+)(?:\u2013(\d+))?$/u);
+    return count + (range ? Math.abs(Number(range[2] ?? range[1]) - Number(range[1])) + 1 : 1);
+  }, 0) : quotes.length;
+  const bounded = quotes.length <= 5 && paragraphCount <= 5 &&
+    (blockText.match(/\S+/gu)?.length ?? 0) <= 1_500 &&
+    members.every(({ receipt: member }) => member.source_sha256 === receipt.source_sha256);
   const source = entry.source ?? document?.native ?? null;
   const retrievedSourceUrl = document?.url ?? receipt.external_url;
   // The ordinary authority link may use CanLII. Passage links must stay on the
@@ -79,39 +86,22 @@ export function presentLegalEvidence(
   const fragmentSourceUrl = receipt.provider === "a2aj"
     ? retrievedSourceUrl
     : citationUrl;
-  const range = receipt.locator.kind === "paragraph"
-    ? receipt.locator.label.match(/^par(\d+)(?:-|\u2013|\u2014)par(\d+)$/iu)
-    : null;
-  const rangeUrl = range
-    ? buildA2AJParagraphRangeUrl(
-          receipt.citation,
-          range[1],
-          range[2],
-          document,
-        )
-    : null;
   const a2ajLocator = ["paragraph", "page", "section"].includes(
     receipt.locator.kind,
   ) ? receipt.locator as {
       kind: "paragraph" | "page" | "section";
       label: string;
     } : null;
-  const a2ajUrl = receipt.provider === "a2aj" && receipt.span_text && a2ajLocator
-    ? document
-      ? buildA2AJDocumentPinpointUrl(
-          document,
-          a2ajLocator,
-          receipt.span_text,
-          quotes,
-        )
-      : null
-    : null;
   // A fragment is only ever built against the document whose text verified
   // the quote. Without it the directive would be spelled blind and paint
   // whichever passage happens to match first, so fall back to the plain
   // authority link instead.
-  const passageUrl = fragmentSourceUrl && receipt.span_text && source
-    ? rangeUrl ?? a2ajUrl ?? buildLegalSourcePinpointUrl(
+  let passageUrl = citationUrl;
+  if (bounded && fragmentSourceUrl && blockText && source) {
+    if (receipt.provider === "a2aj" && document && a2ajLocator) {
+      passageUrl = buildA2AJDocumentPinpointUrl(document, a2ajLocator, blockText, quotes, true) ?? citationUrl;
+    } else {
+      const planned = buildLegalSourcePinpoint(
           {
             url: fragmentSourceUrl,
             anchor: a2ajLocator
@@ -121,12 +111,14 @@ export function presentLegalEvidence(
                   a2ajLocator.label,
                 )
               : undefined,
-            blockText: receipt.span_text,
+            blockText,
             documentText: source,
           },
           quotes,
-        )
-    : citationUrl;
+        );
+      if (planned?.plan?.sourceSafeComplete) passageUrl = planned.target;
+    }
+  }
   const name = receipt.name?.trim() ?? "";
   const citation = receipt.citation.trim();
   const authority = receipt.provider === "journal"
@@ -142,6 +134,6 @@ export function presentLegalEvidence(
     ),
     locator: legalEvidenceLocator(entry, locatorLabels, locatorKind),
     sourceUrl: citationUrl,
-    passageUrl,
+    passageUrl: passageUrl && passageUrl.length <= 8_192 ? passageUrl : citationUrl,
   };
 }
