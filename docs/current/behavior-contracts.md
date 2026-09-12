@@ -225,6 +225,13 @@ Library and project folders preserve nested paths, reject cycles and foreign
 IDs, and apply recursive deletion only to resources owned by the authenticated
 scope.
 
+Organize proposes a library's or a project's folders from one model reading of
+its files, framed by the instruction the lawyer types; the proposal streams its
+progress, names folders without definitions, files each document once, and is
+refused when it files nothing or leaves every document in one folder. Nothing is
+created or moved until the lawyer applies the proposal, and a proposal made
+before the files changed is refused.
+
 ## Assistant, agents, and tools
 
 - Normal chat, project chat, Word chat, read subagents, and tabular work use one

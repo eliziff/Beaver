@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FolderPlus, Loader2, MessageSquarePlus, Upload } from "lucide-react";
+import { FolderPlus, FolderTree, Loader2, MessageSquarePlus, Upload } from "lucide-react";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document } from "@/app/lib/api/documents";
@@ -7,6 +7,8 @@ import { Button } from "@/app/components/ui/button";
 import { ContextualWorkflowLauncher } from "@/app/components/workflows/ContextualWorkflowPicker";
 import type { WorkflowSelection } from "@/app/components/workflows/workflowRoutes";
 import { WarningPopup } from "@/app/components/popups/WarningPopup";
+import { OrganizeFolders } from "@/app/components/documents/OrganizeFolders";
+import type { OrganizeTarget } from "@/app/lib/api/organize";
 
 export type UploadActions = { files: () => void; folder: () => void };
 export type DocumentSelectionActions = {
@@ -41,7 +43,8 @@ export function UploadAction({ actions, busy = false, compact = false }: {
 
 export function DirectoryActions({ actions, onCreateFolder, selection,
     onOpenSelectionInChat, onOpenWorkflows, onAssistantWorkflowSelect,
-    resolveDocuments, openSelectionLabel = "Open in new chat", busy = false, compact = false }: {
+    resolveDocuments, organize, organizeTitle = "Files", onOrganized,
+    openSelectionLabel = "Open in new chat", busy = false, compact = false }: {
     actions: UploadActions | null;
     onCreateFolder: (() => void) | null;
     selection?: DocumentSelectionActions | null;
@@ -49,11 +52,16 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
     onOpenWorkflows?: (documents: Document[]) => void;
     onAssistantWorkflowSelect?: (selection: WorkflowSelection, documents: Document[]) => void;
     resolveDocuments?: () => Promise<Document[]>;
+    /** Where an Organize step would propose folders and file these documents. */
+    organize?: OrganizeTarget;
+    organizeTitle?: string;
+    onOrganized?: () => void;
     openSelectionLabel?: string;
     busy?: boolean;
     compact?: boolean;
 }) {
     const documents = selection?.documents ?? [];
+    const [organizing, setOrganizing] = useState(false);
     const [openingChat, setOpeningChat] = useState(false);
     const [openError, setOpenError] = useState("");
     const unavailable = busy || !documents.length;
@@ -86,6 +94,11 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
             </span>
             {!compact && <span className="directory-action-short">+ Chat</span>}
         </Button>
+        {organize && <Button variant="outline" className="directory-action-button h-8 py-0"
+            aria-label="Organize" disabled={busy} onClick={() => setOrganizing(true)}>
+            <FolderTree className="size-3.5" aria-hidden="true" />
+            <span className={compact ? "sr-only" : "directory-action-shared"}>Organize</span>
+        </Button>}
         <ContextualWorkflowLauncher documents={documents}
             resolveDocuments={resolveDocuments}
             onOpen={onOpenWorkflows}
@@ -99,6 +112,8 @@ export function DirectoryActions({ actions, onCreateFolder, selection,
             { label: selection?.removeLabel ?? "Delete", disabled: unavailable,
                 onSelect: () => void selection?.onRemove() },
         ]} triggerClassName="h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 hover:text-gray-950 disabled:opacity-40" />
+        {organize && <OrganizeFolders open={organizing} onClose={() => setOrganizing(false)}
+            target={organize} title={organizeTitle} onOrganized={onOrganized} />}
         <WarningPopup open={!!openError} onClose={() => setOpenError("")}
             message={openError} />
     </div>;
