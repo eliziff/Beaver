@@ -88,7 +88,7 @@ it("shows a label proposal as the workspace tree it would create", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Passages in Case A" }));
   expect(screen.queryByRole("treeitem", { name: "a duty of honest performance" })).not.toBeInTheDocument();
   // Highlight types own their own hierarchy, holding the passages that carry them.
-  fireEvent.click(screen.getByRole("button", { name: "Show 1 passage of Ratio" }));
+  fireEvent.click(screen.getByRole("button", { name: "Expand Ratio" }));
   expect(screen.getByRole("treeitem", { name: "it applies to every contract" })).toBeVisible();
   // What the proposal leaves unfiled stays visible at the root, as it is in the workspace.
   expect(screen.getByRole("treeitem", { name: "Case B" })).toBeVisible();
