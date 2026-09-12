@@ -6,9 +6,12 @@ import { asyncRoute } from "../lib/asyncRoute";
 import type { ChatStore } from "../lib/chatStore";
 import { type DocumentStore } from "../lib/documentStore";
 import {
+  projectDocuments,
   type ProjectScope,
   type ProjectStore,
 } from "../lib/projectStore";
+import { createFolderOrganize, type FolderDesigner } from "../lib/folderOrganize";
+import { mountOrganize } from "./organizeRoutes";
 import { pageRequest, pageResponse } from "../lib/pagination";
 import { requiredUpload, singleFileUpload } from "../lib/upload";
 import { isJsonRecord, jsonRecord, trimmedText } from "../lib/value";
@@ -79,9 +82,20 @@ export function createProjectsRouter(
   store: ProjectStore,
   chats: ChatStore,
   documents: DocumentStore,
+  designFolders?: FolderDesigner,
 ) {
   const router = Router();
   router.use(requireAuth);
+
+  if (designFolders) mountOrganize(router, "/:projectId", (req, res) => {
+    const projectId = req.params.projectId;
+    return { scope: applicationScope(res), organize: createFolderOrganize(documents, designFolders, {
+      documents: async (scope) => await projectDocuments(store, scope, projectId) ?? reject(404, "Project not found"),
+      createFolder: async (scope, name, parentFolderId) =>
+        await store.createFolder(scope, projectId, { name, parentFolderId }) ?? reject(404, "Project not found"),
+      move: (scope, documentId, folderId) => store.moveDocument(scope, projectId, documentId, folderId),
+    }) };
+  });
 
   const route = (handler: Handler) => asyncRoute((req, res) =>
     handler(req, res, applicationScope(res)));
