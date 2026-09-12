@@ -20,6 +20,11 @@ the latter owns project priorities and remaining gates.
 
 ## Working safely
 
+- This workspace maintains its own forks, not their upstream projects. Follow
+  fork-owned validation and contribution instructions. Do not ask the user for
+  upstream maintainers' private corpora, accounts or runners. Use and maintain
+  the existing independent local/public gates; never fabricate baselines or
+  suppress regressions to replace unavailable upstream infrastructure.
 - Concurrent sessions can share a tree. Stage explicit paths, never `git add -A`;
   preserve unrelated work, commit coherent changes, and push only when requested.
 - Check local data and existing implementations before fetching or adding a
