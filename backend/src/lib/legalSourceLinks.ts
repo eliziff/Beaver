@@ -66,7 +66,10 @@ export function legalSourceLocatorAnchor(
       ? `page=${Number(number)}`
       : undefined;
   }
-  const section = label.match(/^sec[\w.-]+/iu)?.[0];
+  // CanLII statute pages anchor a section as sec2 and a subsection as sec2subsec1; receipts label them 2 and 2(1).
+  const numbered = label.match(/^(\d+(?:\.\d+)*)(?:\s*\((\d+)\))?/u);
+  const section = label.match(/^sec[\w.-]+/iu)?.[0] ??
+    (numbered ? `sec${numbered[1]}${numbered[2] ? `subsec${numbered[2]}` : ""}` : undefined);
   return section && canlii && url.pathname.includes("/laws/")
     ? section
     : undefined;
