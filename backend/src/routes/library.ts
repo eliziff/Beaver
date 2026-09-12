@@ -5,9 +5,12 @@ import { asyncRoute } from "../lib/asyncRoute";
 import { trimmedText } from "../lib/value";
 import { type DocumentStore } from "../lib/documentStore";
 import {
+  libraryDocuments,
   type LibraryScope,
   type LibraryStore,
 } from "../lib/libraryStore";
+import { createFolderOrganize, type FolderDesigner } from "../lib/folderOrganize";
+import { mountOrganize } from "./organizeRoutes";
 import {
   normalizeLibraryKind,
 } from "../lib/normalize";
@@ -39,9 +42,21 @@ function libraryRoute(handler: Handler) {
 
 const versionId = (value: unknown) => typeof value === "string" ? value : null;
 
-export function createLibraryRouter(store: LibraryStore, documents: DocumentStore) {
+export function createLibraryRouter(store: LibraryStore, documents: DocumentStore,
+  designFolders?: FolderDesigner) {
   const router = Router();
   router.use(requireAuth);
+
+  if (designFolders) mountOrganize(router, "/:kind", (req, res) => {
+    const kind = normalizeLibraryKind(req.params.kind) ?? reject(404, "Library not found");
+    const scope: LibraryScope = { ...applicationScope(res), kind };
+    return { scope, organize: createFolderOrganize(documents, designFolders, {
+      documents: (own) => libraryDocuments(store, { ...own, kind }),
+      createFolder: async (own, name, parentId) =>
+        await store.createFolder({ ...own, kind }, name, parentId) ?? reject(404, "Parent folder not found"),
+      move: (own, documentId, folderId) => store.moveDocument({ ...own, kind }, documentId, folderId),
+    }) };
+  });
 
   router.get("/:kind", libraryRoute(async (req, res, scope) => {
     const q = trimmedText(req.query.q);
