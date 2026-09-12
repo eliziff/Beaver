@@ -1,0 +1,52 @@
+{
+  "required_issues": ["ISSUE-01", "ISSUE-02", "ISSUE-03", "ISSUE-04", "ISSUE-05"],
+  "required_authorities": [
+    { "match": "Grant", "proposition_id": "PROP-01", "acceptable_pinpoints": [44] },
+    { "match": "Grant", "proposition_id": "PROP-02", "acceptable_pinpoints": [71, 85] },
+    { "match": "\\bLe\\b", "proposition_id": "PROP-03", "acceptable_pinpoints": [30] },
+    { "match": "\\bLe\\b", "proposition_id": "PROP-04", "acceptable_pinpoints": [75, 81, 97] },
+    { "match": "Mann", "proposition_id": "PROP-05", "acceptable_pinpoints": [45] },
+    { "match": "Suberu", "proposition_id": "PROP-06", "acceptable_pinpoints": [42] },
+    { "match": "Chehil", "proposition_id": "PROP-07", "acceptable_pinpoints": [27, 29] },
+    { "match": "Tim", "proposition_id": "PROP-08", "acceptable_pinpoints": [39] },
+    { "match": "Zacharias", "proposition_id": "PROP-09", "acceptable_pinpoints": [47, 48, 49, 52, 108, 109] },
+    { "match": "Thompson|Tutu|Scopel|Pahal|2020 ONCA 264|2021 ONCA 805|2022 ONCA 316|2025 ONCA 668", "proposition_id": "PROP-10", "acceptable_pinpoints": [8, 27, 38, 39, 48, 49, 56, 57, 64, 89, 110] }
+  ],
+  "required_sets": [
+    { "match": "ONCA", "min": 3, "note": "at least three Ontario Court of Appeal decisions applying Le, compared by outcome" }
+  ],
+  "acceptable_alternative_authorities": [
+    { "match": "Lafrance", "proposition_id": "PROP-03", "acceptable_pinpoints": [63] }
+  ],
+  "required_quotations": [
+    { "match": "Grant", "quote": "suspension of the individual's liberty interest by a significant physical or psychological restraint", "acceptable_pinpoints": [44] }
+  ],
+  "required_conclusions": [
+    { "id": "CONCLUSION-01", "acceptable": ["yes", "qualified_yes"] },
+    { "id": "CONCLUSION-02", "acceptable": ["yes", "qualified_yes"] }
+  ],
+  "forbidden_claims": ["CLAIM-01", "CLAIM-02", "CLAIM-03", "CLAIM-04"],
+  "definitions": {
+    "ISSUE-01": "When the client was detained under ss. 9 and 10, applying Grant as developed in Le, including race and age in the reasonable-person analysis.",
+    "ISSUE-02": "Whether any detention was a lawful investigative detention under Mann on the reasonable-suspicion standard explained in Chehil.",
+    "ISSUE-03": "When the s. 10(b) right to counsel was triggered under Suberu and whether earlier questioning breached it.",
+    "ISSUE-04": "The s. 24(2) analysis under Grant, including cumulative or downstream breaches under Le, Tim and Zacharias.",
+    "ISSUE-05": "How the Ontario Court of Appeal has applied Le since 2019, compared by outcome across at least three decisions.",
+    "PROP-01": "Detention under ss. 9 and 10 is a suspension of the individual's liberty interest by a significant physical or psychological restraint; psychological detention exists where the individual has a legal obligation to comply or a reasonable person would conclude there was no choice but to comply (Grant para 44).",
+    "PROP-02": "Under s. 24(2) the court weighs the seriousness of the Charter-infringing state conduct, the impact of the breach on the accused's Charter-protected interests, and society's interest in adjudication on the merits (Grant paras 71 and 85).",
+    "PROP-03": "In Le the detention crystallized when the police entered the backyard and made contact; no statutory or common-law power authorized it, so it was arbitrary (Le para 30).",
+    "PROP-04": "The reasonable-person analysis takes account of the relationship between the police and racialized communities and of the individual's age and stature (Le paras 75, 81 and 97).",
+    "PROP-05": "Police may detain for investigative purposes where there are reasonable grounds to suspect in all the circumstances that the individual is connected to a particular crime and the detention is reasonably necessary (Mann para 45).",
+    "PROP-06": "The s. 10(b) duties arise immediately upon detention, 'without delay' meaning 'immediately', subject only to officer or public safety concerns (Suberu para 42).",
+    "PROP-07": "Reasonable suspicion is assessed against the totality of the circumstances and must rest on a constellation of objectively discernible facts (Chehil paras 27 and 29).",
+    "PROP-08": "An arrest founded on a mistake of law is unlawful and arbitrary contrary to s. 9 (Tim para 39).",
+    "PROP-09": "A consequential breach flowing from an initial breach is treated as such in the s. 24(2) analysis, and the dissent would weigh cascading breaches cumulatively (Zacharias paras 47 to 52 and 108 to 109).",
+    "PROP-10": "The Court of Appeal has applied Le to find detention and exclude evidence in Thompson (2020 ONCA 264), Tutu (2021 ONCA 805) and Scopel-Cessel (2022 ONCA 316), and to find detention but admit the statements in Pahal (2025 ONCA 668).",
+    "CONCLUSION-01": "The client was detained when the officers entered the yard and began directing and questioning the group, before any physical contact.",
+    "CONCLUSION-02": "The detention was not a lawful investigative detention because the officers had no reasonable suspicion connecting the client to a particular crime.",
+    "CLAIM-01": "A detention requires physical restraint.",
+    "CLAIM-02": "Reasonable suspicion is the same standard as reasonable and probable grounds.",
+    "CLAIM-03": "The right to counsel may be delayed until the investigative detention is complete.",
+    "CLAIM-04": "Exclusion under s. 24(2) follows automatically from a Charter breach."
+  }
+}

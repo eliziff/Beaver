@@ -1,0 +1,22 @@
+{
+  "id": "CAN-RESEARCH-003",
+  "jurisdiction": "CA-ON",
+  "law_as_of": "2026-06-30",
+  "task_type": "open_source_research",
+  "deliverable": {
+    "type": "memorandum",
+    "approximate_words": 800,
+    "then": [
+      "organize into workspace",
+      "open as table"
+    ]
+  },
+  "minimum_distinct_sources": 8,
+  "fatal_errors": [
+    "fabricated_authority",
+    "fabricated_quotation",
+    "invalid_pinpoint",
+    "wrong_jurisdiction",
+    "superseded_instruction"
+  ]
+}
