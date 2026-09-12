@@ -36,23 +36,39 @@ export const researchConceptKey = (name: string) => name.normalize("NFKC").toLow
   .replace(/\s+/gu, " ");
 
 /** Inventory the workspace's own material and ontology; a design may only reference these ids. */
-/** The inventory is passages first, so the model types what the research cites before it names anything about a source. */
+/** The memo frames it: the research question and the answer's claims in order, each naming the passages it
+ *  cites. The model reads what the research already concluded and answers with ids, retyping nothing. */
 export function researchLabelInventory(catalog: ResearchImportCatalog, file: ResearchFile, target: ResearchLabelTarget) {
   const hierarchy = (kind: ResearchLabel["scope"]) => Object.values(file.state.labels).filter((label) => label.scope === kind)
     .map(({ id, name, parentId, definition }) => ({ key: id, name, parentKey: parentId, ...(definition ? { definition } : {}) }));
-  // Lean by construction: every passage once, quoted; every source once, with a one-line gist. The chat's own
-  // claims are not repeated, so the model types what the source says and files by what the source is.
-  const own = (rowId: string) => catalog.entries.filter((entry) => entry.rowId === rowId);
+  const passages = catalog.entries.filter(({ kind }) => kind === "passages" || kind === "cited");
+  const passageOf = new Map(passages.flatMap(({ id, evidenceIds }) => evidenceIds.map((evidence) => [evidence, id] as const)));
+  // Every claim is written once, in the order the answer made it, with the passage ids behind it; the sources
+  // those passages come from are never described a second time (Eli, 2026-09-11).
+  const answers = catalog.entries.filter(({ kind }) => kind === "answer");
+  const claimOf = ({ reference }: ResearchImportCatalog["entries"][number]) => reference.kind === "answer"
+    ? [`${reference.chatId}:${reference.answerId}`, reference.claimIndices?.[0]] as const : [JSON.stringify(reference), undefined] as const;
+  const split = new Set(answers.filter((entry) => claimOf(entry)[1] !== undefined).map((entry) => claimOf(entry)[0])),
+    order = [...new Set(answers.map((entry) => claimOf(entry)[0]))], claims = new Map<string, { at: number; claim: string; evidence: Set<string> }>();
+  for (const entry of answers) {
+    const [answer, index] = claimOf(entry);
+    if (index === undefined && split.has(answer)) continue; // the whole answer would only restate its own claims
+    const claim = claims.get(`${answer}:${index ?? ""}`) ?? { at: order.indexOf(answer) * 1_000 + (index ?? 0),
+      claim: clip(entry.text, 600), evidence: new Set<string>() };
+    for (const id of entry.evidenceIds) if (passageOf.has(id)) claim.evidence.add(passageOf.get(id)!);
+    claims.set(`${answer}:${index ?? ""}`, claim);
+  }
   return JSON.stringify({ title: catalog.title, sourceKind: target === "sources" ? "source" : "saved passage",
+    question: catalog.question, memo: [...claims.values()].sort((first, second) => first.at - second.at)
+      .map(({ claim, evidence }) => ({ claim, ...(evidence.size ? { evidence: [...evidence] } : {}) })),
     existingHighlightTypes: hierarchy("highlight"), existingLabels: hierarchy("source"),
-    passages: catalog.entries.filter(({ kind }) => kind === "passages" || kind === "cited")
-      .map(({ id, rowId, kind, column, text }) => ({ id, source: rowId, ...(kind === "passages" ? { type: column.name } : {}), quote: clip(text, 500) })),
+    passages: passages.map(({ id, rowId, kind, column, text }) =>
+      ({ id, source: rowId, ...(kind === "passages" ? { type: column.name } : {}), quote: clip(text, 500) })),
     sources: catalog.rows.map((row) => {
-      const items = own(row.id), labels = items.filter(({ kind }) => kind === "classification").map(({ text }) => text),
-        notes = items.filter(({ kind }) => kind === "note").map(({ text }) => clip(text, 300)),
-        whole = items.filter((entry) => entry.kind === "answer" && !(entry.reference.kind === "answer" && entry.reference.claimIndices)),
-        gist = [...new Set((whole.length ? whole : items.filter(({ kind }) => kind === "answer")).map(({ text }) => clip(text, 300)))].slice(0, 3);
-      return { id: row.id, title: row.title, ...(labels.length ? { labels } : {}), ...(notes.length ? { notes } : {}), ...(gist.length ? { gist } : {}) };
+      const items = catalog.entries.filter((entry) => entry.rowId === row.id),
+        labels = items.filter(({ kind }) => kind === "classification").map(({ text }) => text),
+        notes = items.filter(({ kind }) => kind === "note").map(({ text }) => clip(text, 300));
+      return { id: row.id, title: row.title, ...(labels.length ? { labels } : {}), ...(notes.length ? { notes } : {}) };
     }) });
 }
 
