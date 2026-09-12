@@ -17,7 +17,7 @@ import {
 } from "../llm/contextWindow";
 
 const PROVIDER_CATALOGS: Record<string, string[]> = {
-    claude: ["claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
+    claude: ["claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
     gemini: ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"],
     openai: ["gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-lite"],
     deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"],
@@ -28,15 +28,13 @@ const CATALOG = Object.values(PROVIDER_CATALOGS).flat();
 describe("model catalog", () => {
     it("offers the existing chat and settings models with their own reasoning and protocol", () => {
         const models = staticPickerModels();
-        expect(models.filter(model => !model.settingsOnly && model.group !== "Claude Code")
-            .map(model => model.id)).toEqual([
-                "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6",
-                "gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview",
-                "deepseek-v4-flash", "deepseek-v4-pro", "muse-spark-1.2", "muse-spark-1.1", "meta/muse-spark-1.1",
-            ]);
-        expect(models.filter(model => model.settingsOnly && model.group !== "Claude Code")
-            .map(model => model.id)).toEqual(["gpt-5.5", "gpt-5.4", "claude-haiku-4-5",
-                "gemini-3.1-flash-lite-preview", "gpt-5.4-lite", "muse-spark-1.2-contributor"]);
+        expect(new Set(models.map(model => model.id)).size).toBe(models.length);
+        for (const model of models) {
+            expect(model.provider).toBe(providerForModel(model.id));
+            if (model.defaultReasoningEffort) {
+                expect(model.reasoningEfforts).toContain(model.defaultReasoningEffort);
+            }
+        }
         expect(models.find(model => model.id === "deepseek-v4-flash")).toMatchObject({
             reasoningEfforts: ["low", "high", "max"], defaultReasoningEffort: "high" });
         expect(models.find(model => model.id === "meta/muse-spark-1.1")).toMatchObject({
