@@ -22,7 +22,7 @@
   "acceptable_alternative_authorities": [
     { "match": "Pecore", "proposition_id": "PROP-12", "acceptable_pinpoints": [24, 36] },
     { "match": "Cowper", "proposition_id": "PROP-13", "acceptable_pinpoints": [15] },
-    { "match": "Wilson v\. Fotsch|2010 BCCA 226", "proposition_id": "PROP-08", "acceptable_pinpoints": [] },
+    { "match": "Wilson v\\. Fotsch|2010 BCCA 226", "proposition_id": "PROP-08", "acceptable_pinpoints": [] },
     { "match": "Spence", "proposition_id": "PROP-14", "acceptable_pinpoints": [1] },
     { "match": "Limitations Act, 2002|SO 2002, c 24", "proposition_id": "PROP-05", "acceptable_pinpoints": ["2", "4", "5"] },
     { "match": "Madore-Ogilvie|Ogilvie Estate", "proposition_id": "PROP-03", "acceptable_pinpoints": [] },
