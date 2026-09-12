@@ -90,6 +90,8 @@ export type LegalEvidenceTurnState = {
   /** Citation text the work product bound to this chat carries, as its own tool returned it. */
   reportedCitations?: Set<string>;
   answer: GroundedClaim[] | null;
+  /** The claims of a submission that did not pass, kept so a correction replaces only the failing ones. */
+  draft?: unknown[] | null;
   attempted: boolean;
   failure: string | null;
 };
@@ -737,8 +739,9 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
       errors.push(`claims[${index}] has unknown fields`);
     if (/\[\d+(?:,\s*\d+)*\]\s*$/u.test(text))
       errors.push(`claims[${index}] must cite evidence_ids, not numeric reference markers`);
-    if (!text || text.length > (limits.maxTextLength ?? Infinity))
-      errors.push(`claims[${index}].text is invalid`);
+    if (!text) errors.push(`claims[${index}].text is empty; give one sentence of the answer`);
+    else if (text.length > (limits.maxTextLength ?? Infinity))
+      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${limits.maxTextLength}; split it into separate claims, each one sentence with its own evidence_ids`);
     if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
     for (const id of ids) {
@@ -814,49 +817,77 @@ export function legalEvidenceProseIntegrityErrors(text: string,
   ];
 }
 
+/** Claims the model submitted stay as the turn's draft even when some fail, so a correction replaces only the
+ *  claims named in the errors instead of resending the whole answer (Eli, 2026-09-12). */
 export function submitLegalEvidenceAnswer(
   args: Record<string, unknown>,
   state: LegalEvidenceTurnState,
-): { ok: boolean; terminal?: true; errors?: string[] } {
+): { ok: boolean; terminal?: true; errors?: string[]; draft_claims?: number; next?: string } {
   state.attempted = true;
-  if (Object.keys(args).some((key) => key !== "claims"))
+  if (Object.keys(args).some((key) => key !== "claims" && key !== "replace"))
     return { ok: false, errors: ["answer has unknown fields"] };
-  const { claims, errors } = validateGroundedClaims(args.claims, state,
-    { maxClaims: 64, maxTextLength: 1_200 });
-  if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12) };
-  const native = structureNative();
-  for (const [index, claim] of claims.entries()) {
-    const spans = [...native.citationOccurrencesInText(claim.text), ...native.markedQuoteSpans(claim.text),
-      ...claim.text.matchAll(new RegExp(CASE_NAME.source, "gmu"))].map(span => "index" in span
-        ? { start: span.index!, end: span.index! + span[0].length } : span);
-    if (!claim.text.startsWith("|") && groundedSentenceCount(claim.text, spans) > 1)
-      errors.push(`claims[${index}] contains multiple sentences sharing evidence. Split it into one sentence per claim and bind each to its own supporting pinpoint.`);
+  const replacements = Array.isArray(args.replace) ? args.replace : [];
+  if (args.claims !== undefined || !state.draft) state.draft = Array.isArray(args.claims) ? args.claims : [];
+  if (replacements.length && !state.draft.length)
+    return { ok: false, errors: ["there is no draft to replace; send the whole answer in claims"] };
+  const draft = [...state.draft];
+  for (const replacement of replacements) {
+    const row = object(replacement), index = row?.index;
+    if (!row || typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= draft.length)
+      return { ok: false, draft_claims: draft.length,
+        errors: [`replace names claim ${JSON.stringify(index ?? null)}; the draft holds claims 0 to ${draft.length - 1}`] };
+    const { index: _index, ...claim } = row;
+    draft[index] = claim;
   }
-  if (errors.length) return { ok: false, errors: errors.slice(0, 12) };
+  state.draft = draft;
+  const { claims, errors } = validateGroundedClaims(draft, state, { maxClaims: 64, maxTextLength: 1_200 });
+  if (claims && !errors.length) {
+    const native = structureNative();
+    for (const [index, claim] of claims.entries()) {
+      const spans = [...native.citationOccurrencesInText(claim.text), ...native.markedQuoteSpans(claim.text),
+        ...claim.text.matchAll(new RegExp(CASE_NAME.source, "gmu"))].map(span => "index" in span
+          ? { start: span.index!, end: span.index! + span[0].length } : span);
+      if (!claim.text.startsWith("|") && groundedSentenceCount(claim.text, spans) > 1)
+        errors.push(`claims[${index}] contains multiple sentences sharing evidence. Split it into one sentence per claim and bind each to its own supporting pinpoint.`);
+    }
+  }
+  if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12), draft_claims: draft.length,
+    next: `Your ${draft.length} claims are kept as this turn's draft. Send back only the claims named above, as replace: [{"index": 0, "text": "…", "evidence_ids": ["…"]}]; do not resend the answer.` };
   state.answer = claims;
+  state.draft = null;
   state.failure = null;
   return { ok: true, terminal: true };
 }
 
+// The limits are stated here and enforced when the call runs: a claim the schema rejected would take the
+// whole submission down with it, and the model would have to type every other claim again.
 const claimSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
     text: {
       type: "string",
-      maxLength: 1_200,
       description: "One sentence of the answer in Markdown, at most 1,200 characters; a section heading may open the first sentence of its section, and the whole answer holds at most 64 claims. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
     },
     evidence_ids: {
       type: "array",
       minItems: 1,
-      maxItems: 4,
       items: { type: "string" },
-      description: "Returned passage IDs supporting this claim. Prefer one; use several when they jointly support the proposition.",
+      description: "Returned passage IDs supporting this claim, one to four of them. Prefer one; use several when they jointly support the proposition.",
     },
   },
   required: ["text", "evidence_ids"],
 } as const;
+const replacementSchema = {
+  ...claimSchema,
+  properties: { index: { type: "integer", minimum: 0,
+    description: "Position of the claim being replaced in the current draft, counting from 0, as the errors named it." },
+    ...claimSchema.properties },
+  required: ["index", ...claimSchema.required],
+} as const;
+
+const GROUNDED_SUBMIT_REPAIR =
+  "Send the whole answer in claims. If any claim is rejected, every claim you sent is kept as this turn's draft and the errors name the failing ones by position, so call the tool again with replace and send back only those claims, each as index, text and evidence_ids. Sending claims again replaces the whole draft, so use it only to start over. The answer is recorded once every claim in the draft passes.";
 
 export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
   name: LEGAL_EVIDENCE_TOOL_NAME,
@@ -864,10 +895,12 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
     GROUNDED_ANSWER_CONTRACT,
     GROUNDED_QUOTATION_POLICY,
     GROUNDED_CLAIM_GRANULARITY,
+    GROUNDED_SUBMIT_REPAIR,
   ].join(" "),
   inputSchema: objectSchema({
-    claims: { type: "array", minItems: 1, maxItems: 64, items: claimSchema },
-  }, ["claims"]),
+    claims: { type: "array", minItems: 1, items: claimSchema },
+    replace: { type: "array", minItems: 1, items: replacementSchema },
+  }),
 };
 
 export function finalizeLegalEvidence(
