@@ -13,7 +13,9 @@ import { useSourcesWorkspace } from "./SourcesWorkspace";
 import { sourceName, type SourceReader } from "./useSourceReader";
 
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
-export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks: Record<string, "added" | "changed"> };
+export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks: Record<string, "added" | "changed">;
+  /** Passages a proposal would save, by source: they stand in for the chains a saved workspace loads. */
+  passages?: Record<string, { labelId: string; quote: string }[]> };
 const NO_ROWS = new Set<string>();
 const KIND_ICON = { case: Gavel, legislation: ScrollText, journal: Newspaper, hansard: Landmark, document: FileText } as const;
 const NEWLINE = "\n";
@@ -51,6 +53,8 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   }, [wanted, passagePages.chains, passagePages.fetchPage]);
   if (!file) return null;
   const mark = (id: string) => preview?.marks[id];
+  const proposed = (source: ResearchSource) => preview?.passages?.[source.id] ?? [];
+  const hasPassages = (source: ResearchSource) => preview ? proposed(source).length > 0 : passageTotal(source) > 0;
   const openSource = (id: string) => setOpened((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
   const chevron = (open: boolean, label: string, onClick: () => void) => <button type="button"
     aria-label={label} aria-expanded={open} onClick={onClick} className="grid size-6 shrink-0 place-items-center rounded">
@@ -68,7 +72,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       : <a href={href} aria-label={label} title="Open" className={className}>{inner}</a>;
   }
   function sourceRow(source: ResearchSource) {
-    const name = sourceName(source), open = opened.has(source.id), expandable = !preview && passageTotal(source) > 0;
+    const name = sourceName(source), open = opened.has(source.id), expandable = hasPassages(source);
     return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {/* No caret where there is nothing to show: an empty group used to flash "Loading…" and vanish (Eli, 2026-09-09). */}
@@ -89,6 +93,18 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     </div>;
   }
 
+  /** Every passage line: its type's colour, the hierarchy it hangs under, then the passage itself. */
+  const passageLine = (color: string, context: string | undefined, body: ReactNode) => <>
+    <span className="size-6 shrink-0" />
+    <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+    {!!context && <span title={context} className="max-w-24 shrink-0 truncate text-[10px] text-gray-500">{context}</span>}
+    {body}</>;
+  /** A proposed passage has no receipt to open yet, so the quote is the whole row. */
+  const quoteNode = (key: string, { labelId, quote }: { labelId: string; quote: string }, context?: string) =>
+    <div key={key} role="treeitem" aria-label={quote} title={quote} className={ROW}>
+      {passageLine(labels[labelId] ? researchLabelColor(labels[labelId]) : "#d1d5db", context,
+        <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{quote}</span>)}</div>;
+
   function passageRow(source: ResearchSource, item: ResearchEvidence) {
     const locator = passageLabel(item.receipt.locator), id = item.highlightId ?? item.receipt.evidence_id;
     const color = labels[item.labelIds[0]] ? researchLabelColor(labels[item.labelIds[0]]) : "#d1d5db";
@@ -99,9 +115,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
       title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
       className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
-      <span className="size-6 shrink-0" />
-      <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      {!!context && <span title={context} className="max-w-24 shrink-0 truncate text-[10px] text-gray-500">{context}</span>}
+      {passageLine(color, context, <>
       {/* The passage row is the open action: it selects the passage and reads it (Eli, 2026-09-10). */}
       <button type="button" onClick={() => { setSelectedHighlight(id);
           if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); }}
@@ -114,7 +128,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
             sourceId: source.id, labelIds: item.labelIds, note: item.note, title: locator, anchor: document.activeElement?.getBoundingClientRect() }) },
           { label: "Delete", onSelect: () => onRemove({ kind: "evidence", id, sourceId: source.id, name: locator }) },
         ]} />
-      </span>
+      </span></>)}
     </div>;
   }
 
@@ -128,8 +142,12 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   const sourceNode = (source: ResearchSource, labelId: string | null) => {
     const page = passagePages.chains[source.id];
     return <div key={`${labelId ?? ""}:${source.id}`} role="treeitem" aria-label={sourceName(source)}
-      aria-expanded={passageTotal(source) ? opened.has(source.id) : undefined} aria-selected={selectedSourceId === source.id}>
+      aria-expanded={hasPassages(source) ? opened.has(source.id) : undefined} aria-selected={selectedSourceId === source.id}>
       {sourceRow(source)}
+      {opened.has(source.id) && preview && <div role="group" className="ms-4">
+        {/* As in a saved workspace, a passage under a source names its highlight type, never the folder it already sits in. */}
+        {proposed(source).map((item, index) => quoteNode(`${source.id}:${index}`, item,
+          labels[item.labelId]?.scope === "highlight" ? labels[item.labelId]?.name : undefined))}</div>}
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
         {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
           ? [passageNode(source, item.value)] : [])}
@@ -158,13 +176,16 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       <span className="grid size-6 shrink-0 place-items-center"><ChevronRight aria-hidden className={`size-3.5 ${shown ? "rotate-90" : ""}`} /></span>
       <span className="min-w-0 flex-1 truncate text-start">{total} passage{plural}</span></button>;
     if (!shown) return [toggle];
-    const missing = carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
+    const missing = preview ? [] : carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
     if (missing.length) setWanted((current) => new Set([...current, ...missing]));
-    const rows = carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) =>
+    const rows = preview
+      ? carrying.flatMap((source) => proposed(source).flatMap((item, index) => ofType(typeId)(item.labelId)
+        ? [quoteNode(`${typeId}:${source.id}:${index}`, item, sourceName(source))] : []))
+      : carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) =>
       (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && item.value.labelIds.some(ofType(typeId))
         ? [passageNode(source, item.value, `${typeId}:`)] : []));
     // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
-    const pending = carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);
+    const pending = !preview && carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);
     return [toggle, ...rows.length || !pending ? rows
       : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>]];
   };
