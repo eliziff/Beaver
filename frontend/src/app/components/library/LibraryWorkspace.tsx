@@ -181,6 +181,8 @@ function LibraryCollection({
                             resolveDocuments={() => listDirectoryDocuments(resource.list)}
                             onOpenSelectionInChat={openChat} onOpenWorkflows={onOpenWorkflows}
                             onAssistantWorkflowSelect={openAssistantWorkflow}
+                            organize={{ library: kind }} organizeTitle={title}
+                            onOrganized={() => void directory.reload(null)}
                             openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"} />
                     }
                 >
