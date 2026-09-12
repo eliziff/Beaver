@@ -108,7 +108,7 @@ export const RESOURCE_TOOLS = [
         type: "string",
         minLength: 1,
         maxLength: 256,
-        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id. Or an exact support ID returned by a findings read.",
+        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID returned by a findings read.",
       },
       max_results: { type: "integer", minimum: 1, maximum: 50 },
       context_chars: { type: "integer", minimum: 40, maximum: 2000 },

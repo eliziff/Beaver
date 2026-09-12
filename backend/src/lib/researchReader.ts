@@ -624,7 +624,7 @@ export async function readLegalSourceResource(
       const maxResults = Math.min(50, Math.max(1, Math.trunc(Number(args.max_results) || 20)));
       const contextChars = Math.min(2_000, Math.max(40,
         Math.trunc(Number(args.context_chars) || 160)));
-      let total = 0;
+      let total = 0, headnote = 0;
       const hits = registered.flatMap(({ passage }) => {
         const found = findTextMatches({
           text: passage.text,
@@ -633,8 +633,13 @@ export async function readLegalSourceResource(
           contextChars,
           startIndex: total,
         });
-        total += found.totalMatches;
-        return found.hits.map((hit) => {
+        // A case's headnote is never evidence: a hit before the first numbered paragraph is counted, not returned.
+        const judgment = passage.source.kind === "case" && passage.role === "document"
+          ? structureNative().documentAnchors(passage.documentArtifact).find(({ kind }) => kind === "paragraph")?.start ?? 0 : 0;
+        const inJudgment = found.hits.filter(({ at }) => at >= judgment);
+        headnote += found.hits.length - inJudgment.length;
+        total += found.totalMatches - (found.hits.length - inJudgment.length);
+        return inJudgment.map((hit) => {
           const span = passage.locator.requested
             ? { start: 0, end: passage.text.length, text: passage.text }
             : cleanSearchEvidenceSpan(passage, hit);
@@ -663,6 +668,7 @@ export async function readLegalSourceResource(
           ok: true,
           sources: sourceDetails,
           total_matches: total,
+          ...(headnote ? { headnote_matches: headnote } : {}),
           ...(total > hits.length ? { truncated: true } : {}),
           hits: visibleHits,
           ...(evidence.length ? { passages: evidence.map(modelPassage) } : {}),
