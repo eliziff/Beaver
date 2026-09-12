@@ -47,7 +47,6 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   // A highlight type lists its passages on request; nothing loads before that. `wanted` only grows,
   // so two open types never take the request list away from each other.
   const [wanted, setWanted] = useState<ReadonlySet<string>>(() => new Set());
-  const [shownTypes, setShownTypes] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     for (const id of wanted) if (!passagePages.chains[id]) void passagePages.fetchPage(id, null, false);
   }, [wanted, passagePages.chains, passagePages.fetchPage]);
@@ -81,7 +80,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       {expandable ? chevron(open, `Passages in ${name}`, () => openSource(source.id)) : <span className="size-6 shrink-0" />}
       {(() => { const Icon = KIND_ICON[source.reference.kind] ?? FileText, icon = <Icon aria-hidden className="size-3.5" />;
         return openControl(source, name, undefined, undefined, undefined, icon) ?? <span className="grid size-6 shrink-0 place-items-center text-gray-500">{icon}</span>; })()}
-      {/* Clicking the row name reads the source; the chevron alone opens it (Eli, 2026-09-12). */}
+      {/* Clicking the row name reads the source; the chevron alone opens it. */}
       <button type="button" disabled={!!preview} onClick={jump} title={[name, source.note].filter(Boolean).join(NEWLINE)}
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
@@ -173,14 +172,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       .reduce((sum, [id, count]) => sum + (ofType(typeId)(id) ? count : 0), 0);
     const carrying = sources.filter((source) => counted(source) > 0), total = carrying.reduce((sum, source) => sum + counted(source), 0);
     if (!total) return [];
-    const shown = shownTypes.has(typeId), typeName = labels[typeId]?.name ?? "type", plural = total === 1 ? "" : "s";
-    const toggle = <button key={`${typeId}:toggle`} type="button" aria-expanded={shown}
-      aria-label={`${shown ? "Hide" : "Show"} ${total} passage${plural} of ${typeName}`}
-      onClick={() => setShownTypes((current) => { const next = new Set(current); if (!next.delete(typeId)) next.add(typeId); return next; })}
-      className={`${ROW} w-full text-xs text-gray-500 hover:bg-gray-50`}>
-      <span className="grid size-6 shrink-0 place-items-center"><ChevronRight aria-hidden className={`size-3.5 ${shown ? "rotate-90" : ""}`} /></span>
-      <span className="min-w-0 flex-1 truncate text-start">{total} passage{plural}</span></button>;
-    if (!shown) return [toggle];
+    // The type row's own caret is the only caret: the tree renders this list only once that row is open.
     const missing = preview ? [] : carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
     if (missing.length) setWanted((current) => new Set([...current, ...missing]));
     const rows = preview
@@ -191,8 +183,8 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
         ? [passageNode(source, item.value, `${typeId}:`)] : []));
     // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
     const pending = !preview && carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);
-    return [toggle, ...rows.length || !pending ? rows
-      : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>]];
+    return rows.length || !pending ? rows
+      : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>];
   };
   const under = (labelId: string | null) => sources.filter((source) => scope === "highlight"
     ? false : labelId

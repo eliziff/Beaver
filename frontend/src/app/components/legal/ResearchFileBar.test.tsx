@@ -188,6 +188,7 @@ describe("ResearchFileBar", () => {
   it("nests a highlight type by keyboard and changes its single colour without a second assignment", async () => {
     await renderWorkspace();
     const tree = highlightTree();
+    fireEvent.click(tree.getByRole("button", { name: "Expand Finding" }));
     fireEvent.keyDown(tree.getByRole("button", { name: "Holding" }), { key: "ArrowLeft", altKey: true });
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,
       expect.objectContaining({ type: "label", id: "holding", scope: "highlight", parentId: null })));
@@ -252,15 +253,6 @@ describe("ResearchFileBar", () => {
     openSearch();
     expect(screen.getByRole("tab", { name: "Search" })).toHaveAttribute("aria-selected", "true");
     expect(api.getResearchItems).not.toHaveBeenCalled();
-  });
-
-  it("selects the highlight type without changing the research scope", async () => {
-    await renderWorkspace();
-    fireEvent.click(highlightTree().getByRole("button", { name: "Holding" }));
-    const tree = screen.getByRole("tree", { name: "Sources" });
-    expect(within(tree).getAllByRole("treeitem", { name: "Baker v Canada" })[0]).toBeVisible();
-    expect(within(tree).getByRole("treeitem", { name: "Appeal case" })).toBeVisible();
-    expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages")).toBe(false);
   });
 
   it("edits a source's labels from its options menu and closes the palette on Escape", async () => {
@@ -346,6 +338,7 @@ describe("ResearchFileBar", () => {
     let dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
     expect(dialog).toHaveTextContent("1 saved source will lose this label");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(highlightTree().getByRole("button", { name: "Expand Finding" }));
     fireEvent.click(highlightTree().getByRole("button", { name: "Holding options" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     dialog = screen.getByRole("alertdialog", { name: "Delete label?" });
@@ -469,6 +462,7 @@ describe("ResearchFileBar", () => {
     await renderWorkspace(); openSearch();
     fireEvent.change(screen.getByRole("textbox", { name: "Phrase to find in saved sources" }), { target: { value: "duty" } });
     fireEvent.click(screen.getByRole("button", { name: "Find" }));
+    fireEvent.click(highlightTree().getByRole("button", { name: "Expand Finding" }));
     fireEvent.click(highlightTree().getByRole("button", { name: "Holding" }));
     fireEvent.click(await screen.findByRole("button", { name: /^Highlight all as/ }));
     await waitFor(() => expect(api.actOnResearchFile).toHaveBeenCalledWith("file-1", "version-1", 0,

@@ -459,7 +459,7 @@ function LegalSourceViewerContent({
       </p>}
       <div className="relative min-h-0 flex-1">
       {onBack && <button type="button" onClick={onBack}
-        className="absolute left-4 top-3 z-10 inline-flex h-7 items-center gap-1 rounded-full border border-gray-300 bg-white/95 px-3 text-xs font-medium text-gray-700 shadow hover:bg-gray-50">
+        className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 inline-flex h-7 items-center gap-1 rounded-full border border-gray-300 bg-white/95 px-3 text-xs font-medium text-gray-700 shadow hover:bg-gray-50">
         <ChevronLeft aria-hidden className="size-3.5" />Back</button>}
       <div ref={root} data-highlighter={highlight.armed ? "" : undefined}
         onScroll={(event) => onScrollTop?.(event.currentTarget.scrollTop)}
