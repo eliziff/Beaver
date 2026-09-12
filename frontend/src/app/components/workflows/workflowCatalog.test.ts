@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { Workflow } from "@/app/lib/api/workflows";
-import { groupWorkflows, WORKFLOW_CATEGORIES } from "./workflowCatalog";
+import { groupWorkflows } from "./workflowCatalog";
 import { workflowDocumentTab, workflowPath } from "./workflowRoutes";
 
 const workflow = (id: string, title: string, category: string,

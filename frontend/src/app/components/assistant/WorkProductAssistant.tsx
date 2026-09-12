@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import type { WorkProductContext, WorkProductFocus,
   WorkProductRefresh } from "@/app/lib/workProducts";

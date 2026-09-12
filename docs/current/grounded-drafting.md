@@ -106,6 +106,15 @@ individual children. Thus a read of paragraphs 48-74 can support a claim with
 paragraph 49, another with paragraph 69, or one claim with both; it cannot mint
 one indiscriminate paragraphs 48-74 receipt.
 
+Public citation fragments omit paragraph markers identified by the source's
+structure. A grouped citation plans all its selected passages as separate
+highlights, including adjacent paragraphs; distant pinpoints do not authorize
+highlighting the intervening text. Highlight links are bounded to five distinct
+passages and five cited paragraphs, 1,500 whitespace-delimited words, and an
+8,192-character URL. Larger groups, mixed source revisions, or incomplete
+fragment plans retain every pinpoint and receipt but use the plain authority
+link instead of presenting a partial highlight as the entire citation.
+
 This follows the same granularity principle as Anthropic's custom citation
 content blocks: the supplied block is the minimum citable unit, and a response
 text block carries the citations supporting that claim. See
