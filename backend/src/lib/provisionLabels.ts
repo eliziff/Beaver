@@ -17,7 +17,7 @@ const contains = (parent: Provision, child: Provision) =>
   parent.root === child.root && parent.tokens.length < child.tokens.length &&
   parent.tokens.every((token, index) => child.tokens[index] === token);
 
-function sections(labels: readonly string[]) {
+function sections(labels: readonly string[]): string[] | null {
   const unique = [...new Set(labels)];
   if (unique.length === 1 && /[–—-]/u.test(unique[0])) {
     const endpoints = unique[0].split(/[–—-]/u).map(parse);
@@ -28,6 +28,12 @@ function sections(labels: readonly string[]) {
   const parsed = unique.flatMap((label) => label.split(/[–—-]/u).map(parse));
   if (parsed.some((value) => !value)) return null;
   const values = parsed as Provision[];
+  if (unique.some(label => /[\u2013\u2014-]/u.test(label))) {
+    const parents = unique.filter(label => !/[\u2013\u2014-]/u.test(label)).map(label => parse(label)!);
+    return unique.filter(label => !parents.some(parent =>
+      label.split(/[\u2013\u2014-]/u).every(endpoint => contains(parent, parse(endpoint)!))))
+      .flatMap(label => sections([label])!);
+  }
   const minimal = values.filter((value) =>
     !values.some((other) => other !== value && contains(other, value)));
   const groups = new Map<string, Provision[]>();
