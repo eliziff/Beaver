@@ -43,6 +43,7 @@ async function main() {
     profile: "native-without-ocr-or-layout", cache: "empty-at-start",
   };
   let baselineProducts = new Map<string, string>();
+  let baselineSeconds: number | undefined;
   if (label === "candidate") {
     const baseline = JSON.parse(await readFile(path.join(output, "baseline", "summary.json"), "utf8"));
     if (baseline.manifestSha256 !== owner.manifestSha256 ||
@@ -50,6 +51,9 @@ async function main() {
       throw new Error("Baseline comparison conditions differ");
     baselineProducts = new Map(baseline.receipts.map((r: { sha256: string; productSha256?: string }) =>
       [r.sha256, r.productSha256 ?? ""]));
+    baselineSeconds = baseline.preparationSeconds;
+    if (!Number.isFinite(baselineSeconds) || baselineSeconds! <= 0)
+      throw new Error("Baseline preparation time is invalid");
   }
   let existing: typeof owner | undefined;
   try { existing = JSON.parse(await readFile(marker, "utf8")); }
@@ -70,6 +74,7 @@ async function main() {
   const receipts: Array<Record<string, unknown>> = [];
   let next = 0;
   const started = performance.now();
+  const preparationCpuStart = process.cpuUsage();
   await Promise.all(Array.from({ length: lanes.preparation }, async () => {
     while (next < manifest.documents.length) {
       const entry = manifest.documents[next++];
@@ -93,6 +98,7 @@ async function main() {
     }
   }));
   const preparationSeconds = (performance.now() - started) / 1000;
+  const preparationCpu = process.cpuUsage(preparationCpuStart);
   const inspectStarted = performance.now();
   for (const receipt of receipts) {
     if (receipt.error) continue;
@@ -112,9 +118,11 @@ async function main() {
     if (receipt.outcome !== "identical")
       await writeFile(path.join(directory, `${sha}.json.gz`), gzipSync(product));
   }
-  const result = { ...owner, environment,
+  const throughputPassed = baselineSeconds === undefined || preparationSeconds <= baselineSeconds;
+  const result = { ...owner, environment, baselineSeconds, throughputPassed,
     nativeSha256: hash(await readFile(process.env.LEGAL_STRUCTURE_NATIVE)),
-    preparationSeconds, inspectionSeconds: (performance.now() - inspectStarted) / 1000,
+    preparationSeconds, preparationCpuSeconds: (preparationCpu.user + preparationCpu.system) / 1_000_000,
+    inspectionSeconds: (performance.now() - inspectStarted) / 1000,
     documents: receipts.length, pages: manifest.documents.reduce((n, d) => n + d.pages, 0),
     failures: receipts.filter(r => r.error).length, receipts };
   await writeFile(path.join(directory, "summary.json"), JSON.stringify(result, null, 2));
@@ -122,7 +130,9 @@ async function main() {
   if (await realpath(cache) !== cache) throw new Error("Unexpected cache path");
   await rm(cache, { recursive: true });
   console.log(JSON.stringify({ preparationSeconds, documents: result.documents, failures: result.failures }));
-  if (label === "candidate" && result.failures) process.exitCode = 1;
+  if (!throughputPassed)
+    console.error(`Candidate preparation took ${preparationSeconds.toFixed(3)}s; frozen baseline limit is ${baselineSeconds!.toFixed(3)}s`);
+  if (label === "candidate" && (result.failures || !throughputPassed)) process.exitCode = 1;
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });
