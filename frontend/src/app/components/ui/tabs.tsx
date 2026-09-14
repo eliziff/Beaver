@@ -7,10 +7,11 @@ type TabOption<T extends string = string> = { value: T; label: ReactNode;
     onClose?: () => void; closeLabel?: string; disabled?: boolean };
 type TabListProps<T extends string> = { value: T; onValueChange: (value: T) => void;
     options: readonly TabOption<T>[]; ariaLabel: string; variant?: TabVariant;
-    actions?: ReactNode; className?: string; panelId?: string };
+    actions?: ReactNode; className?: string; panelId?: string; fit?: boolean };
 type TabsProps<T extends string> = { value: T; onValueChange: (value: T) => void;
     options: readonly TabOption<T>[]; ariaLabel: string; children: ReactNode;
-    variant?: TabVariant; actions?: ReactNode; className?: string; railClassName?: string };
+    variant?: TabVariant; actions?: ReactNode; className?: string; railClassName?: string;
+    fit?: boolean };
 
 const railClass: Record<TabVariant, string> = {
     subtab: "border-b border-gray-200",
@@ -54,7 +55,7 @@ const idleClass: Record<TabVariant, string> = {
 };
 
 export function TabList<T extends string>({ value, onValueChange, options,
-    ariaLabel, variant = "segmented", actions, className, panelId }: TabListProps<T>) {
+    ariaLabel, variant = "segmented", actions, className, panelId, fit = false }: TabListProps<T>) {
     const generatedId = useId();
     const listId = panelId ?? generatedId;
     const listRef = useRef<HTMLDivElement>(null);
@@ -89,12 +90,13 @@ export function TabList<T extends string>({ value, onValueChange, options,
     return <div data-tabs-rail className={cn("flex min-w-0 shrink-0 items-center",
         actions && "gap-2", railClass[variant], className)}>
             {!!options.length && <div ref={listRef} role="tablist" aria-label={ariaLabel}
-                className={cn("tab-list min-w-0 overflow-x-auto",
+                className={cn("tab-list min-w-0",
+                    fit ? "overflow-hidden" : "overflow-x-auto",
                     variant === "settings" ? "grid" : "flex",
                     variant === "segmented" ? "max-w-full" : "flex-1",
                     listClass[variant])}>
                 {options.map((option, index) => <div key={option.value}
-                    className="relative min-w-0 shrink-0"><button type="button"
+                    className={cn("relative min-w-0", !fit && "shrink-0")}><button type="button"
                     ref={(node) => { refs.current[index] = node; }}
                     id={`${listId}-tab-${index}`} role="tab"
                     aria-selected={index === active} aria-controls={panelId}
@@ -108,6 +110,7 @@ export function TabList<T extends string>({ value, onValueChange, options,
                     }}
                     className={cn(tabClass[variant],
                         option.onClose && "pe-7",
+                        fit && "w-full min-w-0 max-w-none",
                         "truncate text-center disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-900",
                         index === active ? selectedClass[variant] : idleClass[variant])}
                 >{option.label}</button>{option.onClose && <button type="button"
@@ -124,12 +127,12 @@ export function TabList<T extends string>({ value, onValueChange, options,
 }
 
 export function Tabs<T extends string>({ value, onValueChange, options, ariaLabel, children,
-    variant = "segmented", actions, className, railClassName }: TabsProps<T>) {
+    variant = "segmented", actions, className, railClassName, fit = false }: TabsProps<T>) {
     const id = useId();
     const active = Math.max(0, options.findIndex((option) => option.value === value));
     const panelId = `${id}-panel`;
     return <div className={cn("flex min-h-0 flex-col", className)}>
-        <TabList {...{ value, onValueChange, options, ariaLabel, variant, actions,
+        <TabList {...{ value, onValueChange, options, ariaLabel, variant, actions, fit,
             panelId }} className={railClassName} />
         <div id={panelId} role="tabpanel" aria-labelledby={`${panelId}-tab-${active}`}
             className="flex min-h-0 flex-1 flex-col">{children}</div>

@@ -339,15 +339,15 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                             ? "@container shrink-0"
                             : "@container rounded-lg border border-gray-200 bg-white p-4"}
                     >
-                        <div className={embedded ? "flex min-h-12 shrink-0 items-center border-b border-gray-200 px-2 py-1.5" : "contents"}>
+                        <div className={embedded ? "flex min-h-12 min-w-0 shrink-0 items-center border-b border-gray-200 px-2 py-1.5" : "contents"}>
                             <TabList value={docType} onValueChange={(value) => updateFilters({
                                 docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
                                 options={SOURCE_TABS.map(([value, label]) => ({ value, label }))}
                                 ariaLabel="Source category"
                                 variant="segmented"
-                                className={embedded ? undefined : "mb-3"} />
+                                className={embedded ? "w-full" : "mb-3"} />
                         </div>
-                        <div className={embedded ? "border-b border-gray-200 px-2 py-2" : "contents"}>
+                        <div className={embedded ? "px-2 py-2" : "contents"}>
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <SearchBar name="query" required={docType !== "library"} value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch

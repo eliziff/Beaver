@@ -36,13 +36,12 @@ import {
     type AssistantTurnOptions,
 } from "@/app/lib/assistantSession";
 import { invalidateDocumentFile } from "@/app/hooks/useDocumentFile";
-import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     legalSourceLocatorFromUrl,
     normalizeLegalSourceLocator,
     type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
-import { LegalSourcePopup } from "@/app/components/legal/LegalSourcePopup";
+import { LegalSourcePopout } from "@/app/components/legal/LegalSourcePopout";
 
 import {
     type ReadSubagentPanel,
@@ -703,6 +702,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         {chatId && <ChatResearchFlow ref={researchFlowRef} chatId={chatId} projectId={projectId}
             question={messages.findLast((message) => message.role === "user")?.content}
             getModelPreferences={() => conversationRef.current?.getModelPreferences()} />}
-        {poppedSource && <LegalSourcePopup tab={poppedSource} onClose={() => setPoppedSource(null)} />}
+        {poppedSource && <LegalSourcePopout tab={poppedSource} onClose={() => setPoppedSource(null)} />}
     </>;
 });

@@ -105,12 +105,12 @@ vi.mock("@/app/components/legal/LegalLibrary", () => ({
             })}>View source</button></>;
     },
 }));
-vi.mock("../legal/LegalSourcePopup", () => ({
-    LegalSourcePopup: ({ tab, onClose }: {
+vi.mock("../legal/LegalSourcePopout", () => ({
+    LegalSourcePopout: ({ onClose }: {
         tab: { name?: string | null; citation: string }; onClose: () => void;
-    }) => <div role="dialog" aria-label={tab.name || tab.citation}>
+    }) => <section aria-label="Source reader">
         <button type="button" onClick={onClose}>Close source</button>
-    </div>,
+    </section>,
 }));
 vi.mock("./AssistantMessage", () => ({
     AssistantMessage: ({
@@ -318,7 +318,7 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("textbox", { name: "Sources query" })).toHaveValue("appeal");
     });
 
-    it("opens an embedded search result in a pop-up reader over the Sources panel", async () => {
+    it("opens an embedded search result in a floating reader over the Sources panel", async () => {
         const user = userEvent.setup();
         render(chatView({ chatId: "chat-1" }));
 
@@ -326,15 +326,15 @@ describe("ChatView displayed document context", () => {
         await user.click(screen.getByRole("tab", { name: "Sources" }));
         await user.click(screen.getByRole("button", { name: "View source" }));
 
-        expect(screen.getByRole("dialog", { name: "Example v Test" })).toBeVisible();
-        // The reader pops over the panel; the workspace it was opened from stays mounted.
+        expect(screen.getByRole("region", { name: "Source reader" })).toBeVisible();
+        // The reader floats over the panel; the workspace it was opened from stays mounted.
         expect(screen.getByRole("textbox", { name: "Sources query" })).toBeInTheDocument();
         expect(screen.getByRole("tab", { name: "Sources" }))
             .toHaveAttribute("aria-selected", "true");
         expect(screen.getByRole("button", { name: "Workflows" })).toBeInTheDocument();
 
         await user.click(screen.getByRole("button", { name: "Close source" }));
-        expect(screen.queryByRole("dialog", { name: "Example v Test" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("region", { name: "Source reader" })).not.toBeInTheDocument();
     });
 
     it("offers open-as destinations only when an ordinary chat has legal evidence", async () => {
@@ -381,7 +381,7 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("assistant-1");
 
         await user.click(screen.getByRole("button", { name: "View source" }));
-        expect(screen.getByRole("dialog", { name: "Example v Test" })).toBeVisible();
+        expect(screen.getByRole("region", { name: "Source reader" })).toBeVisible();
     });
 
     it("moves an embedded Library selection into the mounted workflow dock", async () => {
