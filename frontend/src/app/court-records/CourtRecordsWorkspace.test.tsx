@@ -282,6 +282,18 @@ describe("CourtRecordsWorkspace", () => {
     });
   });
 
+  it("starts the format chooser when a workflow asks for a new court record", async () => {
+    const existing = saved("existing");
+    const { host, store } = workspace("standalone", {
+      drafts: { list: vi.fn(async () => [existing]) } });
+    const consumed = vi.fn();
+    render(<CourtRecordsWorkspace host={host} initialNewDraft onDocumentsConsumed={consumed} />);
+
+    expect(await screen.findByRole("dialog", { name: "Choose document" })).toBeVisible();
+    expect(consumed).toHaveBeenCalledOnce();
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
   it("finishes an old draft save without restoring its route over a new file handoff", async () => {
     const old = { ...saved("old"), state: { ...saved("old").state,
       profileId: "ab-kb-commercial-compendium" } };

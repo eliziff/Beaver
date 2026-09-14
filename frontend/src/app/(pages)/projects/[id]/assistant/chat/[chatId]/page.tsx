@@ -224,6 +224,8 @@ function ProjectAssistantChat({ projectId, chatId }: { projectId: string; chatId
             searchMessageId={search.get("message")}
             projectId={projectId}
             projectName={workspace.project?.name}
+            chatTitle={route.chatTitle}
+            onProjectChange={route.changeProject}
             projectCmNumber={workspace.project?.cm_number}
             initialDocuments={initialDocuments}
             initialWorkflow={initialWorkflow}

@@ -279,6 +279,30 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
   );
 
   it(
+    "delegates parallel source review to reader subagents",
+    async () => {
+      const api = await loadApi();
+      const streamed = await request(api).post("/chat").send({
+        model: MODEL, reasoning_effort: REASONING_EFFORT, expected_version: 0,
+        subagents: true, subagent_model: MODEL, subagent_effort: REASONING_EFFORT,
+        current_turn: { kind: "message", content:
+          "Compare how Canadian appellate courts treat the content of the duty of procedural " +
+          "fairness with the remedy for its breach. Give me the governing authorities and their " +
+          "exact passages." },
+      });
+      expect(streamed.status).toBe(200);
+      const events = sseEvents(streamed.text), calls = toolCalls(events);
+      const readers = events.filter(({ type }) => type === "subagent_run");
+      console.info("LIVE subagent proof", { model: MODEL, reasoning: REASONING_EFFORT, calls,
+        readers: readers.map(({ id, status, task, error }) => ({ id, status, task, error })),
+        answer: visibleText(events) });
+      expect(calls).toContain("delegate_read");
+      expect(readers.some(({ status }) => status === "completed")).toBe(true);
+    },
+    480_000,
+  );
+
+  it(
     "uses the selected parallel citation and discovers its Library PDF",
     async () => {
       const api = await loadApi();

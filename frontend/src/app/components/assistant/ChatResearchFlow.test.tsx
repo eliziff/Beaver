@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import React from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchFile } from "@/app/lib/researchFiles";
 import { SourcesWorkspaceProvider } from "../legal/SourcesWorkspace";
-import { ChatResearchSave } from "./ChatResearchSave";
+import { ChatResearchFlow, type ChatResearchFlowHandle } from "./ChatResearchFlow";
 const api = vi.hoisted(() => ({ ensureSourcesWorkspace: vi.fn(), openWorkspaceTable: vi.fn(), getResearchFile: vi.fn(), proposeWorkspaceTable: vi.fn(), proposeWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
@@ -18,13 +19,19 @@ const preview = { fingerprint: "a".repeat(64), design: { title: "Research", colu
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
 function Location() { const location = useLocation(); return <output aria-label="Location">{location.pathname}{location.search}
   {location.state?.assistantIntent?.text}</output>; }
-function setup() { render(<MemoryRouter><SourcesWorkspaceProvider><ChatResearchSave chatId="chat" /><Location />
-  </SourcesWorkspaceProvider></MemoryRouter>); }
-function open(name: "Workspace" | "Table") {
-  fireEvent.click(screen.getByRole("button", { name: "Open as" }));
-  fireEvent.click(screen.getByRole("menuitem", { name }));
+function setup(getModelPreferences?: React.ComponentProps<typeof ChatResearchFlow>["getModelPreferences"]) {
+  const ref = React.createRef<ChatResearchFlowHandle>();
+  render(<MemoryRouter><SourcesWorkspaceProvider><ChatResearchFlow ref={ref} chatId="chat" getModelPreferences={getModelPreferences} /><Location />
+  </SourcesWorkspaceProvider></MemoryRouter>);
+  return ref;
 }
-async function act(name: string) { const at = () => screen.getByRole("button", { name });
+async function open(ref: React.RefObject<ChatResearchFlowHandle | null>, name: "Workspace" | "Table") {
+  await act(async () => {
+    if (name === "Workspace") await ref.current?.openWorkspace();
+    else await ref.current?.openTable();
+  });
+}
+async function actOn(name: string) { const at = () => screen.getByRole("button", { name });
   await waitFor(() => expect(at()).toBeEnabled()); fireEvent.click(at()); }
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear();
   api.ensureSourcesWorkspace.mockResolvedValue(file); api.getResearchFile.mockResolvedValue(file); api.proposeWorkspaceTable.mockResolvedValue(preview); });
@@ -36,7 +43,8 @@ it("organizes the chat into a proposed label set before landing in the workspace
       parentId: null, order: 0, scope: "source" as const, color: "#d6b85a",
       existing: false, rows: [{ id: "source", title: "Case A", support: ["The test is stated at para 21."] }] }],
     unassigned: [] };
-  api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(file); setup(); open("Workspace"); await act("Propose labels");
+  api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(file);
+  const ref = setup(); await open(ref, "Workspace"); await actOn("Propose labels");
   expect(await screen.findByText("States the test")).toBeVisible(); expect(await screen.findByText("The test is stated at para 21.")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply labels" }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
@@ -45,11 +53,19 @@ it("organizes the chat into a proposed label set before landing in the workspace
 });
 it("previews grounded Chat work and creates a table only after acceptance", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table" });
-  setup(); open("Table"); await act("Propose a table");
+  const ref = setup(); await open(ref, "Table"); await actOn("Propose a table");
   expect(await screen.findByDisplayValue("Finding")).toBeVisible(); expect(api.openWorkspaceTable).not.toHaveBeenCalled();
   expect(api.proposeWorkspaceTable).toHaveBeenCalledWith("workspace", expect.objectContaining({ chatId: "chat", model: "model" }), expect.any(Function), expect.any(AbortSignal));
-  await act("Create table");
+  await actOn("Create table");
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/tabular-reviews/table"));
   expect(api.openWorkspaceTable).toHaveBeenCalledWith("workspace", { chatId: "chat",
     design: preview.design, fingerprint: preview.fingerprint });
+});
+it("uses the composer's current model and effort when Open as is chosen", async () => {
+  let current = { model: "old-model", reasoningEffort: "low" };
+  const ref = setup(() => current);
+  current = { model: "codex:gpt-5.6-sol", reasoningEffort: "high" };
+  await open(ref, "Table"); await actOn("Propose a table");
+  await waitFor(() => expect(api.proposeWorkspaceTable).toHaveBeenCalledWith("workspace",
+    expect.objectContaining(current), expect.any(Function), expect.any(AbortSignal)));
 });

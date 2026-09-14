@@ -151,7 +151,7 @@ export const streamChat = (payload: {
     mode: "ask" | "presume";
     jurisdictions: string[];
   };
-  subagent_mode?: "none" | "beaver" | "native";
+  subagents?: boolean;
   subagent_model?: string;
   subagent_effort?: string;
   activity_detail?: "auto" | "standard" | "tools" | "trace";

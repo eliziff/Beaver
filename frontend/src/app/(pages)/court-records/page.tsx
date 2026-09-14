@@ -33,6 +33,7 @@ export default function CourtRecordsPage() {
         locked={assistant.busy}
         initialDraftId={params.get("draft") ?? undefined}
         initialDocuments={location.state?.documents}
+        initialNewDraft={location.state?.newDraft === true}
         onDocumentsConsumed={() => navigate(location.pathname + location.search,
           { replace: true, state: null })}
         projectId={params.get("project") || undefined}

@@ -95,6 +95,18 @@ it("hands selected files to Court Records for filing selection", async () => {
         ] } });
 });
 
+it("starts a new work-product draft when no source is attached", async () => {
+    render(<ContextualWorkflowPicker onAssistantSelect={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Open: Court Records" }));
+    expect(mocks.navigate).toHaveBeenCalledWith("/court-records", { state: { newDraft: true } });
+
+    mocks.navigate.mockReset();
+    await userEvent.click(screen.getByRole("button", { name: "Open: Authorities" }));
+    expect(mocks.navigate).toHaveBeenCalledWith("/table-of-authorities",
+        { state: { newDraft: true } });
+});
+
 it("uses every selected document for tables and assistant work", async () => {
     const documents = [document("one"), document("two")];
     const onAssistantSelect = vi.fn();

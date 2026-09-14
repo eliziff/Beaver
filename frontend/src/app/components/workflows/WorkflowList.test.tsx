@@ -57,6 +57,8 @@ it("filters one catalogue and opens a singleton workspace in one click", async (
         '[data-workflow-id="court-records"]')).toHaveLength(1));
     fireEvent.click(view.container.querySelector('button[data-workflow-id="court-records"]')!);
     expect(screen.getByTestId("location")).toHaveTextContent("/court-records");
+    expect(screen.getByTestId("location"))
+        .toHaveAttribute("data-state", JSON.stringify({ newDraft: true }));
 });
 
 function Location() {

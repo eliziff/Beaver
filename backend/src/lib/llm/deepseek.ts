@@ -1,4 +1,5 @@
 import { requireApiKey } from "./apiKeys";
+import { modelForProvider } from "./models";
 import { createCompatibleWireAdapter } from "./openaiCompatibleWire";
 import { runProviderLoop } from "./providerLoop";
 import type { StreamChatParams, StreamChatResult } from "./types";
@@ -22,7 +23,7 @@ export function streamDeepSeek(params: StreamChatParams): Promise<StreamChatResu
   return runProviderLoop(params, createCompatibleWireAdapter(params, {
     apiKey,
     baseURL: "https://api.deepseek.com",
-    model: params.model,
+    model: modelForProvider(params.model),
     provider: "deepseek",
     maxTokens: maxTokens(),
     request: {

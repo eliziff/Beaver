@@ -185,7 +185,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   return (
     <>
       {mobileOpen && (
-        <div className="fixed inset-0 z-[98] bg-gray-950/30 lg:hidden"
+        <div className="fixed inset-0 z-[100] bg-gray-950/30 lg:hidden"
           onClick={onToggle} aria-hidden="true" />
       )}
       <aside
@@ -220,7 +220,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
             : "max-lg:hidden",
           "lg:h-[calc(100dvh-1.5rem)] lg:w-64",
           "my-2 ml-2 mr-0 lg:my-3 lg:ml-3 lg:mr-0 rounded-2xl border border-gray-300 bg-app-surface overflow-visible",
-          "flex flex-col absolute lg:relative z-[99] overscroll-contain [contain:paint]",
+          "flex flex-col absolute lg:relative z-[101] overscroll-contain [contain:paint]",
         )}
       >
         <div className="flex shrink-0 items-center justify-between px-2.5 py-2">

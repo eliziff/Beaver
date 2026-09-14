@@ -70,7 +70,7 @@ it("reattaches a retried send to the job identified by its turn id", async () =>
     current_turn: { kind: "message" as const, content: "hello",
       turn_id: "10000000-0000-4000-8000-000000000001" },
     edit_mode: "manual" as const,
-    subagent_mode: "none" as const,
+    subagents: false as const,
     activity_detail: "auto" as const,
   };
   const first = await durableChatTurns.enqueue(scope, input);

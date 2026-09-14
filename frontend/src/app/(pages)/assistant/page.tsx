@@ -17,8 +17,12 @@ function NewAssistantChat() {
     const { saveChat, stagePendingChatMessage, loadChats } = useChatHistoryContext();
     const draftChat = useRef<Promise<string | null> | null>(null);
     const ensureChat = () => draftChat.current ??= saveChat();
+    // A new chat only earns a place in history once the user has written
+    // something or attached a document; an empty box is not a chat.
+    const hasDraftContent = (draft: ChatDraft | null) =>
+        !!draft && (!!draft.content.trim() || (draft.documents?.length ?? 0) > 0);
     async function saveDraft(draft: ChatDraft | null) {
-        if (!draftChat.current && !draft) return;
+        if (!draftChat.current && !hasDraftContent(draft)) return;
         const id = await ensureChat();
         if (!id) { draftChat.current = null; throw new Error("Could not create chat"); }
         await writeChatDraft(id, draft);
@@ -26,7 +30,7 @@ function NewAssistantChat() {
     }
     const [initialDocuments] = useState(takeNewChatDocuments);
     async function handleInitialSubmit(message: Message) {
-        if (!message.content.trim()) return;
+        if (!message.content.trim() && !(message.files?.length)) return;
         const chatId = await ensureChat();
         if (!chatId) return;
         stagePendingChatMessage(chatId, message);

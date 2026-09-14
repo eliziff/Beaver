@@ -4,7 +4,6 @@ import { takeNewChatDocuments } from "@/app/components/assistant/assistantLaunch
 import { useLocation, useParams } from "react-router-dom";
 import { useAssistantChatRoute } from "@/app/hooks/useAssistantChatRoute";
 import { ChatView } from "@/app/components/assistant/ChatView";
-import { SelectAssistantProjectModal } from "@/app/components/assistant/SelectAssistantProjectModal";
 export default function AssistantChatPage() {
     const { id = "" } = useParams<{ id: string }>();
     return <AssistantChat key={id} id={id} />;
@@ -12,7 +11,6 @@ export default function AssistantChatPage() {
 function AssistantChat({ id }: { id: string }) {
     const search = new URLSearchParams(useLocation().search);
     const [initialDocuments] = useState(takeNewChatDocuments);
-    const [projectModalOpen, setProjectModalOpen] = useState(false);
     const {
         actions,
         chatTitle,
@@ -26,29 +24,20 @@ function AssistantChat({ id }: { id: string }) {
         chatId: id,
     });
     return (
-        <>
-            <div className="relative h-full">
-                <div inert={chatLoaded ? undefined : true} className="h-full">
-                    <ChatView
-                        {...chatViewProps}
-                        initialDocuments={initialDocuments}
-                        searchMessageId={search.get("message")}
-                        projectId={projectId ?? undefined}
-                        projectName={projectName}
-                        useDisplayedDocumentContext={!!projectId}
-                        onProjectClick={() => setProjectModalOpen(true)}
-                    />
-                </div>
-                <ChatLoadingState load={chatLoad} onRetry={actions.retryLoad} />
+        <div className="relative h-full">
+            <div inert={chatLoaded ? undefined : true} className="h-full">
+                <ChatView
+                    {...chatViewProps}
+                    initialDocuments={initialDocuments}
+                    searchMessageId={search.get("message")}
+                    projectId={projectId ?? undefined}
+                    projectName={projectName}
+                    chatTitle={chatTitle}
+                    onProjectChange={changeProject}
+                    useDisplayedDocumentContext={!!projectId}
+                />
             </div>
-            <SelectAssistantProjectModal
-                open={projectModalOpen}
-                onClose={() => setProjectModalOpen(false)}
-                chatTitle={chatTitle}
-                currentLocation={projectName ?? "Assistant"}
-                currentProjectId={projectId}
-                onSelectProject={changeProject}
-            />
-        </>
+            <ChatLoadingState load={chatLoad} onRetry={actions.retryLoad} />
+        </div>
     );
 }

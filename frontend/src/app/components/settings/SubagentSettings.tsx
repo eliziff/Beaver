@@ -2,16 +2,14 @@
 
 import { useEffect } from "react";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
-import { ModelPicker } from "@/app/components/assistant/ModelPicker";
+import { ModelEffortToggle } from "@/app/components/assistant/ModelToggle";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { ReasoningEffortToggle } from "@/app/components/assistant/ModelToggle";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import {
     useModelCatalog,
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
 import { Switch } from "@/app/components/ui/switch";
-import { ModalSelect } from "@/app/components/modals/ModalSelect";
 
 export function SubagentSettings() {
     const [preferences, savePreferences] = useAssistantPreferences();
@@ -22,48 +20,44 @@ export function SubagentSettings() {
     useEffect(() => { void preloadModelCatalog(); }, []);
 
     const loading = !catalog;
-    const models = catalog?.models ?? []; // any model can read (Eli, 2026-09-10)
     const serverEnabled = catalog?.readSubagents?.serverEnabled !== false;
 
     return (
-        <section aria-labelledby="reading-agents-heading">
+        <section aria-labelledby="subagents-heading">
             <h2
-                id="reading-agents-heading"
+                id="subagents-heading"
                 className="mb-1 text-base font-semibold text-gray-900"
             >
-                Reading agents
+                Subagents
             </h2>
             <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
-                Delegate bounded source review when parallel research would materially help. Agents cannot edit files.
+                Delegate bounded source review when parallel research would materially help. Subagents cannot edit files.
             </p>
             <AccountSection className="divide-y divide-gray-200 p-0">
-                <label className="grid min-w-0 gap-2 px-4 py-3 text-sm text-gray-900 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-center">
-                    <span className="font-medium">Agent mode</span>
-                    <ModalSelect
-                        id="reading-agent-mode" value={preference.mode} placeholder={null}
-                        onChange={(mode) => update({ mode: mode as typeof preference.mode })}
-                        options={[
-                            { value: "none", label: "None" },
-                            { value: "beaver", label: "Beaver" },
-                            { value: "native", label: "Native Codex" },
-                        ]} />
+                <label className="flex min-h-16 cursor-pointer items-center justify-between gap-5 px-4 py-3">
+                    <span className="min-w-0">
+                        <span className="block text-sm font-medium text-gray-900">
+                            Subagents
+                        </span>
+                    </span>
+                    <span className="relative grid h-11 w-12 shrink-0 place-items-center">
+                        <Switch checked={preference.enabled} size="lg"
+                            disabled={!serverEnabled} ariaLabel="Subagents"
+                            onChange={(on) => update({ enabled: on })} />
+                    </span>
                 </label>
-                <div className="grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-end">
-                    <div className="min-w-0">
-                        <p className="mb-1 text-xs font-medium text-gray-600">
-                            Model
-                        </p>
-                        <ModelPicker
-                            value={preference.model}
-                            models={models} apiKeys={profile?.apiKeys}
-                            onChange={(model) => update({ model })}
-                            disabled={loading || !serverEnabled}
-                        />
-                    </div>
-                    <ReasoningEffortToggle
+                <div className="min-w-0 px-4 py-3">
+                    <p className="mb-1 text-xs font-medium text-gray-600">
+                        Model and effort
+                    </p>
+                    <ModelEffortToggle
                         model={preference.model}
-                        value={preference.effort}
-                        onChange={(effort) => update({ effort })}
+                        effort={preference.effort}
+                        onModelChange={(model) => update({ model })}
+                        onEffortChange={(effort) => update({ effort })}
+                        apiKeys={profile?.apiKeys}
+                        includeSettingsModels
+                        disabled={loading || !serverEnabled}
                     />
                 </div>
                 <label className="flex min-h-16 cursor-pointer items-center justify-between gap-5 px-4 py-3">
@@ -80,10 +74,6 @@ export function SubagentSettings() {
                             onChange={(showDock) => update({ showDock })} />
                     </span>
                 </label>
-                <p className="px-4 py-3 text-xs leading-5 text-gray-500">
-                    Beaver runs use the model and effort above and appear in chat
-                    activity. Native runs are managed by Codex.
-                </p>
             </AccountSection>
         </section>
     );

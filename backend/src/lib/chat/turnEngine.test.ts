@@ -191,7 +191,7 @@ it("does not advertise resume when a reader never started", async () => {
     createTools: () => [],
     emit: (event) => publicEvents.push(event as Record<string, unknown>),
     onSubagentEvent: (event) => privateEvents.push(event),
-    subagentMode: "beaver",
+    subagents: true,
   });
 
   expect(privateEvents).toContainEqual(expect.objectContaining({
@@ -252,7 +252,7 @@ it("keeps failed reader checkpoints resumable in the same turn", async () => {
     createTools: () => [],
     emit: (event) => publicEvents.push(event as Record<string, unknown>),
     onSubagentEvent: (event) => privateEvents.push(event),
-    subagentMode: "beaver",
+    subagents: true,
   });
 
   expect(resumed.sort()).toEqual(["reader-session-1", "reader-session-2"]);
@@ -276,51 +276,6 @@ it("keeps failed reader checkpoints resumable in the same turn", async () => {
   expect(privateEvents).toContainEqual(expect.objectContaining({
     status: "running",
     activities: [expect.objectContaining({ id: "reader-tool-1" })],
-  }));
-});
-
-it("streams native subagent deltas while retaining durable snapshots", async () => {
-  const publicEvents: Record<string, unknown>[] = [];
-  const privateEvents: Record<string, unknown>[] = [];
-  const running = {
-    id: "native-1", task: "Read the authorities", model: "gpt-5.6-luna",
-    effort: "high", status: "running" as const,
-    activities: [{ id: "native-tool-1", label: "Searching", status: "running" as const }],
-    activity: { id: "native-tool-1", label: "Searching", status: "running" as const },
-  };
-  stream.mockImplementationOnce(async ({ callbacks }) => {
-    callbacks.onSubagentUpdate(running);
-    callbacks.onSubagentUpdate({
-      ...running,
-      status: "completed",
-      output: "Found it.",
-      activities: [{ ...running.activities[0], status: "completed" }],
-      activity: { ...running.activity, status: "completed" },
-    });
-    return { fullText: "Done." };
-  });
-
-  await runChatTurn({
-    model: "codex:gpt-5.6-luna",
-    systemPrompt: "",
-    messages: [{ role: "user", content: "Research." }],
-    createTools: () => [],
-    emit: (event) => publicEvents.push(event as Record<string, unknown>),
-    onSubagentEvent: (event) => privateEvents.push(event),
-  });
-
-  expect(publicEvents).toContainEqual(expect.objectContaining({
-    type: "subagent_run", id: "native-1", status: "running",
-    activity: expect.objectContaining({ id: "native-tool-1", tool: "native" }),
-  }));
-  expect(publicEvents.some((event) => event.status === "running" && "activities" in event))
-    .toBe(false);
-  expect(publicEvents).toContainEqual(expect.objectContaining({
-    id: "native-1", status: "completed",
-    activities: [expect.objectContaining({ id: "native-tool-1", tool: "native" })],
-  }));
-  expect(privateEvents[0]).toEqual(expect.objectContaining({
-    activities: [expect.objectContaining({ id: "native-tool-1" })],
   }));
 });
 
@@ -583,7 +538,7 @@ it.each([false, true])("shares all subagent reads and searches when failed=%s", 
   });
   const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
     messages: [{ role: "user", content: "Research these two notes." }],
-    createTools: () => [observedRead([used, extra])], emit() {}, subagentMode: "beaver",
+    createTools: () => [observedRead([used, extra])], emit() {}, subagents: true,
   });
   expect(result.fullText).toBe(`${extra.span_text} [1]`);
   expect(priorLegalEvidenceReceipts(result.events)).toEqual(expect.arrayContaining([used, extra]));
@@ -646,7 +601,7 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
   });
   await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "", researchContext: research,
     operation: { executor: "assistant", chatId: "chat", turnId: "turn" },
-    messages: [{ role: "user", content: "Read these two notes." }], subagentMode: "beaver", emit() {},
+    messages: [{ role: "user", content: "Read these two notes." }], subagents: true, emit() {},
     onSubagentEvent(event) { if (event.status === "error") checkpoints.push(event); },
     async onResearchObserved(...args) { await Promise.resolve(); observed.push(args); },
     createTools(_state, assignment, context) {
@@ -674,4 +629,27 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
     expect(researchReadCursors(checkpoint.resume!.research!)).toEqual([]);
     expect(parseAssistantEvent(JSON.parse(JSON.stringify(checkpoint)))).toEqual(checkpoint);
   }
+});
+
+it("adds the reader tools to the direct tool list only when subagents are enabled", async () => {
+  const calls: Record<string, any>[] = [];
+  const capture = async (params: Record<string, any>) => {
+    calls.push(params);
+    return { fullText: "done" };
+  };
+  stream.mockImplementation(capture);
+  await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "BASE",
+    messages: [{ role: "user", content: "Research two distinct scopes." }],
+    createTools: () => [], emit() {}, grounded: false, subagents: true });
+  const enabled = (calls[0].tools as { name: string }[]).map((tool) => tool.name);
+  expect(enabled).toEqual(expect.arrayContaining(["delegate_read", "resume_read"]));
+  expect(enabled).not.toContain("load_tools");
+
+  calls.length = 0;
+  await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "BASE",
+    messages: [{ role: "user", content: "Research two distinct scopes." }],
+    createTools: () => [], emit() {}, grounded: false });
+  const disabled = (calls[0].tools as { name: string }[]).map((tool) => tool.name);
+  expect(disabled).not.toContain("delegate_read");
+  expect(disabled).not.toContain("resume_read");
 });

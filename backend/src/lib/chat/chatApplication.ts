@@ -27,7 +27,6 @@ import {
   modelSupportsImageInput,
   resolveRequestedModel,
   type LlmImage,
-  type SubagentMode,
   type UserApiKeys,
 } from "../llm";
 import { providerForModel } from "../llm/models";
@@ -133,7 +132,7 @@ export const chatTurnInputSchema = z.object({
     mode: z.enum(["ask", "presume"]),
     jurisdictions: z.array(textField(100)).max(20),
   }).strict().nullable().optional(),
-  subagent_mode: z.enum(["none", "beaver", "native"]).default("none"),
+  subagents: z.boolean().default(false),
   subagent_model: textField(128).optional(),
   subagent_effort: textField(32).optional(),
   activity_detail: z.enum(["auto", "standard", "tools", "trace"]).default("auto"),
@@ -190,6 +189,8 @@ type TurnFeatures = {
   includeResearchTools: boolean;
   productFeatures?: FeaturePreferences;
   personalisationPrompt?: string;
+  /** Installed A2AJ collections, refreshed outside the turn. */
+  sourceCoveragePrompt?: string;
   draftingStyle?: DraftingStyleSettings;
   workflows?: WorkflowStore;
   extraTools?: BeaverTool<ChatToolContext>[];
@@ -693,6 +694,7 @@ export function createChatApplication(deps: Dependencies) {
         CLIENT_WORK_PRODUCT_PRESUMPTION,
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
+        features.sourceCoveragePrompt,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
         tabularPrompt,
         research ? `Read the workspace for labels and history, and Read findings for saved answers.\n` +
@@ -923,7 +925,7 @@ ${registeredWorkflow.skill_md}` : "",
             version = (await deps.chats.get(auth, chat!.id))?.transcript_version ?? version;
             return toModelMessages(prepared.messages);
           },
-          subagentMode: input.subagent_mode as SubagentMode,
+          subagents: input.subagents,
           subagentModel: input.subagent_model,
           subagentEffort: input.subagent_effort,
           jurisdictionPreference: input.jurisdiction_preference as JurisdictionPreference,

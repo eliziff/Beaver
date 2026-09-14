@@ -1,15 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-export const QUICK_ACTIONS = [
-    { id: "proofread", label: "Proofread" },
-    { id: "compareDocuments", label: "Compare documents" },
-    { id: "extractKeyTerms", label: "Extract key terms" },
-    { id: "draftFromTemplate", label: "Draft from template" },
-    { id: "newProject", label: "New project" },
-    { id: "newTabularReview", label: "New tabular review" },
-    { id: "projectChat", label: "Start chat in project" },
-] as const;
-export type QuickActionId = (typeof QUICK_ACTIONS)[number]["id"];
 type JurisdictionOption = readonly [id: string, label: string, promptLabel: string];
 type JurisdictionGroup = { label: string; tabLabel: string; options: JurisdictionOption[] };
 
@@ -56,7 +46,6 @@ export const JURISDICTION_GROUPS: JurisdictionGroup[] = [
 
 const jurisdictionOptions = JURISDICTION_GROUPS.flatMap((group) => group.options);
 const jurisdictionById = new Map(jurisdictionOptions.map((option) => [option[0], option]));
-const quickActionDefaults = Object.fromEntries(QUICK_ACTIONS.map(({ id }) => [id, !["newProject", "newTabularReview"].includes(id)])) as Record<QuickActionId, boolean>;
 const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
 const DEFAULT_READ_SUBAGENT_EFFORT = "high";
 
@@ -65,33 +54,41 @@ export type AssistantPreferences = {
     showContextUsage: boolean;
     showAutoMode: boolean;
     editMode: "manual" | "auto";
-    quickActions: Record<QuickActionId, boolean>;
-    readSubagents: { mode: "none" | "beaver" | "native"; showDock: boolean;
+    /** Providers hidden from every model picker. */
+    disabledProviders: string[];
+    readSubagents: { enabled: boolean; showDock: boolean;
         model: string; effort: string };
 };
+const PREFERENCE_KEYS = ["activityDetail", "showContextUsage", "showAutoMode", "editMode",
+    "readSubagents", "disabledProviders"] as const;
+const REQUIRED_KEYS = PREFERENCE_KEYS.filter((key) => key !== "disabledProviders");
 const record = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value);
 const exact = (value: Record<string, unknown>, keys: readonly string[]) =>
     Object.keys(value).length === keys.length && keys.every((key) => key in value);
 function parsePreferences(value: unknown): AssistantPreferences | null {
-    if (!record(value) || !record(value.quickActions) || !record(value.readSubagents) ||
-        !exact(value, ["activityDetail", "showContextUsage", "showAutoMode", "editMode", "quickActions", "readSubagents"]) ||
-        !exact(value.quickActions, QUICK_ACTIONS.map(({ id }) => id)) ||
-        !exact(value.readSubagents, ["mode", "showDock", "model", "effort"]) ||
+    if (!record(value) || !record(value.readSubagents) ||
+        Object.keys(value).some((key) => !PREFERENCE_KEYS.includes(key as never)) ||
+        REQUIRED_KEYS.some((key) => !(key in value)) ||
+        !exact(value.readSubagents, ["enabled", "showDock", "model", "effort"]) ||
         !["auto", "standard", "tools", "trace"].includes(String(value.activityDetail)) ||
         !["manual", "auto"].includes(String(value.editMode)) ||
         typeof value.showContextUsage !== "boolean" || typeof value.showAutoMode !== "boolean" ||
-        !Object.values(value.quickActions).every((item) => typeof item === "boolean") ||
-        !["none", "beaver", "native"].includes(String(value.readSubagents.mode)) ||
+        typeof value.readSubagents.enabled !== "boolean" ||
         typeof value.readSubagents.showDock !== "boolean" ||
         typeof value.readSubagents.model !== "string" || value.readSubagents.model.length > 200 ||
         typeof value.readSubagents.effort !== "string" || value.readSubagents.effort.length > 100) return null;
-    return value as AssistantPreferences;
+    const disabledProviders = value.disabledProviders ?? [];
+    if (!Array.isArray(disabledProviders) ||
+        !disabledProviders.every((provider) => typeof provider === "string" && provider.length <= 40)) {
+        return null;
+    }
+    return { ...value, disabledProviders } as AssistantPreferences;
 }
 const DEFAULTS: AssistantPreferences = {
     activityDetail: "auto", showContextUsage: true, showAutoMode: false, editMode: "manual",
-    quickActions: quickActionDefaults,
-    readSubagents: { mode: "none", showDock: true, model: DEFAULT_READ_SUBAGENT_MODEL, effort: DEFAULT_READ_SUBAGENT_EFFORT },
+    disabledProviders: [],
+    readSubagents: { enabled: false, showDock: true, model: DEFAULT_READ_SUBAGENT_MODEL, effort: DEFAULT_READ_SUBAGENT_EFFORT },
 };
 const STORAGE_KEY = "beaver.assistant.preferences";
 const UPDATED_EVENT = "beaver:assistant-preferences";

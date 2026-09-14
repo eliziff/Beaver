@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Library, Loader2, Plus, Square, X } from "lucide-react";
+import { ArrowRight, Check, LayoutGrid, Library, Loader2, PencilLine, Plus, Square, WandSparkles, X } from "lucide-react";
 import { FileTypeIcon } from "../shared/FileTypeIcon";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
 import { WorkflowPickerModal } from "../workflows/WorkflowPickerModal";
@@ -53,6 +53,7 @@ function InputChip({ className, dark, icon, label, onRemove }: InputChipProps) {
 }
 
 export interface ChatInputHandle {
+    getModelPreferences: () => { model: string; reasoningEffort?: string } | undefined;
     addDoc: (doc: Document) => void;
     clearDraft: () => void;
     startWorkflowDocumentSelection: (workflow: Workflow, prompt?: string, options?: {
@@ -80,6 +81,8 @@ interface Props {
     onDraftRestored?: () => void;
     promptHistory?: string[];
     onOpenWorkflows?: (initialWorkflowId?: string, documents?: Document[]) => void;
+    /** Opens the Organize chooser (project + open-as). */
+    onOrganize?: () => void;
     initialModel?: string | null;
     initialReasoningEffort?: string | null;
     editModeLabels?: { manual: string; auto: string };
@@ -88,7 +91,7 @@ interface Props {
 export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     { onSubmit, onCancel, isLoading, contextUsage, showContextTools = true, rows = 1,
         projectName, projectCmNumber, restoreDraft, onDraftRestored,
-        promptHistory = [], onOpenWorkflows, initialModel,
+        promptHistory = [], onOpenWorkflows, onOrganize, initialModel,
         initialReasoningEffort, editModeLabels, disabled = false, draftChatId, onDraftChange, initialDraft }: Props,
     ref,
 ) {
@@ -128,10 +131,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const draftSnapshot = (): ChatDraft | null => {
         if (draftCleared.current) return null;
         const content = draftContent.current;
-        return content || attachedDocs.length || selectedWorkflow ? {
+        return {
             role: "user", content, documents: attachedDocs, workflow: selectedWorkflow ?? undefined,
             model, reasoningEffort, editMode,
-        } : null;
+        };
     };
     saveDraftRef.current = async () => {
         const draft = draftSnapshot();
@@ -229,6 +232,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             setPicker((options?.openDocumentPicker ?? !hasDocument) ? tab : null);
         };
     useImperativeHandle(ref, () => ({
+        getModelPreferences: () => ({ model, reasoningEffort }),
         addDoc: (doc: Document) => attachDocuments([doc]),
         clearDraft: () => {
             historyIndexRef.current = null;
@@ -477,14 +481,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                             />
                         </div>
                     )}
-                    <div className="flex flex-wrap items-center gap-1 p-2 md:p-2.5">
+                    <div className="flex items-center gap-1 p-2 md:p-2.5">
                         {showContextTools && (
-                            <div className="chat-input-context-tools flex items-center gap-1">
+                            <div className="chat-input-context-tools flex shrink-0 items-center gap-1">
                                 <button
                                     type="button"
                                     onClick={() => setPicker("files")}
                                     className={cn(
-                                        "flex h-8 items-center gap-1 rounded-lg px-2 text-sm",
+                                        "flex h-8 min-w-0 items-center gap-1 rounded-lg px-2 text-sm",
                                         attachedDocs.length
                                             ? "text-gray-700 hover:text-gray-900"
                                             : "text-gray-600 hover:text-gray-900",
@@ -499,7 +503,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                                 : attachedDocs.length
                                             : <Plus className="h-4 w-4" />}
                                     </span>
-                                    <span className="chat-input-control-label hidden sm:inline">
+                                    <span className="chat-input-control-label hidden min-w-0 truncate sm:inline">
                                         Documents
                                     </span>
                                 </button>
@@ -514,7 +518,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     }}
                                     aria-label="Workflows"
                                     className={cn(
-                                        "flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm",
+                                        "flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2 text-sm",
                                         selectedWorkflow
                                             ? "text-red-700 hover:text-red-800"
                                             : "text-gray-600 hover:text-gray-900",
@@ -523,8 +527,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     {selectedWorkflow
                                         ? <Check className="h-3.5 w-3.5" />
                                         : <WorkflowSkeuoIcon className="text-base leading-none" />}
-                                    <span className="chat-input-control-label hidden sm:inline">
+                                    <span className="chat-input-control-label hidden min-w-0 truncate sm:inline">
                                         Workflows
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onOrganize}
+                                    disabled={!onOrganize}
+                                    aria-label="Organize"
+                                    className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg px-2 text-sm text-gray-600 hover:text-gray-900 disabled:cursor-default disabled:text-gray-400 disabled:hover:text-gray-400"
+                                >
+                                    <LayoutGrid className="h-4 w-4" />
+                                    <span className="chat-input-control-label hidden min-w-0 truncate sm:inline">
+                                        Organize
                                     </span>
                                 </button>
                             </div>
@@ -536,11 +552,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                     aria-label="Editing mode"
                                     className="flex h-8 shrink-0 items-center rounded-full bg-gray-100 p-1 ring-1 ring-inset ring-gray-200"
                                 >
-                                    {(["manual", "auto"] as const).map((mode) => (
-                                        <button
+                                    {(["manual", "auto"] as const).map((mode) => {
+                                        const label = editModeLabels?.[mode] ??
+                                            (mode === "auto" ? "Auto" : "Manual");
+                                        const Icon = mode === "auto" ? WandSparkles : PencilLine;
+                                        return <button
                                             key={mode}
                                             type="button"
                                             aria-pressed={editMode === mode}
+                                            aria-label={label}
                                             title={
                                                 mode === "auto"
                                                     ? "Apply edits directly and show a diff"
@@ -548,26 +568,29 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                             }
                                             onClick={() => setEditMode(mode)}
                                             className={cn(
-                                                "h-6 rounded-full px-2.5 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900",
+                                                "inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gray-900 @min-[30rem]:px-2.5",
                                                 editMode === mode
                                                     ? mode === "manual"
-                                                        ? "bg-gray-700 text-white shadow-sm"
+                                                        ? "bg-gray-900 text-white shadow-sm"
                                                         : "bg-brand text-white shadow-sm"
-                                                    : "text-gray-500 hover:text-gray-800",
+                                                    : "text-gray-700 hover:text-gray-900",
                                             )}
                                         >
-                                            {editModeLabels?.[mode] ??
-                                                (mode === "auto" ? "Auto" : "Manual")}
-                                        </button>
-                                    ))}
+                                            <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                                            <span className="@max-[30rem]:hidden">{label}</span>
+                                            <span className="hidden @max-[30rem]:inline @max-[24rem]:hidden">
+                                                {label.charAt(0)}
+                                            </span>
+                                        </button>;
+                                    })}
                                 </div>
                             )}
                             <div className="chat-input-model min-w-0">
                                 <ModelEffortToggle
                                     model={model}
                                     effort={reasoningEffort}
-                                    onModelChange={(value) => { scheduleDraft(); setModel(value); }}
-                                    onEffortChange={(value) => { scheduleDraft(); setReasoningEffort(value); }}
+                                    onModelChange={(value) => { draftCleared.current = false; scheduleDraft(); setModel(value); }}
+                                    onEffortChange={(value) => { draftCleared.current = false; scheduleDraft(); setReasoningEffort(value); }}
                                     apiKeys={apiKeys}
                                 />
                             </div>

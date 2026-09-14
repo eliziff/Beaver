@@ -1,4 +1,5 @@
 import type { FunctionCallingConfigMode } from "@google/genai";
+import { modelForProvider } from "./models";
 import type { ProviderAdapter, ProviderEvent, ProviderStep } from "./providerLoop";
 import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
@@ -97,7 +98,7 @@ export function createGeminiWireAdapter(
       let stream: AsyncIterable<unknown>;
       try {
         stream = await (await client).models.generateContentStream({
-          model: params.model,
+          model: modelForProvider(params.model),
           contents: requestContents,
           config: {
             systemInstruction: params.systemPrompt,

@@ -6,6 +6,7 @@ import {
     isSupportedModel,
     staticPickerModels,
     openCodeGoProtocol,
+    openCodeGoWireProtocol,
     providerForModel,
     resolveModel,
     resolveRequestedModel,
@@ -21,7 +22,6 @@ const PROVIDER_CATALOGS: Record<string, string[]> = {
     gemini: ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview"],
     openai: ["gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-lite"],
     deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"],
-    openrouter: ["meta/muse-spark-1.1"],
 };
 const CATALOG = Object.values(PROVIDER_CATALOGS).flat();
 
@@ -37,8 +37,6 @@ describe("model catalog", () => {
         }
         expect(models.find(model => model.id === "deepseek-v4-flash")).toMatchObject({
             reasoningEfforts: ["low", "high", "max"], defaultReasoningEffort: "high" });
-        expect(models.find(model => model.id === "meta/muse-spark-1.1")).toMatchObject({
-            provider: "openrouter", reasoningEfforts: ["xhigh", "high", "medium", "low", "minimal"] });
         expect(models.find(model => model.id === "muse-spark-1.2-contributor")).toMatchObject({
             provider: "meta", settingsOnly: true, defaultReasoningEffort: "medium" });
         expect(models.every(model => isSupportedModel(model.id))).toBe(true);
@@ -59,8 +57,13 @@ describe("model catalog", () => {
             gemini: ["gemini"],
             openai: ["openai"],
             deepseek: ["deepseek"],
-            openrouter: ["openrouter"],
         });
+        // Namespaced slugs are OpenRouter; the OpenCode Go prefix wins over it.
+        expect([
+            providerForModel("openai/gpt-4o"),
+            providerForModel("meta/muse-spark-1.1"),
+            providerForModel("opencode-go/glm-5.3"),
+        ]).toEqual(["openrouter", "openrouter", "opencode-go"]);
         expect([
             providerForModel("claude-nonexistent"),
             providerForModel("gpt-nonexistent"),
@@ -114,14 +117,21 @@ describe("model catalog", () => {
         )).toThrow(/Unsupported model id/u);
     });
 
-    it("accepts only OpenCode Go models with a known wire protocol", () => {
+    it("routs a new OpenCode Go model by its vendor's wire", () => {
         expect([
             openCodeGoProtocol("opencode-go/gpt-5.6-luna"),
             openCodeGoProtocol("opencode-go/glm-5.3"),
             openCodeGoProtocol("opencode-go/qwen3.8-max"),
         ]).toEqual(["responses", "chat", "messages"]);
         expect(providerForModel("opencode-go/glm-5.3")).toBe("opencode-go");
-        expect(isSupportedModel("opencode-go/future-model")).toBe(false);
+        expect(isSupportedModel("opencode-go/deepseek-v4.1-flash")).toBe(true);
+        expect([
+            openCodeGoWireProtocol("opencode-go/deepseek-v4.1-flash"),
+            openCodeGoWireProtocol("opencode-go/grok-5"),
+            openCodeGoWireProtocol("opencode-go/qwen3.9-max"),
+            openCodeGoWireProtocol("opencode-go/brandnew-1"),
+        ]).toEqual(["chat", "responses", "messages", "chat"]);
+        expect(isSupportedModel("opencode-go/")).toBe(false);
     });
 
     it("uses native compaction only where the transport can resume it", () => {

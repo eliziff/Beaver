@@ -54,8 +54,9 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
   }
   const newWorkspace = () => { setOpen(true); setCreateOpen(true); setSelectedDocuments([]); };
   const reopenPicker = () => { if (returnToPicker.current) { returnToPicker.current = false; setOpen(true); } };
-  const selector = file ? <div className="flex min-w-0 max-w-full items-center gap-2">
-    <span className="min-w-0 truncate text-base font-semibold text-gray-900" title={fileTitle(file)}>{fileTitle(file)}</span>
+  const selector = file ? <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5 @min-[26rem]:flex-row @min-[26rem]:items-center @min-[26rem]:gap-2">
+    <span className="min-w-0 max-w-full truncate text-base font-semibold text-gray-900" title={fileTitle(file)}>{fileTitle(file)}</span>
+    <div className="flex min-w-0 shrink-0 items-center gap-2">
     <ActionMenu label="Workspace options" className="shrink-0" items={[
     { label: "Rename", onSelect: () => setRenameOpen(true) },
     { label: "History", onSelect: onHistory },
@@ -68,7 +69,7 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     { label: "New workspace", onSelect: () => { returnToPicker.current = false; newWorkspace(); } },
   ]} triggerClassName="grid size-8 place-items-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
     <Ellipsis className="size-4" aria-hidden="true" />
-  </ActionMenu><ResearchWorkspaceViews /></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
+  </ActionMenu><ResearchWorkspaceViews /></div></div> : <span className="text-base font-semibold text-gray-900">Workspaces</span>;
 
   return <>
     {rail === undefined ? <div className="flex min-h-11 shrink-0 items-center pb-2">{selector}</div>

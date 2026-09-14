@@ -67,69 +67,48 @@ it("collapses without discarding its mounted content", () => {
     expect(screen.getByRole("textbox", { name: "Draft message" })).toHaveValue("edited");
 });
 
-it("keeps the sibling workspace interactive when opened at narrow widths", () => {
+it("keeps the workspace interactive beside the compact dock", () => {
+    const matchMedia = vi.fn(() => ({ matches: true }));
+    vi.stubGlobal("matchMedia", matchMedia);
+    const onExpandedChange = vi.fn();
+    const { rerender } = render(<div>
+        <button type="button" autoFocus>Workspace action</button>
+        {dockView({ tabs: [{ id: "assistant", label: "Assistant", content: <button type="button">Send</button> }],
+            activeTabId: "assistant", onExpandedChange })}
+    </div>);
+
+    const workspace = screen.getByText("Workspace action") as HTMLButtonElement;
+    expect(workspace.inert).not.toBe(true);
+    expect(matchMedia).toHaveBeenCalledWith("(max-width: 1279px)");
+    expect(screen.getByRole("button", { name: "Send" })).toBeVisible();
+    expect(document.documentElement.style.scrollbarGutter).toBe("auto");
+    expect(screen.getByRole("button", { name: "Close assistant" })).toBeVisible();
+    const dock = document.querySelector<HTMLElement>("[data-assistant-dock]")!;
+    fireEvent.keyDown(dock, { key: "Escape" });
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
+
+    rerender(<div>
+        <button type="button">Workspace action</button>
+        {dockView({ tabs: [{ id: "assistant", label: "Assistant", content: null }],
+            activeTabId: "assistant", expanded: false, onExpandedChange })}
+    </div>);
+    expect(document.documentElement.style.scrollbarGutter).toBe("");
+    expect(screen.getByRole("button", { name: "Workspace action" }).inert).not.toBe(true);
+});
+
+it("leaves Escape to a nested dialog before collapsing the compact dock", () => {
     vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
     const onExpandedChange = vi.fn();
-    function Layout({ expanded }: { expanded: boolean }) {
-        return <div><input aria-label="Chat draft" autoFocus defaultValue="Draft" />
-            {dockView({ tabs: [{ id: "sources", label: "Sources", content: <button>Search</button> }],
-                expanded, onExpandedChange })}</div>;
-    }
-    const { rerender } = render(<Layout expanded={false} />);
-    const draft = screen.getByRole("textbox", { name: "Chat draft" });
-    rerender(<Layout expanded />);
-    expect(draft).toHaveFocus();
-    expect(draft.closest('[inert], [aria-hidden="true"]')).toBeNull();
-    expect(screen.getByRole("complementary", { name: "Assistant dock" })).toBeVisible();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    screen.getByRole("button", { name: "Search" }).focus();
-    draft.focus();
-    fireEvent.change(draft, { target: { value: "Still writing beside the dock" } });
-    expect(draft).toHaveFocus();
-    expect(draft).toHaveValue("Still writing beside the dock");
+    render(dockView({
+        tabs: [{ id: "assistant", label: "Assistant", content:
+            <div role="dialog" aria-label="Choose files"><button type="button">Close dialog</button></div> }],
+        activeTabId: "assistant", onExpandedChange,
+    }));
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Close dialog" }), { key: "Escape" });
     expect(onExpandedChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document.querySelector<HTMLElement>("[data-assistant-dock]")!, { key: "Escape" });
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
 });
 
-it.each(["sources"])("expands %s without remounting its reader and restores its dock width", async (id) => {
-    let fullscreenElement: Element | null = null;
-    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => fullscreenElement });
-    const request = vi.fn(async () => {
-        fullscreenElement = screen.getByRole("complementary", { name: "Assistant dock" });
-        document.dispatchEvent(new Event("fullscreenchange"));
-    });
-    const exit = vi.fn(async () => {
-        fullscreenElement = null; document.dispatchEvent(new Event("fullscreenchange"));
-    });
-    render(dockView({ tabs: [{ id, label: id, content: <input aria-label="Reader note" defaultValue="Retained" /> }],
-        activeTabId: id }));
-    Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exit });
-    const dock = screen.getByRole("complementary", { name: "Assistant dock" });
-    Object.defineProperty(dock, "requestFullscreen", { configurable: true, value: request });
-    const reader = screen.getByRole("textbox", { name: "Reader note" });
-    fireEvent.change(reader, { target: { value: "Reading state" } });
-    fireEvent.click(screen.getByRole("button", { name: "Expand reader" }));
-    expect(request).toHaveBeenCalledOnce();
-    expect(screen.getByRole("button", { name: "Restore reader size" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Restore reader size" }));
-    expect(exit).toHaveBeenCalledOnce();
-    expect(screen.getByRole("textbox", { name: "Reader note" })).toBe(reader);
-    expect(reader).toHaveValue("Reading state");
-    expect(screen.getByRole("button", { name: "Expand reader" })).toHaveAttribute("aria-pressed", "false");
-});
-
-
-it("falls back to an in-app reader and restores focus and content on Escape", async () => {
-    render(<div><button>Chat action</button>{dockView({
-        tabs: [{ id: "sources", label: "Sources", content: <input aria-label="Source position" defaultValue="Paragraph 8" /> }],
-    })}</div>);
-    const reader = screen.getByRole("textbox", { name: "Source position" });
-    const trigger = screen.getByRole("button", { name: "Expand reader" });
-    trigger.focus(); fireEvent.click(trigger);
-    const expanded = await screen.findByRole("dialog", { name: "Assistant dock" });
-    expect(screen.getByText("Chat action").inert).toBe(true);
-    expect(screen.getByRole("textbox", { name: "Source position" })).toBe(reader);
-    fireEvent.keyDown(expanded, { key: "Escape" });
-    expect(screen.getByRole("button", { name: "Chat action" }).inert).not.toBe(true);
-    expect(screen.getByRole("button", { name: "Expand reader" })).toHaveFocus();
-    expect(reader).toHaveValue("Paragraph 8");
-});

@@ -54,7 +54,9 @@ export interface UserLookupResult {
 export interface ModelOption {
   id: string; label: string; group: string;
   provider?: import("../modelAvailability").ModelProvider;
-  settingsOnly?: boolean; available?: boolean;
+  settingsOnly?: boolean; available?: boolean; family?: string;
+  /** Canonical model shared by each provider entry of the same model. */
+  modelKey?: string;
   reasoningEfforts?: string[]; defaultReasoningEffort?: string;
 }
 export interface ModelCatalog {

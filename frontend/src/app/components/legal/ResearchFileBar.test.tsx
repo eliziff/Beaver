@@ -371,6 +371,16 @@ describe("ResearchFileBar", () => {
     expect(api.getResearchItems).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sourceId: "baker" }), expect.anything());
   });
 
+  it("shows each highlight type only its directly assigned passages", async () => {
+    await renderWorkspace();
+    const tree = highlightTree();
+    fireEvent.click(tree.getByRole("button", { name: "Expand Finding" }));
+    expect(tree.queryByRole("treeitem", { name: "para 5" })).not.toBeInTheDocument();
+
+    fireEvent.click(tree.getByRole("button", { name: "Expand Holding" }));
+    expect(await tree.findByRole("treeitem", { name: "para 5" })).toBeVisible();
+  });
+
   it("flattens every instance's type to a leaf name and edits one instance by its own identity", async () => {
     const paired = structuredClone(file), extra = { ...evidence, highlightId: "e_1:second", labelIds: ["second"] };
     paired.state.labels.holding = { ...paired.state.labels.holding, name: "Fairness", parentId: null };

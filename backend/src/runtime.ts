@@ -1,4 +1,5 @@
 import { createChatApplication, type ChatApplicationFeatures } from "./lib/chat/chatApplication";
+import { legalSourceCoveragePrompt } from "./lib/chat/prompts";
 import { constants, setPriority } from "node:os";
 import type { ChatToolContext } from "./lib/chat/turnEngine";
 import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
@@ -247,6 +248,7 @@ const chat = lazy(async () => {
         includeResearchTools: account.preferences.legalResearchUs,
         productFeatures: account.preferences.features,
         personalisationPrompt: userPersonalisationPrompt(account.preferences),
+        sourceCoveragePrompt,
         draftingStyle: account.preferences.draftingStyle,
         extraTools: [...loaded.extraTools ?? [], ...extraTools], workflows: new Map([
         ...SYSTEM_ASSISTANT_WORKFLOWS.map((item) => [item.variant_id, {
@@ -266,6 +268,9 @@ const shutdown = lazy(async () => {
   await import("./lib/relationalDatabase")
     .then(({ closeRelationalDatabase }) => closeRelationalDatabase());
 });
+/** A2AJ coverage rendered once at boot; the Sources library caches the same
+ *  fetch, so chats and the library share it. */
+let sourceCoveragePrompt: string | undefined;
 export const runtime = { mode: local ? "local" as const : "cloud" as const, capabilities,
   initialize: async (options: { cleanup?: boolean } = {}) => {
     // Compile the native grammars before the first user import.
@@ -286,6 +291,10 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
       ), 60 * 60 * 1_000);
       cleanupTimer.unref();
     }
+    // One coverage fetch at boot feeds both the Sources library and every chat
+    // turn, so neither resolves it later.
+    sourceCoveragePrompt = legalSourceCoveragePrompt(
+      await (await legalSources()).coverage()) ?? undefined;
   }, authoritiesWorkspace, courtRecords, chat, chats, documents, sources,
   audit, background, connectors, legalSources, library, projects, startWorkers, workProducts,
   tabular, workflows, preferences, user, shutdown };
