@@ -1,6 +1,13 @@
 export const CLIENT_WORK_PRODUCT_PRESUMPTION =
   "Presume legal work product is for a client or matter, not for the user personally, unless the user clearly says otherwise.";
 
+/** Journals are the entry point for doctrinal work, not a non-binding aside the
+ * model should disclaim. The description and the routing rule ship together so
+ * the model knows both what the dataset is and how to use it. */
+export const JOURNALS_AND_COMMENTARY_GUIDANCE = `JOURNALS AND COMMENTARY:
+The Journals dataset holds full-text, peer-reviewed law journal articles with abstracts and complete citation metadata.
+Doctrinal research should usually include reading Journals, which often give better and more accurate accounts of the law than cases do. LLMs assume that non-binding = ignore / do not rely on commentary. That is incorrect. Use journals in your searching and in your final synthesis unless the final synthesis naturally excludes it (e.g. the user asked just for a list of cases).`;
+
 /** The sole production assistant contract: coding-native source navigation,
  * one flat Word writer, exact tracked edits, and schema-based citation pills. */
 export const CODING_PRODUCTION_SYSTEM_PROMPT = `You are Beaver, a legal assistant for legal professionals. Complete the user's request accurately from the available sources.
@@ -19,7 +26,9 @@ DOCUMENT WORK:
 - Delegate only legal-authority research whose scope benefits from parallel searches.
 - Quote verbatim runs of a passage you read, marking any change with brackets or an ellipsis, including a recased first letter ("[b]ecause the duty", never "because the duty" for a sentence that begins "Because"); put citation markers after the closing quotation mark. If Write reports a quote as unverified, fix only the quotes it lists.
 
-Present substantive findings and completed work in professional prose, using filenames or natural document descriptions. Italicize styles of cause. Use Markdown tables for comparisons and fenced blocks for ASCII diagrams. Omit process narration, separate citation lists and emojis.`;
+Present substantive findings and completed work in professional prose, using filenames or natural document descriptions. Italicize styles of cause. Use Markdown tables for comparisons and fenced blocks for ASCII diagrams. Omit process narration, separate citation lists and emojis.
+
+${JOURNALS_AND_COMMENTARY_GUIDANCE}`;
 
 export type { JurisdictionPreference } from "mike/shared/user-preferences.mjs";
 import type { JurisdictionPreference } from "mike/shared/user-preferences.mjs";
@@ -60,4 +69,44 @@ export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
 - Consult Library documents only when the assignment depends on them.
 - When citing a case, use the judgment itself. Never cite its headnote unless the user specifically requests the headnote.
 - Use journal articles for substantive legal analysis and leads to primary authority.
-- Base conclusions on retrieved passages.`;
+- Base conclusions on retrieved passages.
+
+${JOURNALS_AND_COMMENTARY_GUIDANCE}`;
+
+export type LegalSourceCoverageEntry = {
+  dataset: string;
+  docType: "cases" | "laws";
+  jurisdiction: string;
+  documentCount?: number;
+};
+
+function coverageByJurisdiction(entries: readonly LegalSourceCoverageEntry[]) {
+  const grouped = new Map<string, string[]>();
+  for (const entry of [...entries].sort((left, right) =>
+      left.jurisdiction.localeCompare(right.jurisdiction) ||
+      left.dataset.localeCompare(right.dataset))) {
+    const datasets = grouped.get(entry.jurisdiction) ?? [];
+    datasets.push(entry.dataset);
+    grouped.set(entry.jurisdiction, datasets);
+  }
+  return [...grouped].map(([jurisdiction, datasets]) =>
+    `${jurisdiction} (${datasets.join(", ")})`).join("; ");
+}
+
+/** The installed A2AJ collections, rendered so the model stops querying courts
+ * and jurisdictions the corpus does not hold. Returns null when no coverage is
+ * known, so callers can omit the block entirely. */
+export function legalSourceCoveragePrompt(
+  coverage: readonly LegalSourceCoverageEntry[],
+): string | null {
+  const usable = coverage.filter((entry) => (entry.documentCount ?? 1) > 0);
+  const cases = coverageByJurisdiction(usable.filter((entry) => entry.docType === "cases"));
+  const laws = coverageByJurisdiction(usable.filter((entry) => entry.docType === "laws"));
+  if (!cases && !laws) return null;
+  return [
+    "A2AJ COVERAGE:",
+    cases ? `- Case law — ${cases}.` : "",
+    laws ? `- Legislation and regulations — ${laws}.` : "",
+    "A court, tribunal or jurisdiction not listed above is not available from A2AJ.",
+  ].filter(Boolean).join("\n");
+}

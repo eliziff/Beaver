@@ -1,8 +1,8 @@
 import { parseAssistantCitations } from "./assistantWire";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
-  type NormalizedToolResult, type ProviderSubagentUpdate, type ProviderTurnControl,
+  type NormalizedToolResult, type ProviderTurnControl,
   type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,
-  type SubagentMode, type UserApiKeys } from "../llm";
+  type UserApiKeys } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
@@ -104,7 +104,7 @@ export async function runChatTurn(options: {
   compactThreshold?: number;
   promptCacheKey?: string;
   signal?: AbortSignal;
-  subagentMode?: SubagentMode;
+  subagents?: boolean;
   subagentModel?: string;
   subagentEffort?: string;
   jurisdictionPreference?: JurisdictionPreference | null;
@@ -132,7 +132,7 @@ export async function runChatTurn(options: {
   /** Every streamed answer fragment, for callers that show the model working without keeping a transcript. */
   onContentDelta?: (delta: string) => void;
 }) {
-  const { emit, activityDetail = "auto", subagentMode = "none", signal } = options;
+  const { emit, activityDetail = "auto", subagents = false, signal } = options;
   const events: AssistantEvent[] = [];
   const toolActivities = new Map<string, ToolActivity>();
   const evidence = options.evidenceState ?? createLegalEvidenceTurnState();
@@ -269,7 +269,6 @@ export async function runChatTurn(options: {
     const base = {
       type: "subagent_run" as const,
       id,
-      agent: "scout" as const,
       task: `${assignment.scope}: ${assignment.task}`,
       model: capability.displayName,
       effort: capability.effort,
@@ -340,7 +339,7 @@ export async function runChatTurn(options: {
         apiKeys: options.apiKeys,
         reasoningEffort: capability.effort,
         signal,
-        subagentMode: "none",
+        subagents: false,
         activityDetail: "tools",
         providerSession: { persist: true, ...(continuationId ? { continuationId } : {}) },
         onProviderContinuation(id) {
@@ -366,7 +365,7 @@ export async function runChatTurn(options: {
       return {
         tool_use_id: call.id,
         status: "ok",
-        content: JSON.stringify({ ok: true, agent: "scout", findings: grounding.claims,
+        content: JSON.stringify({ ok: true, findings: grounding.claims,
           evidence: grounding.evidence.map(modelEvidencePassage) }),
       };
     } catch (error) {
@@ -398,11 +397,12 @@ export async function runChatTurn(options: {
       };
     }
   };
-  const readerSchemas = subagentMode === "beaver"
+  const readerSchemas = subagents
     ? [READ_SUBAGENT_TOOL, RESUME_SUBAGENT_TOOL] : [];
   const readerTools: BeaverTool<ChatToolContext>[] = readerSchemas.map((schema) => ({
     ...schema,
-    specialist: true,
+    // Delegation is an ordinary chat tool, not a load_tools specialist.
+    specialist: false,
     activity: (input) => schema.name === READ_SUBAGENT_TOOL_NAME
       ? readSubagentActivityLabel(input) : "Resuming reading agents",
     async execute(_input, _context, _signal, call) {
@@ -416,7 +416,8 @@ export async function runChatTurn(options: {
     ...mainTools,
     ...readerTools,
   ]);
-  const systemPrompt = [options.systemPrompt, researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
+  const systemPrompt = [options.systemPrompt,
+    researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
   const resolveTools = () => registry.visible();
   const runTools = async (calls: NormalizedToolCall[], onActivity?: () => void) => {
     throwIfAborted(signal);
@@ -554,19 +555,6 @@ export async function runChatTurn(options: {
       addEvent(event);
       emit(event);
     },
-    onSubagentUpdate(update: ProviderSubagentUpdate) {
-      providerActivity = true;
-      const { activities, activity, ...native } = update;
-      const decorate = <T extends { label: string }>(value: T) => ({ ...value, tool: "native" });
-      const event: ReadSubagentEvent = { type: "subagent_run", agent: "native", ...native,
-        ...(activities && { activities: activities.map(decorate) }) };
-      emit(publicAssistantEvent(event.status === "running" ? {
-        type: "subagent_run", agent: "native", ...native,
-        ...(activity && { activity: decorate(activity) }),
-      } : event));
-      options.onSubagentEvent?.(event);
-      if (event.status !== "running") addEvent(event);
-    },
   };
   const takeSteering = () => {
     const messages = steering.splice(0);
@@ -615,7 +603,6 @@ export async function runChatTurn(options: {
     reasoningEffort: options.reasoningEffort,
     compactThreshold: options.compactThreshold,
     promptCacheKey: options.promptCacheKey,
-    nativeSubagents: subagentMode === "native",
     enableThinking: true,
     reasoningSummary:
       activityDetail === "auto" || activityDetail === "trace" ? "auto" : "none",

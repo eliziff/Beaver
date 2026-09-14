@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
 import { createAnthropicWireAdapter } from "./anthropicWire";
 import { requireApiKey } from "./apiKeys";
-import { openCodeGoModelSlug, openCodeGoProtocol } from "./models";
+import { openCodeGoModelSlug, openCodeGoWireProtocol } from "./models";
 import { createCompatibleWireAdapter } from "./openaiCompatibleWire";
 import { createResponsesWireAdapter } from "./openaiResponsesWire";
 import { runProviderLoop } from "./providerLoop";
@@ -51,8 +51,8 @@ const wireHeaders = (session: string) =>
 
 export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatResult> {
   const model = openCodeGoModelSlug(params.model);
-  const protocol = openCodeGoProtocol(params.model);
-  if (!model || !protocol) throw new Error(`Unsupported OpenCode Go model: ${params.model}`);
+  const protocol = openCodeGoWireProtocol(params.model);
+  if (!model) throw new Error(`Unsupported OpenCode Go model: ${params.model}`);
   const apiKey = key(params);
   const endpoint = baseUrl();
   const session = params.promptCacheKey?.trim() || randomUUID();
@@ -94,21 +94,29 @@ export type OpenCodeGoCatalog = {
   models: { id: string; displayName: string }[];
 };
 
+/** Exposes every slug the subscription publishes; the wire is chosen when a turn is sent. */
+export function normalizeOpenCodeGoCatalog(payload: unknown): OpenCodeGoCatalog["models"] {
+  const data = (payload as { data?: unknown } | null)?.data;
+  return (Array.isArray(data) ? data : []).flatMap((raw) => {
+    const row = (raw ?? {}) as { id?: unknown; name?: unknown };
+    if (typeof row.id !== "string") return [];
+    const id = row.id.trim();
+    if (!id || id.includes("/")) return [];
+    return [{ id, displayName: typeof row.name === "string" && row.name.trim() ? row.name.trim() : id }];
+  }).sort((left, right) => left.displayName.localeCompare(right.displayName));
+}
+
 async function probeOpenCodeGo(apiKey: string | null | undefined): Promise<OpenCodeGoCatalog> {
   const token = apiKey?.trim() || subscriptionToken();
   if (!token) throw new Error(`${label} is not configured.`);
-  const payload = await fetchCatalogJson<{ data?: { id?: unknown; name?: unknown }[] }>(
+  const payload = await fetchCatalogJson<unknown>(
     `${baseUrl()}/models`, {
       label: "OpenCode Go model listing",
       timeoutMs: Number(process.env.OPENCODE_GO_CATALOG_TIMEOUT_MS) || 3_000,
       headers: { ...wireHeaders(randomUUID()), Authorization: `Bearer ${token}` },
     },
   );
-  const models = (payload.data ?? []).flatMap(({ id, name }) => {
-    if (typeof id !== "string" || !openCodeGoProtocol(id)) return [];
-    return [{ id, displayName: typeof name === "string" && name.trim() ? name.trim() : id }];
-  }).sort((left, right) => left.displayName.localeCompare(right.displayName));
-  return { source: "live", models };
+  return { source: "live", models: normalizeOpenCodeGoCatalog(payload) };
 }
 
 const cache = createCatalogCache<OpenCodeGoCatalog, string | null | undefined>(probeOpenCodeGo, {

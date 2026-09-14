@@ -40,14 +40,18 @@ import { FolderSvgIcon } from "@/app/components/shared/FolderSvgIcon";
 import {
     legalSourceLocatorFromUrl,
     normalizeLegalSourceLocator,
+    type LegalSourceTab,
 } from "@/app/components/legal/LegalSourceViewer";
+import { LegalSourcePopup } from "@/app/components/legal/LegalSourcePopup";
 
 import {
     type ReadSubagentPanel,
 } from "./ReadSubagentDock";
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
-import { ChatResearchSave } from "./ChatResearchSave";
+import { ChatResearchFlow, type ChatResearchFlowHandle } from "./ChatResearchFlow";
+import { OrganizeChatModal, organizeOpenAsIcons } from "./OrganizeChatModal";
+import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
 import { ChatFindingActions } from "./ChatFindingActions";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
@@ -70,7 +74,8 @@ interface Props {
     onRejectedTurnRestored?: () => void;
     onRetryRejectedTurn?: () => void;
     projectName?: string | null;
-    onProjectClick?: () => void;
+    chatTitle?: string | null;
+    onProjectChange?: (projectId: string | null) => Promise<void> | void;
     projectId?: string;
     projectCmNumber?: string | null;
     useDisplayedDocumentContext?: boolean;
@@ -174,7 +179,8 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         onRejectedTurnRestored,
         onRetryRejectedTurn,
         projectName,
-        onProjectClick,
+        chatTitle,
+        onProjectChange,
         projectId,
         projectCmNumber,
         useDisplayedDocumentContext,
@@ -206,7 +212,11 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         initialWorkflow ? "workflows" : projectFiles ? "project-files" : "sources",
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
+    const [organizeOpen, setOrganizeOpen] = useState(false);
+    const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+    const researchFlowRef = useRef<ChatResearchFlowHandle>(null);
     const [activeTabId, setActiveTabId] = useState<string | null>(null);
+    const [poppedSource, setPoppedSource] = useState<LegalSourceTab | null>(null);
     const { file: activeResearchFile, selection: researchSelection, loading: researchLoading } = useSourcesWorkspace();
     const [workflowInitialId, setWorkflowInitialId] = useState(
         initialWorkflow?.workflow.id,
@@ -559,7 +569,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
                 void handleChat(message);
             }}
             projectId={projectId ?? undefined}
-            researchFileId={researchFileId} researchRefreshKey={researchRefreshKey} onOpenSource={upsertTab} />;
+            researchFileId={researchFileId} researchRefreshKey={researchRefreshKey} onOpenSource={setPoppedSource} />;
     const dockTabs: AssistantDockTab[] = [
         ...(projectFiles ? [{
             id: "project-files",
@@ -580,10 +590,9 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         {
             id: "sources",
             label: "Sources",
-            readerExpansion: Boolean(tabs.length) && (tabs.find((tab) => tab.id === activeTabId) ?? tabs[0])?.kind !== "legal",
             content: tabs.length ? readerPanel(true) : dockPanel("sources"),
         },
-        {
+        ...(readSubagents.showDock && agentGroups.length ? [{
             id: "agents",
             label: "Agents",
             content: (
@@ -594,28 +603,18 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
                     onCitationClick={openCitation}
                 />
             ),
-        },
+        }] : []),
     ];
     const resolvedDockTab = dockTabs.some((tab) => tab.id === activeDockTab)
         ? activeDockTab
         : "sources";
-    const header = (onProjectClick ||
-        (chatId && researchSaveEnabled && hasResearchSources)) ? (
-        <div className="flex min-h-9 shrink-0 items-center justify-end gap-2 px-4 pe-12">
-            {chatId && researchSaveEnabled && hasResearchSources &&
-                <ChatResearchSave chatId={chatId} projectId={projectId}
-                    question={messages.findLast((message) => message.role === "user")?.content} />}
-            {onProjectClick ? <button
-                type="button"
-                onClick={onProjectClick}
-                aria-label={projectName ? "Change project: " + projectName : "Add chat to project"}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-            >
-                <FolderSvgIcon className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{projectName ?? "Add to project"}</span>
-            </button> : null}
-        </div>
-    ) : undefined;
+    const latestAssistantId = session.messages.findLast(({ role }) => role === "assistant")?.id;
+    const messageActions = activeResearchFile && chatId && onUseAnswer
+        ? (messageId: string) => messageId === latestAssistantId
+            ? <ChatFindingActions file={activeResearchFile} chatId={chatId}
+                messageId={messageId} onUseAnswer={() => onUseAnswer(messageId)} />
+            : null
+        : undefined;
     const intent = initialIntent ?? (layout === "page" ? location.state?.assistantIntent as AssistantIntent | undefined : undefined);
     const submittedIntent = useRef<string | null>(null);
     useEffect(() => {
@@ -641,11 +640,20 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
             onExpandedChange={setDockExpanded}
         />
     ) : undefined;
-    return <ConversationView
+    const organizeOptions = chatId && researchSaveEnabled && hasResearchSources ? [
+        { label: "Workspace", description: "Label this chat's authorities and passages, then open them in Sources.",
+            icon: organizeOpenAsIcons.workspace,
+            onSelect: () => { setOrganizeOpen(false); void researchFlowRef.current?.openWorkspace(); } },
+        { label: "Tabular Review",
+            description: "Turn this chat session into a tabular review, with the ability to continue this research in a tabular format.",
+            icon: organizeOpenAsIcons.table,
+            onSelect: () => { setOrganizeOpen(false); void researchFlowRef.current?.openTable(); } },
+    ] : [];
+    return <>
+        <ConversationView
         ref={conversationRef}
         chatId={chatId}
-        messageActions={activeResearchFile && chatId && onUseAnswer ? (messageId) => messageId === session.messages.findLast(({ role }) => role === "assistant")?.id ? <ChatFindingActions
-            file={activeResearchFile} chatId={chatId} messageId={messageId} onUseAnswer={() => onUseAnswer(messageId)} /> : null : undefined}
+        messageActions={messageActions}
         session={session}
         handleChat={handleChat}
         cancel={cancel}
@@ -669,7 +677,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         resolvedEditStatuses={editState.statuses}
         layout={layout}
         gutterVisible={assistantSideGutterVisible}
-        header={header}
         dock={dock}
         showContextTools={contextToolsEnabled}
         onOpenWorkflows={dockEnabled ? openWorkflows : undefined}
@@ -681,5 +688,21 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         editModeLabels={editModeLabels}
         sendDisabled={sendDisabled}
         searchMessageId={searchMessageId}
-    />;
+        onOrganize={() => setOrganizeOpen(true)}
+        />
+        <OrganizeChatModal open={organizeOpen} onClose={() => setOrganizeOpen(false)}
+            projectName={projectName}
+            onAddToProject={onProjectChange
+                ? () => { setOrganizeOpen(false); setProjectPickerOpen(true); }
+                : undefined}
+            openAs={organizeOptions} />
+        {onProjectChange && <SelectAssistantProjectModal open={projectPickerOpen}
+            onClose={() => setProjectPickerOpen(false)} chatTitle={chatTitle}
+            currentLocation={projectName} currentProjectId={projectId}
+            onSelectProject={onProjectChange} />}
+        {chatId && <ChatResearchFlow ref={researchFlowRef} chatId={chatId} projectId={projectId}
+            question={messages.findLast((message) => message.role === "user")?.content}
+            getModelPreferences={() => conversationRef.current?.getModelPreferences()} />}
+        {poppedSource && <LegalSourcePopup tab={poppedSource} onClose={() => setPoppedSource(null)} />}
+    </>;
 });

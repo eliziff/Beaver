@@ -414,7 +414,7 @@ export function useAssistantChat({
         jurisdiction_preference: jurisdictionPreferenceForChat(
           profile?.jurisdictionPreference ?? { mode: "ask", jurisdictions: [] },
         ),
-        subagent_mode: readSubagents.mode === "native" && !model.startsWith("codex:") ? "none" : readSubagents.mode,
+        subagents: readSubagents.enabled,
         subagent_model: readSubagents.model,
         subagent_effort: readSubagents.effort,
         activity_detail: preferences.activityDetail,

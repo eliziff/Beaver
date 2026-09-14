@@ -1,6 +1,7 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
 import type Anthropic from "@anthropic-ai/sdk";
+import { modelForProvider } from "./models";
 import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type Block = Record<string, unknown>;
@@ -86,7 +87,7 @@ export function createAnthropicWireAdapter(
         });
       }
       const body = {
-        model: config.model ?? params.model,
+        model: config.model ?? modelForProvider(params.model),
         system: params.systemPrompt,
         messages: requestMessages as Anthropic.MessageParam[],
         tools: tools(step.tools),

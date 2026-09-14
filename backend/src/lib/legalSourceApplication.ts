@@ -109,6 +109,10 @@ const providers = createLegalSourceRegistry<unknown>([
   journalLegalSourceProvider, hansardLegalSourceProvider,
 ]);
 
+type LegalSourceCoverage = Awaited<ReturnType<typeof a2ajLegalSourceProvider.coverage>>[number];
+const COVERAGE_TTL_MS = 24 * 60 * 60_000;
+const COVERAGE_RETRY_MS = 5 * 60_000;
+
 export const legalSourceOperations = {
   ...providers,
   async readWithRenditions(request: LegalSourcePassageRequest, userId?: string) {
@@ -136,6 +140,7 @@ export const legalSourceOperations = {
 };
 
 export function createLegalSourceApplication(store: LegalSourceStore) {
+  let coverageCache: { expires: number; value: LegalSourceCoverage[] } | undefined;
   async function viewer(userId: string, pointer: ViewerPointer) {
     const request = pointer.provider === "journal" || pointer.docType === "articles"
       ? journalLegalSourceProvider.viewer(pointer.sourceId ?? pointer.citation)
@@ -161,10 +166,14 @@ export function createLegalSourceApplication(store: LegalSourceStore) {
     ...legalSourceOperations,
     list: store.list,
     async coverage() {
+      if (coverageCache && coverageCache.expires > Date.now()) return coverageCache.value;
       const results = await Promise.allSettled([
         a2ajLegalSourceProvider.coverage("cases"), a2ajLegalSourceProvider.coverage("laws"),
       ]);
-      return results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+      const value = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+      coverageCache = { value,
+        expires: Date.now() + (value.length ? COVERAGE_TTL_MS : COVERAGE_RETRY_MS) };
+      return value;
     },
     async searchLibrary({ docType, size, ...query }: Omit<LegalSourceSearchRequest,
       "kinds" | "providers" | "limit" | "perProviderLimit"> & {

@@ -60,19 +60,6 @@ export type NormalizedToolResult = {
   terminal?: boolean;
 };
 
-export type ProviderSubagentUpdate = {
-  id: string;
-  task: string;
-  model: string;
-  effort: string;
-  status: "running" | "completed" | "error" | "interrupted";
-  output?: string;
-  error?: string;
-  activity?: NonNullable<ProviderSubagentUpdate["activities"]>[number];
-  activities?: Array<{ id: string; label: string;
-    status: "running" | "completed" | "error" | "interrupted" }>;
-};
-
 export type StreamCallbacks = {
   /** Provider or nested-tool progress used by inactivity watchdogs. */
   onActivity?: () => void;
@@ -88,7 +75,6 @@ export type StreamCallbacks = {
   onCompaction?: (status: "running" | "completed" | "failed") => void;
   onContextCheckpoint?: (checkpoint: ProviderContextCheckpoint) => void;
   onSteer?: (message: { id: string; text: string }) => void;
-  onSubagentUpdate?: (update: ProviderSubagentUpdate) => void;
 };
 
 export type ProviderTurnControl = {
@@ -108,8 +94,6 @@ export type UserApiKeys = {
   courtlistener?: string | null;
   codex?: string | null;
 };
-
-export type SubagentMode = "none" | "beaver" | "native";
 
 export type StreamChatParams = {
   model: string;
@@ -156,8 +140,6 @@ export type StreamChatParams = {
   reasoningSummary?: "auto" | "none";
   /** Provider reasoning effort when the selected model supports it. */
   reasoningEffort?: string;
-  /** Allow Codex app-server to expose its provider-native multi-agent tools. */
-  nativeSubagents?: boolean;
   /** Host-selected service tier; adapters must gate it on model capability. */
   serviceTier?: string;
   /** Responses compaction threshold. Unsupported adapters ignore it. */

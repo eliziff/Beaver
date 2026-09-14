@@ -9,9 +9,11 @@ import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";
 import { FileDirectory } from "../shared/FileDirectory";
 import { ResearchTree, type ResearchTreePreview } from "../legal/ResearchTree";
+import { ResearchLabelTree } from "../legal/ResearchLabelTree";
 import { SourcesWorkspace } from "../legal/SourcesWorkspace";
 import { tabularReviewPath } from "./tabularReviewRoute";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
+import { ActivityDisclosure } from "../assistant/message/EventBlocks";
 
 const HEAD = "text-sm font-semibold text-gray-900", META = "text-xs text-gray-500";
 const CARD = "relative min-w-0 break-words rounded-lg border border-gray-200 p-4 pe-10";
@@ -19,7 +21,7 @@ const FIELD = "block w-full min-w-0 rounded border border-transparent bg-transpa
 const INPUT = "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 type Props = { open: boolean; onClose: () => void; fileId?: string; projectId?: string | null; mode?: "table" | "labels";
     selection?: ResearchSelection; chatId?: string; tableId?: string; columnIndex?: number; defaultRequest?: string; onOpen: (path: string) => void;
-    /** The model that produced the research; the picker's current choice is only the fallback. */
+    /** The chat composer's current selection; the global picker is the fallback. */
     model?: string | null; reasoningEffort?: string | null };
 type Design = ResearchTablePreview["design"];
 export const ImportResearchSet = ({ open, ...props }: Props) => open ? <OpenImportResearchSet {...props} /> : null;
@@ -72,6 +74,13 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const laneModel = (which: "chat" | "picker") => which === "chat" && chatModel
         ? { model: chatModel, effort: chatEffort ?? undefined } : { model: pickerModel, effort: pickerEffort };
     const { model, effort } = laneModel(lane);
+    const existingStructure = labelling && file?.document.id === activeId && Object.keys(file.state.labels).length > 0;
+    useEffect(() => {
+        let active = true; setFile(null);
+        if (labelling && activeId) void getResearchFile(activeId).then((current) => { if (active) setFile(current); })
+            .catch((reason) => { if (active) setError(errorMessage(reason, "Could not load the current structure")); });
+        return () => { active = false; };
+    }, [activeId, labelling]);
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
     async function propose(instruction = "", repropose = false, which = lane) {
@@ -83,9 +92,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             const request = [defaultRequest.trim(), instruction.trim()].filter(Boolean).join("\n");
             const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
                 ...(effort ? { reasoningEffort: effort } : {}) };
-            // A rejected first attempt stays on screen through the corrected one, so the lawyer sees why it took longer.
-            const report = (event: ProposalProgress) => { if (run !== generation.current) return;
-                setProgress((current) => event.stage === "asking" && current?.note ? { ...event, note: current.note } : event); };
+            const report = (event: ProposalProgress) => { if (run === generation.current) setProgress(event); };
             const [current, next] = await Promise.all([getResearchFile(activeId), labelling
                 ? proposeWorkspaceLabels(activeId, body, report, controller.signal) : proposeWorkspaceTable(activeId, body, report, controller.signal)]);
             if (run !== generation.current) return;
@@ -104,10 +111,10 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer); }, [busy]);
     const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0, shortModel = (value = model) => value.split(":").pop() ?? value;
     const working = progress?.stage === "reading" ? "Reading the research…"
-        : progress?.stage === "asking" ? [progress.note ? `Second attempt (the first was rejected: ${progress.note})` : "", `Asking ${shortModel(progress.model)}…`,
+        : progress?.stage === "asking" ? [`Asking ${shortModel(progress.model)}…`,
             progress.chars ? `${progress.chars.toLocaleString()} characters` : "", `${elapsed} s`].filter(Boolean).join(" · ")
         : progress?.stage === "checking" ? "Checking the proposal against the research…"
-        : progress?.stage === "retrying" ? `The first proposal was rejected (${progress.note}); asking for a correction…` : "";
+        : progress?.stage === "retrying" ? "Preparing the proposal…" : "";
     const columns = preview?.design.columns ?? [];
     const valid = labelling ? !!plan : columns.length > 0 && columns.every((column) => column.name.trim() && column.prompt.trim());
     async function create() {
@@ -146,12 +153,12 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize this research" : "Extract a table"]}
         footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p>
-            : busy && proposed ? <p role="status" className={`me-auto ${META}`}>{working}</p>
             : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
         secondaryAction={!activeId ? undefined : busy ? { label: "Cancel", onClick: cancel }
-            : proposed ? { label: "Propose again", disabled: creating, onClick: () => void propose(adjust, true) } : undefined}
+            : proposed ? { label: "Propose again", disabled: creating, onClick: () => void propose(adjust, true) }
+            : existingStructure ? { label: "Open workspace", onClick: () => { onOpen(`/sources?research_file=${encodeURIComponent(activeId)}`); onClose(); } } : undefined}
         primaryAction={!activeId ? undefined : busy ? { label: "Proposing…", disabled: true }
-            : !proposed ? { label: labelling ? "Propose labels" : "Propose a table", onClick: () => void propose(adjust, !!adjust.trim()) }
+            : !proposed ? { label: existingStructure ? "Propose changes" : labelling ? "Propose labels" : "Propose a table", onClick: () => void propose(adjust, existingStructure || !!adjust.trim()) }
             : { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table", onClick: () => void create(), disabled: creating || !valid }}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
             {!activeId ? <div className="min-h-0 flex-1"><FileDirectory selectedDocuments={picked} showTabs
@@ -159,13 +166,21 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                 initialLocation={projectId ? { projectId } : { library: "files" }} /></div>
             : <>
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pe-1" aria-busy={busy}>
-                    {busy && !proposed ? <div role="status" className="flex flex-col gap-3">
-                        <p className={META}>{working}</p>
-                        {[0, 1, 2].map((key) => <div key={key} className="h-20 shrink-0 animate-pulse rounded-lg bg-gray-100" />)}
-                    </div>
+                    {busy && <ActivityDisclosure isStreaming label={working} />}
+                    {busy && !proposed ? null
                     : !proposed ? <div className="flex flex-col gap-2">
+                        {existingStructure && file && <>
+                            <h2 className={HEAD}>Current structure</h2>
+                            <SourcesWorkspace file={file}>{([["Labels", "source"], ["Highlight types", "highlight"]] as const)
+                                .filter(([, scope]) => Object.values(file.state.labels).some((label) => label.scope === scope))
+                                .map(([heading, scope]) => <section key={scope}>
+                                    <h3 className={META}>{heading}</h3>
+                                    <ResearchLabelTree scope={scope} selectedId={null} onSelect={() => undefined}
+                                        onRemove={() => undefined} onStatus={() => undefined} preview={{ labels: file.state.labels, marks: {} }} />
+                                </section>)}</SourcesWorkspace>
+                        </>}
                         <p className="text-sm text-gray-700">{labelling
-                            ? "The model reads this research's sources, saved passages and findings and proposes a label set to file them under. Nothing changes until you apply it."
+                            ? existingStructure ? "Review proposed changes before applying them." : "Propose labels and highlight types for this workspace. Nothing changes until you apply them."
                             : "The model reads this research's sources, saved passages and findings and proposes a table: one row per source, one column per thing a lawyer wants to see. Nothing is created until you accept it."}</p>
                         <p className={META}>Runs on {shortModel()}{effort ? ` · ${effort} reasoning` : ""}</p>
                     </div>

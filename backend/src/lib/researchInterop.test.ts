@@ -111,9 +111,10 @@ it("accepts a Chat proposal that refiles under the existing ontology it was show
   const saved = await f.sources.applyLabels(owner, id, { ...input, design: preview.design, fingerprint: preview.fingerprint });
   expect(saved.state.sources[f.sourceId].labelIds).toEqual([f.labelId]);
   expect(Object.values(saved.state.labels).map(({ name }) => name).sort()).toEqual(["Integrated scheme", "Rule"]);
-  // A redesign is judged as one: a fresh ontology must still name the findings that support each source.
-  await expect(f.sources.applyLabels(owner, id, { ...input, repropose: true, design: preview.design,
-    fingerprint: preview.fingerprint })).rejects.toMatchObject({ status: 400 });
+  const reproposed = await f.sources.applyLabels(owner, id, { ...input, repropose: true, design: preview.design,
+    fingerprint: preview.fingerprint });
+  expect(reproposed.state.sources[f.sourceId].labelIds).toEqual([f.labelId]);
+  expect(Object.keys(reproposed.state.labels).sort()).toEqual(Object.keys(saved.state.labels).sort());
 });
 
 it("stores accepted table concepts on the set and projects them into both later proposals", async () => {

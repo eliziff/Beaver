@@ -269,6 +269,20 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByRole("status", { name: "Location" }).textContent).toBe("");
   });
 
+  it("starts a blank workspace when a workflow asks for a new Authorities draft", async () => {
+    const saved = documentDraft("last-draft", "Last draft");
+    localStorage.setItem("beaver.authorities.last.library", saved.id);
+    api.getWorkProduct.mockResolvedValue(saved);
+    render(<MemoryRouter initialEntries={[{ pathname: "/table-of-authorities",
+      state: { newDraft: true } }]}>
+      <TableOfAuthoritiesPage /><LocationProbe /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Import and review" })).toBeVisible();
+    expect(api.getWorkProduct).not.toHaveBeenCalled();
+    expect(localStorage.getItem("beaver.authorities.last.library")).toBeNull();
+    expect(screen.getByRole("status", { name: "Location" }).textContent).toBe("");
+  });
+
   it("restores the saved draft after briefly opening the other start mode", async () => {
     const saved = documentDraft("active", "Active authorities");
     api.getWorkProduct.mockResolvedValue(saved);

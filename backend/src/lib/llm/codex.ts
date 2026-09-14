@@ -8,10 +8,9 @@ import { startMcpToolBridge, type McpToolBridge } from "./mcpToolBridge";
 import { codexModelSlug } from "./models";
 import { flattenedPrompt } from "./prompt";
 import { jsonRecord as record } from "../value";
-import type { NormalizedLlmUsage, NormalizedToolCall, ProviderSubagentUpdate,
+import type { NormalizedLlmUsage, NormalizedToolCall,
   StreamChatParams, StreamChatResult } from "./types";
 
-type JsonObject = Record<string, unknown>;
 type ThreadResponse = { thread?: { id?: unknown } };
 type TurnResponse = { turn?: { id?: unknown } };
 type SteerResponse = { turnId?: unknown };
@@ -138,11 +137,11 @@ function threadParams(params: StreamChatParams, bridge: McpToolBridge | null,
   const config = {
     include_permissions_instructions: false,
     include_apps_instructions: false,
-    include_collaboration_mode_instructions: params.nativeSubagents === true,
+    include_collaboration_mode_instructions: false,
     include_environment_context: false,
     memories: { use_memories: false, generate_memories: false },
     skills: { include_instructions: false },
-    agents: { enabled: params.nativeSubagents === true },
+    agents: { enabled: false },
     apps: { _default: { enabled: false } },
     web_search: "disabled",
     ...Object.fromEntries(DISABLED_CODEX_FEATURES.map((name) => [`features.${name}`, false])),
@@ -174,16 +173,6 @@ function threadParams(params: StreamChatParams, bridge: McpToolBridge | null,
     config,
   };
 }
-
-const NATIVE_AGENT_STATUS: Partial<Record<string, ProviderSubagentUpdate["status"]>> = {
-  pendingInit: "running", running: "running", completed: "completed",
-  interrupted: "interrupted", shutdown: "interrupted",
-  errored: "error", notFound: "error",
-};
-const NATIVE_ACTIVITY_LABEL: Partial<Record<string, string>> = {
-  spawnAgent: "Starting subagent", sendInput: "Steering subagent",
-  resumeAgent: "Resuming subagent", wait: "Waiting for subagent", closeAgent: "Closing subagent",
-};
 
 async function runCodexTurn(params: StreamChatParams,
   imagePaths: string[]): Promise<StreamChatResult> {
@@ -220,7 +209,6 @@ async function runCodexTurn(params: StreamChatParams,
   let interruptTimer: NodeJS.Timeout | undefined;
   let interruptRequested = false;
   const streamedByItem = new Map<string, string>();
-  const nativeAgents = new Map<string, ProviderSubagentUpdate>();
   let markTurnReady!: () => void;
   const turnReady = new Promise<void>((resolve) => {
     markTurnReady = resolve;
@@ -242,59 +230,6 @@ async function runCodexTurn(params: StreamChatParams,
   const onAbort = () => {
     void interrupt().catch(() => undefined);
     interruptTimer ??= setTimeout(() => complete(abortError()), INTERRUPT_GRACE_MS);
-  };
-
-  const publishNativeSubagents = (item: JsonObject, lifecycle: "started" | "completed") => {
-    if (item.type === "subAgentActivity") {
-      const id = typeof item.agentThreadId === "string" ? item.agentThreadId : "";
-      const previous = nativeAgents.get(id);
-      if (!id || !previous) return;
-      const status = item.kind === "interrupted" ? "interrupted" : previous.status;
-      const update = { ...previous, status };
-      nativeAgents.set(id, update);
-      params.callbacks?.onSubagentUpdate?.(update);
-      return;
-    }
-    if (item.type !== "collabAgentToolCall") return;
-    const states = record(item.agentsStates) ?? {};
-    const ids = new Set([
-      ...(Array.isArray(item.receiverThreadIds)
-        ? item.receiverThreadIds.filter((id): id is string => typeof id === "string")
-        : []),
-      ...Object.keys(states),
-    ]);
-    for (const id of ids) {
-      const previous = nativeAgents.get(id);
-      const state = record(states[id]);
-      const activityStatus = lifecycle === "started" || item.status === "inProgress"
-        ? "running" : item.status === "failed" ? "error" : "completed";
-      const activity = {
-        id: String(item.id ?? `${item.tool ?? "subagent"}:${id}`),
-        label: NATIVE_ACTIVITY_LABEL[String(item.tool)] ?? "Updating subagent",
-        status: activityStatus,
-      } satisfies NonNullable<ProviderSubagentUpdate["activities"]>[number];
-      const activities = [...(previous?.activities ?? [])];
-      const activityIndex = activities.findIndex((value) => value.id === activity.id);
-      if (activityIndex < 0) activities.push(activity);
-      else activities[activityIndex] = activity;
-      const status = NATIVE_AGENT_STATUS[String(state?.status)] ??
-        (item.status === "failed" ? "error" : previous?.status ?? "running");
-      const message = typeof state?.message === "string" ? state.message : "";
-      const update: ProviderSubagentUpdate = {
-        id,
-        task: (typeof item.prompt === "string" && item.prompt) ||
-          previous?.task || "Subagent task",
-        model: (typeof item.model === "string" && item.model) || previous?.model || "",
-        effort: (typeof item.reasoningEffort === "string" && item.reasoningEffort) ||
-          previous?.effort || "",
-        status,
-        activities,
-        ...(status === "completed" && message ? { output: message } : {}),
-        ...(status === "error" && message ? { error: message } : {}),
-      };
-      nativeAgents.set(id, update);
-      params.callbacks?.onSubagentUpdate?.({ ...update, activity });
-    }
   };
 
   const listener = (event: CodexAppServerNotification) => {
@@ -331,7 +266,6 @@ async function runCodexTurn(params: StreamChatParams,
         return;
       case "item/started": {
         const item = record(event.params.item);
-        if (item) publishNativeSubagents(item, "started");
         if (item?.type === "contextCompaction") {
           compactionRunning = true;
           params.callbacks?.onCompaction?.("running");
@@ -341,7 +275,6 @@ async function runCodexTurn(params: StreamChatParams,
       case "item/completed": {
         const item = record(event.params.item);
         if (!item) return;
-        publishNativeSubagents(item, "completed");
         if (item.type === "reasoning") callbacks.onReasoningBlockEnd();
         if (item.type === "contextCompaction") {
           compactionRunning = false;

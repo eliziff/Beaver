@@ -13,6 +13,14 @@ export function workflowPath(workflow: Workflow) {
     }
 }
 
+/**
+ * Opening a work-product workspace from a workflow starts a new draft rather
+ * than resuming whatever draft the workspace last had open.
+ */
+export const newDraftState = (workflow: Workflow) =>
+    workflow.launcher.kind === "authorities" || workflow.launcher.kind === "court_records"
+        ? { state: { newDraft: true } } : undefined;
+
 export const workflowDocumentTab = ({ variant }: WorkflowSelection) =>
     variant.id === "builtin-draft-from-template" ? "templates" as const : "files" as const;
 

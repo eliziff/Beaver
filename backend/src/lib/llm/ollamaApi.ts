@@ -1,4 +1,5 @@
 import { createCompatibleWireAdapter, type CompatibleMessage } from "./openaiCompatibleWire";
+import { modelForProvider, providerForModel } from "./models";
 import { ollamaBaseUrl } from "./ollamaModels";
 import { runProviderLoop } from "./providerLoop";
 import type { StreamChatParams, StreamChatResult, Tool } from "./types";
@@ -44,7 +45,10 @@ function mapError(error: unknown) {
 }
 
 export function streamOllama(params: StreamChatParams): Promise<StreamChatResult> {
-  const model = params.model.startsWith("ollama:") ? params.model.slice(7).trim() : "";
+  if (providerForModel(params.model) !== "ollama") {
+    throw new Error(`Not an ollama model: ${params.model}`);
+  }
+  const model = modelForProvider(params.model).trim();
   if (!model) throw new Error(`Not an ollama model: ${params.model}`);
   const requestedEffort = params.reasoningEffort?.toLowerCase();
   const effort = requestedEffort === "max" ? "high" : requestedEffort;

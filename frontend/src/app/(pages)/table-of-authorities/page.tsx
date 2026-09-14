@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
 import type { AuthoritiesProduct } from "@/app/authorities/types";
@@ -11,6 +11,8 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 
 export default function TableOfAuthoritiesPage() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { profile } = useUserProfile();
   const assistant = useWorkProductAssistantState<AuthoritiesProduct>();
   const [focus, setFocus] = useState<WorkProductFocus>();
@@ -24,6 +26,9 @@ export default function TableOfAuthoritiesPage() {
     if (draft) next.set("draft", draft.id); else next.delete("draft");
     setParams(next, { replace: true });
   }, [onProductChange, params, setParams]);
+  const onInitialConsumed = useCallback(() => {
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [navigate, location.pathname, location.search]);
   return <div className="relative flex h-full min-h-0 w-full">
     <div className="min-h-0 min-w-0 flex-1">
       <AuthoritiesWorkspace host={beaverAuthoritiesHost} LibraryPicker={LibraryDocumentPicker}
@@ -31,6 +36,8 @@ export default function TableOfAuthoritiesPage() {
         initialDraftId={params.get("draft") ?? undefined}
         projectId={params.get("project") || undefined}
         locked={assistant.busy}
+        initialNewDraft={location.state?.newDraft === true}
+        onInitialConsumed={onInitialConsumed}
         onFocusChange={setFocus}
         onDraftChange={onDraftChange} refreshToken={assistant.refreshToken}
         headerActions={assistant.product ? <WorkProductAssistantButton available

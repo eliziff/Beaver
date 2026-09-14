@@ -63,11 +63,20 @@ export function TabList<T extends string>({ value, onValueChange, options,
     useLayoutEffect(() => {
         const list = listRef.current;
         const tab = refs.current[active];
-        if (!list || !tab || list.scrollWidth <= list.clientWidth + 1) return;
-        const rail = list.getBoundingClientRect();
-        const item = tab.getBoundingClientRect();
-        if (item.left < rail.left) list.scrollLeft -= rail.left - item.left;
-        else if (item.right > rail.right) list.scrollLeft += item.right - rail.right;
+        if (!list || !tab) return;
+        // A closed <dialog> is display:none, so the first measurement can be
+        // zero while the parent Modal has yet to call showModal. Re-measure on
+        // the next frame, once the dialog is visible, to reveal the active tab.
+        const reveal = () => {
+            if (list.scrollWidth <= list.clientWidth + 1) return;
+            const rail = list.getBoundingClientRect();
+            const item = tab.getBoundingClientRect();
+            if (item.left < rail.left) list.scrollLeft -= rail.left - item.left;
+            else if (item.right > rail.right) list.scrollLeft += item.right - rail.right;
+        };
+        reveal();
+        const frame = requestAnimationFrame(reveal);
+        return () => cancelAnimationFrame(frame);
     }, [active]);
     function move(index: number, key: string) {
         const enabled = options.flatMap((option, i) => option.disabled ? [] : [i]);

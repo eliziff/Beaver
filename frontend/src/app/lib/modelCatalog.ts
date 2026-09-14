@@ -1,7 +1,7 @@
 import { getModelCatalog, type ModelCatalog } from "@/app/lib/api/account";
 import { useSyncExternalStore } from "react";
 const STORAGE_KEY = "beaver.modelCatalog.v1";
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 300_000;
 let catalog: ModelCatalog | null = null;
 let refreshedAt = 0;
 let pending: Promise<ModelCatalog> | null = null;
@@ -42,7 +42,7 @@ function cacheCatalog(value: ModelCatalog) {
 export function preloadModelCatalog() {
     catalog ??= readCachedCatalog();
     const refreshMs =
-        catalog?.models.some(model => model.available === false) ? 5_000 : REFRESH_MS;
+        catalog?.models.some(model => model.available === false) ? 15_000 : REFRESH_MS;
     if (catalog && Date.now() - refreshedAt < refreshMs) {
         return Promise.resolve(catalog);
     }

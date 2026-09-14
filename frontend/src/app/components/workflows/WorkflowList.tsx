@@ -9,7 +9,7 @@ import { RowActions } from "../shared/RowActions";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { NewWorkflowModal } from "./NewWorkflowModal";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
-import { assistantWorkflowLaunch, workflowPath, type WorkflowSelection } from "./workflowRoutes";
+import { assistantWorkflowLaunch, newDraftState, workflowPath, type WorkflowSelection } from "./workflowRoutes";
 import { WarningPopup } from "../popups/WarningPopup";
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import { useWorkflowPickerState } from "./WorkflowPickerModal";
@@ -31,7 +31,7 @@ export function WorkflowList() {
     async function choose(workflow: Workflow, variant?: WorkflowSelection["variant"]) {
         if (!variant && workflow.launcher.kind === "quote_check") { setQuoteCheck(workflow); return; }
         if (workflow.launcher.kind === "fix_supras") { supras.launch(); return; }
-        if (!variant) return navigate(workflowPath(workflow));
+        if (!variant) return navigate(workflowPath(workflow), newDraftState(workflow));
         const selection = { workflow, variant };
         if (variant.execution === "assistant") {
             navigate("/assistant", { state: assistantWorkflowLaunch(selection) });

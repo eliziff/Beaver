@@ -105,6 +105,13 @@ vi.mock("@/app/components/legal/LegalLibrary", () => ({
             })}>View source</button></>;
     },
 }));
+vi.mock("../legal/LegalSourcePopup", () => ({
+    LegalSourcePopup: ({ tab, onClose }: {
+        tab: { name?: string | null; citation: string }; onClose: () => void;
+    }) => <div role="dialog" aria-label={tab.name || tab.citation}>
+        <button type="button" onClick={onClose}>Close source</button>
+    </div>,
+}));
 vi.mock("./AssistantMessage", () => ({
     AssistantMessage: ({
         onOpenDocument,
@@ -136,9 +143,11 @@ vi.mock("./ChatInput", () => ({
         {
             onSubmit,
             onOpenWorkflows,
+            onOrganize,
         }: {
             onSubmit: (message: Message) => void;
             onOpenWorkflows?: (initialWorkflowId?: string, documents?: Document[]) => void;
+            onOrganize?: () => void;
         },
         ref,
     ) {
@@ -148,6 +157,7 @@ vi.mock("./ChatInput", () => ({
             startWorkflowDocumentSelection: dockMocks.startWorkflow,
         }));
         return (<>
+            {onOrganize && <button type="button" onClick={() => onOrganize()}>Organize</button>}
             <button
                 type="button"
                 onClick={() =>
@@ -308,7 +318,7 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByRole("textbox", { name: "Sources query" })).toHaveValue("appeal");
     });
 
-    it("opens an embedded search result in the reader without leaving chat", async () => {
+    it("opens an embedded search result in a pop-up reader over the Sources panel", async () => {
         const user = userEvent.setup();
         render(chatView({ chatId: "chat-1" }));
 
@@ -316,19 +326,20 @@ describe("ChatView displayed document context", () => {
         await user.click(screen.getByRole("tab", { name: "Sources" }));
         await user.click(screen.getByRole("button", { name: "View source" }));
 
-        await waitFor(() => expect(screen.queryByRole("textbox", { name: "Sources query" }))
-            .not.toBeInTheDocument());
+        expect(screen.getByRole("dialog", { name: "Example v Test" })).toBeVisible();
+        // The reader pops over the panel; the workspace it was opened from stays mounted.
+        expect(screen.getByRole("textbox", { name: "Sources query" })).toBeInTheDocument();
         expect(screen.getByRole("tab", { name: "Sources" }))
             .toHaveAttribute("aria-selected", "true");
         expect(screen.getByRole("button", { name: "Workflows" })).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Close source" }));
+        expect(screen.queryByRole("dialog", { name: "Example v Test" })).not.toBeInTheDocument();
     });
 
-    it("offers research views only when an ordinary chat has legal evidence", () => {
+    it("offers open-as destinations only when an ordinary chat has legal evidence", async () => {
+        const user = userEvent.setup();
         const props = { chatId: "chat-1", handleChat: vi.fn(), cancel: vi.fn() };
-        const { rerender } = render(chatView({ ...props, session: session() }), { wrapper: MemoryRouter });
-        expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
-
         const withLegalEvidence = createAssistantSessionState({ messages: [{
             id: "assistant-1", role: "assistant", turn_complete: true,
             content: [{ type: "tool_activity", id: "search-1", tool: "search_sources",
@@ -336,11 +347,16 @@ describe("ChatView displayed document context", () => {
                     kind: "a2aj", ref: 1, citation: "2024 SCC 1", dataset: "SCC", quotes: [],
                 }] }],
         }] });
+        const { rerender } = render(chatView({ ...props, session: session() }));
+        await user.click(screen.getByRole("button", { name: "Organize" }));
+        expect(screen.queryByRole("button", { name: /^Workspace/ })).not.toBeInTheDocument();
+
         rerender(chatView({ ...props, session: withLegalEvidence }));
-        expect(screen.getByRole("button", { name: "Open as" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^Workspace/ })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^Tabular Review/ })).toBeInTheDocument();
 
         rerender(chatView({ ...props, session: withLegalEvidence, features: { researchSave: false } }));
-        expect(screen.queryByRole("button", { name: "Open as" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^Workspace/ })).not.toBeInTheDocument();
     });
 
     it("signals either open Workspace once a completed assistant turn settles", async () => {
@@ -365,7 +381,7 @@ describe("ChatView displayed document context", () => {
         expect(screen.getByLabelText("Sources refresh key")).toHaveTextContent("assistant-1");
 
         await user.click(screen.getByRole("button", { name: "View source" }));
-        expect(screen.getByLabelText("Research refresh key")).toHaveTextContent("assistant-1");
+        expect(screen.getByRole("dialog", { name: "Example v Test" })).toBeVisible();
     });
 
     it("moves an embedded Library selection into the mounted workflow dock", async () => {

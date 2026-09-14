@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { Button } from "../ui/button";
@@ -76,7 +76,11 @@ function LabelChoice({ title, anchor, labels, scopes, selectedId, onChoose, onCr
   const parentOf = (scope: ResearchLabel["scope"]) => labels[walked ?? ""]?.scope === scope ? walked : null;
   return createPortal(<div ref={popover} role="dialog" aria-label={title} popover="manual"
     className="fixed inset-auto z-[220] m-0 grid max-h-[min(26rem,calc(100dvh-1rem))] w-[min(20rem,calc(100vw-1rem))] content-start gap-1.5 overflow-y-auto overscroll-contain rounded-lg border border-gray-300 bg-white p-2 shadow-lg">
-    <p className="text-xs font-medium text-gray-700">{title}</p>
+    <p className="pe-8 text-xs font-medium text-gray-700">{title}</p>
+    <button type="button" onClick={onClose} aria-label={`Close ${title}`}
+      className="absolute end-1 top-1 grid size-7 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
+      <X className="size-4" aria-hidden="true" />
+    </button>
     {scopes.map((scope) => { const noun = scope === "source" ? "label" : "highlight type", parentId = parentOf(scope);
       return <div key={scope} className="grid min-w-0 gap-0.5">
       {scopes.length > 1 && <p className="px-1.5 text-[11px] leading-4 text-gray-500">{scope === "source" ? "Labels" : "Highlight types"}</p>}

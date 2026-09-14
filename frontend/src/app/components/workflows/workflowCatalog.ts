@@ -2,10 +2,10 @@ import type { Workflow, WorkflowAudience, WorkflowVariant } from "@/app/lib/api/
 
 export type AudienceFilter = WorkflowAudience | "all";
 export const AUDIENCE_TABS: { id: AudienceFilter; label: string }[] = [
+    { id: "all", label: "All" },
     { id: "general", label: "General" },
     { id: "solicitor", label: "Solicitor" },
     { id: "litigator", label: "Litigator" },
-    { id: "all", label: "All" },
 ];
 
 export const WORKFLOW_CATEGORIES = [

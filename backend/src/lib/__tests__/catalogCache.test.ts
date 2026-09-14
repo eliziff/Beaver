@@ -48,4 +48,20 @@ describe("provider catalog cache", () => {
     expect(await cache.resolve()).toEqual(empty);
     expect(probe).toHaveBeenCalledTimes(1);
   });
+
+  it("retries a failed probe after the short backoff, not the full TTL", async () => {
+    const probe = vi.fn<() => Promise<Catalog>>()
+      .mockRejectedValueOnce(new Error("timed out"))
+      .mockResolvedValue(live);
+    const cache = createCatalogCache(probe, empty);
+
+    expect(await cache.resolve()).toEqual(empty);
+    expect(probe).toHaveBeenCalledTimes(1);
+
+    // Inside the long TTL, but past the retry backoff: a transient boot failure
+    // must not pin the fallback for hours.
+    now += 31_000;
+    expect(await cache.resolve()).toEqual(live);
+    expect(probe).toHaveBeenCalledTimes(2);
+  });
 });

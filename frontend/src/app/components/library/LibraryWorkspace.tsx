@@ -139,7 +139,7 @@ function LibraryCollection({
     };
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className={`flex h-full min-h-0 flex-col${embedded ? " p-3" : ""}`}>
             {!embedded && (
                 <PageHeader
                     breadcrumbs={[{ label: "Library" }]}
@@ -154,13 +154,6 @@ function LibraryCollection({
                     ]}
                 />
             )}
-            {embedded && (
-                <div className="border-b border-gray-200 px-3 py-2">
-                    <SearchBar value={search} onValueChange={setSearch} booleanSearch
-                        placeholder={`Search ${title.toLowerCase()}…`}
-                        aria-label={`Search ${title.toLowerCase()}`} />
-                </div>
-            )}
             <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                 <Tabs
                     options={LIBRARY_TABS.map(({ id, label }) => ({ value: id, label }))}
@@ -171,21 +164,28 @@ function LibraryCollection({
                             : navigate(next === "files" ? "/library" : `/library/${next}`)
                     }
                     ariaLabel="Library sections"
-                    variant="pill"
+                    variant="dock"
                     className="document-directory h-full"
-                    railClassName="mx-4 mb-2 min-h-12 flex-wrap gap-2 py-2 [&_.tab-list]:w-auto [&_.tab-list]:flex-none [&_.tab-list]:flex-nowrap md:mx-6"
-                    actions={
-                        <DirectoryActions actions={uploadActions}
-                            busy={directory.loading} compact={embedded}
-                            onCreateFolder={createFolder} selection={selectionActions}
-                            resolveDocuments={() => listDirectoryDocuments(resource.list)}
-                            onOpenSelectionInChat={openChat} onOpenWorkflows={onOpenWorkflows}
-                            onAssistantWorkflowSelect={openAssistantWorkflow}
-                            organize={{ library: kind }} organizeTitle={title}
-                            onOrganized={() => void directory.reload(null)}
-                            openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"} />
-                    }
+                    railClassName="[&_.tab-list]:flex-none"
                 >
+                <div className="flex shrink-0 items-center gap-1.5 border-b border-gray-200 px-2 py-2">
+                    <DirectoryActions actions={uploadActions}
+                        busy={directory.loading} compact={embedded}
+                        onCreateFolder={createFolder} selection={selectionActions}
+                        resolveDocuments={() => listDirectoryDocuments(resource.list)}
+                        onOpenSelectionInChat={openChat} onOpenWorkflows={onOpenWorkflows}
+                        onAssistantWorkflowSelect={openAssistantWorkflow}
+                        organize={{ library: kind }} organizeTitle={title}
+                        onOrganized={() => void directory.reload(null)}
+                        openSelectionLabel={onOpenInChat ? "Open in chat" : "Open in new chat"} />
+                </div>
+                {embedded && (
+                    <div className="shrink-0 border-b border-gray-200 px-2 py-2">
+                        <SearchBar value={search} onValueChange={setSearch} booleanSearch
+                            placeholder={`Search ${title.toLowerCase()}…`}
+                            aria-label={`Search ${title.toLowerCase()}`} />
+                    </div>
+                )}
                 <DocTable
                     initialDocument={active && documentId ? { id: documentId, versionId: params.get("version_id"), sheet: params.get("sheet"), cell: params.get("cell") } : undefined}
                     scopeKey={kind}

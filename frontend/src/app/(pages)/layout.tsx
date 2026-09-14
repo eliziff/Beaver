@@ -31,6 +31,10 @@ export default function AppShell() {
         {},
     );
     const authoritiesActive = pathname === "/table-of-authorities";
+    // The assistant's own column starts at the top bar on narrow screens, so the
+    // right dock lines up with the left sidebar instead of sitting a bar lower.
+    // Covers /assistant and the project-hosted assistant chat too.
+    const assistantRoute = /(^|\/)assistant(\/|$)/u.test(pathname);
     const capabilityUnavailable = access.capability &&
         !getRuntimeConfig().capabilities[access.capability];
     const unavailable = isLocalMode && access.cloudOnly
@@ -56,7 +60,7 @@ export default function AppShell() {
             <KeyboardShortcuts />
             <a
                 href="#main-content"
-                className="sr-only z-50 rounded bg-white px-3 py-2 focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+                className="sr-only z-[110] rounded bg-white px-3 py-2 focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
             >
                 Skip to content
             </a>
@@ -79,11 +83,13 @@ export default function AppShell() {
                             inert={mobileSidebarOpen}
                             className="relative flex h-dvh w-full flex-1 flex-col lg:overflow-hidden"
                         >
-                            <div className="relative z-20 flex shrink-0 items-center px-4 pb-2 pt-3 lg:hidden">
+                            <div className={assistantRoute
+                                ? "pointer-events-none absolute inset-x-0 top-0 z-[100] flex items-center px-4 pb-2 pt-3 lg:hidden"
+                                : "relative z-[100] flex shrink-0 items-center px-4 pb-2 pt-3 lg:hidden"}>
                                 <button
                                     type="button"
                                     onClick={toggleSidebar}
-                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-app-surface text-gray-700 hover:bg-app-floating focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                                     aria-label="Open sidebar"
                                 >
                                     <PanelLeft aria-hidden="true" className="h-4 w-4" />

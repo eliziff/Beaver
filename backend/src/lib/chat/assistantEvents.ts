@@ -28,7 +28,7 @@ const assignment = z.object({ task: text, scope: text, jurisdiction: z.enum(["CA
 const resume = z.object({ id: text, continuation_id: text, model: text, effort: text,
   assignment, evidence: z.array(evidence), queries: z.array(query),
   research: researchReadContextSchema.optional(), activities: z.array(activity).optional() }).strict();
-const privateSubagent = subagent.extend({ agent: z.enum(["scout", "native"]), model: text, effort: text,
+const privateSubagent = subagent.extend({ model: text, effort: text,
   publicError: text.optional(), grounding: receipt.optional(), resume: resume.optional() });
 
 const storedEvent = z.discriminatedUnion("type", [
