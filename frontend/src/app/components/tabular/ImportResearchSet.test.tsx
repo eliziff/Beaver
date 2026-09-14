@@ -31,6 +31,33 @@ const ask = (text: string) => { fireEvent.change(screen.getByLabelText("Change t
   fireEvent.click(screen.getByRole("button", { name: "Propose again" })); };
 
 beforeEach(() => { vi.clearAllMocks(); api.getResearchFile.mockResolvedValue(file); api.proposeWorkspaceTable.mockResolvedValue(preview); });
+it("shows shared model activity during proposals and preserves the preview during reproposals", async () => {
+  render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
+  await ready();
+  api.proposeWorkspaceTable.mockImplementationOnce((_id, _input, report) => {
+    report({ stage: "asking", model: "codex:gpt-5.6-sol", chars: 1234 });
+    return new Promise(() => undefined);
+  });
+  ask("Group related findings");
+  expect(await screen.findByRole("status", { name: /Activity.*gpt-5.6-sol/ })).toHaveTextContent("1,234 characters");
+  expect(screen.getByDisplayValue("Finding")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("status", { name: /Activity/ })).not.toBeInTheDocument();
+  expect(create()).toBeEnabled();
+});
+it("shows the current structure before proposing changes and can open it without a model call", async () => {
+  const existing = { ...file, state: { ...file.state, labels: {
+    parent: { id: "parent", name: "Duties", scope: "source" as const, parentId: null, order: 0, color: null },
+    child: { id: "child", name: "Honesty", scope: "source" as const, parentId: "parent", order: 0, color: null },
+  } } }, onOpen = vi.fn();
+  api.getResearchFile.mockResolvedValue(existing);
+  render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" />);
+  expect(await screen.findByRole("treeitem", { name: "Honesty" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Propose changes" })).toBeEnabled();
+  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  expect(onOpen).toHaveBeenCalledWith("/sources?research_file=workspace");
+});
 it("preserves exact scope in previews and submits only the accepted reference mapping", async () => {
   const onOpen = vi.fn(), selection = { target: "passages" as const, members: [{ sourceId: "source", evidenceIds: ["e_saved"] }] };
   api.openWorkspaceTable.mockResolvedValue({ id: "review" });

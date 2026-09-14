@@ -1,4 +1,4 @@
-import { providerForModel } from "./models";
+import { catalogModelContextWindow, modelForProvider, providerForModel } from "./models";
 import type { LlmMessage, Tool } from "./types";
 
 const MILLION_TOKEN_WINDOW = 1_000_000;
@@ -8,8 +8,11 @@ const DEFAULT_OLLAMA_CONTEXT_WINDOW = 32_768;
 export function modelContextWindow(model: string): number | null {
   const provider = providerForModel(model);
   if (provider === "codex") return null; // app-server reports the real value.
+  const discovered = catalogModelContextWindow(model);
+  if (discovered) return discovered;
+  const native = modelForProvider(model);
   if (provider === "claude" || provider === "claude-p") {
-    return model.includes("claude-haiku-4-5") ? 200_000 : MILLION_TOKEN_WINDOW;
+    return native.includes("claude-haiku-4-5") ? 200_000 : MILLION_TOKEN_WINDOW;
   }
   if (provider === "ollama") {
     const configured = Number(
@@ -20,7 +23,7 @@ export function modelContextWindow(model: string): number | null {
       : DEFAULT_OLLAMA_CONTEXT_WINDOW;
   }
   if (provider === "openai") {
-    return model.endsWith("-lite") ? 400_000 : OPENAI_CONTEXT_WINDOW;
+    return native.endsWith("-lite") ? 400_000 : OPENAI_CONTEXT_WINDOW;
   }
   if (provider === "openrouter") return OPENAI_CONTEXT_WINDOW;
   return MILLION_TOKEN_WINDOW;
@@ -47,7 +50,7 @@ export function estimateContextTokens(args: {
 export function hasNativeCompaction(model: string) {
   const provider = providerForModel(model);
   return provider === "codex" || provider === "openai" ||
-    (provider === "claude" && model !== "claude-haiku-4-5");
+    (provider === "claude" && modelForProvider(model) !== "claude-haiku-4-5");
 }
 
 /** Stateless transports need Beaver's durable transcript checkpoint. */

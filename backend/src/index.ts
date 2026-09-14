@@ -23,8 +23,13 @@ async function start() {
   const listener = server.listen(PORT, host, () => {
     console.log(`Beaver running on port ${PORT}`);
     process.send?.({ type: "ready" });
+    // Warm every catalogue at boot so the first picker open never waits on a
+    // provider fetch.
     void import("./lib/codexCatalog").then((m) => m.codexModelCatalogSnapshot());
     void import("./lib/llm").then((m) => m.ollamaModelCatalogSnapshot());
+    void import("./lib/llm/modelsDev").then((m) => m.modelsDevCatalogSnapshot());
+    void import("./lib/llm/openRouter").then((m) => m.openRouterModelCatalogSnapshot());
+    void import("./lib/llm/openCodeGo").then((m) => m.openCodeGoModelCatalogSnapshot(undefined));
   });
   listener.maxHeadersCount = 100;
   listener.headersTimeout = 15_000;

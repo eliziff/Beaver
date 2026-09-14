@@ -55,6 +55,7 @@ pagination or downloading.
   assistant removal of a human-made or human-approved filing waits for acceptance.
   Pending tool outcomes must be reported as waiting for acceptance, not completed.
   A highlight has exactly one type;
+  each type lists only its directly assigned highlights; child types show their own.
   choosing another type replaces the old one. No separate pen palette, colour
   override or implicit source-label-to-highlight relationship exists.
 - Library files and folders have no primary research workspace or global research
@@ -144,8 +145,9 @@ pagination or downloading.
 
 ## Research interoperability
 
-- Sources and Chat Open as Table open ready to propose; Propose a table launches
-  the model's step and shows it working (reading, asking with characters received
+- Sources and Chat Open as Table open ready to propose. Table and workspace
+  proposals reuse Chat's activity indicator, preserving the previous preview
+  while a replacement is prepared. It shows progress (reading, asking with characters received
   and elapsed time, checking, one corrected attempt) until the read-only preview. The research question describes the whole table; model columns divide
   it into legal issues, factors and outcomes, never raw passage dumps. Labels,
   highlight types, notes and grounded findings supply the bounded inventory.
@@ -157,16 +159,32 @@ pagination or downloading.
   Invalid/cross-row/overlapping mappings receive one corrected attempt; a failed
   table proposal falls back to deterministic columns with a visible explanation.
   New questions stay pending. Accepting never performs another model call.
-- Chat Open as Workspace opens ready to propose; Propose labels launches the step
-  on the memo: the research question and the answer's claims in order, each naming
+- Chat Open as uses the composer's current model and reasoning effort.
+  Workspace proposals use the existing labels/assignments contract; inventory
+  item IDs determine their source rows without redundant model-supplied IDs.
+  Validation protects references, hierarchy scope and single-type passage ownership,
+  not category wording, group size or similarity to existing organization.
+  A structural correction receives the previous proposal and its error internally;
+  users review the result without troubleshooting validation messages.
+  Model and effort changes persist in the chat draft even with an empty message;
+  saving the selection does not require sending a turn.
+  Open as Workspace shows existing label and highlight-type hierarchies before
+  generation, with Open workspace and Propose changes actions. An unorganized
+  workspace offers Propose labels. Proposing launches the step
+  on the available question and answer excerpts in order, each naming
   the passages it cites, plus every passage quoted once and every source named once,
   with a typed request added only when the user supplies one. The model answers in
-  keys and ids and never retypes the research. It works passages
-  first: highlight types describe passages and every cited passage gets one; labels
-  describe sources and must add what the highlights do not already say. Every filed
-  source shows the passages behind it; a filing without a passage, a type without a
-  passage, a type named like a label, or a label set that copies the source list is
-  refused. Apply labels accepts the reviewed plan.
+  keys and ids and never retypes the research. It groups related material into
+  meaningful hierarchies suited to the user's purpose, starting with recurring
+  concepts across sources rather than a category per observation. Children serve
+  useful navigation or comparison; single-source distinctions remain allowed
+  when they serve a distinct purpose. These are organizing instructions, not
+  category-count validation rules. Existing category IDs can
+  be used directly in assignments without repeated declarations. Proposed renames
+  and parent changes retain those identities and use ordinary label operations.
+  Omitted existing parents are preserved; an explicit null moves a category to the
+  root. Grouping parents need no direct assignments. Apply labels accepts the
+  reviewed plan; generating a preview does not apply it.
 - Open review rechecks the preview fingerprint and source revision. Stale previews
   require review again. Accepted inputs and cell answers are persisted together
   through the normal table repository, preserving source versions, receipts and

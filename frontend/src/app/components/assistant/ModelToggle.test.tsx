@@ -15,7 +15,8 @@ beforeEach(() => {
   getCatalog.mockReset();
   getCatalog.mockResolvedValue({
     models: [{ id: "codex:gpt-5.6-terra", label: "GPT-5.6 Terra", group: "Codex",
-      available: true, reasoningEfforts: ["low", "medium"], defaultReasoningEffort: "medium" }],
+      available: true, provider: "codex", reasoningEfforts: ["low", "medium"],
+      defaultReasoningEffort: "medium" }],
   });
 });
 
@@ -44,7 +45,7 @@ it("changes model and supported effort without leaving the picker", async () => 
   }
   render(<Picker />);
   fireEvent.click(screen.getByRole("button", { name: /^Model:/ }));
-  fireEvent.click(await screen.findByRole("button", { name: "GPT-5.6 Terra" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Codex" }));
   expect(screen.getByRole("dialog")).toBeVisible();
   const effort = screen.getByRole("radio", { name: "low" });
   fireEvent.click(effort);
@@ -56,7 +57,7 @@ it("updates mounted pickers when settings refreshes the shared catalog", async (
   renderToggle({ model: "codex:catalog-fixture" });
   getCatalog.mockResolvedValue({ models: [{ id: "codex:catalog-fixture", label: "Updated fixture",
     group: "Codex", reasoningEfforts: ["medium"], defaultReasoningEffort: "medium" }] });
-  const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
+  const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 600_000);
   try {
     await act(() => preloadModelCatalog());
     expect(screen.getByRole("button", { name: /^Model: Updated fixture/ })).toBeVisible();

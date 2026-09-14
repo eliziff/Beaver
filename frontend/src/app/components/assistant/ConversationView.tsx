@@ -20,8 +20,8 @@ import type { Message, WorkflowRunEvent } from "@/app/lib/api/chat";
 import { AskInputPopup } from "./AskInputPopup";
 import { AssistantMessage } from "./AssistantMessage";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
+import { CHAT_COLUMN_CLASS } from "./chatLayout";
 import { UserMessage } from "./UserMessage";
-import { dockedColumnStyle, useDockedColumnWidth } from "./assistantDockLayout";
 
 type OpenDocument = (args: { documentId: string; filename: string; versionId: string | null;
     versionNumber: number | null }) => void;
@@ -38,9 +38,10 @@ interface Props {
     onEditResolved?: (args: EditResolved) => void; onEditError?: (args: EditResolveError) => void;
     isDocReloading?: (documentId: string) => boolean; isEditReloading?: (editId: string) => boolean;
     resolvedEditStatuses?: Record<string, "accepted" | "rejected">;
-    layout?: "page" | "panel"; gutterVisible?: boolean; header?: ReactNode; dock?: ReactNode;
+    layout?: "page" | "panel"; gutterVisible?: boolean; dock?: ReactNode;
     showContextTools?: boolean;
     onOpenWorkflows?: (initialWorkflowId?: string, documents?: WorkflowDocument[]) => void;
+    onOrganize?: () => void;
     projectName?: string; projectCmNumber?: string | null;
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
     initialModel?: string | null; initialReasoningEffort?: string | null;
@@ -63,8 +64,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         onCitationClick, citationTitle, onWorkflowRunClick, onReaderClick,
         onEditViewClick, onOpenDocument, onEditResolveStart, onEditResolved, onEditError,
         isDocReloading, isEditReloading, resolvedEditStatuses,
-        layout = "page", gutterVisible = false, header, dock, showContextTools = true,
-        onOpenWorkflows, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
+        layout = "page", gutterVisible = false, dock, showContextTools = true,
+        onOpenWorkflows, onOrganize, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
         editModeLabels, sendDisabled, searchMessageId, messageActions,
     }, ref) {
     const { messages, rejectedTurn } = session;
@@ -80,6 +81,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
     const anchor = useRef<Anchor>(null),
         reanchor = useRef(() => undefined as void);
     useImperativeHandle(ref, () => ({
+        getModelPreferences: () => chatInputRef.current?.getModelPreferences(),
         addDoc: (document: Document) => chatInputRef.current?.addDoc(document),
         clearDraft: () => chatInputRef.current?.clearDraft(),
         startWorkflowDocumentSelection: (...args) => chatInputRef.current
@@ -174,10 +176,9 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         onEditError?.(args);
     };
     const mergedStatuses = { ...resolvedEditStatuses, ...editState.statuses };
-    // One measure, dock open or shut: the column is always laid out at the width it has beside the
-    // dock, so opening the dock slides it without re-wrapping a line of the answer just clicked in.
+    // The reading column is a plain CSS measure: side panels take their space, the column is
+    // never wider than the room it has, and its width never depends on the dock's state.
     const columnClass = gutterVisible ? "ms-auto me-0" : "mx-auto";
-    const columnStyle = dockedColumnStyle(useDockedColumnWidth(messagesContainerRef, gutterVisible));
 
     return (
         <div data-dock-host className="h-full w-full flex relative">
@@ -185,11 +186,11 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                 {responseAnnouncement}
             </div>
             <div className="flex min-w-0 flex-col h-full flex-1 relative">
-                {header}
-                <div ref={messagesContainerRef} className="flex-1 w-full overflow-y-auto"
-                    style={{ scrollbarGutter: "stable both-edges" }}>
-                    <div className={`w-full min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-6 pt-6 md:px-8 md:pt-8"} ${columnClass}`}
-                        style={{ paddingBottom: 116, ...columnStyle }}>
+                <div ref={messagesContainerRef}
+                    className="flex-1 w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarGutter: "auto" }}>
+                    <div className={`${CHAT_COLUMN_CLASS} min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-4 pt-6 md:px-8 md:pt-8"} ${columnClass}`}
+                        style={{ paddingBottom: 116 }}>
                         <div className="space-y-6 md:space-y-8">
                             {messages.map((message, index) => (
                                 <div key={message.id} data-message-id={message.id}
@@ -236,7 +237,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                     </div>
                 </div>
                 <div className="absolute bottom-3 left-0 right-0 w-full z-30">
-                    <div className={`relative w-full px-4 md:px-6 ${columnClass}`} style={columnStyle}>
+                    <div className={`relative ${CHAT_COLUMN_CLASS} px-2 md:px-6 ${columnClass}`}>
                         {showScrollButton && !activeInput && (
                             <button type="button" aria-label="Scroll to latest message" onClick={() =>
                                 { messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); reanchor.current(); }}
@@ -280,7 +281,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                 compacting: session.compaction === "running",
                             } : undefined}
                             showContextTools={showContextTools} rows={layout === "panel" ? 2 : 1}
-                            onOpenWorkflows={onOpenWorkflows} projectName={projectName}
+                            onOpenWorkflows={onOpenWorkflows} onOrganize={onOrganize} projectName={projectName}
                             projectCmNumber={projectCmNumber} initialModel={initialModel}
                             initialReasoningEffort={initialReasoningEffort}
                             editModeLabels={editModeLabels} restoreDraft={rejectedTurn?.options?.askInputsResponse

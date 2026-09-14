@@ -4,7 +4,7 @@ import { chatTurnInputSchema } from "../chatApplication";
 const input = (turn: Record<string, unknown> = {}) => ({
   current_turn: { kind: "message", content: "Run this", ...turn }, expected_version: 0,
 });
-const defaults = { edit_mode: "manual", subagent_mode: "none", activity_detail: "auto" };
+const defaults = { edit_mode: "manual", subagents: false, activity_detail: "auto" };
 
 it("bounds user messages before provider dispatch", () => {
   const content = "x".repeat(200_000);

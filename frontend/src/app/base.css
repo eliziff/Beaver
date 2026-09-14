@@ -170,9 +170,10 @@ textarea,
     width: 100%;
 }
 .chat-input-model {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     width: max-content;
-    max-width: calc(100% - 2.25rem);
+    max-width: 18rem;
 }
 @container (max-width: 560px) {
     .chat-input-control-label {

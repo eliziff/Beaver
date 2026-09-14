@@ -5,6 +5,8 @@ import {
     preloadModelCatalog,
 } from "@/app/lib/modelCatalog";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
+import { EffortMeter } from "./effortMeter";
+import { useAssistantPreferences } from "./assistantPreferences";
 export type { ModelOption } from "./ModelPicker";
 export const DEFAULT_MODEL_ID = "codex:gpt-5.6-terra";
 function fallbackModel(id: string): ModelOption {
@@ -25,6 +27,7 @@ interface Props {
     disabled?: boolean;
     className?: string;
     detail?: string;
+    detailIcon?: ReactNode;
     effortControls?: ReactNode;
 }
 export function ModelToggle({
@@ -35,9 +38,11 @@ export function ModelToggle({
     disabled,
     className = "sm:w-56",
     detail,
+    detailIcon,
     effortControls,
 }: Props) {
     const catalog = useModelCatalog();
+    const [preferences] = useAssistantPreferences();
     // Fetch in the background on mount so opening the picker never waits on the network.
     useEffect(() => { void preloadModelCatalog(); }, []);
     const allModels = (catalog?.models ?? []).filter(model => includeSettingsModels || !model.settingsOnly);
@@ -54,7 +59,9 @@ export function ModelToggle({
             disabled={disabled}
             className={className}
             detail={detail}
+            detailIcon={detailIcon}
             effortControls={effortControls}
+            disabledProviders={preferences.disabledProviders}
             onOpen={() => { void preloadModelCatalog(); }}
         />
     );
@@ -138,15 +145,19 @@ export function ModelEffortToggle({
     onModelChange,
     onEffortChange,
     apiKeys,
+    disabled,
+    includeSettingsModels,
 }: {
     model: string;
     effort?: string;
     onModelChange: (model: string) => void;
     onEffortChange: (effort: string) => void;
     apiKeys?: ApiKeyState;
+    disabled?: boolean;
+    includeSettingsModels?: boolean;
 }) {
     const catalog = useModelCatalog();
-    const { selectedEffort } = modelReasoning(model, effort, catalog);
+    const { efforts, selectedEffort } = modelReasoning(model, effort, catalog);
     useLayoutEffect(() => {
         if (effort !== undefined && selectedEffort && effort !== selectedEffort) {
             onEffortChange(selectedEffort);
@@ -157,8 +168,11 @@ export function ModelEffortToggle({
             value={model}
             onChange={onModelChange}
             apiKeys={apiKeys}
+            disabled={disabled}
+            includeSettingsModels={includeSettingsModels}
             className="chat-input-model-toggle"
             detail={effortLabel(selectedEffort ?? "Automatic")}
+            detailIcon={<EffortMeter effort={selectedEffort} efforts={efforts} />}
             effortControls={<ReasoningEffortToggle expanded model={model} value={effort} onChange={onEffortChange} />}
         />
     );

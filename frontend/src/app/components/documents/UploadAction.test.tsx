@@ -42,7 +42,7 @@ it("keeps one stable action rail and enables selection actions in place", () => 
     expect(screen.getByRole("button", { name: "More actions" })).toBeEnabled();
 });
 
-it("resolves the whole location only when an empty selection is launched", async () => {
+it("keeps Open in chat to an explicit selection even when the location can be resolved", async () => {
     const documents = [{ id: "brief", filename: "Brief.docx" } as Document];
     const resolveDocuments = vi.fn().mockResolvedValue(documents);
     const openChat = vi.fn(), openWorkflows = vi.fn();
@@ -50,10 +50,9 @@ it("resolves the whole location only when an empty selection is launched", async
         resolveDocuments={resolveDocuments} onOpenSelectionInChat={openChat}
         onOpenWorkflows={openWorkflows} /></MemoryRouter>);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open in new chat" }));
-    await waitFor(() => expect(openChat).toHaveBeenCalledWith(documents));
+    expect(screen.getByRole("button", { name: "Open in new chat" })).toBeDisabled();
+    expect(resolveDocuments).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Workflows" }));
     await waitFor(() => expect(openWorkflows).toHaveBeenCalledWith(documents));
-    expect(resolveDocuments).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "More actions" })).toBeDisabled();
 });

@@ -48,7 +48,8 @@ const NO_DRAFT: DraftView = { profileId: DEFAULT_PROFILE_ID, cover: {}, entries:
 const NO_OPEN = { id: "", revision: 0, request: 0 };
 
 export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refreshToken,
-  initialDraftId, initialDocuments, onDocumentsConsumed, projectId, locked = false, jurisdictionOrder = [] }: {
+  initialDraftId, initialDocuments, onDocumentsConsumed, initialNewDraft = false,
+  projectId, locked = false, jurisdictionOrder = [] }: {
   host: CourtRecordsHost;
   headerActions?: ReactNode;
   onDraftChange?: (draft: WorkProduct<CourtRecordDraft> | undefined, synced: boolean) => void;
@@ -56,6 +57,8 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   initialDraftId?: string;
   initialDocuments?: Parameters<typeof courtRecordDraftFromDocuments>[1];
   onDocumentsConsumed?: () => void;
+  /** A workflow launch asks for a fresh draft instead of the drafts list. */
+  initialNewDraft?: boolean;
   projectId?: string;
   locked?: boolean;
   jurisdictionOrder?: string[];
@@ -66,6 +69,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const [draftBusy, setDraftBusy] = useState(!!initialDraftId);
   const [creating, setCreating] = useState(false);
   const pendingDocuments = useRef(initialDraftId ? undefined : initialDocuments);
+  const newDraftIntent = useRef(initialDraftId ? false : initialNewDraft);
   const [savedOpen, setSavedOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busyEntryId, setBusyEntryId] = useState<string>();
@@ -98,6 +102,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const saveDraftEffect = useEffectEvent(saveCurrentDraft);
   const refreshDraftEffect = useEffectEvent(refreshDraft);
   const clearDraftEffect = useEffectEvent(clearDraft);
+  const consumeInitialEffect = useEffectEvent(() => onDocumentsConsumed?.());
   const readEntryEffect = useEffectEvent(ocr);
   useEffect(() => {
     if (!host.runOcr || draftBusy || building || busyEntryId || importingSource || reading) return;
@@ -140,7 +145,12 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
       if (cancelled) return;
       if (!initialDraftId) {
         clearDraftEffect();
-        setCreating(!!pendingDocuments.current?.length);
+        const startNew = !!pendingDocuments.current?.length || newDraftIntent.current;
+        setCreating(startNew);
+        if (newDraftIntent.current) {
+          newDraftIntent.current = false;
+          consumeInitialEffect();
+        }
         return;
       }
       const requested = await host.drafts.get<CourtRecordDraft>(initialDraftId);

@@ -10,9 +10,10 @@ const key = textField(80), colour = z.string().regex(/^#[a-f0-9]{6}$/iu);
 export const researchLabelDesignSchema = z.object({
   title: textField(200),
   labels: z.array(z.object({ key, name: textField(200), parentKey: key.nullish(),
-    color: colour.nullish(), definition: z.string().trim().max(20_000).optional(), scope: z.enum(["source", "highlight"]).optional() }).strict()).min(1).max(100),
+    color: colour.nullish(), definition: z.string().trim().max(20_000).optional(), scope: z.enum(["source", "highlight"]).optional() }).strict()).max(100),
   assignments: z.array(z.object({ labelKey: key, itemIds: z.array(textField(200)).max(2_000).optional(),
-    rowIds: z.array(textField(4_000)).min(1).max(5_000) }).strict()).max(200),
+    rowIds: z.array(textField(4_000)).max(5_000).default([]) }).strict().refine(
+    ({ rowIds, itemIds }) => rowIds.length > 0 || !!itemIds?.length, "An assignment needs source rows or inventory items")).max(200),
 }).strict();
 export type ResearchLabelDesign = z.infer<typeof researchLabelDesignSchema>;
 export type ResearchLabelTarget = "sources" | "passages";
@@ -37,8 +38,7 @@ export const researchConceptKey = (name: string) => name.normalize("NFKC").toLow
   .replace(/\s+/gu, " ");
 
 /** Inventory the workspace's own material and ontology; a design may only reference these ids. */
-/** The memo frames it: the research question and the answer's claims in order, each naming the passages it
- *  cites. The model reads what the research already concluded and answers with ids, retyping nothing. */
+/** Supply the question and available answer excerpts in order, linked to their cited passages. */
 export function researchLabelInventory(catalog: ResearchImportCatalog, file: ResearchFile, target: ResearchLabelTarget) {
   const hierarchy = (kind: ResearchLabel["scope"]) => Object.values(file.state.labels).filter((label) => label.scope === kind)
     .map(({ id, name, parentId, definition }) => ({ key: id, name, parentKey: parentId, ...(definition ? { definition } : {}) }));
@@ -60,7 +60,7 @@ export function researchLabelInventory(catalog: ResearchImportCatalog, file: Res
     claims.set(`${answer}:${index ?? ""}`, claim);
   }
   return JSON.stringify({ title: catalog.title, sourceKind: target === "sources" ? "source" : "saved passage",
-    question: catalog.question, memo: [...claims.values()].sort((first, second) => first.at - second.at)
+    question: catalog.question, answerExcerpts: [...claims.values()].sort((first, second) => first.at - second.at)
       .map(({ claim, evidence }) => ({ claim, ...(evidence.size ? { evidence: [...evidence] } : {}) })),
     existingHighlightTypes: hierarchy("highlight"), existingLabels: hierarchy("source"),
     passages: passages.map(({ id, rowId, kind, column, text }) =>
@@ -75,22 +75,22 @@ export function researchLabelInventory(catalog: ResearchImportCatalog, file: Res
     }) });
 }
 
-/** The model answers passages first: highlight types with their highlights, then labels with their filings. One design results. */
-export function modelLabelDesign(value: Record<string, unknown>, catalog: ResearchImportCatalog): unknown {
-  if (!("highlightTypes" in value) && !("filings" in value)) return value;
-  const list = (key: string) => Array.isArray(value[key]) ? value[key] as Record<string, unknown>[] : [];
-  const rowOf = new Map(catalog.entries.map(({ id, rowId }) => [id, rowId]));
-  return { title: value.title,
-    labels: [...list("highlightTypes").map((type) => ({ ...type, scope: "highlight" })),
-      ...list("labels").map((label) => ({ ...label, scope: "source" }))],
-    assignments: [...list("highlights").map(({ typeKey, itemIds }) => ({ labelKey: typeKey, itemIds,
-      rowIds: [...new Set((Array.isArray(itemIds) ? itemIds : []).map((id) => rowOf.get(String(id)) ?? String(id)))] })), ...list("filings")] };
-}
-
-/** Turn a proposed ontology into ordinary research operations. Existing labels keep their identity, name and parent. */
+/** Turn a proposed ontology into ordinary research operations, retaining existing category identities. */
 export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCatalog,
   design: ResearchLabelDesign, target: ResearchLabelTarget): ResearchLabelPlan {
   const parsed = researchLabelDesignSchema.parse(design), scope = labelScope(target);
+  // Existing assignments and parents need no repeated declaration. Include them in the review tree.
+  const declared = new Set(parsed.labels.map(({ key }) => key));
+  const referenced = [...parsed.assignments.map(({ labelKey }) => labelKey),
+    ...parsed.labels.flatMap(({ parentKey }) => parentKey ? [parentKey] : [])];
+  for (const key of referenced) {
+    const existing = file.state.labels[key];
+    if (declared.has(key) || !existing) continue;
+    declared.add(key);
+    parsed.labels.push({ key, name: existing.name, scope: existing.scope,
+      parentKey: existing.parentId, color: existing.color, definition: existing.definition });
+    if (existing.parentId) referenced.push(existing.parentId);
+  }
   const bad = (message: string): never => { throw new ApplicationError(400, message); };
   const rowById = new Map(catalog.rows.map((row) => [row.id, row])), byKey = new Map(parsed.labels.map((label) => [label.key, label]));
   if (byKey.size !== parsed.labels.length) bad("The proposed labels repeat a key");
@@ -100,35 +100,32 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     if (trail.has(key)) return bad("The proposed labels contain a cycle");
     trail.add(key);
     const current = file.state.labels[key], proposed = byKey.get(key);
+    if ((proposed?.scope ?? current?.scope ?? scope) !== kind) return bad("A category and its parent must have the same scope");
     if (current && proposed && current.scope !== (proposed.scope ?? scope)) return bad("A proposed label reuses a label of another kind");
     if (!proposed && !current) return bad("A proposed label names an unknown parent");
-    const name = current?.name ?? proposed!.name, parentKey = current ? current.parentId : proposed?.parentKey,
+    const name = proposed?.name ?? current!.name,
+      parentKey = proposed?.parentKey !== undefined ? proposed.parentKey : current?.parentId,
       parentId = parentKey ? resolve(parentKey, kind, trail).id : null,
       existing = current?.scope === kind ? current : Object.values(labels).find((label) => label.scope === kind &&
         researchConceptKey(label.name) === researchConceptKey(name) && label.parentId === parentId),
-      label = existing ?? { id: randomUUID(), name, parentId, scope: kind, order: Object.keys(labels).length,
+      label = existing ? { ...existing, name: current ? name : existing.name, parentId } : { id: randomUUID(), name, parentId, scope: kind, order: Object.keys(labels).length,
         color: current?.color ?? proposed?.color ?? PALETTE[Math.max(0, parsed.labels.findIndex((label) => label.key === key)) % PALETTE.length],
         definition: current?.definition ?? proposed?.definition };
     labels[label.id] = label; resolved.set(identity, label);
-    if (!existing) actions.push({ type: "label", ...label });
+    if (!existing || label.name !== existing.name || label.parentId !== existing.parentId) actions.push({ type: "label", ...label });
     return label;
   };
   const kindOf = (key: string): ResearchLabel["scope"] => byKey.get(key)?.scope ?? file.state.labels[key]?.scope ?? scope;
   for (const label of parsed.labels) resolve(label.key, kindOf(label.key));
-  // Labels describe sources and highlight types describe passages (Eli, 2026-09-12); one idea never sits in both.
-  const fresh = parsed.labels.filter((label) => !file.state.labels[label.key]),
-    ideas = [...Object.values(file.state.labels).map(({ name, scope: kind }) => ({ name, kind })),
-      ...fresh.map((label) => ({ name: label.name, kind: kindOf(label.key) }))];
-  for (const label of fresh) if (ideas.some((other) => other.kind !== kindOf(label.key) && researchConceptKey(other.name) === researchConceptKey(label.name)))
-    bad(`“${clip(label.name, 80)}” is both a label and a highlight type; labels describe sources and types describe passages, so keep one`);
   const support = new Map(catalog.entries.map((entry) => [entry.id, entry])),
     members = new Map<string, Map<string, { evidence: Set<string>; support: Set<string> }>>();
   for (const assignment of parsed.assignments) {
-    if (!byKey.has(assignment.labelKey)) bad("An assignment names a label that was not proposed");
+    if (!byKey.has(assignment.labelKey)) bad("An assignment names an unknown label");
     const rows = members.get(assignment.labelKey) ?? new Map(),
       items = (assignment.itemIds ?? []).map((id) => support.get(id) ?? bad("An assignment names an unknown finding"));
-    if (items.some((item) => !assignment.rowIds.includes(item.rowId))) bad("A finding belongs to a row outside its assignment");
-    for (const rowId of assignment.rowIds) {
+    const rowIds = assignment.rowIds.length ? assignment.rowIds : [...new Set(items.map(({ rowId }) => rowId))];
+    if (items.some((item) => !rowIds.includes(item.rowId))) bad("A finding belongs to a row outside its assignment");
+    for (const rowId of rowIds) {
       const row = rowById.get(rowId) ?? bad("An assignment names material outside this research");
       if (target === "passages" && !row.evidenceIds?.length) bad("A saved passage assignment has no passage");
       const member = rows.get(rowId) ?? { evidence: new Set<string>(), support: new Set<string>() };
@@ -140,35 +137,25 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     }
     members.set(assignment.labelKey, rows);
   }
-  const concept = (labelKey: string) => kindOf(labelKey) === "source", parents = new Set(parsed.labels.map(({ parentKey }) => parentKey)),
-    modelled = !catalog.columns && target === "sources";
-  const typed = new Set([...members].filter(([key]) => !concept(key)).flatMap(([, rows]) => [...rows.values()].flatMap(({ evidence }) => [...evidence]))),
-    highlighted = new Set(catalog.entries.filter(({ kind }) => kind === "passages").flatMap(({ evidenceIds }) => evidenceIds));
-  if (modelled) {
-    for (const label of fresh.filter((label) => !concept(label.key) && !parents.has(label.key)))
-      if (![...(members.get(label.key) ?? new Map<string, { evidence: Set<string> }>()).values()].some(({ evidence }) => evidence.size))
-        bad(`“${clip(label.name, 80)}” is a highlight type with no passage; give it the passages that carry it or drop it`);
-    const leaves = parsed.labels.filter((label) => concept(label.key) && !parents.has(label.key) && members.get(label.key)?.size);
-    if (catalog.rows.length >= 2 && leaves.length >= 2 && leaves.every((label) => members.get(label.key)!.size === 1))
-      bad("Every label holds one source, so the labels copy the source list; a label must group sources, and what single passages say belongs to highlight types");
-    // A label whose members are exactly one court's sources restates what every row already shows.
-    for (const label of parsed.labels.filter((label) => concept(label.key))) {
-      const rows = [...(members.get(label.key)?.keys() ?? [])].map((rowId) => file.state.sources[rowById.get(rowId)?.sourceId ?? ""]?.reference),
-        courts = new Set(rows.map((reference) => reference?.kind === "document" ? undefined : reference?.collection));
-      if (rows.length >= 2 && courts.size === 1 && [...courts][0] && rows.length === catalog.rows.filter((row) =>
-          file.state.sources[row.sourceId]?.reference.collection === [...courts][0]).length)
-        bad(`“${clip(label.name, 80)}” holds exactly the ${[...courts][0]} sources, which every row already shows; say what those sources do for the question instead`);
+  const concept = (labelKey: string) => kindOf(labelKey) === "source";
+  const owners = new Map<string, string>();
+  for (const [labelKey, rows] of members) if (!concept(labelKey)) {
+    for (const [rowId, { evidence }] of rows) {
+      if (!evidence.size) bad("A highlight assignment needs a saved passage or a supported inventory item");
+      for (const id of evidence) {
+        const identity = `${rowId}:${id}`, typeId = resolve(labelKey, "highlight").id;
+        if (owners.has(identity) && owners.get(identity) !== typeId) bad("A passage is assigned to more than one highlight type");
+        owners.set(identity, typeId);
+      }
     }
   }
-  // A filed source must have something to open: a passage typed in this proposal or a cited passage in the filing's own
-  // support. Support the model left untyped becomes a highlight of the default type; a bare assertion is refused.
+  const typed = new Set([...members].filter(([key]) => !concept(key)).flatMap(([, rows]) => [...rows.values()].flatMap(({ evidence }) => [...evidence]))),
+    highlighted = new Set(catalog.entries.filter(({ kind }) => kind === "passages").flatMap(({ evidenceIds }) => evidenceIds));
+  // Keep cited filing support available as highlights when no explicit type was assigned.
   const DEFAULT_TYPE = "__default-highlight", untyped = new Map<string, Set<string>>();
   for (const [labelKey, rows] of members) {
     if (!concept(labelKey)) continue;
     for (const [rowId, member] of rows) {
-      const own = catalog.entries.filter((item) => item.rowId === rowId && item.evidenceIds.length);
-      if (modelled && own.length && !member.evidence.size && !own.some((item) => item.evidenceIds.some((id) => typed.has(id))))
-        bad(`Highlight at least one passage of “${clip(rowById.get(rowId)!.title, 80)}” before filing it, or leave it unfiled`);
       for (const id of member.evidence) if (!typed.has(id) && !highlighted.has(id)) untyped.set(rowId, (untyped.get(rowId) ?? new Set()).add(id));
     }
   }
@@ -185,19 +172,14 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
     if (passages.length) actions.push({ type: "label-selection", target: "passages",
       assign: [resolve(labelKey, "highlight").id], mode: "add", members: passages });
   }
-  const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gu, " ").trim();
-  const titles = new Set(catalog.rows.map((row) => normalise(row.title)));
-  for (const label of catalog.columns ? [] : parsed.labels)
-    if (titles.has(normalise(label.name)) && !file.state.labels[label.key]) bad(`“${clip(label.name, 80)}” names one ${
-      target === "sources" ? "source" : "passage"}, not a concept to file it under`);
-  if (!members.size && !catalog.columns) bad("This proposal classifies nothing");
+  if (!members.size && !actions.length && !catalog.columns) bad("This proposal contains no categories or assignments");
   if (actions.length > 400) throw new ApplicationError(413, "Narrow this label proposal before applying it");
   const assigned = new Set([...members.values()].flatMap((rows) => [...rows.keys()]));
   return { title: clip(parsed.title), target, propose: false, actions,
     labels: [...parsed.labels, ...(members.has(DEFAULT_TYPE) ? [byKey.get(DEFAULT_TYPE)!] : [])].map((label) => {
       const own = resolve(label.key, kindOf(label.key));
       return { ...own, key: label.key, path: researchLabelPath({ ...file.state, labels }, own.id),
-        parentKey: label.parentKey ?? null, existing: !!file.state.labels[own.id],
+        parentKey: label.parentKey === undefined ? file.state.labels[own.id]?.parentId ?? null : label.parentKey, existing: !!file.state.labels[own.id],
         rows: [...(members.get(label.key) ?? [])].map(([id, { support }]) => ({ id, title: rowById.get(id)!.title, support: [...support] })) }; }),
     unassigned: catalog.rows.filter(({ id }) => !assigned.has(id)).map(({ id, title }) => ({ id, title })) };
 }

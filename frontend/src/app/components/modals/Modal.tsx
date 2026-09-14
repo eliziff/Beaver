@@ -23,6 +23,8 @@ interface ModalProps {
     headerStart?: ReactNode;
     size?: ModalSize;
     className?: string;
+    /** Extra classes for the scrolling body (e.g. more side/top padding). */
+    bodyClassName?: string;
     fit?: boolean;
     footerStatus?: ReactNode;
     primaryAction?: ModalAction;
@@ -47,6 +49,7 @@ export function Modal({
     headerStart,
     size = "lg",
     className,
+    bodyClassName,
     fit = false,
     footerStatus,
     primaryAction,
@@ -166,7 +169,7 @@ export function Modal({
                         </Button>
                     </div>
                 )}
-                <div className="modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-1 [scrollbar-gutter:stable]">
+                <div className={cn("modal-scroll-body flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-1 [scrollbar-gutter:stable]", bodyClassName)}>
                     {children}
                 </div>
                 {hasFooter && (

@@ -14,7 +14,7 @@ it("keeps citation normalization stable across persistence and public replay", (
 
 it("projects reader display without exposing private continuation or checkpoint state", () => {
   const stored = parseAssistantEvent({ type: "subagent_run", id: "reader", task: "Read Grant",
-    status: "completed", agent: "scout", model: "luna", effort: "low",
+    status: "completed", model: "luna", effort: "low",
     output: "Public result", error: "private failure", publicError: "Reader failed." });
   expect(stored).not.toBeNull();
   expect(publicEvent.safeParse(stored).success).toBe(false);

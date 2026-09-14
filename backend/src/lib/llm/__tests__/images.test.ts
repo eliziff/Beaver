@@ -27,7 +27,7 @@ describe("image attachments", () => {
     ).toContain("5 MB");
     expect(modelSupportsImageInput("gpt-5.5")).toBe(true);
     expect(modelSupportsImageInput("deepseek-v4-pro")).toBe(false);
-    expect(modelSupportsImageInput("meta/muse-spark-1.1")).toBe(true);
+    expect(modelSupportsImageInput("muse-spark-1.1")).toBe(true);
     expect(modelSupportsImageInput("future-text-only-model")).toBe(false);
   });
 });

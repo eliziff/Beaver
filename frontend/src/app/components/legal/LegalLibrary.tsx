@@ -329,19 +329,25 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                         if (intent) setSourceDropNonce((value) => value + 1); }} />
             </section>}
             <div hidden={!!readingSource || embedded && researchOpen}
-                className={`${readingSource || embedded && researchOpen ? "hidden" : ""} min-h-0 flex-1 overflow-y-auto ${embedded ? "p-3" : "px-4 py-5 sm:px-6"}`}
+                className={`${readingSource || embedded && researchOpen ? "hidden" : ""} min-h-0 flex-1 ${embedded ? "flex flex-col overflow-hidden p-3" : "overflow-y-auto px-4 py-5 sm:px-6"}`}
             >
-                <div className="mx-auto max-w-5xl">
-                    <div className="space-y-4">
+                <div className={embedded ? "flex min-h-0 flex-1 flex-col" : "mx-auto max-w-5xl"}>
+                    <div className={embedded ? "flex min-h-0 flex-1 flex-col" : "space-y-4"}>
                     <form autoComplete="off"
                         onSubmit={runSearch}
-                        className="@container rounded-lg border border-gray-200 bg-white p-4"
+                        className={embedded
+                            ? "@container shrink-0"
+                            : "@container rounded-lg border border-gray-200 bg-white p-4"}
                     >
-                        <TabList value={docType} onValueChange={(value) => updateFilters({
-                            docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
-                            options={SOURCE_TABS.map(([value, label]) => ({ value, label }))}
-                            ariaLabel="Source category"
-                            className="mb-3" />
+                        <div className={embedded ? "flex min-h-12 shrink-0 items-center border-b border-gray-200 px-2 py-1.5" : "contents"}>
+                            <TabList value={docType} onValueChange={(value) => updateFilters({
+                                docType: value, jurisdiction: "", sourceKind: "", dataset: "" })}
+                                options={SOURCE_TABS.map(([value, label]) => ({ value, label }))}
+                                ariaLabel="Source category"
+                                variant="segmented"
+                                className={embedded ? undefined : "mb-3"} />
+                        </div>
+                        <div className={embedded ? "border-b border-gray-200 px-2 py-2" : "contents"}>
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 @min-[42rem]:grid-cols-[minmax(0,1fr)_auto_auto]">
                             <SearchBar name="query" required={docType !== "library"} value={searchQuery}
                                 onValueChange={setSearchQuery} booleanSearch
@@ -453,7 +459,9 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                                 </label>
                             </div>
                         )}
+                        </div>
                     </form>
+                    <div className={embedded ? "min-h-0 flex-1 overflow-y-auto" : "contents"}>
                     {error && (
                         <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                             {error}
@@ -550,6 +558,7 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
                             </p>}
                         </section>
                     )}
+                    </div>
                     </div>
                 </div>
             </div>

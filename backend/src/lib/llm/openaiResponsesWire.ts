@@ -1,6 +1,7 @@
 import { MAX_PROVIDER_TOOL_ARGUMENT_BYTES,
   type ProviderAdapter, type ProviderEvent, type ProviderStep } from "./providerLoop";
 import type OpenAI from "openai";
+import { modelForProvider } from "./models";
 import type { LlmImage, LlmMessage, NormalizedLlmUsage, StreamChatParams, Tool } from "./types";
 
 type InputItem = Record<string, unknown>;
@@ -120,7 +121,7 @@ export function createResponsesWireAdapter(
           }
         : undefined;
       const stream = await (await client).responses.create({
-        model: config.model ?? params.model,
+        model: config.model ?? modelForProvider(params.model),
         instructions: params.systemPrompt || undefined,
         input: requestInput as OpenAI.Responses.ResponseInput,
         // Leave strictness to the provider, preserving the omitted wire field.

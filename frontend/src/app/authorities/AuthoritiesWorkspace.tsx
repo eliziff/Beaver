@@ -91,7 +91,8 @@ type DiscrepancyHandler = (finding: AuthoritiesDiscrepancy,
   action: AuthoritiesDiscrepancyAction, done: () => void) => void;
 
 export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initialDraftId,
-  onFocusChange, refreshToken, locked = false, LibraryPicker, projectId, jurisdictionOrder = [] }: {
+  onFocusChange, refreshToken, locked = false, LibraryPicker, projectId, jurisdictionOrder = [],
+  initialNewDraft = false, onInitialConsumed }: {
   host: AuthoritiesHost;
   headerActions?: ReactNode;
   onDraftChange?: (draft: AuthoritiesProduct | undefined, synced: boolean) => void;
@@ -102,6 +103,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   locked?: boolean;
   LibraryPicker?: LibraryPicker;
   jurisdictionOrder?: string[];
+  /** A workflow launch asks for a fresh draft instead of the remembered one. */
+  initialNewDraft?: boolean;
+  onInitialConsumed?: () => void;
 }) {
   const requested = initialDraftId ?? "";
   const routeRequest = useRef(0);
@@ -223,6 +227,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       .finally(() => active && setDraftsLoading(false));
     return () => { active = false; };
   }, [projectId, host]);
+
+  // A workflow launch asks for a fresh draft. Clear the remembered draft first
+  // so the resume effect below cannot pull the previous one back in.
+  useEffect(() => {
+    if (!initialNewDraft) return;
+    routeRequest.current += 1;
+    const current = draftRef.current;
+    if (current) delete modeDrafts.current[current.state.import.kind === "manual" ? "manual" : "automatic"];
+    localStorage.removeItem(lastDraftKey(projectId, host.mode));
+    adopt(undefined, true);
+    setRestoredScope(projectId ?? "local");
+    onInitialConsumed?.();
+  }, [initialNewDraft, adopt, projectId, host.mode, onInitialConsumed]);
 
   // Entering the workspace without a draft in the route resumes the last one; leaving a
   // draft later is the reader's choice, and the scope is settled by then either way.

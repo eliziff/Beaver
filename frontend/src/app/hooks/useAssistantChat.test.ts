@@ -255,7 +255,7 @@ describe("useAssistantChat local transcript boundary", () => {
       mode: "presume", jurisdictions: ["ca-ab", "us-ny"],
     } };
     updateAssistantPreferences({
-      readSubagents: { ...readAssistantPreferences().readSubagents, mode: "beaver" },
+      readSubagents: { ...readAssistantPreferences().readSubagents, enabled: true },
     });
     mocks.streamChat.mockResolvedValueOnce(completedTurn());
     const workProduct = { kind: "authorities" as const,
@@ -282,7 +282,7 @@ describe("useAssistantChat local transcript boundary", () => {
           revision: 3,
           focus: { item_id: "occurrence-1", selection: { start: 4, end: 18 } },
         },
-        subagent_mode: "beaver",
+        subagents: true,
         edit_mode: "auto",
       }),
     );

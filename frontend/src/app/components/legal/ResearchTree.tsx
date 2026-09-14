@@ -163,23 +163,19 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       </div>}
     </div>;
   };
-  // Ancestors count inherited membership; rows appear only at the deepest explicit filing in each branch.
-  const ofType = (typeId: string) => (id: string) => id === typeId || researchLabelPath(labels, id).some((label) => label.id === typeId);
-  /** A highlight type owns its own hierarchy and nothing else: it lists the passages carrying it or a
-   *  descendant type, flat, on request — never a second copy of the source folders (Eli, 2026-09-09). */
+  /** A highlight type lists only the passages assigned directly to it. Nested types keep their own passages. */
   const typePassages = (typeId: string) => {
-    const counted = (source: ResearchSource) => Object.entries(source.passages?.labelCounts ?? {})
-      .reduce((sum, [id, count]) => sum + (ofType(typeId)(id) ? count : 0), 0);
+    const counted = (source: ResearchSource) => source.passages?.labelCounts[typeId] ?? 0;
     const carrying = sources.filter((source) => counted(source) > 0), total = carrying.reduce((sum, source) => sum + counted(source), 0);
     if (!total) return [];
     // The type row's own caret is the only caret: the tree renders this list only once that row is open.
     const missing = preview ? [] : carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
     if (missing.length) setWanted((current) => new Set([...current, ...missing]));
     const rows = preview
-      ? carrying.flatMap((source) => proposed(source).flatMap((item, index) => ofType(typeId)(item.labelId)
+      ? carrying.flatMap((source) => proposed(source).flatMap((item, index) => item.labelId === typeId
         ? [quoteNode(`${typeId}:${source.id}:${index}`, item, sourceName(source))] : []))
       : carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) =>
-      (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && item.value.labelIds.some(ofType(typeId))
+      (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && item.value.labelIds.includes(typeId)
         ? [passageNode(source, item.value, `${typeId}:`)] : []));
     // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
     const pending = !preview && carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);

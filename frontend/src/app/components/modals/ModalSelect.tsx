@@ -107,6 +107,8 @@ type SearchableChoice = {
     keywords?: string;
     description?: string;
     disabled?: boolean;
+    /** Custom row; `choose` selects any value for this choice (e.g. a provider). */
+    render?: (choose: (value: string | null) => void) => ReactNode;
 };
 export function SearchableChoiceModal({
     open,
@@ -119,11 +121,14 @@ export function SearchableChoiceModal({
     searchable = true,
     size = "sm",
     className,
+    bodyClassName,
     controls,
     footer,
     leadPanel,
     sidePanel,
     closeOnSelect = true,
+    query: queryProp,
+    onQueryChange,
 }: {
     open: boolean;
     onClose: () => void;
@@ -135,13 +140,22 @@ export function SearchableChoiceModal({
     searchable?: boolean;
     size?: ModalSize;
     className?: string;
+    bodyClassName?: string;
     controls?: ReactNode;
     footer?: ReactNode;
     leadPanel?: ReactNode;
     sidePanel?: ReactNode;
     closeOnSelect?: boolean;
+    /** Controlled search text; omit to keep the query internal to the modal. */
+    query?: string;
+    onQueryChange?: (value: string) => void;
 }) {
-    const [query, setQuery] = useState("");
+    const [internalQuery, setInternalQuery] = useState("");
+    const query = queryProp ?? internalQuery;
+    const setQuery = (next: string) => {
+        setInternalQuery(next);
+        onQueryChange?.(next);
+    };
     const searchRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
         if (!open) return;
@@ -170,6 +184,7 @@ export function SearchableChoiceModal({
             onClose={close}
             breadcrumbs={[title]}
             size={size}
+            bodyClassName={bodyClassName}
             className={cn(size === "sm" && "h-[min(20rem,calc(100dvh-2rem))]", className)}
         >
             {controls}
@@ -205,7 +220,7 @@ export function SearchableChoiceModal({
                                     {option.group}
                                 </div>
                             )}
-                        <button
+                        {option.render ? option.render(choose) : <button
                             type="button"
                             data-choice={option.value ?? undefined}
                             disabled={option.disabled}
@@ -228,7 +243,7 @@ export function SearchableChoiceModal({
                                     {option.description}
                                 </span>}
                             </span>
-                        </button>
+                        </button>}
                     </Fragment>
                 ))}
                 {!visible.length && (

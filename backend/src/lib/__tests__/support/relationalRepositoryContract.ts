@@ -264,7 +264,7 @@ export function relationalRepositoryContract(
         { type: "mcp_tool_call", connector_id: "connector-1", connector_name: "Private connector",
           tool_name: "read", openai_tool_name: "mcp_read", status: "ok" },
         { type: "subagent_run", id: "reader-1", task: "Read the record", status: "interrupted",
-          agent: "scout", model: "reader-model", effort: "high", error: "private error",
+          model: "reader-model", effort: "high", error: "private error",
           publicError: "Reading interrupted", activities: [], output: "", grounding,
           resume: { id: "reader-1", continuation_id: "private-session", model: "reader-model", effort: "high",
             assignment: { task: "Read the record", scope: "appeal", jurisdiction: "CA" }, evidence: [receipt], queries: [] } },

@@ -1,18 +1,14 @@
 import { useState } from "react";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { QUICK_ACTIONS, useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { CheckboxInput } from "@/app/components/ui/checkbox";
-import { AccountSection, AccountSettingRow } from "../AccountSection";
-import { Switch } from "@/app/components/ui/switch";
+import { AccountSection } from "../AccountSection";
 import { JurisdictionPreferenceEditor } from "@/app/components/settings/JurisdictionPreferenceEditor";
 export default function FeaturesPage() {
     const { profile, updateProfile } = useUserProfile();
-    const [preferences, savePreferences] = useAssistantPreferences();
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [pendingUs, setPendingUs] = useState<boolean | null>(null);
     const usEnabled = pendingUs ?? profile?.legalResearchUs ?? true;
-    const quickActionsEnabled = Object.values(preferences.quickActions).some(Boolean);
     const handleUpdateLegalResearch = async (enabled: boolean) => {
         if (saving) return;
         setSaveError(null);
@@ -27,21 +23,6 @@ export default function FeaturesPage() {
     };
     return (
         <div className="space-y-8">
-            <AccountSection heading="Assistant">
-                    <AccountSettingRow title="Quick actions"
-                        description="Show the quick actions row on the assistant start screen.">
-                        <Switch
-                            checked={quickActionsEnabled}
-                            ariaLabel="Show quick actions"
-                            size="md"
-                            onChange={(checked) => savePreferences({
-                                quickActions: Object.fromEntries(
-                                    QUICK_ACTIONS.map(({ id }) => [id, checked]),
-                                ) as typeof preferences.quickActions,
-                            })}
-                        />
-                    </AccountSettingRow>
-            </AccountSection>
             <AccountSection heading="Jurisdiction preference">
                 <div className="px-4 py-5">
                     <p className="mb-4 text-sm leading-5 text-gray-500">

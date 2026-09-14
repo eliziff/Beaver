@@ -108,6 +108,7 @@ export function AppSettingsModal({
             breadcrumbs={["Settings"]}
             size="xl"
             className="h-[min(40rem,calc(100dvh-2rem))]"
+            bodyClassName="py-0"
             headerAction={
                 !isLocalMode ? (
                     <Link

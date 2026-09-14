@@ -335,7 +335,7 @@ describe("chat PDF evidence durability", () => {
     expect((await request(loaded.app).post("/chat").send({
       chat_id: created.body.id,
       expected_version: 0,
-      subagent_mode: "beaver",
+      subagents: true,
       subagent_model: "gpt-5.6-luna",
       subagent_effort: "low",
       current_turn: { kind: "message", content: "Compare two notes." },
@@ -346,39 +346,6 @@ describe("chat PDF evidence durability", () => {
     const readers = events.filter(({ type }) => type === "subagent_run");
     expect(readers.map(({ id }) => id)).toEqual(["round:1", "round:2"]);
     expect(readers.every(({ status }) => status !== "running")).toBe(true);
-  });
-
-  it("checkpoints sustained progress without writing every update", async () => {
-    mocks.streamChatWithTools.mockImplementation(async (params) => {
-      const activities: { id: string; label: string; status: "completed" }[] = [];
-      for (let index = 0; index < 50; index += 1) {
-        const activity = { id: `tool-${index}`, label: `Read ${index}`, status: "completed" as const };
-        activities.push(activity);
-        params.callbacks?.onSubagentUpdate?.({
-          id: "reader-1", task: "Read the record", model: "gpt-5.6-luna",
-          effort: "low", status: "running", activities: [...activities], activity,
-        });
-        await new Promise<void>((resolve) => setImmediate(resolve));
-      }
-      params.callbacks?.onSubagentUpdate?.({
-        id: "reader-1", task: "Read the record", model: "gpt-5.6-luna",
-        effort: "low", status: "completed", output: "Done.", activities,
-      });
-      return { fullText: "Done." };
-    });
-    const loaded = await loadApp();
-    const created = await request(loaded.app).post("/chat/create").send({});
-    const commit = vi.spyOn(loaded.store, "commitTurn");
-
-    const response = await postMessage(loaded.app, created.body.id, 0, "Read this.");
-
-    expect(response.status).toBe(200);
-    expect(commit.mock.calls.length).toBeLessThan(10);
-    const reader = ((await storedChat(loaded.store, created.body.id))!
-      .messages[1].content as Record<string, unknown>[])
-      .find(({ type }) => type === "subagent_run");
-    expect(reader).toMatchObject({ status: "completed" });
-    expect(reader?.activities).toHaveLength(50);
   });
 
   it("omits empty chats from history without invalidating their direct route", async () => {

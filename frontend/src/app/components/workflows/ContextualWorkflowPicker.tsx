@@ -14,7 +14,7 @@ import { WarningPopup } from "../popups/WarningPopup";
 import { cn } from "@/app/lib/utils";
 import { WorkflowPickerContent } from "./WorkflowPickerContent";
 import { useWorkflowPickerState } from "./WorkflowPickerModal";
-import { workflowPath, type WorkflowSelection } from "./workflowRoutes";
+import { newDraftState, workflowPath, type WorkflowSelection } from "./workflowRoutes";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 
 export type WorkflowDocument = Pick<Document, "id" | "filename"> &
@@ -98,7 +98,7 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
             ? documents[0] : null;
         if (workflow.launcher.kind !== "authorities" || !source) {
             onLaunched?.();
-            navigate(workflowPath(workflow));
+            navigate(workflowPath(workflow), newDraftState(workflow));
             return;
         }
         setLaunching("product"); setLaunchError(null);
@@ -126,7 +126,8 @@ export function ContextualWorkflowPicker({ documents = [], initialWorkflowId,
                 else void openProduct(workflow);
             }}
             {...state.pickerProps} initialWorkflowId={initialWorkflowId}
-            contextLabel={contextLabel} disabledItem={(_, variant) => !!launching || supras.launching ||
+            contextLabel={contextLabel} audienceTabVariant="dock"
+            disabledItem={(_, variant) => !!launching || supras.launching ||
                 variant?.execution === "assistant" && !onAssistantSelect}
             />
         {supras.picker}
