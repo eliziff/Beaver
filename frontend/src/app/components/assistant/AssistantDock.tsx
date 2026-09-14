@@ -56,6 +56,7 @@ export function AssistantDock({
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
     const workspaceOnly = tabs.length === 1 && active?.label === "Workspace";
     const [visited, setVisited] = useState(() => new Set(expanded && active ? [active.id] : []));
+    const [dockWidth, setDockWidth] = useState(defaultWidth);
     changeExpanded.current = onExpandedChange;
 
     useEffect(() => {
@@ -71,6 +72,19 @@ export function AssistantDock({
         media.addEventListener?.("change", update);
         return () => media.removeEventListener?.("change", update);
     }, []);
+
+    // The dock's own width decides whether the top rail can carry full words.
+    // Measured before paint so the first frame is already correct (no full↔icon flicker).
+    useLayoutEffect(() => {
+        const panel = dock.current;
+        if (!panel || !expanded) return;
+        const update = () => setDockWidth(panel.getBoundingClientRect().width || defaultWidth);
+        update();
+        if (typeof ResizeObserver === "undefined") return;
+        const observer = new ResizeObserver(update);
+        observer.observe(panel);
+        return () => observer.disconnect();
+    }, [compact, defaultWidth, expanded]);
 
     function measuredWidths() {
         const panel = dock.current;
@@ -134,6 +148,10 @@ export function AssistantDock({
     }, [compact, expanded]);
 
     if (!active) return null;
+    // Full words while they fit; otherwise icons only. The top rail never scrolls.
+    const labelBudget = dockWidth - 64 - (active.actions ? 160 : 0);
+    const labelsFit = tabs.length <= 1 || tabs.reduce(
+        (sum, tab) => sum + 45 + tab.label.length * 7.2, 0) + (tabs.length - 1) * 4 <= labelBudget;
     const collapseButton = (
         <button
             type="button"
@@ -248,10 +266,11 @@ export function AssistantDock({
             </div> : <Tabs
                 value={active.id}
                 onValueChange={onActivateTab}
+                fit
                 options={tabs.map(({ id, label, icon }) => ({ value: id, label:
                     <span className="flex min-w-0 items-center justify-center gap-1.5">
                         <span className="inline-flex shrink-0">{icon ?? dockIcon(id)}</span>
-                        <span className="truncate">{label}</span>
+                        <span className={labelsFit ? "whitespace-nowrap" : "sr-only"}>{label}</span>
                     </span> }))}
                 ariaLabel="Assistant panels"
                 variant="dock" actions={railActions} className="h-full"

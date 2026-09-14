@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   runResearchFileQuery: vi.fn(), getResearchCitation: vi.fn(),
   getWorkspaceFindings: vi.fn(), getWorkspaceViews: vi.fn(),
 }));
+const legalApi = vi.hoisted(() => ({ getDirectLegalSourceDocument: vi.fn() }));
 vi.mock("../shared/views/DocumentViewer", () => ({ DocumentViewer: (props: { documentId: string; versionId: string }) =>
   <div aria-label="Original document">{props.documentId}:{props.versionId}</div> }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
@@ -37,6 +38,10 @@ vi.mock("@/app/lib/api/documents", async (original) => ({
 vi.mock("@/app/lib/api/projects", async (original) => ({
   ...await original<typeof import("@/app/lib/api/projects")>(),
   listProjects: api.listProjects
+}));
+vi.mock("@/app/lib/api/legalSources", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/legalSources")>(),
+  getDirectLegalSourceDocument: legalApi.getDirectLegalSourceDocument,
 }));
 
 const evidence: ResearchEvidence = {
@@ -98,6 +103,7 @@ describe("ResearchFileBar", () => {
     });
     localStorage.clear(); sessionStorage.clear();
     vi.clearAllMocks();
+    legalApi.getDirectLegalSourceDocument.mockRejectedValue(new Error("legal source unavailable"));
     api.actOnResearchFile.mockResolvedValue(file);
     api.getWorkspaceFindings.mockResolvedValue({ items: [], next_offset: null, total: 0 });
     api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] });
@@ -281,6 +287,18 @@ describe("ResearchFileBar", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
     expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
+  });
+
+  it("warms a saved source's document when its row is pointed at or focused", async () => {
+    await renderWorkspace();
+    legalApi.getDirectLegalSourceDocument.mockClear();
+    const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
+    fireEvent.pointerOver(title);
+    fireEvent.focusIn(title);
+    expect(legalApi.getDirectLegalSourceDocument).toHaveBeenCalledWith({
+      provider: "a2aj", citation: "baker", sourceId: "baker",
+      docType: "cases", language: "en", dataset: "SCC",
+    });
   });
 
   it("keeps external sources as safe links instead of sending them to the legal reader", () => {

@@ -75,6 +75,8 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     const jump = () => { if (!preview && reader?.canRead(source)) void reader.readSource(source); };
     return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
       onClick={(event) => { if (!(event.target as Element).closest("button,a")) jump(); }}
+      onPointerEnter={(event) => { if (event.pointerType !== "touch") reader?.prefetch(source); }}
+      onFocus={() => reader?.prefetch(source)}
       onDragStart={(event) => { onSourceDrag?.(); event.dataTransfer.setData(RESEARCH_SOURCE_DRAG, source.id); }}>
       {/* No caret where there is nothing to show: an empty group used to flash "Loading…" and vanish (Eli, 2026-09-09). */}
       {expandable ? chevron(open, `Passages in ${name}`, () => openSource(source.id)) : <span className="size-6 shrink-0" />}
@@ -118,6 +120,8 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       if (!preview && reader?.canRead(source)) void reader.readSource(source, item.receipt.locator.label, item.receipt.evidence_id); };
     return <div draggable onDragStart={(event) => event.dataTransfer.setData(RESEARCH_PASSAGE_DRAG, JSON.stringify(item))}
       onClick={(event) => { if (!(event.target as Element).closest("button,a")) jump(); }}
+      onPointerEnter={(event) => { if (event.pointerType !== "touch") reader?.prefetch(source); }}
+      onFocus={() => reader?.prefetch(source)}
       title={[locator, quote, item.note].filter(Boolean).join(NEWLINE)}
       className={`${ROW} ${selectedHighlight === id ? "bg-gray-100" : "hover:bg-gray-50"}`}>
       {passageLine(color, context, <>

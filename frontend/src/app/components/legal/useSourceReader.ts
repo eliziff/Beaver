@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
+import { getDirectLegalSourceDocument } from "@/app/lib/api/legalSources";
 import { legalSourceViewerHref, type ResearchFile, type ResearchPageItem,
-  type ResearchSource } from "@/app/lib/researchFiles";
+  type ResearchSource, type ResearchSourceReference } from "@/app/lib/researchFiles";
 import { evidenceCitation } from "@/app/lib/groundedAnswers";
 import type { Citation } from "@/app/lib/citations";
 import { errorMessage } from "@/app/lib/utils";
@@ -15,6 +16,23 @@ export const sourceMatches = (source: ResearchSource, filter: string) => !filter
 type Reading = { citation: Citation; reference?: ResearchSource["reference"] };
 type PassagePages = ReturnType<typeof usePagedChains<ResearchPageItem>>;
 type ReadSource = (source: ResearchSource, locator?: string) => void;
+
+/** The reader tab's own request for a saved source, so hovering warms exactly what opening asks for. */
+let warming = 0;
+export function prefetchLegalSource(reference: ResearchSourceReference) {
+  // A pointer sweeping the tree can outrun the reads; keep at most two speculative documents in flight.
+  if (warming >= 2 || reference.kind === "document" ||
+      reference.provider !== "a2aj" && reference.provider !== "journal") return;
+  warming += 1;
+  void getDirectLegalSourceDocument({
+    provider: reference.provider,
+    citation: reference.citation ?? reference.id,
+    sourceId: reference.id,
+    docType: reference.kind === "legislation" ? "laws" : reference.kind === "journal" ? "articles" : "cases",
+    language: reference.language ?? "en",
+    dataset: reference.collection ?? null,
+  }).catch(() => undefined).finally(() => { warming -= 1; });
+}
 
 /** Opens saved sources and passages in the reader, resolving the exact saved passage first. */
 export function useSourceReader({ file, passagePages, onReadSource, onStatus }: { file: ResearchFile | null;
@@ -56,6 +74,7 @@ export function useSourceReader({ file, passagePages, onReadSource, onStatus }: 
         document_id: source.reference.id, version_id: source.reference.versionId, filename: sourceName(source), quotes: [] } });
     } catch (reason) { onStatus(errorMessage(reason, "Could not open saved passage")); }
   }
-  return { reading, setReading, readSource, sourceHref, canRead };
+  return { reading, setReading, readSource, prefetch: (source: ResearchSource) => prefetchLegalSource(source.reference),
+    sourceHref, canRead };
 }
 export type SourceReader = ReturnType<typeof useSourceReader>;
