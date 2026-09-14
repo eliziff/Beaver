@@ -77,19 +77,40 @@ export const searchLegalSources = async (args: {
           args.sortResults === "default" ? undefined : args.sortResults,
       }),
     );
+const legalSourceDocumentCache = new Map<string, LegalSourceViewerPayload>();
 const legalSourceDocumentRequests = new Map<
   string,
   Promise<LegalSourceViewerPayload>
 >();
-export const clearLegalSourceRequests = () => legalSourceDocumentRequests.clear();
+/** Each payload is a whole document, so a small count is the bound; the reader keeps no more open. */
+const LEGAL_SOURCE_CACHE_LIMIT = 6;
+let legalSourceCacheGeneration = 0;
+export const clearLegalSourceRequests = () => {
+  legalSourceCacheGeneration += 1;
+  legalSourceDocumentCache.clear();
+  legalSourceDocumentRequests.clear();
+};
 async function cachedLegalSourceDocument(path: string) {
-  const cached = legalSourceDocumentRequests.get(path);
-  if (cached) return cached;
+  const cached = legalSourceDocumentCache.get(path);
+  if (cached) {
+    legalSourceDocumentCache.delete(path);
+    legalSourceDocumentCache.set(path, cached);
+    return cached;
+  }
+  const pending = legalSourceDocumentRequests.get(path);
+  if (pending) return pending;
   const request = apiRequest<LegalSourceViewerPayload>(path, {
     cache: "default",
   });
   legalSourceDocumentRequests.set(path, request);
-  void request.finally(() => {
+  const generation = legalSourceCacheGeneration;
+  void request.then((payload) => {
+    // A response that landed after the account boundary must not repopulate the old cache.
+    if (generation !== legalSourceCacheGeneration) return;
+    legalSourceDocumentCache.set(path, payload);
+    while (legalSourceDocumentCache.size > LEGAL_SOURCE_CACHE_LIMIT)
+      legalSourceDocumentCache.delete(legalSourceDocumentCache.keys().next().value!);
+  }).finally(() => {
     if (legalSourceDocumentRequests.get(path) === request)
       legalSourceDocumentRequests.delete(path);
   }).catch(() => undefined);

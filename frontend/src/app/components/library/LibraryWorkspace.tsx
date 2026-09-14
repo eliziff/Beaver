@@ -139,7 +139,7 @@ function LibraryCollection({
     };
 
     return (
-        <div className={`flex h-full min-h-0 flex-col${embedded ? " p-3" : ""}`}>
+        <div className="flex h-full min-h-0 flex-col">
             {!embedded && (
                 <PageHeader
                     breadcrumbs={[{ label: "Library" }]}
