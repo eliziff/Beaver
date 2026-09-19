@@ -11,9 +11,14 @@ Implementation present, focused validation and release readiness are distinct.
 | --- | --- | --- |
 | 1 | [Application boundaries](application-boundaries.md) and [document storage](document-versioning.md) | Existing application/persistence owners are the foundation. Finish remaining policy cuts, version/blob lifecycle proof and exact process/native identities; do not recreate the displaced Authorities gateway. |
 | 2 | [Shared document structure](document-structure.md) | The standalone Rust engine exists. Preserve primary profiles and quotation ownership; separately establish compound-document gold and gate the exact structure/parser/Inspector/Beaver combination. |
-| 3 | [Document capabilities](document-capabilities.md) | Complete exact-target Word operations, linking and quotation workflows under their separate kernel, agent, live-Word and accepted-legal-gold gates. A tool or demo is not full property coverage. |
+| 3 | [Document capabilities](document-capabilities.md) | Qualify one maintained Word-free document engine before replacement. Phase 0 corpus/package-audit tooling exists; SuperDoc engine licensing and actual qualification remain blocked. Preserve exact targets and accepted legal gold; no production editor change is implied. |
 | 4 | [Legal work products](legal-work-products.md) | Authorities uses the TypeScript core in embedded/standalone hosts, with review and editable highlights. Close reference parity, durable binding/reopen and exact court-output/browser gates; do not claim all profiles filing-ready. |
 | 5 | [Saved research](research-sets.md) | Research-file foundations, the current Sources/Memo/Table UI and conversion routes are present. Remaining work is end-to-end round trips, configured live layout quality, scale/performance and Library polish—not recreating the historical overhaul. |
+
+**Document-engine admission:** the [focused plan](document-capabilities.md) now
+prioritizes a supported independent engine, compact composition and broad API
+access over growing Beaver's Word machinery. Existing Markdown creation, DOCX
+editing and LibreOffice conversion remain in place until admission passes.
 
 **Bootstrap blocker:** public upstream does not serve the pinned `mike-workflows`
 commit. Publish that history or explicitly gate a replacement; the
