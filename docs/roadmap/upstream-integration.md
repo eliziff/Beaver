@@ -41,9 +41,17 @@ pin and generated offline templates pass fresh-clone source validation. Unicode
 generated filenames and acting-user tracked-change attribution are implemented.
 These are focused results, not release certification.
 
+Ordinary API providers now use AI SDK while subscription/local transports retain
+their existing sessions. Focused wire tests cover signed reasoning, compaction,
+image tool results, exact Gemini schemas, malformed completion and retries.
+Encrypted personal keys override environment keys in both persistence engines;
+removing an override restores the environment key. Saving requires the existing
+`USER_API_KEYS_ENCRYPTION_SECRET` in local mode as well as cloud mode.
+
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
 full application suites/builds, fresh-checkout proof and assistant-dock smoke
 with screenshot inspection. Backend build artifacts needed by the existing
 experiment boundary check have been built successfully.
-No full sweep without `[FullSweep]`; metered model tests require authorization.
+The user supplied `[FullSweep]` on September 19: run the full sweep against the
+combined integration, including its isolated synthetic live-model checks.

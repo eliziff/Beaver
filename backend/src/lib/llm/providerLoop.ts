@@ -8,7 +8,7 @@ export type ProviderEvent =
   | { type: "tool_call"; call: NormalizedToolCall }
   | { type: "usage"; usage: NormalizedLlmUsage; usedTokens?: number; serviceTier?: string }
   | { type: "opaque_checkpoint"; checkpoint?: unknown; public?: ProviderContextCheckpoint; compaction?: "running" | "completed" | "failed" }
-  | { type: "done" };
+  | { type: "done"; finishReason?: string };
 
 export type ProviderStep = {
   iteration: number;
@@ -49,8 +49,8 @@ function addUsage(
 }
 
 function retryable(error: unknown): boolean {
-  const current = error as { status?: unknown; status_code?: unknown; code?: unknown; cause?: unknown };
-  const status = current?.status ?? current?.status_code;
+  const current = error as { status?: unknown; status_code?: unknown; statusCode?: unknown; code?: unknown; cause?: unknown };
+  const status = current?.status ?? current?.status_code ?? current?.statusCode;
   if (typeof status === "number" && [408, 409, 429, 500, 502, 503, 504, 529].includes(status)) return true;
   return /overload|terminated|fetch failed|socket hang up|other side closed|(?:initialize|turn\/start) request timed out|already has an active writer|failed to install system skills|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|EAI_AGAIN|UND_ERR_/iu.test(
     [String(error), String(current?.code ?? ""), String(current?.cause ?? "")].join(" "),
@@ -121,6 +121,7 @@ export async function runProviderLoop(
       let attemptCheckpoint = checkpoint;
       let contextUsed: number | undefined;
       let done = false;
+      let finishReason: string | undefined;
       let visible = false;
       // A stream has at most one open content/reasoning block, even without an ID.
       let activeBlock: { type: "text_delta" | "reasoning_delta"; block?: string | number } | undefined;
@@ -189,6 +190,7 @@ export async function runProviderLoop(
               if (event.public) callbacks.onContextCheckpoint?.(event.public);
             } else {
               done = true;
+              finishReason = event.finishReason;
               closeBlock();
             }
           }
@@ -228,6 +230,16 @@ export async function runProviderLoop(
         (result.images ?? []).reduce((bytes, image) => bytes + image.data.length, 0), 0,
       );
       if (results.some(({ terminal }) => terminal)) break;
+      const stopNotice = finishReason === "length"
+        ? "\n\nStopped early: the response reached the model's output limit. Ask to continue."
+        : iteration + 1 === maxIterations && results.length
+          ? "\n\nStopped early: the assistant reached the tool-step limit before finishing. Ask to continue." : "";
+      if (stopNotice) {
+        fullText += stopNotice;
+        callbacks.onContentDelta?.(stopNotice);
+        callbacks.onContentBlockEnd?.();
+        break;
+      }
       const steering = params.takeSteering?.() ?? [];
       if (!results.length && !steering.length) break;
       pendingResults = results;

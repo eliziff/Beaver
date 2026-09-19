@@ -4,7 +4,6 @@ import { Eye, EyeOff } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useMfaAction } from "@/app/components/account/useMfaAction";
-import { isLocalMode } from "@/app/lib/authMode";
 import type { ApiKeyProvider, ApiKeyState } from "@/app/lib/api/account";
 import {
     accountGlassIconButtonClassName,
@@ -66,9 +65,7 @@ export function ApiKeySettings() {
                 API keys
             </h2>
             <p className="mb-4 text-sm leading-6 text-gray-600">
-                {isLocalMode
-                    ? "Read from the server environment."
-                    : "Stored keys are encrypted. Server environment keys take precedence."}
+                Your saved keys are encrypted and take precedence over shared server keys.
             </p>
             <AccountSection className="divide-y divide-gray-200">
                 {API_KEY_FIELDS.map((field) => (
@@ -81,7 +78,7 @@ export function ApiKeySettings() {
                     />
                 ))}
             </AccountSection>
-            {!isLocalMode && mfaPopup}
+            {mfaPopup}
         </div>
     );
 }
@@ -101,28 +98,6 @@ function ApiKeyField({
     const [error, setError] = useState<string | null>(null);
     const description =
         "description" in field ? field.description : undefined;
-    if (isLocalMode)
-        return (
-            <div className="flex items-start justify-between gap-4 px-4 py-5">
-                <div>
-                    <p className="text-sm font-medium text-gray-700">
-                        {field.label}
-                    </p>
-                    {description && (
-                        <p className="mt-1 text-sm text-gray-500">
-                            {description}
-                        </p>
-                    )}
-                </div>
-                <span className="shrink-0 text-sm text-gray-500">
-                    {state === undefined
-                        ? "Checking..."
-                        : state.configured
-                          ? "Configured"
-                          : "Not configured"}
-                </span>
-            </div>
-        );
     const isServerConfigured = state?.source === "env";
     const mutate = (
         action: "save" | "remove",
@@ -160,7 +135,7 @@ function ApiKeyField({
                 if (value) mutate("save", value, event.currentTarget);
             }}
         >
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+            <label htmlFor={`api-key-${field.provider}`} className="mb-2 block text-sm font-medium text-gray-700">
                 {field.label}
             </label>
             {description && (
@@ -169,11 +144,12 @@ function ApiKeyField({
             <div className="space-y-2">
                 <div className="relative flex-1">
                     <Input
+                        id={`api-key-${field.provider}`}
                         name="key"
                         type={reveal ? "text" : "password"}
                         placeholder={
                             isServerConfigured
-                                ? "Server .env key configured"
+                                ? "Using shared key; add your own"
                                 : state?.configured
                                   ? "Saved key hidden"
                                   : field.placeholder
@@ -181,10 +157,10 @@ function ApiKeyField({
                         className={`pr-10 ${accountGlassInputClassName}`}
                         autoComplete="off"
                         spellCheck={false}
-                        disabled={isServerConfigured}
+                        disabled={saving}
                         required
                     />
-                    {!isServerConfigured && (
+                    {(
                         <button
                             type="button"
                             onClick={() => setReveal((r) => !r)}
@@ -202,12 +178,12 @@ function ApiKeyField({
                 <div className="flex flex-wrap justify-end gap-2">
                     <button
                         type="submit"
-                        disabled={isServerConfigured || saving}
+                        disabled={saving}
                         className="text-xs font-medium text-gray-700 hover:text-gray-950 disabled:cursor-not-allowed disabled:text-gray-400"
                     >
                         {saving ? "Saving..." : "Save"}
                     </button>
-                    {state?.configured && !isServerConfigured && (
+                    {state?.source === "user" && (
                         <button
                             type="button"
                             onClick={() => mutate("remove")}

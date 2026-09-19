@@ -13,6 +13,5 @@ export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
 export type UserCredentials = {
   status(userId: string): Promise<ApiKeyStatus>;
   keys(userId: string): Promise<UserApiKeys>;
-  environmentConfigured(provider: ApiKeyProvider): boolean;
   save?(userId: string, provider: ApiKeyProvider, value: string | null): Promise<void>;
 };
