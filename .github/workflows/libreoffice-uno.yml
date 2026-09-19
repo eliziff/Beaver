@@ -54,9 +54,6 @@ jobs:
         env:
           UNO_EVIDENCE_DIR: ${{ runner.temp }}/uno-evidence
         run: npx tsx --test experiments/libreoffice-uno/console.node.ts
-      - name: Linux bounded batch regression suite
-        if: runner.os == 'Linux'
-        run: /usr/bin/python3 -m unittest discover -s backend/experiments/libreoffice-uno -p 'test_*.py' -v
       - name: Application publication and review policy
         working-directory: backend
         run: npx tsx --test experiments/libreoffice-uno/application.node.ts

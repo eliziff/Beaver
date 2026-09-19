@@ -23,7 +23,9 @@ word.create('com.sun.star.text.Footnote') creates a document-local native object
 word.constant(name) resolves a native named constant.
 word.enum(type,value), word.struct(type,fields), word.any(type,value) construct typed UNO method arguments.
 word.mm(n) and word.pt(n) convert to hundredths of a millimetre for geometry; font heights use points.
-word.batch([{target,replace:{find,text}}]) performs exact scoped replacements.
+textObject.find(literal) returns the unique exact native range inside a paragraph/cell/note/header; missing or ambiguous matches fail.
+Example: word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'});
+For rectangular tables, call getCellRangeByName then getDataArray/setDataArray to read/write rows in bulk.
 word.review('revision:0','accept'|'reject') resolves that revision; pass an array for a coordinated set.
 Resolve revisions in a separate program from new edits. Inspect again after review.
 object.expect({property:value}) registers export/reopen assertions for an inspection target.

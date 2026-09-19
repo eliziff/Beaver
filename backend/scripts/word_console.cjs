@@ -47,6 +47,7 @@ async function main() {
           get: name => invoke({op:'get',target:ref,name}),
           set: values => invoke({op:'set',target:ref,values}),
           items: (offset=0,limit=20) => invoke({op:'items',target:ref,offset,limit}),
+          find: text => invoke({op:'find',target:ref,text}),
           call: (name,...args) => invoke({op:'call',target:ref,name,args}),
           describe: (filter='',offset=0,limit=50) => invoke({op:'describe',target:ref,filter,offset,limit}),
           expect: values => invoke({op:'expect',target:ref,values})
@@ -57,7 +58,6 @@ async function main() {
         target: target => invoke({op:'target',target}),
         inspect: (query={}) => invoke({op:'inspect',query}),
         create: service => invoke({op:'create',service}),
-        batch: operations => invoke({op:'batch',operations}),
         review: (targets,decision) => invoke({op:'review',targets:Array.isArray(targets)?targets:[targets],decision}),
         constant: name => invoke({op:'constant',name}),
         any: (type,value) => ({any:type,value}),

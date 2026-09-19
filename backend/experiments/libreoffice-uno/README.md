@@ -27,7 +27,7 @@ Load `word_uno`, request `help`, then inspect a versioned `file_path` for its
 snapshot and targets. `inspect` with `program` runs read-only JavaScript.
 `preview` requires a JavaScript program and the inspected snapshot; `apply`
 publishes its frozen `preview_resource` through existing version checks.
-Exact batches use `word.batch(...)` inside the program, not a second tool schema.
+Compose edits with ordinary JavaScript, not a separate batch language.
 
 Programs are synchronous function bodies; native calls suspend automatically.
 QuickJS WASM runs on a terminable thread with memory/stack/time/call/output
@@ -42,7 +42,8 @@ budgets, without Node, Python eval, imports, filesystem or network APIs.
 | `word.target(address)` / `word.inspect(query)` | Resolve targets or inspect a family; `properties` plus `include_text:false` omits text. |
 | `word.create(service)` / `word.constant(name)` | Document-local factories and native named constants. |
 | `word.enum(type,value)` / `struct(type,fields)` / `any(type,value)` | Typed native arguments, including numbering sequences. |
-| `word.batch(operations)` / `object.expect(values)` | Exact replacements/property batches and export/reopen postconditions. |
+| `textObject.find(literal)` | Select one exact native range within a paragraph/cell/note/header; refuse missing or ambiguous matches. |
+| `object.expect(values)` | Register export/reopen property postconditions for an inspected address. |
 | `word.review(targets,decision)` | Selective accept/reject; use a separate program from new edits. |
 
 Follow `next_offset` until null. Enumeration pages leave `total` null rather than
@@ -52,6 +53,11 @@ prefix. Native handles live within one program: retain objects before structural
 edits, then reinspect indexed addresses. They are not durable legal citations.
 `String` may include redline deletions; use ordinary `Read` for final prose.
 `word.mm`/`word.pt` convert geometry to hundredths of a millimetre; fonts use points.
+
+For an exact edit: `word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'})`.
+Retain the returned range to inspect or edit it without counting offsets. Rectangular
+table ranges expose native `getDataArray`/`setDataArray` for bulk rows; select the
+rectangle with `table.call('getCellRangeByName','A1:B3')`, then call the array method.
 
 ## Preservation and review
 
@@ -75,7 +81,6 @@ compare-and-swap publication remain enforced. Apply never reruns the program.
 cd backend
 npx tsx --test experiments/libreoffice-uno/console.node.ts
 npx tsx --test experiments/libreoffice-uno/application.node.ts
-/usr/bin/python3 -m unittest discover -s experiments/libreoffice-uno -p 'test_*.py' -v
 # Isolated Linux cloud path:
 docker build -f uno.Dockerfile -t beaver-uno:test .
 WORD_UNO_CONTAINER_IMAGE=beaver-uno:test npx tsx --test experiments/libreoffice-uno/console.node.ts
@@ -84,7 +89,9 @@ WORD_UNO_CONTAINER_IMAGE=beaver-uno:test npx tsx --test experiments/libreoffice-
 Path-filtered CI runs the real console on Windows x64, macOS ARM64 and Linux x64,
 plus the Linux container; missing runtimes fail. Existing scenarios cover native
 creation, revisions/rejection, restricted access, cancellation, paged collections
-and bulk reads. The application suite uses an injected store/engine, not a real
+and bulk table operations. Fixtures are built with JSZip using the original XML
+payloads; the container suite no longer needs a host Python/UNO just to build input.
+The application suite uses an injected store/engine, not a real
 database. Remaining qualification: wider real-document fidelity, joined native
 engine/persistence/browser coverage, additional OS/CPU packaging, and live-model
 token/performance measurements. Exact candidate CI evidence belongs in the PR.

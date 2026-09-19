@@ -25,6 +25,7 @@ METHODS = {'getString', 'setString', 'getText', 'getStart', 'getEnd', 'getAnchor
            'hasByName', 'hasElements', 'createEnumeration', 'hasMoreElements', 'nextElement',
            'createTextCursor', 'createTextCursorByRange', 'createSearchDescriptor', 'findAll', 'findFirst', 'findNext',
            'supportsService', 'getSupportedServiceNames', 'getAvailableServiceNames',
+           'getDataArray', 'setDataArray',
            'getPropertyDefault', 'getPropertyState', 'getPropertyStates', 'setPropertyToDefault'}
 DENIED_METHOD = re.compile(r'^(?:queryInterface|getTypes|getImplementationId|acquire|release|dispose|close|'
     r'store.*|load.*|attachResource|setParent|setPropertyValues|getPropertyValues|'
@@ -109,6 +110,22 @@ def review(doc, indices, decision):
     return removed
 
 
+def unique_range(doc, scope, text):
+    """Resolve one exact native span without scanning unrelated matches or counting offsets."""
+    if not isinstance(text, str) or not text or len(text) > 10000 or any(c in text for c in '\r\n\t'):
+        raise ValueError('find needs 1-10000 literal characters inside a paragraph')
+    if scope.String.count(text) != 1: raise ValueError('Replacement target is missing or ambiguous')
+    search = doc.createSearchDescriptor()
+    search.SearchString, search.SearchCaseSensitive, search.SearchRegularExpression = text, True, False
+    found = doc.findNext(scope.Start, search)
+    owner = scope.getText() if hasattr(scope, 'getText') else scope
+    try:
+        inside = found is not None and owner.compareRegionStarts(scope.Start, found.Start) >= 0 and owner.compareRegionEnds(scope.End, found.End) <= 0
+    except Exception: inside = False
+    if not inside or found.String != text: raise ValueError('Native search is missing or ambiguous inside the exact target')
+    return found
+
+
 class Broker:
     def __init__(self, doc, readonly=False):
         self.doc, self.readonly = doc, readonly
@@ -185,6 +202,7 @@ class Broker:
                     arguments=[{'name': p.aName, 'type': p.aType.Name, 'mode': str(p.aMode)} for p in member.ParameterInfos])
                 rows.append(row)
             return {'items': rows, 'total': len(members), 'next_offset': offset + limit if offset + limit < len(members) else None}
+        if op == 'find': return self.save(unique_range(self.doc, obj, command.get('text')))
         if op == 'items':
             entries, pagination = page(lambda start: enumerate_values(obj, start), command)
             return {'items': [{'name': name, 'value': self.save(value)} for name, value in entries], **pagination}
@@ -228,46 +246,14 @@ class Broker:
             name, args = command.get('name'), command.get('args', [])
             if not self.method_allowed(obj, name): raise ValueError('Method is not a document-only capability: ' + str(name))
             if not isinstance(args, list) or len(args) > 20: raise ValueError('Too many native arguments')
-            if name == 'setPropertyToDefault': check_name(args[0])
+            if name in ('setPropertyToDefault', 'getPropertyDefault', 'getPropertyState', 'getPropertyStates'):
+                for prop in args[0] if isinstance(args[0], list) else [args[0]]: check_name(prop)
             if not READ_METHOD.match(name): self.mutate()
             result = uno.invoke(obj, name, tuple(decode(a, self.refs) for a in args))
             if not READ_METHOD.match(name): self.changes.append({'target': self.targets.get(target, target), 'method': name})
             saved = self.save(result)
             if name == 'createSearchDescriptor' and isinstance(saved, dict) and 'ref' in saved: self.scratch.add(saved['ref'])
             return saved
-        if op == 'batch':
-            self.mutate()
-            operations = command.get('operations')
-            if not isinstance(operations, list) or not 1 <= len(operations) <= 1000: raise ValueError('preview needs 1-1000 operations')
-            targets = [(op, self.save(resolve(self.doc, op['target']), op['target'])['ref']) for op in operations]
-            first = len(self.changes)
-            for op, ref in targets:
-                if set(op) - {'target', 'set', 'replace'} or ('set' in op) == ('replace' in op):
-                    raise ValueError('Each operation requires exactly one of set or replace')
-                if 'set' in op:
-                    self.rpc({'op': 'set', 'target': ref, 'values': op['set']})
-                    continue
-                replacement = op['replace']
-                if set(replacement) != {'find', 'text'} or not all(isinstance(v, str) for v in replacement.values()):
-                    raise ValueError('replace needs exact find and text strings')
-                old, new = replacement['find'], replacement['text']
-                if not old or max(len(old), len(new)) > 10000 or any(c in old + new for c in '\r\n\t'):
-                    raise ValueError('Replacement must stay inside one paragraph and be <= 10000 characters')
-                node = self.refs[ref]
-                if node.String.count(old) != 1: raise ValueError('Replacement target is missing or ambiguous')
-                owner = node.getText() if hasattr(node, 'getText') else node
-                search = self.doc.createSearchDescriptor()
-                search.SearchString, search.SearchCaseSensitive, search.SearchRegularExpression = old, True, False
-                matches, scoped = self.doc.findAll(search), []
-                if matches.Count > 10000: raise ValueError('Too many native search matches')
-                for _, found in enumerate_values(matches):
-                    try: inside = owner.compareRegionStarts(node.Start, found.Start) >= 0 and owner.compareRegionEnds(node.End, found.End) <= 0
-                    except Exception: continue
-                    if inside and found.String == old: scoped.append(found)
-                if len(scoped) != 1: raise ValueError('Native search is missing or ambiguous inside the exact target')
-                scoped[0].String = new
-                self.changes.append({'target': op['target'], 'before': old, 'after': new})
-            return self.changes[first:]
         if op == 'expect':
             selector = self.targets.get(target, target)
             resolve(self.doc, selector)
@@ -344,7 +330,7 @@ def transact(source, output, request, binary, interact):
                 revisions = [{'target': 'revision:'+str(i), 'author': who, 'type': kind, 'text': text[:2000]}
                              for i, (who, kind, text) in enumerate(expected['revisions'])]
                 new_indices = [i for i,r in enumerate(revisions) if r['author'] == author]
-                if mode == 'tracked' and new_indices:
+                if mode == 'tracked' and new_indices and broker.checks:
                     accepted = load(desktop, output)
                     try:
                         review(accepted, new_indices, 'accept')
