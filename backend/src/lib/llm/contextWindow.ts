@@ -1,5 +1,6 @@
 import { catalogModelContextWindow, modelForProvider, providerForModel } from "./models";
 import type { LlmMessage, Tool } from "./types";
+import { getConfiguredModel } from "./registry";
 
 const MILLION_TOKEN_WINDOW = 1_000_000;
 const OPENAI_CONTEXT_WINDOW = 1_050_000;
@@ -7,6 +8,7 @@ const DEFAULT_OLLAMA_CONTEXT_WINDOW = 32_768;
 
 export function modelContextWindow(model: string): number | null {
   const provider = providerForModel(model);
+  if (provider === "configured") return getConfiguredModel(model)?.contextWindow ?? null;
   if (provider === "codex") return null; // app-server reports the real value.
   const discovered = catalogModelContextWindow(model);
   if (discovered) return discovered;

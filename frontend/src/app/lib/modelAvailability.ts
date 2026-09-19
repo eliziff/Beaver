@@ -9,12 +9,14 @@ export type ModelProvider =
     | "meta"
     | "claude-p"
     | "codex"
+    | "configured"
     | "ollama";
 const COMPOSITE_PROVIDERS: [string, ModelProvider][] = [
     ["claude-p:", "claude-p"], ["claude:", "claude"], ["gemini:", "gemini"],
     ["openai:", "openai"], ["deepseek:", "deepseek"], ["openrouter:", "openrouter"],
     ["opencode-go:", "opencode-go"], ["meta:", "meta"], ["codex:", "codex"],
     ["ollama:", "ollama"],
+    ["configured:", "configured"],
 ];
 
 export function getModelProvider(modelId: string): ModelProvider | null {
@@ -35,6 +37,7 @@ const PROVIDER_LABELS: Record<ModelProvider, string> = {
     claude: "Anthropic (Claude)", gemini: "Google (Gemini)", openai: "OpenAI",
     deepseek: "DeepSeek", openrouter: "OpenRouter", "opencode-go": "OpenCode Go",
     meta: "Meta", "claude-p": "Claude Code", codex: "Codex", ollama: "Desktop",
+    configured: "Configured endpoint",
 };
 export function isModelAvailable(modelId: string, apiKeys: ApiKeyState): boolean {
     const provider = getModelProvider(modelId);
@@ -42,7 +45,7 @@ export function isModelAvailable(modelId: string, apiKeys: ApiKeyState): boolean
     // Subscription lanes carry their own credential, so the catalog being
     // non-empty is the availability signal rather than a pasted key.
     return provider === "claude-p" || provider === "codex" || provider === "ollama" ||
-        provider === "opencode-go" || !!apiKeys[provider]?.configured;
+        provider === "opencode-go" || provider === "configured" || !!apiKeys[provider]?.configured;
 }
 export const providerLabel = (provider: ModelProvider) => PROVIDER_LABELS[provider];
 
@@ -50,5 +53,6 @@ const PROVIDER_SHORT_LABELS: Record<ModelProvider, string> = {
     claude: "Anthropic", "claude-p": "Claude Code", gemini: "Google", openai: "OpenAI",
     deepseek: "DeepSeek", openrouter: "OpenRouter", "opencode-go": "OpenCode Go",
     meta: "Meta", codex: "Codex", ollama: "Desktop",
+    configured: "Configured",
 };
 export const providerShortLabel = (provider: ModelProvider) => PROVIDER_SHORT_LABELS[provider];

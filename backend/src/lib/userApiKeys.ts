@@ -26,7 +26,7 @@ function environmentKey(provider: ApiKeyProvider) {
 
 export const hasEnvApiKey = (provider: ApiKeyProvider) => !!environmentKey(provider);
 
-export function getEnvironmentApiKeys(): UserApiKeys {
+function getEnvironmentApiKeys(): UserApiKeys {
   return Object.fromEntries(API_KEY_PROVIDERS.map((provider) => [
     provider, environmentKey(provider),
   ])) as UserApiKeys;

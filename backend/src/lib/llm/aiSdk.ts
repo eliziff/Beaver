@@ -6,8 +6,9 @@ import { modelForProvider } from "./models";
 import { MAX_PROVIDER_STREAM_BYTES, MAX_PROVIDER_TOOL_ARGUMENT_BYTES, runProviderLoop, type ProviderAdapter,
   type ProviderEvent } from "./providerLoop";
 import type { Provider, StreamChatParams } from "./types";
+import { configuredApiKey, configuredAvailable, getConfiguredModel } from "./registry";
 
-type ApiProvider = Extract<Provider, "claude" | "openai" | "gemini" | "deepseek" | "openrouter" | "meta">;
+type ApiProvider = Extract<Provider, "claude" | "openai" | "gemini" | "deepseek" | "openrouter" | "meta" | "configured">;
 type Options = NonNullable<Parameters<typeof import("ai").streamText>[0]["providerOptions"]>;
 type State = { messages: ModelMessage[]; calls: Record<string, string>; responseId?: string };
 
@@ -15,6 +16,28 @@ async function configuredModel(params: StreamChatParams, provider: ApiProvider):
   model: LanguageModel; options: Options;
 }> {
   const model = modelForProvider(params.model);
+  if (provider === "configured") {
+    const declaration = getConfiguredModel(params.model);
+    if (!declaration) throw new Error("The selected model is not configured.");
+    if (!configuredAvailable(declaration, params.apiKeys)) throw new Error("The selected model requires an API key.");
+    const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
+    const base = createOpenAICompatible({ name: declaration.id, baseURL: declaration.baseUrl,
+      apiKey: configuredApiKey(declaration, params.apiKeys),
+      ...(declaration.maxTokensField === "max_completion_tokens" ? {
+        transformRequestBody: (body: Record<string, unknown>) => {
+          const { max_tokens, ...rest } = body;
+          return { ...rest, ...(max_tokens === undefined ? {} : { max_completion_tokens: max_tokens }) };
+        },
+      } : {}),
+    })(declaration.apiModel ?? declaration.id);
+    if (declaration.tolerateTextToolCalls ?? declaration.location === "local") {
+      const [{ wrapLanguageModel }, { localModelToleranceMiddleware }] = await Promise.all([
+        import("ai"), import("./localModelMiddleware"),
+      ]);
+      return { model: wrapLanguageModel({ model: base, middleware: localModelToleranceMiddleware() }), options: {} };
+    }
+    return { model: base, options: {} };
+  }
   if (provider === "claude") {
     const { createAnthropic } = await import("@ai-sdk/anthropic");
     return { model: createAnthropic({ apiKey: requireApiKey(params.apiKeys?.claude,
