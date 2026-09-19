@@ -148,6 +148,8 @@ export async function runLibreOffice(bytes: Buffer, request: Record<string, unkn
   } finally {
     if (cleanupContainer) await exec(containerRuntime, ["rm", "-f", container],
       { timeout: 10000, windowsHide: true, env: isolatedProcessEnv(["DOCKER_HOST", "CONTAINER_HOST"]) }).catch(() => {});
-    await rm(directory, { recursive: true, force: true });
+    // A terminated Windows Job releases descendant file handles asynchronously.
+    // Retry only bounded scratch cleanup (EBUSY/EPERM), never the edit program.
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
