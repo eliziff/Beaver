@@ -23,13 +23,13 @@ not another active product or backlog.
 
 ## Fresh checkout
 
-**Known blocker, verified September 7, 2026:** the upstream server rejects Beaver's
-`mike-workflows` pin `8ca09c44b6b06c21046c4cc22edf0ed75e8d72ad` with `not our ref`.
-The sequence below therefore cannot currently finish from public remotes alone.
-A maintainer must publish the exact missing history or explicitly review and gate
-a replacement catalogue revision. Do not use `--remote` or a newer branch as an
-undocumented substitute. Existing compatible local checkouts can retain their
-pinned source while this is resolved.
+The integration branch replaces the unavailable historical workflow pin with
+`ce62e6a2d3f47e1d3567a4f2edc61898cfe9e78a`. On September 19, 2026 a fresh public
+clone served this exact revision and passed source validation (141 workflows,
+16 column files, five packs) and seven source-validation tests. Beaver's package
+builder generated its grouped catalogue and six reference files from that clone.
+This resolves the workflow fetch blocker, not every application bootstrap gate.
+Do not use `--remote` or a newer branch as an undocumented substitute.
 
 Initialize the four public paths explicitly, then restore the bundled repository.
 `OpenLegalData` declares its local bundle with `update = none`: Git tooling can
@@ -49,7 +49,7 @@ Then follow the [application setup](../../README.md#run-locally). The native Nod
 addon is built inside Beaver; standalone parser/browser guides own their separate
 executables and model/runtime packages. The documentation CI checks its linked
 source repositories; passing it does not certify complete application bootstrap
-or repair the unavailable workflow pin.
+or certify the native build and runtime gates.
 
 ## Existing checkout and changes
 

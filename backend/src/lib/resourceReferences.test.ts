@@ -8,12 +8,14 @@ describe("resource references", () => {
       resourceReference.source("CanLII", "2026 ABCA 1"),
       resourceReference.project("project id"),
       resourceReference.workflow("workflow id"),
+      resourceReference.workflowReference("workflow id", "Référence 中文.txt"),
     ];
     expect(references.map(parseResourceReference)).toEqual([
       { kind: "document", documentId: "document id", versionId: "version/1" },
       { kind: "source", provider: "CanLII", sourceId: "2026 ABCA 1" },
       { kind: "project", id: "project id" },
       { kind: "workflow", id: "workflow id" },
+      { kind: "workflow-reference", id: "workflow id", filename: "Référence 中文.txt" },
     ]);
   });
 

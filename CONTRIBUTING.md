@@ -16,7 +16,8 @@ Respect [repository ownership](docs/current/local-subrepositories.md). Make shar
 engine changes in their standalone repositories and publish reviewed changes before
 intentionally advancing consumer pins. System workflows belong to the pinned
 `mike-workflows` repository; follow its README and contribution/validation rules,
-then refresh Beaver's existing catalogue through its normal generation path.
+then refresh Beaver's catalogue with `scripts/build-workflow-catalog.py --bundle`
+using an explicit source commit (see [catalogue operations](docs/current/behavior-contracts.md)).
 Do not edit generated copies as a second source of truth.
 
 Beaver has no user-migration requirement unless a task explicitly requests one.

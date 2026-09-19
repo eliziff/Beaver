@@ -49,6 +49,8 @@ export interface Workflow {
   shared_by_name?: string | null;
   allow_edit?: boolean;
   is_owner?: boolean;
+  source_commit?: string;
+  references?: Array<{ filename: string; sha256: string; size_bytes: number; variant_id?: string }>;
 }
 const workflowLists = new Map<string, Promise<Workflow[]>>();
 export const listWorkflows = (options: {
@@ -59,9 +61,10 @@ export const listWorkflows = (options: {
   if (signal) return apiRequest<Workflow[]>(path, { signal });
   const pending = workflowLists.get(path);
   if (pending) return pending;
-  const request = apiRequest<Workflow[]>(path).catch((error) => {
-    workflowLists.delete(path);
-    throw error;
+  const request = apiRequest<Workflow[]>(path).finally(() => {
+    // Deduplicate concurrent reads, but do not freeze an independently
+    // installed catalogue (or another user's grants) for the whole session.
+    if (workflowLists.get(path) === request) workflowLists.delete(path);
   });
   workflowLists.set(path, request);
   return request;
@@ -74,6 +77,8 @@ export const getWorkflow = (workflowId: string) =>
   apiRequest<Workflow>(`/workflows/${segment(workflowId)}`);
 export const exportWorkflow = (workflowId: string) =>
   apiBlobRequest(`/workflows/${segment(workflowId)}/export`);
+export const downloadWorkflowReference = (workflowId: string, filename: string, sha256: string) =>
+  apiBlobRequest(`/workflows/${segment(workflowId)}/references/${segment(filename)}?sha256=${segment(sha256)}`);
 export const createWorkflow = (payload: {
   metadata: {
     title: string;

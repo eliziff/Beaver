@@ -19,7 +19,7 @@ type ReadSource = (source: ResearchSource, locator?: string) => void;
 
 /** The reader tab's own request for a saved source, so hovering warms exactly what opening asks for. */
 let warming = 0;
-export function prefetchLegalSource(reference: ResearchSourceReference) {
+function prefetchLegalSource(reference: ResearchSourceReference) {
   // A pointer sweeping the tree can outrun the reads; keep at most two speculative documents in flight.
   if (warming >= 2 || reference.kind === "document" ||
       reference.provider !== "a2aj" && reference.provider !== "journal") return;
