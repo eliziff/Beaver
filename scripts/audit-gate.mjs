@@ -17,7 +17,7 @@
 //
 // Usage: node ../scripts/audit-gate.mjs   (cwd = the workspace to audit)
 
-import { execFileSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -117,7 +117,7 @@ async function fetchJson(url, init, { attempts = 3, timeoutMs = 30_000 } = {}) {
 }
 
 async function loadNpmReport() {
-  const registry = (process.env.npm_config_registry ?? execFileSync("npm", ["config", "get", "registry"], {
+  const registry = (process.env.npm_config_registry ?? execSync("npm config get registry", {
     encoding: "utf8",
   })).trim().replace(/\/$/, "");
   const endpoint = `${registry}/-/npm/v1/security/advisories/bulk`;
