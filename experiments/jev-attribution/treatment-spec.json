@@ -1,0 +1,43 @@
+{
+  "authored_by": "main-agent reading of the public source text",
+  "frozen_before_calls": true,
+  "notes": "Applies the retired fine-grained treatment vocabulary (target identity, legal actor, reduced treatment label) from the superseded case-target contract to fixed target occurrences. Expectations are my own reading, not the Codex-authored gold.",
+  "items": [
+    {
+      "id": "T1-nsca-sattva-via-factum",
+      "document_id": 123916,
+      "source": "2018 NSCA 53",
+      "target": "Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53",
+      "anchor": "it was put this way in her factum",
+      "expected": {"target_identity": "target", "legal_actor": "party_or_counsel", "treatment_operation": "referred_to"},
+      "rationale": "The passage attributes the Sattva-based argument to Ms. Piper's factum."
+    },
+    {
+      "id": "T2-nsca-sattva-scope-explained",
+      "document_id": 123916,
+      "source": "2018 NSCA 53",
+      "target": "Sattva Capital Corp. v. Creston Moly Corp., 2014 SCC 53",
+      "anchor": "Sattva does not apply to determine whether a contract exists",
+      "expected": {"target_identity": "target", "legal_actor": "current_court", "treatment_operation": "explained"},
+      "rationale": "The deciding court states the scope of Sattva in its own voice."
+    },
+    {
+      "id": "T3-ykca-nasogaluak-court-follows",
+      "document_id": 225088,
+      "source": "2015 YKCA 17",
+      "target": "R. v. Nasogaluak, 2010 SCC 6",
+      "anchor": "see also R. v. Nasogaluak, 2010 SCC 6 at para. 44",
+      "expected": {"target_identity": "target", "legal_actor": "current_court", "treatment_operation": "followed"},
+      "rationale": "The deciding court cites Nasogaluak in support of its own sentencing-range proposition."
+    },
+    {
+      "id": "T4-ykca-nasogaluak-via-counsel",
+      "document_id": 225088,
+      "source": "2015 YKCA 17",
+      "target": "R. v. Nasogaluak, 2010 SCC 6",
+      "anchor": "Defence counsel further relies on the comments of Justice Labelle in R. v. Nasogaluak",
+      "expected": {"target_identity": "target", "legal_actor": "party_or_counsel", "treatment_operation": "referred_to"},
+      "rationale": "The reliance is explicitly attributed to defence counsel."
+    }
+  ]
+}

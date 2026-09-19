@@ -1,0 +1,92 @@
+{
+  "authored_by": "main-agent reading of the public source text",
+  "frozen_before_calls": true,
+  "notes": "Expectations were written from the A2AJ source text before any Jev call for these items. They are independent of the repository's Codex-authored gold files and of the retired runner. 'present_court' means a judge of the deciding court, including a judge writing a separate concurring or dissenting opinion.",
+  "word_owners": ["present_court", "cited_authority", "decision_under_review", "party_or_counsel", "other_source", "unclear"],
+  "items": [
+    {
+      "id": "A1-onca-application-judge-quote",
+      "document_id": 141895,
+      "source": "2017 ONCA 1012",
+      "anchor": "The parties agreed the appropriate amount of costs for the successful party",
+      "expected": {"words_belong_to": "decision_under_review", "proposition_speaker": "decision_under_review", "is_verbatim_quotation": true, "advanced_by_party": false, "court_endorses": false},
+      "rationale": "The Court of Appeal is quoting the application judge's costs endorsement, and then reverses that costs award to the agreed $42,500."
+    },
+    {
+      "id": "A2-ykca-nasogaluak-quote-via-counsel",
+      "document_id": 225088,
+      "source": "2015 YKCA 17",
+      "anchor": "while courts should pay heed to these ranges, they are guidelines rather than hard and fast rules",
+      "expected": {"words_belong_to": "cited_authority", "proposition_speaker": "cited_authority", "is_verbatim_quotation": true, "advanced_by_party": true, "court_endorses": true},
+      "rationale": "Fenlon J.A. reports words of Labelle J. in R. v. Nasogaluak, 2010 SCC 6, reached through defence counsel's reliance, and then relies on the same proposition herself."
+    },
+    {
+      "id": "A3-ykca-smith-separate-opinion",
+      "document_id": 225088,
+      "source": "2015 YKCA 17",
+      "kind": "opinion_relationship",
+      "anchor": "I have had the privilege of reading the draft reasons of my colleague Madam Justice Fenlon",
+      "expected": {"separate_opinion": true, "judge_of_deciding_court": true, "agrees_with_disposition": true, "agrees_with_reasoning": false},
+      "rationale": "Smith J.A. agrees with the disposition but holds that the judge erred in applying the parity principle."
+    },
+    {
+      "id": "A4-scc-bigm-quoted-and-endorsed",
+      "document_id": 193954,
+      "source": "2020 SCC 32",
+      "anchor": "the proper approach to the definition of the rights and freedoms guaranteed by the Charter was a purposive one",
+      "expected": {"words_belong_to": "cited_authority", "proposition_speaker": "cited_authority", "is_verbatim_quotation": true, "advanced_by_party": false, "court_endorses": true},
+      "rationale": "The joint reasons quote Big M Drug Mart and call it the definitive account of the approach."
+    },
+    {
+      "id": "A5-nsca-factum-quote-not-endorsed",
+      "document_id": 123916,
+      "source": "2018 NSCA 53",
+      "anchor": "Justice Cormier committed an error of mixed fact and law when she misapprehended the law",
+      "expected": {"words_belong_to": "party_or_counsel", "proposition_speaker": "party_or_counsel", "is_verbatim_quotation": true, "advanced_by_party": true, "court_endorses": false},
+      "rationale": "The passage is set out from Ms. Piper's factum. The court does not adopt the alleged error; it notes Sattva does not govern whether a contract exists."
+    },
+    {
+      "id": "A6-nsca-sattva-quoted-and-applied",
+      "document_id": 123916,
+      "source": "2018 NSCA 53",
+      "anchor": "While the surrounding circumstances will be considered in interpreting the terms of a contract",
+      "expected": {"words_belong_to": "cited_authority", "proposition_speaker": "cited_authority", "is_verbatim_quotation": true, "advanced_by_party": false, "court_endorses": true},
+      "rationale": "The court quotes Sattva Capital Corp. v. Creston Moly Corp. and applies its interpretive principles."
+    },
+    {
+      "id": "A7-nsca-present-court-own-words",
+      "document_id": 123916,
+      "source": "2018 NSCA 53",
+      "anchor": "I note that Sattva does not apply to determine whether a contract exists",
+      "expected": {"words_belong_to": "present_court", "proposition_speaker": "present_court", "is_verbatim_quotation": false, "advanced_by_party": false, "court_endorses": true},
+      "rationale": "This sentence is the deciding court's own reasoning about the scope of Sattva."
+    },
+    {
+      "id": "A8-scc-lebel-dissent",
+      "document_id": 198059,
+      "source": "2006 SCC 16",
+      "kind": "opinion_relationship",
+      "anchor": "LeBel J. (dissenting)",
+      "expected": {"separate_opinion": true, "judge_of_deciding_court": true, "agrees_with_disposition": false, "agrees_with_reasoning": false},
+      "rationale": "LeBel J. wrote dissenting reasons."
+    },
+    {
+      "id": "A9-fca-desjardins-dissent",
+      "document_id": 112050,
+      "source": "2007 FCA 24",
+      "kind": "opinion_relationship",
+      "anchor": "DESJARDINS J.A. (Dissenting Reasons)",
+      "expected": {"separate_opinion": true, "judge_of_deciding_court": true, "agrees_with_disposition": false, "agrees_with_reasoning": false},
+      "rationale": "Desjardins J.A. wrote dissenting reasons."
+    },
+    {
+      "id": "A10-cmac-malone-concurrence",
+      "document_id": 75090,
+      "source": "2001 CMAC 2",
+      "kind": "opinion_relationship",
+      "anchor": "Although I am not in full agreement with Mr. Justice Létourneau",
+      "expected": {"separate_opinion": true, "judge_of_deciding_court": true, "agrees_with_disposition": true, "agrees_with_reasoning": false},
+      "rationale": "The separate reasons agree the appeal should be dismissed but not with the colleague's reasons."
+    }
+  ]
+}
