@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { LegalEvidenceReceipt } from "../chat/legalEvidence";
 import type { TabularColumn } from "../tabularStore";
 
-export const JEV_POLICY = "tabular-judgment-v1";
+const JEV_POLICY = "tabular-judgment-v1";
 export const JEV_MODEL = "jev-1.13.0";
 export const JEV_LIMITS = { passages: 160, stateBytes: 96_000, requestBytes: 192_000,
   questions: 256, calls: 8, responseBytes: 2_000_000 } as const;
@@ -39,7 +39,7 @@ export function jevConfig(env = process.env): JevConfig | null {
   } catch { return null; }
 }
 
-export const JEV_ROUTING_PROMPT = `Route whole legal review columns. Return only JSON: {"routes":[{"index":0,"kind":"choice","labels":[]}]}. Omit columns requiring the normal review model. Do not answer the questions or rewrite them.
+const JEV_ROUTING_PROMPT = `Route whole legal review columns. Return only JSON: {"routes":[{"index":0,"kind":"choice","labels":[]}]}. Omit columns requiring the normal review model. Do not answer the questions or rewrite them.
 Jev is a semantic judgment model, not a keyword matcher. It can classify meaning, judge entailment (including conditions and negation), apply a supplied rubric, or select one explicitly stated source value. Legal interpretation alone is not a reason to reject it.
 Use choice for a complete yes/no answer, one supplied tag, or one of a CLOSED set of labels explicitly named in a text question. labels is empty for yes_no/tag; for text, copy the explicitly offered labels verbatim. Never turn illustrative examples into an exhaustive set.
 Use date, number, percentage, or monetary_amount only when the same output format requests ONE explicitly stated value, not a calculation or derived date. Missing candidates will be handled by the normal model.
