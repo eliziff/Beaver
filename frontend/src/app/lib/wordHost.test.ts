@@ -37,6 +37,30 @@ function installWord(text: string, matches: Array<Record<string, unknown>> = [])
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Word host adapter", () => {
+    it("does not replay an edit while its first execution is unconfirmed", async () => {
+        let finish!: () => void;
+        const waiting = new Promise<void>((resolve) => { finish = resolve; });
+        const range = { font: {}, paragraphs: { items: [], load: vi.fn() }, insertText: vi.fn() };
+        const { document } = installWord("old", [range]);
+        vi.stubGlobal("Word", {
+            ChangeTrackingMode: { off: "Off", trackAll: "TrackAll" },
+            run: async (run: (context: unknown) => Promise<unknown>) => {
+                await waiting;
+                return run({ document, sync: async () => undefined });
+            },
+        });
+        const call = { type: "client_tool_call" as const, callId: callId(), name: "apply_word_edits",
+            input: { mode: "review", edits: [{ original: "old", replacement: "new" }] } };
+        const first = executeWordClientTool(call);
+        expect(JSON.parse(localStorage.getItem("beaver.word.appliedCalls.v1")!))
+            .toContainEqual([call.callId, { error: expect.any(String) }]);
+        await expect(executeWordClientTool(call)).resolves.toEqual({ error: expect.any(String) });
+        finish();
+        const result = await first;
+        await expect(executeWordClientTool(call)).resolves.toEqual(result);
+        expect(range.insertText).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
         { original: "old", replacement: "x".repeat(10_001) },
         { original: "old", replacement: "new", formats: [] },
