@@ -38,9 +38,13 @@ function fixture(editMode: "manual" | "auto" = "auto") {
   } as unknown as DocumentStore;
   const options = { documents, userId: "user", editMode, allowedDocumentIds: new Set(["source"]),
     onMutationCommitted() {}, onPublished(_id: string, version: string) { state.published = version; } };
-  const run = createLibreOfficeApplication(options, async () => ({ candidate,
-    report: { ok: true, reopened: true, snapshot: hash(bytes), candidate_sha256: hash(candidate) } }));
-  const preview = () => run({ action: "preview", file_path, snapshot: hash(bytes), operations: [] }, signal);
+  const run = createLibreOfficeApplication(options, async (_bytes, request) => {
+    const mode = editMode === "manual" ? "tracked" : "direct";
+    assert.equal(request.mode, mode, "The application setting, not model input, determines mode");
+    return { candidate, report: { ok: true, reopened: true, snapshot: hash(bytes),
+      candidate_sha256: hash(candidate), mode: mode + "-candidate", review_verified: mode === "tracked" } };
+  });
+  const preview = () => run({ action: "preview", file_path, snapshot: hash(bytes), operations: [], mode: "direct" }, signal);
   const apply = () => run({ action: "apply", file_path, preview_resource: "document://preview/version/p1" }, signal);
   return { state, options, run, preview, apply };
 }
@@ -55,9 +59,14 @@ test("preview preserves source; apply publishes the exact candidate once", async
   assert.equal((await f.apply()).report.already_applied, true); assert.equal(f.state.saves, 1);
 });
 
-test("manual review mode refuses direct publication without invoking the store", async () => {
+test("manual mode publishes only verified native revisions and cannot be overridden by model input", async () => {
   const f = fixture("manual"); await f.preview();
-  await assert.rejects(f.apply(), /Direct mode/); assert.equal(f.state.saves, 0);
+  assert.equal((await f.apply()).report.mode, "tracked"); assert.equal(f.state.saves, 1);
+  const other = fixture("manual"); await other.preview();
+  const receipt = JSON.parse(other.state.part.toString());
+  receipt.mode = "direct"; receipt.report.mode = "direct-candidate"; receipt.report.review_verified = false;
+  other.state.part = Buffer.from(JSON.stringify(receipt));
+  await assert.rejects(other.apply(), /Review mode requires/); assert.equal(other.state.saves, 0);
 });
 
 test("stale head and a commit-time race both preserve the original", async () => {

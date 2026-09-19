@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""Bounded Writer property batches. No eval, arbitrary UNO calls, or network listener.
+"""Private Writer session and document-local RPC. Never executes model Python.
 
-Only document-local targets and allowlisted property families are writable. This is
-not a sandbox for Python scripts: hostile input still needs OS process isolation.
+The JavaScript console runs in QuickJS, outside this process. The only objects
+crossing the boundary are primitives, typed UNO values and session-owned handles.
 """
 from __future__ import annotations
-
 import argparse
 from collections import Counter
 from contextlib import contextmanager
 from hashlib import sha256
 import json
 import os
-import posixpath
 from pathlib import Path
+import posixpath
 import re
 import shutil
 import signal
@@ -31,30 +30,17 @@ MAX_FILE = 100 * 1024 * 1024
 MAX_XML = 64 * 1024 * 1024
 MAX_EXPANDED = 256 * 1024 * 1024
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-FAMILIES = ('paragraph', 'table', 'footnote', 'endnote', 'frame',
-            'page-style', 'paragraph-style', 'character-style')
+FAMILIES = ('paragraph', 'table', 'footnote', 'endnote', 'frame', 'bookmark',
+            'field', 'section', 'drawing', 'index', 'control', 'revision',
+            'page-style', 'paragraph-style', 'character-style', 'numbering-style')
 STYLE_FAMILIES = {'page-style': 'PageStyles', 'paragraph-style': 'ParagraphStyles',
-                  'character-style': 'CharacterStyles'}
-# An explicit policy, not a mirror of UNO. In particular URLs, events, links,
-# interop grab-bags, interface/any values and external resources are not writable.
-PROPERTY_NAMES = {
-    'table': {'BackColor', 'BackTransparent', 'Width', 'RelativeWidth',
-              'IsWidthRelative', 'LeftMargin', 'RightMargin', 'TopMargin',
-              'BottomMargin', 'HoriOrient', 'RepeatHeadline', 'HeaderRowCount',
-              'Split', 'KeepTogether', 'TableColumnSeparators'},
-    'cell': {'BackColor', 'BackTransparent', 'VertOrient', 'NumberFormat'},
-    'page-style': {'Width', 'Height', 'IsLandscape', 'LeftMargin', 'RightMargin',
-                   'TopMargin', 'BottomMargin', 'HeaderIsOn', 'FooterIsOn',
-                   'HeaderHeight', 'FooterHeight', 'HeaderBodyDistance',
-                   'FooterBodyDistance', 'FirstPageNumber'},
-}
-TEXT_PROPERTIES = re.compile(r'^(Char(?:Weight|Posture|Height|FontName|Color|BackColor|'
-    r'Underline|UnderlineColor|UnderlineHasColor|Strikeout|CaseMap|Escapement|'
-    r'EscapementHeight|Kerning|AutoKerning|Locale)|Para(?:Adjust|LeftMargin|RightMargin|'
-    r'FirstLineIndent|TopMargin|BottomMargin|KeepTogether|Split|Widows|Orphans|'
-    r'LineSpacing|TabStops|StyleName|BackColor)|BreakType)$')
-STRUCTS = {'com.sun.star.style.LineSpacing', 'com.sun.star.style.TabStop',
-           'com.sun.star.text.TableColumnSeparator', 'com.sun.star.lang.Locale'}
+                  'character-style': 'CharacterStyles', 'numbering-style': 'NumberingStyles'}
+# Block host/application capabilities, not a short whitelist of Word formatting.
+FORBIDDEN = re.compile(r'(?:URL|URI|Events|Script|Macro|Library|Libraries|InteropGrabBag|'
+    r'Context|ServiceManager|Controller|DocumentStorage|DocumentSubStorage|Parent|'
+    r'DDE|DataSource|Database|Connection|Password|Command|External|Link|RecordChanges|'
+    r'RecordChangesProtection|RedlineDisplay|RedlineProtection)', re.I)
+SAFE_HYPERLINKS = {'HyperLinkURL', 'HyperLinkTarget', 'HyperLinkName'}
 
 
 def props(**values):
@@ -67,7 +53,7 @@ def props(**values):
 
 
 def package(path):
-    """Bounded active-content screening and preservation witnesses, not a schema validator."""
+    """Bounded active-content screening; opaque and authored-text witnesses."""
     if not 0 < path.stat().st_size <= MAX_FILE:
         raise ValueError('DOCX is empty or exceeds 100 MiB')
     hashes, protected, internal, paragraphs = {}, Counter(), [], Counter()
@@ -82,21 +68,17 @@ def package(path):
                 raise ValueError('Unsafe or duplicate DOCX part')
             if entry.file_size > MAX_XML:
                 raise ValueError('DOCX part exceeds limit')
-            lower = name.lower()
-            if any(p in lower for p in ('/embeddings/', '/activex/', 'vbaproject')):
-                raise ValueError('Macros and embedded objects are not supported by this worker')
+            if any(p in name.lower() for p in ('/embeddings/', '/activex/', 'vbaproject')):
+                raise ValueError('Macros and embedded objects require a separately qualified engine path')
             data = archive.read(entry)
             if name.endswith(('.xml', '.rels')):
                 folded = data.replace(b'\0', b'').upper()
                 if b'<!DOCTYPE' in folded or b'<!ENTITY' in folded:
                     raise ValueError('DTD/entity declarations are forbidden')
             hashes[name] = sha256(data).hexdigest()
-            if (not name.endswith(('.xml', '.rels')) and
-                    not name.startswith('docProps/thumbnail.')):
+            if not name.endswith(('.xml', '.rels')) and not name.startswith('docProps/thumbnail.'):
                 protected[('opaque', name, hashes[name])] += 1
             if name.startswith('customXml/'):
-                # Ignore only the declaration and outer whitespace. Do not
-                # normalize unknown element content, prefixes or QName values.
                 clean = re.sub(rb'^\s*<\?xml[^?]*\?>', b'', data).strip()
                 if name.endswith('.rels'):
                     clean = ET.canonicalize(clean, strip_text=True).encode()
@@ -110,10 +92,7 @@ def package(path):
                 return normalized if normalized in ('PAGE', 'NUMPAGES', 'SECTIONPAGES') else None
             def page_field(code):
                 key = ('pagination-field', kind, code)
-                if kind == 'flow':
-                    protected[key] += 1
-                else:
-                    protected[key] = 1  # Identical inherited header/footer copies.
+                protected[key] = protected[key] + 1 if kind == 'flow' else 1
             def paragraph_text(node, fields):
                 if node.tag in (W + 'del', W + 'moveFrom'):
                     return ''
@@ -122,33 +101,24 @@ def package(path):
                     return ''
                 if node.tag == W + 'fldChar':
                     event = node.get(W + 'fldCharType')
-                    if event == 'begin':
-                        fields.append({'code': '', 'result': False})
+                    if event == 'begin': fields.append({'code': '', 'result': False})
                     elif fields and event == 'separate':
                         fields[-1]['result'] = True
-                        if pagination(fields[-1]['code']):
-                            page_field(pagination(fields[-1]['code']))
-                    elif fields and event == 'end':
-                        fields.pop()
+                        if pagination(fields[-1]['code']): page_field(pagination(fields[-1]['code']))
+                    elif fields and event == 'end': fields.pop()
                     return ''
                 if node.tag == W + 'instrText' and fields:
                     fields[-1]['code'] += node.text or ''
                     return ''
                 if node.tag == W + 't':
-                    # Pagination caches are layout output, not authored prose.
                     return '' if any(f['result'] and pagination(f['code']) for f in fields) else node.text or ''
-                if node.tag == W + 'tab':
-                    return '\t'
-                if node.tag in (W + 'br', W + 'cr'):
-                    return '\n'
+                if node.tag == W + 'tab': return '\t'
+                if node.tag in (W + 'br', W + 'cr'): return '\n'
                 return ''.join(paragraph_text(child, fields) for child in node if child.tag != W + 'p')
             for paragraph in root.iter(W + 'p'):
                 text = paragraph_text(paragraph, [])
                 if text:
-                    if kind == 'flow':
-                        paragraphs[(kind, text)] += 1
-                    else:
-                        paragraphs[(kind, text)] = 1  # Export may duplicate identical inherited header parts.
+                    paragraphs[(kind, text)] = paragraphs[(kind, text)] + 1 if kind == 'flow' else 1
             instructions = []
             for node in root.iter():
                 local = node.tag.rsplit('}', 1)[-1]
@@ -160,48 +130,73 @@ def package(path):
                     resolved = posixpath.normpath(posixpath.join(parent, target.path))
                     if target.scheme or target.netloc or target.query or resolved.startswith(('../', '/')) or resolved == '..' or '\\' in resolved:
                         raise ValueError('Unsafe internal relationship')
-                    if target.path:
-                        internal.append(resolved)
+                    if target.path: internal.append(resolved)
                 if local == 'Relationship' and node.get('TargetMode') == 'External':
-                    if (not node.get('Type', '').endswith('/hyperlink') or
-                            not re.match(r'^(https?:|mailto:)', node.get('Target', ''), re.I)):
+                    if not node.get('Type', '').endswith('/hyperlink') or not re.match(r'^(https?:|mailto:)', node.get('Target', ''), re.I):
                         raise ValueError('Active external relationships are forbidden')
                 if local in ('instrText', 'fldSimple'):
                     instructions.append(node.get(W + 'instr', '') + (node.text or ''))
                 if node.tag in {W + t for t in ('ins', 'del', 'moveFrom', 'moveTo', 'comment')}:
-                    text = ''.join(n.text or '' for n in node.iter()
-                                   if n.tag in (W + 't', W + 'delText', W + 'instrText'))
+                    text = ''.join(n.text or '' for n in node.iter() if n.tag in (W + 't', W + 'delText', W + 'instrText'))
                     protected[(local, node.get(W + 'author', ''), text)] += 1
                 if node.tag == W + 'dataBinding':
                     protected[('binding', tuple(sorted(node.attrib.items())))] += 1
-            if re.search(r'DDE|INCLUDETEXT|INCLUDEPICTURE|DATABASE|\bLINK\b',
-                         ''.join(instructions).upper()):
+            if re.search(r'DDE|INCLUDETEXT|INCLUDEPICTURE|DATABASE|\bLINK\b', ''.join(instructions).upper()):
                 raise ValueError('Active field instructions are forbidden')
-    if any(target not in hashes for target in internal):
-        raise ValueError('Dangling internal relationship')
+    if any(target not in hashes for target in internal): raise ValueError('Dangling internal relationship')
     if 'word/document.xml' not in hashes or '[Content_Types].xml' not in hashes:
         raise ValueError('Not a Word document package')
     return hashes, protected, paragraphs
 
 
+def _windows_job():
+    """The kernel closes the owned office tree even when the Python worker dies."""
+    if os.name != 'nt': return None
+    import ctypes
+    from ctypes import wintypes as w
+    class Basic(ctypes.Structure):
+        _fields_ = [('ProcessTime', ctypes.c_int64), ('JobTime', ctypes.c_int64), ('Flags', w.DWORD),
+                    ('Min', ctypes.c_size_t), ('Max', ctypes.c_size_t), ('Active', w.DWORD),
+                    ('Affinity', ctypes.c_size_t), ('Priority', w.DWORD), ('Scheduling', w.DWORD)]
+    class IO(ctypes.Structure):
+        _fields_ = [(n, ctypes.c_uint64) for n in ('ReadOps', 'WriteOps', 'OtherOps', 'ReadBytes', 'WriteBytes', 'OtherBytes')]
+    class Limits(ctypes.Structure):
+        _fields_ = [('Basic', Basic), ('IO', IO), ('ProcessMemory', ctypes.c_size_t),
+                    ('JobMemory', ctypes.c_size_t), ('PeakProcess', ctypes.c_size_t), ('PeakJob', ctypes.c_size_t)]
+    k = ctypes.WinDLL('kernel32', use_last_error=True)
+    k.CreateJobObjectW.argtypes, k.CreateJobObjectW.restype = [ctypes.c_void_p, w.LPCWSTR], w.HANDLE
+    k.GetCurrentProcess.restype = w.HANDLE
+    k.SetInformationJobObject.argtypes = [w.HANDLE, ctypes.c_int, ctypes.c_void_p, w.DWORD]
+    k.AssignProcessToJobObject.argtypes = [w.HANDLE, w.HANDLE]
+    job = k.CreateJobObjectW(None, None)
+    limit = Limits(); limit.Basic.Flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    if not job or not k.SetInformationJobObject(job, 9, ctypes.byref(limit), ctypes.sizeof(limit)) or not k.AssignProcessToJobObject(job, k.GetCurrentProcess()):
+        raise OSError(ctypes.get_last_error(), 'Cannot establish owned Windows job')
+    # Intentionally retained for process lifetime. Closing it would kill this process too.
+    return job
+
+
 @contextmanager
-def writer(binary):
-    """Own exactly one private profile/process; never attach to the user's office."""
+def writer(binary, author="Beaver"):
     with tempfile.TemporaryDirectory(prefix='beaver-uno-') as directory:
+        from xml.sax.saxutils import escape
+        user = Path(directory, 'profile', 'user'); user.mkdir(parents=True)
+        user.joinpath('registrymodifications.xcu').write_text(
+            '<oor:items xmlns:oor="http://openoffice.org/2001/registry">'
+            '<item oor:path="/org.openoffice.UserProfile/Data">'
+            '<prop oor:name="givenname" oor:op="fuse"><value>' + escape(author) + '</value></prop>'
+            '<prop oor:name="sn" oor:op="fuse"><value></value></prop></item></oor:items>', encoding='utf-8')
         pipe = 'beaver_' + os.urandom(16).hex()
         own_group = os.name != 'nt' and os.environ.get('BEAVER_UNO_OWNED_GROUP') != '1'
-        process = subprocess.Popen([
-            binary, '-env:UserInstallation=' + Path(directory, 'profile').as_uri(),
+        process = subprocess.Popen([binary, '-env:UserInstallation=' + Path(directory, 'profile').as_uri(),
             '--headless', '--norestore', '--nodefault', '--nofirststartwizard',
             '--accept=pipe,name=' + pipe + ';urp;StarOffice.ComponentContext'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            start_new_session=own_group)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=own_group)
         desktop = None
         try:
             context = uno.getComponentContext()
-            resolver = context.ServiceManager.createInstanceWithContext(
-                'com.sun.star.bridge.UnoUrlResolver', context)
-            deadline = time.monotonic() + 20
+            resolver = context.ServiceManager.createInstanceWithContext('com.sun.star.bridge.UnoUrlResolver', context)
+            deadline = time.monotonic() + 25
             while True:
                 try:
                     remote = resolver.resolve('uno:pipe,name=' + pipe + ';urp;StarOffice.ComponentContext')
@@ -211,65 +206,65 @@ def writer(binary):
                         raise RuntimeError('Private LibreOffice instance did not become ready')
                     time.sleep(0.05)
             desktop = remote.ServiceManager.createInstanceWithContext('com.sun.star.frame.Desktop', remote)
-            provider = remote.ServiceManager.createInstanceWithContext(
-                'com.sun.star.configuration.ConfigurationProvider', remote)
-            product = provider.createInstanceWithArguments(
-                'com.sun.star.configuration.ConfigurationAccess', props(nodepath='/org.openoffice.Setup/Product'))
+            provider = remote.ServiceManager.createInstanceWithContext('com.sun.star.configuration.ConfigurationProvider', remote)
+            product = provider.createInstanceWithArguments('com.sun.star.configuration.ConfigurationAccess', props(nodepath='/org.openoffice.Setup/Product'))
             yield desktop, product.getByName('ooSetupVersionAboutBox')
         finally:
             if desktop is not None:
-                try:
-                    desktop.terminate()
-                except Exception:
-                    pass
+                try: desktop.terminate()
+                except Exception: pass
             if process.poll() is None:
-                if not own_group:
-                    process.terminate()
-                else:
-                    os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=3)
+                if not own_group: process.terminate()
+                else: os.killpg(process.pid, signal.SIGTERM)
+                try: process.wait(timeout=3)
                 except subprocess.TimeoutExpired:
-                    if not own_group:
-                        process.kill()
-                    else:
-                        os.killpg(process.pid, signal.SIGKILL)
+                    if not own_group: process.kill()
+                    else: os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
 
 
 def load(desktop, path):
     doc = desktop.loadComponentFromURL(path.resolve().as_uri(), '_blank', 0, props(
-        Hidden=True, ReadOnly=False, MacroExecutionMode=4, UpdateDocMode=0))
+        Hidden=True, ReadOnly=False, MacroExecutionMode=uno.getConstantByName(
+            'com.sun.star.document.MacroExecMode.NEVER_EXECUTE'),
+        UpdateDocMode=uno.getConstantByName('com.sun.star.document.UpdateDocMode.NO_UPDATE')))
     if doc is None or not doc.supportsService('com.sun.star.text.TextDocument'):
         raise ValueError('LibreOffice did not load a Writer document')
-    doc.RecordChanges = False  # Direct candidate edits, never advertised as tracked.
+    doc.RecordChanges = False
     return doc
 
 
+def enumerate_values(values):
+    if hasattr(values, 'getElementNames'):
+        return [(n, values.getByName(n)) for n in values.getElementNames()]
+    if hasattr(values, 'getCount'):
+        return [(str(i), values.getByIndex(i)) for i in range(values.getCount())]
+    enum, result = values.createEnumeration(), []
+    while enum.hasMoreElements():
+        result.append((str(len(result)), enum.nextElement()))
+        if len(result) > 100000: raise ValueError('Collection exceeds 100000 objects')
+    return result
+
+
 def collection(doc, family):
-    if family in STYLE_FAMILIES:
-        values = doc.StyleFamilies.getByName(STYLE_FAMILIES[family])
-        return [(name, values.getByName(name)) for name in values.ElementNames]
-    if family in ('table', 'frame'):
-        values = doc.TextTables if family == 'table' else doc.TextFrames
-        return [(name, values.getByName(name)) for name in values.ElementNames]
-    if family in ('footnote', 'endnote'):
-        values = doc.Footnotes if family == 'footnote' else doc.Endnotes
-        return [(str(i), values.getByIndex(i)) for i in range(values.Count)]
+    if family in STYLE_FAMILIES: return enumerate_values(doc.StyleFamilies.getByName(STYLE_FAMILIES[family]))
+    names = {'table': 'TextTables', 'frame': 'TextFrames', 'footnote': 'Footnotes', 'endnote': 'Endnotes',
+             'bookmark': 'Bookmarks', 'field': 'TextFields', 'section': 'TextSections', 'drawing': 'DrawPage',
+             'index': 'DocumentIndexes', 'revision': 'Redlines', 'control': 'ContentControls'}
+    if family in names:
+        if not hasattr(doc, names[family]): raise ValueError('This LibreOffice version does not expose ' + family)
+        return enumerate_values(getattr(doc, names[family]))
     if family == 'paragraph':
-        cursor, result = doc.Text.createEnumeration(), []
-        while cursor.hasMoreElements():
-            node = cursor.nextElement()
-            if node.supportsService('com.sun.star.text.Paragraph'):
-                result.append((str(len(result)), node))
-        return result
+        return [(str(i), n) for i, n in enumerate(n for _, n in enumerate_values(doc.Text)
+                if n.supportsService('com.sun.star.text.Paragraph'))]
+    if family == 'document': return [('root', doc)]
     raise ValueError('Unknown target family')
 
 
 def resolve(doc, target):
+    if target == 'document:root': return doc
     family, sep, name = target.partition(':')
-    if not sep:
-        raise ValueError('Use a target returned by inspect')
+    if not sep: raise ValueError('Use a target returned by inspect')
     if family == 'cell':
         table, _, cell = name.partition('/')
         return doc.TextTables.getByName(unquote(table)).getCellByName(unquote(cell))
@@ -277,77 +272,94 @@ def resolve(doc, target):
         page = doc.StyleFamilies.getByName('PageStyles').getByName(unquote(name))
         return page.getPropertyValue('HeaderText' if family == 'header' else 'FooterText')
     for key, node in collection(doc, family):
-        if key == unquote(name):
-            return node
+        if key == unquote(name): return node
     raise ValueError('Target does not exist in this snapshot')
 
 
 def encode(value, depth=0):
-    if depth > 4:
-        return {'type': 'unexpanded'}
-    if value is None or isinstance(value, (str, bool, int, float)):
-        return value[:2000] if isinstance(value, str) else value
-    if isinstance(value, uno.Enum):
-        return {'enum': value.typeName, 'value': value.value}
-    if isinstance(value, (tuple, list)):
-        return [encode(v, depth + 1) for v in value[:100]]
-    name = getattr(value, 'typeName', None)
-    if name in STRUCTS:
-        return {'struct': name, 'fields': {k: encode(getattr(value, k), depth + 1)
-                for k in dir(value) if not k.startswith('_') and k != 'typeName'}}
-    return {'type': name or 'interface', 'expanded': False}
-
-
-def decode(value):
-    if isinstance(value, str) and len(value) > 2000:
-        raise ValueError('Property string exceeds 2000 characters')
+    if depth > 10: raise ValueError('Native value is too deeply nested')
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
-    if isinstance(value, list) and len(value) <= 100:
-        return tuple(decode(v) for v in value)
+    if isinstance(value, uno.Enum): return {'enum': value.typeName, 'value': value.value}
+    if isinstance(value, (tuple, list)):
+        if len(value) > 10000: raise ValueError('Native sequence exceeds limit')
+        return [encode(v, depth + 1) for v in value]
+    name = getattr(value, 'typeName', None)
+    if name and isinstance(value, uno.Type): return {'type': value.typeName}
+    if name:
+        return {'struct': name, 'fields': {k: encode(getattr(value, k), depth + 1)
+                for k in dir(value.value) if not k.startswith('_')}}
+    return {'type': 'interface', 'expanded': False}
+
+
+def check_name(name):
+    if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,100}', name):
+        raise ValueError('Invalid native member name')
+    if FORBIDDEN.search(name) and name not in SAFE_HYPERLINKS:
+        raise ValueError('Member is outside document-only capabilities: ' + name)
+
+
+def check_value(name, value):
+    check_name(name)
+    if name == 'HyperLinkURL' and value and not re.match(r'^(?:https?://|mailto:|#)', value, re.I):
+        raise ValueError('Only HTTP/mailto and internal hyperlinks are permitted')
+    if isinstance(value, dict):
+        for k, v in value.get('fields', {}).items(): check_value(k, v)
+        # PropertyValue/NamedValue can smuggle another setting through a sequence.
+        fields = value.get('fields', {})
+        if 'Name' in fields and 'Value' in fields: check_value(fields['Name'], fields['Value'])
+    elif isinstance(value, list):
+        for v in value: check_value(name, v)
+
+
+def decode(value, refs=None, depth=0):
+    if depth > 10: raise ValueError('Native value is too deeply nested')
+    if value is None or isinstance(value, (bool, int, float)): return value
+    if isinstance(value, str):
+        if len(value) > 100000: raise ValueError('Value exceeds 100000 characters')
+        return value
+    if isinstance(value, list) and len(value) <= 10000:
+        return tuple(decode(v, refs, depth + 1) for v in value)
+    if isinstance(value, dict) and set(value) == {'ref'} and refs is not None:
+        if value['ref'] not in refs: raise ValueError('Unknown session handle')
+        return refs[value['ref']]
     if isinstance(value, dict) and set(value) == {'enum', 'value'}:
-        if value['enum'] not in ('com.sun.star.style.BreakType', 'com.sun.star.awt.FontSlant'):
-            raise ValueError('Enum type is not writable')
+        if not re.fullmatch(r'com\.sun\.star\.(?:text|style|table|drawing|awt|lang)\.[A-Za-z0-9_.]+', value['enum']):
+            raise ValueError('Enum is outside document types')
         return uno.Enum(value['enum'], value['value'])
-    if isinstance(value, dict) and set(value) == {'struct', 'fields'} and value['struct'] in STRUCTS:
+    if isinstance(value, dict) and set(value) == {'struct', 'fields'}:
+        if not re.fullmatch(r'com\.sun\.star\.(?:text|style|table|drawing|awt|lang|beans|util)\.[A-Za-z0-9_.]+', value['struct']):
+            raise ValueError('Struct is outside document types')
         result = uno.createUnoStruct(value['struct'])
         for key, item in value['fields'].items():
-            if key.startswith('_') or not hasattr(result, key):
-                raise ValueError('Unknown struct field')
-            setattr(result, key, decode(item))
+            check_value(key, item)
+            if not hasattr(result, key): raise ValueError('Unknown struct field: ' + key)
+            setattr(result, key, decode(item, refs, depth + 1))
         return result
-    raise ValueError('Use scalar values or supported UNO enum/struct values')
+    raise ValueError('Use primitives, native enum/struct values or owned handles')
 
 
 def writable(target, name):
-    family = target.split(':', 1)[0]
-    return name in PROPERTY_NAMES.get(family, set()) or (
-        family in ('paragraph', 'paragraph-style', 'character-style', 'cell', 'footnote', 'endnote',
-                   'header', 'footer', 'frame') and TEXT_PROPERTIES.fullmatch(name) is not None)
+    try: check_name(name); return True
+    except ValueError: return False
 
 
 def property_object(node, name):
-    # Notes/header text expose paragraph/run formatting through their full text cursor.
-    if hasattr(node, 'getPropertySetInfo') and node.getPropertySetInfo().hasPropertyByName(name):
-        return node
-    cursor = node.createTextCursor()
-    cursor.gotoStart(False)
-    cursor.gotoEnd(True)
+    if name == 'String' and hasattr(node, 'String'): return node
+    if hasattr(node, 'getPropertySetInfo') and node.getPropertySetInfo().hasPropertyByName(name): return node
+    cursor = node.createTextCursor(); cursor.gotoStart(False); cursor.gotoEnd(True)
     return cursor
 
 
 def bounded(request, key, default, maximum):
     value = request.get(key, default)
-    if type(value) is not int or not 0 <= value <= maximum:
-        raise ValueError(key + ' is outside the supported range')
+    if type(value) is not int or not 0 <= value <= maximum: raise ValueError(key + ' is outside the supported range')
     return value
 
 
 def inspect(doc, request):
-    offset = bounded(request, 'offset', 0, 100000)
-    limit = bounded(request, 'limit', 20, 100)
-    if not limit:
-        raise ValueError('limit must be positive')
+    offset, limit = bounded(request, 'offset', 0, 100000), bounded(request, 'limit', 20, 100)
+    if not limit: raise ValueError('limit must be positive')
     target = request.get('target')
     if target:
         node = resolve(doc, target)
@@ -356,30 +368,28 @@ def inspect(doc, request):
             selected = [p for p in info.Properties if request.get('filter', '').lower() in p.Name.lower()]
             rows = []
             for prop in selected[offset:offset + limit]:
-                row = {'name': prop.Name, 'type': prop.Type.typeName,
-                       'writable': writable(target, prop.Name) and not prop.Attributes & 16}
-                try:
-                    row['value'] = encode(property_object(node, prop.Name).getPropertyValue(prop.Name))
-                except Exception:
-                    row['unavailable'] = True
+                row = {'name': prop.Name, 'type': prop.Type.typeName, 'writable': writable(target, prop.Name) and not prop.Attributes & 16}
+                try: row['value'] = encode(property_object(node, prop.Name).getPropertyValue(prop.Name))
+                except Exception: row['unavailable'] = True
                 rows.append(row)
-            return {'target': target, 'items': rows, 'total': len(selected),
-                    'next_offset': offset + len(rows) if offset + len(rows) < len(selected) else None}
+            return {'target': target, 'items': rows, 'total': len(selected), 'next_offset': offset + len(rows) if offset + len(rows) < len(selected) else None}
         text = getattr(node, 'String', '')
         result = {'target': target, 'text': text[offset:offset + limit * 100], 'total_chars': len(text)}
         result['next_offset'] = offset + len(result['text']) if offset + len(result['text']) < len(text) else None
         if target.startswith('table:'):
             cells = node.getCellNames()
-            result.update(cells=[{'target': 'cell:' + target.split(':', 1)[1] + '/' + quote(c, safe=''),
-                                  'text': node.getCellByName(c).String[:200]} for c in cells[offset:offset + limit]],
-                          total_cells=len(cells), next_offset=offset + limit if offset + limit < len(cells) else None)
+            result.update(cells=[{'target': 'cell:' + target.split(':', 1)[1] + '/' + quote(c, safe=''), 'text': node.getCellByName(c).String[:200]} for c in cells[offset:offset + limit]], total_cells=len(cells), next_offset=offset + limit if offset + limit < len(cells) else None)
         return result
-    family = request.get('family', 'paragraph')
-    selected = collection(doc, family)
-    rows = [{'target': family + ':' + quote(key, safe=''), 'text': getattr(node, 'String', '')[:300]}
-            for key, node in selected[offset:offset + limit]]
-    return {'family': family, 'items': rows, 'total': len(selected),
-            'next_offset': offset + len(rows) if offset + len(rows) < len(selected) else None}
+    family = request.get('family', 'paragraph'); selected = collection(doc, family)
+    rows = []
+    for key, node in selected[offset:offset + limit]:
+        row = {'target': family + ':' + quote(key, safe=''), 'text': getattr(node, 'String', '')[:300]}
+        if family == 'revision':
+            start, end = node.RedlineStart, node.RedlineEnd
+            cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
+            row.update(author=node.RedlineAuthor, type=node.RedlineType, text=cursor.String[:1000])
+        rows.append(row)
+    return {'family': family, 'items': rows, 'total': len(selected), 'next_offset': offset + len(rows) if offset + len(rows) < len(selected) else None}
 
 
 def texts(doc):
@@ -388,193 +398,113 @@ def texts(doc):
         for key, node in collection(doc, family):
             target = family + ':' + quote(key, safe='')
             if family == 'table':
-                for cell in node.getCellNames():
-                    values['cell:' + quote(key, safe='') + '/' + cell] = node.getCellByName(cell).String
-            else:
-                values[target] = node.String
+                for cell in node.getCellNames(): values['cell:' + quote(key, safe='') + '/' + cell] = node.getCellByName(cell).String
+            else: values[target] = node.String
     for key, page in collection(doc, 'page-style'):
         for kind in ('Header', 'Footer'):
-            if page.getPropertyValue(kind + 'IsOn'):
-                values[kind.lower() + ':' + quote(key, safe='')] = page.getPropertyValue(kind + 'Text').String
+            if page.getPropertyValue(kind + 'IsOn'): values[kind.lower() + ':' + quote(key, safe='')] = page.getPropertyValue(kind + 'Text').String
     return values
 
 
 def literal_paragraph(cursor):
-    # UNO's String includes computed note labels that are not w:t source text.
     paragraph = cursor.createEnumeration().nextElement()
     portions, text = paragraph.createEnumeration(), []
     while portions.hasMoreElements():
         portion = portions.nextElement()
-        if portion.TextPortionType == 'Text':
-            text.append(portion.String)
+        if portion.TextPortionType == 'Text': text.append(portion.String)
     return ''.join(text)
 
 
 def edit(doc, operations):
-    if not isinstance(operations, list) or not 1 <= len(operations) <= 50:
-        raise ValueError('preview needs 1-50 operations')
-    # Resolve every object before mutation; never retarget by shifted collection indexes.
+    if not isinstance(operations, list) or not 1 <= len(operations) <= 1000: raise ValueError('preview needs 1-1000 operations')
     targets = [(op, resolve(doc, op['target'])) for op in operations]
     changes = []
     for op, node in targets:
         if set(op) - {'target', 'set', 'replace'} or ('set' in op) == ('replace' in op):
             raise ValueError('Each operation requires exactly one of set or replace')
         if 'set' in op:
-            if not isinstance(op['set'], dict) or not 1 <= len(op['set']) <= 20:
-                raise ValueError('set needs 1-20 properties')
+            if not isinstance(op['set'], dict) or not 1 <= len(op['set']) <= 100: raise ValueError('set needs 1-100 properties')
             for name, value in op['set'].items():
-                if not writable(op['target'], name):
-                    raise ValueError('Property is outside the writable policy: ' + name)
+                check_value(name, value)
                 subject = property_object(node, name)
-                before = encode(subject.getPropertyValue(name))
-                requested = decode(value)
+                if subject.getPropertySetInfo().getPropertyByName(name).Attributes & 16: raise ValueError('Read-only property: ' + name)
+                before, requested = encode(subject.getPropertyValue(name)), decode(value)
                 subject.setPropertyValue(name, requested)
                 after = encode(subject.getPropertyValue(name))
-                if after != encode(requested):
-                    raise ValueError('Writer did not accept requested property ' + name)
+                if after != encode(requested): raise ValueError('Writer did not accept requested property ' + name)
                 changes.append({'target': op['target'], 'property': name, 'before': before, 'after': after})
         else:
             replacement = op['replace']
-            if set(replacement) != {'find', 'text'} or not all(isinstance(v, str) for v in replacement.values()):
-                raise ValueError('replace needs exact find and text strings')
+            if set(replacement) != {'find', 'text'} or not all(isinstance(v, str) for v in replacement.values()): raise ValueError('replace needs exact find and text strings')
             old, new = replacement['find'], replacement['text']
-            if not old or max(len(old), len(new)) > 10000 or any(c in old + new for c in '\r\n\t'):
-                raise ValueError('Replacement must stay inside one paragraph and be <= 10000 characters')
-            text = node.String
-            if text.count(old) != 1:
-                raise ValueError('Replacement target is missing or ambiguous')
+            if not old or max(len(old), len(new)) > 10000 or any(c in old + new for c in '\r\n\t'): raise ValueError('Replacement must stay inside one paragraph and be <= 10000 characters')
+            if node.String.count(old) != 1: raise ValueError('Replacement target is missing or ambiguous')
             owner = node.getText() if hasattr(node, 'getText') else node
-            search = doc.createSearchDescriptor()
-            search.SearchString, search.SearchCaseSensitive = old, True
+            search = doc.createSearchDescriptor(); search.SearchString, search.SearchCaseSensitive = old, True
             search.SearchRegularExpression = False
             matches, scoped = doc.findAll(search), []
-            if matches.Count > 10000:
-                raise ValueError('Too many native search matches; narrow the anchor')
+            if matches.Count > 10000: raise ValueError('Too many native search matches')
             for index in range(matches.Count):
                 found = matches.getByIndex(index)
-                try:
-                    inside = (owner.compareRegionStarts(node.Start, found.Start) >= 0 and
-                              owner.compareRegionEnds(node.End, found.End) <= 0)
-                except Exception:
-                    continue  # A match in a different story is not comparable.
-                if inside and found.String == old:
-                    scoped.append(found)
-            if len(scoped) != 1:
-                raise ValueError('Native search is missing or ambiguous inside the exact target')
+                try: inside = owner.compareRegionStarts(node.Start, found.Start) >= 0 and owner.compareRegionEnds(node.End, found.End) <= 0
+                except Exception: continue
+                if inside and found.String == old: scoped.append(found)
+            if len(scoped) != 1: raise ValueError('Native search is missing or ambiguous inside the exact target')
             paragraph = owner.createTextCursorByRange(scoped[0].Start)
-            paragraph.gotoStartOfParagraph(False)
-            paragraph.gotoEndOfParagraph(True)
+            paragraph.gotoStartOfParagraph(False); paragraph.gotoEndOfParagraph(True)
             before_paragraph = literal_paragraph(paragraph)
             scoped[0].String = new
-            changes.append({'target': op['target'], 'before': old, 'after': new,
-                            '_paragraph_before': before_paragraph, '_paragraph_after': literal_paragraph(paragraph)})
+            changes.append({'target': op['target'], 'before': old, 'after': new, '_paragraph_before': before_paragraph, '_paragraph_after': literal_paragraph(paragraph)})
     return changes
 
 
-def _run(source, output, request, binary):
-    if sys.platform.startswith('linux') and os.environ.get('BEAVER_UNO_OWNED_GROUP') == '1':
-        import resource
-        for kind, limit in ((resource.RLIMIT_AS, 2 * 1024 ** 3),
-                            (resource.RLIMIT_CPU, 90), (resource.RLIMIT_FSIZE, MAX_FILE),
-                            (resource.RLIMIT_NOFILE, 256)):
-            _, hard = resource.getrlimit(kind)
-            bound = limit if hard == resource.RLIM_INFINITY else min(limit, hard)
-            resource.setrlimit(kind, (bound, hard))
-    before_parts, before_review, expected_paragraphs = package(source)
-    source_hash = sha256(source.read_bytes()).hexdigest()
-    if request.get('snapshot') not in (None, source_hash):
-        raise ValueError('Stale snapshot; inspect the current document again')
+def run(source, output, request, binary):
+    package(source)
+    snapshot = sha256(source.read_bytes()).hexdigest()
+    if request.get('snapshot') not in (None, snapshot): raise ValueError('Stale snapshot; inspect again')
     action = request.get('action', 'inspect')
-    if action not in ('inspect', 'describe', 'preview'):
-        raise ValueError('Unknown action')
-    if action == 'preview' and request.get('snapshot') != source_hash:
-        raise ValueError('preview requires the snapshot returned by inspect')
-    if action == 'preview' and (output is None or output.exists() or output.resolve() == source.resolve()):
-        raise ValueError('Choose a new candidate path; the source is never overwritten')
+    if action == 'preview':
+        if request.get('snapshot') != snapshot: raise ValueError('preview requires an inspected snapshot')
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from word_uno_console import transact
+        return transact(source, output, {**request, 'mode': request.get('mode', 'direct')}, binary,
+                        lambda broker, *_: broker.rpc({'op':'batch', 'operations':request.get('operations')}))
+    if action not in ('inspect', 'describe'): raise ValueError('Unknown action')
     with writer(binary) as (desktop, version):
         doc = load(desktop, source)
-        try:
-            if action != 'preview':
-                return {'ok': True, 'snapshot': source_hash, 'engine_version': version, **inspect(doc, request)}
-            changes = edit(doc, request.get('operations'))
-            expected_text = texts(doc)
-            doc.storeToURL(output.resolve().as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
-        finally:
-            doc.close(True)
-        after_parts, after_review, actual_paragraphs = package(output)
-        for change in changes:
-            if '_paragraph_before' in change:
-                old, new = change.pop('_paragraph_before'), change.pop('_paragraph_after')
-                family = change['target'].split(':', 1)[0]
-                kind = family if family in ('header', 'footer') else 'flow'
-                if old:
-                    if expected_paragraphs[(kind, old)] < 1:
-                        raise ValueError('Imported paragraph does not match original package text')
-                    expected_paragraphs[(kind, old)] -= 1
-                if new:
-                    expected_paragraphs[(kind, new)] += 1
-        if +expected_paragraphs != actual_paragraphs:
-            raise ValueError('Export changed paragraph text outside the requested replacements')
-        if before_review != after_review:
-            output.unlink()
-            raise ValueError('Export altered revisions, comments, bindings, custom XML or opaque assets')
-        reopened = load(desktop, output)
-        try:
-            if texts(reopened) != expected_text:
-                raise ValueError('Export/reopen changed document text or story identities')
-            final_properties = {(c['target'], c['property']): c for c in changes if 'property' in c}
-            for change in final_properties.values():
-                if 'property' in change:
-                    actual = encode(property_object(resolve(reopened, change['target']), change['property'])
-                                    .getPropertyValue(change['property']))
-                    if actual != change['after']:
-                        raise ValueError('Export/reopen lost property ' + change['property'])
-        except Exception:
-            output.unlink(missing_ok=True)
-            raise
-        finally:
-            reopened.close(True)
-    return {'ok': True, 'snapshot': source_hash, 'candidate_sha256': sha256(output.read_bytes()).hexdigest(),
-            'engine_version': version, 'mode': 'direct-candidate', 'changes': changes, 'reopened': True,
-            'changed_parts': [name for name in sorted(set(before_parts) | set(after_parts))
-                              if before_parts.get(name) != after_parts.get(name)],
-            'warning': 'LibreOffice rewrites DOCX. Reopen/text/review checks are not proof of lossless Word layout.'}
-
-
-def run(source, output, request, binary):
-    fresh = output is not None and not output.exists() and output.resolve() != source.resolve()
-    try:
-        return _run(source, output, request, binary)
-    except BaseException:
-        if fresh:
-            output.unlink(missing_ok=True)
-        raise
+        try: return {'ok':True, 'snapshot':snapshot, 'engine_version':version, **inspect(doc,request)}
+        finally: doc.close(True)
 
 
 def main():
+    _job = _windows_job()
+    if sys.platform.startswith('linux') and os.environ.get('BEAVER_UNO_OWNED_GROUP') == '1':
+        import resource
+        for kind, limit in ((resource.RLIMIT_AS, 2*1024**3), (resource.RLIMIT_CPU, 100), (resource.RLIMIT_FSIZE, MAX_FILE), (resource.RLIMIT_NOFILE, 256)):
+            _, hard = resource.getrlimit(kind)
+            resource.setrlimit(kind, (limit if hard == resource.RLIM_INFINITY else min(limit,hard), hard))
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('source', type=Path)
-    parser.add_argument('--output', type=Path)
+    parser.add_argument('source', type=Path); parser.add_argument('--output', type=Path)
     parser.add_argument('--soffice', default=os.environ.get('SOFFICE_BINARY_PATH') or shutil.which('soffice'))
     args = parser.parse_args()
     try:
-        if not args.soffice:
-            raise ValueError('LibreOffice is unavailable')
-        raw = sys.stdin.read(262145)
-        if len(raw) > 262144:
-            raise ValueError('Request exceeds 256 KiB')
+        if not args.soffice: raise ValueError('LibreOffice is unavailable')
+        raw = sys.stdin.readline(262145)
+        if len(raw) > 262144: raise ValueError('Request exceeds 256 KiB')
         request = json.loads(raw)
-        if not isinstance(request, dict):
-            raise ValueError('Request must be an object')
-        result = run(args.source, args.output, request, args.soffice)
-        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        if not isinstance(request, dict): raise ValueError('Request must be an object')
+        if request.get('action') == 'console':
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from word_uno_console import serve
+            result = serve(args.source, args.output, request, args.soffice)
+        else: result = run(args.source, args.output, request, args.soffice)
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)
     except Exception as error:
-        print(json.dumps({'ok': False, 'error': str(error)[:1000]}))
+        print(json.dumps({'ok': False, 'error': str(error)[:1000]}), flush=True)
         raise SystemExit(1)
 
 
 if __name__ == '__main__':
-    def terminate(*_):
-        raise KeyboardInterrupt()
+    def terminate(*_): raise KeyboardInterrupt()
     signal.signal(signal.SIGTERM, terminate)
     main()

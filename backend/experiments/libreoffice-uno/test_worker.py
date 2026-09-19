@@ -123,7 +123,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(self.output.read_bytes(), b'owned by another operation')
 
     def test_unsafe_properties_and_active_packages_are_refused(self):
-        with self.assertRaisesRegex(ValueError, 'writable policy'):
+        with self.assertRaisesRegex(ValueError, 'HTTP|document-only'):
             self.run_edit([{'target': 'paragraph:0', 'set': {'HyperLinkURL': 'file:///etc/passwd'}}])
         self.assertFalse(self.output.exists())
         with zipfile.ZipFile(self.source, 'a') as z:
