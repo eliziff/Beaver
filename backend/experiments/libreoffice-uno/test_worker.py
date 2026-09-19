@@ -1,6 +1,6 @@
 """Real LibreOffice tests; never skipped or imported by the ordinary Vitest suite."""
 from hashlib import sha256
-import importlib.util
+import sys
 from pathlib import Path
 import shutil
 import tempfile
@@ -9,9 +9,9 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 WORKER = Path(__file__).resolve().parents[2] / 'scripts' / 'word_uno.py'
-spec = importlib.util.spec_from_file_location('word_uno', WORKER)
-worker = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(worker)
+sys.path.insert(0, str(WORKER.parent))
+import word_uno as worker
+from word_uno_console import Broker, transact
 W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 R = 'http://schemas.openxmlformats.org/package/2006/relationships'
 C = 'http://schemas.openxmlformats.org/package/2006/content-types'
@@ -68,8 +68,8 @@ class WorkerTests(unittest.TestCase):
         self.snapshot = sha256(self.original).hexdigest()
 
     def run_edit(self, operations, **extra):
-        return worker.run(self.source, self.output,
-                          dict(action='preview', snapshot=self.snapshot, operations=operations, **extra), self.binary)
+        return transact(self.source, self.output, dict({'snapshot': self.snapshot, 'mode': 'direct'}, **extra), self.binary,
+                        lambda broker, *_: broker.rpc({'op': 'batch', 'operations': operations}))
 
     def test_compound_edit_and_native_reopen(self):
         result = self.run_edit([
@@ -93,12 +93,30 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(worker.package(self.source)[1], worker.package(self.output)[1])
 
     def test_inspection_properties_and_pagination(self):
-        result = worker.run(self.source, None, {'action': 'inspect', 'family': 'paragraph', 'limit': 2}, self.binary)
-        self.assertEqual(len(result['items']), 2)
-        self.assertEqual(result['next_offset'], 2)
-        result = worker.run(self.source, None, {'action': 'describe', 'target': 'table:Table1', 'filter': 'RepeatHeadline'}, self.binary)
-        self.assertEqual(result['items'][0]['name'], 'RepeatHeadline')
-        self.assertTrue(result['items'][0]['writable'])
+        with worker.writer(self.binary) as (desktop, _):
+            doc = worker.load(desktop, self.source)
+            try:
+                result = worker.inspect(doc, {'family': 'paragraph', 'limit': 2, 'properties': ['ParaStyleName'], 'include_text': False})
+                self.assertEqual(len(result['items']), 2)
+                self.assertEqual(result['next_offset'], 2)
+                self.assertIsNone(result['total'])
+                self.assertNotIn('text', result['items'][0])
+                self.assertIn('ParaStyleName', result['items'][0]['properties'])
+                broker = Broker(doc)
+                values = broker.rpc({'op': 'get', 'target': 'table:Table1', 'name': ['RepeatHeadline', 'Name']})
+                self.assertEqual(values, {'RepeatHeadline': False, 'Name': 'Table1'})
+                result = broker.rpc({'op': 'describe', 'target': 'table:Table1', 'filter': 'RepeatHeadline', 'values': True})
+                self.assertTrue(result['items'][0]['writable'])
+                with self.assertRaises(ValueError): broker.rpc({'op': 'get', 'name': ['Text', 'BasicLibraries']})
+            finally: doc.close(True)
+        class HugeCollection:
+            def __init__(self): self.read = []
+            def getCount(self): return 100000
+            def getByIndex(self, i): self.read.append(i); return i
+        values = HugeCollection()
+        rows, _ = worker.page(lambda start: worker.enumerate_values(values, start), {'offset': 90000, 'limit': 10})
+        self.assertEqual([n for _, n in rows], list(range(90000, 90010)))
+        self.assertLessEqual(len(values.read), 11, 'Bounded reads must not materialize the collection or skipped prefix')
         self.assertEqual(self.source.read_bytes(), self.original)
 
     def test_unicode_anchor(self):
@@ -116,7 +134,7 @@ class WorkerTests(unittest.TestCase):
 
     def test_stale_snapshot_and_existing_output_are_refused(self):
         with self.assertRaisesRegex(ValueError, 'Stale snapshot'):
-            worker.run(self.source, self.output, {'action': 'preview', 'snapshot': '0' * 64}, self.binary)
+            self.run_edit([], snapshot='0' * 64)
         self.output.write_bytes(b'owned by another operation')
         with self.assertRaisesRegex(ValueError, 'new candidate path'):
             self.run_edit([])

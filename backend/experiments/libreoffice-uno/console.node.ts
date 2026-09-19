@@ -54,6 +54,13 @@ test("QuickJS programs are expressive, isolated, and promptly cancellable", asyn
 test("real console discovers native APIs and performs compound edits", async () => {
   const bytes = await source;
   const { report, candidate } = await preview(bytes, `
+    const page=doc.get('Text').items(0,2);
+    word.assert(page.items.length===2 && page.next_offset===2 && page.total===null);
+    word.assert(page.items[1].value.get(['String','CharHeight']).String.includes('unchanged'));
+    const props=word.inspect({family:'paragraph',limit:2,properties:['ParaStyleName'],include_text:false});
+    word.assert(props.items.length===2 && !('text' in props.items[0]) && 'ParaStyleName' in props.items[0].properties);
+    const tables=doc.get('TextTables').items();
+    word.assert(tables.items[0].name==='Table1' && tables.next_offset===null);
     const paragraph=word.target('paragraph:1');
     paragraph.set({CharWeight:150}); paragraph.expect({CharWeight:150});
     word.assert(word.constant('com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK')===0);
@@ -126,7 +133,7 @@ test("creation, readonly policy, unsafe native access, and failed programs use t
   `);
   assert.ok(made.candidate); assert.equal(made.report.result, 2);
   await assert.rejects(runLibreOffice(bytes, {action:'inspect',snapshot:hash(bytes),program:"word.target('paragraph:1').set({String:'forbidden'});"}, signal), /read-only/);
-  await assert.rejects(preview(bytes, "doc.get('BasicLibraries');"), /document-only/);
+  await assert.rejects(preview(bytes, "doc.get(['Text','BasicLibraries']);"), /document-only/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({HyperLinkURL:'file:///etc/passwd'});"), /HTTP|document/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({String:'temporary'}); throw new Error('discard me');"), /discard me/);
   const inspected = await runLibreOffice(bytes, { action:'inspect', target:'paragraph:1' }, signal);

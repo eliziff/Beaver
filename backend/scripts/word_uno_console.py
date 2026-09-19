@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 from word_uno import (W, collection, resolve, encode, decode, check_name, check_value,
-                      package, props, writer, load, texts, inspect, edit, property_object, FORBIDDEN)
+                      package, props, writer, load, inspect, property_object, read_property, page, enumerate_values)
 import uno
 
 # Discover document interfaces rather than maintaining a formatting catalogue.
@@ -64,14 +64,17 @@ def semantic_package(path):
 
 def native_state(doc):
     """Ordered text/story and structural readback; not a complete OOXML validator."""
-    result = {'text': texts(doc), 'body': [], 'tables': [], 'bookmarks': [], 'drawings': []}
-    body = doc.Text.createEnumeration()
-    while body.hasMoreElements():
-        node = body.nextElement()
+    result = {'body': [], 'stories': {}, 'tables': [], 'bookmarks': [], 'drawings': []}
+    for _, node in enumerate_values(doc.Text):
         result['body'].append(('table', node.Name) if node.supportsService('com.sun.star.text.TextTable')
                               else ('paragraph', node.String))
+    for family in ('footnote', 'endnote', 'frame'):
+        result['stories'][family] = [(key, node.String) for key, node in collection(doc, family)]
+    for key, style in collection(doc, 'page-style'):
+        for kind in ('Header', 'Footer'):
+            if getattr(style, kind + 'IsOn'): result['stories'][kind + ':' + key] = getattr(style, kind + 'Text').String
     for name, t in collection(doc, 'table'):
-        result['tables'].append((name, tuple(t.getCellNames()), t.Rows.Count))
+        result['tables'].append((name, tuple((cell, t.getCellByName(cell).String) for cell in t.getCellNames()), t.Rows.Count))
     for name, b in collection(doc, 'bookmark'):
         result['bookmarks'].append((name, b.Anchor.String))
     for name, s in collection(doc, 'drawing'):
@@ -90,8 +93,8 @@ def review(doc, indices, decision):
     if decision not in ('accept', 'reject'): raise ValueError('Review must accept or reject named changes')
     selected = [doc.Redlines.getByIndex(i) for i in sorted(set(indices), reverse=True)]
     signatures = lambda: Counter((r.RedlineAuthor, r.RedlineType, redline_text(r)) for _,r in collection(doc, 'revision'))
-    expected = signatures() - Counter((r.RedlineAuthor, r.RedlineType, redline_text(r)) for r in selected)
     removed = [(r.RedlineAuthor, r.RedlineType, redline_text(r)) for r in selected]
+    expected = signatures() - Counter(removed)
     ctx = uno.getComponentContext()
     dispatcher = ctx.ServiceManager.createInstanceWithContext('com.sun.star.frame.DispatchHelper', ctx)
     for r in selected:
@@ -111,6 +114,7 @@ class Broker:
         self.doc, self.readonly = doc, readonly
         self.refs, self.targets, self.changes, self.checks = {'doc': doc}, {}, [], []
         self.scratch = set()
+        self.metadata = {}
         self.removed_review = Counter()
         self.calls = 0
         ctx = uno.getComponentContext()
@@ -133,7 +137,9 @@ class Broker:
         return resolve(self.doc, key)
 
     def info(self, obj):
-        return self.introspection.inspect(obj)
+        key = id(obj)
+        if key not in self.metadata: self.metadata[key] = (obj, self.introspection.inspect(obj))
+        return self.metadata[key][1]
 
     def method_allowed(self, obj, name):
         try: check_name(name)
@@ -162,29 +168,43 @@ class Broker:
             offset, limit = command.get('offset', 0), command.get('limit', 50)
             if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 100: raise ValueError('Invalid metadata page')
             info = self.info(obj); pattern = command.get('filter', '').lower()
-            properties = [{'name': p.Name, 'type': p.Type.typeName, 'writable': not self.readonly and not p.Attributes & 16 and not bool(FORBIDDEN.search(p.Name))}
-                          for p in info.getProperties(-1) if pattern in p.Name.lower()]
-            methods = [{'name': m.Name, 'returns': m.ReturnType.Name,
-                        'arguments': [{'name': p.aName, 'type': p.aType.Name, 'mode': str(p.aMode)} for p in m.ParameterInfos]}
-                       for m in info.getMethods(-1) if pattern in m.Name.lower() and self.method_allowed(obj, m.Name)]
-            rows = [{'kind': 'property', **p} for p in properties] + [{'kind': 'method', **m} for m in methods]
-            return {'items': rows[offset:offset+limit], 'total': len(rows), 'next_offset': offset+limit if offset+limit < len(rows) else None}
+            members = [('property', p) for p in info.getProperties(-1) if pattern in p.Name.lower()] + [
+                ('method', m) for m in info.getMethods(-1) if pattern in m.Name.lower() and self.method_allowed(obj, m.Name)]
+            rows = []
+            # Signatures and values are expensive remote objects: expand only this page.
+            for kind, member in members[offset:offset + limit]:
+                row = {'kind': kind, 'name': member.Name}
+                if kind == 'property':
+                    row.update(type=member.Type.typeName, writable=False)
+                    try:
+                        check_name(member.Name)
+                        row['writable'] = not self.readonly and not bool(member.Attributes & 16)
+                        if command.get('values'): row['value'] = encode(read_property(obj, member.Name))
+                    except Exception: row['unavailable'] = True
+                else: row.update(returns=member.ReturnType.Name,
+                    arguments=[{'name': p.aName, 'type': p.aType.Name, 'mode': str(p.aMode)} for p in member.ParameterInfos])
+                rows.append(row)
+            return {'items': rows, 'total': len(members), 'next_offset': offset + limit if offset + limit < len(members) else None}
+        if op == 'items':
+            entries, pagination = page(lambda start: enumerate_values(obj, start), command)
+            return {'items': [{'name': name, 'value': self.save(value)} for name, value in entries], **pagination}
         if op == 'get':
-            name = command['name']; check_name(name)
-            value = getattr(property_object(obj, name) if name.startswith('Char') else obj, name)
-            if callable(value): raise ValueError('Use call for native methods')
-            return self.save(value)
+            names = command['name']
+            if isinstance(names, list):
+                if not 1 <= len(names) <= 32: raise ValueError('get needs 1-32 properties')
+                return {name: self.save(read_property(obj, name)) for name in names}
+            return self.save(read_property(obj, names))
         if op == 'set':
             if target not in self.scratch: self.mutate()
             values = command.get('values')
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('set requires 1-100 properties')
             for name, value in values.items():
                 check_value(name, value)
-                subject = property_object(obj, name) if name.startswith('Char') or not hasattr(obj, name) else obj
+                subject = property_object(obj, name)
                 before = encode(getattr(subject, name))
-                setattr(subject, name, decode(value, self.refs))
-                after = encode(getattr(subject, name))
-                expected = encode(decode(value, self.refs))
+                requested = decode(value, self.refs)
+                setattr(subject, name, requested)
+                after, expected = encode(getattr(subject, name)), encode(requested)
                 if after != expected and not (name == 'String' and self.doc.RecordChanges):
                     raise ValueError('Writer did not retain property ' + name)
                 if name == 'String': after = expected
@@ -216,16 +236,43 @@ class Broker:
             if name == 'createSearchDescriptor' and isinstance(saved, dict) and 'ref' in saved: self.scratch.add(saved['ref'])
             return saved
         if op == 'batch':
-            self.mutate(); changes = edit(self.doc, command.get('operations'))
-            self.changes.extend({k:v for k,v in c.items() if not k.startswith('_')} for c in changes)
-            for c in changes:
-                if 'property' in c: self.checks.append((c['target'], c['property'], c['after']))
-            return changes
+            self.mutate()
+            operations = command.get('operations')
+            if not isinstance(operations, list) or not 1 <= len(operations) <= 1000: raise ValueError('preview needs 1-1000 operations')
+            targets = [(op, self.save(resolve(self.doc, op['target']), op['target'])['ref']) for op in operations]
+            first = len(self.changes)
+            for op, ref in targets:
+                if set(op) - {'target', 'set', 'replace'} or ('set' in op) == ('replace' in op):
+                    raise ValueError('Each operation requires exactly one of set or replace')
+                if 'set' in op:
+                    self.rpc({'op': 'set', 'target': ref, 'values': op['set']})
+                    continue
+                replacement = op['replace']
+                if set(replacement) != {'find', 'text'} or not all(isinstance(v, str) for v in replacement.values()):
+                    raise ValueError('replace needs exact find and text strings')
+                old, new = replacement['find'], replacement['text']
+                if not old or max(len(old), len(new)) > 10000 or any(c in old + new for c in '\r\n\t'):
+                    raise ValueError('Replacement must stay inside one paragraph and be <= 10000 characters')
+                node = self.refs[ref]
+                if node.String.count(old) != 1: raise ValueError('Replacement target is missing or ambiguous')
+                owner = node.getText() if hasattr(node, 'getText') else node
+                search = self.doc.createSearchDescriptor()
+                search.SearchString, search.SearchCaseSensitive, search.SearchRegularExpression = old, True, False
+                matches, scoped = self.doc.findAll(search), []
+                if matches.Count > 10000: raise ValueError('Too many native search matches')
+                for _, found in enumerate_values(matches):
+                    try: inside = owner.compareRegionStarts(node.Start, found.Start) >= 0 and owner.compareRegionEnds(node.End, found.End) <= 0
+                    except Exception: continue
+                    if inside and found.String == old: scoped.append(found)
+                if len(scoped) != 1: raise ValueError('Native search is missing or ambiguous inside the exact target')
+                scoped[0].String = new
+                self.changes.append({'target': op['target'], 'before': old, 'after': new})
+            return self.changes[first:]
         if op == 'expect':
             selector = self.targets.get(target, target)
             resolve(self.doc, selector)
             for name, value in command.get('values', {}).items():
-                check_name(name); actual = encode(getattr(property_object(obj, name), name))
+                actual = encode(read_property(obj, name))
                 if actual != value: raise ValueError('Postcondition failed: ' + selector + '.' + name)
                 self.checks.append((selector, name, value))
             return True
@@ -246,7 +293,7 @@ class Broker:
 
 def verify_properties(doc, checks):
     for target, name, value in {(t,n):(t,n,v) for t,n,v in checks}.values():
-        actual = encode(getattr(property_object(resolve(doc, target), name), name))
+        actual = encode(read_property(resolve(doc, target), name))
         if actual != value: raise ValueError('Export/reopen lost ' + target + '.' + name)
 
 
@@ -262,7 +309,7 @@ def transact(source, output, request, binary, interact):
     readonly = request.get('read_only') is True
     mode = request.get('mode', 'tracked')
     if mode not in ('tracked', 'direct'): raise ValueError('Unknown console review mode')
-    if request.get('snapshot') != source_hash: raise ValueError('Console needs the inspected source snapshot')
+    if request.get('snapshot') != source_hash: raise ValueError('Stale snapshot; console needs the inspected source snapshot')
     if not readonly and not fresh: raise ValueError('Choose a new candidate path')
     before_parts, protected, original_paragraphs = package(source)
     author = 'Beaver ' + os.urandom(5).hex()
@@ -278,9 +325,6 @@ def transact(source, output, request, binary, interact):
                     _, base_protected, base_paragraphs = package(baseline)
                     if protected != base_protected or original_paragraphs != base_paragraphs:
                         raise ValueError('This document does not survive a no-edit LibreOffice round trip')
-                    normalized = load(desktop, baseline)
-                    try: normalized.storeToURL(control.as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
-                    finally: normalized.close(True)
                 doc.RecordChanges = mode == 'tracked' and not readonly
                 interact(broker, source_hash, version)
                 if readonly:
@@ -297,9 +341,8 @@ def transact(source, output, request, binary, interact):
             reopened = load(desktop, output)
             try:
                 if native_state(reopened) != expected: raise ValueError('Export/reopen changed text, ordering or structural objects')
-                revisions = [{'target': 'revision:'+str(i), 'author': r.RedlineAuthor,
-                              'type': r.RedlineType, 'text': redline_text(r)[:2000]}
-                             for i, r in ((i, reopened.Redlines.getByIndex(i)) for i in range(reopened.Redlines.Count))]
+                revisions = [{'target': 'revision:'+str(i), 'author': who, 'type': kind, 'text': text[:2000]}
+                             for i, (who, kind, text) in enumerate(expected['revisions'])]
                 new_indices = [i for i,r in enumerate(revisions) if r['author'] == author]
                 if mode == 'tracked' and new_indices:
                     accepted = load(desktop, output)
@@ -309,6 +352,9 @@ def transact(source, output, request, binary, interact):
                     finally: accepted.close(True)
                 else: verify_properties(reopened, broker.checks)
                 if mode == 'tracked' and not intentional_review:
+                    normalized = load(desktop, baseline)
+                    try: normalized.storeToURL(control.as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
+                    finally: normalized.close(True)
                     if new_indices: review(reopened, new_indices, 'reject')
                     reopened.RecordChanges = False
                     reopened.storeToURL(rejected.resolve().as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))

@@ -46,6 +46,7 @@ async function main() {
           toJSON: () => ({ref}),
           get: name => invoke({op:'get',target:ref,name}),
           set: values => invoke({op:'set',target:ref,values}),
+          items: (offset=0,limit=20) => invoke({op:'items',target:ref,offset,limit}),
           call: (name,...args) => invoke({op:'call',target:ref,name,args}),
           describe: (filter='',offset=0,limit=50) => invoke({op:'describe',target:ref,filter,offset,limit}),
           expect: values => invoke({op:'expect',target:ref,values})

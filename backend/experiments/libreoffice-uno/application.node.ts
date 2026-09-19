@@ -44,13 +44,15 @@ function fixture(editMode: "manual" | "auto" = "auto") {
     return { candidate, report: { ok: true, reopened: true, snapshot: hash(bytes),
       candidate_sha256: hash(candidate), mode: mode + "-candidate", review_verified: mode === "tracked" } };
   });
-  const preview = () => run({ action: "preview", file_path, snapshot: hash(bytes), operations: [], mode: "direct" }, signal);
+  const preview = () => run({ action: "preview", file_path, snapshot: hash(bytes), program: "return true;", mode: "direct" }, signal);
   const apply = () => run({ action: "apply", file_path, preview_resource: "document://preview/version/p1" }, signal);
   return { state, options, run, preview, apply };
 }
 
 test("preview preserves source; apply publishes the exact candidate once", async () => {
-  const f = fixture(); const preview = await f.preview();
+  const f = fixture();
+  await assert.rejects(f.run({ action: "preview", file_path, snapshot: hash(bytes) }, signal), /program/);
+  const preview = await f.preview();
   assert.equal(f.state.head, "v1"); assert.equal(f.state.saves, 0);
   assert.equal(preview.report.original_unchanged, true);
   const applied = await f.apply();

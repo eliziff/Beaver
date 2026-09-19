@@ -20,14 +20,15 @@ export type UnoResult = { report: Record<string, unknown>; candidate?: Buffer };
 export async function runLibreOffice(bytes: Buffer, request: Record<string, unknown>,
   signal: AbortSignal): Promise<UnoResult> {
   signal.throwIfAborted();
-  const scripted = typeof request.program === "string" || request.action === "preview";
-  const program = typeof request.program === "string" ? request.program :
-    `return word.batch(${JSON.stringify(request.operations)});`;
+  const program = typeof request.program === "string" ? request.program : "";
+  const scripted = !!program;
+  if (request.action === "preview" && !program.trim()) throw new Error("preview requires a JavaScript program");
   const wire: Record<string, unknown> = { ...request, ...(scripted ? { action: "console", read_only: request.action !== "preview" } : {}) };
   delete wire.program;
   const input = JSON.stringify(wire);
   if (!bytes.length || bytes.length > MAX_BYTES || Buffer.byteLength(input) > 262144)
     throw new Error("Word input exceeds the worker limit");
+  const snapshot = hash(bytes);
   const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-word-"));
   const source = path.join(directory, "source.docx"), output = path.join(directory, "candidate.docx");
   const image = process.env.WORD_UNO_CONTAINER_IMAGE;
@@ -99,7 +100,7 @@ export async function runLibreOffice(bytes: Buffer, request: Record<string, unkn
           if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid Word result");
           if (value.rpc === "ready") {
             if (!scripted || running) throw new Error("Unexpected console handshake");
-            if (value.snapshot !== hash(bytes)) throw new Error("Console opened a different source");
+            if (value.snapshot !== snapshot) throw new Error("Console opened a different source");
             running = (async () => {
               const { executeWordProgram } = await import("./libreOfficeConsole");
               consoleValue = await executeWordProgram(program, rpc, programSignal);
@@ -137,7 +138,7 @@ export async function runLibreOffice(bytes: Buffer, request: Record<string, unkn
       else child.stdin.end(input + "\n");
     });
     signal.throwIfAborted();
-    if (report.snapshot !== hash(bytes)) throw new Error("Word receipt does not match the source");
+    if (report.snapshot !== snapshot) throw new Error("Word receipt does not match the source");
     if (request.action !== "preview") return { report };
     const stat = await lstat(output);
     if (!stat.isFile() || !stat.size || stat.size > MAX_BYTES) throw new Error("Invalid Word candidate size/type");

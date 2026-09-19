@@ -48,6 +48,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     signal.throwIfAborted();
     if (restricted) throw new Error("Whole-document UNO access is unavailable in a restricted research selection");
     const source = await loaded(String(input.file_path));
+    const sourceSha256 = hash(source.file.bytes);
     const unchanged = () => source.meta.current_version_id === source.file.version.id &&
       source.meta.current_working_revision === source.file.version.working_revision;
     if (input.action === "apply") {
@@ -57,7 +58,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
       const parts = await options.documents.readParts(scope, preview.meta.id, preview.file.version.id, [RECEIPT]);
       const raw: unknown = JSON.parse(parts?.[0]?.bytes.toString("utf8") ?? "null");
       if (!record(raw) || raw.schema !== 2 || raw.source !== source.reference ||
-        raw.workingRevision !== source.file.version.working_revision || raw.sourceSha256 !== hash(source.file.bytes) ||
+        raw.workingRevision !== source.file.version.working_revision || raw.sourceSha256 !== sourceSha256 ||
         raw.candidateSha256 !== hash(preview.file.bytes) || !record(raw.report) || raw.report.reopened !== true ||
         !["tracked", "direct"].includes(String(raw.mode)) || raw.report.mode !== raw.mode + "-candidate")
         throw new Error("Preview receipt does not match these source and candidate versions");
@@ -70,7 +71,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
         filename: source.file.filename, fileType: "docx", bytes: preview.file.bytes,
         expectedCurrentVersionId: source.file.version.id,
         expectedCurrentWorkingRevision: source.file.version.working_revision,
-        expectedCurrentSha256: hash(source.file.bytes),
+        expectedCurrentSha256: sourceSha256,
         provenance: { schemaVersion: 1, actor: "assistant", action: "revised", turnId: options.turnId },
         comment: raw.mode === "tracked" ? "Applied verified native Word revisions" : "Applied inspected LibreOffice candidate (direct edits)",
       });
@@ -84,20 +85,20 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     }
     if (!["inspect", "describe", "preview"].includes(String(input.action))) throw new Error("Unknown Word action");
     if (input.action === "describe" && !input.target) throw new Error("describe requires a target");
-    if (input.action === "preview" && (!unchanged() || input.snapshot !== hash(source.file.bytes)))
+    if (input.action === "preview" && (!unchanged() || input.snapshot !== sourceSha256))
       throw new Error("Preview requires an inspected current snapshot");
-    if (input.program !== undefined && input.operations !== undefined)
-      throw new Error("Use a program or a batch, not both");
+    if (input.action === "preview" && (typeof input.program !== "string" || !input.program.trim()))
+      throw new Error("preview requires a JavaScript program; use word.batch for exact replacements");
     const { file_path: _path, preview_resource: _preview, ...request } = input;
     const result = await execute(source.file.bytes, { ...request, mode,
-      ...(input.program !== undefined ? { snapshot: hash(source.file.bytes) } : {}) }, signal);
+      ...(input.program !== undefined ? { snapshot: sourceSha256 } : {}) }, signal);
     if (!result.candidate) return { report: result.report };
     if (result.report.reopened !== true || result.report.mode !== mode + "-candidate" ||
         mode === "tracked" && result.report.review_verified !== true)
       throw new Error("The engine did not verify the requested review mode");
     signal.throwIfAborted();
     const receipt: Receipt = { schema: 2, source: source.reference, mode,
-      workingRevision: source.file.version.working_revision, sourceSha256: hash(source.file.bytes),
+      workingRevision: source.file.version.working_revision, sourceSha256,
       candidateSha256: hash(result.candidate), report: result.report };
     options.onMutationCommitted();
     const copy = await options.documents.create(scope, {

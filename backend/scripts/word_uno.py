@@ -9,6 +9,7 @@ import argparse
 from collections import Counter
 from contextlib import contextmanager
 from hashlib import sha256
+from itertools import islice
 import json
 import os
 from pathlib import Path
@@ -32,9 +33,6 @@ MAX_FILE = 100 * 1024 * 1024
 MAX_XML = 64 * 1024 * 1024
 MAX_EXPANDED = 256 * 1024 * 1024
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-FAMILIES = ('paragraph', 'table', 'footnote', 'endnote', 'frame', 'bookmark',
-            'field', 'section', 'drawing', 'index', 'control', 'revision',
-            'page-style', 'paragraph-style', 'character-style', 'numbering-style')
 STYLE_FAMILIES = {'page-style': 'PageStyles', 'paragraph-style': 'ParagraphStyles',
                   'character-style': 'CharacterStyles', 'numbering-style': 'NumberingStyles'}
 # Block host/application capabilities, not a short whitelist of Word formatting.
@@ -265,31 +263,42 @@ def load(desktop, path):
     return doc
 
 
-def enumerate_values(values):
+def enumerate_values(values, offset=0):
+    """Fetch native objects lazily; indexed/named pages need not fetch their prefix."""
     if hasattr(values, 'getElementNames'):
-        return [(n, values.getByName(n)) for n in values.getElementNames()]
-    if hasattr(values, 'getCount'):
-        return [(str(i), values.getByIndex(i)) for i in range(values.getCount())]
-    enum, result = values.createEnumeration(), []
-    while enum.hasMoreElements():
-        result.append((str(len(result)), enum.nextElement()))
-        if len(result) > 100000: raise ValueError('Collection exceeds 100000 objects')
-    return result
+        names = values.getElementNames()
+        if len(names) > 100000: raise ValueError('Collection exceeds 100000 objects')
+        for name in names[offset:]: yield name, values.getByName(name)
+    elif hasattr(values, 'getCount'):
+        count = values.getCount()
+        if count > 100000: raise ValueError('Collection exceeds 100000 objects')
+        for index in range(offset, count): yield str(index), values.getByIndex(index)
+    else:
+        enum = values.createEnumeration()
+        index = 0
+        while enum.hasMoreElements():
+            if index >= 100000: raise ValueError('Collection exceeds 100000 objects')
+            node = enum.nextElement()
+            if index >= offset: yield str(index), node
+            index += 1
 
 
-def collection(doc, family):
-    if family in STYLE_FAMILIES: return enumerate_values(doc.StyleFamilies.getByName(STYLE_FAMILIES[family]))
+def native_collection(doc, family):
+    if family in STYLE_FAMILIES: return doc.StyleFamilies.getByName(STYLE_FAMILIES[family])
     names = {'table': 'TextTables', 'frame': 'TextFrames', 'footnote': 'Footnotes', 'endnote': 'Endnotes',
              'bookmark': 'Bookmarks', 'field': 'TextFields', 'section': 'TextSections', 'drawing': 'DrawPage',
              'index': 'DocumentIndexes', 'revision': 'Redlines', 'control': 'ContentControls'}
-    if family in names:
-        if not hasattr(doc, names[family]): raise ValueError('This LibreOffice version does not expose ' + family)
-        return enumerate_values(getattr(doc, names[family]))
+    if family not in names: raise ValueError('Unknown target family')
+    if not hasattr(doc, names[family]): raise ValueError('This LibreOffice version does not expose ' + family)
+    return getattr(doc, names[family])
+
+
+def collection(doc, family, offset=0):
+    if family == 'document': return iter([('root', doc)][offset:])
     if family == 'paragraph':
-        return [(str(i), n) for i, n in enumerate(n for _, n in enumerate_values(doc.Text)
-                if n.supportsService('com.sun.star.text.Paragraph'))]
-    if family == 'document': return [('root', doc)]
-    raise ValueError('Unknown target family')
+        nodes = (node for _, node in enumerate_values(doc.Text) if node.supportsService('com.sun.star.text.Paragraph'))
+        return ((str(i), node) for i, node in islice(enumerate(nodes), offset, None))
+    return enumerate_values(native_collection(doc, family), offset)
 
 
 def resolve(doc, target):
@@ -302,8 +311,18 @@ def resolve(doc, target):
     if family in ('header', 'footer'):
         page = doc.StyleFamilies.getByName('PageStyles').getByName(unquote(name))
         return page.getPropertyValue('HeaderText' if family == 'header' else 'FooterText')
-    for key, node in collection(doc, family):
-        if key == unquote(name): return node
+    name = unquote(name)
+    if family != 'paragraph':
+        values = native_collection(doc, family)
+        if hasattr(values, 'getByName'): return values.getByName(name)
+        if hasattr(values, 'getByIndex') and re.fullmatch(r'0|[1-9][0-9]*', name):
+            return values.getByIndex(int(name))
+    if family == 'paragraph' and re.fullmatch(r'0|[1-9][0-9]*', name):
+        found = next(collection(doc, family, int(name)), None)
+        if found is not None: return found[1]
+    else:
+        for key, node in collection(doc, family):
+            if key == name: return node
     raise ValueError('Target does not exist in this snapshot')
 
 
@@ -374,21 +393,21 @@ def decode(value, refs=None, depth=0):
     raise ValueError('Use primitives, native enum/struct values or owned handles')
 
 
-def writable(target, name):
-    try: check_name(name); return True
-    except ValueError: return False
-
-
 def property_object(node, name):
-    # Paragraph character properties otherwise read the paragraph mark's defaults
-    # after export. Character operations address the actual text, not that mark.
+    # Character properties on a paragraph mark do not describe its text runs.
     if name.startswith('Char') and hasattr(node, 'supportsService') and node.supportsService('com.sun.star.text.Paragraph'):
         cursor = node.getText().createTextCursorByRange(node.Start); cursor.gotoRange(node.End, True)
         return cursor
-    if name == 'String' and hasattr(node, 'String'): return node
-    if hasattr(node, 'getPropertySetInfo') and node.getPropertySetInfo().hasPropertyByName(name): return node
+    if hasattr(node, name): return node
     cursor = node.createTextCursor(); cursor.gotoStart(False); cursor.gotoEnd(True)
     return cursor
+
+
+def read_property(node, name):
+    check_name(name)
+    value = getattr(property_object(node, name), name)
+    if callable(value): raise ValueError('Use call for native methods')
+    return value
 
 
 def bounded(request, key, default, maximum):
@@ -397,123 +416,67 @@ def bounded(request, key, default, maximum):
     return value
 
 
+def page(entries, request):
+    offset, limit = bounded(request, 'offset', 0, 100000), bounded(request, 'limit', 20, 100)
+    if not limit: raise ValueError('limit must be positive')
+    rows = list(islice(entries(offset), limit + 1))
+    more = len(rows) > limit
+    # Enumeration-only collections have no cheap count. Never scan their tail
+    # merely to fill a total, nor invent a total for an out-of-range offset.
+    return rows[:limit], {'total': None if more or not rows and offset else offset + len(rows),
+                         'next_offset': offset + limit if more else None}
+
+
 def inspect(doc, request):
     offset, limit = bounded(request, 'offset', 0, 100000), bounded(request, 'limit', 20, 100)
     if not limit: raise ValueError('limit must be positive')
+    properties = request.get('properties', [])
+    if not isinstance(properties, list) or len(properties) > 32: raise ValueError('Select at most 32 properties')
+    for name in properties: check_name(name)
+    def selected(node):
+        return {'properties': {name: encode(read_property(node, name)) for name in properties}} if properties else {}
     target = request.get('target')
     if target:
         node = resolve(doc, target)
-        if request.get('action') == 'describe':
-            info = node.getPropertySetInfo() if hasattr(node, 'getPropertySetInfo') else node.createTextCursor().getPropertySetInfo()
-            selected = [p for p in info.Properties if request.get('filter', '').lower() in p.Name.lower()]
-            rows = []
-            for prop in selected[offset:offset + limit]:
-                row = {'name': prop.Name, 'type': prop.Type.typeName, 'writable': writable(target, prop.Name) and not prop.Attributes & 16}
-                try: row['value'] = encode(property_object(node, prop.Name).getPropertyValue(prop.Name))
-                except Exception: row['unavailable'] = True
-                rows.append(row)
-            return {'target': target, 'items': rows, 'total': len(selected), 'next_offset': offset + len(rows) if offset + len(rows) < len(selected) else None}
-        text = getattr(node, 'String', '')
-        result = {'target': target, 'text': text[offset:offset + limit * 100], 'total_chars': len(text)}
-        result['next_offset'] = offset + len(result['text']) if offset + len(result['text']) < len(text) else None
+        result = {'target': target, **selected(node)}
+        if request.get('include_text', True):
+            text = getattr(node, 'String', '')
+            result.update(text=text[offset:offset + limit * 100], total_chars=len(text),
+                          next_offset=offset + limit * 100 if offset + limit * 100 < len(text) else None)
         if target.startswith('table:'):
             cells = node.getCellNames()
-            result.update(cells=[{'target': 'cell:' + target.split(':', 1)[1] + '/' + quote(c, safe=''), 'text': node.getCellByName(c).String[:200]} for c in cells[offset:offset + limit]], total_cells=len(cells), next_offset=offset + limit if offset + limit < len(cells) else None)
+            result.update(cells=[{'target': 'cell:' + target.split(':', 1)[1] + '/' + quote(c, safe=''),
+                **({'text': node.getCellByName(c).String[:200]} if request.get('include_text', True) else {})}
+                for c in cells[offset:offset + limit]], total_cells=len(cells), next_offset=offset + limit if offset + limit < len(cells) else None)
         return result
-    family = request.get('family', 'paragraph'); selected = collection(doc, family)
+    family = request.get('family', 'paragraph')
+    entries, pagination = page(lambda start: collection(doc, family, start), request)
     rows = []
-    for key, node in selected[offset:offset + limit]:
-        row = {'target': family + ':' + quote(key, safe='')}
-        if family != 'revision': row['text'] = getattr(node, 'String', '')[:300]
+    for key, node in entries:
+        row = {'target': family + ':' + quote(key, safe=''), **selected(node)}
         if family == 'revision':
-            start, end = node.RedlineStart, node.RedlineEnd
-            cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
-            row.update(author=node.RedlineAuthor, type=node.RedlineType, text=cursor.String[:1000])
+            row.update(author=node.RedlineAuthor, type=node.RedlineType)
+            if request.get('include_text', True):
+                start, end = node.RedlineStart, node.RedlineEnd
+                cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
+                row['text'] = cursor.String[:1000]
+        elif request.get('include_text', True): row['text'] = getattr(node, 'String', '')[:300]
         rows.append(row)
-    return {'family': family, 'items': rows, 'total': len(selected), 'next_offset': offset + len(rows) if offset + len(rows) < len(selected) else None}
-
-
-def texts(doc):
-    values = {}
-    for family in ('paragraph', 'table', 'footnote', 'endnote', 'frame'):
-        for key, node in collection(doc, family):
-            target = family + ':' + quote(key, safe='')
-            if family == 'table':
-                for cell in node.getCellNames(): values['cell:' + quote(key, safe='') + '/' + cell] = node.getCellByName(cell).String
-            else: values[target] = node.String
-    for key, page in collection(doc, 'page-style'):
-        for kind in ('Header', 'Footer'):
-            if page.getPropertyValue(kind + 'IsOn'): values[kind.lower() + ':' + quote(key, safe='')] = page.getPropertyValue(kind + 'Text').String
-    return values
-
-
-def literal_paragraph(cursor):
-    paragraph = cursor.createEnumeration().nextElement()
-    portions, text = paragraph.createEnumeration(), []
-    while portions.hasMoreElements():
-        portion = portions.nextElement()
-        if portion.TextPortionType == 'Text': text.append(portion.String)
-    return ''.join(text)
-
-
-def edit(doc, operations):
-    if not isinstance(operations, list) or not 1 <= len(operations) <= 1000: raise ValueError('preview needs 1-1000 operations')
-    targets = [(op, resolve(doc, op['target'])) for op in operations]
-    changes = []
-    for op, node in targets:
-        if set(op) - {'target', 'set', 'replace'} or ('set' in op) == ('replace' in op):
-            raise ValueError('Each operation requires exactly one of set or replace')
-        if 'set' in op:
-            if not isinstance(op['set'], dict) or not 1 <= len(op['set']) <= 100: raise ValueError('set needs 1-100 properties')
-            for name, value in op['set'].items():
-                check_value(name, value)
-                subject = property_object(node, name)
-                if subject.getPropertySetInfo().getPropertyByName(name).Attributes & 16: raise ValueError('Read-only property: ' + name)
-                before, requested = encode(subject.getPropertyValue(name)), decode(value)
-                subject.setPropertyValue(name, requested)
-                after = encode(subject.getPropertyValue(name))
-                if after != encode(requested): raise ValueError('Writer did not accept requested property ' + name)
-                changes.append({'target': op['target'], 'property': name, 'before': before, 'after': after})
-        else:
-            replacement = op['replace']
-            if set(replacement) != {'find', 'text'} or not all(isinstance(v, str) for v in replacement.values()): raise ValueError('replace needs exact find and text strings')
-            old, new = replacement['find'], replacement['text']
-            if not old or max(len(old), len(new)) > 10000 or any(c in old + new for c in '\r\n\t'): raise ValueError('Replacement must stay inside one paragraph and be <= 10000 characters')
-            if node.String.count(old) != 1: raise ValueError('Replacement target is missing or ambiguous')
-            owner = node.getText() if hasattr(node, 'getText') else node
-            search = doc.createSearchDescriptor(); search.SearchString, search.SearchCaseSensitive = old, True
-            search.SearchRegularExpression = False
-            matches, scoped = doc.findAll(search), []
-            if matches.Count > 10000: raise ValueError('Too many native search matches')
-            for index in range(matches.Count):
-                found = matches.getByIndex(index)
-                try: inside = owner.compareRegionStarts(node.Start, found.Start) >= 0 and owner.compareRegionEnds(node.End, found.End) <= 0
-                except Exception: continue
-                if inside and found.String == old: scoped.append(found)
-            if len(scoped) != 1: raise ValueError('Native search is missing or ambiguous inside the exact target')
-            paragraph = owner.createTextCursorByRange(scoped[0].Start)
-            paragraph.gotoStartOfParagraph(False); paragraph.gotoEndOfParagraph(True)
-            before_paragraph = literal_paragraph(paragraph)
-            scoped[0].String = new
-            changes.append({'target': op['target'], 'before': old, 'after': new, '_paragraph_before': before_paragraph, '_paragraph_after': literal_paragraph(paragraph)})
-    return changes
+    return {'family': family, 'items': rows, **pagination}
 
 
 def run(source, output, request, binary):
+    from word_uno_console import Broker
     package(source)
     snapshot = sha256(source.read_bytes()).hexdigest()
     if request.get('snapshot') not in (None, snapshot): raise ValueError('Stale snapshot; inspect again')
     action = request.get('action', 'inspect')
-    if action == 'preview':
-        if request.get('snapshot') != snapshot: raise ValueError('preview requires an inspected snapshot')
-        sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from word_uno_console import transact
-        return transact(source, output, {**request, 'mode': request.get('mode', 'direct')}, binary,
-                        lambda broker, *_: broker.rpc({'op':'batch', 'operations':request.get('operations')}))
     if action not in ('inspect', 'describe'): raise ValueError('Unknown action')
     with writer(binary) as (desktop, version):
         doc = load(desktop, source)
-        try: return {'ok':True, 'snapshot':snapshot, 'engine_version':version, **inspect(doc,request)}
+        try:
+            result = Broker(doc).rpc({**request, 'op': 'describe', 'values': True}) if action == 'describe' else inspect(doc, request)
+            return {'ok': True, 'snapshot': snapshot, 'engine_version': version, **result}
         finally: doc.close(True)
 
 

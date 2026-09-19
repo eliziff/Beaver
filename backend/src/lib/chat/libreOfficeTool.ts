@@ -13,10 +13,12 @@ type Dependencies = Pick<AssistantToolsDependencies, "documents" | "userId" | "u
 const CONSOLE_HELP = `Write a synchronous JavaScript function body; return only the needed result.
 Native calls suspend automatically. Variables, loops and functions work within one program.
 doc is the current Writer document. No Node, filesystem, network, imports or Python eval.
-object.get(name), object.set({property:value}), object.call(method,...args),
+object.get(name) or object.get([names]) reads up to 32 properties in one call; object.set(values) writes properties.
+object.items(offset=0,limit=20) pages any native collection as {items:[{name,value}],next_offset,total}.
+Follow next_offset; total is null until enumeration reaches its end. object.call(method,...args) invokes methods.
 object.describe(filter='',offset=0,limit=50) discover the actual native API.
 word.target('paragraph:0') resolves an inspection target in this document.
-word.inspect({family:'table',offset:0,limit:20}) returns paged text and targets.
+word.inspect({family:'paragraph',limit:20,properties:['ParaStyleName'],include_text:false}) reads only selected properties.
 word.create('com.sun.star.text.Footnote') creates a document-local native object.
 word.constant(name) resolves a native named constant.
 word.enum(type,value), word.struct(type,fields), word.any(type,value) construct typed UNO method arguments.
@@ -44,7 +46,7 @@ export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToo
     activity: input => input.action === "apply" ? "Publishing reviewed Word candidate" : "Inspecting or editing Word structures",
     description: "Rich Word document access without Microsoft Word. Use Read/Edit/Write for ordinary content. " +
       "help returns the programmable console API. inspect/describe provide native objects and properties; " +
-      "inspect with program runs read-only JavaScript. preview runs a program or coordinated native batch " +
+      "inspect with program runs read-only JavaScript. preview runs a JavaScript program " +
       "against the inspected snapshot, saves a verified separate DOCX, and leaves the original unchanged. " +
       "Native tracked/direct mode follows the user's setting; untrackable Review-mode edits are refused. " +
       "Inspect the candidate and receipts before apply, which publishes those exact bytes. " +
@@ -58,12 +60,8 @@ export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToo
       snapshot: { type: "string", pattern: "^[a-f0-9]{64}$" },
       offset: { type: "integer", minimum: 0, maximum: 100000 }, limit: { type: "integer", minimum: 1, maximum: 100 },
       program: { type: "string", minLength: 1, maxLength: 100000 },
-      operations: { type: "array", minItems: 1, maxItems: 1000, items: objectSchema({
-        target: { type: "string", minLength: 1, maxLength: 500 },
-        set: { type: "object", minProperties: 1, maxProperties: 100 },
-        replace: objectSchema({ find: { type: "string", minLength: 1, maxLength: 10000 },
-          text: { type: "string", maxLength: 10000 } }, ["find", "text"]),
-      }, ["target"]) },
+      properties: { type: "array", maxItems: 32, uniqueItems: true, items: { type: "string", maxLength: 100 } },
+      include_text: { type: "boolean", description: "False for property-only inspection." },
       preview_resource: { type: "string", pattern: DOCUMENT_RESOURCE_PATTERN },
     }, ["action"]),
     async execute(input, context, signal) {
