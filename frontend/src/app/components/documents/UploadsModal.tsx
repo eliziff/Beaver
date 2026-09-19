@@ -24,7 +24,7 @@ export function UploadsModal({ onClose }: { onClose: () => void }) {
     catch (error) { setError(error instanceof Error ? error.message : "Upload failed."); }
     finally { setBusy(null); }
   };
-  return <Modal open onClose={onClose} breadcrumbs={["Uploads"]}>
+  return <Modal open fit onClose={onClose} breadcrumbs={["Uploads"]}>
     {error && <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
     {!rows ? <p role="status">Loading uploads...</p> : !rows.length ? <p>No uploads in the last 24 hours.</p>
       : <ul className="divide-y divide-gray-200 dark:divide-gray-700">{rows.map((row) => <li key={row.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">

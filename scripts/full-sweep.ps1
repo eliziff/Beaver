@@ -83,11 +83,25 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
     }
 }
 
+$PreviousEnvironment = @{}
+$RunDirectory = Join-Path $ReceiptDirectory ([Guid]::NewGuid().ToString())
+$SweepEnvironment = @{
+    PORT = '3100'
+    AUTH_MODE = 'local'
+    MIKE_LAUNCHER_STATE_DIR = (Join-Path $RunDirectory 'launcher')
+    OPEN_LEGAL_DATA_HOME = (Join-Path $RunDirectory 'legal-data')
+    MIKE_LOCAL_DATA_DIR = (Join-Path $RunDirectory 'library')
+}
+foreach ($name in $SweepEnvironment.Keys) {
+    $PreviousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+    [Environment]::SetEnvironmentVariable($name, $SweepEnvironment[$name], 'Process')
+}
+
 try {
     Save-Receipt
-    Invoke-Step 'Stop launcher-owned surface' {
-        & $Mike stop
-        if (-not $?) { throw 'Could not stop the local surface.' }
+    Invoke-Step 'Check isolated port' {
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, [int]$env:PORT)
+        try { $listener.Start() } finally { $listener.Stop() }
     }
     Invoke-Step 'Native adapter check' {
         Invoke-Checked cargo @(
@@ -146,12 +160,15 @@ catch {
 }
 finally {
     try {
-        if (-not $script:SurfaceStarted) {
-            & $Mike start -NoBrowser
-            if (-not $?) { Write-Warning 'FullSweep could not restore the production surface.' }
+        if ($script:SurfaceStarted) {
+            & $Mike stop
+            if (-not $?) { Write-Warning 'FullSweep could not stop its isolated surface.' }
         }
     }
     finally {
+        foreach ($name in $PreviousEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $PreviousEnvironment[$name], 'Process')
+        }
         $Mutex.ReleaseMutex()
         $Mutex.Dispose()
     }

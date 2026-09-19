@@ -84,6 +84,21 @@ tests pass; sixteen browser API tests cover retry/directory behavior. Signed PUT
 parameters pass the storage tests. Live S3/CORS and browser recovery still need
 integration proof; version/work-product upload paths remain to reconcile.
 
+The existing Word client tool loop now fences unconfirmed client batches before
+mutation, preventing automatic replay after a pane reload. Native Review mode
+and continuation paths pass 33 frontend and five backend focused tests; real
+Word remains a separate gate. Slack/Google OAuth client settings reuse the
+generic connector owner with origin-bound secrets and Google offline consent;
+all 18 OAuth security tests pass. Provider account sign-in remains unverified.
+
+FullSweep now uses a separate port and fresh local data and launcher state. Its
+previously missing Playwright smoke file now covers upload recovery and project
+memory/export contracts; both tests pass against the isolated production server.
+The upload screenshot was inspected and its unnecessary fixed modal height
+removed. The backend build and all three frontend production builds pass.
+All three updated lockfiles pass the live dependency audit with zero high or
+critical advisories; nine fail-closed audit regression tests pass.
+
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
 full application suites/builds, fresh-checkout proof and assistant-dock smoke
