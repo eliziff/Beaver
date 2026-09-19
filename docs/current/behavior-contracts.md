@@ -356,6 +356,9 @@ before the files changed is refused.
 - Beaver is one Vite/React Router application served from the Express origin.
 - The Word task pane mounts the normal application at its Word route and reuses
   authentication, profile, chat, tools, jobs, and UI components.
+- Word edits use native tracked changes in Review mode. A client call is marked
+  started before mutation; replay of an unconfirmed batch reports uncertainty
+  instead of repeating edits. Completed calls return their saved outcome.
 - Library and project directory behavior is shared.
 - Model and reasoning effort remain separate visible controls.
 - Primary actions have stable labels and placement, keyboard operation, visible
