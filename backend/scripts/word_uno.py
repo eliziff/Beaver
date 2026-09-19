@@ -232,14 +232,26 @@ def writer(binary, author="Beaver"):
                     desktop.removeTerminateListener(lifetime)
                     desktop.terminate()
                 except Exception: pass
-            if process.poll() is None:
-                if not own_group: process.terminate()
-                else: os.killpg(process.pid, signal.SIGTERM)
-                try: process.wait(timeout=3)
+            # terminate() requests asynchronous shutdown. Killing the Windows
+            # launcher immediately can orphan soffice.bin until our job closes,
+            # leaving profile files locked while TemporaryDirectory removes them.
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                if os.name == 'nt':
+                    taskkill = str(Path(os.environ['SYSTEMROOT'], 'System32', 'taskkill.exe'))
+                    subprocess.run([taskkill, '/PID', str(process.pid), '/T', '/F'],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=False)
+                elif own_group:
+                    os.killpg(process.pid, signal.SIGTERM)
+                else:
+                    process.terminate()
+                try:
+                    process.wait(timeout=3)
                 except subprocess.TimeoutExpired:
-                    if not own_group: process.kill()
-                    else: os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
+                    if own_group: os.killpg(process.pid, signal.SIGKILL)
+                    else: process.kill()
+                    process.wait(timeout=3)
 
 
 def load(desktop, path):
