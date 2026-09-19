@@ -113,7 +113,7 @@ export async function resolveEdits(
     }
 }
 
-export const resolveEdit = (edit: EditAnnotation, verb: EditVerb,
+const resolveEdit = (edit: EditAnnotation, verb: EditVerb,
     handlers: EditResolveHandlers) => resolveEdits([edit], verb, handlers);
 
 export function useEditResolution(

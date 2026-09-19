@@ -509,7 +509,7 @@ async function resolveLocalFile(input: WorkProductInput): Promise<InputResolutio
   return resolveRetainedFile(saved.handle, input);
 }
 
-export async function resolveRetainedFile(handle: FileSystemFileHandle,
+async function resolveRetainedFile(handle: FileSystemFileHandle,
   input: Extract<WorkProductInput, { kind: "local-file" }>): Promise<InputResolution> {
   try {
     if (!await permitted(handle, "read")) return { status: "missing", reason: "permission" };

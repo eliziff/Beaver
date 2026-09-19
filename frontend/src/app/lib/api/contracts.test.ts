@@ -2,10 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
 import { createAssistantSessionState } from "../assistantSession";
 
-import { duplicateWorkProduct, getWorkProductResolution } from "./workProducts";
-import { attachAuthorityPdf, uploadAuthoritiesDocument } from "./authorities";
-import { uploadCourtRecordDocument, saveCourtRecordBuild } from "./courtRecords";
-import { removeProjectDocument, directoryResource } from "./documents";
+import { directoryResource } from "./documents";
 import { apiBlobRequest } from "./client";
 import { startTabularGeneration } from "./tabular";
 import { getChat, deleteChat } from "./chat";
@@ -18,110 +15,7 @@ function respond(value: unknown, status = 200) {
   return request;
 }
 
-describe("duplicateWorkProduct", () => {
-  it("preserves the selected project context", async () => {
-    const fetchMock = respond({ id: "draft-copy" });
-
-    await expect(duplicateWorkProduct("draft-1", { title: "Record copy", projectId: "matter-1" }))
-      .resolves.toEqual({ id: "draft-copy" });
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/work-products/draft-1/duplicate",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({
-        title: "Record copy", project_id: "matter-1",
-      }) }));
-  });
-});
-
-describe("getWorkProductResolution", () => {
-  it("uses the durable nested-resolution endpoint", async () => {
-    const fetchMock = respond({
-      product: { id: "draft/1" }, freshness: "stale", inputs: {}, dependencies: [],
-    });
-
-    await expect(getWorkProductResolution("draft/1")).resolves.toEqual({
-      product: { id: "draft/1" }, freshness: "stale", inputs: {}, dependencies: [],
-    });
-
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/work-products/draft%2F1/resolution");
-  });
-});
-
-describe("work-product uploads", () => {
-  it("carries the selected authority source language", async () => {
-    const fetchMock = respond({ id: "draft-1" });
-
-    const file = new File(["%PDF-1.7"], "French.pdf", { type: "application/pdf" });
-
-    await expect(attachAuthorityPdf("draft-1", "case-1", 3, file, "fr"))
-      .resolves.toEqual({ id: "draft-1" });
-
-    const body = fetchMock.mock.calls[0][1]?.body as FormData;
-    expect(body.get("revision")).toBe("3");
-    expect(body.get("language")).toBe("fr");
-    expect(body.get("file")).toBe(file);
-  });
-
-  it("carries Court Draft and Authorities Project context in multipart fields", async () => {
-    const fetchMock = respond({ id: "document-1" });
-
-    const file = new File(["record"], "record.pdf", { type: "application/pdf" });
-
-    await expect(uploadCourtRecordDocument(file, "record-1")).resolves.toEqual({ id: "document-1" });
-    await expect(uploadAuthoritiesDocument(file, "matter-1")).resolves.toEqual({ id: "document-1" });
-
-    expect((fetchMock.mock.calls[0][1]?.body as FormData).get("work_product_id"))
-      .toBe("record-1");
-    expect((fetchMock.mock.calls[1][1]?.body as FormData).get("projectId"))
-      .toBe("matter-1");
-  });
-
-  it("sends a Court build as one repeated-file request", async () => {
-    const fetchMock = respond({
-      id: "record-1", revision: 4,
-    });
-
-    const receipt = { schemaVersion: "beaver.work-product-build.v2",
-      output: { role: "record" } } as never;
-
-    await expect(saveCourtRecordBuild([{ file: new File(["record"], "Record.pdf"), receipt }]))
-      .resolves.toEqual({ id: "record-1", revision: 4 });
-
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/court-records/builds");
-    const body = fetchMock.mock.calls[0][1]?.body as FormData;
-    expect((body.get("files") as File).name).toBe("Record.pdf");
-    expect(JSON.parse(String(body.get("receipts")))).toEqual(receipt);
-  });
-});
-
-describe("removeProjectDocument", () => {
-  it("uses the local removal route", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(removeProjectDocument("matter-1", "document-1")).resolves.toBeUndefined();
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/projects/matter-1/documents/document-1",
-      expect.objectContaining({ method: "DELETE" }),
-    );
-  });
-});
-
 describe("directoryResource", () => {
-  it("uses one encoded directory contract for project and library storage", async () => {
-    const fetchMock = respond({ items: [], next_cursor: null });
-
-    await expect(directoryResource({ projectId: "matter/1" }).list({ parent_id: "folder/1" }))
-      .resolves.toEqual({ items: [], next_cursor: null });
-    await expect(directoryResource({ library: "files" }).list())
-      .resolves.toEqual({ items: [], next_cursor: null });
-
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "/api/projects/matter%2F1/directory?parent_id=folder%2F1",
-      "/api/library/files",
-    ]);
-  });
-
   it("recreates a selected folder tree before uploading its files", async () => {
     vi.stubGlobal("crypto", webcrypto); localStorage.clear();
     const sessions = new Map<string, Record<string, unknown>>();

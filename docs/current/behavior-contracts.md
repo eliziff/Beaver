@@ -463,7 +463,7 @@ downgrade. Signing attests the exported snapshot, not earlier document custody.
 
 ## Durable uploads
 
-New Library/project/standalone uploads reserve a 24-hour session with immutable
+New Library/project/standalone and document-version uploads reserve a 24-hour session with immutable
 file metadata and a retry key. Refreshing or losing the completion response does
 not duplicate the document. Transferred files continue processing on the existing
 job queue; unfinished transfers need the original file selected again. The Uploads
@@ -476,6 +476,18 @@ The shared document transaction rechecks destination access and commits the
 document together with session completion. Cancellation and expired sessions
 cannot publish. Upload bytes use the existing object-cleanup owner and are held
 until session expiry; published documents use ordinary immutable version blobs.
+Version uploads bind the expected head and working revision; edits made while
+the file transfers cause a conflict instead of being overwritten. Adding and
+replacing a version commit their session receipt in the same transaction as
+the version mutation, so duplicate workers cannot apply the upload twice.
+
+Custom workflows accept reference documents through the same upload sessions.
+The workflow page lists, downloads, versions and removes them; reference access
+inherits the workflow's roles and organization deny rules. A workflow turn lists
+captured document-version resources for the existing Read operation. Workflow
+ZIP exports include these files and relative reference paths, with a 64 MB limit.
+Deleting a workflow removes its documents through the shared blob-cleanup owner.
+System workflow assets remain pinned to their installed catalogue snapshot.
 
 S3 direct transfers use five-minute signed, checksum-bound, conditional PUTs;
 filesystem mode uses authenticated multipart staging through the same session.

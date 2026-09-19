@@ -26,6 +26,8 @@ export type WorkflowLauncher =
   | { kind: "authorities" }
   | { kind: "court_records" } | { kind: "fix_supras" } | { kind: "quote_check"; variants: WorkflowVariant[] };
 export interface Workflow {
+  documents?: Array<{ id: string; filename: string; current_version_id: string;
+    current_working_revision: number; source_sha256: string; size_bytes: number }>;
   id: string;
   user_id: string | null;
   metadata: {

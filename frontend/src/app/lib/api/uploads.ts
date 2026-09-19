@@ -1,10 +1,13 @@
 import { apiRequest, multipartRequest, post, remove, segment, uploadSignedObject } from "./client";
-import type { Document } from "./documents";
+import type { Document, DocumentVersion } from "./documents";
 
-type Destination = { project_id?: string | null; folder_id?: string | null; library_kind?: "file" | "template" };
-export type UploadSession = Destination & { id: string; filename: string; size_bytes: number; source_sha256: string;
+type Destination = { project_id?: string | null; folder_id?: string | null; library_kind?: "file" | "template"; workflow_id?: string | null };
+type VersionDestination = { purpose: "version_create" | "version_replace"; target_document_id: string;
+  expected_version_id: string; expected_working_revision: number };
+export type UploadSession = Destination & Partial<Omit<VersionDestination, "purpose">> & { purpose?: "document_create" | VersionDestination["purpose"]; id: string; filename: string; size_bytes: number; source_sha256: string;
   status: "pending" | "queued" | "complete" | "failed" | "cancelled" | "expired" | "removed";
-  document: Document | null; error: string | null; expires_at: string; retryable: boolean };
+  document: Document | null; version?: DocumentVersion | null;
+  error: string | null; expires_at: string; retryable: boolean };
 const path = (id: string) => `/uploads/${segment(id)}`;
 export const listUploads = () => apiRequest<UploadSession[]>("/uploads");
 export const cancelUpload = (id: string) => remove<void>(path(id));
@@ -13,7 +16,7 @@ const digest = async (bytes: BufferSource) => Array.from(new Uint8Array(await cr
   (value) => value.toString(16).padStart(2, "0")).join("");
 const signalChange = () => window.dispatchEvent(new Event("beaver-uploads-changed"));
 
-export async function resumeUpload(session: UploadSession, file?: File, sourceDigest?: string): Promise<Document> {
+async function resumeSession(session: UploadSession, file?: File, sourceDigest?: string): Promise<UploadSession & { document: Document }> {
   if (session.status === "pending") {
     if (!file) throw new Error("Select the original file to finish transferring it.");
     if (file.size !== session.size_bytes || (sourceDigest ?? await digest(await file.arrayBuffer())) !== session.source_sha256)
@@ -31,11 +34,15 @@ export async function resumeUpload(session: UploadSession, file?: File, sourceDi
     session = await apiRequest<UploadSession>(path(session.id));
   }
   signalChange();
-  if (session.document) return session.document;
+  if (session.document) return { ...session, document: session.document };
   throw new Error(session.error ?? (session.status === "removed" ? "The uploaded document was removed." : `Upload ${session.status}. Select the file again.`));
 }
 
-export async function uploadDocumentSession(file: File, destination: Destination = {}) {
+export async function resumeUpload(session: UploadSession, file?: File): Promise<Document> {
+  return (await resumeSession(session, file)).document;
+}
+
+async function uploadSession(file: File, destination: Destination | VersionDestination) {
   if (!file.size || file.size > 100 * 1024 * 1024) throw new Error("Choose a nonempty file no larger than 100 MB.");
   const source_sha256 = await digest(await file.arrayBuffer());
   const input = { filename: file.name, size_bytes: file.size, source_sha256, ...destination };
@@ -54,8 +61,18 @@ export async function uploadDocumentSession(file: File, destination: Destination
       try { localStorage.setItem(cacheKey, client_key); } catch { /* Storage may be disabled. */ }
       session = await post<UploadSession>("/uploads", { ...input, client_key });
     }
-    const document = await resumeUpload(session, file, source_sha256);
+    const result = await resumeSession(session, file, source_sha256);
     try { localStorage.removeItem(cacheKey); } catch { /* Storage may be disabled. */ }
-    return document;
+    return result;
   } catch (error) { signalChange(); throw error; }
+}
+
+export async function uploadDocumentSession(file: File, destination: Destination | VersionDestination = {}) {
+  return (await uploadSession(file, destination)).document;
+}
+
+export async function uploadVersionSession(file: File, destination: VersionDestination): Promise<DocumentVersion> {
+  const result = await uploadSession(file, destination);
+  if (!result.version) throw new Error("The uploaded version was removed. Refresh the document.");
+  return result.version;
 }

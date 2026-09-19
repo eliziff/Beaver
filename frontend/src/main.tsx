@@ -2,6 +2,9 @@ import "@/app/globals.css";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 import { createRoot } from "react-dom/client";
 import { Router } from "@/app/router";
+import { initializeAppearance } from "@/app/lib/appearance";
+
+initializeAppearance();
 
 // A tab opened before a rebuild references chunk names that no longer exist;
 // reload once instead of surfacing "Failed to fetch" on the next screen.

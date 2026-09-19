@@ -30,6 +30,7 @@ export type DocumentHead = Pick<DocumentAggregate, "document"> & {
   versions: [StoredDocumentVersion];
 };
 export type CreateDocumentMetadata = { document: StoredDocument; version: StoredDocumentVersion;
+  workflowId?: string | null;
   uploadSessionId?: string;
   parts?: StoredDocumentPart[]; pdfOcrProvider?: import("./documentStore").LegalPdfOcrProvider | null };
 export type UpdateVersionMetadata = Partial<Pick<StoredDocumentVersion,
@@ -39,6 +40,7 @@ type Write = "missing" | "conflict";
 
 export type DocumentRepository = {
   authorizeCreate(scope: DocumentScope, input: { projectId: string | null;
+    workflowId?: string | null;
     libraryKind: LibraryKind; folderId: string | null }):
     Promise<"ok" | "project-missing" | "folder-missing">;
   create(scope: DocumentScope, input: CreateDocumentMetadata): Promise<boolean>;
@@ -58,11 +60,13 @@ export type DocumentRepository = {
   }>>;
   deleteDocuments(scope: DocumentScope, projectIds: string[], includeOwned: boolean): Promise<number>;
   insertVersion(scope: DocumentScope, id: string, input: { expectedCurrentVersionId: string;
+    uploadSessionId?: string;
     expectedCurrentWorkingRevision: number;
     expectedProjectId?: string | null; expectedFolderId?: string | null;
     version: StoredDocumentVersion; edits?: StoredAssistantEdit[];
     clonePartsFromVersionId?: string; parts?: StoredPartChanges }): Promise<"created" | Write>;
   updateVersion(scope: DocumentScope, id: string, input: { versionId: string;
+    uploadSessionId?: string;
     expectedBlobKey: string; expectedPdfBlobKey?: string | null;
     expectedWorkingRevision: number; expectedCurrentVersionId?: string;
     bumpWorkingRevision?: boolean;

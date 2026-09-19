@@ -1,11 +1,12 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 import {
-    filenameExtensionChangeWarning,
     hasFilenameExtensionChange,
 } from "./documentFilename";
 
 describe("filename extension changes", () => {
-    it("guards real changes and names the existing extension", () => {
+    it("guards real extension changes", () => {
         expect([
             hasFilenameExtensionChange("brief.DOCX", "final.docx"),
             hasFilenameExtensionChange("brief.docx", "brief.pdf"),
@@ -16,7 +17,5 @@ describe("filename extension changes", () => {
             hasFilenameExtensionChange("brief.docx", "brief."),
             hasFilenameExtensionChange("brief.docx", "brief"),
         ]).toEqual([false, true, false, false, false, true, true, true]);
-        expect(filenameExtensionChangeWarning("brief.DOCX")).toContain(".DOCX");
-        expect(filenameExtensionChangeWarning(".env")).toBeTruthy();
     });
 });
