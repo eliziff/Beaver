@@ -1,8 +1,9 @@
+import { workflowRoleRank, workflowAccessPredicate } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
-import type { ApplicationScope } from "./applicationError";
+import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { CreateWorkflowRepository, WorkflowAccess, WorkflowCollaboration, WorkflowRecord } from "./workflowRepository";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, email, missingProfileEmail, now, one, rows, type Row } from "./relationalRepositorySupport";
+import { changes, missingProfileEmail, now, one, rows, type Row } from "./relationalRepositorySupport";
 import { workflowVisibleTo, type WorkflowAudience } from "./systemWorkflows";
 
 const workflowRecord = (row: Row): WorkflowRecord => ({ ...row, id: String(row.id),
@@ -20,24 +21,18 @@ const workflowRecord = (row: Row): WorkflowRecord => ({ ...row, id: String(row.i
   created_at: String(row.created_at) });
 async function workflowAccess(scope: ApplicationScope, id: string,
   db?: RelationalDatabase): Promise<WorkflowAccess | null> {
-  const row = await one(sql`SELECT w.*,
-      CASE WHEN w.user_id=${scope.userId} THEN 1 ELSE 0 END is_owner,
-      COALESCE((SELECT allow_edit FROM workflow_shares s WHERE s.workflow_id=w.id
-        AND s.shared_with_email=${email(scope)}),FALSE) allow_edit
-    FROM workflows w WHERE w.id=${id} AND (w.user_id=${scope.userId} OR EXISTS(
-      SELECT 1 FROM workflow_shares s WHERE s.workflow_id=w.id
-        AND s.shared_with_email=${email(scope)}))`, db);
+  const row = await one(sql`SELECT w.*,${workflowRoleRank(scope)} access_rank
+    FROM workflows w WHERE w.id=${id} AND ${workflowAccessPredicate(scope)}`, db);
   if (!row) return null;
-  const isOwner = Boolean(row.is_owner);
+  const isOwner = Number(row.access_rank) === 3;
   return { workflow: workflowRecord(row), isOwner,
-    allowEdit: isOwner || Boolean(row.allow_edit) };
+    allowEdit: Number(row.access_rank) >= 2 };
 }
 
 export const workflowRepository: CreateWorkflowRepository = (scope) => ({
   async list(options) {
     const result = (await rows(sql`SELECT w.* FROM workflows w WHERE
-      (w.user_id=${scope.userId} OR EXISTS(SELECT 1 FROM workflow_shares s
-        WHERE s.workflow_id=w.id AND s.shared_with_email=${email(scope)}))
+      ${workflowAccessPredicate(scope)}
       ORDER BY w.created_at DESC,w.id DESC`)).map(workflowRecord);
     return result.filter((workflow) =>
       (!options.q || [workflow.title, workflow.variant_label, workflow.variant_result ?? ""]
@@ -62,7 +57,7 @@ export const workflowRepository: CreateWorkflowRepository = (scope) => ({
     const current = await workflowAccess(scope, id);
     if (!current?.allowEdit) return null;
     const value = current.workflow;
-    await changes(sql`UPDATE workflows SET title=${input.title ?? value.title},
+    await changes(sql`UPDATE workflows AS w SET title=${input.title ?? value.title},
       execution=${input.execution ?? value.execution},
       variant_label=${input.variantLabel ?? value.variant_label},
       variant_result=${input.variantResult === undefined ? value.variant_result : input.variantResult},
@@ -76,17 +71,16 @@ export const workflowRepository: CreateWorkflowRepository = (scope) => ({
       jurisdictions=${input.jurisdictions === undefined
         ? value.jurisdictions === null ? null : encode(value.jurisdictions)
         : input.jurisdictions === null ? null : encode(input.jurisdictions)},
-      updated_at=${now()} WHERE id=${id}`);
+      updated_at=${now()} WHERE w.id=${id} AND ${workflowAccessPredicate(scope, "edit")}`);
     return workflowAccess(scope, id);
   },
   async remove(id) {
-    return await changes(sql`DELETE FROM workflows WHERE id=${id}
-      AND user_id=${scope.userId}`) > 0;
+    return await changes(sql`DELETE FROM workflows AS w WHERE w.id=${id}
+      AND ${workflowAccessPredicate(scope, "owner")}`) > 0;
   },
   async assistants() {
     const values = await rows(sql`SELECT w.* FROM workflows w WHERE w.execution='assistant'
-      AND (w.user_id=${scope.userId} OR EXISTS(SELECT 1 FROM workflow_shares s
-        WHERE s.workflow_id=w.id AND s.shared_with_email=${email(scope)}))`);
+      AND ${workflowAccessPredicate(scope)}`);
     return new Map(values.flatMap((row) => {
       const workflow = workflowRecord(row);
       return workflow.prompt_md ? [[workflow.id, { workflow_id: workflow.id, title: workflow.title,
@@ -99,9 +93,9 @@ export const workflowCollaboration: WorkflowCollaboration = {
   async shares(scope, workflowId) {
     const owner = await workflowAccess(scope, workflowId);
     if (!owner?.isOwner) return null;
-    return (await rows(sql`SELECT id,shared_with_email,allow_edit,created_at FROM workflow_shares
+    return (await rows(sql`SELECT id,shared_with_email,role,created_at FROM workflow_shares
       WHERE workflow_id=${workflowId} ORDER BY created_at`)).map((row) => ({ ...row,
-        allow_edit: Boolean(row.allow_edit) })) as never;
+        allow_edit: row.role !== "viewer" })) as never;
   },
   async removeShare(scope, workflowId, shareId) {
     const owner = await workflowAccess(scope, workflowId);
@@ -111,13 +105,14 @@ export const workflowCollaboration: WorkflowCollaboration = {
   async share(scope, workflowId, emails, allowEdit) {
     const db = await relationalDatabase(), owner = await workflowAccess(scope, workflowId, db);
     if (!owner?.isOwner) return "missing";
+    if (owner.workflow.org_id) throw new ApplicationError(409, "Manage organization access instead.");
     const missingEmail = await missingProfileEmail(db, emails);
     if (missingEmail) return { missingEmail };
     for (const value of emails) await changes(sql`INSERT INTO workflow_shares(id,workflow_id,
-      shared_by_user_id,shared_with_email,allow_edit,created_at) VALUES(${randomUUID()},
+      shared_by_user_id,shared_with_email,role,created_at) VALUES(${randomUUID()},
       ${workflowId},${scope.userId},${value.trim().toLowerCase()},
-      ${allowEdit ? sql.raw("TRUE") : sql.raw("FALSE")},${now()})
-      ON CONFLICT(workflow_id,shared_with_email) DO UPDATE SET allow_edit=excluded.allow_edit`, db);
+      ${allowEdit ? "editor" : "viewer"},${now()})
+      ON CONFLICT(workflow_id,shared_with_email) DO UPDATE SET role=excluded.role`, db);
     return "ok";
   },
   async latestSubmission(scope, workflowId) {

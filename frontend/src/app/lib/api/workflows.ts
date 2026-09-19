@@ -110,16 +110,5 @@ export const updateWorkflow = (
 ) => refreshWorkflowLists(patch<Workflow>(`/workflows/${segment(workflowId)}`, payload));
 export const deleteWorkflow = (workflowId: string) =>
   refreshWorkflowLists(remove<void>(`/workflows/${segment(workflowId)}`));
-export const shareWorkflow = (
-  workflowId: string,
-  payload: { emails: string[]; allow_edit: boolean },
-) => post<void>(`/workflows/${segment(workflowId)}/share`, payload);
-export const listWorkflowShares = (workflowId: string) =>
-  apiRequest<{
-    id: string; shared_with_email: string;
-  }[]>(`/workflows/${segment(workflowId)}/shares`);
-export const deleteWorkflowShare = (workflowId: string, shareId: string) =>
-  remove<void>(`/workflows/${segment(workflowId)}/shares/${segment(shareId)}`);
-
 export const streamQuoteCheck = (documentId: string, versionId?: string | null) =>
   streamRequest("/quote-check", { documentId, ...(versionId && { versionId }) }, { accept: "text/event-stream" });

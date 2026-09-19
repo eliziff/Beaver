@@ -61,11 +61,11 @@ function fixture() {
       lookup: async () => null,
       setMfaOnLogin: async () => undefined,
       delete: remove,
-      exportData: async (kind) => ({
+    },
+    exportData: async (kind) => ({
         filename: `beaver-${kind}-export-u1.json`,
         data: { kind },
       }),
-    },
     deleteAll: remove,
     recordExport: exported,
   });

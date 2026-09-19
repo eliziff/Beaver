@@ -52,6 +52,15 @@ preferences and tabular selection. Local text-tool parsing is imported with its
 focused tests, without upstream's tool-specific trademark call coalescing:
 Beaver executes each validated requested operation without changing its arguments.
 
+Organization membership, one-use invitations, viewer/editor/owner grants and
+organization deny overrides now use the common relational persistence owner.
+Projects govern descendant documents, reviews and chats; standalone chats can be
+shared. Account exports run locally and in cloud, apply current access, omit
+credentials and include a canonical payload checksum. Account deletion retains
+organization content under a remaining admin and protects the last admin.
+Focused organization/export/account and repository checks: 51 tests passed;
+access-modal tests: 3 passed. PostgreSQL concurrency and browser checks remain.
+
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
 full application suites/builds, fresh-checkout proof and assistant-dock smoke

@@ -96,12 +96,12 @@ export function relationalRepositoryContract(
         workflow: { title: workflow.title, prompt_md: "Summarize the agreement." } });
       expect(await workflowRepository(stranger).get(workflow.id)).toBeNull();
       await database.query(sql`INSERT INTO workflow_shares(id,workflow_id,shared_by_user_id,
-        shared_with_email,allow_edit,created_at) VALUES(${randomUUID()},${workflow.id},
-        ${owner.userId},${reader.userEmail},FALSE,${new Date().toISOString()})`);
+        shared_with_email,role,created_at) VALUES(${randomUUID()},${workflow.id},
+        ${owner.userId},${reader.userEmail},'viewer',${new Date().toISOString()})`);
       const shared = workflowRepository(reader);
       expect(await shared.get(workflow.id)).toMatchObject({ isOwner: false, allowEdit: false });
       expect(await shared.update(workflow.id, { promptMd: "Unauthorized" })).toBeNull();
-      await database.query(sql`UPDATE workflow_shares SET allow_edit=TRUE WHERE workflow_id=${workflow.id}`);
+      await database.query(sql`UPDATE workflow_shares SET role='editor' WHERE workflow_id=${workflow.id}`);
       expect(await shared.update(workflow.id, { promptMd: "List the key dates." }))
         .toMatchObject({ isOwner: false, allowEdit: true });
       expect((await repository.get(workflow.id))?.workflow.prompt_md).toBe("List the key dates.");
@@ -228,12 +228,12 @@ export function relationalRepositoryContract(
       const expected = await reviews.people(reviewOwner, id);
       expect(expected?.owner.user_id).toBe(reviewOwner.userId);
       expect(expected?.members.map(member => member.email)).toEqual([direct.userEmail]);
-      for (const viewer of [parentOwner, inherited, direct]) expect(await reviews.people(viewer, id)).toEqual(expected);
+      for (const viewer of [parentOwner, inherited]) expect(await reviews.people(viewer, id)).toEqual(expected);
       expect(await reviews.people(stranger, id)).toBeNull();
       expect(await projects.people(direct, project.id)).toBeNull();
       await project.share([reviewOwner.userEmail]);
       expect(await reviews.people(inherited, id)).toBeNull();
-      expect(await reviews.people(direct, id)).toEqual(expected);
+      expect(await reviews.people(direct, id)).toBeNull();
     } finally { await project.cleanup(); }
   });
 

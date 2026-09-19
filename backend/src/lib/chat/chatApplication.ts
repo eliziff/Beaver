@@ -354,6 +354,8 @@ async function loadDocumentContext(
   messages: ChatMessageRecord[],
   selectedIds: string[],
 ) {
+  if (projectId && (await deps.projects.get(auth, projectId))?.role === "viewer")
+    throw new ChatApplicationError(403, "You have read-only access to this project.");
   const records = projectId
     ? await projectDocuments(deps.projects, auth, projectId)
     : [];
@@ -437,6 +439,7 @@ export function createChatApplication(deps: Dependencies) {
       const model = requestedModel(input.model);
       const chat = await deps.chats.get(auth, input.chatId);
       if (!chat) throw new ChatApplicationError(404, "Chat not found");
+      if (chat.role === "viewer") throw new ChatApplicationError(403, "Editor access is required.");
       if (!claim(chat.id)) conflict(
         "chat_turn_in_progress",
         chat.transcript_version,
@@ -493,6 +496,7 @@ export function createChatApplication(deps: Dependencies) {
       const responseProvider = providerForModel(selectedModel);
       let chat = input.chat_id ? await deps.chats.get(auth, input.chat_id) : null;
       if (input.chat_id && !chat) throw new ChatApplicationError(404, "Chat not found");
+      if (chat?.role === "viewer") throw new ChatApplicationError(403, "You have read-only access to this chat.");
       if (!chat && input.expected_version !== 0) {
         conflict("chat_version_conflict", 0);
       }
@@ -514,6 +518,7 @@ export function createChatApplication(deps: Dependencies) {
             response.kind === "documents" ? response.documents : []);
       const tabularDetail = tabularReviewId ? await deps.tabular.detail(auth, tabularReviewId) : null;
       if (tabularReviewId && !tabularDetail) throw new ChatApplicationError(404, "Review not found");
+      if (tabularDetail?.review.role === "viewer") throw new ChatApplicationError(403, "You have read-only access to this review.");
       const researchFileId = input.research_file_id === undefined
         ? chat?.research_file_id ?? tabularDetail?.review.scope_config?.research_file_id : input.research_file_id,
         researchSelection = input.research_selection === undefined
