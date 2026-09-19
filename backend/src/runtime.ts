@@ -101,7 +101,11 @@ const projects = lazy(async () => createProjectStore((await persistence()).proje
   await documents(), cancelChatTurn));
 const workflows = lazy(async () => {
   const ports = await persistence();
-  return { repository: ports.workflows, collaboration: ports.workflowCollaboration };
+  const [{ createWorkflowCatalog }, { createWorkflowCatalogRepository }, { relationalDatabase }] =
+    await Promise.all([import("./lib/workflowCatalog"), import("./lib/relationalWorkflowCatalogRepository"),
+      import("./lib/relationalDatabase")]);
+  return { repository: ports.workflows, collaboration: ports.workflowCollaboration,
+    catalog: createWorkflowCatalog(createWorkflowCatalogRepository(await relationalDatabase()), ports.objects) };
 });
 const workProducts = lazy(async () => (await import("./lib/workProductApplication"))
   .createWorkProductApplication((await persistence()).workProducts));
@@ -235,25 +239,24 @@ const chat = lazy(async () => {
     }, async load(auth) {
       const loadedFeatures: ReturnType<ChatApplicationFeatures["load"]> =
         ports.features.load?.(auth) ?? Promise.resolve({ includeResearchTools: true });
-      const [loaded, account, custom, extraTools, { SYSTEM_ASSISTANT_WORKFLOWS }] = await Promise.all([
+      const [loaded, account, custom, extraTools, builtin] = await Promise.all([
         loadedFeatures,
         user().then((value) => value.settings(auth.userId)),
         (await workflows()).repository(auth).assistants(),
         connectorTools(auth.userId),
-        import("./lib/systemWorkflows"),
+        workflows().then(({ catalog }) => catalog.assistants()),
       ]);
       return {
         ...loaded,
         apiKeys: account.models.api_keys,
+        editAuthor: account.preferences.displayName?.trim() || auth.userEmail || "Beaver",
         includeResearchTools: account.preferences.legalResearchUs,
         productFeatures: account.preferences.features,
         personalisationPrompt: userPersonalisationPrompt(account.preferences),
         sourceCoveragePrompt,
         draftingStyle: account.preferences.draftingStyle,
         extraTools: [...loaded.extraTools ?? [], ...extraTools], workflows: new Map([
-        ...SYSTEM_ASSISTANT_WORKFLOWS.map((item) => [item.variant_id, {
-          workflow_id: item.id, title: item.title, skill_md: item.skill_md,
-        }] as const),
+        ...builtin,
         ...custom,
       ]) };
     } },

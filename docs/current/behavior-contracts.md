@@ -43,8 +43,37 @@ directories provide:
 - shared frontend paging/directory primitives rather than component-specific
   whole-collection caches.
 
-System workflows remain a small pinned catalogue and do not need runtime
-pagination or downloading.
+System workflows ship as a pinned offline catalogue, including verified reference
+files. Operators can independently install a reviewed revision without rebuilding
+or restarting the application. A single atomic database replacement publishes the
+snapshot only after every referenced object has passed its size, type and SHA-256
+checks. Local SQLite/filesystem and cloud Postgres/object storage use the same
+operation. Running assistant turns retain their captured revision. Reference
+objects are immutable and retained across replacements so those turns and exports
+remain valid; catalogue installation currently does not garbage-collect old blobs.
+
+The workflow information panel downloads references bound to their exact hash.
+Assistant `Read` exposes references on demand with bounded windows. Workflow ZIPs
+include each variant's references and a source-revision/hash provenance file.
+The bundled catalogue needs no network or storage installation on first use.
+
+Build a package from a clean, explicitly selected source revision using Python
+with the workflow repository's existing PyYAML requirement:
+
+```sh
+python -X utf8 scripts/build-workflow-catalog.py mike-workflows <40-character-commit> tmp/catalogue
+npm run workflow-catalog --prefix backend -- install ../tmp/catalogue/catalogue.json <40-character-commit>
+npm run workflow-catalog --prefix backend -- status
+```
+
+The install path is relative to the backend directory when using `npm --prefix`.
+Configure the usual
+runtime environment to select the intended local data directory or cloud store.
+Installation is an operator CLI, not an authenticated-user write endpoint.
+The source validator runs before packaging; unplaced new system recipes fail the
+build for explicit placement in `scripts/workflow-catalog-layout.json`. Add-on
+packs are not automatically installed. Add `--bundle` to regenerate the shipped
+JSON and embedded reference bytes when advancing the application distribution.
 
 ## Sources workspace
 

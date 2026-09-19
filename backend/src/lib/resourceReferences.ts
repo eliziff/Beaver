@@ -4,6 +4,7 @@ import type { LegalSourceReference } from "./legalSources/reference";
 export type ResourceReference =
   | { kind: "document"; documentId: string; versionId: string }
   | { kind: "source"; provider: string; sourceId: string }
+  | { kind: "workflow-reference"; id: string; filename: string }
   | { kind: "project" | "workflow"; id: string };
 
 export const RESOURCE_LOCATOR_KINDS = [
@@ -23,7 +24,7 @@ export const RESOURCE_LOCATOR_KINDS = [
 const DOCUMENT_RESOURCE = "document://[^/?#]+/version/[^/?#]+";
 export const DOCUMENT_RESOURCE_PATTERN = `^${DOCUMENT_RESOURCE}$`;
 export const DOCUMENT_OR_DRAFT_PATTERN = `^(?:${DOCUMENT_RESOURCE}|draft-[1-9][0-9]*)$`;
-export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|workflow://[^/?#]+|draft-[1-9][0-9]*|[eq]_[A-Za-z0-9_-]+|evidence|queries|selection|findings)$`;
+export const READABLE_RESOURCE_PATTERN = `^(?:${DOCUMENT_RESOURCE}|source://[^/?#]+/[^/?#]+|workflow://[^/?#]+(?:/references/[^/?#]+)?|draft-[1-9][0-9]*|[eq]_[A-Za-z0-9_-]+|evidence|queries|selection|findings)$`;
 
 const segment = (value: string) => {
   if (!value) throw new Error("Resource reference segments cannot be empty");
@@ -37,6 +38,8 @@ export const resourceReference = {
     `source://${segment(provider)}/${segment(sourceId)}`,
   project: (id: string) => `project://${segment(id)}`,
   workflow: (id: string) => `workflow://${segment(id)}`,
+  workflowReference: (id: string, filename: string) =>
+    `workflow://${segment(id)}/references/${segment(filename)}`,
 };
 
 export const legalSourceResource = (source: LegalSourceReference) =>
@@ -63,6 +66,9 @@ export function parseResourceReference(raw: string): ResourceReference | null {
     }
     if (scheme === "source" && path.length === 1) {
       return { kind: "source", provider: host, sourceId: path[0] };
+    }
+    if (scheme === "workflow" && path.length === 2 && path[0] === "references") {
+      return { kind: "workflow-reference", id: host, filename: path[1] };
     }
     if (
       (scheme === "project" || scheme === "workflow") &&

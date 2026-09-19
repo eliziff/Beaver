@@ -185,6 +185,7 @@ export class ChatApplicationError extends Error {
 }
 
 type TurnFeatures = {
+  editAuthor?: string;
   apiKeys?: UserApiKeys;
   includeResearchTools: boolean;
   productFeatures?: FeaturePreferences;
@@ -702,6 +703,9 @@ export function createChatApplication(deps: Dependencies) {
         registeredWorkflow?.skill_md
           ? `SELECTED WORKFLOW — follow these instructions for this turn:
 ${registeredWorkflow.skill_md}` : "",
+        registeredWorkflow?.references?.length
+          ? `Workflow reference files (use Read when needed):\n${registeredWorkflow.references
+            .map(({ filename, resource }) => `${JSON.stringify(filename)}: ${resource}`).join("\n")}` : "",
         input.work_product ? openWorkProductPrompt(input.work_product.kind) : "",
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records, requested),
@@ -759,6 +763,7 @@ ${registeredWorkflow.skill_md}` : "",
       localTools = createChatToolRunner({
         userId: auth.userId,
         userEmail: auth.userEmail,
+        editAuthor: features.editAuthor,
         model: selectedModel,
         turnId,
         chatId: chat.id,

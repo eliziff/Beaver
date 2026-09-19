@@ -60,9 +60,9 @@ export type SystemWorkflow = {
   launcher: WorkflowLauncher;
 };
 
-export const SYSTEM_WORKFLOWS = manifest as unknown as SystemWorkflow[];
-export const SYSTEM_WORKFLOW_IDS = new Set(SYSTEM_WORKFLOWS.map(({ id }) => id));
-export const SYSTEM_ASSISTANT_WORKFLOWS = SYSTEM_WORKFLOWS.flatMap((workflow) =>
+export const SYSTEM_WORKFLOW_SNAPSHOT = manifest;
+export const SYSTEM_WORKFLOWS = manifest.workflows as unknown as SystemWorkflow[];
+export const assistantWorkflows = (workflows: readonly SystemWorkflow[]) => workflows.flatMap((workflow) =>
   (workflow.launcher.kind === "instructions" || workflow.launcher.kind === "quote_check")
     ? workflow.launcher.variants.flatMap((variant) =>
       variant.execution === "assistant" && variant.skill_md
@@ -70,6 +70,7 @@ export const SYSTEM_ASSISTANT_WORKFLOWS = SYSTEM_WORKFLOWS.flatMap((workflow) =>
           title: workflow.metadata.title, skill_md: variant.skill_md }]
         : [])
     : []);
+export const SYSTEM_ASSISTANT_WORKFLOWS = assistantWorkflows(SYSTEM_WORKFLOWS);
 
 export function workflowVisibleTo(
   audiences: readonly WorkflowAudience[],
