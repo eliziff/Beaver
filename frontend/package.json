@@ -9,7 +9,7 @@
         "build": "tsc --noEmit && vite build && vite build --mode court-records && vite build --mode authorities && node scripts/standalone-bundle-boundary.mjs",
         "start": "vite preview --host 127.0.0.1 --port 3000",
         "lint": "eslint",
-        "test": "vitest run",
+        "test": "node --max-old-space-size=384 ./node_modules/vitest/vitest.mjs run",
         "posttest": "node --test --test-concurrency=1 scripts/guard-live-build.test.mjs scripts/transport-boundary.test.mjs scripts/precompressed-assets.test.mjs",
         "preview": "vite preview --host 127.0.0.1 --port 3000"
     },
@@ -48,7 +48,7 @@
         "eslint": "^10.8.1",
         "eslint-plugin-react-hooks": "^7.1.1",
         "globals": "^17.11.0",
-        "jsdom": "^27.0.1",
+        "jsdom": "^29.1.1",
         "tailwindcss": "^4",
         "typescript": "^5",
         "typescript-eslint": "^8.67.0",

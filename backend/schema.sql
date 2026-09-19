@@ -187,11 +187,16 @@ create table if not exists upload_sessions (
   project_id text references projects(id) on delete cascade,
   library_kind text not null check(library_kind in ('file','template')), folder_id text,
   document_id text not null unique, filename text not null, file_type text not null,
+  purpose text not null default 'document_create' check(purpose in ('document_create','version_create','version_replace')),
+  target_document_id text, expected_version_id text, expected_working_revision integer, result_version_id text,
+  workflow_id text,
   size_bytes integer not null check(size_bytes between 1 and 104857600),
   source_sha256 text not null check(length(source_sha256)=64), storage_path text not null,
   status text not null default 'pending' check(status in ('pending','queued','complete','failed','cancelled')),
   job_id text, error text, created_at text not null, updated_at text not null, expires_at text not null,
-  unique(user_id,client_key)
+  unique(user_id,client_key),
+  check((purpose='document_create' and target_document_id is null and expected_version_id is null and expected_working_revision is null)
+    or (purpose<>'document_create' and target_document_id is not null and expected_version_id is not null and expected_working_revision is not null and expected_working_revision>=0))
 );
 create index if not exists upload_sessions_blob_idx on upload_sessions(storage_path,expires_at);
 create index if not exists upload_sessions_user_idx on upload_sessions(user_id,created_at,id);
@@ -306,6 +311,11 @@ create table if not exists workflows (
   created_at text not null, updated_at text not null,
   check(execution in ('assistant','tabular'))
 );
+create table if not exists workflow_documents (
+  document_id text primary key references documents(id) on delete cascade,
+  workflow_id text not null references workflows(id) on delete cascade
+);
+create index if not exists workflow_documents_workflow on workflow_documents(workflow_id,document_id);
 create table if not exists work_products (
   id text primary key, user_id uuid not null,
   project_id text references projects(id) on delete cascade,
@@ -558,6 +568,9 @@ alter table application_jobs enable row level security;
 alter table application_job_events enable row level security;
 alter table application_job_commands enable row level security;
 alter table workflows enable row level security;
+alter table workflow_documents enable row level security;
+revoke all on workflow_documents from public,anon,authenticated;
+grant all on workflow_documents to service_role;
 alter table workflow_catalog enable row level security;
 alter table work_products enable row level security;
 alter table workflow_shares enable row level security;
@@ -586,6 +599,8 @@ begin
     or exists(select 1 from projects where user_id=old.id and org_id is not null)
     or exists(select 1 from workflows where user_id=old.id and org_id is not null)
     or exists(select 1 from documents d join projects p on p.id=d.project_id where d.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from documents d join workflow_documents wd on wd.document_id=d.id
+      join workflows w on w.id=wd.workflow_id where d.user_id=old.id and w.org_id is not null)
     or exists(select 1 from project_subfolders f join projects p on p.id=f.project_id where f.user_id=old.id and p.org_id is not null)
     or exists(select 1 from tabular_reviews r join projects p on p.id=r.project_id where r.user_id=old.id and p.org_id is not null)
     or exists(select 1 from work_products w join projects p on p.id=w.project_id where w.user_id=old.id and p.org_id is not null)

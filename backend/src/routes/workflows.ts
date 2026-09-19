@@ -22,6 +22,7 @@ import type {
   WorkflowUpdate,
 } from "../lib/workflowRepository";
 import { requireAuth } from "../middleware/auth";
+import type { DocumentStore } from "../lib/documentStore";
 
 const DEFAULT_CONTRIBUTOR: WorkflowContributor = {
   name: "Beaver", organisation: null, role: null, linkedin: null,
@@ -195,6 +196,7 @@ export function createWorkflowsRouter(
   repositoryFor: CreateWorkflowRepository,
   collaboration: WorkflowCollaboration | undefined,
   catalog: WorkflowCatalog,
+  documents: DocumentStore,
 ) {
   const router = Router();
   router.use(requireAuth);
@@ -264,6 +266,22 @@ export function createWorkflowsRouter(
       archive.file(`${slug}/provenance.json`, JSON.stringify({ sourceCommit: snapshot.sourceCommit,
         assets: snapshot.assets.filter((asset) => asset.workflowId === builtin.id) }));
     }
+    if (custom) {
+      const scope = applicationScope(res), references = await repositoryFor(scope).documents(custom.workflow.id);
+      if (references.reduce((total, reference) => total + reference.size_bytes, 0) > 64 * 1024 * 1024)
+        reject(413, "Workflow references exceed the 64 MB export limit.");
+      const links: string[] = [];
+      for (const reference of references) {
+        const content = await documents.read(scope, reference.id, reference.current_version_id, false);
+        if (!content || content.version.source_sha256 !== reference.source_sha256) throw missing("Workflow reference changed. Retry the export.");
+        const relative = `references/${reference.id}/${content.filename}`;
+        for (const file of files.filter(({ path }) => path.endsWith("/SKILL.md")))
+          archive.file(`${file.path.slice(0, -"SKILL.md".length)}${relative}`, content.bytes);
+        links.push(`${JSON.stringify(content.filename)}: ${relative}`);
+      }
+      if (links.length) for (const file of files.filter(({ path }) => path.endsWith("/SKILL.md")))
+        archive.file(file.path, `${file.content}\n\nReference documents:\n${links.join("\n")}\n`);
+    }
     res.set(downloadHeaders("application/zip", `${slug}.zip`)).send(
       await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
     );
@@ -319,6 +337,7 @@ export function createWorkflowsRouter(
     const access = await repositoryFor(scope).get(idSchema.parse(req.params.workflowId));
     if (!access) throw missing("Workflow not found");
     res.json({ ...withAccess(present(access.workflow), access),
+      documents: await repositoryFor(scope).documents(access.workflow.id),
       open_source_submission: access.isOwner && collaboration
         ? await collaboration.latestSubmission(scope, access.workflow.id) : null });
   }));
@@ -341,7 +360,8 @@ export function createWorkflowsRouter(
     const access = await repositoryFor(applicationScope(res))
       .update(idSchema.parse(req.params.workflowId), update);
     if (!access) throw missing("Workflow not found or not editable");
-    res.json(withAccess(present(access.workflow), access));
+    res.json({ ...withAccess(present(access.workflow), access),
+      documents: await repositoryFor(applicationScope(res)).documents(access.workflow.id) });
   }));
   router.delete("/:workflowId", asyncRoute(async (req, res) => {
     if ((await catalog.workflows()).some(({ id }) => id === req.params.workflowId)) reject(403, "System workflows cannot be deleted.");

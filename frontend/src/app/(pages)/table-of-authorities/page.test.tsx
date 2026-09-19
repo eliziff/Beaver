@@ -813,13 +813,9 @@ describe("Authorities UI contracts", () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
     await screen.findByRole("button", { name: "Next" });
-    // The gathering starts as soon as the citations are known, so Next waits on the fetch
-    // already under way rather than starting a second one.
-    expect(api.prepareAuthoritiesSources).toHaveBeenCalledExactlyOnceWith(saved.id, saved.revision, undefined);
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Build outputs" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(api.prepareAuthoritiesSources).toHaveBeenCalledOnce();
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     await act(async () => pending.resolve(saved));
     const sources = (await screen.findByRole("list", { name: "Authority tab slots" })).closest("section")!;

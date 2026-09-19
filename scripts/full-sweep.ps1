@@ -85,6 +85,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
 
 $PreviousEnvironment = @{}
 $RunDirectory = Join-Path $ReceiptDirectory ([Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Force -Path $RunDirectory | Out-Null
 $SweepEnvironment = @{
     PORT = '3100'
     AUTH_MODE = 'local'
@@ -117,8 +118,15 @@ try {
             '--release', '--offline', '--quiet', '--jobs', '1'
         )
     }
-    Invoke-Step 'Backend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'backend', '--', '--maxWorkers=1') }
-    Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend', '--', '--maxWorkers=1') }
+    Invoke-Step 'Backend tests' {
+        # Tests choose per-case data homes; a global explicit library path overrides them.
+        $libraryDirectory = $env:MIKE_LOCAL_DATA_DIR
+        try {
+            Remove-Item Env:MIKE_LOCAL_DATA_DIR -ErrorAction SilentlyContinue
+            Invoke-Checked npm.cmd @('test', '--prefix', 'backend', '--', '--maxWorkers=1')
+        } finally { $env:MIKE_LOCAL_DATA_DIR = $libraryDirectory }
+    }
+    Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend') }
     Invoke-Step 'Backend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'backend') }
     Invoke-Step 'Frontend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'frontend') }
     Invoke-Step 'Production browser smoke' {

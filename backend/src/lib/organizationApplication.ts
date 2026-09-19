@@ -202,6 +202,8 @@ export async function prepareOrganizationAccountDeletion(database: RelationalDat
       }
       const successor = String(remaining.user_id);
       // Content storage addresses are immutable; changing custodians does not move blobs or rewrite authorship.
+      await db.query(sql`UPDATE documents SET user_id=${successor} WHERE user_id=${scope.userId}
+        AND id IN(SELECT wd.document_id FROM workflow_documents wd JOIN workflows w ON w.id=wd.workflow_id WHERE w.org_id=${orgId})`);
       for (const table of ["documents", "project_subfolders", "tabular_reviews", "work_products"])
         await db.query(sql`UPDATE ${sql.raw(table)} SET user_id=${successor} WHERE user_id=${scope.userId}
           AND project_id IN(SELECT id FROM projects WHERE org_id=${orgId})`);
@@ -212,6 +214,10 @@ export async function prepareOrganizationAccountDeletion(database: RelationalDat
       for (const table of ["projects", "workflows"])
         await db.query(sql`UPDATE ${sql.raw(table)} SET user_id=${successor} WHERE user_id=${scope.userId} AND org_id=${orgId}`);
     }
+    await db.query(sql`UPDATE documents SET user_id=(SELECT w.user_id FROM workflow_documents wd
+      JOIN workflows w ON w.id=wd.workflow_id WHERE wd.document_id=documents.id)
+      WHERE user_id=${scope.userId} AND id IN(SELECT wd.document_id FROM workflow_documents wd
+        JOIN workflows w ON w.id=wd.workflow_id WHERE w.user_id<>${scope.userId})`);
     await db.query(sql`DELETE FROM org_members WHERE user_id=${scope.userId}`);
   });
 }
