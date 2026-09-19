@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { accessSync, constants, existsSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { isolatedProcessEnv } from "./subprocessEnv";
 
@@ -45,8 +46,14 @@ export function resolveUnoRuntime(): Promise<UnoRuntime> {
     const contents = process.platform === "darwin" ? path.dirname(program) : program;
     const modulePaths = unique([program, path.join(contents, "Resources"), path.join(contents, "Frameworks"),
       "/usr/lib/python3/dist-packages", "/usr/lib/libreoffice/program"]).filter(existsSync);
+    // Windows' raw bundled Python can import uno with only the minimal URE
+    // registry. Office interface calls then fail remotely. Bootstrap from the
+    // selected installation, not the interpreter's python-core/bin directory.
+    const fundamental = path.join(program, "fundamental.ini");
     const env = { ...isolatedProcessEnv(["SAL_*", "URE_*"]),
       PATH: [program, process.env.PATH ?? ""].join(path.delimiter),
+      ...(process.platform === "win32" && existsSync(fundamental)
+        ? { URE_BOOTSTRAP: pathToFileURL(fundamental).href } : {}),
       ...(process.platform === "darwin" ? { DYLD_FALLBACK_LIBRARY_PATH: path.join(contents, "Frameworks") } : {}),
     };
     const versionsRoot = path.join(contents, "Frameworks/LibreOfficePython.framework/Versions");
@@ -62,7 +69,10 @@ export function resolveUnoRuntime(): Promise<UnoRuntime> {
     ]).filter(p => !path.isAbsolute(p) || existsSync(p));
     const probe = `import sys,os,json; sys.path[:0]=json.loads(sys.argv[1]); ` +
       `dlls=[os.add_dll_directory(p) for p in sys.path[:${modulePaths.length}] if os.name=='nt' and os.path.isdir(p)]; ` +
-      `import uno; assert sys.version_info >= (3,10); print(json.dumps({'version':sys.version.split()[0]}))`;
+      `import uno; assert sys.version_info >= (3,10); ` +
+      `uno.getTypeByName('com.sun.star.frame.XTerminateListener'); ` +
+      `assert uno.getConstantByName('com.sun.star.document.MacroExecMode.NEVER_EXECUTE') == 0; ` +
+      `print(json.dumps({'version':sys.version.split()[0]}))`;
     const errors: string[] = [];
     for (const python of candidates) {
       try {
