@@ -32,6 +32,9 @@ export function createOrganizationApplication(database: RelationalDatabase) {
       ${write && db.engine === "postgres" ? sql.raw(`FOR UPDATE OF ${config.alias}`) : sql.raw("")}`)).rows[0];
     if (!row || !Number(row.access_rank)) return fail(404, "Resource not found.");
     if (write && Number(row.access_rank) < 3) return fail(403, "An owner must manage access.");
+    if (kind === "chat" && !row.project_id && row.work_product_id) {
+      row.project_id = (await db.query(sql`SELECT project_id FROM work_products WHERE id=${String(row.work_product_id)}`)).rows[0]?.project_id ?? null;
+    }
     return row;
   };
   const inherited = (kind: AccessResource, row: Record<string, unknown>) =>
@@ -204,7 +207,8 @@ export async function prepareOrganizationAccountDeletion(database: RelationalDat
           AND project_id IN(SELECT id FROM projects WHERE org_id=${orgId})`);
       await db.query(sql`UPDATE chats SET user_id=${successor} WHERE user_id=${scope.userId} AND
         (project_id IN(SELECT id FROM projects WHERE org_id=${orgId}) OR tabular_review_id IN(
-          SELECT r.id FROM tabular_reviews r JOIN projects p ON p.id=r.project_id WHERE p.org_id=${orgId}))`);
+          SELECT r.id FROM tabular_reviews r JOIN projects p ON p.id=r.project_id WHERE p.org_id=${orgId}) OR work_product_id IN(
+          SELECT w.id FROM work_products w JOIN projects p ON p.id=w.project_id WHERE p.org_id=${orgId}))`);
       for (const table of ["projects", "workflows"])
         await db.query(sql`UPDATE ${sql.raw(table)} SET user_id=${successor} WHERE user_id=${scope.userId} AND org_id=${orgId}`);
     }

@@ -391,6 +391,24 @@ create index if not exists org_members_user on org_members(user_id,org_id);
 create index if not exists chat_members_email on chat_members(email,chat_id);
 create index if not exists projects_organization on projects(org_id);
 create index if not exists workflows_organization on workflows(org_id);
+-- Memory is opt-in. Epoch changes fence deleted/paused content and in-flight curation.
+create table if not exists memory_files (
+  scope text not null check(scope in ('app','project')), owner_id text not null,
+  project_id text references projects(id) on delete cascade, app_user_id uuid,
+  enabled integer not null default 0, content text not null default '',
+  revision integer not null default 0, epoch integer not null default 0,
+  updated_at text not null, primary key(scope,owner_id),
+  check((scope='app' and project_id is null and cast(app_user_id as text)=owner_id and app_user_id is not null)
+    or (scope='project' and project_id=owner_id and app_user_id is null))
+);
+create table if not exists memory_receipts (
+  id text primary key, scope text not null, owner_id text not null, epoch integer not null,
+  chat_id text not null references chats(id) on delete cascade, turn_id text not null, transcript_version integer not null,
+  actor_id uuid not null, actor_email text, input_text text not null, created_at text not null,
+  applied_at text, unique(scope,owner_id,epoch,chat_id,turn_id,actor_id),
+  foreign key(scope,owner_id) references memory_files(scope,owner_id) on delete cascade
+);
+create index if not exists memory_receipts_pending on memory_receipts(scope,owner_id,applied_at,created_at);
 -- BEAVER_CORE_END
 alter table user_api_keys add constraint user_api_keys_auth_user
   foreign key(user_id) references auth.users(id) on delete cascade;
@@ -559,7 +577,8 @@ begin
     or exists(select 1 from tabular_reviews r join projects p on p.id=r.project_id where r.user_id=old.id and p.org_id is not null)
     or exists(select 1 from work_products w join projects p on p.id=w.project_id where w.user_id=old.id and p.org_id is not null)
     or exists(select 1 from chats c left join tabular_reviews r on r.id=c.tabular_review_id
-      join projects p on p.id=coalesce(c.project_id,r.project_id) where c.user_id=old.id and p.org_id is not null)
+      left join work_products w on w.id=c.work_product_id
+      join projects p on p.id=coalesce(c.project_id,r.project_id,w.project_id) where c.user_id=old.id and p.org_id is not null)
   then raise exception 'Transfer organization custody before deleting this account'; end if;
   return old;
 end $$;
@@ -567,3 +586,11 @@ drop trigger if exists guard_organization_account_delete on auth.users;
 create trigger guard_organization_account_delete before delete on auth.users
 for each row execute function public.guard_organization_account_delete();
 revoke all on function public.guard_organization_account_delete() from public, anon, authenticated;
+
+alter table memory_files enable row level security;
+alter table memory_receipts enable row level security;
+revoke all on memory_files,memory_receipts from anon,authenticated;
+grant all on memory_files,memory_receipts to service_role;
+alter table memory_receipts add constraint memory_receipts_auth_user foreign key(actor_id) references auth.users(id) on delete cascade;
+
+alter table memory_files add constraint memory_files_auth_user foreign key(app_user_id) references auth.users(id) on delete cascade;

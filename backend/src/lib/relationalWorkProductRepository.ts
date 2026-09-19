@@ -1,3 +1,4 @@
+import { workProductAccess as access } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
 import { contentTypeForDocumentType } from "./documentTypes";
@@ -11,11 +12,6 @@ import { decodeWorkProductBuildReceipt, workProductInputs,
   type WorkProductFailure, type WorkProductInput, type WorkProductInputResolution,
   type WorkProductOutput, type WorkProductOutputRef, type WorkProductRepository,
   type WorkProductMetadata, type WorkProductResolution, type WorkProductState } from "./workProduct";
-
-const access = (scope: ApplicationScope, level: "view" | "edit" | "owner" = "view") => sql`(
-  (w.project_id IS NULL AND w.user_id=${scope.userId}) OR
-  (w.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM projects p
-    WHERE p.id=w.project_id AND ${projectAccess(scope, level)})))`;
 
 const profileMetadata = (row: Row) => {
   const profileId = row.kind === "authorities" ? undefined

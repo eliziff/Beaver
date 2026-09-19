@@ -61,6 +61,17 @@ organization content under a remaining admin and protects the last admin.
 Focused organization/export/account and repository checks: 51 tests passed;
 access-modal tests: 3 passed. PostgreSQL concurrency and browser checks remain.
 
+Scoped memory now has opt-in app/project storage, a settings/project editor,
+revision conflict protection, permission-scoped context and delayed curation on
+the existing queue. Delete/pause/manual edits fence pending work. Provider
+continuations bind their memory snapshot and audience, including project-bound
+draft chats before their first turn. Nine memory/service/HTTP tests, four editor
+tests and thirteen queue tests passed; the organization/repository checks passed
+after correcting the draft fixture to create real drafts. The chat eligibility
+integration check needs the native addon; its
+unconstrained build was stopped after the user reported desktop lag. Further
+builds and tests use one worker. FullSweep remains pending.
+
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
 full application suites/builds, fresh-checkout proof and assistant-dock smoke

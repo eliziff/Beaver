@@ -404,3 +404,27 @@ Test the smallest public outcome that protects each changed contract:
 
 Tests that merely assert an import, mock call order, implementation branch, CSS
 class, or exact incidental copy do not make that implementation durable.
+
+
+## Scoped memory
+
+Memory is off by default. Settings > Memory owns private app memory; a project's
+Memory action owns its shared memory. Viewers can read project memory; editors
+and owners can edit it. Save uses a revision check and preserves the editor's
+draft on conflicts. Pause keeps the text; Delete clears it without changing the
+enabled setting. Both actions fence pending curation, as do manual edits.
+
+The assistant receives enabled memory in an earliest synthetic user message,
+not as system instructions. Current conversation outranks project memory, which
+outranks app memory. Shared chats never receive private app memory. Provider
+continuations are bound to the memory snapshot and audience. Memory is optional:
+loading it times out after 800 ms without blocking the answer.
+
+Only successfully persisted terminal turns schedule learning. Failed, cancelled,
+empty and paused turns do not. The existing durable job queue waits for five
+minutes of inactivity, then curates bounded, attributed user statements in
+conversation order. It does not scan older conversations or pass private app
+memory, document contents, or assistant responses into a project curator.
+Curation uses the user's configured title model and credentials. Permission,
+enabled state, epoch and revision are checked again before committing. Account
+exports include accessible memory; account deletion removes private app memory.
