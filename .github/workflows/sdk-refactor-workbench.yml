@@ -36,10 +36,21 @@ jobs:
           npm install --prefix sdk-deps --ignore-scripts ai@7.0.98 @ai-sdk/anthropic@4.0.53 @ai-sdk/google@4.0.68 @ai-sdk/openai@4.0.66 @ai-sdk/openai-compatible@3.0.48
       - name: Package source and installed SDK contracts
         if: always()
-        run: tar --exclude=.git --exclude=./backend/experiments --exclude=./backend/legal-pdf-parser --exclude=./data --exclude=./subrepos -czf "$RUNNER_TEMP/sdk-workbench.tar.gz" .
+        run: |
+          git ls-files -z -- AGENTS.md CONTRIBUTING.md package.json package-lock.json tsconfig.json backend/src backend/package.json backend/package-lock.json backend/tsconfig.json backend/tsconfig.test.json backend/vitest.config.mts backend/vitest.config.ts backend/.npmrc shared scripts docs frontend/src frontend/package.json frontend/tsconfig.json packages > "$RUNNER_TEMP/tracked-paths"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          paths = [p for p in root.joinpath('tracked-paths').read_bytes().split(b'\0') if p and Path(os.fsdecode(p)).is_file() and Path(os.fsdecode(p)).suffix in {'.ts','.tsx','.mts','.mjs','.js','.json','.md','.yaml','.yml','.toml','.rs'} and Path(os.fsdecode(p)).stat().st_size < 5_000_000 and '/node_modules/' not in os.fsdecode(p) and '/target/' not in os.fsdecode(p)]
+          root.joinpath('source-paths').write_bytes(b'\0'.join(paths) + b'\0')
+          PY
+          tar --null -T "$RUNNER_TEMP/source-paths" -cf "$RUNNER_TEMP/sdk-workbench.tar"
+          tar -rf "$RUNNER_TEMP/sdk-workbench.tar" backend/node_modules sdk-deps
+          gzip -1 "$RUNNER_TEMP/sdk-workbench.tar"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sdk-workbench
+          name: sdk-workbench-source
           path: ${{ runner.temp }}/sdk-workbench.tar.gz
           retention-days: 1
