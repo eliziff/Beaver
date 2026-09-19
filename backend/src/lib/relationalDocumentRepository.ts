@@ -347,6 +347,12 @@ export const documentRepository: DocumentRepository = {
         libraryKind: document.libraryKind, folderId: document.folderId }, true) !== "ok") return false;
       if (!scopedVersion(version, document.userId, document.projectId) ||
           !scopedParts(input.parts, document.userId, document.projectId)) return false;
+      if (input.uploadSessionId && !await one(sql`SELECT id FROM upload_sessions WHERE id=${input.uploadSessionId}
+        AND user_id=${scope.userId} AND document_id=${document.id} AND status='queued' AND expires_at>${now()}
+        AND source_sha256=${version.sourceSha256} AND size_bytes=${version.sizeBytes}
+        AND COALESCE(project_id,'')=${document.projectId ?? ''} AND COALESCE(folder_id,'')=${document.folderId ?? ''}
+        AND library_kind=${document.libraryKind} AND filename=${version.filename}
+        ${tx.engine === "postgres" ? sql.raw("FOR UPDATE") : sql.raw("")}`, tx)) return false;
       if (!await publishBlobs(tx, [...versionKeys(version), ...partKeys(input.parts)])) return false;
       await changes(sql`INSERT INTO documents(id,user_id,project_id,folder_id,
         library_kind,library_folder_id,status,current_version_id,metadata,notes,filename,
@@ -358,6 +364,8 @@ export const documentRepository: DocumentRepository = {
       await addVersion(tx, version, scope.userId, input.pdfOcrProvider);
       await writeParts(tx, document.id, version.id,
         input.parts ? { put: input.parts, remove: [] } : undefined);
+      if (input.uploadSessionId) await changes(sql`UPDATE upload_sessions SET status='complete',updated_at=${now()}
+        WHERE id=${input.uploadSessionId}`, tx);
       return true;
     });
     if (created && input.version.fileType === "pdf" && !input.version.pdfProfile)
@@ -707,6 +715,11 @@ export const documentRepository: DocumentRepository = {
           AND claim_id=${claimId}`, tx);
         return false;
       }
+      if (await one(sql`SELECT 1 FROM upload_sessions WHERE storage_path=${key} AND expires_at>${now()} LIMIT 1`, tx)) {
+        await changes(sql`UPDATE object_cleanup SET claim_id=NULL,claimed_at=NULL,created_at=${now()}
+          WHERE storage_path=${key} AND claim_id=${claimId}`, tx);
+        return false;
+      }
       try { await remove(); }
       catch (error) {
         failed = true; failure = error;
@@ -732,6 +745,7 @@ export const documentRepository: DocumentRepository = {
             WHERE v.storage_path=c.storage_path OR v.pdf_storage_path=c.storage_path)
           AND NOT EXISTS(SELECT 1 FROM document_version_parts p
             WHERE p.storage_path=c.storage_path)
+          AND NOT EXISTS(SELECT 1 FROM upload_sessions u WHERE u.storage_path=c.storage_path AND u.expires_at>${now()})
         ORDER BY c.created_at LIMIT ${Math.max(1, Math.min(limit, 500))}`, tx);
       if (!candidates.length) {
         await changes(sql`DELETE FROM object_cleanup WHERE claim_id IS NULL AND EXISTS(
@@ -750,7 +764,8 @@ export const documentRepository: DocumentRepository = {
             WHERE v.storage_path=object_cleanup.storage_path
               OR v.pdf_storage_path=object_cleanup.storage_path)
           AND NOT EXISTS(SELECT 1 FROM document_version_parts p
-            WHERE p.storage_path=object_cleanup.storage_path)`, tx);
+            WHERE p.storage_path=object_cleanup.storage_path)
+          AND NOT EXISTS(SELECT 1 FROM upload_sessions u WHERE u.storage_path=object_cleanup.storage_path AND u.expires_at>${now()})`, tx);
       return (await rows<{ storage_path: string }>(sql`SELECT storage_path FROM object_cleanup
         WHERE claim_id=${claimId} ORDER BY created_at`, tx))
         .map(({ storage_path: key }) => ({ key, claimId }));

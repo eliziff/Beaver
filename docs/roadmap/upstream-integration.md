@@ -77,6 +77,13 @@ with optional Ed25519 signing, a separately retrievable public key and an offlin
 verifier for manifests and supplied version files. Five integrity/CLI tests and
 nine organization/export/HTTP tests pass. Browser download validation remains.
 
+New-document upload sessions now reuse document publication, blob cleanup and
+the durable queue in both compositions. The browser recovers lost responses and
+exposes recent sessions. Six upload/application/HTTP tests and 41 repository
+tests pass; sixteen browser API tests cover retry/directory behavior. Signed PUT
+parameters pass the storage tests. Live S3/CORS and browser recovery still need
+integration proof; version/work-product upload paths remain to reconcile.
+
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
 full application suites/builds, fresh-checkout proof and assistant-dock smoke

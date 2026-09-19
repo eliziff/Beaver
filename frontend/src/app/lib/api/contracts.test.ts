@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { webcrypto } from "node:crypto";
 import { createAssistantSessionState } from "../assistantSession";
 
 import { duplicateWorkProduct, getWorkProductResolution } from "./workProducts";
@@ -122,19 +123,31 @@ describe("directoryResource", () => {
   });
 
   it("recreates a selected folder tree before uploading its files", async () => {
+    vi.stubGlobal("crypto", webcrypto); localStorage.clear();
+    const sessions = new Map<string, Record<string, unknown>>();
     let folder = 0, document = 0, leaseAttempts = 0;
     const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
       const value = String(url);
       if (value.endsWith("/folders")) return new Response(JSON.stringify({
         id: `folder-${++folder}`,
       }), { headers: { "Content-Type": "application/json" } });
-      if (value.endsWith("/documents")) {
+      if (value === "/api/uploads") {
+        const fields = JSON.parse(String(init?.body)) as Record<string, unknown>, key = String(fields.client_key);
+        if (!sessions.has(key)) sessions.set(key, { ...fields, id: `upload-${sessions.size}`, status: "pending", document: null });
+        return Response.json(sessions.get(key));
+      }
+      if (value.endsWith("/transfer")) return Response.json({ kind: "proxy" });
+      if (value.endsWith("/complete")) {
+        const session = [...sessions.values()].find((row) => row.id === value.split("/").at(-2))!;
+        session.status = "complete"; session.document = { id: `document-${++document}` };
+        return Response.json(session);
+      }
+      if (value.endsWith("/content")) {
         const file = (init?.body as FormData).get("file") as File;
         if (file.name === "lease.pdf" && leaseAttempts++ === 0) {
           return new Response("failed", { status: 500 });
         }
-        return new Response(JSON.stringify({ id: `document-${++document}` }),
-          { headers: { "Content-Type": "application/json" } });
+        return Response.json({ uploaded: true });
       }
       return new Response(null, { status: 404 });
     });
@@ -160,16 +173,14 @@ describe("directoryResource", () => {
       { name: "Matter", parent_folder_id: null },
       { name: "Contracts", parent_folder_id: "folder-1" },
     ]);
-    const uploads = fetchMock.mock.calls.slice(2).map(([, init]) => {
-      const body = init?.body as FormData;
-      return [String((body.get("file") as File).name), body.get("folder_id")];
-    });
-    expect(uploads).toEqual(expect.arrayContaining([
-      ["lease.pdf", "folder-2"],
-      ["notes.docx", "folder-1"],
+    expect([...sessions.values()].map((row) => [row.filename, row.folder_id])).toEqual(expect.arrayContaining([
+      ["lease.pdf", "folder-2"], ["notes.docx", "folder-1"],
     ]));
-    expect(uploads.filter(([name]) => name === "lease.pdf")).toHaveLength(2);
-    expect(uploads.filter(([name]) => name === "notes.docx")).toHaveLength(1);
+    expect(document).toBe(2);
+    const uploads = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/content"))
+      .map(([, init]) => ((init?.body as FormData).get("file") as File).name);
+    expect(uploads.filter((name) => name === "lease.pdf")).toHaveLength(2);
+    expect(uploads.filter((name) => name === "notes.docx")).toHaveLength(1);
   });
 });
 

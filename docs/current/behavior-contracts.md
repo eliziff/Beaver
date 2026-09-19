@@ -457,3 +457,29 @@ size. Omit file arguments to check only the manifest. Use `-` instead of a key
 file for a checksum/embedded-signature check; this does not establish the
 exporter's identity. A trusted key requires a signature and rejects an unsigned
 downgrade. Signing attests the exported snapshot, not earlier document custody.
+
+## Durable uploads
+
+New Library/project/standalone uploads reserve a 24-hour session with immutable
+file metadata and a retry key. Refreshing or losing the completion response does
+not duplicate the document. Transferred files continue processing on the existing
+job queue; unfinished transfers need the original file selected again. The Uploads
+action shows up to 100 recent sessions, unfinished first, with retry/cancel actions.
+Folder uploads retain their destination on each session. File bytes are never
+stored in browser storage; only retry identifiers are retained there.
+
+Both storage adapters verify size, SHA-256 and document type before publication.
+The shared document transaction rechecks destination access and commits the
+document together with session completion. Cancellation and expired sessions
+cannot publish. Upload bytes use the existing object-cleanup owner and are held
+until session expiry; published documents use ordinary immutable version blobs.
+
+S3 direct transfers use five-minute signed, checksum-bound, conditional PUTs;
+filesystem mode uses authenticated multipart staging through the same session.
+Configure bucket CORS for the deployment's exact browser origin, PUT, and the
+`content-type`, `if-none-match`, and `x-amz-checksum-sha256` headers. Configure a
+one-day expiry lifecycle for the `documents/uploads/` prefix (including noncurrent
+versions if bucket versioning is enabled), so even a transfer completed after its
+session expired is collected. Never apply that expiry rule to published blobs.
+These use [S3 presigned checksum uploads](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+and [conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).

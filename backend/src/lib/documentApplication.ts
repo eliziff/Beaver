@@ -500,7 +500,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         throw new ApplicationError(404,
           authorization === "project-missing" ? "Project not found" : "Folder not found");
       }
-      const documentId = randomUUID();
+      const documentId = input.upload?.documentId ?? randomUUID();
       const version = await makeVersion({ ...input, scope, documentId, versionNumber: 1,
         ownerUserId: scope.userId, projectId, parentVersionId: null,
         source: input.provenance?.actor === "work-product" ||
@@ -515,8 +515,14 @@ export function createDocumentApplication(repository: DocumentRepository,
       const parts = await stageParts(documentId, document, version.id, input.parts);
       const created = await pdfLifecyclePhase("upload.repository", documentId, () =>
         repository.create(scope, { document, version, parts,
+          ...(input.upload ? { uploadSessionId: input.upload.sessionId } : {}),
           ...(input.pdfOcrProvider !== undefined ? { pdfOcrProvider: input.pdfOcrProvider } : {}) }));
-      if (!created) throw new ApplicationError(409, "Document location changed during upload");
+      if (!created) {
+        const existing = input.upload ? await repository.head(scope, documentId) : null;
+        if (existing && existing.versions[0].sourceSha256 === version.sourceSha256)
+          return responseDocument(existing);
+        throw new ApplicationError(409, "Document location changed during upload");
+      }
       return responseDocument({ document, versions: [version] });
     },
 
