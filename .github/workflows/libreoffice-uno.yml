@@ -1,0 +1,38 @@
+name: LibreOffice UNO integration
+on:
+  pull_request:
+    paths:
+      - 'backend/scripts/word_uno.py'
+      - 'backend/src/lib/libreOffice*.ts'
+      - 'backend/src/lib/chat/libreOfficeTool.ts'
+      - 'backend/src/lib/chat/chatToolRunner.ts'
+      - 'backend/experiments/libreoffice-uno/**'
+      - '.github/workflows/libreoffice-uno.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  writer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer python3-uno
+      - run: soffice --version && /usr/bin/python3 --version
+      - run: /usr/bin/python3 -m unittest discover -s backend/experiments/libreoffice-uno -p 'test_*.py' -v
+  application:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --prefix backend --ignore-scripts
+      - run: cd backend && npx tsx --test experiments/libreoffice-uno/application.node.ts
