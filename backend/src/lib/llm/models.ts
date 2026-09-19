@@ -1,4 +1,5 @@
 import type { Provider } from "./types";
+import { getConfiguredModel } from "./registry";
 
 export type PickerModel = {
     id: string; label: string; group: string; provider: Provider;
@@ -63,6 +64,7 @@ const COMPOSITE_PROVIDERS: Record<string, Provider> = {
     claude: "claude", gemini: "gemini", openai: "openai", deepseek: "deepseek",
     openrouter: "openrouter", meta: "meta", "opencode-go": "opencode-go",
     codex: "codex", "claude-p": "claude-p", ollama: "ollama",
+    configured: "configured",
 };
 const COMPOSITE_PATTERN = /^([a-z-]+):([\s\S]+)$/u;
 
@@ -189,6 +191,7 @@ export function providerForModel(model: string): Provider {
 }
 
 export function isSupportedModel(model: string): boolean {
+    if (model.startsWith("configured:")) return !!getConfiguredModel(model);
     const composite = compositeProvider(model);
     if (composite) {
         return composite === "opencode-go"
@@ -295,6 +298,7 @@ export function familyForModel(model: string): string | undefined {
 
 /** All currently exposed Beaver models accept images; unknown future models fail closed. */
 export function modelSupportsImageInput(model: string): boolean {
+    if (model.startsWith("configured:")) return getConfiguredModel(model)?.imageInput ?? false;
     if (model.startsWith(OPENCODE_GO_MODEL_PREFIX) || compositeProvider(model) === "opencode-go") {
         return openCodeGoModelSlug(model) === "deepseek-v4-flash-vision-exp";
     }
