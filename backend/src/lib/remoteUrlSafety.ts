@@ -60,6 +60,7 @@ export type RemoteResponsePolicy = {
 
 export type RemoteFetchPolicy = RemoteUrlPolicy & {
   timeoutMs?: number;
+  maxRedirects?: number;
   response?: RemoteResponsePolicy;
 };
 
@@ -191,6 +192,44 @@ function pinnedLookup(approved: ApprovedAddress[]): net.LookupFunction {
 
 export async function guardedRemoteFetch(input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1], policy: RemoteFetchPolicy = {}): Promise<Response> {
+  const limit = policy.maxRedirects ?? 0;
+  if (!Number.isSafeInteger(limit) || limit < 0 || limit > 10)
+    throw new Error("Remote fetch maxRedirects must be an integer from 0 to 10.");
+  const request = typeof input === "string" || input instanceof URL ? null : input;
+  const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
+  if (!limit || (method !== "GET" && method !== "HEAD"))
+    return guardedRemoteFetchOnce(input, init, policy);
+
+  let url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+  let headers = new Headers(init?.headers ?? request?.headers);
+  const signals = [request?.signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
+  if (policy.timeoutMs !== undefined) {
+    if (!Number.isSafeInteger(policy.timeoutMs) || policy.timeoutMs <= 0)
+      throw new Error("Remote fetch timeoutMs must be a positive integer.");
+    signals.push(AbortSignal.timeout(policy.timeoutMs));
+  }
+  const signal = signals.length ? AbortSignal.any(signals) : undefined;
+  for (let hop = 0; ; hop++) {
+    const response = await guardedRemoteFetchOnce(url, { ...init, method, headers, signal },
+      { ...policy, timeoutMs: undefined, response: undefined });
+    const location = response.headers.get("location");
+    if (![301, 302, 303, 307, 308].includes(response.status) || !location)
+      return policy.response ? boundRemoteResponse(response, policy.response) : response;
+    await response.body?.cancel();
+    if (hop === limit) throw new Error(`${policy.label ?? "Remote URL"} exceeded the redirect limit.`);
+    const target = new URL(location, url);
+    if (target.origin !== new URL(url).origin) {
+      // Custom MCP headers can contain credentials too. Only retain public
+      // content-negotiation headers when leaving the authenticated origin.
+      headers = new Headers([...headers].filter(([name]) =>
+        name === "accept" || name === "accept-language"));
+    }
+    url = target.toString();
+  }
+}
+
+async function guardedRemoteFetchOnce(input: Parameters<typeof fetch>[0],
+  init: Parameters<typeof fetch>[1], policy: RemoteFetchPolicy): Promise<Response> {
   const request = typeof input === "string" || input instanceof URL ? null : input;
   const approved = await resolveRemoteHttpsUrl(
     typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url,
