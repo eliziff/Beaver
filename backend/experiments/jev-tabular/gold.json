@@ -2,7 +2,9 @@
   "nda-mutual":{"0":{"value":"Mutual","evidence":["Alpha must keep Beta","Beta must keep Alpha"]},"1":{"value":false,"evidence":["only if they are bound"]},"2":{"value":"2026-01-15","evidence":["effective January 15"]}},
   "nda-unilateral":{"0":{"value":"Unilateral","evidence":["Only Delta"]},"1":{"value":false,"evidence":["shall not disclose"]},"2":{"value":"2026-02-03","evidence":["3 February 2026"]}},
   "consent-mixed":{"0":{"value":true,"evidence":["prior written consent"]},"1":{"normal":true}},
-  "credit-mixed":{"0":{"value":"CAD 1000000","evidence":["Term Loan A commitment"]},"1":{"normal":true},"2":{"value":0.5,"evidence":["0.5% per annum"]}},
+  "credit-mixed":{"0":{"values":["CAD 1000000","CAD 1,000,000","CAD 1 million"],"evidence":["Term Loan A commitment"]},"1":{"normal":true},"2":{"value":0.5,"evidence":["0.5% per annum"]}},
   "rubric":{"0":{"value":"Low","evidence":["30 days to cure","Neither party may terminate for convenience"]}},
-  "absence-and-compound":{"0":{"value":null,"outcome":"not_found"},"1":{"normal":true},"2":{"normal":true}}
+  "absence-and-compound":{"0":{"value":null,"outcome":"not_found"},"1":{"normal":true},"2":{"normal":true}},
+  "scaled-commitment":{"0":{"values":["USD 5 million","USD 5000000","USD 5,000,000"],"evidence":["USD 5 million"]}},
+  "locale-fee":{"0":{"normal":true}}
 }

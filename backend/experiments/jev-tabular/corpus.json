@@ -19,5 +19,9 @@
   {"id":"absence-and-compound","source":"The Recipient shall keep information confidential for three years. The agreement names Alpha and Beta as its parties. It contains no other provisions.","columns":[
     {"index":0,"name":"Effective date","format":"date","prompt":"What is the explicitly stated effective date?"},
     {"index":1,"name":"Direction","format":"text","prompt":"Is this NDA mutual or unilateral? Identify the direction and name the disclosing and receiving party or parties."},
-    {"index":2,"name":"Enforceable","format":"yes_no","prompt":"Is the confidentiality restriction enforceable under all applicable Canadian law?"}]}
+    {"index":2,"name":"Enforceable","format":"yes_no","prompt":"Is the confidentiality restriction enforceable under all applicable Canadian law?"}]},
+  {"id":"scaled-commitment","source":"The maximum committed amount of the Facility is USD 5 million.","columns":[
+    {"index":0,"name":"Commitment","format":"monetary_amount","prompt":"What is the explicitly stated committed amount of the Facility?"}]},
+  {"id":"locale-fee","source":"The one-off arrangement fee is EUR 1.234,56, using a period as the thousands separator and a comma as the decimal separator.","columns":[
+    {"index":0,"name":"Arrangement fee","format":"monetary_amount","prompt":"What is the explicitly stated one-off arrangement fee?"}]}
 ]
