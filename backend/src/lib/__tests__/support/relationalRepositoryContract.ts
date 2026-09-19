@@ -378,10 +378,15 @@ export function relationalRepositoryContract(
 
   it("binds a chat to a work product and keeps it out of the assistant history list", async () => {
     const { chatRepository } = await import("../../relationalChatRepository");
-    const owner = scope("work-product-chat"), draftId = randomUUID(), otherDraftId = randomUUID();
+    const { workProductRepository } = await import("../../relationalWorkProductRepository");
+    const owner = scope("work-product-chat"), workProducts = createWorkProductApplication(workProductRepository);
     await prepareScopes([owner]);
     const repository = chatRepository(owner);
     try {
+      const { id: draftId } = await workProducts.create(owner, { kind: "court-record", title: "Record", state: courtState() });
+      const { id: otherDraftId } = await workProducts.create(owner, { kind: "authorities", title: "Book", state: authoritiesState() });
+      await expect(repository.create({ projectId: null, tabularReviewId: null, workProductId: randomUUID() }))
+        .rejects.toMatchObject({ status: 403 });
       const draftChat = await repository.create({ projectId: null, tabularReviewId: null, workProductId: draftId });
       const otherChat = await repository.create({ projectId: null, tabularReviewId: null, workProductId: otherDraftId });
       const assistantChat = await repository.create({ projectId: null, tabularReviewId: null });

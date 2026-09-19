@@ -133,6 +133,8 @@ if (runtime.mode === "cloud") api.use(
 if (runtime.mode === "local") api.get("/auth/mfa/assurance", requireAuth, (_req, res) => {
   res.json({ currentLevel: null, nextLevel: null });
 });
+api.use("/memory", lazyRouter(async () => (await import("./routes/memory"))
+  .createMemoryRouter(await runtime.memory())));
 api.use("/organizations", lazyRouter(async () => (await import("./routes/organizations"))
   .createOrganizationRouter(await runtime.organizations())));
 

@@ -350,3 +350,18 @@ describe("application job queue", () => {
       .resolves.toMatchObject({ status: "failed" });
   });
 });
+
+it("defers a job without spending its retry budget", async () => {
+  const queue = await import("../jobQueue");
+  const pending = await queue.enqueueJob({ kind: "deferred-test", dedupeKey: "once", userId: "owner", payload: {}, maxAttempts: 1 });
+  let calls = 0;
+  const worker = queue.startJobWorker({ "deferred-test": async () => {
+    if (++calls === 1) throw new queue.DeferredJobError(1000);
+    return { ok: true };
+  } });
+  try {
+    await waitForJob(queue, pending.id, "owner");
+    expect(calls).toBe(2);
+    expect((await queue.getJob(pending.id, "owner"))?.attempts).toBe(1);
+  } finally { await worker.stop(); }
+});

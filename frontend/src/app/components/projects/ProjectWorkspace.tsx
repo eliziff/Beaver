@@ -21,6 +21,8 @@ import type { Document } from "@/app/lib/api/documents";
 
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import type { AssistantWorkflowLaunch } from "../workflows/workflowRoutes";
+import { MemoryEditor } from "../settings/MemoryEditor";
+import { Modal } from "../modals/Modal";
 import { AccessModal } from "../modals/AccessModal";
 import { NewTRModal } from "../tabular/NewTRModal";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
@@ -48,7 +50,7 @@ type Context = {
   openNewReview: () => void;
   setOwnerOnlyAction: React.Dispatch<React.SetStateAction<string | null>>;
 };
-type Dialog = "people" | "details" | "review" | "delete" | "deleting" | "deleted" | null;
+type Dialog = "memory" | "people" | "details" | "review" | "delete" | "deleting" | "deleted" | null;
 const Workspace = createContext<Context | null>(null);
 const sections = [
   { id: "documents", label: "Documents", path: "" },
@@ -203,10 +205,14 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
             ? value.setOwnerOnlyAction("delete this project")
             : setDialog("delete")}
           onSearchChange={(search) => setSearches((current) => ({ ...current, [activeSection]: search }))}
+          onOpenMemory={() => setDialog("memory")}
           onOpenPeople={() => setDialog("people")}
         />
         {children}
         {ownerOnlyDialog}
+        <Modal open={dialog === "memory"} onClose={() => setDialog(null)} breadcrumbs={[project?.name || "Project", "Memory"]}>
+          {dialog === "memory" && <MemoryEditor projectId={projectId} />}
+        </Modal>
         <NewTRModal
           open={dialog === "review"}
           onClose={() => setDialog(null)}

@@ -1,4 +1,4 @@
-import { chatRoleRank, roleFromRank } from "./resourceAccess";
+import { chatRoleRank, roleFromRank, workProductAccess } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
 import { ApplicationError } from "./applicationError";
@@ -202,6 +202,9 @@ export const chatRepository: CreateChatRepository = (scope) => ({
       AND ${projectAccess(scope, "edit")}`, tx) || input.tabularReviewId && !await one(sql`
       SELECT 1 FROM tabular_reviews r WHERE r.id=${input.tabularReviewId} AND ${reviewAccess(scope, "edit")}`, tx))
       throw new ApplicationError(403, "You cannot create a chat in this resource.");
+    if (input.workProductId && !await one(sql`SELECT 1 FROM work_products w WHERE w.id=${input.workProductId}
+      AND ${workProductAccess(scope, "edit")} AND (${input.projectId} IS NULL OR w.project_id=${input.projectId})`, tx))
+      throw new ApplicationError(403, "You cannot create a chat in this draft.");
     await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,research_selection,
       work_product_id,title,created_at,updated_at,deleted_at,transcript_version) VALUES(${id},${scope.userId},
       ${input.projectId},${input.tabularReviewId},${input.researchFileId ?? null},${encode(input.researchSelection ?? null)},
