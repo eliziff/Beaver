@@ -23,10 +23,9 @@ async function main() {
     throw new Error('A metered normal-model control requires explicit --allow-metered.');
   const { extractTabularAnswers } = await import('../../src/lib/tabular/extraction.ts');
   const { runChatTurn } = await import('../../src/lib/chat/turnEngine.ts');
-  const { JEV_ROUTING_PROMPT, JEV_POLICY } = await import('../../src/lib/tabular/jev.ts');
   const corpusText = await readFile(new URL('./corpus.json', import.meta.url), 'utf8');
   const corpus = JSON.parse(corpusText), gold = JSON.parse(await readFile(new URL('./gold.json', import.meta.url), 'utf8'));
-  const report = { policy: JEV_POLICY, model: values.model, datasetSha256: createHash('sha256').update(corpusText).digest('hex'),
+  const report = { policy: null, model: values.model, datasetSha256: createHash('sha256').update(corpusText).digest('hex'),
     createdAt: new Date().toISOString(), rows: [] };
   // Allocate before any billed call; never silently overwrite an existing result.
   const { open } = await import('node:fs/promises'); const output = await open(values.out, 'wx', 0o600);
@@ -48,7 +47,7 @@ async function main() {
             reference: { provider: 'library', kind: 'document', id: row.id, versionId: 'v1' } },
           columns: row.columns, model: values.model, apiKeys: {}, signal: controller.signal,
           runTurn: async options => {
-            if (options.systemPrompt === JEV_ROUTING_PROMPT) routingCalls++;
+            if (options.grounded === false) routingCalls++;
             else {
               answeringCalls++;
               const tools = options.createTools(options.evidenceState, 'main', { evidence: options.evidenceState,
@@ -58,7 +57,7 @@ async function main() {
             return runChatTurn(options);
           },
           onResearchObserved: event => { for (const query of event.queries ?? [])
-            if (query.input.purpose === 'tabular_judgment') decisions.push(query.input); },
+            if (query.input.purpose === 'tabular_judgment') { report.policy = query.input.policy; decisions.push(query.input); } },
           accept: async (index, cell) => { cells[index] = cell; },
         });
       } catch { failure = controller.signal.aborted ? 'cancelled' : 'extraction_failed'; }
