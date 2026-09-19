@@ -25,6 +25,8 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 import uno
+import unohelper
+from com.sun.star.frame import XTerminateListener, TerminationVetoException
 
 MAX_FILE = 100 * 1024 * 1024
 MAX_XML = 64 * 1024 * 1024
@@ -169,11 +171,25 @@ def _windows_job():
     k.SetInformationJobObject.argtypes = [w.HANDLE, ctypes.c_int, ctypes.c_void_p, w.DWORD]
     k.AssignProcessToJobObject.argtypes = [w.HANDLE, w.HANDLE]
     job = k.CreateJobObjectW(None, None)
-    limit = Limits(); limit.Basic.Flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    limit = Limits(); limit.Basic.Flags = 0x2000
     if not job or not k.SetInformationJobObject(job, 9, ctypes.byref(limit), ctypes.sizeof(limit)) or not k.AssignProcessToJobObject(job, k.GetCurrentProcess()):
         raise OSError(ctypes.get_last_error(), 'Cannot establish owned Windows job')
     # Intentionally retained for process lifetime. Closing it would kill this process too.
     return job
+
+
+class SessionLifetime(unohelper.Base, XTerminateListener):
+    """Keep the owned desktop alive between closing a draft and reopening it.
+
+    XDesktop's documented termination veto prevents Windows Writer from
+    tearing down the URP bridge when its last document closes. The listener
+    is removed before our own final termination, including error paths.
+    """
+    def queryTermination(self, event):
+        raise TerminationVetoException('Document session is still active', self)
+
+    def notifyTermination(self, event): pass
+    def disposing(self, event): pass
 
 
 @contextmanager
@@ -192,7 +208,7 @@ def writer(binary, author="Beaver"):
             '--headless', '--norestore', '--nodefault', '--nofirststartwizard',
             '--accept=pipe,name=' + pipe + ';urp;StarOffice.ComponentContext'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=own_group)
-        desktop = None
+        desktop, lifetime = None, SessionLifetime()
         try:
             context = uno.getComponentContext()
             resolver = context.ServiceManager.createInstanceWithContext('com.sun.star.bridge.UnoUrlResolver', context)
@@ -206,12 +222,15 @@ def writer(binary, author="Beaver"):
                         raise RuntimeError('Private LibreOffice instance did not become ready')
                     time.sleep(0.05)
             desktop = remote.ServiceManager.createInstanceWithContext('com.sun.star.frame.Desktop', remote)
+            desktop.addTerminateListener(lifetime)
             provider = remote.ServiceManager.createInstanceWithContext('com.sun.star.configuration.ConfigurationProvider', remote)
             product = provider.createInstanceWithArguments('com.sun.star.configuration.ConfigurationAccess', props(nodepath='/org.openoffice.Setup/Product'))
             yield desktop, product.getByName('ooSetupVersionAboutBox')
         finally:
             if desktop is not None:
-                try: desktop.terminate()
+                try:
+                    desktop.removeTerminateListener(lifetime)
+                    desktop.terminate()
                 except Exception: pass
             if process.poll() is None:
                 if not own_group: process.terminate()
@@ -305,7 +324,6 @@ def check_value(name, value):
         raise ValueError('Only HTTP/mailto and internal hyperlinks are permitted')
     if isinstance(value, dict):
         for k, v in value.get('fields', {}).items(): check_value(k, v)
-        # PropertyValue/NamedValue can smuggle another setting through a sequence.
         fields = value.get('fields', {})
         if 'Name' in fields and 'Value' in fields: check_value(fields['Name'], fields['Value'])
     elif isinstance(value, list):
@@ -345,6 +363,11 @@ def writable(target, name):
 
 
 def property_object(node, name):
+    # Paragraph character properties otherwise read the paragraph mark's defaults
+    # after export. Character operations address the actual text, not that mark.
+    if name.startswith('Char') and hasattr(node, 'supportsService') and node.supportsService('com.sun.star.text.Paragraph'):
+        cursor = node.getText().createTextCursorByRange(node.Start); cursor.gotoRange(node.End, True)
+        return cursor
     if name == 'String' and hasattr(node, 'String'): return node
     if hasattr(node, 'getPropertySetInfo') and node.getPropertySetInfo().hasPropertyByName(name): return node
     cursor = node.createTextCursor(); cursor.gotoStart(False); cursor.gotoEnd(True)
@@ -501,7 +524,10 @@ def main():
         else: result = run(args.source, args.output, request, args.soffice)
         print(json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)
     except Exception as error:
-        print(json.dumps({'ok': False, 'error': str(error)[:1000]}), flush=True)
+        import traceback
+        location = ','.join(Path(f.filename).name + ':' + str(f.lineno)
+                            for f in traceback.extract_tb(error.__traceback__)[-3:])
+        print(json.dumps({'ok': False, 'error': str(error)[:700] + ' [' + location + ']'}), flush=True)
         raise SystemExit(1)
 
 
