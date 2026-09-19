@@ -15,8 +15,8 @@ from word_uno import (W, collection, resolve, encode, decode, check_name, check_
                       package, props, writer, load, texts, inspect, edit, property_object, FORBIDDEN)
 import uno
 
-# Interfaces are discovered at runtime; application/storage/scripting interfaces
-# are never capabilities of a document program. Document-local APIs remain broad.
+# Discover document interfaces rather than maintaining a formatting catalogue.
+# Application, storage and scripting interfaces are never console capabilities.
 INTERFACES = ('com.sun.star.text.', 'com.sun.star.style.', 'com.sun.star.table.',
               'com.sun.star.drawing.', 'com.sun.star.container.')
 METHODS = {'getString', 'setString', 'getText', 'getStart', 'getEnd', 'getAnchor',
@@ -37,19 +37,18 @@ ACTIVE_SERVICES = re.compile(r'OLE|Applet|Plugin|MediaShape|Script|Macro|Databas
 
 
 def semantic_package(path):
-    """Conservative proof: rejecting our changes restores the no-edit control.
+    """Rejecting new revisions must restore the no-edit round-trip control.
 
-Only serialization/inspection metadata are ignored. Document settings, styles,
-relationships, custom data and authored metadata are part of the comparison.
-"""
+    Ignore only named volatile/inspection metadata, not document parts or
+    formatting. A difference is a refusal, not an invitation to patch the XML.
+    """
     volatile = {'rsidR', 'rsidRPr', 'rsidP', 'rsidSect', 'rsidDel', 'rsidRDefault', 'paraId', 'textId'}
     skip = {W + n for n in ('rsids', 'trackRevisions', 'proofState', 'revisionView', 'lastRenderedPageBreak', 'proofErr')}
     skip.update({'{http://purl.org/dc/terms/}modified',
                  '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}lastModifiedBy',
                  '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}revision',
                  '{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}TotalTime'})
-    # Writer adds calculated statistics when selection-based review triggers layout.
-    # They are not authored content; all other application properties remain checked.
+    # Selecting a revision can trigger layout and refresh these calculated counts.
     skip.update('{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}' + n
                 for n in ('Pages', 'Words', 'Characters', 'CharactersWithSpaces', 'Lines', 'Paragraphs'))
     def canonical(node):
@@ -172,7 +171,7 @@ class Broker:
             return {'items': rows[offset:offset+limit], 'total': len(rows), 'next_offset': offset+limit if offset+limit < len(rows) else None}
         if op == 'get':
             name = command['name']; check_name(name)
-            value = getattr(obj, name)
+            value = getattr(property_object(obj, name) if name.startswith('Char') else obj, name)
             if callable(value): raise ValueError('Use call for native methods')
             return self.save(value)
         if op == 'set':
@@ -181,7 +180,7 @@ class Broker:
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('set requires 1-100 properties')
             for name, value in values.items():
                 check_value(name, value)
-                subject = obj if hasattr(obj, name) else property_object(obj, name)
+                subject = property_object(obj, name) if name.startswith('Char') or not hasattr(obj, name) else obj
                 before = encode(getattr(subject, name))
                 setattr(subject, name, decode(value, self.refs))
                 after = encode(getattr(subject, name))
@@ -194,6 +193,11 @@ class Broker:
                 if target in self.targets:
                     self.checks.append((self.targets[target], name, after))
             return None
+        if op == 'constant':
+            name = command.get('name', '')
+            if not isinstance(name, str) or not re.fullmatch(r'com\.sun\.star\.(?:text|style|table|drawing|awt|lang)\.[A-Za-z0-9_.]+', name):
+                raise ValueError('Constant is outside document types')
+            return encode(uno.getConstantByName(name))
         if op == 'create':
             self.mutate(); service = command.get('service', '')
             if (not isinstance(service, str) or not DOCUMENT_SERVICES.match(service) or ACTIVE_SERVICES.search(service)
@@ -206,7 +210,7 @@ class Broker:
             if not isinstance(args, list) or len(args) > 20: raise ValueError('Too many native arguments')
             if name == 'setPropertyToDefault': check_name(args[0])
             if not READ_METHOD.match(name): self.mutate()
-            result = getattr(obj, name)(*(decode(a, self.refs) for a in args))
+            result = uno.invoke(obj, name, tuple(decode(a, self.refs) for a in args))
             if not READ_METHOD.match(name): self.changes.append({'target': self.targets.get(target, target), 'method': name})
             saved = self.save(result)
             if name == 'createSearchDescriptor' and isinstance(saved, dict) and 'ref' in saved: self.scratch.add(saved['ref'])
@@ -218,7 +222,6 @@ class Broker:
                 if 'property' in c: self.checks.append((c['target'], c['property'], c['after']))
             return changes
         if op == 'expect':
-            # Expectations use persisted inspection addresses, not ephemeral native handles.
             selector = self.targets.get(target, target)
             resolve(self.doc, selector)
             for name, value in command.get('values', {}).items():
@@ -270,8 +273,6 @@ def transact(source, output, request, binary, interact):
             doc = load(desktop, source)
             broker = Broker(doc, readonly)
             try:
-                # Baseline import/export must first preserve the original. Rich edits
-                # never excuse destruction which happened merely by opening the file.
                 if not readonly:
                     doc.storeToURL(baseline.resolve().as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
                     _, base_protected, base_paragraphs = package(baseline)
@@ -288,8 +289,6 @@ def transact(source, output, request, binary, interact):
                 doc.storeToURL(output.resolve().as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
             finally: doc.close(True)
             after_parts, after_protected, _ = package(output)
-            # Existing review/opaque content must survive unless an explicit review
-            # operation intentionally resolved revisions. Other deletions fail closed.
             intentional_review = any('review' in c for c in broker.changes)
             if mode == 'tracked' and intentional_review and any('review' not in c for c in broker.changes):
                 raise ValueError('Resolve existing revisions in a separate program from new edits')
@@ -346,5 +345,5 @@ def serve(source, output, request, binary):
             try: emit({'rpc': 'result', 'id': command.get('id'), 'value': broker.rpc(command)})
             except Exception as error:
                 emit({'rpc': 'result', 'id': command.get('id'), 'error': str(error)[:1000]})
-                raise  # All failures discard the draft, even if the guest catches its error.
+                raise
     return transact(source, output, request, binary, interact)

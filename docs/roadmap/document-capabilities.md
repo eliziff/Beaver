@@ -62,41 +62,46 @@ remains a user-requested operation.
 
 ## Word operations and exact targets
 
-Current paths: `Write` composes semantic Markdown with profiles, notes, fields
-and evidence; `Read` provides compact content; `Edit` and `edit_docx_advanced`
-retain surgical tracked text changes. The optional live Word add-in stays intact.
-Do not replace those paths with a whole-document LibreOffice round trip merely
-to change a phrase. Do not build a second full Word object model or browser editor.
+`Write` composes semantic Markdown with profiles, notes, fields and evidence;
+`Read` provides compact content; `Edit` and `edit_docx_advanced` retain surgical
+tracked text changes. The optional live Word add-in stays intact. A phrase edit
+must not require a whole-document office round trip or the entire UNO reference.
 
-The new `word_uno` specialist is a bounded Linux local/cloud implementation:
-inspect native Writer objects; describe typed properties on demand; preview
-coordinated property/text changes; publish the exact candidate using the existing
-version store's compare-and-swap. It does not require Word or call a model itself.
+`word_uno` supplies depth on Windows, macOS and Linux: bounded object/property
+inspection, a QuickJS JavaScript console over discoverable document-local UNO
+methods/factories, native tracked/direct edits, selective revision review, and
+version-safe publication. Variables, loops and functions compose heterogeneous
+changes in one program. No second Word model, bespoke programming language,
+browser office suite or general engine-routing framework is maintained.
 [Runtime, reproduction and measured limits](../../backend/experiments/libreoffice-uno/README.md)
-are recorded beside the focused integration checks.
+live beside the focused integration checks.
 
-- Targets bind a source byte hash and an explicit document version. Reinspect
-  after changes. Native object indexes/names are not durable legal evidence.
-- Preview produces a separate DOCX with a source/candidate-bound receipt. Export,
-  reopen, text and protected-content checks run before it is saved. A failure
-  discards the candidate; the source never becomes a scratchpad.
-- New UNO changes are direct, not native tracked changes. Application Direct
-  mode is required to publish over the source. Manual mode can inspect/download
-  the separate copy; it cannot silently turn a direct edit into a reviewed one.
-- Apply consumes the exact candidate bytes, checks the base version/working
-  revision/hash again and uses existing persistence. It does not re-execute the
-  edit program. Cancellation and mutation fences use the ordinary agent runtime.
-- Operations are constrained document-local properties and exact replacements.
-  No Python `eval`, arbitrary UNO invocation or public listener is exposed.
-  An isolated general programmable console remains follow-on work, not a shipped
-  capability. Cloud deployments still need OS-level document-process isolation.
+- Inspection addresses belong to an exact source hash/version. Retain resolved
+  native handles while editing; reinspect after structural changes or reopening.
+  Native indexes and handles are not durable legal evidence coordinates.
+- Preview operates on a disposable copy and saves a separate DOCX with a bound
+  receipt. Export/reopen checks include ordered body/story structure and selected
+  native postconditions. Failures discard the candidate, never repair it by
+  copying XML parts back from the source.
+- User edit mode, not a model-supplied argument, owns tracked/direct policy.
+  Native body/footnote revisions and selective accept/reject are implemented.
+  Tracked candidates must prove that rejecting the new revisions restores the
+  no-edit control. Untrackable formatting/section changes fail in Review mode.
+- Apply publishes the exact frozen bytes through the existing version store's
+  compare-and-swap, rechecking hashes/working revision. No program rerun, parallel
+  store, second agent loop or unrelated document access is introduced.
+- QuickJS WASM runs on a terminable thread; only validated document-local RPC
+  crosses to Python. No model Python execution, host objects, public UNO listener,
+  application/storage services or macro execution. A networkless, read-only-root
+  OCI worker path provides native-process isolation in the cloud. Local native
+  execution does not claim OS sandboxing against LibreOffice vulnerabilities.
 
-The writer's native property discovery avoids a second handwritten API reference.
-The small write policy is a security/capability boundary, not a claim of every Word
-parameter. A property that fails export/reopen is refused even if UNO accepted it.
-Windows/macOS gateway support, broad native revision emission and full browser/
-database integration qualification remain outstanding. Existing platform features
-outside this new specialist are unchanged.
+UNO introspection supplies types and methods on demand. Beaver owns operation
+policy, persistence and legal semantics, not another full native API catalogue.
+Named constants and typed arguments avoid model-guessed native numeric values.
+The supported feature set remains limited by actual Writer/DOCX interoperability,
+not by a fixed short formatting menu. A successful setter without export/reopen
+confirmation is not reported as a completed edit.
 
 ## Benchmarks and external references
 
@@ -106,10 +111,10 @@ and application-outcome coverage. No live models or full sweeps belong in ordina
 CI. Pin the tested engine/runtime in deployments and record actual versions.
 
 [LibreOffice UNO](https://api.libreoffice.org/docs/idl/ref/servicecom_1_1sun_1_1star_1_1text_1_1TextDocument.html)
-is the chosen independent rich runtime. The existing LibreOffice PDF path remains
-separate from editing. SuperDoc adoption is not proceeding: its V2 engine's
-separate proprietary terms blocked the proposed evaluation. WordUp/native Word
-is not a customer-runtime fallback. No Aspose/UNO/SuperDoc engine-routing system.
+is the independent rich runtime. The existing PDF path stays separate from editing
+and shares executable discovery. SuperDoc adoption is not proceeding: its V2
+engine's separate proprietary terms blocked the proposed evaluation. WordUp/native
+Word is not a customer-runtime fallback. No Aspose/UNO/SuperDoc routing system.
 
 [DocOps](https://github.com/icip-cas/DocOps) and
 [llm-docx-editing](https://github.com/nberk/llm-docx-editing) remain external task/
@@ -122,8 +127,8 @@ Keep four lanes separate:
 | Lane | Required proof |
 | --- | --- |
 | A: document mechanics | Compound notes/fields/hyperlinks/bookmarks/revisions/comments/controls/tables/drawings/custom-XML/unknown parts. Exact postconditions, source conservation, relationships/schema, export/reopen and layout-sensitive renders. Current UNO witnesses are conservative and incomplete, not a full schema/layout oracle. |
-| B: agent/application contract | Scope, Direct/review policy, cancellation, stale rejection, exact candidate publication and retries. Real database/browser gates remain distinct from injected-store tests. Measure successful-task tokens including help and retries, not just prompt size. |
-| C: optional live Word host | Retain its existing independent capability/session/smoke gates. No Word-host dependency for the new headless path and no claim that Linux results prove Windows/macOS execution. |
+| B: agent/application contract | Scope, tracked/direct policy, cancellation, stale rejection, exact candidate publication and retries. Real database/browser gates remain distinct from injected-store tests. Measure successful-task tokens including help and retries, not just prompt size. |
+| C: runtime/host | Real gateway/console/Writer runs on Windows x64, macOS ARM64 and Linux x64; repeat the suite inside the isolated cloud image. Missing runtimes fail. Keep the optional live Word add-in's independent host checks; none is a required headless runtime. |
 | D: accepted legal gold | Exact occurrence/style/core/short-form/pinpoint/kind spans; canonical identity/resolver snapshot; hyperlink spans/destinations; quotation/source match; proposition/support; unresolved/ambiguous/no-quote/no-support cases. Profiles on/off, within/outside pinpoint, editorial/repeated matches, actual source fragments, fallbacks and paired rescue outcomes. |
 
 Provisional DOCX/ToA rows are not a denominator. Annotate exact identities/spans/
@@ -188,18 +193,16 @@ Quotation presence is not support proof; no bespoke worker/review store/model lo
 
 ## Sequence and stopping gates
 
-1. Gate the implemented UNO slice in complete local/cloud checkouts: repository
-   build, real persistence and artifact/browser flows, installed image and isolation.
-2. Expand the compound corpus for concrete needed properties and Word structures;
-   reject destructive round trips rather than copying XML parts back after export.
-3. Extend compact object inspection and exact selection without affecting existing
-   evidence coordinates; retain semantic composition and deterministic text tools.
-4. Add broader programmed operations only with an established execution sandbox,
-   clear native review semantics and outcome-based tests. No home-grown script sandbox.
-5. Preserve citation/linking/quotation gates above independently of engine progress.
-   Remove generic implementations only when an actual tested replacement covers them.
-6. Qualify Windows/macOS packaging and process ownership, then measure warm/cold
-   latency and successful-task token cost. Add warm workers only for measured need.
+1. Keep cross-platform native and isolated-cloud tests tied to the exact engine,
+   interpreter, fonts and package lock; no Linux-only claim of other-OS support.
+2. Extend compatibility checks with real compound documents and joined native
+   engine/persistence/browser review flows. Keep unit and actual runtime evidence distinct.
+3. Expand native access only for demonstrated document-local needs. Do not restore
+   host/storage/scripting capabilities or invent a second native document model.
+4. Measure successful-task tokens/calls/latency and warm/cold costs before adding
+   persistent workers. Ordinary content work must retain the cheap paths.
+5. Preserve citation/linking/quotation gates independently of engine progress.
+   Remove generic implementations only when actual tested replacements cover them.
 
 No feature SDK/registry/permissions DSL, universal runtime, extra UI/office suite
 or transition machinery. Reuse component/operation/job/source/mutation primitives;

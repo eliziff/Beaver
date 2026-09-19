@@ -18,13 +18,15 @@ object.describe(filter='',offset=0,limit=50) discover the actual native API.
 word.target('paragraph:0') resolves an inspection target in this document.
 word.inspect({family:'table',offset:0,limit:20}) returns paged text and targets.
 word.create('com.sun.star.text.Footnote') creates a document-local native object.
-word.enum(type,value), word.struct(type,fields) construct typed UNO arguments.
+word.constant(name) resolves a native named constant.
+word.enum(type,value), word.struct(type,fields), word.any(type,value) construct typed UNO method arguments.
 word.mm(n) and word.pt(n) convert to hundredths of a millimetre for geometry; font heights use points.
 word.batch([{target,replace:{find,text}}]) performs exact scoped replacements.
 word.review('revision:0','accept'|'reject') resolves that revision; pass an array for a coordinated set.
 Resolve revisions in a separate program from new edits. Inspect again after review.
 object.expect({property:value}) registers export/reopen assertions for an inspection target.
-Native object handles live only within the program; inspection addresses belong to the source snapshot.
+Native object handles live only within the program. Resolve objects before structural edits and keep those objects;
+reinspect to obtain current indexed addresses after inserting/removing objects. Do not reuse a previous version's addresses.
 Use get/call/describe to traverse native collections; request selected properties rather than whole objects.
 String is Writer's native redline text and can include deletions; inspect revisions or use ordinary Read for final prose.
 Review mode requires native revisions whose rejection restores the no-edit round-trip control.

@@ -1,127 +1,155 @@
-# LibreOffice/UNO editing
+# LibreOffice/UNO document console
 
-This is a working, bounded rich-edit path, not a replacement for the Markdown
-composer or surgical tracked text edits. Production code is in
-`src/lib/libreOffice{,Application}.ts`, `src/lib/chat/libreOfficeTool.ts` and
-`scripts/word_uno.py`. The ordinary chat tool registry exposes `word_uno` only to
-the main agent. It uses existing document versions, artifact events and storage.
-No new document service, browser editor, inference loop or npm dependency exists.
+`word_uno` is the main assistant's lazy rich-document tool. Ordinary `Read`,
+`Edit`, `edit_docx_advanced` and Markdown `Write` keep their compact/surgical paths.
+Rich tasks use JavaScript over native Writer objects, not a second Word model or
+an expanding list of Beaver formatting commands. No Microsoft Word is required.
 
-## Install and run
+## Runtime and installation
 
-The qualified process boundary is **Linux** (local or cloud), with LibreOffice
-Writer and its matching Python/UNO bridge. For Debian/Ubuntu images:
+The same gateway runs on Windows, macOS and Linux. It locates LibreOffice and
+probes a compatible Python/UNO bridge, including the actual office type registry.
+Windows/macOS use the installed application's bundled interpreter where available;
+Linux normally uses `/usr/bin/python3` with `python3-uno`. No manual PYTHONPATH,
+registry, Trust Center or signing changes are made. Overrides are `WORD_UNO_PYTHON`
+and the existing `SOFFICE_BINARY_PATH`/`LIBREOFFICE_BINARY_PATH`/`LIBRE_OFFICE_EXE`.
+Install LibreOffice with its Python component before using the native path.
+
+Each job owns a private profile and random local pipe. A Windows Job Object or
+POSIX process group owns cleanup; a termination listener holds Writer across
+close/reopen. `Stop` terminates an independent script thread and the owned native
+job, not the user's office. Keep `backend/scripts` alongside the compiled backend.
+`quickjs-emscripten` and its WASM dependencies are pinned in the backend lockfile.
+
+For an isolated cloud worker, build from `backend/`:
 
 ```sh
-apt-get install libreoffice-writer python3-uno
-/usr/bin/python3 -c 'import uno'
-soffice --version
+docker build -f uno.Dockerfile -t beaver-uno:qualified .
 ```
 
-Pin the OS image/package versions in deployment and run this suite on that image.
-Every result records the actual engine version; version recording alone is not
-qualification. `WORD_UNO_PYTHON` selects a trusted Python with UNO (default
-`/usr/bin/python3`). Existing `SOFFICE_BINARY_PATH`, `LIBREOFFICE_BINARY_PATH` and
-`LIBRE_OFFICE_EXE` overrides select the office executable. Keep `backend/scripts`
-with the compiled backend. Nothing installs Word or requires Word activation.
-Windows/macOS process ownership and packaging are not implemented or qualified;
-the gateway refuses there rather than leaking an owned office process.
+Set `WORD_UNO_CONTAINER_IMAGE` to the qualified image's immutable digest.
+`WORD_UNO_CONTAINER_RUNTIME` defaults to `docker` (a compatible `podman` executable
+may be configured). The gateway uses no network, a read-only root, dropped
+capabilities, no-new-privileges, bounded CPU/memory/PIDs, a temporary filesystem
+and only the assigned per-job directory mount. It removes the container on all
+exit paths. The image build recipe is not itself a release pin; qualify and
+retain its actual digest and engine/font versions. Never expose a daemon socket
+to model code or the browser. The native local path is document-capability
+restricted, not an OS sandbox against a vulnerability inside LibreOffice.
 
-From the repository root:
+## Model interface
+
+Load `word_uno`, then `help` for concise console instructions. `inspect` returns
+bounded native text/targets and the immutable source `snapshot`; `describe`
+returns selected property metadata. `inspect` with `program` is read-only.
+`preview` takes the snapshot and either `program` or `operations`, executes on a
+copy, exports/reopens/verifies it, and saves a separate version-bound candidate.
+`apply` publishes those frozen candidate bytes after another base-version check;
+it never reruns the program. Existing artifact events, views, storage, scope,
+mutation fences and cancellation are used. No new service/store/model loop/UI.
+
+Programs are synchronous JavaScript function bodies with variables, loops and
+functions. Native calls suspend through QuickJS Asyncify automatically. Return a
+small result, not the document object tree. Guest code has no Node APIs, imports,
+Python evaluator, filesystem or network. It runs in QuickJS WASM on a terminable
+worker thread with memory, stack, time, call and output limits.
+
+| Operation | Purpose |
+| --- | --- |
+| `object.get(name)` / `object.set(values)` | Native properties; character formatting on a paragraph addresses its text rather than its paragraph mark. |
+| `object.call(method, ...args)` | Discoverable document-local UNO methods and collections. |
+| `object.describe(filter, offset, limit)` | Native method signatures and property types, loaded only as needed. |
+| `word.target(address)` / `word.inspect(query)` | Resolve or enumerate native document objects. |
+| `word.create(service)` | Available document-local factories, including notes, tables, bookmarks and styles. |
+| `word.enum(type, value)` / `word.struct(type, fields)` / `word.any(type, value)` | Typed UNO method arguments, including sequences required by numbering APIs. |
+| `word.constant(name)` | Actual named native constants, rather than guessed numeric values. |
+| `word.batch(operations)` | Existing exact replacements and coordinated property batches. |
+| `object.expect(values)` | Register explicit export/reopen property postconditions for an inspected address. |
+| `word.review(targets, decision)` | Accept/reject selected native revisions; keep review separate from new changes. |
+
+`doc` is the current Writer document. Native handles live inside one program.
+Resolve objects before structural edits and retain those handles; inspect again
+for new indexed addresses after insertions/removals. Addresses are not durable
+legal citations. `String` is native redline text and may include deletions;
+use compact `Read` for final prose or inspect the revisions explicitly.
+
+For example, in a Direct-mode preview, after inspecting the actual table name:
+
+```js
+const table = word.target('table:Table1');
+const rows = table.get('Rows');
+rows.call('insertByIndex', rows.get('Count'), 1);
+table.set({ RepeatHeadline: true });
+return word.inspect({ target: 'table:Table1' });
+```
+
+Use native introspection for detailed features instead of adding another wrapper.
+Application/storage/scripting interfaces, arbitrary document loading, executable
+services, active external fields, macros and embedded objects are excluded.
+Document-local breadth is not permission to access the host.
+
+## Review, preservation and publication
+
+The application's existing user setting selects tracked or direct mode; a model
+argument cannot override it. Tracked text and footnote edits are emitted by Writer
+as real DOCX revisions. The worker reopens the exported candidate, accepts the new
+revisions on a disposable copy for property checks, and rejects them on another
+copy. Rejection must restore a no-edit round-trip control (apart from named
+volatile serialization/statistics metadata). It does not waive entire XML parts.
+An untrackable property or mixed batch fails instead of silently applying direct
+changes in Review mode. Some page/formatting operations therefore require the
+user's explicit Direct mode; broad native review fidelity is not assumed.
+
+Every mutation first proves that this input survives the tested no-edit text and
+protected-content checks. Export/reopen checks ordered body structure, story
+text, table cells/rows, bookmark text, drawing geometry and revision identities,
+plus targeted native properties. Existing review/comment text/authors, custom XML,
+bindings and opaque parts are protected unless an explicit revision-review action
+accounts for their removal. These witnesses are not full OOXML validation, all
+anchor geometry or all Word layout behavior. Unsupported documents fail; XML parts
+are never copied back to conceal import/export damage. Direct programs can make
+intentional structural changes, so application intent still requires reviewing
+the candidate, not interpreting a successful export as semantic approval.
+
+Macros and link updates are disabled with named UNO constants. The old numeric
+macro setting was corrected: `NEVER_EXECUTE` is used explicitly. ZIP/XML screening
+is defense in depth; cloud deployments should use the isolated image path.
+
+The receipt binds the original version, working revision, source hash, candidate
+hash, execution mode and verification. Application publication uses the existing
+compare-and-swap version write. Repeated application in one turn is idempotent;
+a stale later retry cannot overwrite newer work. No claim of a new distributed
+exactly-once transaction or unrestricted concurrent document editing is made.
+
+## Reproduction and evidence
+
+The path-filtered workflow runs real console/Writer tests on Windows x64,
+macOS ARM64 and Linux x64. Linux also repeats them inside the network-isolated
+image. It exercises actual creation, table/footnote edits, native review/rejection,
+existing revision preservation, rejected mixed edits, failed programs, read-only
+policy and QuickJS cancellation. Missing runtimes fail instead of skipping.
+Artifacts retain exported candidates and engine receipts.
 
 ```sh
-/usr/bin/python3 -m unittest discover -s backend/experiments/libreoffice-uno -p 'test_*.py' -v
+# With backend dependencies installed and a usable LibreOffice/Python bridge:
 cd backend
+npx tsx --test experiments/libreoffice-uno/console.node.ts
 npx tsx --test experiments/libreoffice-uno/application.node.ts
+# Linux's independent bounded-batch regression suite:
+/usr/bin/python3 -m unittest discover -s experiments/libreoffice-uno -p 'test_*.py' -v
 ```
 
-The first command starts real private Writer instances and never skips missing
-runtimes. The second tests application publication outcomes with a fake document
-store and fake expensive engine; it is not proof of a database or Writer runtime.
-The path-filtered CI job runs these checks separately from the normal Vitest suite.
-No live model or paid API is used.
+The application suite uses an injected document store/engine for publication,
+mode, tamper, stale/race, scope and cancellation outcomes; it is not native or
+real-database proof. Normal repository CI and browser tests remain separate.
+The cross-platform suite and full existing CI passed at
+`29b93e6a17f5ea4e73918e92fe94321a6d3357f8`; subsequent changes require their own
+checks. No live model spend or full sweep is part of this workflow. The small
+compound slate is not universal Word-feature or successful-task-token benchmarking.
 
-## Model workflow
-
-Use `Read`, `Edit` and `Write` for ordinary content. Load `word_uno` for depth:
-
-1. `inspect` a version-pinned `file_path`, optionally with `family`, `target`,
-   `offset` and `limit`. It returns native object targets and a source `snapshot`.
-2. `describe` a target, optionally filtering property names. It discovers native
-   types and values; `writable` describes this worker's policy, not all UNO powers.
-3. `preview` with that snapshot and a coordinated batch. The source stays intact;
-   the exported/reopened candidate is a separate Library DOCX with a bound receipt.
-4. Review the report and actual candidate, using existing document/PDF views.
-   `apply` consumes the exact `preview_resource` and original `file_path`.
-   It requires the application's **Direct** edit mode. Manual/review mode may
-   produce the copy but cannot silently publish direct edits to the original.
-
-An illustrative batch (obtain actual names/targets from inspection):
-
-```json
-[
-  {"target":"footnote:0","replace":{"find":"paragraph 12","text":"paragraph 15"}},
-  {"target":"table:Table1","set":{"RepeatHeadline":true}},
-  {"target":"page-style:Standard","set":{"LeftMargin":1905}}
-]
-```
-
-UNO measurement properties normally use hundredths of a millimetre, not points.
-The console uses native property names, with bounded enum/struct values. Targets
-cover body paragraphs, tables/cells, notes, frames and page/paragraph/character
-styles; `header:<page-style>` and `footer:<page-style>` address their text.
-Bodies and tables are not interchangeable: inspect the table to get cell targets.
-Native range search resolves exact text inside the chosen object, including
-Unicode and notes; models do not calculate character offsets. Handles are valid
-only for the inspected snapshot. They are not legal evidence or durable citations.
-
-## Execution and preservation contract
-
-Each batch owns a random UNO pipe and fresh profile, never a public TCP listener
-or the user's office. The Node gateway sanitizes credentials, bounds input/output,
-owns the process group, supports cancellation and kills timed-out descendants.
-The Linux worker applies resource limits. Macros, embedded objects, active fields,
-DTD/entities and active external relationships are refused; macro execution and
-link updates are disabled when loading. This is **not an OS sandbox**. Run the
-worker under deployment-level filesystem/network isolation for untrusted files.
-
-There is deliberately no `eval`, arbitrary Python program or unrestricted UNO
-method invocation. A full programmable console requires an established execution
-sandbox and is still follow-on work. The current batch surface supports only
-explicit document-local property families and exact text replacements.
-
-A failed operation discards the entire candidate. Export and reopen must preserve
-requested property values and text/story identities. An independent source XML
-paragraph inventory also rejects text changes outside explicit replacements;
-identical inherited header/footer copies are deduplicated for that inventory.
-Existing revision/comment text and authors, bindings, custom XML, and opaque
-assets are checked. Changed ZIP parts are reported. These witnesses do **not**
-prove paragraph ordering, every anchor position, all formatting, full OOXML
-validity or Word-identical pagination. Conservatism can refuse a harmless
-serialization change, field result or property quantization. No part is copied
-back to conceal an import/export failure.
-
-New changes are direct edits, **not native tracked changes**. Existing source
-revisions are checked; review-mode publication is refused. The receipt binds
-source version, working revision, original hash and candidate hash. Publication
-uses the document store's compare-and-swap; it never reruns the edit program.
-Duplicate application in one turn is idempotent; later retries hit the stale-base
-check. A crash after an uncertain write is fenced from automatic replay, not
-represented as a durable cross-process exactly-once transaction.
-
-## Evidence for this change
-
-Locally executed on LibreOffice **25.2.3.2**, system Python/UNO and Node **22.16.0**:
-seven real-engine tests passed (compound note/table/margin edit, no-change control,
-paged/property inspection, Unicode targeting, failed batches, stale/output guards,
-unsafe properties/packages); five application outcome tests passed.
-The actual TypeScript gateway was also exercised through export/reopen, and an
-aborted job left no owned office process. A two-page candidate was rendered to
-PDF/PNG; both pages were visually inspected. A table colour edit that did not
-survive export was refused rather than reported successful.
-
-TypeScript syntax/transpilation and a strict gateway-only typecheck were run.
-A full checkout/registry was unavailable, so repository builds/typecheck, source
-boundary/docs gates, real database integration and browser/chat smoke were not
-run. Those remain PR gates. This small synthetic corpus is not comprehensive
-Word fidelity, arbitrary-property coverage, or performance qualification.
+Remaining work is broader compound-document compatibility, integration coverage
+that joins the actual engine to actual persistence/browser review, measured warm
+session economics and deliberate packaging qualification for additional CPU/OS
+versions. The programmable console and Windows/macOS execution are implemented,
+not deferred. Keep useful legal/evidence/compiler/surgical code; remove generic
+machinery only when a tested replacement makes it genuinely redundant.

@@ -54,6 +54,14 @@ test("QuickJS programs are expressive, isolated, and promptly cancellable", asyn
 test("real console discovers native APIs and performs compound edits", async () => {
   const bytes = await source;
   const { report, candidate } = await preview(bytes, `
+    const paragraph=word.target('paragraph:1');
+    paragraph.set({CharWeight:150}); paragraph.expect({CharWeight:150});
+    word.assert(word.constant('com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK')===0);
+    const styles=doc.get('StyleFamilies').call('getByName','NumberingStyles');
+    styles.call('insertByName','BeaverOutline',word.create('com.sun.star.style.NumberingStyle'));
+    const rules=styles.call('getByName','BeaverOutline').get('NumberingRules');
+    const level=rules.call('getByIndex',0);
+    rules.call('replaceByIndex',0,word.any('[]com.sun.star.beans.PropertyValue',level));
     const t=word.target('table:Table1');
     word.assert(t.describe('Header').items.length>0);
     t.set({RepeatHeadline:true});

@@ -58,6 +58,8 @@ async function main() {
         create: service => invoke({op:'create',service}),
         batch: operations => invoke({op:'batch',operations}),
         review: (targets,decision) => invoke({op:'review',targets:Array.isArray(targets)?targets:[targets],decision}),
+        constant: name => invoke({op:'constant',name}),
+        any: (type,value) => ({any:type,value}),
         enum: (type,value) => ({enum:type,value}),
         struct: (type,fields) => ({struct:type,fields}),
         mm: value => Math.round(value*100),

@@ -179,12 +179,7 @@ def _windows_job():
 
 
 class SessionLifetime(unohelper.Base, XTerminateListener):
-    """Keep the owned desktop alive between closing a draft and reopening it.
-
-    XDesktop's documented termination veto prevents Windows Writer from
-    tearing down the URP bridge when its last document closes. The listener
-    is removed before our own final termination, including error paths.
-    """
+    """Hold the owned desktop between document close and reopen. Removed before termination."""
     def queryTermination(self, event):
         raise TerminationVetoException('Document session is still active', self)
 
@@ -226,6 +221,11 @@ def writer(binary, author="Beaver"):
             provider = remote.ServiceManager.createInstanceWithContext('com.sun.star.configuration.ConfigurationProvider', remote)
             product = provider.createInstanceWithArguments('com.sun.star.configuration.ConfigurationAccess', props(nodepath='/org.openoffice.Setup/Product'))
             yield desktop, product.getByName('ooSetupVersionAboutBox')
+        except Exception as error:
+            # contextlib assigns __traceback__; PyUNO exception structs reject it.
+            if isinstance(error, uno.getClass('com.sun.star.uno.Exception')):
+                raise RuntimeError(str(error)) from None
+            raise
         finally:
             if desktop is not None:
                 try:
@@ -341,8 +341,13 @@ def decode(value, refs=None, depth=0):
     if isinstance(value, dict) and set(value) == {'ref'} and refs is not None:
         if value['ref'] not in refs: raise ValueError('Unknown session handle')
         return refs[value['ref']]
+    if isinstance(value, dict) and set(value) == {'any', 'value'}:
+        name = value['any']
+        if not isinstance(name, str) or not re.fullmatch(r'(?:\[\]){0,4}(?:boolean|byte|short|long|hyper|float|double|string|any|com\.sun\.star\.(?:text|style|table|drawing|awt|lang|beans|util)\.[A-Za-z0-9_.]+)', name):
+            raise ValueError('Any type is outside document types')
+        return uno.Any(name, decode(value['value'], refs, depth + 1))
     if isinstance(value, dict) and set(value) == {'enum', 'value'}:
-        if not re.fullmatch(r'com\.sun\.star\.(?:text|style|table|drawing|awt|lang)\.[A-Za-z0-9_.]+', value['enum']):
+        if not re.fullmatch(r'com\.sun\.star\.(?:text|style|table|drawing|awt|lang|beans)\.[A-Za-z0-9_.]+', value['enum']):
             raise ValueError('Enum is outside document types')
         return uno.Enum(value['enum'], value['value'])
     if isinstance(value, dict) and set(value) == {'struct', 'fields'}:
