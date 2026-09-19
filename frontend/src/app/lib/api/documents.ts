@@ -13,6 +13,8 @@ import {
   type Page,
 } from "@/app/lib/api/client";
 
+import { uploadDocumentSession } from "./uploads";
+
 export type DocumentReaderText = { revision: string;
   slices: Array<{ start: number; end: number; text: string; page: number }> };
 export const getDocumentReaderText = (id: string, versionId: string, signal?: AbortSignal) =>
@@ -163,9 +165,8 @@ export function directoryResource(scope: DirectoryScope) {
   const folders = `${root}/folders`;
   const documents = `${root}/documents`;
   const uploadDocument = (file: File, folderId?: string | null) =>
-    multipartRequest<Document>(documents, file, {
-      ...(folderId ? { fields: { folder_id: folderId } } : {}),
-    });
+    uploadDocumentSession(file, { project_id: "projectId" in scope ? scope.projectId : null,
+      library_kind: "projectId" in scope || scope.library === "files" ? "file" : "template", folder_id: folderId ?? null });
   const createFolder = (name: string, parentFolderId?: string | null) =>
     post<Folder | LibraryFolder>(folders, {
       name,
@@ -317,7 +318,7 @@ export const compareDocumentVersions = (
   { baseline_version_id: baselineVersionId },
 ));
 export const uploadStandaloneDocument = (file: File) =>
-  multipartRequest<Document>("/single-documents", file);
+  uploadDocumentSession(file);
 /** Every library file, folders flattened, so one list answers "which of my files is this?". */
 export const listLibraryDocuments = (options: PageQuery = {}, signal?: AbortSignal) =>
   apiRequest<Page<Document>>(pagePath("/single-documents", options), { signal });

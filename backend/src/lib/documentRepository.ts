@@ -30,6 +30,7 @@ export type DocumentHead = Pick<DocumentAggregate, "document"> & {
   versions: [StoredDocumentVersion];
 };
 export type CreateDocumentMetadata = { document: StoredDocument; version: StoredDocumentVersion;
+  uploadSessionId?: string;
   parts?: StoredDocumentPart[]; pdfOcrProvider?: import("./documentStore").LegalPdfOcrProvider | null };
 export type UpdateVersionMetadata = Partial<Pick<StoredDocumentVersion,
   "filename" | "fileType" | "sizeBytes" | "pageCount" | "sourceSha256" | "blobKey" |

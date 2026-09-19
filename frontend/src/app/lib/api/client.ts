@@ -1,5 +1,11 @@
 import { notifyApiMutation } from "./mutationEvents";
 const API_BASE = "/api";
+export async function uploadSignedObject(url: string, headers: Record<string, string>, file: File) {
+  const response = await fetch(url, { method: "PUT", body: file, headers, credentials: "omit", redirect: "error",
+    signal: AbortSignal.timeout(120_000) });
+  // An immutable retry can already exist; publication still verifies its bytes on the server.
+  if (!response.ok && response.status !== 412) throw new Error("File transfer failed. Retry the upload.");
+}
 const isWordSurface = () => typeof window !== "undefined" &&
   (window.location.pathname.startsWith("/word") ||
     new URLSearchParams(window.location.search).get("surface") === "word");

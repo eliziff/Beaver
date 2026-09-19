@@ -32,6 +32,19 @@ afterAll(async () => {
 });
 
 describe("object storage contract", () => {
+  it("binds direct upload signatures to scoped keys, size, checksum and immutable writes", async () => {
+    const objects = scopeObjectStorage(createS3ObjectStorage({ endpoint: "https://storage.example.test", region: "us-east-1",
+      bucket: "documents", accessKeyId: "synthetic-access", secretAccessKey: "synthetic-secret", forcePathStyle: true }), "private");
+    const transfer = await objects.signedPut!("record.txt", { sizeBytes: 3, expectedSha256: sha256("abc"), contentType: "text/plain" });
+    const url = new URL(transfer.url);
+    expect(url.pathname).toBe("/documents/private/record.txt");
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("300");
+    expect(url.searchParams.get("X-Amz-SignedHeaders")?.split(";")).toEqual(expect.arrayContaining([
+      "content-length", "content-type", "if-none-match", "x-amz-checksum-sha256",
+    ]));
+    expect(transfer.headers).toMatchObject({ "if-none-match": "*", "x-amz-checksum-sha256": Buffer.from(sha256("abc"), "hex").toString("base64") });
+    expect(transfer.url).not.toContain("synthetic-secret");
+  });
   it("cleans interrupted filesystem staging on restart", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "beaver-storage-restart-"));
     try {

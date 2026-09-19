@@ -137,6 +137,9 @@ if (runtime.mode === "local") api.get("/auth/mfa/assurance", requireAuth, (_req,
 });
 api.use("/memory", lazyRouter(async () => (await import("./routes/memory"))
   .createMemoryRouter(await runtime.memory())));
+api.post("/uploads", uploadLimiter);
+api.use("/uploads", lazyRouter(async () => (await import("./routes/uploads"))
+  .createUploadsRouter(await runtime.uploads())));
 api.use("/organizations", lazyRouter(async () => (await import("./routes/organizations"))
   .createOrganizationRouter(await runtime.organizations())));
 

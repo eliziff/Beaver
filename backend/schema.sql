@@ -182,6 +182,19 @@ create table if not exists document_edits (
   resolved_at text, check(status in ('pending','accepted','rejected')),
   foreign key(version_id,document_id) references document_versions(id,document_id) on delete cascade
 );
+create table if not exists upload_sessions (
+  id text primary key, user_id uuid not null, user_email text, client_key text not null,
+  project_id text references projects(id) on delete cascade,
+  library_kind text not null check(library_kind in ('file','template')), folder_id text,
+  document_id text not null unique, filename text not null, file_type text not null,
+  size_bytes integer not null check(size_bytes between 1 and 104857600),
+  source_sha256 text not null check(length(source_sha256)=64), storage_path text not null,
+  status text not null default 'pending' check(status in ('pending','queued','complete','failed','cancelled')),
+  job_id text, error text, created_at text not null, updated_at text not null, expires_at text not null,
+  unique(user_id,client_key)
+);
+create index if not exists upload_sessions_blob_idx on upload_sessions(storage_path,expires_at);
+create index if not exists upload_sessions_user_idx on upload_sessions(user_id,created_at,id);
 create table if not exists object_cleanup (
   storage_path text primary key, created_at text not null,
   claim_id text, claimed_at text,
@@ -588,6 +601,10 @@ for each row execute function public.guard_organization_account_delete();
 revoke all on function public.guard_organization_account_delete() from public, anon, authenticated;
 
 alter table memory_files enable row level security;
+alter table upload_sessions enable row level security;
+revoke all on upload_sessions from anon,authenticated;
+grant all on upload_sessions to service_role;
+alter table upload_sessions add constraint upload_sessions_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
 alter table memory_receipts enable row level security;
 revoke all on memory_files,memory_receipts from anon,authenticated;
 grant all on memory_files,memory_receipts to service_role;
