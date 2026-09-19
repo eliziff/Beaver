@@ -366,6 +366,20 @@ before the files changed is refused.
 
 ## Security boundaries
 
+Deployment operators may declare OpenAI-compatible endpoints through
+`MIKE_MODEL_CONFIG_JSON={"models":[...]}`. Each declaration requires `id`,
+`provider: "openai-compatible"`, `location: "local" | "cloud"`, and `baseUrl`.
+Selections use `configured:<id>`. Optional fields are `label`, `apiModel`,
+`apiKeyEnv`, `apiKeyProvider`, `apiKey`, `contextWindow`, `imageInput`,
+`tolerateTextToolCalls`, and `maxTokensField` (`max_tokens` by default, or
+`max_completion_tokens`). Invalid/duplicate declarations fail closed without
+echoing their contents. The authenticated catalogue exposes no endpoint or key.
+Declared key sources must resolve; a personal provider key wins over deployment
+fallbacks. Endpoints without a key declaration send no Authorization header.
+Local endpoints default to tool-markup recovery through the SDK middleware;
+set `tolerateTextToolCalls: false` for an endpoint with reliable structured calls.
+Recovered calls retain ordinary tool authorization and argument validation.
+
 - Retrieved documents, OCR, provider text, fields, metadata, and summaries are
   untrusted data. They cannot authorize tools, change system instructions, or
   cross user/project/document scope.

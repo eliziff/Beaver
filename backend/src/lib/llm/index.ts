@@ -23,6 +23,7 @@ async function streamProvider(
     case "openrouter":
     case "meta":
     case "gemini":
+    case "configured":
       return (await import("./aiSdk")).streamAiSdk(params, provider);
     case "opencode-go":
       return (await import("./openCodeGo")).streamOpenCodeGo(params);

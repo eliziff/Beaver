@@ -14,6 +14,7 @@ export type Provider =
   | "opencode-go"
   | "meta"
   | "codex"
+  | "configured"
   | "ollama";
 
 export type ProviderContextCheckpoint =

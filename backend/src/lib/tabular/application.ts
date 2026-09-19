@@ -141,12 +141,18 @@ const value = <T>(result: WriteResult<T>, noun: string) => {
   if (result.status === "missing") return fail(404, `${noun} not found`);
   return fail(409, `${noun} changed; reload and try again`);
 };
-const providerLabel = (provider: Provider) => ({ claude: "Anthropic", openai: "OpenAI",
+const providerLabel = (provider: Provider) => ({ configured: "Configured model", claude: "Anthropic", openai: "OpenAI",
   deepseek: "DeepSeek", openrouter: "OpenRouter", meta: "Meta", codex: "Codex",
   "opencode-go": "OpenCode Go",
   "claude-p": "Anthropic", ollama: "Ollama", gemini: "Gemini" })[provider];
 const modelKey = (model: string, apiKeys: UserApiKeys) => {
   const provider = providerForModel(model);
+  if (provider === "configured") {
+    const declared = getConfiguredModel(model);
+    if (!declared) throw new ApplicationError(422, "The selected model is not configured.");
+    if (configuredAvailable(declared, apiKeys)) return;
+    throw new ApplicationError(422, "The selected model requires an API key.", { code: "missing_api_key", provider, model });
+  }
   if (provider === "codex" || provider === "claude-p" || provider === "ollama" || provider === "opencode-go") return;
   if (apiKeys[provider]?.trim()) return;
   throw new ApplicationError(422,
@@ -802,3 +808,4 @@ ${inventory}`,
 }
 
 export type TabularApplication = ReturnType<typeof createTabularApplication>;
+import { configuredAvailable, getConfiguredModel } from "../llm/registry";

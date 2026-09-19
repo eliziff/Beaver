@@ -47,6 +47,10 @@ image tool results, exact Gemini schemas, malformed completion and retries.
 Encrypted personal keys override environment keys in both persistence engines;
 removing an override restores the environment key. Saving requires the existing
 `USER_API_KEYS_ENCRYPTION_SECRET` in local mode as well as cloud mode.
+Configured OpenAI-compatible endpoints join the existing model catalogue, chat,
+preferences and tabular selection. Local text-tool parsing is imported with its
+focused tests, without upstream's tool-specific trademark call coalescing:
+Beaver executes each validated requested operation without changing its arguments.
 
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
