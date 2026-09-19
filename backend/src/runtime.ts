@@ -84,6 +84,11 @@ const documents = lazy(async () => {
   return createDocumentApplication(ports.documents, ports.objects);
 });
 const library = lazy(async () => createLibraryStore((await persistence()).library, await documents()));
+const uploads = lazy(async () => {
+  const ports = await persistence();
+  return (await import("./lib/uploadApplication")).createUploadApplication(
+    await (await import("./lib/relationalDatabase")).relationalDatabase(), ports.objects, ports.documents, await documents());
+});
 const cancelChatTurn = async (scope: ChatScope, chatId: string) =>
   (await import("./lib/chatTurnQueue")).durableChatTurns.cancel(scope, chatId);
 const chats: Lazy<ChatStore> = lazy(async () => {
@@ -218,6 +223,7 @@ async function startWorkers() {
   await recoverLocalJobs();
   const memoryApplication = await memory();
   return startJobLanes([
+    { concurrency: 1, handlers: (await uploads()).handlers },
     { concurrency: 1, handlers: { "memory-curation": memoryApplication.handler } },
     { concurrency: lanes.chatTurns,
       handlers: { [CHAT_TURN_JOB]: chatTurnJobHandler(chatApplication, chatStore) } },
@@ -331,7 +337,7 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
     sourceCoveragePrompt = legalSourceCoveragePrompt(
       await (await legalSources()).coverage()) ?? undefined;
   }, authoritiesWorkspace, courtRecords, chat, chats, documents, sources,
-  audit, background, connectors, legalSources, library, memory, projects, startWorkers, workProducts,
+  audit, background, connectors, legalSources, library, memory, projects, startWorkers, uploads, workProducts,
   projectExport: async (scope: ApplicationScope, id: string) => buildProjectExportManifest(
     await (await import("./lib/relationalDatabase")).relationalDatabase(), scope, id),
   tabular, workflows, preferences, user, organizations, shutdown };

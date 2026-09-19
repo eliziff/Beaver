@@ -135,6 +135,7 @@ export type DocumentStore = {
     id: string; parse_state: DocumentParseState | null; page_count: number | null;
   }>>;
   create(scope: DocumentScope, input: DocumentFile & { projectId?: string | null;
+    upload?: { sessionId: string; documentId: string };
     libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance;
     parts?: DocumentPartFile[]; pdfOcrProvider?: LegalPdfOcrProvider | null }):
     Promise<DocumentRecord>;
