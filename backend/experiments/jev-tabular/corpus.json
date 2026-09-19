@@ -1,0 +1,27 @@
+[
+  {"id":"nda-mutual","source":"Alpha must keep Beta's confidential information secret.\nBeta must keep Alpha's confidential information secret.\nThe Recipient may disclose information to legal advisers only if they are bound by confidentiality obligations.\nSigned January 1, 2026; this NDA is effective January 15, 2026.","columns":[
+    {"index":0,"name":"Direction","format":"tag","tags":["Mutual","Unilateral"],"prompt":"Classify the confidentiality obligations as Mutual or Unilateral."},
+    {"index":1,"name":"Unrestricted adviser disclosure","format":"yes_no","prompt":"May information be disclosed to legal advisers without confidentiality obligations?"},
+    {"index":2,"name":"Effective date","format":"date","prompt":"What is the explicitly stated effective date of the NDA?"}]},
+  {"id":"nda-unilateral","source":"Only Delta, as Recipient, owes confidentiality obligations to Gamma, as Discloser. Gamma assumes no reciprocal confidentiality obligation.\nDelta shall not disclose any Confidential Information to external legal advisers.\nThe effective date is 3 February 2026.","columns":[
+    {"index":0,"name":"Direction","format":"tag","tags":["Mutual","Unilateral"],"prompt":"Classify the confidentiality obligations as Mutual or Unilateral."},
+    {"index":1,"name":"Adviser disclosure","format":"yes_no","prompt":"Does this NDA permit disclosure of Confidential Information to external legal advisers?"},
+    {"index":2,"name":"Effective date","format":"date","prompt":"What is the explicitly stated effective date of the NDA?"}]},
+  {"id":"consent-mixed","source":"The Customer shall obtain the Supplier's prior written consent before any change of control.\nNo consent is required for a transfer to a wholly owned affiliate.\nThe Customer shall give at least 30 days' notice of a proposed change of control.\nThe Supplier shall not unreasonably withhold consent.","columns":[
+    {"index":0,"name":"Non-affiliate consent","format":"yes_no","prompt":"Is the Supplier's prior written consent required for a change of control transferring the Customer to a non-affiliate?"},
+    {"index":1,"name":"Consent Required","format":"text","prompt":"Does a change of control require prior consent from any party? Identify who must consent, the notice period, and any conditions."}]},
+  {"id":"credit-mixed","source":"The Term Loan A commitment is CAD 1000000. The Revolving Facility commitment is CAD 500000.\nThe Term Loan A maturity date is 2030-06-30. The Revolving Facility maturity date is 2029-06-30.\nThe commitment fee is 0.5% per annum on undrawn commitments.\nNo borrower may assign its obligations without every lender's prior consent.","columns":[
+    {"index":0,"name":"Term Loan A commitment","format":"monetary_amount","prompt":"What is the explicitly stated committed amount of Term Loan A?"},
+    {"index":1,"name":"Maturity","format":"date","prompt":"What is the final maturity date of the facilities under this agreement? If different facilities have different maturities, state each."},
+    {"index":2,"name":"Commitment fee rate","format":"percentage","prompt":"What is the stated annual commitment fee percentage?"}]},
+  {"id":"rubric","source":"Either party may terminate for material breach after giving notice and allowing 30 days to cure. Neither party may terminate for convenience.","columns":[
+    {"index":0,"name":"Playbook category","format":"tag","tags":["Low","Medium","High"],"prompt":"Assign High if either party has a termination-for-convenience right; Medium if termination for breach has no cure opportunity; otherwise Low. Return only the category."}]},
+  {"id":"absence-and-compound","source":"The Recipient shall keep information confidential for three years. The agreement names Alpha and Beta as its parties. It contains no other provisions.","columns":[
+    {"index":0,"name":"Effective date","format":"date","prompt":"What is the explicitly stated effective date?"},
+    {"index":1,"name":"Direction","format":"text","prompt":"Is this NDA mutual or unilateral? Identify the direction and name the disclosing and receiving party or parties."},
+    {"index":2,"name":"Enforceable","format":"yes_no","prompt":"Is the confidentiality restriction enforceable under all applicable Canadian law?"}]},
+  {"id":"scaled-commitment","source":"The maximum committed amount of the Facility is USD 5 million.","columns":[
+    {"index":0,"name":"Commitment","format":"monetary_amount","prompt":"What is the explicitly stated committed amount of the Facility?"}]},
+  {"id":"locale-fee","source":"The one-off arrangement fee is EUR 1.234,56, using a period as the thousands separator and a comma as the decimal separator.","columns":[
+    {"index":0,"name":"Arrangement fee","format":"monetary_amount","prompt":"What is the explicitly stated one-off arrangement fee?"}]}
+]
