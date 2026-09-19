@@ -16,7 +16,7 @@
     "fetch:courtlistener-bulk": "python scripts/fetch_courtlistener_bulk.py",
     "import:courtlistener-bulk": "python scripts/import_courtlistener_bulk.py",
     "build:journals-fts": "python scripts/build_journal_search_index.py",
-    "test": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-source-boundaries.mjs && node ../scripts/check-typescript-surface.mjs && node --test ../shared/export-integrity.test.mjs && vitest run",
+    "test": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-source-boundaries.mjs && node ../scripts/check-typescript-surface.mjs && node --test ../shared/export-integrity.test.mjs && node --max-old-space-size=384 ./node_modules/vitest/vitest.mjs run",
     "test:stack": "bash scripts/test-stack.sh",
     "test:coverage": "vitest run --coverage",
     "test:experiments": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-source-boundaries.mjs && vitest run --config experiments/vitest.config.mts"

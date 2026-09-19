@@ -1,5 +1,16 @@
+import { afterEach, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
+
+vi.resetModules();
+if (typeof window !== "undefined") {
+    localStorage.clear();
+    sessionStorage.clear();
+    Reflect.deleteProperty(window, "matchMedia");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+}
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 await initializeRuntimeConfig(async () =>
     new Response(JSON.stringify({

@@ -123,7 +123,7 @@ try {
         $libraryDirectory = $env:MIKE_LOCAL_DATA_DIR
         try {
             Remove-Item Env:MIKE_LOCAL_DATA_DIR -ErrorAction SilentlyContinue
-            Invoke-Checked npm.cmd @('test', '--prefix', 'backend', '--', '--maxWorkers=1')
+            Invoke-Checked npm.cmd @('test', '--prefix', 'backend')
         } finally { $env:MIKE_LOCAL_DATA_DIR = $libraryDirectory }
     }
     Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend') }

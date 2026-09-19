@@ -130,9 +130,11 @@ export function openLocalDatabase(filename: string) {
     const schema = readFileSync(path.resolve(__dirname, "../../schema.sql"), "utf8");
     const core = /-- BEAVER_CORE_BEGIN\s*([\s\S]*?)\s*-- BEAVER_CORE_END/u.exec(schema)?.[1];
     if (!core) throw new Error("backend/schema.sql is missing the Beaver core schema");
+    database.exec("BEGIN IMMEDIATE");
     addMissingColumns(database);
     database.exec(core);
     database.exec(`PRAGMA user_version=${LOCAL_SCHEMA_VERSION}`);
+    database.exec("COMMIT");
     return database;
   } catch (error) {
     database.close();
