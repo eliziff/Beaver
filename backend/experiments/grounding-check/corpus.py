@@ -88,7 +88,7 @@ def contract_cases(path):
                             raise ValueError('bad_contract_span')
                         spans.append({'start': utf16_len(doc['text'][:start]),
                                       'end': utf16_len(doc['text'][:end]), 'text': doc['text'][start:end]})
-                    yield row, {'supported': choice == 'Entailment', 'label': choice, 'spans': spans}
+                    yield row, {'supported': choice == 'Entailment', 'label': choice, 'span_scope': 'source', 'spans': spans}
 
 
 def ragtruth_cases(sources_path, responses_path):
@@ -115,12 +115,15 @@ def ragtruth_cases(sources_path, responses_path):
             raise ValueError('unknown_ragtruth_split')
         split = 'test' if split == 'test' else ('calibration' if int(digest(group)[:8], 16) % 5 == 0 else 'development')
         for label in response['labels']:
-            if not (0 <= label['start'] < label['end'] <= len(response['response'])):
+            if not (type(label['start']) is int and type(label['end']) is int and
+                    0 <= label['start'] < label['end'] <= len(response['response'])):
                 raise ValueError('bad_ragtruth_span')
+            if label.get('text', response['response'][label['start']:label['end']]) != response['response'][label['start']:label['end']]:
+                raise ValueError('inexact_ragtruth_span')
         row = packet(f'ragtruth:{response["id"]}', group, split, f'ragtruth:{source["task_type"]}',
                      text, response['response'], question)
         yield row, {'supported': not response['labels'], 'label': 'Supported' if not response['labels'] else 'Hallucination',
-                    'spans': [{'start': utf16_len(response['response'][:label['start']]),
+                    'span_scope': 'answer', 'spans': [{'block': 0, 'start': utf16_len(response['response'][:label['start']]),
                                'end': utf16_len(response['response'][:label['end']]),
                                'text': response['response'][label['start']:label['end']],
                                'label': label['label_type']} for label in response['labels']]}

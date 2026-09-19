@@ -12,7 +12,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from corpus import digest, prepare, records
+from corpus import digest, prepare, records, utf16_len
 
 HERE = Path(__file__).resolve().parent
 BACKEND = HERE.parent.parent
@@ -59,6 +59,24 @@ def validate(row):
         require(isinstance(ids, list) and all(isinstance(i, str) for i in ids) and len(ids) == len(set(ids)), 'duplicate_citation')
         require(all(i in evidence for i in ids), 'unknown_citation')
     return evidence
+
+
+def select_rows(rows, groups=0, seed=20260919):
+    require(type(groups) is int and groups >= 0, 'invalid_group_limit')
+    require(rows and len({r['id'] for r in rows}) == len(rows), 'empty_or_duplicate_input')
+    boundaries, strata = {}, defaultdict(set)
+    for row in rows:
+        validate(row)
+        keys = [('group', row['group'])] + [key for source in row['sources']
+                for key in (('source', source['id']), ('hash', source['sha256']))]
+        for key in keys:
+            require(key not in boundaries or boundaries[key] == row['split'], 'source_crosses_splits')
+            boundaries[key] = row['split']
+        strata[row['split'], row['slice']].add(row['group'])
+    rank = lambda group: (digest([seed, group]), group)
+    selected = {g for values in strata.values() for g in sorted(values, key=rank)[:groups or None]}
+    return sorted((row for row in rows if row['group'] in selected),
+                  key=lambda row: (row['split'], row['slice'], rank(row['group']), row['id']))
 
 
 class Bridge:
@@ -151,6 +169,7 @@ def check_answer(row, predictor, bridge, citations=False):
     split = bridge.call({'op': 'segment', 'texts': [b['text'] for b in row['answer']]})['segments']
     require(len(split) == len(row['answer']), 'missing_segmented_blocks')
     units, jobs = [], []
+    pair_characters = 0
     for block_index, (block, segments) in enumerate(zip(row['answer'], split)):
         cursor = 0
         for segment in segments:
@@ -159,6 +178,9 @@ def check_answer(row, predictor, bridge, citations=False):
             ids = block['evidence_ids']
             unit = {'block': block_index, **segment, 'evidence_ids': ids, 'joint': None, 'individual': [], 'without': []}
             def add(selected):
+                nonlocal pair_characters
+                pair_characters += len(segment['text']) + sum(len(evidence[i]['text']) for i in selected)
+                require(len(jobs) < 512 and pair_characters <= 2_000_000, 'checker_pair_limit')
                 index = len(jobs)
                 jobs.append({'claim': segment['text'], 'document': '\n\n'.join(evidence[i]['text'] for i in selected)})
                 return index
@@ -170,8 +192,12 @@ def check_answer(row, predictor, bridge, citations=False):
             units.append(unit)
         require(cursor == len(block['text'].encode('utf-16-le')) // 2, 'unchecked_answer_tail')
     require(units, 'empty_units')
-    scores, receipt = predictor.predict(jobs, {'question': row['question'], 'answer_context': row['answer']}) if jobs else ([], {})
-    require(len(scores) == len(jobs) and all(p is None or type(p) in (int, float) and math.isfinite(p) and 0 <= p <= 1 for p in scores), 'invalid_support_scores')
+    try:
+        scores, receipt = predictor.predict(jobs, {'question': row['question'], 'answer_context': row['answer']}) if jobs else ([], {})
+        require(len(scores) == len(jobs) and all(p is None or type(p) in (int, float) and math.isfinite(p) and 0 <= p <= 1 for p in scores), 'invalid_support_scores')
+    except Exception as error:
+        scores, receipt = [None] * len(jobs), {'error': type(error).__name__}
+
     for unit in units:
         unit['score'] = 0.0 if unit['joint'] is None else scores[unit['joint']]
         unit['individual'] = [scores[i] for i in unit['individual']]
@@ -179,7 +205,7 @@ def check_answer(row, predictor, bridge, citations=False):
         del unit['joint']
     complete = all(unit['score'] is not None for unit in units)
     return {'units': units, 'score': min(unit['score'] for unit in units) if complete else None,
-            'receipt': receipt, 'pair_count': len(jobs)}
+            'receipt': receipt, 'pair_count': len(jobs), 'error': receipt.get('error')}
 
 
 def citation_scores(units, threshold):
@@ -188,15 +214,21 @@ def citation_scores(units, threshold):
     for unit in units:
         count = len(unit['evidence_ids'])
         total += count
+        if count and unit['score'] is None:
+            precision_known = False
         if not count or unit['score'] is None or unit['score'] < threshold:
             continue
         supported += 1
         if count <= 1:
             necessary += count
-        elif len(unit['individual']) != count or len(unit['without']) != count or any(v is None for v in unit['individual'] + unit['without']):
+        elif len(unit['individual']) != count or len(unit['without']) != count:
             precision_known = False
         else:
-            necessary += sum(single >= threshold or excluded < threshold for single, excluded in zip(unit['individual'], unit['without']))
+            for single, excluded in zip(unit['individual'], unit['without']):
+                if single is not None and single >= threshold or excluded is not None and excluded < threshold:
+                    necessary += 1
+                elif single is None or excluded is None:
+                    precision_known = False
     return {'citation_recall': supported / len(units), 'citation_precision': (necessary / total if total else 0.0) if precision_known else None}
 
 
@@ -205,25 +237,16 @@ def code_hash():
 
 
 def run(args):
-    require(args.limit >= 0, 'invalid_limit')
-    rows = []
-    boundaries = {}
-    for row in records(args.input):
-        if args.limit and len(rows) >= args.limit:
-            break
-        validate(row)
-        require(args.backend != 'beaver' or row['privacy'] != 'private' or args.allow_private, 'private_transmission_not_authorized')
-        for key in [row['group']] + [s['sha256'] for s in row['sources']]:
-            require(key not in boundaries or boundaries[key] == row['split'], 'source_crosses_splits')
-            boundaries[key] = row['split']
-        rows.append(row)
-    require(rows and len({r['id'] for r in rows}) == len(rows), 'empty_or_duplicate_input')
+    rows = select_rows(list(records(args.input)), args.groups, args.seed)
+    require(args.backend != 'beaver' or args.allow_private or all(r['privacy'] != 'private' for r in rows),
+            'private_transmission_not_authorized')
     directory = Path(args.out)
     directory.mkdir(parents=True, exist_ok=False)
     bridge = Bridge(provider=args.backend == 'beaver')
     try:
         predictor = MiniCheck() if args.backend == 'minicheck' else Beaver(bridge, args.model, args.allow_live, args.effort)
-        meta = {'code': code_hash(), 'model': predictor.identity, 'input_sha256': digest(rows),
+        meta = {'code': code_hash(), 'model': {**predictor.identity, 'runtime': bridge.call({'op': 'runtime'}), 'citations': args.citations},
+                'sampling': {'groups_per_slice': args.groups, 'seed': args.seed}, 'input_sha256': digest(rows),
                 'ids': [r['id'] for r in rows], 'citations': args.citations, 'status': 'running'}
         (directory / 'meta.json').write_text(json.dumps(meta, indent=2) + '\n')
         with (directory / 'results.jsonl').open('x', encoding='utf-8') as out:
@@ -243,12 +266,89 @@ def run(args):
         bridge.close()
 
 
+def replay_units(row, result, citations):
+    units = result.get('units') if result else None
+    if units is None:
+        require(not result or result.get('score') is None and result.get('error'), 'missing_checked_units')
+        return None
+    require(isinstance(units, list) and units, 'empty_checked_units')
+    cursors = [0] * len(row['answer'])
+    previous = 0
+    for unit in units:
+        block = unit['block']
+        require(type(block) is int and previous <= block < len(cursors), 'invalid_unit_block')
+        previous = block
+        require(unit['start'] == cursors[block] and
+                encoded_slice(row['answer'][block]['text'], unit['start'], unit['end']) == unit['text'], 'changed_unit_text')
+        cursors[block] = unit['end']
+        require(unit['evidence_ids'] == row['answer'][block]['evidence_ids'], 'changed_unit_citations')
+        count = len(unit['evidence_ids']) if citations and len(unit['evidence_ids']) > 1 else 0
+        require(len(unit['individual']) == len(unit['without']) == count, 'missing_citation_checks')
+        values = [unit['score']] + unit['individual'] + unit['without']
+        require(all(v is None or type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in values), 'invalid_unit_score')
+        require(unit['evidence_ids'] or unit['score'] == 0, 'uncited_unit_pass')
+    require(cursors == [utf16_len(b['text']) for b in row['answer']], 'unchecked_answer_tail')
+    aggregate = min(u['score'] for u in units) if all(u['score'] is not None for u in units) else None
+    require(result.get('score') == aggregate, 'changed_answer_score')
+    return units
+
+
+def answer_errors(row, gold):
+    require(gold.get('span_scope') in (None, 'source', 'answer'), 'invalid_gold_span_scope')
+    if gold.get('span_scope') != 'answer':
+        return None
+    spans = gold['spans']
+    require(isinstance(spans, list) and gold['supported'] == (not spans), 'inconsistent_error_spans')
+    seen = set()
+    for span in spans:
+        block = span['block']
+        require(type(block) is int and 0 <= block < len(row['answer']), 'invalid_gold_block')
+        require(encoded_slice(row['answer'][block]['text'], span['start'], span['end']) == span['text'], 'changed_gold_span')
+        key = (block, span['start'], span['end'])
+        require(key not in seen, 'duplicate_gold_span')
+        seen.add(key)
+    return spans
+
+
+def overlaps(unit, span):
+    return unit['block'] == span['block'] and unit['start'] < span['end'] and span['start'] < unit['end']
+
+
+def localization(rows, threshold):
+    annotated = [r for r in rows if r.get('error_spans') is not None]
+    if not annotated:
+        return None
+    counts = defaultdict(int)
+    hits, spans = 0, 0
+    for row in annotated:
+        errors, units = row['error_spans'], row['units'] or []
+        flagged = [u for u in units if u['score'] is not None and u['score'] < threshold]
+        spans += len(errors)
+        hits += sum(any(overlaps(u, e) for u in flagged) for e in errors)
+        for unit in units:
+            truth = 'unsupported' if any(overlaps(unit, e) for e in errors) else 'supported'
+            outcome = 'missing' if unit['score'] is None else 'flagged' if unit['score'] < threshold else 'passed'
+            counts[truth + '_' + outcome] += 1
+    ratio = lambda a, b: a / b if b else None
+    tp, fp = counts['unsupported_flagged'], counts['supported_flagged']
+    positives = tp + counts['unsupported_passed'] + counts['unsupported_missing']
+    negatives = fp + counts['supported_passed'] + counts['supported_missing']
+    return {'annotated_answers': len(annotated), 'unsegmented_answers': sum(not r['units'] for r in annotated),
+            'unit_confusion': dict(counts), 'unit_precision': ratio(tp, tp + fp),
+            'unit_recall': ratio(tp, positives), 'unit_f1': ratio(2 * tp, positives + tp + fp),
+            'clean_unit_retention': ratio(counts['supported_passed'], negatives),
+            'error_spans': spans, 'error_span_hits': hits, 'error_span_hit_recall': ratio(hits, spans)}
+
+
 def load_evaluation(inputs, gold_path, directory):
     meta = json.loads((Path(directory) / 'meta.json').read_text())
     planned = set(meta['ids'])
     require(len(planned) == len(meta['ids']), 'duplicate_planned_id')
     rows = [row for row in records(inputs) if row['id'] in planned]
-    require(len(rows) == len(planned) and digest(rows) == meta['input_sha256'], 'changed_inputs')
+    require(len(rows) == len(planned) == len({r['id'] for r in rows}), 'changed_inputs')
+    by_id = {r['id']: r for r in rows}
+    rows = [by_id[i] for i in meta['ids']]
+    require(digest(rows) == meta['input_sha256'], 'changed_inputs')
     labels, results = {}, {}
     for target, path in ((labels, gold_path), (results, Path(directory) / 'results.jsonl')):
         for value in records(path):
@@ -257,15 +357,19 @@ def load_evaluation(inputs, gold_path, directory):
     require(set(results) <= planned, 'unplanned_predictions')
     observations = []
     for row in rows:
+        validate(row)
         gold, result = labels.get(row['id']), results.get(row['id'])
         require(gold and gold['input_sha256'] == digest(row) and type(gold['supported']) is bool, 'missing_or_stale_gold')
         require(not result or result['input_sha256'] == digest(row), 'stale_prediction')
         score = result.get('score') if result else None
         require(score is None or type(score) in (int, float) and math.isfinite(score) and 0 <= score <= 1, 'invalid_score')
+        units = replay_units(row, result, meta.get('citations', False))
+        errors = answer_errors(row, gold)
         observations.append({'id': row['id'], 'group': row['group'], 'split': row['split'], 'slice': row['slice'],
-                             'source_hashes': [s['sha256'] for s in row['sources']], 'gold': gold['supported'],
+                             'source_hashes': [s['sha256'] for s in row['sources']], 'source_ids': [s['id'] for s in row['sources']],
+                             'gold': gold['supported'], 'gold_sha256': digest(gold), 'error_spans': errors,
                              'score': score, 'elapsed_ms': result.get('elapsed_ms') if result else None,
-                             'units': result.get('units') if result else None,
+                             'units': units,
                              'usage': result.get('receipt', {}).get('usage') if result else None,
                              'error': result.get('error') if result else 'missing'})
     return meta, observations
@@ -290,25 +394,33 @@ def summary(rows, threshold):
     ratio = lambda x, n: x / n if n else None
     latencies = [r['elapsed_ms'] for r in rows if r['elapsed_ms'] is not None]
     correct = sum(r['score'] is not None and passed(r) == r['gold'] for r in rows)
-    citations = [citation_scores(r['units'], threshold) for r in rows if r['units']]
+    citations = [citation_scores(r['units'], threshold) if r['units'] else
+                 {'citation_recall': 0.0, 'citation_precision': None} for r in rows]
     false_reject = sum(not passed(r) for r in good)
     detected = sum(r['score'] is not None and not passed(r) for r in bad)
     usages = [r.get('usage') for r in rows]
     return {'items': len(rows), 'groups': len({r['group'] for r in rows}), 'missing': sum(r['score'] is None for r in rows),
             'accuracy': correct / len(rows), 'coverage': len(accepted) / len(rows),
+            'missing_rate': sum(r['score'] is None for r in rows) / len(rows),
             'false_reassurance': ratio(len(unsafe), len(accepted)), 'unsupported_accepted': ratio(len(unsafe), len(bad)),
             'valid_pass_rate': ratio(sum(passed(r) for r in good), len(good)),
             'false_rejection': ratio(false_reject, len(good)), 'unsupported_detection': ratio(detected, len(bad)),
             'confusion': {'supported_pass': len(accepted) - len(unsafe), 'unsupported_pass': len(unsafe),
-                          'supported_not_pass': false_reject, 'unsupported_detected': detected},
+                          'supported_not_pass': false_reject, 'unsupported_detected': detected,
+                          'unsupported_missing': sum(r['score'] is None for r in bad)},
             'known_usage_items': sum(isinstance(u, dict) for u in usages),
             'known_input_tokens': sum(u['inputTokens'] for u in usages if isinstance(u, dict) and isinstance(u.get('inputTokens'), (int, float))) if any(isinstance(u, dict) and isinstance(u.get('inputTokens'), (int, float)) for u in usages) else None,
             'known_output_tokens': sum(u['outputTokens'] for u in usages if isinstance(u, dict) and isinstance(u.get('outputTokens'), (int, float))) if any(isinstance(u, dict) and isinstance(u.get('outputTokens'), (int, float)) for u in usages) else None,
             'accepted_groups': len(groups), 'unsafe_groups': unsafe_groups,
             'group_risk_upper95': upper_bound(unsafe_groups, len(groups)),
             'p95_ms': float(np.percentile(latencies, 95)) if latencies else None,
-            **{key: float(np.mean([c[key] for c in citations if c[key] is not None])) if any(c[key] is not None for c in citations) else None
-               for key in ('citation_recall', 'citation_precision')}}
+            'localization': localization(rows, threshold),
+            'citation_recall': float(np.mean([c['citation_recall'] for c in citations])),
+            'citation_checked_items': sum(bool(r['units']) for r in rows),
+            'citation_precision_scored_items': sum(c['citation_precision'] is not None for c in citations),
+            'citation_precision': float(np.mean([c['citation_precision'] for c in citations]))
+                                  if all(c['citation_precision'] is not None for c in citations) else None}
+
 
 
 def score(args):
@@ -321,7 +433,8 @@ def score(args):
         require(all(r['split'] == 'test' for r in rows), 'policy_requires_test_split')
         require(not set(policy['groups']) & {r['group'] for r in rows}, 'calibration_group_overlap')
         require(not set(policy['sources']) & {s for r in rows for s in r['source_hashes']}, 'calibration_source_overlap')
-        require({r['slice'] for r in rows} <= set(policy['slices']), 'uncalibrated_task_slice')
+        require(not set(policy['source_ids']) & {s for r in rows for s in r['source_ids']}, 'calibration_source_identity_overlap')
+        require({r['slice'] for r in rows} == set(policy['slices']), 'missing_or_uncalibrated_task_slice')
         threshold = policy['threshold']
     require(0 < threshold <= 1, 'invalid_threshold')
     slices = sorted({(r['split'], r['slice']) for r in rows})
@@ -329,7 +442,7 @@ def score(args):
               'slices': {f'{split}:{name}': summary([r for r in rows if r['split'] == split and r['slice'] == name], threshold)
                          for split, name in slices}, 'observations': rows}
     if policy:
-        report['meets_policy'] = all(s['group_risk_upper95'] is not None and s['group_risk_upper95'] <= policy['risk_limit']
+        report['meets_policy'] = meta.get('status') == 'completed' and all(s['group_risk_upper95'] is not None and s['group_risk_upper95'] <= policy['risk_limit']
                                      and (s['valid_pass_rate'] or 0) >= policy['valid_pass_limit'] for s in report['slices'].values())
     Path(args.out).write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report['summary'], indent=2))
@@ -338,6 +451,7 @@ def score(args):
 def fit(args):
     meta, rows = load_evaluation(args.input, args.gold, args.run)
     require(all(r['split'] == 'calibration' for r in rows), 'fit_requires_calibration_split')
+    require(meta.get('status') == 'completed', 'fit_requires_completed_run')
     require(0 < args.risk < 1 and 0 < args.valid_pass <= 1, 'invalid_policy_limits')
     options = []
     for threshold in (.5, .7, .8, .9, .95, .97, .99):
@@ -347,6 +461,7 @@ def fit(args):
             options.append((result['coverage'], -threshold))
     policy = {'enabled': bool(options), 'threshold': -max(options)[1] if options else None,
               'code': meta['code'], 'model': meta['model'], 'groups': sorted({r['group'] for r in rows}),
+              'source_ids': sorted({s for r in rows for s in r['source_ids']}),
               'sources': sorted({s for r in rows for s in r['source_hashes']}), 'slices': sorted({r['slice'] for r in rows}), 'risk_limit': args.risk, 'valid_pass_limit': args.valid_pass}
     Path(args.out).write_text(json.dumps(policy, indent=2) + '\n')
     print(json.dumps({k: v for k, v in policy.items() if k not in ('groups', 'sources')}, indent=2))
@@ -357,17 +472,38 @@ def compare(args):
     left, right = [json.loads(Path(path).read_text()) for path in (args.left, args.right)]
     require(left['meta']['input_sha256'] == right['meta']['input_sha256'], 'unpaired_inputs')
     a, b = left['observations'], right['observations']
-    require([(r['id'], r['gold'], r['group']) for r in a] == [(r['id'], r['gold'], r['group']) for r in b], 'unpaired_gold')
-    groups = defaultdict(list)
+    require([(r['id'], r['gold_sha256'], r['group']) for r in a] ==
+            [(r['id'], r['gold_sha256'], r['group']) for r in b], 'unpaired_gold')
+    require([r['id'] for r in a] == left['meta']['ids'] and [r['id'] for r in b] == right['meta']['ids']
+            and len(a) == len({r['id'] for r in a}), 'changed_report_population')
+    metric = args.metric
+    def counts(row, threshold):
+        passed = row['score'] is not None and row['score'] >= threshold
+        if metric == 'valid_pass_rate':
+            return [int(passed and row['gold']), int(row['gold'])]
+        if metric == 'unsupported_accepted':
+            return [int(passed and not row['gold']), int(not row['gold'])]
+        if metric == 'false_reassurance':
+            return [int(passed and not row['gold']), int(passed)]
+        value = passed if metric == 'coverage' else row['score'] is None if metric == 'missing_rate' else \
+            row['score'] is not None and passed == row['gold']
+        return [int(value), 1]
+    groups = defaultdict(lambda: np.zeros(4))
     for l, r in zip(a, b):
-        valid = lambda row, t: row['score'] is not None and (row['score'] >= t) == row['gold']
-        groups[l['group']].append(int(valid(r, right['threshold'])) - int(valid(l, left['threshold'])))
-    differences = np.array([np.mean(values) for values in groups.values()])
-    require(len(differences) >= 2, 'need_multiple_source_groups')
+        groups[l['group']] += counts(l, left['threshold']) + counts(r, right['threshold'])
+    values = np.array(list(groups.values()))
+    require(len(values) >= 2, 'need_multiple_source_groups')
+    def difference(total):
+        return float(total[2] / total[3] - total[0] / total[1]) if total[1] and total[3] else None
+    delta = difference(values.sum(axis=0))
+    require(delta is not None, 'metric_has_empty_denominator')
     rng = np.random.default_rng(20260919)
-    samples = [float(np.mean(rng.choice(differences, len(differences), replace=True))) for _ in range(2000)]
-    print(json.dumps({'groups': len(groups), 'group_macro_accuracy_delta': float(differences.mean()),
-                      'paired_group_bootstrap95': np.quantile(samples, [.025, .975]).tolist()}, indent=2))
+    samples = [difference(values[rng.integers(len(values), size=len(values))].sum(axis=0)) for _ in range(2000)]
+    defined = [v for v in samples if v is not None]
+    print(json.dumps({'metric': metric, 'groups': len(groups), 'right_minus_left': delta,
+                      'undefined_resamples': len(samples) - len(defined),
+                      'paired_group_bootstrap95': np.quantile(defined, [.025, .975]).tolist()
+                       if len(defined) >= .95 * len(samples) else None}, indent=2))
 
 
 def main():
@@ -382,7 +518,8 @@ def main():
     p.add_argument('--backend', choices=['minicheck', 'beaver'], required=True)
     p.add_argument('--model'); p.add_argument('--effort'); p.add_argument('--allow-live', action='store_true')
     p.add_argument('--allow-private', action='store_true')
-    p.add_argument('--limit', type=int, default=0); p.add_argument('--citations', action='store_true')
+    p.add_argument('--groups', type=int, default=0, help='Source groups per split/task; zero selects all')
+    p.add_argument('--seed', type=int, default=20260919); p.add_argument('--citations', action='store_true')
     for name in ('score', 'fit'):
         p = commands.add_parser(name)
         for field in ('input', 'gold', 'run', 'out'):
@@ -393,6 +530,8 @@ def main():
             p.add_argument('--risk', type=float, default=.01); p.add_argument('--valid-pass', type=float, default=.95)
     p = commands.add_parser('compare')
     p.add_argument('--left', required=True); p.add_argument('--right', required=True)
+    p.add_argument('--metric', choices=['accuracy', 'valid_pass_rate', 'unsupported_accepted',
+                                      'false_reassurance', 'coverage', 'missing_rate'], default='accuracy')
     args = parser.parse_args()
     if args.command == 'prepare':
         print(json.dumps(prepare(args.out, args.dataset or ('contractnli', 'ragtruth')), indent=2))

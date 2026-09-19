@@ -29,6 +29,8 @@ original answer + bound source passages
 Every original character must belong to a checking unit. Source hashes, versions,
 and half-open UTF-16 spans are checked before inference. Uncited units fail;
 missing verdicts, invalid output and over-limit context never become passes.
+Each answer is capped at 512 check pairs / two million combined input characters
+before model dispatch; an over-limit answer is recorded as a failure, never truncated.
 The answer score is the minimum unit score, not a joint probability.
 
 The two backends are alternatives, not a cascade:
@@ -78,10 +80,13 @@ python benchmark.py compare --left mc-report.json --right beaver-report.json
 
 `codex:` and `claude-p:` are also accepted. Per-token API routes are not enabled.
 Custom private packets additionally require `--allow-private` for the Beaver
-backend. `--limit N` is useful for a first transport/throughput run. Each invocation
+backend. `--groups N --seed 17` selects N source groups per split/task, retaining
+all their answers. Sampling ignores gold and input order; use the same seed and
+count for both backends. The entire input is checked for split leakage before
+sampling, including different versions of the same source. Each invocation
 requires a fresh output directory and saves every result, raw provider response,
-usage, elapsed time and code/model identity. An interrupted run's missing items
-remain in its planned denominator; there is no hidden replay or retry.
+usage, elapsed time, code/model identity and Node/ICU segmentation versions.
+An interrupted run's missing items remain in its planned denominator; there is no hidden replay or retry.
 
 ## Scoring and qualification
 
@@ -89,7 +94,30 @@ Reports include accuracy, missing verdicts, false reassurance among accepted
 answers, unsupported-answer acceptance/detection, valid-answer retention, coverage,
 source-group risk bounds, p95 time, known usage, and citation precision/recall.
 Results remain split by corpus task. Failures do not earn error-detection credit.
-`compare` resamples source groups and reports a paired group-macro accuracy delta.
+Citation recall includes missing answers as zero. Citation precision stays unknown
+when any required check is missing, with the scored-item denominator reported.
+Replaying results verifies every original text range, citation binding and aggregate
+score. A modified result or dropped text cannot silently improve the report.
+
+RAGTruth's annotated error spans additionally score unit precision/recall/F1,
+clean-unit retention and **error-span hit recall**: the fraction of annotated errors
+overlapping a flagged unit. These are sentence-unit/overlap metrics, not word-level
+F1. Rejecting a correct sentence while passing the erroneous sentence receives no
+localization credit. Missing answers stay in the span denominator; unsegmented
+answers and unresolved units are reported. The per-answer observations retain the
+original error spans and unit scores for inspection. ContractNLI's *source* evidence
+spans are never confused with RAGTruth's *answer* error spans.
+
+`compare` accepts `--metric accuracy|valid_pass_rate|unsupported_accepted|false_reassurance|coverage|missing_rate`.
+It resamples whole source groups, retaining all their rows, and reports right-minus-left
+deltas for the same item-weighted rates used in `summary`. Undefined bootstrap draws
+are counted; an interval is withheld if more than 5% lack the required denominator.
+For example:
+
+```sh
+python benchmark.py compare --left mc-report.json --right beaver-report.json --metric unsupported_accepted
+python benchmark.py compare --left mc-report.json --right beaver-report.json --metric valid_pass_rate
+```
 
 Calibrate once, then test without changing the policy:
 
@@ -103,7 +131,10 @@ with any error and at least 95% retention of supported answers, separately in ev
 slice. These are configurable product targets (`--risk`, `--valid-pass`), not paper
 results. Insufficient calibration data produces `enabled: false`, not a fabricated
 threshold. A locked policy requires the same checker identity and disjoint test
-sources/groups. `meets_policy` reports held-out results, not calibration success.
+sources/groups, including all versions of a source identity. Test data must contain
+all calibrated task slices; dropping a difficult slice cannot qualify a checker.
+Only completed runs qualify. `meets_policy` reports held-out results, not
+calibration success.
 ContractNLI's small dev/test splits alone cannot substantiate the default 1% target.
 
 To benchmark Beaver citations, supply the same JSONL packet shape as `packet()` in
@@ -111,8 +142,10 @@ To benchmark Beaver citations, supply the same JSONL packet shape as `packet()` 
 answer blocks. Preserve real source/version identities; never substitute a gold
 passage for the citation the writer actually emitted. Gold rows contain `id`,
 `input_sha256` and `supported`, in a separate scorer-only file. The checker never
-reads gold. Run frozen strict/relaxed-writer outputs separately; this PR does not
-change or simulate the production writer's sentence constraint.
+reads gold. To add error localization, gold may include `span_scope: "answer"` and
+`spans: [{block, start, end, text}]`: exhaustive error spans using the answer block's
+half-open UTF-16 offsets. An empty span list marks a supported answer. Run frozen
+strict/relaxed-writer outputs separately; this PR does not change or simulate the production writer's sentence constraint.
 
 A production change should put this check before terminal answer acceptance, using
 one qualified backend and the existing repair mechanism. First establish the

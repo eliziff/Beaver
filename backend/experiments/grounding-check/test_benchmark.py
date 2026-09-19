@@ -1,3 +1,6 @@
+import copy
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -6,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from benchmark import (Beaver, Bridge, MiniCheck, check_answer, citation_scores, compare,
-                       fit, load_evaluation, score, summary, upper_bound, validate)
+                       fit, load_evaluation, score, summary, upper_bound, validate, select_rows, replay_units, answer_errors, localization)
 from corpus import contract_cases, digest, packet, ragtruth_cases, utf16_len
 
 
@@ -25,7 +28,8 @@ def example(text='The duty survives. The term is five years.', source='The duty 
 
 def observation(identifier, group, gold, value, split='test'):
     return dict(id=identifier, group=group, gold=gold, score=value, split=split, slice='legal',
-                source_hashes=[digest(group)], elapsed_ms=10, units=None)
+                source_hashes=[digest(group)], source_ids=[group], gold_sha256=digest([identifier, gold]),
+                elapsed_ms=10, units=None)
 
 
 class GroundingTests(unittest.TestCase):
@@ -62,8 +66,10 @@ class GroundingTests(unittest.TestCase):
     def test_missing_verdict_does_not_accept_answer(self):
         result = check_answer(example(), Scores([1, None]), self.bridge)
         self.assertIsNone(result['score'])
-        with self.assertRaisesRegex(ValueError, 'invalid_support_scores'):
-            check_answer(example(), Scores([1]), self.bridge)
+        invalid = check_answer(example(), Scores([1]), self.bridge)
+        self.assertIsNone(invalid['score'])
+        self.assertEqual(len(invalid['units']), 2)
+        self.assertTrue(all(u['score'] is None for u in invalid['units']))
 
     def test_joint_evidence_and_alce_precision(self):
         row = example('Both conditions apply.', 'Condition A. Condition B.')
@@ -144,6 +150,7 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(result['valid_pass_rate'], .5)
         self.assertEqual(result['accepted_groups'], 1)
         self.assertEqual(result['unsafe_groups'], 1)
+        self.assertEqual(result['confusion']['unsupported_missing'], 1)
         with self.assertRaisesRegex(ValueError, 'invalid_threshold'):
             summary(rows, 0)
         self.assertGreater(upper_bound(0, 60), .048)
@@ -179,7 +186,14 @@ class GroundingTests(unittest.TestCase):
             validate(row)
             self.assertEqual(row['answer'][0]['text'], value['response'])
             self.assertFalse(gold['supported'])
+            self.assertEqual(gold['span_scope'], 'answer')
+            self.assertIsNotNone(answer_errors(row, gold))
+            self.assertEqual(pairs[0][1]['span_scope'], 'source')
             self.assertEqual(row['split'], 'test')
+            value['labels'][0]['text'] = 'Wrong source offsets'
+            (root / 'responses').write_text(json.dumps(value) + '\n')
+            with self.assertRaisesRegex(ValueError, 'inexact_ragtruth_span'):
+                list(ragtruth_cases(root / 'sources', root / 'responses'))
 
     def test_gold_binding_missing_predictions_and_locked_policy(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -206,6 +220,170 @@ class GroundingTests(unittest.TestCase):
             (root / 'gold').write_text(json.dumps(gold) + '\n')
             with self.assertRaisesRegex(ValueError, 'stale_gold'):
                 load_evaluation(root / 'input', root / 'gold', root)
+
+    def test_sampling_keeps_complete_groups_and_is_independent_of_file_order(self):
+        rows = [packet(f'{g}:{i}', f'g{g}', 'test', 'legal', f'Source {g}.', 'A claim.')
+                for g in range(12) for i in range(3)]
+        selected = select_rows(rows, groups=4, seed=17)
+        self.assertEqual(selected, select_rows(list(reversed(rows)), groups=4, seed=17))
+        self.assertEqual(len(selected), 12)
+        self.assertEqual(len({r['group'] for r in selected}), 4)
+        self.assertNotEqual(selected, select_rows(rows, groups=4, seed=18))
+        other = packet('other', 'other', 'test', 'other-task', 'Another source.', 'Another claim.')
+        self.assertIn(other, select_rows(rows + [other], groups=1))
+        # Even a leak outside the eventual sample must be refused; versions are not independent sources.
+        leaked = copy.deepcopy(rows[-1])
+        leaked.update(id='leak', group='different', split='calibration')
+        leaked['sources'][0].update(text='Changed version.', sha256=digest('Changed version.'), version='v2')
+        leaked['evidence'] = []
+        leaked['answer'][0]['evidence_ids'] = []
+        with self.assertRaisesRegex(ValueError, 'source_crosses_splits'):
+            select_rows(rows + [leaked], groups=1)
+
+    def test_replay_rejects_changed_citations_scores_and_missing_text(self):
+        row = example()
+        result = check_answer(row, Scores([1, 0]), self.bridge)
+        self.assertEqual(replay_units(row, result, False), result['units'])
+        for mutation, message in (
+            (lambda r: r.update(score=1), 'answer_score'),
+            (lambda r: r['units'].pop(), 'answer_tail'),
+            (lambda r: r['units'][0].update(evidence_ids=[]), 'unit_citations'),
+            (lambda r: r['units'][0].update(text='Forged'), 'unit_text'),
+            (lambda r: r['units'][0].update(score=float('nan')), 'unit_score')):
+            changed = copy.deepcopy(result)
+            mutation(changed)
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                replay_units(row, changed, False)
+        with self.assertRaisesRegex(ValueError, 'missing_checked_units'):
+            replay_units(row, {'score': 1}, False)
+
+    def test_localization_distinguishes_finding_the_error_from_rejecting_the_answer(self):
+        row = example('The firm 🦫 pays. The term is nine years.')
+        text = row['answer'][0]['text']
+        start = utf16_len(text[:text.index('nine')])
+        gold = {'supported': False, 'span_scope': 'answer',
+                'spans': [{'block': 0, 'start': start, 'end': start + 4, 'text': 'nine'}]}
+        errors = answer_errors(row, gold)
+        result = check_answer(row, Scores([0, 1]), self.bridge)
+        observed = {**observation('a', 'g1', False, 0), 'units': result['units'], 'error_spans': errors}
+        report = summary([observed], .5)
+        self.assertEqual(report['unsupported_detection'], 1)
+        self.assertEqual(report['localization']['unit_recall'], 0)
+        self.assertEqual(report['localization']['clean_unit_retention'], 0)
+        self.assertEqual(report['localization']['error_span_hit_recall'], 0)
+        observed['units'] = check_answer(row, Scores([1, 0]), self.bridge)['units']
+        self.assertEqual(localization([observed], .5)['unit_f1'], 1)
+        observed['units'][1]['score'] = None
+        self.assertEqual(localization([observed], .5)['unit_recall'], 0)
+        observed['units'] = None
+        self.assertEqual(localization([observed], .5)['error_span_hit_recall'], 0)
+        self.assertEqual(localization([observed], .5)['unsegmented_answers'], 1)
+        self.assertIsNone(answer_errors(row, {**gold, 'span_scope': 'source'}))
+        with self.assertRaisesRegex(ValueError, 'changed_gold_span'):
+            answer_errors(row, {**gold, 'spans': [{**errors[0], 'start': start - 1}]})
+
+    def test_citation_failures_stay_in_denominators_and_partial_checks_resolve(self):
+        units = check_answer(example(), Scores([1, None]), self.bridge)['units']
+        self.assertIsNone(citation_scores(units, .5)['citation_precision'])
+        good = {**observation('a', 'g1', True, 1), 'units': check_answer(example(), Scores([1, 1]), self.bridge)['units']}
+        rows = [good, observation('b', 'g2', False, None)]
+        report = summary(rows, .5)
+        self.assertEqual(report['citation_recall'], .5)
+        self.assertEqual(report['citation_checked_items'], 1)
+        self.assertEqual(report['citation_precision_scored_items'], 1)
+        self.assertIsNone(report['citation_precision'])
+        both = [{'evidence_ids': ['a', 'b'], 'score': 1, 'individual': [1, None], 'without': [None, 0]}]
+        self.assertEqual(citation_scores(both, .5)['citation_precision'], 1)
+
+    def test_cli_scoring_and_rate_comparisons_use_frozen_gold(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            rows = [packet(f'a{i}', f'g{i}', 'test', 'legal', f'Source {i}.', 'The duty survives.') for i in range(4)]
+            gold = [{'id': r['id'], 'input_sha256': digest(r), 'supported': i % 2 == 0} for i, r in enumerate(rows)]
+            (root / 'input').write_text(''.join(json.dumps(r) + '\n' for r in rows))
+            (root / 'gold').write_text(''.join(json.dumps(r) + '\n' for r in gold))
+            for name, scores in [('left', [1, 1, 1, 0]), ('right', [1, 0, 1, 0])]:
+                directory = root / name
+                directory.mkdir()
+                meta = {'ids': [r['id'] for r in reversed(rows)], 'input_sha256': digest(list(reversed(rows))),
+                        'code': 'c', 'model': 'm', 'citations': False, 'status': 'completed'}
+                (directory / 'meta.json').write_text(json.dumps(meta))
+                results = [{**check_answer(r, Scores([value]), self.bridge), 'id': r['id'],
+                            'input_sha256': digest(r), 'elapsed_ms': 10} for r, value in zip(rows, scores)]
+                (directory / 'results.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in results))
+                subprocess.run(['python', str(Path(__file__).with_name('benchmark.py')), 'score',
+                                '--input', str(root / 'input'), '--gold', str(root / 'gold'), '--run', str(directory),
+                                '--out', str(root / f'{name}.json')], check=True, capture_output=True, text=True)
+            args = SimpleNamespace(left=root / 'left.json', right=root / 'right.json', metric='unsupported_accepted')
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                compare(args)
+            result = json.loads(out.getvalue())
+            self.assertEqual(result['right_minus_left'], -.5)
+            self.assertEqual(result['groups'], 4)
+            # Undefined conditional bootstrap draws are counted, not silently treated as zero.
+            self.assertGreater(result['undefined_resamples'], 0)
+            args.metric = 'accuracy'
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                compare(args)
+            self.assertEqual(json.loads(out.getvalue())['right_minus_left'], .25)
+            right = json.loads(args.right.read_text())
+            right['observations'][0]['gold_sha256'] = 'changed'
+            args.right.write_text(json.dumps(right))
+            with self.assertRaisesRegex(ValueError, 'unpaired_gold'):
+                compare(args)
+
+    def test_locked_policy_cannot_drop_tasks_or_reuse_another_source_version(self):
+        from unittest.mock import patch
+        rows = [observation('a', 'test-group', True, 1)]
+        meta = {'status': 'completed', 'code': 'c', 'model': 'm'}
+        policy = {'enabled': True, 'code': 'c', 'model': 'm', 'groups': ['cal-group'],
+                  'sources': ['cal-hash'], 'source_ids': ['test-group'], 'slices': ['legal', 'other'],
+                  'threshold': .5, 'risk_limit': .01, 'valid_pass_limit': .95}
+        with tempfile.TemporaryDirectory() as temp, patch('benchmark.load_evaluation', return_value=(meta, rows)):
+            path = Path(temp) / 'policy'
+            path.write_text(json.dumps(policy))
+            args = SimpleNamespace(input=None, gold=None, run=None, threshold=.5, policy=path, out=Path(temp) / 'out')
+            with self.assertRaisesRegex(ValueError, 'source_identity_overlap'):
+                score(args)
+            policy['source_ids'] = ['different-source']
+            path.write_text(json.dumps(policy))
+            with self.assertRaisesRegex(ValueError, 'task_slice'):
+                score(args)
+        calibration = [observation(str(i), f'cal-{i}', i < 300, .9 if i < 300 else .8, 'calibration') for i in range(600)]
+        heldout = [observation(str(i), f'test-{i}', i < 300, .9 if i < 300 else .8) for i in range(600)]
+        with tempfile.TemporaryDirectory() as temp, contextlib.redirect_stdout(io.StringIO()):
+            args = SimpleNamespace(input=None, gold=None, run=None, risk=.01, valid_pass=.95, out=Path(temp) / 'policy')
+            with patch('benchmark.load_evaluation', return_value=(meta, calibration)):
+                fit(args)
+            fitted = json.loads(args.out.read_text())
+            self.assertTrue(fitted['enabled'])
+            self.assertEqual(fitted['threshold'], .9)
+            args.policy, args.out, args.threshold = args.out, Path(temp) / 'report', .5
+            with patch('benchmark.load_evaluation', return_value=(meta, heldout)):
+                score(args)
+            self.assertTrue(json.loads(args.out.read_text())['meets_policy'])
+            with patch('benchmark.load_evaluation', return_value=({**meta, 'status': 'running'}, heldout)):
+                score(args)
+            self.assertFalse(json.loads(args.out.read_text())['meets_policy'])
+
+    def test_pair_preflight_and_provider_failure_are_bounded(self):
+        row = example('The duty survives. ' * 513)
+        fake = Scores([])
+        with self.assertRaisesRegex(ValueError, 'checker_pair_limit'):
+            check_answer(row, fake, self.bridge)
+        self.assertEqual(fake.jobs, [])
+        class Broken:
+            def predict(self, jobs, context):
+                raise TimeoutError('provider unavailable')
+        result = check_answer(example(), Broken(), self.bridge)
+        self.assertEqual(result['error'], 'TimeoutError')
+        self.assertIsNone(result['score'])
+        self.assertEqual(len(result['units']), 2)
+        self.assertTrue(all(u['score'] is None for u in result['units']))
+        runtime = self.bridge.call({'op': 'runtime'})
+        self.assertEqual(set(runtime), {'node', 'icu', 'unicode', 'locale'})
+        self.assertTrue(all(isinstance(v, str) and v for v in runtime.values()))
 
 
 if __name__ == '__main__':
