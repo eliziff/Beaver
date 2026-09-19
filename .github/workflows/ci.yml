@@ -10,6 +10,26 @@ permissions:
   contents: read
 
 jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [".", backend, frontend]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Check audit failure handling
+        if: matrix.directory == '.'
+        run: node --test scripts/audit-gate.test.mjs
+      - name: Audit resolved dependencies
+        working-directory: ${{ matrix.directory }}
+        run: node "$GITHUB_WORKSPACE/scripts/audit-gate.mjs"
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -28,7 +48,6 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
       - name: Install document conversion dependency
         run: |
           curl -fsSL https://github.com/jgm/pandoc/releases/download/3.10/pandoc-3.10-1-amd64.deb -o "$RUNNER_TEMP/pandoc.deb"
@@ -55,7 +74,6 @@ jobs:
       - name: Install shared wire-contract dependencies
         run: npm ci --prefix ../backend --ignore-scripts
       - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
       - run: npm test
       - run: npm run lint
       - run: npm run build

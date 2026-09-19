@@ -4,7 +4,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { SiteLogo } from "@/app/components/site-logo";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { googleSignIn, login, signup as createAccount } from "@/app/lib/api/auth";
+import { googleSignIn, login, ssoSignIn, signup as createAccount } from "@/app/lib/api/auth";
 import { errorMessage, safeNext } from "@/app/lib/utils";
 
 const input =
@@ -27,7 +27,8 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
     const navigate = useNavigate();
     const { search } = useLocation();
     const { isAuthenticated, authLoading, refreshSession } = useAuth();
-    const [status, setStatus] = useState<"idle" | "password" | "google">("idle");
+    const [status, setStatus] = useState<"idle" | "password" | "google" | "sso">("idle");
+    const [passwordStep, setPasswordStep] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const creating = mode === "signup";
     const query = new URLSearchParams(search);
@@ -45,12 +46,24 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
 
     async function submit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (status !== "idle") return;
         const form = new FormData(event.currentTarget);
         const email = String(form.get("email") ?? "").trim();
         const password = String(form.get("password") ?? "");
         setStatus("password");
         setError(null);
         try {
+            if (!creating && !passwordStep) {
+                setStatus("sso");
+                const url = await ssoSignIn(email, onboardingNext);
+                if (url) {
+                    window.location.assign(url);
+                    return;
+                }
+                setPasswordStep(true);
+                setStatus("idle");
+                return;
+            }
             if (!creating) {
                 await login(email, password);
                 await refreshSession();
@@ -126,10 +139,14 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                     <span className="h-px flex-1 bg-gray-200" />
                 </div>
                 <form onSubmit={submit} className="space-y-4">
-                    {fields[mode].map(([name, label, type, placeholder, qualifier]) => (
+                    {fields[mode].filter(([name]) => creating || passwordStep || name === "email")
+                        .map(([name, label, type, placeholder, qualifier]) => (
                         <label key={name} htmlFor={name} className="block text-sm font-medium text-gray-700">
                             {label}{qualifier && <span className="font-normal text-gray-400"> ({qualifier})</span>}
                             <Input id={name} name={name} type={type} placeholder={placeholder}
+                                disabled={status !== "idle"}
+                                autoFocus={!creating && name === "password"}
+                                onChange={name === "email" ? () => { setPasswordStep(false); setError(null); } : undefined}
                                 required={!qualifier}
                                 minLength={creating && (name === "password" || name === "confirmPassword") ? 12 : undefined}
                                 autoComplete={{ email: "email", password: creating ? "new-password" : "current-password", confirmPassword: "new-password", name: "name", organisation: "organization" }[name]}
@@ -141,7 +158,8 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
                         className="w-full bg-black text-white hover:bg-gray-900">
                         {status === "password"
                             ? creating ? "Creating account…" : "Logging in…"
-                            : creating ? "Sign up" : "Log in"}
+                            : status === "sso" ? "Connecting…"
+                            : creating ? "Sign up" : passwordStep ? "Log in" : "Continue"}
                     </Button>
                 </form>
                 {!creating && (
