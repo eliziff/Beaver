@@ -48,6 +48,10 @@ relationships, custom data and authored metadata are part of the comparison.
                  '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}lastModifiedBy',
                  '{http://schemas.openxmlformats.org/package/2006/metadata/core-properties}revision',
                  '{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}TotalTime'})
+    # Writer adds calculated statistics when selection-based review triggers layout.
+    # They are not authored content; all other application properties remain checked.
+    skip.update('{http://schemas.openxmlformats.org/officeDocument/2006/extended-properties}' + n
+                for n in ('Pages', 'Words', 'Characters', 'CharactersWithSpaces', 'Lines', 'Paragraphs'))
     def canonical(node):
         if node.tag in skip: return None
         children = tuple(v for c in node if (v := canonical(c)) is not None)

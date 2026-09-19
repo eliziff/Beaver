@@ -26,6 +26,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          # Unrelated historical docs contain Windows-invalid angle-bracket paths.
+          # Fetch the application and fixtures actually exercised by this suite.
+          sparse-checkout: |
+            backend
+            shared
+            packages
+            scripts
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
@@ -53,6 +60,12 @@ jobs:
       - name: Application publication and review policy
         working-directory: backend
         run: npx tsx --test experiments/libreoffice-uno/application.node.ts
+      - name: Exercise the network-isolated cloud image
+        if: runner.os == 'Linux'
+        working-directory: backend
+        run: |
+          docker build -f uno.Dockerfile -t beaver-uno:test .
+          WORD_UNO_CONTAINER_IMAGE=beaver-uno:test npx tsx --test experiments/libreoffice-uno/console.node.ts
       - name: Retain native artifacts and exact engine receipts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

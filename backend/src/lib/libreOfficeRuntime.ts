@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { accessSync, constants, existsSync, readdirSync } from "node:fs";
+import { accessSync, constants, existsSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { isolatedProcessEnv } from "./subprocessEnv";
@@ -7,22 +7,25 @@ import { isolatedProcessEnv } from "./subprocessEnv";
 const exec = promisify(execFile);
 const unique = (values: (string | undefined)[]) => [...new Set(values.filter((s): s is string => !!s))];
 
-/** Shared by PDF conversion and the rich editor. No deployment-mode branch. */
+/** Shared by PDF conversion and the rich editor. Prefer the actual application
+ * over a package manager's shell wrapper, so Python is located beside that app. */
 export function resolveSofficeBinary(): string | null {
   const windows = process.platform === "win32";
   const names = windows ? ["soffice.exe", "soffice.com"] : ["soffice", "libreoffice"];
   const candidates = unique([
     process.env.SOFFICE_BINARY_PATH, process.env.LIBREOFFICE_BINARY_PATH, process.env.LIBRE_OFFICE_EXE,
-    ...(process.env.PATH ?? "").split(path.delimiter).flatMap(d => names.map(n => path.join(d, n))),
     ...[process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].filter(Boolean)
       .map(d => path.join(d!, "LibreOffice", "program", "soffice.exe")),
     "/Applications/LibreOffice.app/Contents/MacOS/soffice",
     path.join(process.env.HOME ?? "", "Applications/LibreOffice.app/Contents/MacOS/soffice"),
+    ...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean).flatMap(d => names.map(n => path.join(d, n))),
     "/usr/bin/soffice", "/usr/bin/libreoffice", "/opt/libreoffice/program/soffice",
+    "/snap/bin/libreoffice", "/opt/libreoffice7.6/program/soffice",
   ]);
-  return candidates.find(file => {
+  const selected = candidates.find(file => {
     try { accessSync(file, constants.X_OK); return true; } catch { return false; }
-  }) ?? null;
+  });
+  return selected ? realpathSync(selected) : null;
 }
 
 export type UnoRuntime = { python: string; soffice: string; modulePaths: string[];
@@ -82,4 +85,5 @@ export function resolveUnoRuntime(): Promise<UnoRuntime> {
 
 export const UNO_BOOTSTRAP = `import sys,os,json,runpy; paths=json.loads(sys.argv.pop(1)); ` +
   `sys.path[:0]=paths; dlls=[os.add_dll_directory(p) for p in paths if os.name=='nt' and os.path.isdir(p)]; ` +
+  `sys.stdin.reconfigure(encoding='utf-8'); sys.stdout.reconfigure(encoding='utf-8'); sys.stderr.reconfigure(encoding='utf-8'); ` +
   `sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')`;

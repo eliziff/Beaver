@@ -383,7 +383,8 @@ def inspect(doc, request):
     family = request.get('family', 'paragraph'); selected = collection(doc, family)
     rows = []
     for key, node in selected[offset:offset + limit]:
-        row = {'target': family + ':' + quote(key, safe=''), 'text': getattr(node, 'String', '')[:300]}
+        row = {'target': family + ':' + quote(key, safe='')}
+        if family != 'revision': row['text'] = getattr(node, 'String', '')[:300]
         if family == 'revision':
             start, end = node.RedlineStart, node.RedlineEnd
             cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
