@@ -3,7 +3,7 @@ import type { UserPreferencesRepository } from "./userPreferences";
 
 type Db = SupabaseClient<any, "public", any>;
 
-export const normalizeEmail = (value: unknown) =>
+const normalizeEmail = (value: unknown) =>
     typeof value === "string" ? value.trim().toLowerCase() : "";
 
 export async function findProfileUserByEmail(

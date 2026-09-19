@@ -2,12 +2,12 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 
 vi.mock("../localMode", () => ({ isLocalRuntime: () => true }));
 const owner = { userId: "00000000-0000-0000-0000-000000000001" };
 let directory: string, close: (() => Promise<void>) | undefined;
-beforeEach(async () => {
+beforeAll(async () => {
   directory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-table-tool-"));
   vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", directory);
@@ -16,7 +16,8 @@ beforeEach(async () => {
   vi.stubEnv("SUPABASE_SECRET_KEY", "");
   vi.resetModules();
 });
-afterEach(async () => {
+afterEach(() => vi.restoreAllMocks());
+afterAll(async () => {
   await close?.(); close = undefined;
   vi.unstubAllEnvs(); vi.resetModules();
   await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

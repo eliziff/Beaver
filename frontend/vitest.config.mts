@@ -21,8 +21,10 @@ export default defineConfig({
     },
     test: {
         globals: true,
-        pool: "threads",
-        maxWorkers: 2,
+        pool: "forks",
+        isolate: false,
+        maxWorkers: 4,
+        execArgv: ["--max-old-space-size=192"],
         silent: "passed-only",
         environment: "jsdom",
         setupFiles: ["./vitest.setup.ts"],
