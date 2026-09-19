@@ -28,6 +28,8 @@ export function segments(text) {
 }
 
 export async function dispatch(request, load = () => import('../../src/lib/llm/index.ts')) {
+  if (request.op === 'runtime') return { node: process.versions.node, icu: process.versions.icu,
+    unicode: process.versions.unicode, locale: segmenter.resolvedOptions().locale };
   if (request.op === 'segment') return { segments: request.texts.map(segments) };
   if (request.op !== 'check' || request.allow_live !== true) throw new Error('live_not_authorized');
   if (!/^(codex:|claude-p:|ollama:)/u.test(request.model)) throw new Error('flat_rate_or_local_model_required');
