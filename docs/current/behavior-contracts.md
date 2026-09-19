@@ -428,3 +428,32 @@ memory, document contents, or assistant responses into a project curator.
 Curation uses the user's configured title model and credentials. Permission,
 enabled state, epoch and revision are checked again before committing. Account
 exports include accessible memory; account deletion removes private app memory.
+
+## Export integrity
+
+Project > Export manifest captures every accessible document version's source
+SHA-256, working revision, provenance, part hashes and edit decisions in one
+database snapshot. It does not include document bytes or storage keys. Account
+exports use the same integrity envelope. The digest covers the entire JSON body
+(including format and version), excluding only its `integrity` member, with
+recursively sorted object keys and array order preserved.
+
+`MANIFEST_SIGNING_KEY` optionally supplies a dedicated 32-byte Ed25519 seed as
+64 hex digits. Unset means unsigned; malformed configuration fails the export.
+Generate a new key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`.
+Keep it separate from encryption credentials and retain old public keys when
+rotating it. The signature covers UTF-8 `beaver-export-v1`, a NUL byte, and the
+32 digest bytes. Public keys are base64 DER SPKI; signatures are base64.
+
+Obtain the signing identity independently from the authenticated deployment's
+`GET /api/exports/signing-key`, save its JSON as `trusted-key.json`, and verify:
+
+```sh
+node scripts/verify-export.mjs manifest.json trusted-key.json version-id=downloaded-file.docx
+```
+
+The verifier checks supplied file bytes against their captured source hash and
+size. Omit file arguments to check only the manifest. Use `-` instead of a key
+file for a checksum/embedded-signature check; this does not establish the
+exporter's identity. A trusted key requires a signature and rejects an unsigned
+downgrade. Signing attests the exported snapshot, not earlier document custody.

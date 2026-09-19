@@ -67,10 +67,15 @@ the existing queue. Delete/pause/manual edits fence pending work. Provider
 continuations bind their memory snapshot and audience, including project-bound
 draft chats before their first turn. Nine memory/service/HTTP tests, four editor
 tests and thirteen queue tests passed; the organization/repository checks passed
-after correcting the draft fixture to create real drafts. The chat eligibility
-integration check needs the native addon; its
-unconstrained build was stopped after the user reported desktop lag. Further
-builds and tests use one worker. FullSweep remains pending.
+after correcting the draft fixture to create real drafts. The native addon's
+release build passed with one low-priority worker, followed by all 31 chat
+durability tests, including memory turn eligibility. Further builds and tests
+use one worker. FullSweep remains pending.
+
+Project manifests and account exports now share a canonical integrity envelope
+with optional Ed25519 signing, a separately retrievable public key and an offline
+verifier for manifests and supplied version files. Five integrity/CLI tests and
+nine organization/export/HTTP tests pass. Browser download validation remains.
 
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
