@@ -4,8 +4,6 @@ const sdk = vi.hoisted(() => ({
   anthropicCreate: vi.fn(),
   anthropicBetaCreate: vi.fn(),
   anthropicClient: vi.fn(),
-  geminiCreate: vi.fn(),
-  geminiClient: vi.fn(),
 }));
 
 vi.mock("@anthropic-ai/sdk", () => ({
@@ -15,17 +13,28 @@ vi.mock("@anthropic-ai/sdk", () => ({
     beta = { messages: { create: sdk.anthropicBetaCreate } };
   },
 }));
-vi.mock("@google/genai", () => ({
-  GoogleGenAI: class GoogleGenAI {
-    constructor(options: unknown) { sdk.geminiClient(options); }
-    models = { generateContentStream: sdk.geminiCreate };
-  },
-}));
 
-import { streamClaude } from "./claude";
-import { streamDeepSeek } from "./deepseek";
-import { streamGemini } from "./gemini";
-import { streamResponses } from "./openai";
+
+import { createAnthropicWireAdapter } from "./anthropicWire";
+import { createResponsesWireAdapter } from "./openaiResponsesWire";
+import { createCompatibleWireAdapter } from "./openaiCompatibleWire";
+import { runProviderLoop } from "./providerLoop";
+import { hasNativeCompaction } from "./contextWindow";
+import type { StreamChatParams } from "./types";
+// These native transports remain in use by the subscription and local-model adapters.
+const streamClaude = (params: StreamChatParams) => runProviderLoop(params,
+  createAnthropicWireAdapter(params, "test", hasNativeCompaction(params.model)));
+const streamResponses = (params: StreamChatParams, provider: "openai" | "openrouter" | "meta") =>
+  runProviderLoop(params, createResponsesWireAdapter(params, { apiKey: "test",
+    baseURL: provider === "openai" ? "https://api.openai.com/v1" : provider === "openrouter"
+      ? "https://openrouter.ai/api/v1" : "https://api.meta.ai/v1", provider,
+    persistent: provider === "openai", nativeCompaction: provider === "openai",
+    reasoningSummary: true, promptCacheKey: params.promptCacheKey || "test", serviceTier: params.serviceTier }));
+const streamDeepSeek = (params: StreamChatParams) => runProviderLoop(params,
+  createCompatibleWireAdapter(params, { apiKey: "test", baseURL: "https://api.deepseek.com",
+    model: params.model, provider: "deepseek", maxTokens: 32768,
+    request: { thinking: { type: params.enableThinking ? "enabled" : "disabled" },
+      reasoning_effort: params.enableThinking ? params.reasoningEffort : undefined } }));
 import { streamOpenCodeGo } from "./openCodeGo";
 import type { Tool } from "./types";
 
@@ -48,8 +57,6 @@ afterEach(() => {
   sdk.anthropicCreate.mockReset();
   sdk.anthropicBetaCreate.mockReset();
   sdk.anthropicClient.mockReset();
-  sdk.geminiCreate.mockReset();
-  sdk.geminiClient.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -295,41 +302,7 @@ describe("provider wire adapters", () => {
     ]);
   });
 
-  it("echoes Gemini thoughtSignature and exact function-call id", async () => {
-    sdk.geminiCreate
-      .mockResolvedValueOnce(generator([{
-        candidates: [{ content: { parts: [{
-          functionCall: { id: "call-1", name: "lookup", args: { id: "62" } },
-          thoughtSignature: "signed",
-        }] } }],
-      }]))
-      .mockResolvedValueOnce(generator([{
-        candidates: [{ content: { parts: [{ text: "Found." }] } }],
-      }]));
-    const result = await streamGemini({
-      model: "gemini-test",
-      systemPrompt: "system",
-      messages: [{ role: "user", content: "Find it." }],
-      tools: [tool],
-      apiKeys: { gemini: "test" },
-      runTools: async () => [{ tool_use_id: "call-1", content: "source" }],
-    });
 
-    const second = sdk.geminiCreate.mock.calls[1][0].contents;
-    expect(result.fullText).toBe("Found.");
-    expect(sdk.geminiClient).toHaveBeenCalledWith(expect.objectContaining({
-      httpOptions: { baseUrl: "https://generativelanguage.googleapis.com" },
-    }));
-    expect(second).toEqual(expect.arrayContaining([
-      { role: "model", parts: [{
-        functionCall: { id: "call-1", name: "lookup", args: { id: "62" } },
-        thoughtSignature: "signed",
-      }] },
-      { role: "user", parts: [{
-        functionResponse: { id: "call-1", name: "lookup", response: { output: "source" } },
-      }] },
-    ]));
-  });
 
   const page = {
     filename: "affidavit page 2.jpg", mimeType: "image/jpeg" as const, data: "AAAB",
@@ -359,26 +332,7 @@ describe("provider wire adapters", () => {
     ]));
   });
 
-  it("hands Gemini a tool result page as inline data", async () => {
-    sdk.geminiCreate
-      .mockResolvedValueOnce(generator([{ candidates: [{ content: { parts: [
-        { functionCall: { id: "call-1", name: "lookup", args: {} } },
-      ] } }] }]))
-      .mockResolvedValueOnce(generator([{ candidates: [{ content: { parts: [{ text: "Read." }] } }] }]));
 
-    await streamGemini({
-      model: "gemini-test", systemPrompt: "system", tools: [tool],
-      messages: [{ role: "user", content: "Read it." }],
-      apiKeys: { gemini: "test" }, runTools: viewed,
-    });
-
-    expect(sdk.geminiCreate.mock.calls[1][0].contents).toEqual(expect.arrayContaining([
-      { role: "user", parts: [
-        { functionResponse: { id: "call-1", name: "lookup", response: { output: "{\"page\":2}" } } },
-        { inlineData: { mimeType: "image/jpeg", data: "AAAB" } },
-      ] },
-    ]));
-  });
 
   it("hands Responses a tool result page as function-call output content", async () => {
     const requests: Record<string, unknown>[] = [];

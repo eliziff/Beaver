@@ -130,6 +130,9 @@ if (runtime.mode === "cloud") api.use(
   lazyRouter(() => import("./routes/auth").then((mod) =>
     mod.createAuthRouter(publicOrigin()))),
 );
+if (runtime.mode === "local") api.get("/auth/mfa/assurance", requireAuth, (_req, res) => {
+  res.json({ currentLevel: null, nextLevel: null });
+});
 
 /** The Organize step of a library or project reads one model, the same one the research step reads. */
 const designFolders: FolderDesigner = async (scope, documents, instruction, options) =>

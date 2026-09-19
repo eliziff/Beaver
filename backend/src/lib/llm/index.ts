@@ -18,14 +18,12 @@ async function streamProvider(
 ): Promise<StreamChatResult> {
   switch (provider) {
     case "claude":
-      return (await import("./claude")).streamClaude(params);
     case "openai":
-      return (await import("./openai")).streamResponses(params, "openai");
     case "deepseek":
-      return (await import("./deepseek")).streamDeepSeek(params);
     case "openrouter":
     case "meta":
-      return (await import("./openai")).streamResponses(params, provider);
+    case "gemini":
+      return (await import("./aiSdk")).streamAiSdk(params, provider);
     case "opencode-go":
       return (await import("./openCodeGo")).streamOpenCodeGo(params);
     case "codex":
@@ -34,8 +32,6 @@ async function streamProvider(
       return (await import("./claudeP")).streamClaudeP(params);
     case "ollama":
       return (await import("./ollamaApi")).streamOllama(params);
-    case "gemini":
-      return (await import("./gemini")).streamGemini(params);
   }
 }
 

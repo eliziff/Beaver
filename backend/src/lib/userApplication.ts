@@ -93,10 +93,6 @@ export function createUserApplication(dependencies: Dependencies) {
       const save = dependencies.credentials.save;
       if (!save) throw new ApplicationError(501,
         "API-key editing is unavailable in account-free local mode.");
-      if (dependencies.credentials.environmentConfigured(provider)) throw new ApplicationError(
-        409,
-        "This provider is configured by the server environment and cannot be changed from the browser.",
-      );
       await save(scope.userId, provider, value);
       return dependencies.credentials.status(scope.userId);
     },

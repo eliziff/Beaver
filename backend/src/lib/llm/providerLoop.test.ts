@@ -51,6 +51,16 @@ describe("provider loop", () => {
     }), adapter(steps));
     expect(steps).toHaveBeenCalledTimes(32);
     expect(result.contextRounds).toHaveLength(32);
+    expect(result.fullText).toContain("tool-step limit");
+  });
+
+  it("reports a length cutoff after partial output", async () => {
+    const content = vi.fn();
+    const result = await runProviderLoop(params({ callbacks: { onContentDelta: content } }), adapter(() => [
+      { type: "text_delta", text: "Partial" }, { type: "done", finishReason: "length" },
+    ]));
+    expect(result.fullText).toContain("output limit");
+    expect(content.mock.calls.map(([text]) => text).join("")).toBe(result.fullText);
   });
 
   it("rejects oversized provider output and tool arguments", async () => {
