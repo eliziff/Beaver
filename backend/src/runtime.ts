@@ -124,8 +124,12 @@ const user: Lazy<UserApplication> = lazy(async () => {
   const credentials = keys.createUserCredentials(
     await (await import("./lib/relationalDatabase")).relationalDatabase());
   const cloud = db ? (await import("./lib/supabaseUserAccount"))
-    .createSupabaseUserAccount(db, documents, preferences) : undefined;
+    .createSupabaseUserAccount(db, documents, preferences, async (scope) =>
+      (await import("./lib/organizationApplication")).prepareOrganizationAccountDeletion(
+        await (await import("./lib/relationalDatabase")).relationalDatabase(), scope)) : undefined;
   return createUserApplication({ preferences, credentials, cloud,
+    exportData: async (kind, scope) => (await import("./lib/userDataExport")).buildUserDataExport(
+      await (await import("./lib/relationalDatabase")).relationalDatabase(), kind, scope),
     connectors: capabilities.connectors ? connectors : undefined,
     deleteAll: (kind, scope) => kind === "chats"
       ? chats().then((value) => value.deleteAll(scope))
@@ -175,6 +179,8 @@ const legalSources = lazy(async () => {
 });
 const audit = lazy(async () => (await import("./lib/audit"))
   .createAuditStore(await (await import("./lib/relationalDatabase")).relationalDatabase()));
+const organizations = lazy(async () => (await import("./lib/organizationApplication"))
+  .createOrganizationApplication(await (await import("./lib/relationalDatabase")).relationalDatabase()));
 async function startWorkers() {
   const [{ recoverLocalJobs }, { startJobLanes }, { pdfJobHandlers },
     { providerPdfJobHandlers }, { chatTurnJobHandler, CHAT_TURN_JOB },
@@ -292,4 +298,4 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
       await (await legalSources()).coverage()) ?? undefined;
   }, authoritiesWorkspace, courtRecords, chat, chats, documents, sources,
   audit, background, connectors, legalSources, library, projects, startWorkers, workProducts,
-  tabular, workflows, preferences, user, shutdown };
+  tabular, workflows, preferences, user, organizations, shutdown };

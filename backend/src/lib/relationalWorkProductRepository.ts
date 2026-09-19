@@ -12,9 +12,10 @@ import { decodeWorkProductBuildReceipt, workProductInputs,
   type WorkProductOutput, type WorkProductOutputRef, type WorkProductRepository,
   type WorkProductMetadata, type WorkProductResolution, type WorkProductState } from "./workProduct";
 
-const access = (scope: ApplicationScope) => sql`(w.user_id=${scope.userId} OR
+const access = (scope: ApplicationScope, level: "view" | "edit" | "owner" = "view") => sql`(
+  (w.project_id IS NULL AND w.user_id=${scope.userId}) OR
   (w.project_id IS NOT NULL AND EXISTS(SELECT 1 FROM projects p
-    WHERE p.id=w.project_id AND ${projectAccess(scope)})))`;
+    WHERE p.id=w.project_id AND ${projectAccess(scope, level)})))`;
 
 const profileMetadata = (row: Row) => {
   const profileId = row.kind === "authorities" ? undefined
@@ -37,16 +38,16 @@ const product = (row: Row): WorkProduct => ({ ...metadata(row),
   state: decode<WorkProductState>(row.state_json, {}),
 } as WorkProduct);
 
-async function find(scope: ApplicationScope, id: string, db: RelationalDatabase) {
+async function find(scope: ApplicationScope, id: string, db: RelationalDatabase, edit = false) {
   const row = await one(sql`SELECT w.*,
-    CASE WHEN w.user_id=${scope.userId} THEN 1 ELSE 0 END is_owner
-    FROM work_products w WHERE w.id=${id} AND ${access(scope)}`, db);
+    CASE WHEN ${access(scope, "owner")} THEN 1 ELSE 0 END is_owner
+    FROM work_products w WHERE w.id=${id} AND ${access(scope, edit ? "edit" : "view")}`, db);
   return row ? { product: product(row), isOwner: Boolean(row.is_owner) } : null;
 }
 
 const projectAvailable = async (scope: ApplicationScope, id: string | null,
   db: RelationalDatabase) => !id || !!await one(sql`SELECT 1 ok FROM projects p WHERE p.id=${id}
-    AND ${projectAccess(scope)}`, db);
+    AND ${projectAccess(scope, "edit")}`, db);
 
 async function validateBindings(scope: ApplicationScope, state: WorkProductState,
   projectId: string | null, db: RelationalDatabase): Promise<WorkProductFailure | null> {
@@ -322,7 +323,7 @@ export const workProductRepository: WorkProductRepository = {
       if (tx.engine === "postgres") await tx.query(sql.raw(
         "LOCK TABLE work_products IN SHARE ROW EXCLUSIVE MODE",
       ));
-      const current = await find(scope, id, tx);
+      const current = await find(scope, id, tx, true);
       if (!current) return { status: "missing", resource: "work-product", id };
       if (current.product.revision !== input.revision) {
         return { status: "conflict", revision: current.product.revision };
@@ -356,7 +357,7 @@ export const workProductRepository: WorkProductRepository = {
     });
   },
   async remove(scope, id) {
-    return await changes(sql`DELETE FROM work_products WHERE id=${id}
-      AND user_id=${scope.userId}`) > 0;
+    return await changes(sql`DELETE FROM work_products AS w WHERE w.id=${id}
+      AND ${access(scope, "owner")}`) > 0;
   },
 };

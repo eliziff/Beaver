@@ -13,6 +13,7 @@ import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
 
 export interface Chat {
+  role?: "viewer" | "editor" | "owner" | null;
   search_hit?: { message_id: string | null; snippet: string };
   tabular_review_id?: string | null;
   research_file_id?: string | null;

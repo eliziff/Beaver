@@ -14,8 +14,9 @@ import { useAssistantPreferences } from "@/app/components/assistant/assistantPre
 import { DraftingStyleSettings } from "./DraftingStyleSettings";
 import { DisplaySettings } from "./DisplaySettings";
 import { WorkflowFileTargetSettings } from "./WorkflowFileTargetSettings";
+import { OrganizationSettings } from "./OrganizationSettings";
 
-const TABS = ["General", "Display", "Drafting", "Providers", "Subagents"] as const;
+const TABS = ["General", "Display", "Drafting", "Providers", "Subagents", "Organizations"] as const;
 type SettingsTab = (typeof TABS)[number];
 const TAB_OPTIONS = TABS.map((value) => ({ value, label: value }));
 
@@ -30,6 +31,7 @@ export function AppSettingsModal({
     const [selectedTab, setSelectedTab] = useState<SettingsTab>("General");
 
     const panels: Record<SettingsTab, ReactNode> = {
+        Organizations: <OrganizationSettings />,
         General: (
             <div className="space-y-6">
                 <section>

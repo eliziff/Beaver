@@ -11,7 +11,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteProject,
   getProject,
-  getProjectPeople,
   updateProject,
   type Project,
 } from "@/app/lib/api/projects";
@@ -22,7 +21,7 @@ import type { Document } from "@/app/lib/api/documents";
 
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import type { AssistantWorkflowLaunch } from "../workflows/workflowRoutes";
-import { PeopleModal } from "../modals/PeopleModal";
+import { AccessModal } from "../modals/AccessModal";
 import { NewTRModal } from "../tabular/NewTRModal";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 import { Tabs } from "../ui/tabs";
@@ -236,16 +235,9 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
           onCancel={() => { if (dialog !== "deleting") setDialog(null); }}
           onConfirm={() => void removeProject()} />
         {project && (
-          <PeopleModal
-            open={dialog === "people"}
-            onClose={() => setDialog(null)}
-            resource={project}
-            fetchPeople={getProjectPeople}
-            currentUserEmail={user?.email ?? null}
-            breadcrumb={["Projects", projectBreadcrumbLabel(project), "People"]}
-            onSharedWithChange={project.is_owner === false ? undefined : async (shared_with) =>
-              setProject(await updateProject(projectId, { shared_with }))}
-          />
+          <AccessModal open={dialog === "people"} onClose={() => setDialog(null)}
+            kind="project" resourceId={project.id} title={projectBreadcrumbLabel(project)}
+            onChange={async () => setProject(await getProject(projectId))} />
         )}
       </div>
     </Workspace.Provider>
