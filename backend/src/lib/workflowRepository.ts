@@ -47,6 +47,8 @@ export type WorkflowListOptions = {
   audience: WorkflowAudience | "all";
 };
 export type WorkflowRepository = {
+  documents(workflowId: string): Promise<Array<{ id: string; filename: string; current_version_id: string;
+    current_working_revision: number; source_sha256: string; size_bytes: number }>>;
   list(options: WorkflowListOptions): Promise<WorkflowRecord[]>;
   create(input: WorkflowValues): Promise<WorkflowRecord>;
   get(workflowId: string): Promise<WorkflowAccess | null>;

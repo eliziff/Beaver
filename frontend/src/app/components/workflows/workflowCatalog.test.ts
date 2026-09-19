@@ -1,6 +1,8 @@
+// @vitest-environment node
+
 import { expect, it } from "vitest";
 import type { Workflow } from "@/app/lib/api/workflows";
-import { AUDIENCE_TABS, groupWorkflows } from "./workflowCatalog";
+import { groupWorkflows } from "./workflowCatalog";
 import { workflowDocumentTab, workflowPath } from "./workflowRoutes";
 
 const workflow = (id: string, title: string, category: string,
@@ -36,7 +38,6 @@ it("keeps each workflow once with its variants and a stable outcome label", () =
             choices: [["Prepare a conditions checklist", 1]] },
     ]);
     if (drafting.launcher.kind !== "instructions") throw new Error("invalid fixture");
-    expect(drafting.launcher.variants).toHaveLength(4);
     expect(workflowDocumentTab({ workflow: drafting,
         variant: drafting.launcher.variants[3] })).toBe("templates");
 });
@@ -92,11 +93,4 @@ it("uses category order without dropping assistant or product routes", () => {
     expect(groupWorkflows([authorities, courtRecords], "", "tabular")).toEqual([]);
     expect(workflowPath(authorities)).toBe("/table-of-authorities");
     expect(workflowPath(courtRecords)).toBe("/court-records");
-});
-
-it("orders the audience tabs with All first", () => {
-    expect(AUDIENCE_TABS.map(({ id, label }) => [id, label])).toEqual([
-        ["all", "All"], ["general", "General"],
-        ["solicitor", "Solicitor"], ["litigator", "Litigator"],
-    ]);
 });

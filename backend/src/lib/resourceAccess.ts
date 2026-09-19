@@ -35,7 +35,10 @@ export const reviewAccess = (scope: ApplicationScope, level: AccessLevel = "view
   sql`${reviewRoleRank(scope)}>=${threshold(level)}`;
 
 export const documentAccess = (scope: ApplicationScope, level: AccessLevel = "view") =>
-  sql`(CASE WHEN d.project_id IS NOT NULL THEN COALESCE((SELECT ${projectRoleRank(scope)}
+  sql`(CASE WHEN EXISTS(SELECT 1 FROM workflow_documents wd WHERE wd.document_id=d.id)
+    THEN COALESCE((SELECT ${workflowRoleRank(scope)} FROM workflow_documents wd
+      JOIN workflows w ON w.id=wd.workflow_id WHERE wd.document_id=d.id),0)
+    WHEN d.project_id IS NOT NULL THEN COALESCE((SELECT ${projectRoleRank(scope)}
     FROM projects p WHERE p.id=d.project_id),0) WHEN d.user_id=${scope.userId} THEN 3 ELSE 0 END)>=${threshold(level)}`;
 
 const workProductRoleRank = (scope: ApplicationScope) => sql`(CASE WHEN w.project_id IS NOT NULL

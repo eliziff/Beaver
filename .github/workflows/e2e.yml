@@ -20,12 +20,12 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && secrets.ANTHROPIC_API_KEY || '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Restore pinned native dependencies
         run: git submodule update --init --recursive -- legal-structure legal-pdf-parser
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -54,7 +54,7 @@ jobs:
             AWS_DEFAULT_REGION=us-east-1 aws --endpoint-url http://localhost:9000 \
             s3 mb s3://mike
 
-      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
         with:
           version: 2.115.0
       - name: Start database
@@ -120,7 +120,7 @@ jobs:
           exit 1
       - run: npx playwright test
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: playwright-report

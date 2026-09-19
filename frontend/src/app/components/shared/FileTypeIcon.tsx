@@ -16,7 +16,7 @@ const FILE_SYMBOLS: Record<Exclude<FileTypeKind, "research">, string> = {
     image: "▧",
     other: "□",
 };
-export function fileTypeKind(value: string | null | undefined): FileTypeKind {
+function fileTypeKind(value: string | null | undefined): FileTypeKind {
     const raw = (value ?? "").toLowerCase().trim();
     if (raw.endsWith(".research.md")) return "research";
     const ext = raw.includes("/")

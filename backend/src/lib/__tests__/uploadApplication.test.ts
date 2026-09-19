@@ -104,3 +104,47 @@ it("runs the local HTTP session lifecycle with strict metadata and multipart sta
   expect(finished.body).toMatchObject({ status: "complete", document: { filename: "record.txt" } });
   expect(JSON.stringify(finished.body)).not.toContain("storage_path");
 });
+
+it.each(["version_create", "version_replace"])("durably publishes %s once despite duplicate workers and a lost response", async (purpose) => {
+  const initial = await documents.create(owner, { filename: "old.txt", fileType: "txt", bytes: Buffer.from("Before") });
+  const fields = { ...input(), purpose, target_document_id: initial.id,
+    expected_version_id: initial.current_version_id, expected_working_revision: initial.current_working_revision };
+  const session = await app.start(owner, fields);
+  await receive(session.id); await app.complete(owner, session.id);
+  await Promise.all([app.handlers["upload-document"](job(session.id), context), app.handlers["upload-document"](job(session.id), context)]);
+  const finished = await app.start(owner, fields);
+  expect(finished).toMatchObject({ id: session.id, status: "complete", document: { id: initial.id, source_sha256: sha256(bytes) },
+    version: { working_revision: purpose === "version_create" ? 0 : 1 } });
+  expect((await documents.versions(owner, initial.id))?.versions).toHaveLength(purpose === "version_create" ? 2 : 1);
+  expect((await app.complete(owner, session.id)).version?.id).toBe(finished.version?.id);
+  await expect(app.start(other, { ...fields, client_key: randomUUID() })).rejects.toMatchObject({ status: 404 });
+});
+
+it.each(["version_create", "version_replace"])("does not overwrite intervening edits during %s", async (purpose) => {
+  const initial = await documents.create(owner, { filename: "old.txt", fileType: "txt", bytes: Buffer.from("Before") });
+  const session = await app.start(owner, { ...input(), purpose, target_document_id: initial.id,
+    expected_version_id: initial.current_version_id, expected_working_revision: initial.current_working_revision });
+  await receive(session.id); await app.complete(owner, session.id);
+  const edited = Buffer.from("Keep my edits");
+  await documents.replaceVersion(owner, initial.id, initial.current_version_id, initial.current_working_revision,
+    { filename: "old.txt", fileType: "txt", bytes: edited });
+  await app.handlers["upload-document"](job(session.id), context);
+  expect(await app.get(owner, session.id)).toMatchObject({ status: "failed", document: null });
+  expect((await documents.metadata(owner, initial.id))?.source_sha256).toBe(sha256(edited));
+  expect((await documents.versions(owner, initial.id))?.versions).toHaveLength(1);
+});
+
+it("fences cancelled version publication after preparation starts", async () => {
+  const initial = await documents.create(owner, { filename: "old.txt", fileType: "txt", bytes: Buffer.from("Before") });
+  const session = await app.start(owner, { ...input(), purpose: "version_create", target_document_id: initial.id,
+    expected_version_id: initial.current_version_id, expected_working_revision: initial.current_working_revision });
+  await receive(session.id); await app.complete(owner, session.id);
+  const add = documents.addVersion.bind(documents);
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; }), ready = new Promise<void>((resolve) => { entered = resolve; });
+  vi.spyOn(documents, "addVersion").mockImplementation(async (...args) => { entered(); await gate; return add(...args); });
+  const running = app.handlers["upload-document"](job(session.id), context);
+  await ready; await app.cancel(owner, session.id); release(); await running;
+  expect(await app.get(owner, session.id)).toMatchObject({ status: "cancelled", document: null });
+  expect((await documents.versions(owner, initial.id))?.versions).toHaveLength(1);
+});

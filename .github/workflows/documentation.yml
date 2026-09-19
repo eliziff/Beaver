@@ -35,7 +35,7 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $auth" fetch --no-tags --no-recurse-submodules --depth=1 origin "$GITHUB_SHA"
           git checkout --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
       - run: node --test docs/scripts/check-docs.test.mjs

@@ -30,7 +30,7 @@ export async function buildUserDataExport(database: RelationalDatabase, kind: Us
     const children = (table: string, column: string, parents: Row[]) => parents.length
       ? read(sql`SELECT * FROM ${sql.raw(table)} WHERE ${sql.raw(column)} IN(${ids(parents)})
           ORDER BY ${sql.raw(column)},${sql.raw(table === "chat_message_events" ? "ordinal"
-            : table === "document_version_parts" ? "version_id,name" : "id")}`)
+            : table === "document_version_parts" ? "version_id,name" : table === "workflow_documents" ? "document_id" : "id")}`)
       : Promise.resolve([] as Row[]);
     const data: Record<string, unknown> = { exported_at: new Date().toISOString(),
       user: { id: scope.userId, email: scope.userEmail ?? null } };
@@ -54,7 +54,9 @@ export async function buildUserDataExport(database: RelationalDatabase, kind: Us
       const projects = await read(sql`SELECT p.* FROM projects p WHERE p.user_id=${scope.userId}
         AND ${projectAccess(scope)} ORDER BY p.created_at,p.id`);
       const documents = await read(sql`SELECT d.* FROM documents d WHERE
-        (d.user_id=${scope.userId} OR d.project_id IN(${ids(projects)}))
+        (d.user_id=${scope.userId} OR d.project_id IN(${ids(projects)}) OR d.id IN(
+          SELECT wd.document_id FROM workflow_documents wd JOIN workflows w ON w.id=wd.workflow_id
+          WHERE w.user_id=${scope.userId} AND ${workflowAccessPredicate(scope)}))
         AND ${documentAccess(scope)} ORDER BY d.created_at,d.id`);
       data.projects = projects;
       data.project_subfolders = await children("project_subfolders", "project_id", projects);
@@ -64,6 +66,7 @@ export async function buildUserDataExport(database: RelationalDatabase, kind: Us
       const workflows = await read(sql`SELECT w.* FROM workflows w WHERE w.user_id=${scope.userId}
         AND ${workflowAccessPredicate(scope)} ORDER BY w.created_at,w.id`);
       data.workflows = workflows;
+      data.workflow_documents = await children("workflow_documents", "workflow_id", workflows);
       data.workflow_shares = await children("workflow_shares", "workflow_id", workflows);
       data.workflow_open_source_submissions = await children("workflow_open_source_submissions", "workflow_id", workflows);
       data.work_products = await read(sql`SELECT w.* FROM work_products w WHERE w.user_id=${scope.userId}

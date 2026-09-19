@@ -1,3 +1,4 @@
+@custom-variant dark (&:where([data-appearance="dark"], [data-appearance="dark"] *));
 .overflow-y-auto,
 .overflow-auto,
 [class*="\:overflow-y-auto"],
@@ -52,6 +53,41 @@ textarea,
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: var(--brand-red);
+}
+:root[data-appearance="dark"] {
+    --app-background: #15191f;
+    --app-surface: #20262f;
+    --app-surface-hover: #2a323e;
+    --app-surface-active: #354050;
+    --app-floating: #252d38;
+    --background: var(--app-background);
+    --foreground: #edf0f5;
+    --muted-foreground: #adb7c6;
+    --border: #465365;
+    --input: #465365;
+    --brand-red-soft: #402421;
+    --color-gray-50: #1b2028;
+    --color-gray-100: #262e39;
+    --color-gray-200: #354050;
+    --color-gray-300: #465365;
+    --color-gray-400: #9aa7ba;
+    --color-gray-500: #adb7c6;
+    --color-gray-600: #c2cad6;
+    --color-gray-700: #d6dce5;
+    --color-gray-800: #e4e8ef;
+    --color-gray-900: #edf0f5;
+    --color-gray-950: #f5f7fa;
+}
+@layer utilities {
+    :where(:root[data-appearance="dark"]) .bg-white {
+        background-color: var(--app-surface);
+    }
+    :where(:root[data-appearance="dark"]) :is(.bg-gray-700, .bg-gray-800, .bg-gray-900) {
+        background-color: #111827;
+    }
+}
+:root[data-appearance="dark"] .file-type-symbol {
+    color: var(--foreground);
 }
 @layer base {
     html {
