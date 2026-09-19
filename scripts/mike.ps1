@@ -15,15 +15,18 @@ $ErrorActionPreference = 'Stop'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Backend = Join-Path $Repo 'backend'
 $Frontend = Join-Path $Repo 'frontend'
-$StateRoot = Join-Path $env:LOCALAPPDATA 'OpenLegalProducts\MikeCanada'
+$ListenPort = if ($env:PORT) { [int]$env:PORT } else { 3000 }
+if ($ListenPort -lt 1 -or $ListenPort -gt 65535) { throw 'PORT must be between 1 and 65535.' }
+$BaseUrl = "http://127.0.0.1:$ListenPort"
+$StateRoot = if ($env:MIKE_LAUNCHER_STATE_DIR) { $env:MIKE_LAUNCHER_STATE_DIR } else { Join-Path $env:LOCALAPPDATA 'OpenLegalProducts\MikeCanada' }
 $StateFile = Join-Path $StateRoot 'lifecycle.json'
 $SupervisorStateFile = Join-Path $StateRoot 'supervisor.json'
 
 $Services = @(
     [pscustomobject]@{
         Name = 'beaver'
-        Port = 3000
-        Url = 'http://127.0.0.1:3000/api/health'
+        Port = $ListenPort
+        Url = "$BaseUrl/api/health"
     }
 )
 $Builds = @(
@@ -521,16 +524,16 @@ function Start-Stack {
         [Environment]::SetEnvironmentVariable('MIKE_SUPERVISOR_STATE_FILE', $SupervisorStateFile, 'Process')
 
         $previousPort = [Environment]::GetEnvironmentVariable('PORT', 'Process')
-        [Environment]::SetEnvironmentVariable('PORT', '3000', 'Process')
+        [Environment]::SetEnvironmentVariable('PORT', [string]$ListenPort, 'Process')
         [Environment]::SetEnvironmentVariable('NODE_ENV', 'production', 'Process')
         $backendStart = Start-LoggedProcess 'beaver' $node @('--env-file=.env', 'dist/supervisor.js') $Backend $state
         $launched += [pscustomobject]@{
             Id = $backendStart.Process.Id
             StartedAt = Get-ProcessStamp $backendStart.Process.Id
         }
-        Add-ProcessRecord $state 'beaver' 3000 $backendStart.Process $backendStart.Stdout $backendStart.Stderr
+        Add-ProcessRecord $state 'beaver' $ListenPort $backendStart.Process $backendStart.Stdout $backendStart.Stderr
         Wait-Ready 'beaver' $Services[0].Url $backendStart.Process $TimeoutSeconds
-        Set-ListenerRecord $state 'beaver' 3000 $backendStart.Process
+        Set-ListenerRecord $state 'beaver' $ListenPort $backendStart.Process
         Write-Host "Beaver ready: $($Services[0].Url)"
 
     }
@@ -553,7 +556,7 @@ function Start-Stack {
     }
 
     if (-not $NoBrowser) {
-        Start-Process 'http://127.0.0.1:3000/'
+        Start-Process "$BaseUrl/"
     }
 }
 
@@ -565,14 +568,14 @@ function Invoke-Smoke {
         }
     }
     $checks = @(
-        [pscustomobject]@{ Name = 'beaver'; Url = 'http://127.0.0.1:3000/api/health' },
-        [pscustomobject]@{ Name = 'app'; Url = 'http://127.0.0.1:3000/' },
-        [pscustomobject]@{ Name = 'Authorities'; Url = 'http://127.0.0.1:3000/table-of-authorities' },
-        [pscustomobject]@{ Name = 'Authorities drafts'; Url = 'http://127.0.0.1:3000/api/authorities' },
-        [pscustomobject]@{ Name = 'Library'; Url = 'http://127.0.0.1:3000/api/library/files' }
+        [pscustomobject]@{ Name = 'beaver'; Url = "$BaseUrl/api/health" },
+        [pscustomobject]@{ Name = 'app'; Url = "$BaseUrl/" },
+        [pscustomobject]@{ Name = 'Authorities'; Url = "$BaseUrl/table-of-authorities" },
+        [pscustomobject]@{ Name = 'Authorities drafts'; Url = "$BaseUrl/api/authorities" },
+        [pscustomobject]@{ Name = 'Library'; Url = "$BaseUrl/api/library/files" }
     )
     if ($state.codex) {
-        $checks += [pscustomobject]@{ Name = 'Model catalog'; Url = 'http://127.0.0.1:3000/api/models' }
+        $checks += [pscustomobject]@{ Name = 'Model catalog'; Url = "$BaseUrl/api/models" }
     }
     elseif ($Full) {
         throw 'Full smoke requires an installed and authenticated Codex CLI.'
@@ -612,7 +615,7 @@ function Invoke-Smoke {
             throw 'Authorities smoke requires Python and ChromeDriver.'
         }
         & $python.Source (Join-Path $Repo 'scripts\test-authorities-browser.py') `
-            '--url' 'http://127.0.0.1:3000/table-of-authorities'
+            '--url' "$BaseUrl/table-of-authorities"
         if ($LASTEXITCODE -ne 0) {
             throw "Authorities browser smoke failed with exit code $LASTEXITCODE."
         }
@@ -623,12 +626,12 @@ function Invoke-Smoke {
             throw 'Assistant dock smoke requires Python and ChromeDriver.'
         }
         & $python.Source (Join-Path $Repo 'scripts\test-document-row-browser.py') `
-            '--url' 'http://127.0.0.1:3000/library'
+            '--url' "$BaseUrl/library"
         if ($LASTEXITCODE -ne 0) {
             throw "Document row browser smoke failed with exit code $LASTEXITCODE."
         }
         & $python.Source (Join-Path $Repo 'scripts\test-sources-dock-browser.py') `
-            '--url' 'http://127.0.0.1:3000/'
+            '--url' "$BaseUrl/"
         if ($LASTEXITCODE -ne 0) {
             throw "Assistant dock browser smoke failed with exit code $LASTEXITCODE."
         }

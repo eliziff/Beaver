@@ -14,7 +14,7 @@ export default defineConfig({
     reporter: "list",
     outputDir: "test-results/local-production-smoke",
     use: {
-        baseURL: "http://127.0.0.1:3000",
+        baseURL: `http://127.0.0.1:${process.env.PORT || "3000"}`,
         trace: "retain-on-failure",
         screenshot: "only-on-failure",
         video: "off",
