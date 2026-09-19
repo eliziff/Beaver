@@ -28,6 +28,24 @@ const responseText = [responsesStart("resp-2"),
   { type: "response.output_item.done", output_index: 0, item: { type: "message", id: "msg-2" } }, responseEnd()];
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
+it.each([401, 400, 403])("reports rejected credentials without leaking provider text (%s)", async (status) => {
+  vi.stubGlobal("fetch", async () => Response.json({ error: {
+    message: "Incorrect API key provided: private-value", type: "invalid_request_error", code: "invalid_api_key",
+  } }, { status }));
+  const error = await streamAiSdk({ ...base, model: "gpt-5.5" }, "openai").catch((value: Error) => value);
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).message).toContain("API key was rejected");
+  expect((error as Error).message).not.toContain("private-value");
+});
+
+it("does not label model permissions as an invalid key", async () => {
+  vi.stubGlobal("fetch", async () => Response.json({ error: {
+    message: "Model access is not enabled", type: "permission_error", code: "model_not_found",
+  } }, { status: 403 }));
+  await expect(streamAiSdk({ ...base, model: "gpt-5.5" }, "openai"))
+    .rejects.toThrow("Model access is not enabled");
+});
+
 it("rejects a truncated stream without executing its pending tools", async () => {
   vi.stubGlobal("fetch", async () => sse(responseTool.slice(0, -1)));
   const runTools = vi.fn();
