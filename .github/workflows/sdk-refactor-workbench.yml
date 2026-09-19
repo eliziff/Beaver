@@ -29,10 +29,16 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --prefix backend --ignore-scripts
-      - run: npm install --prefix backend --ignore-scripts --no-save --package-lock=false ai@7.0.98 @ai-sdk/anthropic@4.0.53 @ai-sdk/google@4.0.68 @ai-sdk/openai@4.0.66 @ai-sdk/openai-compatible@3.0.48
+      - name: Install SDK in an independent workbench
+        run: |
+          mkdir sdk-deps
+          echo '{"private":true}' > sdk-deps/package.json
+          npm install --prefix sdk-deps --ignore-scripts ai@7.0.98 @ai-sdk/anthropic@4.0.53 @ai-sdk/google@4.0.68 @ai-sdk/openai@4.0.66 @ai-sdk/openai-compatible@3.0.48
       - name: Package source and installed SDK contracts
+        if: always()
         run: tar --exclude=.git --exclude=./backend/experiments --exclude=./backend/legal-pdf-parser --exclude=./data --exclude=./subrepos -czf "$RUNNER_TEMP/sdk-workbench.tar.gz" .
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: sdk-workbench
           path: ${{ runner.temp }}/sdk-workbench.tar.gz
