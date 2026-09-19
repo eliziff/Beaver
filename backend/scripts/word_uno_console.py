@@ -298,6 +298,12 @@ def freeze_checks(broker):
         # Newly attached note factories can have a different UNO identity from
         # their collection entry; compare their actual reference ranges.
         matches = [obj] if obj in pending else []
+        family = target.partition(':')[0]
+        if family in STYLE_FAMILIES:
+            service = 'com.sun.star.style.' + STYLE_FAMILIES[family][:-1]
+            matches.extend(wanted for wanted in pending if wanted not in matches
+                and hasattr(wanted, 'supportsService') and wanted.supportsService(service)
+                and wanted.Name == obj.Name)
         if target.startswith(('footnote:', 'endnote:')):
             for wanted in pending:
                 if not hasattr(wanted, 'supportsService') or not wanted.supportsService('com.sun.star.text.Footnote'): continue
@@ -314,7 +320,7 @@ def freeze_checks(broker):
         obj = broker.refs[ref]
         if obj in pending:
             try:
-                if resolve(broker.doc, target) == obj: remember(target, obj)
+                remember(target, resolve(broker.doc, target))
             except Exception: pass
     remember('document:root', broker.doc)
     remember('body:root', broker.doc.Text)
