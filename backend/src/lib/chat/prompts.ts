@@ -4,7 +4,7 @@ export const CLIENT_WORK_PRODUCT_PRESUMPTION =
 /** Journals are the entry point for doctrinal work, not a non-binding aside the
  * model should disclaim. The description and the routing rule ship together so
  * the model knows both what the dataset is and how to use it. */
-export const JOURNALS_AND_COMMENTARY_GUIDANCE = `JOURNALS AND COMMENTARY:
+const JOURNALS_AND_COMMENTARY_GUIDANCE = `JOURNALS AND COMMENTARY:
 The Journals dataset holds full-text, peer-reviewed law journal articles with abstracts and complete citation metadata.
 Doctrinal research should usually include reading Journals, which often give better and more accurate accounts of the law than cases do. LLMs assume that non-binding = ignore / do not rely on commentary. That is incorrect. Use journals in your searching and in your final synthesis unless the final synthesis naturally excludes it (e.g. the user asked just for a list of cases).`;
 

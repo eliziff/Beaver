@@ -65,12 +65,8 @@ afterEach(async () => {
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.AUTH_MODE;
-  vi.doUnmock("../convert");
-  vi.doUnmock("../draftingStyleStore");
-  vi.doUnmock("../chat/tools/sourceSearchTools");
-  vi.doUnmock("node:fs/promises");
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  vi.resetModules();
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
     temporaryDirectory = null;
@@ -599,7 +595,6 @@ describe("local assistant tools", () => {
   it("addresses spreadsheet cells through the same bounded Read contract", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-xlsx-cells-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    vi.resetModules();
 
     const sheet = XLSX.utils.aoa_to_sheet([
       ["Matter", "Status"],
