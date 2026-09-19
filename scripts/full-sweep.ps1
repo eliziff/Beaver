@@ -2,6 +2,8 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+# Keep the desktop responsive while this deliberately long battery runs.
+[Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'BelowNormal'
 $env:NODE_NO_WARNINGS = '1'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Mike = Join-Path $PSScriptRoot 'mike.ps1'
@@ -90,18 +92,18 @@ try {
     Invoke-Step 'Native adapter check' {
         Invoke-Checked cargo @(
             'check', '--manifest-path',
-            (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'), '--offline', '--quiet'
+            (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'), '--offline', '--quiet', '--jobs', '1'
         )
     }
     Invoke-Step 'Native release build' {
         Invoke-Checked cargo @(
             'build', '--manifest-path',
             (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'),
-            '--release', '--offline', '--quiet'
+            '--release', '--offline', '--quiet', '--jobs', '1'
         )
     }
-    Invoke-Step 'Backend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'backend') }
-    Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend') }
+    Invoke-Step 'Backend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'backend', '--', '--maxWorkers=1') }
+    Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend', '--', '--maxWorkers=1') }
     Invoke-Step 'Backend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'backend') }
     Invoke-Step 'Frontend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'frontend') }
     Invoke-Step 'Production browser smoke' {
@@ -122,7 +124,7 @@ try {
             Push-Location (Join-Path $Repo 'backend')
             try {
                 Invoke-Checked npx.cmd @(
-                    'vitest', 'run', 'src/__tests__/integration/liveToolLoop.test.ts'
+                    'vitest', 'run', '--maxWorkers=1', 'src/__tests__/integration/liveToolLoop.test.ts'
                 )
             }
             finally { Pop-Location }
