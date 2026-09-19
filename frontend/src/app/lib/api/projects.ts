@@ -47,3 +47,5 @@ export const updateProject = (
 ) => patch<Project>(`/projects/${segment(projectId)}`, payload);
 export const deleteProject = (projectId: string) =>
   remove<void>(`/projects/${segment(projectId)}`);
+export const exportProjectManifest = (projectId: string) =>
+  apiRequest<Record<string, unknown>>(`/exports/projects/${segment(projectId)}`);

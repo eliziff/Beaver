@@ -6,6 +6,8 @@ import { toolText, type BeaverTool } from "./lib/chat/toolRegistry";
 import { createChatStore, type ChatScope, type ChatStore } from "./lib/chatStore";
 import { generateChatTitle } from "./lib/chatTitle";
 import { createDocumentApplication } from "./lib/documentApplication";
+import { buildProjectExportManifest } from "./lib/userDataExport";
+import type { ApplicationScope } from "./lib/applicationError";
 import { encryptionSecret } from "./lib/secretEncryption";
 import { createLibraryStore } from "./lib/libraryStore";
 import { isLocalRuntime } from "./lib/localMode";
@@ -330,4 +332,6 @@ export const runtime = { mode: local ? "local" as const : "cloud" as const, capa
       await (await legalSources()).coverage()) ?? undefined;
   }, authoritiesWorkspace, courtRecords, chat, chats, documents, sources,
   audit, background, connectors, legalSources, library, memory, projects, startWorkers, workProducts,
+  projectExport: async (scope: ApplicationScope, id: string) => buildProjectExportManifest(
+    await (await import("./lib/relationalDatabase")).relationalDatabase(), scope, id),
   tabular, workflows, preferences, user, organizations, shutdown };

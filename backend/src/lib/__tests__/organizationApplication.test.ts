@@ -100,6 +100,27 @@ it("exports only currently accessible content and omits encrypted credentials", 
   expect(JSON.stringify(after.data)).not.toContain(chat);
   expect(after.data.integrity.payload_sha256).not.toBe(before.data.integrity.payload_sha256);
 });
+it("exports a permission-scoped project manifest with version hashes and edit decisions", async () => {
+  const { buildProjectExportManifest } = await import("../userDataExport");
+  const { verifyExport } = await import("mike/shared/export-integrity.mjs");
+  const { orgId, projectId } = await fixture(), documentId = randomUUID(), versionId = randomUUID();
+  await db.query(sql`INSERT INTO documents(id,user_id,project_id,filename,current_version_id,created_at,updated_at)
+    VALUES(${documentId},${owner.userId},${projectId},'Record.txt',${versionId},'now','now')`);
+  await db.query(sql`INSERT INTO document_versions(id,document_id,version_number,source,created_at,filename,
+    file_type,size_bytes,source_sha256,storage_path) VALUES(${versionId},${documentId},1,'upload','now',
+    'Record.txt','txt',3,${'a'.repeat(64)},'private-storage-key')`);
+  await db.query(sql`INSERT INTO document_edits(id,document_id,version_id,change_id,status,inserted_text)
+    VALUES(${randomUUID()},${documentId},${versionId},'change','accepted','Corrected text')`);
+  const manifest = await buildProjectExportManifest(db, member, projectId);
+  expect(manifest.data.document_versions).toMatchObject([{ id: versionId, source_sha256: 'a'.repeat(64) }]);
+  expect(manifest.data.document_edits).toMatchObject([{ status: 'accepted', inserted_text: 'Corrected text' }]);
+  expect(JSON.stringify(manifest)).not.toContain('private-storage-key');
+  expect(() => verifyExport(JSON.parse(JSON.stringify(manifest)))).not.toThrow();
+  await expect(buildProjectExportManifest(db, outsider, projectId)).rejects.toMatchObject({ status: 404 });
+  await application.member(owner, orgId, member.userId, null);
+  await expect(buildProjectExportManifest(db, member, projectId)).rejects.toMatchObject({ status: 404 });
+});
+
 it("clearing direct shares revokes access and retaining a member preserves their role", async () => {
   const { replaceMembers } = await import("../relationalRepositorySupport");
   const id = randomUUID();

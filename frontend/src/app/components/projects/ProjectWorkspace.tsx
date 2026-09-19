@@ -10,11 +10,13 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteProject,
+  exportProjectManifest,
   getProject,
   updateProject,
   type Project,
 } from "@/app/lib/api/projects";
 import { listProjectChats, type Chat } from "@/app/lib/api/chat";
+import { downloadBlob } from "@/app/lib/download";
 
 import type { ColumnConfig } from "@/app/lib/api/tabular";
 import type { Document } from "@/app/lib/api/documents";
@@ -79,6 +81,17 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const [creatingChat, setCreatingChat] = useState(false);
   const [creatingReview, setCreatingReview] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportManifest = async () => {
+    setExporting(true); setExportError(null);
+    try {
+      const manifest = await exportProjectManifest(projectId);
+      downloadBlob(new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }),
+        `beaver-project-${projectId}-manifest.json`);
+    } catch (error) { setExportError(error instanceof Error ? error.message : "Could not export the manifest."); }
+    finally { setExporting(false); }
+  };
   const chatRequest = useRef<Promise<Chat[]> | null>(null);
   const tail = pathname.split("/").filter(Boolean).slice(2);
   const activeSection: ProjectWorkspaceSection = tail[0] === "assistant"
@@ -206,8 +219,10 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
             : setDialog("delete")}
           onSearchChange={(search) => setSearches((current) => ({ ...current, [activeSection]: search }))}
           onOpenMemory={() => setDialog("memory")}
+          onExport={() => void exportManifest()} exporting={exporting}
           onOpenPeople={() => setDialog("people")}
         />
+        {exportError && <p role="alert" className="px-6 py-2 text-sm text-red-600 dark:text-red-400">{exportError}</p>}
         {children}
         {ownerOnlyDialog}
         <Modal open={dialog === "memory"} onClose={() => setDialog(null)} breadcrumbs={[project?.name || "Project", "Memory"]}>
