@@ -54,6 +54,10 @@ create table if not exists user_api_keys (
   unique(user_id,provider)
 );
 -- BEAVER_CORE_BEGIN
+create table if not exists workflow_catalog (
+  id integer primary key check(id=1), source_commit text not null,
+  content_hash text not null, body text not null, updated_at text not null
+);
 -- This section is deliberately valid in both PostgreSQL and SQLite. JSONB is
 -- stored as JSON text by SQLite and decoded at the repository boundary.
 create table if not exists user_mcp_connectors (
@@ -431,7 +435,7 @@ revoke all on table projects,project_members,project_subfolders,library_folders,
   document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
-  application_job_events,application_job_commands,workflows,work_products,
+  application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
   workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -441,7 +445,7 @@ grant all on table projects,project_members,project_subfolders,library_folders,d
   document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
-  application_job_events,application_job_commands,workflows,work_products,
+  application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
   workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -478,6 +482,7 @@ alter table application_jobs enable row level security;
 alter table application_job_events enable row level security;
 alter table application_job_commands enable row level security;
 alter table workflows enable row level security;
+alter table workflow_catalog enable row level security;
 alter table work_products enable row level security;
 alter table workflow_shares enable row level security;
 alter table workflow_open_source_submissions enable row level security;

@@ -4,8 +4,8 @@ import { applicationScope, notFound as missing, reject } from "../lib/applicatio
 import { asyncRoute } from "../lib/asyncRoute";
 import { textField } from "../lib/textField";
 import { downloadHeaders } from "../lib/storage";
+import type { WorkflowCatalog, WorkflowCatalogSnapshot } from "../lib/workflowCatalog";
 import {
-  SYSTEM_WORKFLOW_IDS,
   SYSTEM_WORKFLOWS,
   WORKFLOW_AUDIENCES,
   WORKFLOW_CATEGORIES,
@@ -117,7 +117,12 @@ const withAccess = <T extends object>(workflow: T, access: {
   allowEdit: boolean; isOwner: boolean; sharedByName?: string | null;
 }) => ({ ...workflow, allow_edit: access.allowEdit, is_owner: access.isOwner,
   shared_by_name: access.sharedByName ?? null });
-const system = (workflow: SystemWorkflow) => withAccess(workflow, {
+const system = (workflow: SystemWorkflow, snapshot: WorkflowCatalogSnapshot) => withAccess({ ...workflow,
+  source_commit: snapshot.sourceCommit,
+  references: snapshot.assets.filter((asset) => asset.workflowId === workflow.id)
+    .map(({ filename, sha256, sizeBytes, variantId }) => ({ filename, sha256,
+      size_bytes: sizeBytes, variant_id: variantId })),
+}, {
   allowEdit: false, isOwner: false,
 });
 const cloud = (collaboration: WorkflowCollaboration | undefined) =>
@@ -154,7 +159,7 @@ function workflowArchive(workflow: {
   const slug = archiveSlug(workflow.metadata.title, workflow.id);
   const many = launcher.variants.length > 1;
   const files = launcher.variants.flatMap((variant) => {
-    const folder = many ? `${slug}/${variantSlug(variant)}` : slug;
+    const folder = many ? `${slug}/${variantSlug(variant) || variant.id}` : slug;
     const frontmatter = {
       name: archiveSlug(variant.label, variant.id),
       display_name: many
@@ -181,21 +186,24 @@ function workflowArchive(workflow: {
         columns_config: variant.columns_config ?? [],
       }, null, 2)}\n`,
     });
-    return output;
+    return output.map((file) => ({ ...file, variantId: variant.id }));
   });
   return { slug, files };
 }
 
 export function createWorkflowsRouter(
   repositoryFor: CreateWorkflowRepository,
-  collaboration?: WorkflowCollaboration,
+  collaboration: WorkflowCollaboration | undefined,
+  catalog: WorkflowCatalog,
 ) {
   const router = Router();
   router.use(requireAuth);
   router.get("/", asyncRoute(async (req, res) => {
     const { audience, q: raw } = catalogueQuerySchema.parse(req.query);
     const q = raw.toLocaleLowerCase();
-    const builtins = SYSTEM_WORKFLOWS.filter((workflow) =>
+    const snapshot = await catalog.current(), definitions = snapshot.workflows;
+    const builtinIds = new Set(definitions.map(({ id }) => id));
+    const builtins = definitions.filter((workflow) =>
       workflowVisibleTo(workflow.metadata.audiences, audience) &&
       (!q || [workflow.metadata.title, workflow.metadata.description,
         workflow.metadata.category,
@@ -205,8 +213,8 @@ export function createWorkflowsRouter(
           : []),
       ].some((value) => value.toLocaleLowerCase().includes(q))));
     const custom = await repositoryFor(applicationScope(res)).list({ audience, q });
-    res.json([...builtins.map(system), ...custom
-      .filter(({ id }) => !SYSTEM_WORKFLOW_IDS.has(id)).map(present)].map(catalogue));
+    res.json([...builtins.map((workflow) => system(workflow, snapshot)), ...custom
+      .filter(({ id }) => !builtinIds.has(id)).map(present)].map(catalogue));
   }));
   router.post("/", asyncRoute(async (req, res) => {
     const input = createSchema.parse(req.body), variant = input.launcher.variants[0];
@@ -224,8 +232,18 @@ export function createWorkflowsRouter(
     });
     res.status(201).json(present(workflow));
   }));
+  router.get("/:workflowId/references/:filename", asyncRoute(async (req, res) => {
+    const snapshot = await catalog.current();
+    const reference = snapshot.assets.find((asset) => asset.workflowId === req.params.workflowId &&
+      asset.filename === req.params.filename && asset.sha256 === req.query.sha256);
+    if (!reference) throw missing("Workflow reference not found or changed");
+    const asset = await catalog.asset(reference.workflowId, reference.filename, snapshot);
+    if (!asset) throw missing("Workflow reference not found");
+    res.set(downloadHeaders(asset.contentType, asset.filename)).send(asset.bytes);
+  }));
   router.get("/:workflowId/export", asyncRoute(async (req, res) => {
-    const builtin = SYSTEM_WORKFLOWS.find(({ id }) => id === req.params.workflowId);
+    const snapshot = await catalog.current();
+    const builtin = (snapshot?.workflows ?? SYSTEM_WORKFLOWS).find(({ id }) => id === req.params.workflowId);
     const custom = builtin ? null : await repositoryFor(applicationScope(res))
       .get(idSchema.parse(req.params.workflowId));
     const workflow = builtin ?? (custom ? present(custom.workflow) : null);
@@ -233,6 +251,19 @@ export function createWorkflowsRouter(
     const { slug, files } = workflowArchive(workflow);
     const JSZip = (await import("jszip")).default, archive = new JSZip();
     files.forEach(({ path, content }) => archive.file(path, content));
+    if (builtin && snapshot) {
+      for (const reference of snapshot.assets.filter((asset) => asset.workflowId === builtin.id)) {
+        const asset = await catalog.asset(builtin.id, reference.filename, snapshot);
+        if (!asset) throw missing("Workflow reference file not found");
+        // Each exported skill is independently usable with its relative references.
+        for (const file of files.filter(({ path, variantId }) => path.endsWith("/SKILL.md") &&
+          (!reference.variantId || reference.variantId === variantId))) {
+          archive.file(`${file.path.slice(0, -"SKILL.md".length)}references/${asset.filename}`, asset.bytes);
+        }
+      }
+      archive.file(`${slug}/provenance.json`, JSON.stringify({ sourceCommit: snapshot.sourceCommit,
+        assets: snapshot.assets.filter((asset) => asset.workflowId === builtin.id) }));
+    }
     res.set(downloadHeaders("application/zip", `${slug}.zip`)).send(
       await archive.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }),
     );
@@ -281,8 +312,9 @@ export function createWorkflowsRouter(
     res.status(204).send();
   }));
   router.get("/:workflowId", asyncRoute(async (req, res) => {
-    const builtin = SYSTEM_WORKFLOWS.find(({ id }) => id === req.params.workflowId);
-    if (builtin) return void res.json(system(builtin));
+    const snapshot = await catalog.current();
+    const builtin = snapshot.workflows.find(({ id }) => id === req.params.workflowId);
+    if (builtin) return void res.json(system(builtin, snapshot));
     const scope = applicationScope(res);
     const access = await repositoryFor(scope).get(idSchema.parse(req.params.workflowId));
     if (!access) throw missing("Workflow not found");
@@ -291,7 +323,7 @@ export function createWorkflowsRouter(
         ? await collaboration.latestSubmission(scope, access.workflow.id) : null });
   }));
   router.patch("/:workflowId", asyncRoute(async (req, res) => {
-    if (SYSTEM_WORKFLOW_IDS.has(req.params.workflowId)) reject(403, "System workflows cannot be edited.");
+    if ((await catalog.workflows()).some(({ id }) => id === req.params.workflowId)) reject(403, "System workflows cannot be edited.");
     const input = updateSchema.parse(req.body), update: WorkflowUpdate = {};
     if (input.metadata?.title !== undefined) update.title = input.metadata.title;
     if (input.metadata?.language !== undefined) update.language = input.metadata.language;
@@ -312,7 +344,7 @@ export function createWorkflowsRouter(
     res.json(withAccess(present(access.workflow), access));
   }));
   router.delete("/:workflowId", asyncRoute(async (req, res) => {
-    if (SYSTEM_WORKFLOW_IDS.has(req.params.workflowId)) reject(403, "System workflows cannot be deleted.");
+    if ((await catalog.workflows()).some(({ id }) => id === req.params.workflowId)) reject(403, "System workflows cannot be deleted.");
     if (!await repositoryFor(applicationScope(res)).remove(
       idSchema.parse(req.params.workflowId))) throw missing("Workflow not found");
     res.status(204).send();

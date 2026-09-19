@@ -189,7 +189,7 @@ const mounts: Mount[] = [
     const [{ createWorkflowsRouter }, workflows] = await Promise.all([
       import("./routes/workflows"), runtime.workflows(),
     ]);
-    return createWorkflowsRouter(workflows.repository, workflows.collaboration);
+    return createWorkflowsRouter(workflows.repository, workflows.collaboration, workflows.catalog);
   }],
   ["/work-products", async () => (await import("./routes/workProducts"))
     .createWorkProductsRouter(await runtime.workProducts())],

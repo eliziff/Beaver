@@ -6,6 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "workflow-catalog": "tsx src/workflowCatalogCli.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/supervisor.js",
