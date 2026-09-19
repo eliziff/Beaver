@@ -91,6 +91,7 @@ $SweepEnvironment = @{
     MIKE_LAUNCHER_STATE_DIR = (Join-Path $RunDirectory 'launcher')
     OPEN_LEGAL_DATA_HOME = (Join-Path $RunDirectory 'legal-data')
     MIKE_LOCAL_DATA_DIR = (Join-Path $RunDirectory 'library')
+    MIKE_CITATOR_DB = (Join-Path $RunDirectory 'citator.sqlite')
 }
 foreach ($name in $SweepEnvironment.Keys) {
     $PreviousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')

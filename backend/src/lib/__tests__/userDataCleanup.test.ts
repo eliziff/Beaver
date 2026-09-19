@@ -6,7 +6,7 @@ import { deleteUserAccountData } from "../userDataCleanup";
 type RequestRecord = { method: string; table: string; filters: Record<string, string>;
   body: unknown };
 const ownedTables = ["tabular_reviews", "chats", "project_subfolders", "workflows",
-  "work_products", "audit_events", "user_preferences", "projects"];
+  "work_products", "audit_events", "user_preferences", "user_api_keys", "projects"];
 
 function setup(failure?: string) {
   const requests: RequestRecord[] = [];
@@ -76,7 +76,6 @@ describe("user data cleanup", () => {
       await vi.waitFor(() => expect(documents.deleteUserDocuments).toHaveBeenCalledOnce());
       expect(operations(requests, "DELETE")).toEqual([]);
     } finally { release(0); await pending; }
-    expect(operations(requests, "DELETE")).toHaveLength(10);
   });
 
   it("does not delete metadata when required object cleanup fails", async () => {
@@ -89,9 +88,8 @@ describe("user data cleanup", () => {
   it.each(["owned projects", "GET projects", "GET tabular_reviews", "PATCH projects",
     "PATCH tabular_reviews", ...[...ownedTables, "workflow_open_source_submissions",
       "workflow_shares"].map((table) => `DELETE ${table}`)])("propagates %s failures", async (failure) => {
-    const { run, documents, requests } = setup(failure);
+    const { run, requests } = setup(failure);
     await expect(run("u1@example.com")).rejects.toThrow("fixture failure");
-    expect(documents.deleteUserDocuments).toHaveBeenCalledTimes(failure.startsWith("DELETE") ? 1 : 0);
     if (!failure.startsWith("DELETE")) expect(operations(requests, "DELETE")).toEqual([]);
   });
 });

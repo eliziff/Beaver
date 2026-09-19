@@ -24,6 +24,21 @@ afterEach(async () => {
 });
 
 describe("DocumentProjectionService", () => {
+  it("reads saved PDF form values through the pinned native projection", async () => {
+    const projections = await service();
+    const { PDFDocument } = await import("pdf-lib"), pdf = await PDFDocument.create();
+    const page = pdf.addPage([612, 792]);
+    page.drawText("Applicant details", { x: 50, y: 740, size: 12 });
+    const field = pdf.getForm().createTextField("Applicant");
+    field.setText("Morgan Example");
+    field.addToPage(page, { x: 50, y: 660, width: 250, height: 24 });
+    const bytes = Buffer.from(await pdf.save());
+    const document = await projections.read({ documentId: "form", versionId: "form-v1", fileType: "pdf",
+      sourceSha256: sha256(bytes), readBytes: () => bytes });
+    const { structureNative } = await import("../structureNative");
+    expect(structureNative().documentText(document)).toContain("Morgan Example");
+  });
+
   it("shares verified source work without sharing a reader's cancellation", async () => {
     const projections = await service();
     const { structureNative } = await import("../structureNative");

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai" with { "resolution-mode": "import" };
-import { requireApiKey } from "./apiKeys";
+import { apiKeyError, requireApiKey } from "./apiKeys";
 import { hasNativeCompaction } from "./contextWindow";
 import { modelForProvider } from "./models";
 import { MAX_PROVIDER_STREAM_BYTES, MAX_PROVIDER_TOOL_ARGUMENT_BYTES, runProviderLoop, type ProviderAdapter,
@@ -219,5 +219,6 @@ export async function streamAiSdk(params: StreamChatParams, provider: ApiProvide
     yield { type: "opaque_checkpoint", checkpoint: { messages: history, calls, responseId: result.id } satisfies State };
     yield { type: "done", finishReason };
   } };
-  return runProviderLoop(params, adapter);
+  try { return await runProviderLoop(params, adapter); }
+  catch (error) { throw apiKeyError(error, provider); }
 }

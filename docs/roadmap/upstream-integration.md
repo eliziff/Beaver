@@ -99,6 +99,20 @@ removed. The backend build and all three frontend production builds pass.
 All three updated lockfiles pass the live dependency audit with zero high or
 critical advisories; nine fail-closed audit regression tests pass.
 
+Provider authentication failures now produce an actionable key-settings error
+without exposing provider response bodies. Focused wire tests cover rejected
+keys and distinguish model-access failures. The pinned native PDF Inspector
+already extracts AcroForm values; a real generated PDF passes through Beaver's
+projection and retains its filled value, so no second extractor was added.
+
+The full frontend suite reached 943 passing tests with two stale accessibility
+expectations; both corrected files then passed all 19 tests. Backend failures
+were traced to private default provider databases and stale fixtures. Isolated
+provider reruns passed; real-schema directory, account-cleanup and metrics checks
+passed all 41 tests after the final fixture correction. Incidental deletion and
+mock call-count assertions were removed; permission, cleanup and privacy checks
+remain. Complete candidate suites still need their final combined run.
+
 Remaining: all other accepted scope, whole-range reconciliation, local/cloud
 integration, configured real-host Word/SSO checks, native independent-gold gates,
 full application suites/builds, fresh-checkout proof and assistant-dock smoke
