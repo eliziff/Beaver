@@ -1,27 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users } from "lucide-react";
 import {
   deleteWorkflow,
-  deleteWorkflowShare,
   getWorkflow,
-  listWorkflowShares,
-  shareWorkflow,
   updateWorkflow,
   exportWorkflow,
   type Workflow,
   type WorkflowVariant,
 } from "@/app/lib/api/workflows";
-import { lookupUserByEmail } from "@/app/lib/api/account";
-import type { ProjectPeople } from "@/app/lib/api/projects";
-import { useAuth } from "@/app/contexts/AuthContext";
-import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { isLocalMode } from "@/app/lib/authMode";
 import { downloadBlob } from "@/app/lib/download";
 import type { ColumnConfig } from "@/app/lib/api/tabular";
 
 import { AddColumnModal } from "../tabular/AddColumnModal";
-import { PeopleModal } from "../modals/PeopleModal";
+import { AccessModal } from "../modals/AccessModal";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { MoreActionsMenu, type MoreActionsMenuItem } from "../shared/MoreActionsMenu";
 import { PageHeader, type PageHeaderAction } from "../shared/PageHeader";
@@ -30,19 +22,15 @@ import { NewWorkflowModal } from "./NewWorkflowModal";
 import { workflowPath } from "./workflowRoutes";
 
 type Modal = "details" | "share" | "delete" | null;
-const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const variantInput = ({ label, result, execution, skill_md, columns_config }: WorkflowVariant) =>
     ({ label, result, execution, skill_md, columns_config });
 
 export function WorkflowDetailPage({ id }: { id: string }) {
     const navigate = useNavigate();
-    const { user } = useAuth();
-    const { profile } = useUserProfile();
     const [workflow, setWorkflow] = useState<Workflow | null>();
     const [modal, setModal] = useState<Modal>(null);
     const [column, setColumn] = useState<ColumnConfig | "new" | null>(null);
     const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-    const [sharedWith, setSharedWith] = useState<string[]>([]);
     const [deleting, setDeleting] = useState(false);
     useEffect(() => {
         getWorkflow(id).then((loaded) => {
@@ -55,27 +43,7 @@ export function WorkflowDetailPage({ id }: { id: string }) {
     }, [id, navigate]);
     const variant = workflow?.launcher.kind === "instructions" ? workflow.launcher.variants[0] : undefined;
     const readOnly = workflow?.is_system !== false || workflow.allow_edit === false;
-    const canShare = !isLocalMode && !readOnly && workflow?.is_owner !== false;
-    const fetchPeople = useCallback(async (): Promise<ProjectPeople> => {
-        const shares = await listWorkflowShares(id);
-        const emails = shares.map(({ shared_with_email }) => normalizeEmail(shared_with_email));
-        setSharedWith(emails);
-        return { owner: { email: user?.email ?? null, display_name: profile?.displayName ?? null },
-            members: await Promise.all(emails.map(async (email) => ({ email, display_name:
-                (await lookupUserByEmail(email).catch(() => null))?.display_name ?? null }))) };
-    }, [id, profile?.displayName, user?.email]);
-    async function changeSharedWith(next: string[]) {
-        const emails = [...new Set(next.map(normalizeEmail).filter(Boolean))];
-        const current = await listWorkflowShares(id);
-        const byEmail = new Map(current.map((share) => [normalizeEmail(share.shared_with_email), share]));
-        await Promise.all([
-            ...current.filter(({ shared_with_email }) => !emails.includes(normalizeEmail(shared_with_email)))
-                .map(({ id: shareId }) => deleteWorkflowShare(id, shareId)),
-            ...(emails.some((email) => !byEmail.has(email)) ? [shareWorkflow(id, {
-                emails: emails.filter((email) => !byEmail.has(email)), allow_edit: false })] : []),
-        ]);
-        setSharedWith(emails);
-    }
+    const canShare = workflow?.is_system === false;
     async function saveVariant(next: WorkflowVariant) {
         if (!workflow || readOnly) return;
         setStatus("saving");
@@ -149,10 +117,9 @@ export function WorkflowDetailPage({ id }: { id: string }) {
             {workflow && <>
                 <NewWorkflowModal open={modal === "details"} editWorkflow={workflow}
                     onClose={() => setModal(null)} onUpdated={setWorkflow} />
-                <PeopleModal open={modal === "share"} fetchPeople={fetchPeople}
-                    onClose={() => setModal(null)} resource={{ id, shared_with: sharedWith }}
-                    currentUserEmail={user?.email ?? null} breadcrumb={["Workflows", workflow.metadata.title, "People"]}
-                    onSharedWithChange={changeSharedWith} />
+                <AccessModal open={modal === "share"} onClose={() => setModal(null)}
+                    kind="workflow" resourceId={id} title={workflow.metadata.title}
+                    onChange={async () => setWorkflow(await getWorkflow(id))} />
                 <ConfirmPopup open={modal === "delete"} title="Delete workflow?"
                     message="This permanently deletes the workflow." confirmLabel="Delete workflow"
                     confirmStatus={deleting ? "loading" : "idle"}

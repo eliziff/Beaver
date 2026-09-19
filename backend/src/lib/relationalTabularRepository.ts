@@ -1,3 +1,4 @@
+import { reviewRoleRank, roleFromRank } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
 import { tabularSubjectId, type TabularCell, type TabularColumn, type TabularRepository,
@@ -12,7 +13,7 @@ import { changes, documentAccess, missingProfileEmail, now, one, projectAccess,
   replaceMembers, resourcePeople, reviewAccess, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
-const tabularReview = (scope: ApplicationScope, row: Row): TabularReview => {
+const tabularReview = (_scope: ApplicationScope, row: Row): TabularReview => {
   const documents = decode<string[]>(row.document_ids, []);
   return { ...row, id: String(row.id), user_id: String(row.user_id),
     project_id: typeof row.project_id === "string" ? row.project_id : null,
@@ -20,7 +21,7 @@ const tabularReview = (scope: ApplicationScope, row: Row): TabularReview => {
     columns_config: decode<TabularColumn[]>(row.columns_config, []), document_ids: documents,
     scope_config: decode<TabularSelection>(row.scope_config, { subjects: [] }),
     workflow_id: typeof row.workflow_id === "string" ? row.workflow_id : null,
-    shared_with: decode<string[]>(row.shared_with, []), is_owner: row.user_id === scope.userId,
+    shared_with: decode<string[]>(row.shared_with, []), is_owner: Number(row.access_rank) === 3, role: roleFromRank(row.access_rank),
     updated_at: String(row.updated_at), document_count: documents.length };
 };
 const tabularCell = (row: Row): TabularCell => ({ ...row, id: String(row.id),
@@ -30,8 +31,8 @@ const tabularCell = (row: Row): TabularCell => ({ ...row, id: String(row.id),
 } as TabularCell);
 async function findReview(scope: ApplicationScope, id: string, owner = false,
   db?: RelationalDatabase, lock = false) {
-  const row = await one(sql`SELECT r.* FROM tabular_reviews r WHERE r.id=${id}
-    AND ${reviewAccess(scope, owner)} ${lock && db?.engine === "postgres" ? sql.raw("FOR UPDATE") : sql.raw("")}`, db);
+  const row = await one(sql`SELECT r.*,${reviewRoleRank(scope)} access_rank FROM tabular_reviews r WHERE r.id=${id}
+    AND ${reviewAccess(scope, owner ? "owner" : lock ? "edit" : "view")} ${lock && db?.engine === "postgres" ? sql.raw("FOR UPDATE") : sql.raw("")}`, db);
   return row ? tabularReview(scope, row) : null;
 }
 async function findCell(scope: ApplicationScope, reviewId: string, documentId: string,
@@ -173,7 +174,7 @@ export const tabularRepository: TabularRepository = {
     const project = options.projectId ? sql`AND r.project_id=${options.projectId}`
       : options.scope === "in-project" ? sql`AND r.project_id IS NOT NULL`
         : options.scope === "standalone" ? sql`AND r.project_id IS NULL` : sql.raw("");
-    const result = await rows(sql`SELECT r.* FROM tabular_reviews r
+    const result = await rows(sql`SELECT r.*,${reviewRoleRank(scope)} access_rank FROM tabular_reviews r
       WHERE ${reviewAccess(scope)} ${project}
       ${options.q ? sql`AND ${searchFilter(sql`lower(COALESCE(r.title,''))`, options.q)}`
         : sql.raw("")}
@@ -191,7 +192,7 @@ export const tabularRepository: TabularRepository = {
     const db = await relationalDatabase(), id = randomUUID(), created = now();
     return db.transaction(async (tx) => {
       if (input.projectId && !await one(sql`SELECT 1 ok FROM projects p
-        WHERE p.id=${input.projectId} AND ${projectAccess(scope)}`, tx))
+        WHERE p.id=${input.projectId} AND ${projectAccess(scope, "edit")}`, tx))
         return { status: "missing" } as const;
       if (!await lockDocuments(tx, scope, input.documentIds, input.projectId, input.scopeConfig))
         return { status: "missing" } as const;
@@ -213,7 +214,7 @@ export const tabularRepository: TabularRepository = {
         await changes(sql`UPDATE tabular_cells SET content=${seed.content ? encode(seed.content) : null},status=${seed.status}
           WHERE review_id=${id} AND document_id=${seed.document_id} AND column_index=${seed.column_index}`, tx);
       }
-      const review = (await findReview(scope, id, true, tx))!;
+      const review = (await findReview(scope, id, false, tx))!;
       await recordChange(tx, scope, review, tableChanges({ review: { ...review, columns_config: [],
         document_ids: [], scope_config: { subjects: [] } }, cells: [] },
       { review, cells: await reviewCells(tx, id) }), { executor: "human", title: "Configure table", ...input.operation });
@@ -261,7 +262,7 @@ export const tabularRepository: TabularRepository = {
       if (current.updated_at !== expected) return { status: "conflict", value: null };
       await changes(sql`UPDATE chats SET tabular_review_id=NULL,project_id=COALESCE(project_id,${current.project_id})
         WHERE tabular_review_id=${id}`, tx);
-      await changes(sql`DELETE FROM tabular_reviews WHERE id=${id} AND user_id=${scope.userId}`, tx);
+      await changes(sql`DELETE FROM tabular_reviews WHERE id=${id}`, tx);
       return { status: "committed", value: null };
     });
   },
@@ -269,8 +270,8 @@ export const tabularRepository: TabularRepository = {
     return (await relationalDatabase()).transaction(async (tx) => {
       await changes(sql`UPDATE chats SET project_id=COALESCE(project_id,(SELECT r.project_id FROM tabular_reviews r
         WHERE r.id=chats.tabular_review_id)),tabular_review_id=NULL
-        WHERE tabular_review_id IN (SELECT id FROM tabular_reviews WHERE user_id=${scope.userId})`, tx);
-      return changes(sql`DELETE FROM tabular_reviews WHERE user_id=${scope.userId}`, tx);
+        WHERE tabular_review_id IN (SELECT r.id FROM tabular_reviews r WHERE r.user_id=${scope.userId} AND ${reviewAccess(scope, "owner")})`, tx);
+      return changes(sql`DELETE FROM tabular_reviews AS r WHERE r.user_id=${scope.userId} AND ${reviewAccess(scope, "owner")}`, tx);
     });
   },
   async history(scope, reviewId, input) {
@@ -308,7 +309,7 @@ export const tabularRepository: TabularRepository = {
       const before = { review, cells: await reviewCells(tx, reviewId) },
         next = applyTableChanges(before, record.changes, action === "undo");
       if (next.review.project_id && !await one(sql`SELECT 1 ok FROM projects p
-          WHERE p.id=${next.review.project_id} AND ${projectAccess(scope)}`, tx) ||
+          WHERE p.id=${next.review.project_id} AND ${projectAccess(scope, "edit")}`, tx) ||
           !await lockDocuments(tx, scope, next.review.document_ids, next.review.project_id, next.review.scope_config))
         return { status: "missing" };
       const saved = await persistState(tx, before, next), fields = tableChanges(before, saved);

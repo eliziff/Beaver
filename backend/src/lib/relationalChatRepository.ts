@@ -1,12 +1,15 @@
+import { chatRoleRank, roleFromRank } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
 import type { ApplicationScope } from "./applicationError";
+import { ApplicationError } from "./applicationError";
+import { projectAccess, reviewAccess } from "./resourceAccess";
 import { patchChatEditEvents, type ChatCommitResult, type ChatMessageRecord, type ChatMutation, type ChatRecord, type CreateChatRepository } from "./chatStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
 import { chatAccess, changes, documentAccess, now, one, rows, type Row } from "./relationalRepositorySupport";
 import { parseAssistantEvent, type AssistantEvent } from "./chat/assistantEvents";
 import { withCanliiLawLinks } from "./chat/assistantWire";
 
-const chatRecord = (row: Row): ChatRecord => ({ ...row, id: String(row.id),
+const chatRecord = (row: Row): ChatRecord => ({ ...row, role: roleFromRank(row.access_rank), id: String(row.id),
   user_id: String(row.user_id), project_id: typeof row.project_id === "string" ? row.project_id : null,
   tabular_review_id: typeof row.tabular_review_id === "string" ? row.tabular_review_id : null,
   research_file_id: typeof row.research_file_id === "string" ? row.research_file_id : null,
@@ -57,10 +60,10 @@ async function syncMessageEvents(
     AND ordinal>=${values.length}`);
 }
 async function findChat(scope: ApplicationScope, id: string, deleted = false,
-  owner = false, db?: RelationalDatabase) {
-  const row = await one(sql`SELECT c.*,(SELECT d.content FROM chat_drafts d WHERE d.chat_id=c.id AND d.user_id=${scope.userId}) AS draft FROM chats c WHERE c.id=${id}
+  owner: boolean | "edit" = false, db?: RelationalDatabase) {
+  const row = await one(sql`SELECT c.*,${chatRoleRank(scope)} access_rank,(SELECT d.content FROM chat_drafts d WHERE d.chat_id=c.id AND d.user_id=${scope.userId}) AS draft FROM chats c WHERE c.id=${id}
     AND c.deleted_at IS ${deleted ? sql.raw("NOT NULL") : sql.raw("NULL")}
-    AND ${chatAccess(scope, owner)}`, db);
+    AND ${chatAccess(scope, owner === "edit" ? "edit" : owner ? "owner" : "view")}`, db);
   return row ? chatRecord(row) : null;
 }
 async function decorateMessages(scope: ApplicationScope, messages: ChatMessageRecord[]) {
@@ -88,7 +91,7 @@ async function decorateMessages(scope: ApplicationScope, messages: ChatMessageRe
 async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMutation) {
   const db = await relationalDatabase();
   return db.transaction(async (tx): Promise<ChatCommitResult> => {
-    const current = await findChat(scope, id, false, false, tx);
+    const current = await findChat(scope, id, false, "edit", tx);
     if (!current) return { status: "missing" };
     const expected = mutation.kind === "turn" ? mutation.turn.expectedVersion
       : current.transcript_version;
@@ -135,7 +138,7 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   async list(options) {
     const db = await relationalDatabase();
     const assistantContext = sql`c.project_id IS NULL AND c.tabular_review_id IS NULL
-      AND c.work_product_id IS NULL AND c.user_id=${scope.userId}`;
+      AND c.work_product_id IS NULL`;
     const reviewContext = sql`c.project_id IS NULL AND EXISTS(SELECT 1 FROM tabular_reviews r
       WHERE r.id=c.tabular_review_id AND r.project_id IS NULL)`;
     const draftContext = sql`c.project_id IS NULL AND c.work_product_id IS NOT NULL
@@ -146,7 +149,7 @@ export const chatRepository: CreateChatRepository = (scope) => ({
           : options.searchContext === "reviews" ? reviewContext
             : options.searchContext === "all"
               ? sql`(${assistantContext} OR ${reviewContext} OR ${draftContext})` : assistantContext;
-    const scoped = sql`SELECT c.* FROM chats c WHERE ${context} AND ${chatAccess(scope)}
+    const scoped = sql`SELECT c.*,${chatRoleRank(scope)} access_rank FROM chats c WHERE ${context} AND ${chatAccess(scope)}
       AND c.deleted_at IS NULL AND (EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=c.id)
         OR EXISTS(SELECT 1 FROM chat_drafts d WHERE d.chat_id=c.id AND d.user_id=${scope.userId}))
       ${options.createdFrom ? sql`AND c.created_at>=${options.createdFrom}` : sql.raw("")}
@@ -185,20 +188,26 @@ export const chatRepository: CreateChatRepository = (scope) => ({
         snippet: String(search_snippet ?? row.title ?? "") } }));
   },
   async deleted() {
-    return (await rows(sql`SELECT c.* FROM chats c WHERE c.user_id=${scope.userId}
-      AND c.deleted_at IS NOT NULL ORDER BY c.deleted_at DESC,c.id`)).map(chatRecord);
+    return (await rows(sql`SELECT c.*,${chatRoleRank(scope)} access_rank FROM chats c WHERE c.user_id=${scope.userId}
+      AND ${chatAccess(scope)} AND c.deleted_at IS NOT NULL ORDER BY c.deleted_at DESC,c.id`)).map(chatRecord);
   },
   async purge(cutoff) {
-    return (await rows<{ id: string }>(sql`DELETE FROM chats WHERE user_id=${scope.userId}
+    return (await rows<{ id: string }>(sql`DELETE FROM chats AS c WHERE c.user_id=${scope.userId} AND ${chatAccess(scope, "owner")}
       AND deleted_at IS NOT NULL AND deleted_at<=${cutoff} RETURNING id`)).map(({ id }) => id);
   },
   async create(input) {
-    const id = randomUUID(), created = now();
+    const id = randomUUID(), created = now(), db = await relationalDatabase();
+    return db.transaction(async (tx) => {
+    if (input.projectId && !await one(sql`SELECT 1 FROM projects p WHERE p.id=${input.projectId}
+      AND ${projectAccess(scope, "edit")}`, tx) || input.tabularReviewId && !await one(sql`
+      SELECT 1 FROM tabular_reviews r WHERE r.id=${input.tabularReviewId} AND ${reviewAccess(scope, "edit")}`, tx))
+      throw new ApplicationError(403, "You cannot create a chat in this resource.");
     await changes(sql`INSERT INTO chats(id,user_id,project_id,tabular_review_id,research_file_id,research_selection,
       work_product_id,title,created_at,updated_at,deleted_at,transcript_version) VALUES(${id},${scope.userId},
       ${input.projectId},${input.tabularReviewId},${input.researchFileId ?? null},${encode(input.researchSelection ?? null)},
-      ${input.workProductId ?? null},${null},${created},${created},${null},0)`);
-    return (await findChat(scope, id, false, true))!;
+      ${input.workProductId ?? null},${null},${created},${created},${null},0)`, tx);
+    return (await findChat(scope, id, false, false, tx))!;
+    });
   },
   async read(id, messages = false, deleted = false) {
     const chat = await findChat(scope, id, deleted);
@@ -218,18 +227,20 @@ export const chatRepository: CreateChatRepository = (scope) => ({
   async owns(id) { return !!await findChat(scope, id, false, true); },
   commit(id, mutation) { return commitChat(scope, id, mutation); },
   async update(id, input) {
-    const current = await findChat(scope, id, false, true);
+    const current = await findChat(scope, id, false, input.projectId !== undefined ? true : "edit");
     if (!current) return null;
+    if (input.projectId && !await one(sql`SELECT 1 FROM projects p WHERE p.id=${input.projectId}
+      AND ${projectAccess(scope, "edit")}`)) return null;
     if (input.draft !== undefined) {
       if (input.draft === null) await changes(sql`DELETE FROM chat_drafts WHERE chat_id=${id} AND user_id=${scope.userId}`);
       else await changes(sql`INSERT INTO chat_drafts(chat_id,user_id,content) VALUES(${id},${scope.userId},${encode(input.draft)})
         ON CONFLICT(chat_id,user_id) DO UPDATE SET content=excluded.content`);
       const title = typeof input.draft?.content === "string" ? input.draft.content.trim().slice(0, 80) : "";
-      await changes(sql`UPDATE chats SET updated_at=${now()},title=CASE WHEN transcript_version=0 AND ${title}<>'' THEN ${title} ELSE title END
-        WHERE id=${id} AND user_id=${scope.userId} AND deleted_at IS NULL`);
-      return findChat(scope, id, false, true);
+      await changes(sql`UPDATE chats AS c SET updated_at=${now()},title=CASE WHEN transcript_version=0 AND ${title}<>'' THEN ${title} ELSE title END
+        WHERE c.id=${id} AND ${chatAccess(scope, "edit")} AND deleted_at IS NULL`);
+      return findChat(scope, id);
     }
-    await changes(sql`UPDATE chats SET title=${input.title ?? current.title},
+    await changes(sql`UPDATE chats AS c SET title=${input.title ?? current.title},
       project_id=${input.projectId === undefined ? current.project_id : input.projectId},
       research_file_id=${input.researchFileId === undefined ? current.research_file_id ?? null : input.researchFileId},
       research_selection=${encode(input.researchSelection !== undefined ? input.researchSelection
@@ -238,23 +249,23 @@ export const chatRepository: CreateChatRepository = (scope) => ({
       model=${input.model === undefined ? current.model : input.model},
       reasoning_effort=${input.reasoningEffort === undefined
         ? current.reasoning_effort : input.reasoningEffort},
-      updated_at=${now()} WHERE id=${id} AND user_id=${scope.userId} AND deleted_at IS NULL`);
-    return findChat(scope, id, false, true);
+      updated_at=${now()} WHERE c.id=${id} AND ${chatAccess(scope, "edit")} AND deleted_at IS NULL`);
+    return findChat(scope, id);
   },
   async trash(id, at) {
-    return await changes(sql`UPDATE chats SET deleted_at=${at},updated_at=${at}
-      WHERE id=${id} AND user_id=${scope.userId} AND deleted_at IS NULL`) > 0;
+    return await changes(sql`UPDATE chats AS c SET deleted_at=${at},updated_at=${at}
+      WHERE id=${id} AND ${chatAccess(scope, "owner")} AND deleted_at IS NULL`) > 0;
   },
   async restore(id, cutoff, at) {
-    return await changes(sql`UPDATE chats SET deleted_at=${null},updated_at=${at}
-      WHERE id=${id} AND user_id=${scope.userId} AND deleted_at>${cutoff}`) > 0;
+    return await changes(sql`UPDATE chats AS c SET deleted_at=${null},updated_at=${at}
+      WHERE id=${id} AND ${chatAccess(scope, "owner")} AND deleted_at>${cutoff}`) > 0;
   },
   async remove(id) {
-    return await changes(sql`DELETE FROM chats WHERE id=${id} AND user_id=${scope.userId}
+    return await changes(sql`DELETE FROM chats AS c WHERE id=${id} AND ${chatAccess(scope, "owner")}
       AND deleted_at IS NOT NULL`) > 0;
   },
   async removeAll() {
-    return (await rows<{ id: string }>(sql`DELETE FROM chats WHERE user_id=${scope.userId}
+    return (await rows<{ id: string }>(sql`DELETE FROM chats AS c WHERE c.user_id=${scope.userId} AND ${chatAccess(scope, "owner")}
       RETURNING id`)).map(({ id }) => id);
   },
   decorate(messages) { return decorateMessages(scope, messages); },

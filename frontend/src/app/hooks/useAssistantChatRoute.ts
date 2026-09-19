@@ -72,6 +72,8 @@ export function useAssistantChatRoute({
         /** The props both chat routes hand ChatView unchanged. */
         chatViewProps: {
             chatId,
+            readOnly: loadedChat?.role === "viewer",
+            onAccessChange: assistant.actions.retryLoad,
             ready: assistant.chatLoad.status === "loaded",
             researchFileId: loadedChat?.research_file_id,
             researchSelection: loadedChat?.research_selection,
@@ -87,6 +89,7 @@ export function useAssistantChatRoute({
         chatProjectId: projectId ??
             (movedProject ? movedProject.id : loadedChat?.project_id) ?? null,
         chatProjectName: projectId ? null : movedProject?.name ?? null,
-        changeProject: (nextProjectId: string | null) => moveChat(chatId, nextProjectId),
+        changeProject: loadedChat?.role === "owner" || !loadedChat?.role
+            ? (nextProjectId: string | null) => moveChat(chatId, nextProjectId) : undefined,
     };
 }

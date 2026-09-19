@@ -10,6 +10,7 @@ import { SearchableChoiceModal } from "../modals/ModalSelect";
 import { cn } from "@/app/lib/utils";
 
 interface Props {
+    readOnly?: boolean;
     reviewId: string;
     chatId?: string | null;
     onChatIdChange: (chatId: string | null) => void;
@@ -25,7 +26,7 @@ interface Props {
 const HEADER_BUTTON_CLASS = `flex h-7 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-app-surface px-2 text-gray-600 hover:text-gray-900 ${APP_SURFACE_HOVER_CLASS}`;
 
 export function TRChatPanel({
-    reviewId,
+    reviewId, readOnly = false,
     chatId: currentChatId = null,
     onChatIdChange, searchMessageId, initialIntent, workspaceReady = true, scopeLabel, onClearScope, onIntentSent, onUpdated, onUseAnswer,
 }: Props) {
@@ -104,7 +105,7 @@ export function TRChatPanel({
                 <span className="min-w-0 flex-1 truncate" title={scopeLabel}>{scopeLabel}</span>
                 <button type="button" onClick={onClearScope} aria-label="Discuss all columns" className="shrink-0 underline">All columns</button>
             </div>}
-            <ChatView
+            <ChatView readOnly={readOnly}
                 onUseAnswer={onUseAnswer && assistant.state.chatId ? (messageId) => onUseAnswer(assistant.state.chatId!, messageId) : undefined}
                 chatId={assistant.state.chatId}
                 ready={workspaceReady && assistant.chatLoad.status === "loaded"}

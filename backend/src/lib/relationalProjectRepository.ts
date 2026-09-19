@@ -1,24 +1,26 @@
+import { projectRoleRank, roleFromRank } from "./resourceAccess";
 import { randomUUID } from "node:crypto";
-import type { ApplicationScope } from "./applicationError";
+import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { ProjectFolder, ProjectRecord, ProjectRepository } from "./projectStore";
 import { decodeJson as decode, encodeJson as encode, relationalDatabase, sql, type RelationalDatabase } from "./relationalDatabase";
-import { changes, deleteDocumentRows, directoryPage, email, missingProfileEmail, now, one, projectAccess,
+import { changes, deleteDocumentRows, directoryPage, missingProfileEmail, now, one, projectAccess,
   replaceMembers, resourcePeople, rows, type Row } from "./relationalRepositorySupport";
 import { searchFilter } from "./searchQuery";
 
-const projectRecord = (scope: ApplicationScope, row: Row): ProjectRecord => ({
+const projectRecord = (_scope: ApplicationScope, row: Row): ProjectRecord => ({
   id: String(row.id), user_id: String(row.user_id), name: String(row.name),
+  org_id: typeof row.org_id === "string" ? row.org_id : null,
   cm_number: row.cm_number ?? null, practice: row.practice ?? null,
   metadata: decode(row.metadata, {}), notes: row.notes ?? null,
   shared_with: decode<string[]>(row.shared_with, []),
   created_at: String(row.created_at), updated_at: String(row.updated_at),
-  is_owner: row.user_id === scope.userId,
+  is_owner: Number(row.access_rank) === 3, role: roleFromRank(row.access_rank),
   owner_email: row.owner_email ?? null, owner_display_name: row.owner_display_name ?? null,
 });
-async function findProject(scope: ApplicationScope, id: string, owner = false,
+async function findProject(scope: ApplicationScope, id: string, owner: boolean | "edit" = false,
   db?: RelationalDatabase, lock: "share" | "update" | false = false) {
-  const row = await one(sql`SELECT p.* FROM projects p WHERE p.id=${id}
-    AND ${projectAccess(scope, owner)}
+  const row = await one(sql`SELECT p.*,${projectRoleRank(scope)} access_rank FROM projects p WHERE p.id=${id}
+    AND ${projectAccess(scope, owner === "edit" ? "edit" : owner ? "owner" : "view")}
     ${lock && db?.engine === "postgres"
       ? sql.raw(`FOR ${lock.toUpperCase()} OF p`) : sql.raw("")}`, db);
   return row ? projectRecord(scope, row) : null;
@@ -35,10 +37,9 @@ async function findProjectFolder(scope: ApplicationScope, projectId: string, id:
 export const projectRepository: ProjectRepository = {
   async page(scope, options) {
     const access = options.scope === "mine" ? sql`p.user_id=${scope.userId}`
-      : options.scope === "shared-with-me" ? sql`p.user_id<>${scope.userId} AND EXISTS(
-        SELECT 1 FROM project_members pm WHERE pm.project_id=p.id AND pm.email=${email(scope)})`
+      : options.scope === "shared-with-me" ? sql`p.user_id<>${scope.userId}`
         : projectAccess(scope);
-    const result = await rows(sql`SELECT p.* FROM projects p WHERE ${access}
+    const result = await rows(sql`SELECT p.*,${projectRoleRank(scope)} access_rank FROM projects p WHERE ${access} AND ${projectAccess(scope)}
       ${options.q ? sql`AND ${searchFilter(sql`lower(p.name||' '||COALESCE(p.cm_number,'')||' '||COALESCE(p.practice,''))`, options.q)}` : sql.raw("")}
       ${options.after ? sql`AND (p.created_at<${options.after[0]} OR
         (p.created_at=${options.after[0]} AND p.id<${options.after[1]}))` : sql.raw("")}
@@ -81,13 +82,14 @@ export const projectRepository: ProjectRepository = {
     return db.transaction(async (tx) => {
       const current = await findProject(scope, id, true, tx, "update");
       if (!current) return null;
+      if (current.org_id && input.sharedWith) throw new ApplicationError(409, "Manage access through the organization.");
       const shared = input.sharedWith ?? current.shared_with as string[];
       await changes(sql`UPDATE projects SET name=${input.name ?? String(current.name)},
         cm_number=${input.cmNumber === undefined ? current.cm_number as string | null : input.cmNumber},
         practice=${input.practice === undefined ? current.practice as string | null : input.practice},
         shared_with=${encode(shared)},metadata=${encode(input.metadata ?? current.metadata ?? {})},
         notes=${input.notes === undefined ? current.notes as string | null : input.notes},
-        updated_at=${now()} WHERE id=${id} AND user_id=${scope.userId}`, tx);
+        updated_at=${now()} WHERE id=${id}`, tx);
       if (input.sharedWith) await replaceMembers(tx, "project_members", id, shared);
       return findProject(scope, id, true, tx);
     });
@@ -103,7 +105,7 @@ export const projectRepository: ProjectRepository = {
       await deleteDocumentRows(tx, documentIds);
       const ids = (await rows<{ id: string }>(sql`SELECT id FROM chats WHERE project_id=${id}`, tx))
         .map(({ id: chatId }) => chatId);
-      return await changes(sql`DELETE FROM projects WHERE id=${id} AND user_id=${scope.userId}`, tx)
+      return await changes(sql`DELETE FROM projects WHERE id=${id}`, tx)
         ? ids : null;
     });
   },
@@ -111,7 +113,7 @@ export const projectRepository: ProjectRepository = {
   async createFolder(scope, projectId, input) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      if (!await findProject(scope, projectId, false, tx, "share") || input.parentFolderId &&
+      if (!await findProject(scope, projectId, "edit", tx, "share") || input.parentFolderId &&
         !await findProjectFolder(scope, projectId, input.parentFolderId, tx)) return null;
       const id = input.stableId ?? randomUUID(), created = now();
       await changes(sql`INSERT INTO project_subfolders(id,user_id,project_id,name,
@@ -124,7 +126,7 @@ export const projectRepository: ProjectRepository = {
   async updateFolder(scope, projectId, id, input) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      if (!await findProject(scope, projectId, false, tx, "share")) return null;
+      if (!await findProject(scope, projectId, "edit", tx, "share")) return null;
       const current = await findProjectFolder(scope, projectId, id, tx);
       if (!current) return null;
       const parent = input.parentFolderId === undefined
@@ -138,7 +140,7 @@ export const projectRepository: ProjectRepository = {
   async deleteFolder(scope, projectId, id) {
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      if (!await findProject(scope, projectId, false, tx, "update")) return false;
+      if (!await findProject(scope, projectId, "edit", tx, "update")) return false;
       if (!await findProjectFolder(scope, projectId, id, tx)) return false;
       const documentIds = (await rows<{ id: string }>(sql`WITH RECURSIVE descendants(id) AS (
         SELECT id FROM project_subfolders WHERE id=${id} AND project_id=${projectId}

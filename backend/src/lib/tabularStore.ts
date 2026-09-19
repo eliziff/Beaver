@@ -30,6 +30,7 @@ export const tabularSubjectId = (subject: Pick<ResearchSubject, "resource" | "ro
 };
 
 export type TabularReview = Record<string, unknown> & {
+  role?: import("./resourceAccess").ResourceRole | null;
   id: string; user_id: string; project_id: string | null; title: string | null;
   columns_config: TabularColumn[]; document_ids: string[]; workflow_id: string | null;
   shared_with: string[]; is_owner: boolean; updated_at: string;

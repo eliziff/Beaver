@@ -3,12 +3,6 @@ import type { DocumentStore } from "./documentStore";
 import type { createServerSupabase } from "./supabase";
 import type { CloudUserAccount } from "./userApplication";
 import { deleteUserAccountData } from "./userDataCleanup";
-import {
-  buildUserAccountExport,
-  buildUserChatsExport,
-  buildUserTabularReviewsExport,
-  userExportFilename,
-} from "./userDataExport";
 import { findProfileUserByEmail } from "./userLookup";
 import type { UserPreferencesRepository } from "./userPreferences";
 
@@ -17,6 +11,7 @@ export function createSupabaseUserAccount(
   db: Db,
   documents: () => Promise<DocumentStore>,
   preferences: () => Promise<UserPreferencesRepository>,
+  prepareDeletion: (scope: import("./applicationError").ApplicationScope) => Promise<void>,
 ): CloudUserAccount {
   async function profile(userId: string) {
     const { data, error } = await db.from("user_profiles")
@@ -49,20 +44,10 @@ export function createSupabaseUserAccount(
       if (error) throw error;
     },
     async delete(scope) {
+      await prepareDeletion(scope);
       await deleteUserAccountData(db, await documents(), scope.userId, scope.userEmail);
       const { error } = await db.auth.admin.deleteUser(scope.userId);
       if (error) throw error;
-    },
-    async exportData(kind, scope) {
-      const build = {
-        account: buildUserAccountExport,
-        chats: buildUserChatsExport,
-        "tabular-reviews": buildUserTabularReviewsExport,
-      }[kind];
-      return {
-        filename: userExportFilename(kind, scope.userId),
-        data: await build(db, scope.userId, scope.userEmail),
-      };
     },
   };
 }

@@ -50,7 +50,7 @@ create table if not exists user_api_keys (
   user_id uuid not null,
   provider text not null,
   encrypted_key text not null, iv text not null, auth_tag text not null,
-  updated_at text not null,
+  created_at text not null, updated_at text not null,
   primary key(user_id,provider)
 );
 create table if not exists workflow_catalog (
@@ -100,15 +100,32 @@ create table if not exists user_mcp_tool_audit_logs (
   error_message text, duration_ms integer not null default 0,
   result_size_chars integer not null default 0, created_at text not null
 );
+create table if not exists organizations (
+  id text primary key, name text not null, created_by uuid,
+  created_at text not null, updated_at text not null
+);
+create table if not exists org_members (
+  org_id text not null references organizations(id) on delete cascade,
+  user_id uuid not null, email text, role text not null check(role in ('admin','member')),
+  created_at text not null, primary key(org_id,user_id)
+);
+create table if not exists org_invitations (
+  id text primary key, org_id text not null references organizations(id) on delete cascade,
+  email text not null, role text not null check(role in ('admin','member')),
+  token_hash text not null unique, expires_at text not null, created_by uuid not null,
+  created_at text not null, unique(org_id,email)
+);
 create table if not exists projects (
   id text primary key, user_id uuid not null, name text not null,
+  org_id text references organizations(id) on delete restrict,
   cm_number text, practice text, shared_with jsonb not null default '[]',
   metadata jsonb not null default '{}', notes text,
   created_at text not null, updated_at text not null
 );
 create table if not exists project_members (
   project_id text not null references projects(id) on delete cascade,
-  email text not null, primary key(project_id,email)
+  email text not null, role text not null default 'editor' check(role in ('viewer','editor','owner')),
+  primary key(project_id,email)
 );
 create table if not exists project_subfolders (
   id text primary key, user_id uuid not null, project_id text not null references projects(id) on delete cascade,
@@ -187,7 +204,8 @@ create table if not exists tabular_reviews (
 );
 create table if not exists tabular_review_members (
   review_id text not null references tabular_reviews(id) on delete cascade,
-  email text not null, primary key(review_id,email)
+  email text not null, role text not null default 'editor' check(role in ('viewer','editor','owner')),
+  primary key(review_id,email)
 );
 create table if not exists tabular_cells (
   id text primary key, review_id text not null references tabular_reviews(id) on delete cascade,
@@ -268,6 +286,7 @@ create table if not exists application_job_commands (
 
 create table if not exists workflows (
   id text primary key, user_id uuid not null, title text not null, execution text not null,
+  org_id text references organizations(id) on delete restrict,
   variant_label text not null, variant_result text,
   prompt_md text, columns_config jsonb, language text, version text, category text not null,
   audiences jsonb not null, jurisdictions jsonb, contributors jsonb,
@@ -285,7 +304,7 @@ create table if not exists work_products (
 create table if not exists workflow_shares (
   id text primary key, workflow_id text not null references workflows(id) on delete cascade,
   shared_by_user_id uuid not null, shared_with_email text not null,
-  allow_edit boolean not null default false, created_at text not null,
+  role text not null default 'viewer' check(role in ('viewer','editor','owner')), created_at text not null,
   unique(workflow_id,shared_with_email)
 );
 create table if not exists workflow_open_source_submissions (
@@ -349,6 +368,29 @@ create index if not exists work_products_project on work_products(project_id,upd
 create index if not exists workflow_shares_email on workflow_shares(shared_with_email,workflow_id);
 create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
 create index if not exists audit_events_project_created on audit_events(project_id,created_at desc);
+create table if not exists chat_members (
+  chat_id text not null references chats(id) on delete cascade,
+  email text not null, role text not null check(role in ('viewer','editor','owner')),
+  primary key(chat_id,email)
+);
+create table if not exists project_org_access_overrides (
+  project_id text not null references projects(id) on delete cascade,
+  org_id text not null, user_id uuid not null,
+  role text not null check(role in ('deny','viewer','editor','owner')),
+  primary key(project_id,user_id),
+  foreign key(org_id,user_id) references org_members(org_id,user_id) on delete cascade
+);
+create table if not exists workflow_org_access_overrides (
+  workflow_id text not null references workflows(id) on delete cascade,
+  org_id text not null, user_id uuid not null,
+  role text not null check(role in ('deny','viewer','editor','owner')),
+  primary key(workflow_id,user_id),
+  foreign key(org_id,user_id) references org_members(org_id,user_id) on delete cascade
+);
+create index if not exists org_members_user on org_members(user_id,org_id);
+create index if not exists chat_members_email on chat_members(email,chat_id);
+create index if not exists projects_organization on projects(org_id);
+create index if not exists workflows_organization on workflows(org_id);
 -- BEAVER_CORE_END
 alter table user_api_keys add constraint user_api_keys_auth_user
   foreign key(user_id) references auth.users(id) on delete cascade;
@@ -410,12 +452,14 @@ create or replace function sync_shared_members() returns trigger language plpgsq
 set search_path = '' as $$
 begin
   if tg_table_name = 'projects' then
-    delete from public.project_members where project_id=new.id;
+    delete from public.project_members where project_id=new.id
+      and email not in (select lower(value) from jsonb_array_elements_text(new.shared_with));
     insert into public.project_members(project_id,email)
       select new.id,lower(value) from jsonb_array_elements_text(new.shared_with)
       on conflict do nothing;
   else
-    delete from public.tabular_review_members where review_id=new.id;
+    delete from public.tabular_review_members where review_id=new.id
+      and email not in (select lower(value) from jsonb_array_elements_text(new.shared_with));
     insert into public.tabular_review_members(review_id,email)
       select new.id,lower(value) from jsonb_array_elements_text(new.shared_with)
       on conflict do nothing;
@@ -489,3 +533,37 @@ alter table workflow_shares enable row level security;
 alter table workflow_open_source_submissions enable row level security;
 alter table audit_events enable row level security;
 alter table user_preferences enable row level security;
+
+alter table org_members add constraint org_members_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+revoke all on table organizations,org_members,org_invitations,chat_members,
+  project_org_access_overrides,workflow_org_access_overrides from public,anon,authenticated;
+grant all on table organizations,org_members,org_invitations,chat_members,
+  project_org_access_overrides,workflow_org_access_overrides to service_role;
+alter table organizations enable row level security;
+alter table org_members enable row level security;
+alter table org_invitations enable row level security;
+alter table chat_members enable row level security;
+alter table project_org_access_overrides enable row level security;
+alter table workflow_org_access_overrides enable row level security;
+
+-- Auth deletion must not cascade into organization work. The application first
+-- hands custody to a remaining admin; this trigger also fences direct auth-admin deletion.
+create or replace function public.guard_organization_account_delete() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists(select 1 from org_members where user_id=old.id)
+    or exists(select 1 from projects where user_id=old.id and org_id is not null)
+    or exists(select 1 from workflows where user_id=old.id and org_id is not null)
+    or exists(select 1 from documents d join projects p on p.id=d.project_id where d.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from project_subfolders f join projects p on p.id=f.project_id where f.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from tabular_reviews r join projects p on p.id=r.project_id where r.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from work_products w join projects p on p.id=w.project_id where w.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from chats c left join tabular_reviews r on r.id=c.tabular_review_id
+      join projects p on p.id=coalesce(c.project_id,r.project_id) where c.user_id=old.id and p.org_id is not null)
+  then raise exception 'Transfer organization custody before deleting this account'; end if;
+  return old;
+end $$;
+drop trigger if exists guard_organization_account_delete on auth.users;
+create trigger guard_organization_account_delete before delete on auth.users
+for each row execute function public.guard_organization_account_delete();
+revoke all on function public.guard_organization_account_delete() from public, anon, authenticated;

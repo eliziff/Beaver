@@ -88,8 +88,9 @@ export function createUserCredentials(db: RelationalDatabase): UserCredentials {
         return;
       }
       const encrypted = encryptSecret(normalized, secret(), SALT, `${userId}\0${provider}`);
-      await db.query(sql`INSERT INTO user_api_keys(user_id,provider,encrypted_key,iv,auth_tag,updated_at)
-        VALUES(${userId},${provider},${encrypted.encrypted},${encrypted.iv},${encrypted.tag},${new Date().toISOString()})
+      const timestamp = new Date().toISOString();
+      await db.query(sql`INSERT INTO user_api_keys(user_id,provider,encrypted_key,iv,auth_tag,created_at,updated_at)
+        VALUES(${userId},${provider},${encrypted.encrypted},${encrypted.iv},${encrypted.tag},${timestamp},${timestamp})
         ON CONFLICT(user_id,provider) DO UPDATE SET encrypted_key=excluded.encrypted_key,
           iv=excluded.iv,auth_tag=excluded.auth_tag,updated_at=excluded.updated_at`);
     },
