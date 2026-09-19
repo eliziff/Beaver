@@ -12,12 +12,12 @@ export const CHAT_TURN_JOB = "chat.turn";
 const CLIENT_TOOL_TIMEOUT_MS = 90_000;
 
 type ChatTurnRequest = { chatId?: string; scope: ChatScope;
-  input: ReturnType<typeof chatTurnInputSchema.parse>; continuationId?: string };
+  input: ReturnType<typeof chatTurnInputSchema.parse>; continuationId?: string; memoryContextKey?: string | null };
 function request(job: ApplicationJob): ChatTurnRequest | null {
   const payload = jsonRecord(job.payload), parsed = chatTurnInputSchema.safeParse(payload?.input);
   if (!parsed.success) return null;
   const progress = jsonRecord(job.progress), continuation = progress?.continuation_id;
-  return { input: parsed.data, ...(parsed.data.chat_id ? { chatId: parsed.data.chat_id } : {}),
+  return { input: parsed.data, memoryContextKey: typeof progress?.memory_context_key === "string" ? progress.memory_context_key : null, ...(parsed.data.chat_id ? { chatId: parsed.data.chat_id } : {}),
     scope: { userId: job.userId, ...(typeof payload?.user_email === "string"
       ? { userEmail: payload.user_email } : {}) },
     ...(typeof continuation === "string" ? { continuationId: continuation } : {}) };
@@ -147,9 +147,10 @@ export function chatTurnJobHandler(
       }, sink, controller.signal, {
         resume,
         continuationId: turn.continuationId,
+        memoryContextKey: turn.memoryContextKey,
         clientTool,
-        onContinuation: (continuationId) =>
-          context.checkpoint({ progress: { continuation_id: continuationId } }),
+        onContinuation: (continuationId, memoryContextKey) =>
+          context.checkpoint({ progress: { continuation_id: continuationId, memory_context_key: memoryContextKey } }),
         onAccepted: async (chatId) => {
           turn.chatId = chatId;
           turn.input = { ...turn.input, chat_id: chatId };

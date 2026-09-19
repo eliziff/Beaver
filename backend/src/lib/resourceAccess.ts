@@ -38,9 +38,17 @@ export const documentAccess = (scope: ApplicationScope, level: AccessLevel = "vi
   sql`(CASE WHEN d.project_id IS NOT NULL THEN COALESCE((SELECT ${projectRoleRank(scope)}
     FROM projects p WHERE p.id=d.project_id),0) WHEN d.user_id=${scope.userId} THEN 3 ELSE 0 END)>=${threshold(level)}`;
 
+const workProductRoleRank = (scope: ApplicationScope) => sql`(CASE WHEN w.project_id IS NOT NULL
+  THEN COALESCE((SELECT ${projectRoleRank(scope)} FROM projects p WHERE p.id=w.project_id),0)
+  WHEN w.user_id=${scope.userId} THEN 3 ELSE 0 END)`;
+export const workProductAccess = (scope: ApplicationScope, level: AccessLevel = "view") =>
+  sql`${workProductRoleRank(scope)}>=${threshold(level)}`;
+
 export const chatRoleRank = (scope: ApplicationScope) => sql`(CASE
   WHEN c.project_id IS NOT NULL THEN COALESCE((SELECT ${projectRoleRank(scope)} FROM projects p WHERE p.id=c.project_id),0)
   WHEN c.tabular_review_id IS NOT NULL THEN COALESCE((SELECT ${reviewRoleRank(scope)} FROM tabular_reviews r WHERE r.id=c.tabular_review_id),0)
+  WHEN EXISTS(SELECT 1 FROM work_products w WHERE w.id=c.work_product_id AND w.project_id IS NOT NULL)
+    THEN COALESCE((SELECT ${workProductRoleRank(scope)} FROM work_products w WHERE w.id=c.work_product_id),0)
   WHEN c.user_id=${scope.userId} THEN 3 ELSE COALESCE((SELECT ${rank(sql.raw("cm.role"))}
     FROM chat_members cm WHERE cm.chat_id=c.id AND cm.email=${email(scope)} AND ${email(scope)}<>''),0) END)`;
 export const chatAccess = (scope: ApplicationScope, level: AccessLevel = "view") =>

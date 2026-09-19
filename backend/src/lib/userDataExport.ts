@@ -66,6 +66,9 @@ export async function buildUserDataExport(database: RelationalDatabase, kind: Us
         data[table] = await read(sql`SELECT * FROM ${sql.raw(table)} WHERE user_id=${scope.userId} ORDER BY user_id`);
       data.api_keys = await read(sql`SELECT provider,created_at,updated_at FROM user_api_keys
         WHERE user_id=${scope.userId} ORDER BY provider`);
+      data.memory = await read(sql`SELECT m.* FROM memory_files m WHERE
+        (m.scope='app' AND m.owner_id=${scope.userId}) OR (m.scope='project' AND EXISTS(
+          SELECT p.id FROM projects p WHERE p.id=m.project_id AND ${projectAccess(scope)})) ORDER BY m.scope,m.owner_id`);
       data.organizations = await read(sql`SELECT o.*,m.role FROM organizations o JOIN org_members m
         ON m.org_id=o.id WHERE m.user_id=${scope.userId} ORDER BY o.id`);
       data.shared_access = {
