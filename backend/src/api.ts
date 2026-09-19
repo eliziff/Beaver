@@ -84,6 +84,8 @@ api.use((_req, res, next) => {
   next();
 });
 api.use(generalLimiter);
+api.use("/exports", exportLimiter, workSlot, lazyRouter(async () => (await import("./routes/exports"))
+  .createExportsRouter(runtime.projectExport)));
 
 for (const path of ["/chat", "/chat/:chatId/compact", "/chat/:chatId/generate-title",
   "/tabular-review/prompt", "/tabular-review/:reviewId/regenerate-cell",
