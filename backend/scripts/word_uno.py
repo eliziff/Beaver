@@ -303,6 +303,7 @@ def collection(doc, family, offset=0):
 
 def resolve(doc, target):
     if target == 'document:root': return doc
+    if target == 'body:root': return doc.Text
     family, sep, name = target.partition(':')
     if not sep: raise ValueError('Use a target returned by inspect')
     if family == 'cell':
@@ -403,11 +404,33 @@ def property_object(node, name):
     return cursor
 
 
+def read_properties(node, names):
+    # Reuse the character cursor and use XMultiPropertySet where available.
+    # String/Text/etc. are UNO attributes, not beans properties: retain that path.
+    groups, result, character = {}, {}, None
+    for name in names:
+        check_name(name)
+        if name.startswith('Char'):
+            if character is None: character = property_object(node, name)
+            subject = character
+        else: subject = property_object(node, name)
+        groups.setdefault(subject, []).append(name)
+    for subject, selected in groups.items():
+        bulk = ()
+        if len(selected) > 1 and hasattr(subject, 'getPropertyValues'):
+            info = subject.getPropertySetInfo()
+            bulk = tuple(sorted({n for n in selected if info.hasPropertyByName(n)}))
+            if bulk: result.update(zip(bulk, subject.getPropertyValues(bulk)))
+        for name in selected:
+            if name not in bulk:
+                value = getattr(subject, name)
+                if callable(value): raise ValueError('Use call for native methods')
+                result[name] = value
+    return result
+
+
 def read_property(node, name):
-    check_name(name)
-    value = getattr(property_object(node, name), name)
-    if callable(value): raise ValueError('Use call for native methods')
-    return value
+    return read_properties(node, [name])[name]
 
 
 def bounded(request, key, default, maximum):
@@ -434,7 +457,7 @@ def inspect(doc, request):
     if not isinstance(properties, list) or len(properties) > 32: raise ValueError('Select at most 32 properties')
     for name in properties: check_name(name)
     def selected(node):
-        return {'properties': {name: encode(read_property(node, name)) for name in properties}} if properties else {}
+        return {'properties': {name: encode(value) for name, value in read_properties(node, properties).items()}} if properties else {}
     target = request.get('target')
     if target:
         node = resolve(doc, target)
@@ -465,21 +488,6 @@ def inspect(doc, request):
     return {'family': family, 'items': rows, **pagination}
 
 
-def run(source, output, request, binary):
-    from word_uno_console import Broker
-    package(source)
-    snapshot = sha256(source.read_bytes()).hexdigest()
-    if request.get('snapshot') not in (None, snapshot): raise ValueError('Stale snapshot; inspect again')
-    action = request.get('action', 'inspect')
-    if action not in ('inspect', 'describe'): raise ValueError('Unknown action')
-    with writer(binary) as (desktop, version):
-        doc = load(desktop, source)
-        try:
-            result = Broker(doc).rpc({**request, 'op': 'describe', 'values': True}) if action == 'describe' else inspect(doc, request)
-            return {'ok': True, 'snapshot': snapshot, 'engine_version': version, **result}
-        finally: doc.close(True)
-
-
 def main():
     _job = _windows_job()
     if sys.platform.startswith('linux') and os.environ.get('BEAVER_UNO_OWNED_GROUP') == '1':
@@ -497,11 +505,8 @@ def main():
         if len(raw) > 262144: raise ValueError('Request exceeds 256 KiB')
         request = json.loads(raw)
         if not isinstance(request, dict): raise ValueError('Request must be an object')
-        if request.get('action') == 'console':
-            sys.path.insert(0, str(Path(__file__).resolve().parent))
-            from word_uno_console import serve
-            result = serve(args.source, args.output, request, args.soffice)
-        else: result = run(args.source, args.output, request, args.soffice)
+        from word_uno_console import serve
+        result = serve(args.source, args.output, request, args.soffice)
         print(json.dumps(result, ensure_ascii=False, allow_nan=False), flush=True)
     except Exception as error:
         import traceback

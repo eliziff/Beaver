@@ -10,9 +10,10 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
+from urllib.parse import quote
 
 from word_uno import (W, collection, resolve, encode, decode, check_name, check_value,
-                      package, props, writer, load, inspect, property_object, read_property, page, enumerate_values)
+                      package, props, writer, load, inspect, property_object, read_property, read_properties, page, enumerate_values, STYLE_FAMILIES)
 import uno
 
 # Discover document interfaces rather than maintaining a formatting catalogue.
@@ -110,26 +111,35 @@ def review(doc, indices, decision):
     return removed
 
 
-def unique_range(doc, scope, text):
-    """Resolve one exact native span without scanning unrelated matches or counting offsets."""
-    if not isinstance(text, str) or not text or len(text) > 10000 or any(c in text for c in '\r\n\t'):
-        raise ValueError('find needs 1-10000 literal characters inside a paragraph')
-    if scope.String.count(text) != 1: raise ValueError('Replacement target is missing or ambiguous')
+def unique_range(doc, scope, text, prefix=None):
+    """Unique literal selection, or an exact native-prefix postcondition lookup."""
+    if prefix is None:
+        if not isinstance(text, str) or not text or len(text) > 10000 or any(c in text for c in '\r\n\t'):
+            raise ValueError('find needs 1-10000 literal characters inside a paragraph')
+        if scope.String.count(text) != 1: raise ValueError('Replacement target is missing or ambiguous')
     search = doc.createSearchDescriptor()
     search.SearchString, search.SearchCaseSensitive, search.SearchRegularExpression = text, True, False
     found = doc.findNext(scope.Start, search)
     owner = scope.getText() if hasattr(scope, 'getText') else scope
-    try:
-        inside = found is not None and owner.compareRegionStarts(scope.Start, found.Start) >= 0 and owner.compareRegionEnds(scope.End, found.End) <= 0
-    except Exception: inside = False
-    if not inside or found.String != text: raise ValueError('Native search is missing or ambiguous inside the exact target')
-    return found
+    for _ in range(10000):
+        try: inside = found is not None and owner.compareRegionStarts(scope.Start, found.Start) >= 0 and owner.compareRegionEnds(scope.End, found.End) <= 0
+        except Exception: inside = False
+        if not inside: break
+        if prefix is None:
+            if found.String == text: return found
+            break
+        before = owner.createTextCursorByRange(scope.Start); before.gotoRange(found.Start, True)
+        if before.String == prefix and found.String == text: return found
+        if len(before.String) > len(prefix): break
+        found = doc.findNext(found.End, search)
+    raise ValueError('Native search is missing or ambiguous inside the exact target')
 
 
 class Broker:
     def __init__(self, doc, readonly=False):
         self.doc, self.readonly = doc, readonly
-        self.refs, self.targets, self.changes, self.checks = {'doc': doc}, {}, [], []
+        self.refs, self.targets, self.changes, self.checks = {'doc': doc}, {}, [], {}
+        self.find_scopes = {}
         self.scratch = set()
         self.metadata = {}
         self.removed_review = Counter()
@@ -195,14 +205,17 @@ class Broker:
                     row.update(type=member.Type.typeName, writable=False)
                     try:
                         check_name(member.Name)
-                        row['writable'] = not self.readonly and not bool(member.Attributes & 16)
+                        row['writable'] = not bool(member.Attributes & 16)
                         if command.get('values'): row['value'] = encode(read_property(obj, member.Name))
                     except Exception: row['unavailable'] = True
                 else: row.update(returns=member.ReturnType.Name,
                     arguments=[{'name': p.aName, 'type': p.aType.Name, 'mode': str(p.aMode)} for p in member.ParameterInfos])
                 rows.append(row)
             return {'items': rows, 'total': len(members), 'next_offset': offset + limit if offset + limit < len(members) else None}
-        if op == 'find': return self.save(unique_range(self.doc, obj, command.get('text')))
+        if op == 'find':
+            found = unique_range(self.doc, obj, command.get('text'))
+            self.find_scopes[found] = self.find_scopes.get(obj, obj)
+            return self.save(found)
         if op == 'items':
             entries, pagination = page(lambda start: enumerate_values(obj, start), command)
             return {'items': [{'name': name, 'value': self.save(value)} for name, value in entries], **pagination}
@@ -210,7 +223,7 @@ class Broker:
             names = command['name']
             if isinstance(names, list):
                 if not 1 <= len(names) <= 32: raise ValueError('get needs 1-32 properties')
-                return {name: self.save(read_property(obj, name)) for name in names}
+                return {name: self.save(value) for name, value in read_properties(obj, names).items()}
             return self.save(read_property(obj, names))
         if op == 'set':
             if target not in self.scratch: self.mutate()
@@ -228,8 +241,8 @@ class Broker:
                 if name == 'String': after = expected
                 if target not in self.scratch:
                     self.changes.append({'target': self.targets.get(target, target), 'property': name, 'before': before, 'after': after})
-                if target in self.targets:
-                    self.checks.append((self.targets[target], name, after))
+                if target in self.targets or name != 'String' and obj in self.find_scopes:
+                    self.checks.setdefault(obj, {})[name] = after
             return None
         if op == 'constant':
             name = command.get('name', '')
@@ -255,12 +268,11 @@ class Broker:
             if name == 'createSearchDescriptor' and isinstance(saved, dict) and 'ref' in saved: self.scratch.add(saved['ref'])
             return saved
         if op == 'expect':
-            selector = self.targets.get(target, target)
-            resolve(self.doc, selector)
-            for name, value in command.get('values', {}).items():
-                actual = encode(read_property(obj, name))
-                if actual != value: raise ValueError('Postcondition failed: ' + selector + '.' + name)
-                self.checks.append((selector, name, value))
+            values = command.get('values')
+            if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('expect requires 1-100 properties')
+            actual = {name: encode(value) for name, value in read_properties(obj, values).items()}
+            if actual != values: raise ValueError('Postcondition failed: ' + str(target))
+            self.checks.setdefault(obj, {}).update(values)
             return True
         if op == 'review':
             self.mutate()
@@ -277,10 +289,76 @@ class Broker:
         raise ValueError('Unknown document console operation')
 
 
+def freeze_checks(broker):
+    """Bind live objects to final addresses, not indexes captured before edits."""
+    if not broker.checks: return [], []
+    pending = {broker.find_scopes.get(obj, obj) for obj in broker.checks}
+    addresses = {}
+    def remember(target, obj):
+        # Newly attached note factories can have a different UNO identity from
+        # their collection entry; compare their actual reference ranges.
+        matches = [obj] if obj in pending else []
+        if target.startswith(('footnote:', 'endnote:')):
+            for wanted in pending:
+                if not hasattr(wanted, 'supportsService') or not wanted.supportsService('com.sun.star.text.Footnote'): continue
+                a, b = wanted.Anchor, obj.Anchor
+                try:
+                    owner = a.getText()
+                    if wanted not in matches and owner.compareRegionStarts(a, b) == 0 and owner.compareRegionEnds(a, b) == 0: matches.append(wanted)
+                except Exception: pass
+        for wanted in matches:
+            addresses[wanted] = target
+            pending.remove(wanted)
+    # Most existing targets have not moved; avoid a document scan for those.
+    for ref, target in broker.targets.items():
+        obj = broker.refs[ref]
+        if obj in pending:
+            try:
+                if resolve(broker.doc, target) == obj: remember(target, obj)
+            except Exception: pass
+    remember('document:root', broker.doc)
+    remember('body:root', broker.doc.Text)
+    for family in ('paragraph', 'table', 'footnote', 'endnote', 'frame', 'bookmark',
+                   *STYLE_FAMILIES, 'drawing', 'field', 'section', 'index', 'control'):
+        if not pending: break
+        for name, obj in collection(broker.doc, family):
+            target = family + ':' + quote(name, safe='')
+            remember(target, obj)
+            if family == 'table':
+                for cell in obj.getCellNames():
+                    remember('cell:' + quote(name, safe='') + '/' + quote(cell, safe=''), obj.getCellByName(cell))
+            if family == 'page-style':
+                for kind in ('Header', 'Footer'):
+                    if getattr(obj, kind + 'IsOn'):
+                        remember(kind.lower() + ':' + quote(name, safe=''), getattr(obj, kind + 'Text'))
+            if not pending: break
+    if pending: raise ValueError('Postcondition object was removed or has no persistent document address')
+    accepted, raw = [], []
+    for obj, values in broker.checks.items():
+        if obj not in broker.find_scopes:
+            # Formatting/explicit expectations describe the actual redline view.
+            # Only a tracked String setter can require an accepted-view check.
+            if broker.doc.RecordChanges and 'String' in values and read_property(obj, 'String') != values['String']:
+                accepted.append((addresses[obj], None, None, {'String': values['String']}))
+                values = {name: value for name, value in values.items() if name != 'String'}
+            if values: raw.append((addresses[obj], None, None, values))
+            continue
+        scope, text = broker.find_scopes[obj], obj.String
+        if not text: raise ValueError('An empty selection has no persistent formatting to verify')
+        owner = scope.getText() if hasattr(scope, 'getText') else scope
+        prefix = owner.createTextCursorByRange(scope.Start); prefix.gotoRange(obj.Start, True)
+        raw.append((addresses[scope], prefix.String, text, values))
+    return accepted, raw
+
+
 def verify_properties(doc, checks):
-    for target, name, value in {(t,n):(t,n,v) for t,n,v in checks}.values():
-        actual = encode(read_property(resolve(doc, target), name))
-        if actual != value: raise ValueError('Export/reopen lost ' + target + '.' + name)
+    scopes = {}
+    for target, prefix, text, values in checks:
+        if target not in scopes: scopes[target] = resolve(doc, target)
+        obj = scopes[target]
+        if prefix is not None: obj = unique_range(doc, obj, text, prefix)
+        actual = {name: encode(value) for name, value in read_properties(obj, values).items()}
+        if actual != values: raise ValueError('Export/reopen lost properties at ' + target)
 
 
 def emit(value):
@@ -295,7 +373,9 @@ def transact(source, output, request, binary, interact):
     readonly = request.get('read_only') is True
     mode = request.get('mode', 'tracked')
     if mode not in ('tracked', 'direct'): raise ValueError('Unknown console review mode')
-    if request.get('snapshot') != source_hash: raise ValueError('Stale snapshot; console needs the inspected source snapshot')
+    snapshot = request.get('snapshot')
+    if snapshot != source_hash and not (readonly and snapshot is None):
+        raise ValueError('Stale snapshot; console needs the inspected source snapshot')
     if not readonly and not fresh: raise ValueError('Choose a new candidate path')
     before_parts, protected, original_paragraphs = package(source)
     author = 'Beaver ' + os.urandom(5).hex()
@@ -312,9 +392,10 @@ def transact(source, output, request, binary, interact):
                     if protected != base_protected or original_paragraphs != base_paragraphs:
                         raise ValueError('This document does not survive a no-edit LibreOffice round trip')
                 doc.RecordChanges = mode == 'tracked' and not readonly
-                interact(broker, source_hash, version)
+                result = interact(broker, source_hash, version)
                 if readonly:
-                    return {'ok': True, 'snapshot': source_hash, 'engine_version': version, 'mode': 'read-only', 'native_calls': broker.calls}
+                    return {**(result or {}), 'ok': True, 'snapshot': source_hash, 'engine_version': version, 'mode': 'read-only', 'native_calls': broker.calls}
+                checks, raw_checks = freeze_checks(broker)
                 expected = native_state(doc)
                 doc.storeToURL(output.resolve().as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
             finally: doc.close(True)
@@ -330,13 +411,14 @@ def transact(source, output, request, binary, interact):
                 revisions = [{'target': 'revision:'+str(i), 'author': who, 'type': kind, 'text': text[:2000]}
                              for i, (who, kind, text) in enumerate(expected['revisions'])]
                 new_indices = [i for i,r in enumerate(revisions) if r['author'] == author]
-                if mode == 'tracked' and new_indices and broker.checks:
+                verify_properties(reopened, raw_checks)
+                if mode == 'tracked' and new_indices and checks:
                     accepted = load(desktop, output)
                     try:
                         review(accepted, new_indices, 'accept')
-                        verify_properties(accepted, broker.checks)
+                        verify_properties(accepted, checks)
                     finally: accepted.close(True)
-                else: verify_properties(reopened, broker.checks)
+                else: verify_properties(reopened, checks)
                 if mode == 'tracked' and not intentional_review:
                     normalized = load(desktop, baseline)
                     try: normalized.storeToURL(control.as_uri(), props(FilterName='Office Open XML Text', Overwrite=False))
@@ -365,7 +447,12 @@ def transact(source, output, request, binary, interact):
 
 
 def serve(source, output, request, binary):
+    action = request.get('action', 'inspect')
+    if action not in ('console', 'inspect', 'describe'): raise ValueError('Unknown action')
+    if action != 'console': request = {**request, 'read_only': True}
     def interact(broker, source_hash, version):
+        if action != 'console':
+            return broker.rpc({**request, 'op': 'describe', 'values': True}) if action == 'describe' else inspect(broker.doc, request)
         emit({'rpc': 'ready', 'snapshot': source_hash, 'engine_version': version})
         while True:
             line = sys.stdin.readline(262145)

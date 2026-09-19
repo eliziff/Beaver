@@ -35,7 +35,7 @@ budgets, without Node, Python eval, imports, filesystem or network APIs.
 
 | API | Use |
 | --- | --- |
-| `object.get(name)` or `get([names])` | Read one or up to 32 native properties in one call. |
+| `object.get(name)` or `get([names])` | Read up to 32 properties; native multi-property reads share a character cursor. |
 | `object.set(values)` / `call(method,...args)` | Native properties and discoverable document-local methods. |
 | `object.items(offset=0,limit=20)` | Page collections as `{items:[{name,value}],next_offset,total}` with reusable object handles. |
 | `object.describe(filter,offset,limit)` | Paged native signatures/types; metadata is cached only within this program. |
@@ -43,7 +43,7 @@ budgets, without Node, Python eval, imports, filesystem or network APIs.
 | `word.create(service)` / `word.constant(name)` | Document-local factories and native named constants. |
 | `word.enum(type,value)` / `struct(type,fields)` / `any(type,value)` | Typed native arguments, including numbering sequences. |
 | `textObject.find(literal)` | Select one exact native range within a paragraph/cell/note/header; refuse missing or ambiguous matches. |
-| `object.expect(values)` | Register export/reopen property postconditions for an inspected address. |
+| `object.expect(values)` | Verify retained objects, selected ranges and attached notes before and after export. |
 | `word.review(targets,decision)` | Selective accept/reject; use a separate program from new edits. |
 
 Follow `next_offset` until null. Enumeration pages leave `total` null rather than
@@ -51,7 +51,14 @@ scan an unseen tail or invent a count beyond the end. Indexed/named collections
 fetch only the requested suffix; enumeration-only collections must traverse the
 prefix. Native handles live within one program: retain objects before structural
 edits, then reinspect indexed addresses. They are not durable legal citations.
-`String` may include redline deletions; use ordinary `Read` for final prose.
+Postconditions bind live objects to their final location before export, not the
+index captured before an insertion. Selected ranges retain their native scope
+and exact prefix; removed or unaddressable checked objects fail. Formatting checks
+on found ranges are automatic; use `expect` for newly attached objects. Repeated
+assignments coalesce into final-value checks, without replaying the edit program.
+`String` includes redline deletions; explicit expectations check that raw view.
+The native `writable` metadata does not grant mutation rights to read-only programs.
+Ordinary `Read` supplies final prose.
 `word.mm`/`word.pt` convert geometry to hundredths of a millimetre; fonts use points.
 
 For an exact edit: `word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'})`.

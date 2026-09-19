@@ -69,6 +69,10 @@ test("real console discovers native APIs and performs compound edits", async () 
     word.assert(tables.items[0].name==='Table1' && tables.next_offset===null);
     const paragraph=word.target('paragraph:1');
     paragraph.set({CharWeight:150}); paragraph.expect({CharWeight:150});
+    const selection=paragraph.find('unchanged');
+    selection.set({CharColor:0x123456}); selection.expect({String:'unchanged',CharColor:0x123456});
+    const format=paragraph.get(['CharWeight','CharHeight','CharFontName','String']);
+    word.assert(format.CharWeight===150 && format.String.includes('unchanged'));
     word.assert(word.constant('com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK')===0);
     const styles=doc.get('StyleFamilies').call('getByName','NumberingStyles');
     styles.call('insertByName','BeaverOutline',word.create('com.sun.star.style.NumberingStyle'));
@@ -90,12 +94,15 @@ test("real console discovers native APIs and performs compound edits", async () 
     const text=doc.get('Text'), cursor=text.call('createTextCursor'); cursor.call('gotoStart',false);
     const bookmark=word.create('com.sun.star.text.Bookmark'); bookmark.set({Name:'beaver_anchor'});
     text.call('insertTextContent',cursor,bookmark,false);
+    cursor.call('gotoStart',false); text.call('insertString',cursor,'Preamble.\\r',false);
     word.target('cell:Table1/A3').expect({String:'Additional item'});
     return {rows:t.get('Rows').get('Count'),footnotes:word.inspect({family:'footnote'}).total};
   `);
   assert.ok(candidate); assert.equal(report.reopened, true);
   assert.deepEqual(report.result, { rows: 3, footnotes: 1 });
   assert.match(await xml(candidate, "word/document.xml"), /Additional item/);
+  assert.match(await xml(candidate, "word/document.xml"), /Preamble\./);
+  assert.match(await xml(candidate, "word/document.xml"), /w:color w:val="123456"/);
   assert.match(await xml(candidate, "word/document.xml"), /🦫 exact selection/);
   assert.match(await xml(candidate, "word/document.xml"), /\$125/);
   assert.match(await xml(candidate, "word/document.xml"), /tblHeader/);
@@ -143,7 +150,8 @@ test("creation, readonly policy, unsafe native access, and failed programs use t
   const made = await preview(bytes, `
     const text=doc.get('Text'),cursor=text.call('createTextCursor'); cursor.call('gotoStart',false);
     const note=word.create('com.sun.star.text.Footnote');text.call('insertTextContent',cursor,note,false);
-    note.set({String:'New native note.'}); return word.inspect({family:'footnote'}).total;
+    note.set({String:'New native note.'}); note.expect({String:'New native note.'});
+    return word.inspect({family:'footnote'}).total;
   `);
   assert.ok(made.candidate); assert.equal(made.report.result, 2);
   const noop = await preview(bytes, "return 'no changes';");

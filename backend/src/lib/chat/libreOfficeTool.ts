@@ -10,35 +10,23 @@ type Dependencies = Pick<AssistantToolsDependencies, "documents" | "userId" | "u
     onPublished(documentId: string, versionId: string, workingRevision: number, sourceVersion: string): void;
   };
 
-const CONSOLE_HELP = `Write a synchronous JavaScript function body; return only the needed result.
-Native calls suspend automatically. Variables, loops and functions work within one program.
-doc is the current Writer document. No Node, filesystem, network, imports or Python eval.
-object.get(name) or object.get([names]) reads up to 32 properties in one call; object.set(values) writes properties.
-object.items(offset=0,limit=20) pages any native collection as {items:[{name,value}],next_offset,total}.
-Follow next_offset; total is null until enumeration reaches its end. object.call(method,...args) invokes methods.
-object.describe(filter='',offset=0,limit=50) discover the actual native API.
-word.target('paragraph:0') resolves an inspection target in this document.
-word.inspect({family:'paragraph',limit:20,properties:['ParaStyleName'],include_text:false}) reads only selected properties.
-word.create('com.sun.star.text.Footnote') creates a document-local native object.
-word.constant(name) resolves a native named constant.
-word.enum(type,value), word.struct(type,fields), word.any(type,value) construct typed UNO method arguments.
-word.mm(n) and word.pt(n) convert to hundredths of a millimetre for geometry; font heights use points.
-textObject.find(literal) returns the unique exact native range inside a paragraph/cell/note/header; missing or ambiguous matches fail.
+const CONSOLE_HELP = `Write a synchronous JavaScript function body. Native calls suspend automatically; return a small result.
+doc is the current Writer document; guest code has no Node, filesystem, network, imports or Python eval.
+object.get(name|[names]) reads up to 32 properties; set(values) writes them; call(method,...args) invokes UNO.
+object.items(offset=0,limit=20) returns {items:[{name,value}],next_offset,total}. Follow next_offset; total may be null.
+object.describe(filter='',offset=0,limit=50) discovers native signatures. writable describes the native property, not permission to mutate an inspect program.
+word.target(address) resolves an inspected object; retain it before structural edits and reinspect indexes afterward.
+word.inspect({family:'paragraph',limit:20,properties:['ParaStyleName'],include_text:false}) omits prose.
+word.create(service), word.constant(name), word.enum(type,value), word.struct(type,fields), word.any(type,value) supply native factories and typed arguments.
+word.mm(n)/word.pt(n) convert geometry to hundredths of a millimetre; font heights already use points.
+textObject.find(literal) returns one exact range in a paragraph/cell/note/header; missing or ambiguous text fails.
 Example: word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'});
-For rectangular tables, call getCellRangeByName then getDataArray/setDataArray to read/write rows in bulk.
-word.review('revision:0','accept'|'reject') resolves that revision; pass an array for a coordinated set.
-Resolve revisions in a separate program from new edits. Inspect again after review.
-object.expect({property:value}) registers export/reopen assertions for an inspection target.
-Native object handles live only within the program. Resolve objects before structural edits and keep those objects;
-reinspect to obtain current indexed addresses after inserting/removing objects. Do not reuse a previous version's addresses.
-Use get/call/describe to traverse native collections; request selected properties rather than whole objects.
-String is Writer's native redline text and can include deletions; inspect revisions or use ordinary Read for final prose.
-Review mode requires native revisions whose rejection restores the no-edit round-trip control.
-Untrackable changes (for example some section settings) fail rather than silently becoming direct edits.
-Example: const t=word.target('table:Table1'); return t.describe('Header');
-Example: const text=doc.get('Text'); const c=text.call('createTextCursor'); c.call('gotoStart',false);
-const note=word.create('com.sun.star.text.Footnote'); text.call('insertTextContent',c,note,false);
-note.set({String:'Source note.'}); return word.inspect({family:'footnote'});`;
+For tables use getCellRangeByName and getDataArray/setDataArray, not one call per cell.
+object.expect(values) checks now and after export/reopen. Checks follow retained objects through insertions; selected ranges and attached notes are supported. Removed/unaddressable objects fail.
+String includes native redline deletions; assert that raw value or use ordinary Read for final prose.
+word.review(target|[targets],'accept'|'reject') reviews named revisions in a separate program from new edits.
+Review mode rejects edits that cannot be undone by rejecting their native revisions; it never silently switches to Direct.
+Handles live only within a program and are not legal evidence identities.`;
 
 export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToolContext> {
   const run = createLibreOfficeApplication(options);
