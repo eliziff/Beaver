@@ -24,6 +24,12 @@ export async function getAuthSession(): Promise<AuthUser | null> {
 export const login = (email: string, password: string) =>
     request<AuthResult>("/login", json("POST", { email, password }));
 
+export async function ssoSignIn(email: string, next = "/onboarding") {
+    return (await request<{ url: string | null }>(
+        "/oauth", json("POST", { provider: "sso", email, next }),
+    )).url;
+}
+
 export const signup = (input: {
     email: string;
     password: string;

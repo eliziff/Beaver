@@ -1,5 +1,19 @@
 # End-to-end CI
 
+The separate CI dependency audit checks all three lockfiles (root, backend and
+frontend; the Word surface shares the frontend). It uses npm's bulk advisory
+service with an OSV fallback and fails closed when neither answers. Exceptions
+must identify an advisory and reason in `scripts/audit-allowlist.json`; no
+upstream exceptions are inherited. Its offline regression gate is
+`node --test scripts/audit-gate.test.mjs`.
+
+Cloud SAML sign-in uses GoTrue's configured providers. Set `SSO_ENABLED=true`
+and optionally restrict `SSO_ALLOWED_DOMAINS` to comma-separated DNS domains.
+Login starts with an email and redirects configured domains to their provider;
+other domains continue to password login. Provider outages stay visible rather
+than silently falling back. Register Beaver's existing `/auth/callback` URL
+with the provider. Account-free local use needs no SSO configuration.
+
 `.github/workflows/e2e.yml` is the production-path browser gate. It runs on
 pull requests to `main` and `upstream-main`, and can be started manually.
 

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     replace: vi.fn(),
     signIn: vi.fn(),
     signUp: vi.fn(),
+    sso: vi.fn(),
     refreshSession: vi.fn(),
 }));
 
@@ -29,6 +30,7 @@ vi.mock("@/app/lib/api/auth", () => ({
     login: (...args: unknown[]) => mocks.signIn(...args),
     signup: (...args: unknown[]) => mocks.signUp(...args),
     googleSignIn: vi.fn(),
+    ssoSignIn: (...args: unknown[]) => mocks.sso(...args),
 }));
 vi.mock("@/app/lib/api/account", () => ({
   updateUserProfile: vi.fn()
@@ -38,6 +40,7 @@ describe("account forms", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.signIn.mockResolvedValue({ user: {} });
+        mocks.sso.mockResolvedValue(null);
         mocks.signUp.mockResolvedValue({ user: {}, requiresEmailConfirmation: true });
         mocks.refreshSession.mockResolvedValue({});
     });
@@ -47,6 +50,9 @@ describe("account forms", () => {
         fireEvent.change(screen.getByLabelText("Email"), {
             target: { value: "lawyer@example.ca" },
         });
+        expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+        await screen.findByLabelText("Password");
         fireEvent.change(screen.getByLabelText("Password"), {
             target: { value: "secret" },
         });
@@ -54,6 +60,20 @@ describe("account forms", () => {
         await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith(
             "lawyer@example.ca", "secret",
         ));
+    });
+
+    it("keeps provider failures visible and rechecks SSO when the email changes", async () => {
+        render(<LoginPage />);
+        fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ada@example.ca" } });
+        mocks.sso.mockRejectedValueOnce(new Error("SSO is temporarily unavailable"));
+        fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+        expect(await screen.findByRole("alert")).toHaveTextContent("SSO is temporarily unavailable");
+        expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+        await screen.findByLabelText("Password");
+        fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ada@firm.ca" } });
+        expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+        expect(mocks.signIn).not.toHaveBeenCalled();
     });
 
     it("submits signup details", async () => {
