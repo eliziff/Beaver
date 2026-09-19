@@ -29,10 +29,10 @@ it("transmits Write maps and composed JSON Schema through the installed Gemini S
       headers: { "Content-Type": "text/event-stream" },
     });
   }));
-  const { streamGemini } = await import("./gemini");
-  const result = await streamGemini({ model: "gemini-test", systemPrompt: "",
+  const { streamAiSdk } = await import("./aiSdk");
+  const result = await streamAiSdk({ model: "gemini-test", systemPrompt: "",
     messages: [{ role: "user", content: "Prepare the document." }], tools,
-    apiKeys: { gemini: "test" } });
+    apiKeys: { gemini: "test" } }, "gemini");
   expect(result.fullText).toBe("Ready.");
   expect(bodies).toHaveLength(1);
   expect(bodies[0].tools).toEqual([{ functionDeclarations: tools.map((tool) => ({

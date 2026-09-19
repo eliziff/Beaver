@@ -45,15 +45,14 @@ create trigger on_auth_user_created after insert on auth.users
   for each row execute procedure handle_new_user();
 revoke execute on function public.handle_new_user() from public,anon,authenticated;
 
+-- BEAVER_CORE_BEGIN
 create table if not exists user_api_keys (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   provider text not null,
   encrypted_key text not null, iv text not null, auth_tag text not null,
-  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
-  unique(user_id,provider)
+  updated_at text not null,
+  primary key(user_id,provider)
 );
--- BEAVER_CORE_BEGIN
 create table if not exists workflow_catalog (
   id integer primary key check(id=1), source_commit text not null,
   content_hash text not null, body text not null, updated_at text not null
@@ -351,6 +350,8 @@ create index if not exists workflow_shares_email on workflow_shares(shared_with_
 create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
 create index if not exists audit_events_project_created on audit_events(project_id,created_at desc);
 -- BEAVER_CORE_END
+alter table user_api_keys add constraint user_api_keys_auth_user
+  foreign key(user_id) references auth.users(id) on delete cascade;
 
 -- Cloud owns identity; local mode uses the same UUID-shaped values without
 -- importing Supabase into application code.

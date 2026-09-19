@@ -22,7 +22,6 @@ import {
   userPersonalisationPrompt,
 } from "./lib/userPreferences";
 import { createUserApplication, type UserApplication } from "./lib/userApplication";
-import type { UserCredentials } from "./lib/userCredentials";
 
 type Lazy<T> = (() => Promise<T>) & { loaded: () => Promise<T> | undefined };
 const lazy = <T>(load: () => Promise<T>): Lazy<T> => {
@@ -122,15 +121,8 @@ const user: Lazy<UserApplication> = lazy(async () => {
   const keys = await import("./lib/userApiKeys");
   const db = local ? undefined
     : (await import("./lib/supabase")).createServerSupabase();
-  const credentials: UserCredentials = {
-    status: async (userId) => db
-      ? keys.getUserApiKeyStatus(userId, db) : keys.getEnvironmentApiKeyStatus(),
-    keys: async (userId) => db
-      ? keys.getUserApiKeys(userId, db) : keys.getEnvironmentApiKeys(),
-    environmentConfigured: keys.hasEnvApiKey,
-    ...(db ? { save: (userId, provider, value) =>
-      keys.saveUserApiKey(userId, provider, value, db) } : {}),
-  };
+  const credentials = keys.createUserCredentials(
+    await (await import("./lib/relationalDatabase")).relationalDatabase());
   const cloud = db ? (await import("./lib/supabaseUserAccount"))
     .createSupabaseUserAccount(db, documents, preferences) : undefined;
   return createUserApplication({ preferences, credentials, cloud,
