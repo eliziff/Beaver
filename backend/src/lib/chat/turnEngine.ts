@@ -8,12 +8,11 @@ import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
-import { publicAssistantEvent, type AssistantEvent, type AskInputsEvent,
+import { publicAssistantEvent, parsePublicAssistantEvent, type AssistantEvent, type AskInputsEvent,
   type PublicAssistantEvent, type ReadSubagentAssignment, type ReadSubagentCheckpoint,
   type ReadSubagentEvent, type ToolActivity, type LegalEvidenceReceiptEvent } from "./assistantEvents";
 import { TurnToolRegistry, toolText, type BeaverOutcome,
   type BeaverTool } from "./toolRegistry";
-import { normalizeAskInputsEvent } from "./askInputs";
 import { createLegalEvidenceCitations,
   createLegalEvidenceCitationsFromEntries } from "./citations";
 import { GROUNDED_LEGAL_REPAIR_INSTRUCTION, UNVERIFIED_LEGAL_ANSWER,
@@ -233,10 +232,10 @@ export async function runChatTurn(options: {
     ...ASK_INPUTS_TOOL,
     sequential: true,
     async execute(input) {
-      const pause = normalizeAskInputsEvent(input);
-      return pause.items.length
-        ? { result: toolText({ ok: true, status: "waiting_for_user" }), pause }
-        : { result: toolText({ ok: false, error: "No questions supplied" }, true) };
+      const pause = parsePublicAssistantEvent({ ...input, type: "ask_inputs" });
+      if (pause.type !== "ask_inputs" || new Set(pause.items.map(item => item.id)).size !== pause.items.length)
+        return { result: toolText({ ok: false, error: "Question IDs must be unique." }, true) };
+      return { result: toolText({ ok: true, status: "waiting_for_user" }), pause };
     },
   };
   const normalizedOutcome = (result: NormalizedToolResult): BeaverOutcome => {
