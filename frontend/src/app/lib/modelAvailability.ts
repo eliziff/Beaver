@@ -32,4 +32,5 @@ export function isModelAvailable(modelId: string, apiKeys: ApiKeyState): boolean
     return provider === "claude-p" || provider === "codex" || provider === "ollama" ||
         provider === "opencode-go" || !!apiKeys[provider]?.configured;
 }
+export const MODEL_PROVIDERS = Object.keys(PROVIDER_LABELS) as ModelProvider[];
 export const providerLabel = (provider: ModelProvider) => PROVIDER_LABELS[provider];

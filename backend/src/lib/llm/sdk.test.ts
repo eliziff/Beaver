@@ -282,3 +282,18 @@ it("includes instructions in the local context preflight before making a request
     expect(fetch).not.toHaveBeenCalled();
   } finally { vi.unstubAllEnvs(); }
 });
+
+it("lets the SDK reject invalid arguments and retry without dispatching them", async () => {
+  transport([() => gemini([{ functionCall: { name: "Read", args: { file: 7 } } }]),
+    () => gemini([{ functionCall: { name: "Read", args: { file: "source" } } }]),
+    () => gemini([{ text: "Read the source." }])]);
+  const saved: ModelState[] = [], run = vi.fn(async calls => calls.map((call: any) =>
+    ({ tool_use_id: call.id, content: "Source read" })));
+  await streamHosted({ ...params, runTools: run,
+    callbacks: { onModelMessages: state => { saved.push(state); } } });
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(run.mock.calls[0][0][0].input).toEqual({ file: "source" });
+  expect(saved[0].messages.at(-1)).toMatchObject({ role: "tool", content: [
+    { output: { type: "error-text" } },
+  ] });
+});

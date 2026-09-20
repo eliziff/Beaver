@@ -6,6 +6,7 @@ import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   TurnToolRegistry,
   toolText,
+  objectSchema,
   type BeaverOutcome,
   type BeaverTool,
 } from "./toolRegistry";
@@ -277,6 +278,16 @@ describe("TurnToolRegistry", () => {
     expect(payload(batch[0].content).detail).toBe("Tool execution failed");
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
+  });
+
+  it("preserves an explicit tool error without requiring a success-shaped result", async () => {
+    const registry = new TurnToolRegistry([tool("lookup", {
+      outputSchema: objectSchema({ answer: { type: "string" } }, ["answer"]),
+      async execute() { return { result: toolText("Source unavailable; select another source.", true) }; },
+    })]);
+    expect(await registry.run([call("1", "lookup")], { order: [] })).toEqual([
+      { tool_use_id: "1", status: "error", content: "Source unavailable; select another source." },
+    ]);
   });
 
   it("hides structured URLs and bounds every model-visible result", async () => {

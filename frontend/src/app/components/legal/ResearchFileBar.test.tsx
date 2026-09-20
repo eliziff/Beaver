@@ -277,29 +277,20 @@ describe("ResearchFileBar", () => {
     render(<ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} selectedSourceId="baker" />);
     const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
     expect(title).toHaveAttribute("aria-current", "true");
-    fireEvent.click(title);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
-    read.mockClear();
-    fireEvent.click(title.closest("[data-source-row]")!);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
-    read.mockClear();
-    fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
-    fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
-    fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
-    expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
-  });
-
-  it("warms a saved source's document when its row is pointed at or focused", async () => {
-    await renderWorkspace();
-    legalApi.getDirectLegalSourceDocument.mockClear();
-    const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
     fireEvent.pointerOver(title);
     fireEvent.focusIn(title);
-    expect(legalApi.getDirectLegalSourceDocument).toHaveBeenCalledWith({
-      provider: "a2aj", citation: "baker", sourceId: "baker",
-      docType: "cases", language: "en", dataset: "SCC",
-    });
+    expect(read).not.toHaveBeenCalled();
+    fireEvent.click(title);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined, undefined);
+    read.mockClear();
+    fireEvent.click(title.closest("[data-source-row]")!);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined, undefined);
+    read.mockClear();
+    fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined, undefined);
+    fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
+    expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5", "e_1");
   });
 
   it("keeps external sources as safe links instead of sending them to the legal reader", () => {
@@ -317,7 +308,7 @@ describe("ResearchFileBar", () => {
     render(<><ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} /><Location /></>);
     openBaker();
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5");
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5", "e_1");
     expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(/^\/$/u);
   });
 
@@ -392,16 +383,17 @@ describe("ResearchFileBar", () => {
     expect(api.getResearchItems).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sourceId: "baker" }), expect.anything());
   });
 
-  it("shows each highlight type only its directly assigned passages", async () => {
+  it("shows descendant passages in parent types and reuses their loaded source chain", async () => {
     await renderWorkspace();
     await waitFor(() => expect(api.getResearchItems.mock.calls.some(([, input]) => input.sourceId === "baker")).toBe(true));
     const tree = highlightTree();
     const requests = api.getResearchItems.mock.calls.length;
     fireEvent.click(tree.getByRole("button", { name: "Expand Finding" }));
-    expect(tree.queryByRole("treeitem", { name: "para 5" })).not.toBeInTheDocument();
+    expect(tree.getByRole("treeitem", { name: "para 5" })).toBeVisible();
 
     fireEvent.click(tree.getByRole("button", { name: "Expand Holding" }));
-    expect(tree.getByRole("treeitem", { name: "para 5" })).toBeVisible();
+    expect(within(tree.getByRole("treeitem", { name: "Holding", exact: true }))
+      .getByRole("treeitem", { name: "para 5" })).toBeVisible();
     expect(api.getResearchItems).toHaveBeenCalledTimes(requests);
     expect(tree.queryByText("Loading passages…")).not.toBeInTheDocument();
   });
