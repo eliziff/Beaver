@@ -36,7 +36,7 @@ export function textProjectionKey(input: {
   documentId: string; versionId: string; sourceSha256: string; fileType: string;
 }, options: { drafting?: boolean; limit?: number }) {
   return projectionDirectory("document-text", sha256(JSON.stringify([
-    "beaver.document-text.v1", input.documentId, input.versionId, input.sourceSha256,
+    "beaver.document-text.v2", input.documentId, input.versionId, input.sourceSha256,
     input.fileType, input.fileType === "docx" && !!options.drafting,
     // Other formats extract the full text and apply the caller's limit afterwards.
     input.fileType === "docx" ? options.limit ?? null : null,

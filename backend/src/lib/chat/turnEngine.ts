@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { parseAssistantCitations } from "./assistantWire";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderSubagentUpdate, type ProviderTurnControl,
@@ -127,6 +128,7 @@ export async function runChatTurn(options: {
   prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed") => void)
     => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
+  onModelMessages?: (event: Extract<AssistantEvent, { type: "model_messages" }>) => void | Promise<void>;
   onResearchObserved?: ResearchObserver;
   onActivity?: () => void;
   /** Every streamed answer fragment, for callers that show the model working without keeping a transcript. */
@@ -472,7 +474,17 @@ export async function runChatTurn(options: {
     }
     return results;
   };
+  let hasModelMessages = false;
   const callbacks = {
+    async onModelMessages(state: NonNullable<LlmMessage["modelState"]>) {
+      hasModelMessages = true;
+      const event: Extract<AssistantEvent, { type: "model_messages" }> = {
+        type: "model_messages", id: randomUUID(), ...state,
+      };
+      addEvent(event);
+      activeMessages = [...activeMessages, { role: "assistant", content: "", modelState: state }];
+      await options.onModelMessages?.(event);
+    },
     onActivity() {
       providerActivity = true;
       options.onActivity?.();
@@ -547,6 +559,7 @@ export async function runChatTurn(options: {
       });
     },
     onSteer(message: { id: string; text: string }) {
+      activeMessages = [...activeMessages, { role: "user", content: message.text }];
       partialEvents();
       text = "";
       boundary = false;
@@ -602,7 +615,8 @@ export async function runChatTurn(options: {
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
       ...(continuationId ? providerMessages.slice(-1) : providerMessages),
-      ...(repair ? [{ role: "assistant" as const, content: repair.draft },
+      ...(repair ? [
+        ...(!hasModelMessages && !continuationId ? [{ role: "assistant" as const, content: repair.draft }] : []),
         { role: "user" as const, content: repair.findings }] : []),
     ],
     tools: resolveTools(),

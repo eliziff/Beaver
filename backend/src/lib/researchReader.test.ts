@@ -89,7 +89,7 @@ it("keeps spreadsheet cell identity and reads selected Library evidence without 
     document = await documentProjectionService.read(source),
     initial = readLibraryResearchWindow({ documentId: "sheet", versionId: "v1", filename: "Terms.xlsx", document }),
     receipt = initial.evidence!.find(({ locator }) => locator.cells === "B1")!;
-  expect(receipt).toMatchObject({ span_text: "25", locator: {
+  expect(receipt).toMatchObject({ span_text: "25 ⟨n:25⟩", locator: {
     kind: "cell", label: "Terms!B1", sheet: "Terms", cells: "B1" } });
   const documents = { metadata: async () => ({ filename: "Terms.xlsx", size_bytes: 1 }),
     projectionSource: async () => source,

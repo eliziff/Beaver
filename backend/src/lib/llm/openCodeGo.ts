@@ -3,13 +3,9 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createCatalogCache, fetchCatalogJson } from "../catalogCache";
-import { createAnthropicWireAdapter } from "./anthropicWire";
 import { requireApiKey } from "./apiKeys";
 import { openCodeGoModelSlug, openCodeGoProtocol } from "./models";
-import { createCompatibleWireAdapter } from "./openaiCompatibleWire";
-import { createResponsesWireAdapter } from "./openaiResponsesWire";
-import { runProviderLoop } from "./providerLoop";
-import type { StreamChatParams, StreamChatResult } from "./types";
+import type { StreamChatParams } from "./types";
 
 const label = "OpenCode Go";
 
@@ -49,44 +45,11 @@ function key(params: StreamChatParams) {
 const wireHeaders = (session: string) =>
   ({ "User-Agent": "opencode/1.0", "x-opencode-session": session });
 
-export function streamOpenCodeGo(params: StreamChatParams): Promise<StreamChatResult> {
-  const model = openCodeGoModelSlug(params.model);
-  const protocol = openCodeGoProtocol(params.model);
+export function openCodeGoConnection(params: StreamChatParams) {
+  const model = openCodeGoModelSlug(params.model), protocol = openCodeGoProtocol(params.model);
   if (!model || !protocol) throw new Error(`Unsupported OpenCode Go model: ${params.model}`);
-  const apiKey = key(params);
-  const endpoint = baseUrl();
-  const session = params.promptCacheKey?.trim() || randomUUID();
-  const headers = wireHeaders(session);
-
-  if (protocol === "responses") {
-    return runProviderLoop(params, createResponsesWireAdapter(params, {
-      apiKey,
-      baseURL: endpoint,
-      model,
-      provider: label,
-      persistent: false,
-      promptCacheKey: session,
-      headers,
-    }));
-  }
-  if (protocol === "messages") {
-    return runProviderLoop(params, createAnthropicWireAdapter(params, apiKey, false, {
-      baseURL: endpoint.replace(/\/v1$/u, ""),
-      model,
-      provider: label,
-      adaptiveThinking: false,
-      headers,
-    }));
-  }
-  return runProviderLoop(params, createCompatibleWireAdapter(params, {
-    apiKey,
-    baseURL: endpoint,
-    model,
-    provider: label,
-    maxTokens: 16_384,
-    imageInput: model === "deepseek-v4-flash-vision-exp",
-    headers,
-  }));
+  return { model, protocol, apiKey: key(params), baseURL: baseUrl(),
+    headers: wireHeaders(params.promptCacheKey?.trim() || randomUUID()) };
 }
 
 export type OpenCodeGoCatalog = {

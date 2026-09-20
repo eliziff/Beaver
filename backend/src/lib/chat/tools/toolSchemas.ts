@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+import { workbookSheetsSchema } from "../../spreadsheet";
 import type { Tool } from "../../llm";
 import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
 import { objectSchema as object, type BeaverToolPolicy } from "../toolRegistry";
@@ -47,7 +49,10 @@ export const WRITE_TOOL: Tool & BeaverToolPolicy = {
     content: {
       type: "string",
       description:
-        "For DOCX: Beaver Markdown with headings, lists, pipe tables, native [^note] footnotes, {{field_id}} controls, [@citation_id] evidence markers, and <!-- pagebreak -->. Reuse a field id wherever one value repeats. For XLSX: # workbook title, ## sheet names, then one pipe table per sheet. For PPTX: # deck title, ## slide titles, bullets, and an optional fenced notes block labelled notes.",
+        "For DOCX: Beaver Markdown with headings, lists, pipe tables, native [^note] footnotes, {{field_id}} controls, [@citation_id] evidence markers, and <!-- pagebreak -->. Reuse a field id wherever one value repeats. For XLSX: prefer sheets for typed values and formulas; content pipe tables are text-only. For PPTX: # deck title, ## slide titles, bullets, and an optional fenced notes block labelled notes.",
+    },
+    sheets: { ...z.toJSONSchema(workbookSheetsSchema, { target: "draft-7" }),
+      description: 'XLSX sheets with name and rows (including headers). Cells are strings, numbers, booleans, null, or native SheetJS {t:"n"|"s"|"b",v?,f?,z?}. Formulas use f without "="; v is an optional cached value, not recalculated by this tool. Strings stay literal. Omit content when using sheets.',
     },
     document_type: {
       type: "string",
@@ -87,7 +92,7 @@ export const WRITE_TOOL: Tool & BeaverToolPolicy = {
       }),
       description: "DOCX memo only.",
     },
-  }, ["filename", "content"]),
+  }, ["filename"]),
 };
 
 const ADVANCED_OPS = [
