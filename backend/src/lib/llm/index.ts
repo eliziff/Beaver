@@ -16,27 +16,9 @@ async function streamProvider(
   provider: Provider,
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
-  switch (provider) {
-    case "claude":
-      return (await import("./claude")).streamClaude(params);
-    case "openai":
-      return (await import("./openai")).streamResponses(params, "openai");
-    case "deepseek":
-      return (await import("./deepseek")).streamDeepSeek(params);
-    case "openrouter":
-    case "meta":
-      return (await import("./openai")).streamResponses(params, provider);
-    case "opencode-go":
-      return (await import("./openCodeGo")).streamOpenCodeGo(params);
-    case "codex":
-      return (await import("./codex")).streamCodex(params);
-    case "claude-p":
-      return (await import("./claudeP")).streamClaudeP(params);
-    case "ollama":
-      return (await import("./ollamaApi")).streamOllama(params);
-    case "gemini":
-      return (await import("./gemini")).streamGemini(params);
-  }
+  if (provider === "codex") return (await import("./codex")).streamCodex(params);
+  if (provider === "claude-p") return (await import("./claudeP")).streamClaudeP(params);
+  return (await import("./sdk")).streamHosted(params);
 }
 
 export async function streamChatWithTools(

@@ -53,7 +53,7 @@ describe("spreadsheetToLLMStructure", () => {
         "| --- | --- | --- | --- |",
         "| 1 | Quarterly revenue ⟨merged A1:C1⟩ |  | Total |",
         "| 2 | Matter | Status | Cost |",
-        "| 7 | Smith | Open | 1,200 |",
+        "| 7 | Smith | Open | 1,200 ⟨n:1200⟩ |",
         "",
         "## Sheet: Schedule",
         "",

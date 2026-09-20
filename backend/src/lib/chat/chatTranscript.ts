@@ -1,3 +1,5 @@
+import { providerForModel } from "../llm/models";
+import type { ModelState } from "../llm/types";
 import type { ChatMessageRecord } from "../chatStore";
 import type { Provider, ProviderContextCheckpoint } from "../llm/types";
 import type { ChatMessage } from "./types";
@@ -57,8 +59,9 @@ function responseText(responses: AskInputResponseItem[], requested: ReadonlyMap<
 const responseFiles = (responses: AskInputResponseItem[]) =>
   files(responses.flatMap((row) => row.kind === "documents" ? row.documents : []));
 
-function projectAssistant(content: ChatMessageRecord["content"]): ChatMessage[] {
+function projectAssistant(content: ChatMessageRecord["content"], sdkHistory = false): ChatMessage[] {
   if (typeof content === "string") return content ? [{ role: "assistant", content }] : [];
+  sdkHistory ||= content.some(event => event.type === "model_messages");
   const messages: ChatMessage[] = [];
   let pending = "";
   let requested = new Map<string, AskInputItem>();
@@ -68,7 +71,15 @@ function projectAssistant(content: ChatMessageRecord["content"]): ChatMessage[] 
   };
   for (const event of content) {
     if (event.type === "content") {
-      if (event.text !== "Cancelled by user.") pending += event.text;
+      if (!sdkHistory && event.text !== "Cancelled by user.") pending += event.text;
+    } else if (event.type === "model_messages") {
+      flush();
+      messages.push({ role: "assistant", content: "", modelState: {
+        model: event.model, messages: event.messages, ...(event.compacted && { compacted: true }),
+      } });
+    } else if (event.type === "steering") {
+      flush();
+      messages.push({ role: "user", content: event.text });
     } else if (event.type === "document_artifact") {
       pending += `${pending ? "\n\n" : ""}[Created document: ${JSON.stringify(
         event.filename,
@@ -105,12 +116,18 @@ type Checkpoint = {
   keepCurrent: boolean;
   summary?: string;
   native?: ProviderContextCheckpoint;
+  modelState?: ModelState;
 };
-function latestCheckpoint(messages: TranscriptMessage[], provider?: Provider): Checkpoint | null {
+function latestCheckpoint(messages: TranscriptMessage[], provider?: Provider, model?: string): Checkpoint | null {
   let latest: Checkpoint | null = null;
   messages.forEach((message, row) => {
     if (message.role !== "assistant" || !Array.isArray(message.content)) return;
     message.content.forEach((item, event) => {
+      if (item.type === "model_messages" && item.compacted && item.model === model &&
+          providerForModel(item.model) === provider) {
+        latest = { row, event, keepCurrent: true, modelState: item };
+        return;
+      }
       if (item.type !== "context_checkpoint") return;
       const kind = item.provider;
       if (provider && (kind === "claude" || kind === "openai") && kind !== provider) return;
@@ -132,16 +149,25 @@ function latestCheckpoint(messages: TranscriptMessage[], provider?: Provider): C
 export function projectChatTranscript(
   messages: TranscriptMessage[],
   provider?: Provider,
+  model?: string,
 ): ChatMessage[] {
-  const checkpoint = latestCheckpoint(messages, provider);
+  const checkpoint = latestCheckpoint(messages, provider, model);
   if (!checkpoint) return messages.flatMap(project);
   const result: ChatMessage[] = [{
     role: "assistant",
     content: checkpoint.summary ? `[Conversation checkpoint]\n${checkpoint.summary}` : "",
     ...(checkpoint.native && { contextCheckpoint: checkpoint.native }),
+    ...(checkpoint.modelState && { modelState: checkpoint.modelState }),
   }];
   if (checkpoint.keepCurrent) result.push(...projectAssistant(
-    (messages[checkpoint.row].content as AssistantEvent[]).slice(checkpoint.event + 1),
+    (messages[checkpoint.row].content as AssistantEvent[]).slice(checkpoint.event + 1), Boolean(checkpoint.modelState),
   ));
   return [...result, ...messages.slice(checkpoint.row + 1).flatMap(project)];
+}
+
+export function workflowForContinuation(messages: ChatMessageRecord[], assistantId: string) {
+  const end = messages.findIndex(message => message.id === assistantId);
+  for (let index = end - 1; index >= 0; index--)
+    if (messages[index].role === "user") return workflow(messages[index].workflow);
+  return undefined;
 }
