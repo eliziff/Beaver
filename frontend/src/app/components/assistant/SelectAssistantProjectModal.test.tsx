@@ -53,12 +53,12 @@ describe("SelectAssistantProjectModal", () => {
             { name: /Matter One/ },
             { timeout: 5000 },
         );
-        const continueButton = screen.getByRole("button", {
-            name: "Continue",
+        const startButton = screen.getByRole("button", {
+            name: "Start chat",
         });
         await user.click(project);
-        expect(continueButton).toBeEnabled();
-        await user.click(continueButton);
+        expect(startButton).toBeEnabled();
+        await user.click(startButton);
 
         await waitFor(() => {
             expect(mocks.saveChat).toHaveBeenCalledWith("project-1");

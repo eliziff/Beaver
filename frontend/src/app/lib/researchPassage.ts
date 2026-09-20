@@ -3,7 +3,9 @@ type Locator = { kind: string; label: string };
 
 /** A locator as a reader says it: "¶ 12", "s. 24(2)", "p. 3" — never the stored key ("par12"). */
 export function passageLabel({ kind, label }: Locator) {
-  const raw = (label ?? "").trim();
+  const stored = (label ?? "").trim();
+  // Document offsets have one canonical presentation, independent of how a provider named them.
+  const raw = kind === "document" ? stored.replace(/^(?:characters|lines?)(?=\s+\d)/iu, "line") : stored;
   const bare = raw.replace(/^(?:par(?:a(?:graph)?)?|sec(?:tion)?|page|p|fn|n|s)[.\s]*(?=[\d(])/iu, "").trim() || raw;
   const prefix = PREFIX[kind] ?? "";
   return prefix ? `${prefix} ${bare}` : bare;

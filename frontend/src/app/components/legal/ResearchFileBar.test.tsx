@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   runResearchFileQuery: vi.fn(), getResearchCitation: vi.fn(),
   getWorkspaceFindings: vi.fn(), getWorkspaceViews: vi.fn(),
 }));
+const legalApi = vi.hoisted(() => ({ getDirectLegalSourceDocument: vi.fn() }));
 vi.mock("../shared/views/DocumentViewer", () => ({ DocumentViewer: (props: { documentId: string; versionId: string }) =>
   <div aria-label="Original document">{props.documentId}:{props.versionId}</div> }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({
@@ -37,6 +38,10 @@ vi.mock("@/app/lib/api/documents", async (original) => ({
 vi.mock("@/app/lib/api/projects", async (original) => ({
   ...await original<typeof import("@/app/lib/api/projects")>(),
   listProjects: api.listProjects
+}));
+vi.mock("@/app/lib/api/legalSources", async (original) => ({
+  ...await original<typeof import("@/app/lib/api/legalSources")>(),
+  getDirectLegalSourceDocument: legalApi.getDirectLegalSourceDocument,
 }));
 
 const evidence: ResearchEvidence = {
@@ -98,6 +103,7 @@ describe("ResearchFileBar", () => {
     });
     localStorage.clear(); sessionStorage.clear();
     vi.clearAllMocks();
+    legalApi.getDirectLegalSourceDocument.mockRejectedValue(new Error("legal source unavailable"));
     api.actOnResearchFile.mockResolvedValue(file);
     api.getWorkspaceFindings.mockResolvedValue({ items: [], next_offset: null, total: 0 });
     api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] });
@@ -252,7 +258,8 @@ describe("ResearchFileBar", () => {
     expect(screen.queryByRole("button", { name: "Search target" })).not.toBeInTheDocument();
     openSearch();
     expect(screen.getByRole("tab", { name: "Search" })).toHaveAttribute("aria-selected", "true");
-    expect(api.getResearchItems).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.getResearchItems).toHaveBeenCalledWith("file-1",
+      expect.objectContaining({ kind: "passages", sourceId: "baker" }), expect.any(AbortSignal)));
   });
 
   it("edits a source's labels from its options menu and closes the palette on Escape", async () => {
@@ -281,6 +288,18 @@ describe("ResearchFileBar", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
     expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
+  });
+
+  it("warms a saved source's document when its row is pointed at or focused", async () => {
+    await renderWorkspace();
+    legalApi.getDirectLegalSourceDocument.mockClear();
+    const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
+    fireEvent.pointerOver(title);
+    fireEvent.focusIn(title);
+    expect(legalApi.getDirectLegalSourceDocument).toHaveBeenCalledWith({
+      provider: "a2aj", citation: "baker", sourceId: "baker",
+      docType: "cases", language: "en", dataset: "SCC",
+    });
   });
 
   it("keeps external sources as safe links instead of sending them to the legal reader", () => {
@@ -348,9 +367,11 @@ describe("ResearchFileBar", () => {
 
   it("loads a source's passages on demand and removes one with its source identity", async () => {
     await renderWorkspace();
-    expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages" && !input.sourceId)).toBe(false);
-    openBaker();
+    // The Highlights tree warms the one known passage chain; the Sources tree reuses it.
     await waitFor(() => expect(api.getResearchItems.mock.calls.some(([, input]) => input.sourceId === "baker")).toBe(true));
+    const requests = api.getResearchItems.mock.calls.length;
+    openBaker();
+    expect(api.getResearchItems).toHaveBeenCalledTimes(requests);
     menu("¶ 5 options");
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     const confirmation = screen.getByRole("alertdialog", { name: "Delete passage?" });
@@ -369,6 +390,20 @@ describe("ResearchFileBar", () => {
     expect(screen.queryByRole("button", { name: "Passages in Baker v Canada" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Passages in Appeal case" })).toBeNull();
     expect(api.getResearchItems).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sourceId: "baker" }), expect.anything());
+  });
+
+  it("shows each highlight type only its directly assigned passages", async () => {
+    await renderWorkspace();
+    await waitFor(() => expect(api.getResearchItems.mock.calls.some(([, input]) => input.sourceId === "baker")).toBe(true));
+    const tree = highlightTree();
+    const requests = api.getResearchItems.mock.calls.length;
+    fireEvent.click(tree.getByRole("button", { name: "Expand Finding" }));
+    expect(tree.queryByRole("treeitem", { name: "para 5" })).not.toBeInTheDocument();
+
+    fireEvent.click(tree.getByRole("button", { name: "Expand Holding" }));
+    expect(tree.getByRole("treeitem", { name: "para 5" })).toBeVisible();
+    expect(api.getResearchItems).toHaveBeenCalledTimes(requests);
+    expect(tree.queryByText("Loading passages…")).not.toBeInTheDocument();
   });
 
   it("flattens every instance's type to a leaf name and edits one instance by its own identity", async () => {

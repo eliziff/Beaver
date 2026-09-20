@@ -104,4 +104,24 @@ describe("DocumentSidePanel highlight", () => {
     await waitFor(() => expect(window.getSelection()?.isCollapsed).toBe(true));
     expect(highlight).toHaveAttribute("aria-pressed", gesture === "arm-first" ? "true" : "false");
   });
+
+  it("does not arm the tool when a regular selection cannot be captured", async () => {
+    vi.clearAllMocks(); api.items.mockResolvedValue({ items: [], next_cursor: null });
+    render(<SourcesWorkspaceProvider file={ontologyFile()}>
+      <DocumentSidePanel controller={{ doc: document, versions: [version], currentId: version.id, current: version,
+        selected: version, selectedId: version.id, priorCurrent: null, close: vi.fn(),
+      } as import("../documents/useDocumentController").DocumentController} />
+    </SourcesWorkspaceProvider>);
+    const highlight = await screen.findByRole("button", { name: "Highlight" });
+    await waitFor(() => expect(highlight).not.toBeDisabled());
+    const outside = globalThis.document.createTextNode("outside reader"); globalThis.document.body.append(outside);
+    const range = globalThis.document.createRange(); range.selectNodeContents(outside);
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+
+    fireEvent.click(highlight);
+
+    await waitFor(() => expect(highlight).toHaveAttribute("aria-pressed", "false"));
+    expect(api.act).not.toHaveBeenCalled();
+    outside.remove(); selection.removeAllRanges();
+  });
 });
