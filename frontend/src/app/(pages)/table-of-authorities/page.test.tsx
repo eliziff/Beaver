@@ -5,10 +5,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthoritiesWorkspace } from "@/app/authorities/AuthoritiesWorkspace";
 import { beaverAuthoritiesHost } from "@/app/authorities/beaverHost";
-import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
 import type { AuthoritiesProduct, AuthorityIdentity } from "@/app/authorities/types";
 import type { WorkProductMetadata } from "@/app/lib/workProducts";
-import TableOfAuthoritiesPage from "./page";
+import TableOfAuthoritiesPage, { AuthoritiesDocumentPicker } from "./page";
 
 const api = vi.hoisted(() => ({
   actOnAuthorities: vi.fn(), attachAuthorityPdf: vi.fn(), buildAuthorities: vi.fn(),
@@ -209,12 +208,12 @@ describe("Authorities UI contracts", () => {
 
   it("searches the active project's files from the primary picker", async () => {
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      LibraryPicker={LibraryDocumentPicker}
+      LibraryPicker={AuthoritiesDocumentPicker}
       {...workspaceRoute()} projectId="matter-1" /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("button", { name: "Project" }));
     await waitFor(() => expect(api.directoryResource).toHaveBeenCalledWith({ projectId: "matter-1" }));
-    expect(api.directoryList).toHaveBeenCalledWith({ q: "", limit: 30 }, expect.any(AbortSignal));
+    expect(api.directoryList).toHaveBeenCalledWith({ parent_id: null, q: "", cursor: null }, expect.any(AbortSignal));
   });
 
   it("binds a project PDF to an authority and book slot through the shared picker", async () => {
@@ -227,20 +226,22 @@ describe("Authorities UI contracts", () => {
     api.attachAuthoritiesLibraryPdf.mockResolvedValue(saved);
     api.directoryList.mockResolvedValue({ items: [{ kind: "document", document }], next_cursor: null });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      LibraryPicker={LibraryDocumentPicker}
+      LibraryPicker={AuthoritiesDocumentPicker}
       {...workspaceRoute(saved.id)} projectId="matter-1" /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("tab", { name: "Sources", exact: true }));
     await userEvent.click(screen.getByRole("button", { name: "Upload for R v Grant" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Choose from Project" }));
-    await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Select Grant.pdf" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose" }));
     await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenLastCalledWith(
       saved.id, saved.revision, document.id, document.current_version_id,
       { kind: "authority", authorityId: "grant", language: "en" }));
 
     await userEvent.click(screen.getByRole("tab", { name: "Build book", exact: true }));
     await userEvent.click(screen.getByRole("button", { name: "Choose Cover from Project" }));
-    await userEvent.click(await screen.findByRole("button", { name: /Grant\.pdf/u }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Select Grant.pdf" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose" }));
     await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenLastCalledWith(
       saved.id, saved.revision, document.id, document.current_version_id,
       { kind: "book", slot: "cover", supplementId: undefined }));
@@ -439,11 +440,12 @@ describe("Authorities UI contracts", () => {
     api.attachAuthoritiesLibraryPdf.mockResolvedValue(attached);
     api.directoryList.mockResolvedValue({ items: [{ kind: "document", document }], next_cursor: null });
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      LibraryPicker={LibraryDocumentPicker} {...workspaceRoute()} /></MemoryRouter>);
+      LibraryPicker={AuthoritiesDocumentPicker} {...workspaceRoute()} /></MemoryRouter>);
 
     await userEvent.click(screen.getByRole("tab", { name: "Manual" }));
     await userEvent.click(screen.getByRole("button", { name: "Library" }));
-    await userEvent.click(await screen.findByRole("button", { name: /First decision\.pdf/u }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Select First decision.pdf" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose" }));
 
     await waitFor(() => expect(api.attachAuthoritiesLibraryPdf).toHaveBeenCalledWith(
       created.id, added.revision, document.id, document.current_version_id,

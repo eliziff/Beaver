@@ -89,7 +89,7 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
     const library = usePagedDirectory(
         (parentId, q, cursor, signal) => libraryResource.list(
             { parent_id: parentId, q, cursor }, signal),
-        query, [libraryResource, query], showTabs && activeTab !== "projects",
+        query, [libraryResource, query], !showTabs && !projectId || showTabs && activeTab !== "projects",
         directoryCollection({ library: libraryKind }, query),
     );
     const projects = usePagedQuery<Project>(
@@ -104,7 +104,7 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
         !!activeProjectId && (!showTabs || activeTab === "projects"),
         directoryCollection({ projectId: activeProjectId }, query),
     );
-    const directory = !showTabs ? (projectId ? project : null)
+    const directory = !showTabs ? (projectId ? project : library)
         : activeTab === "projects" ? (selectedProjectId ? project : null) : library;
     /** Research sets are reached through Import, never listed as ordinary document rows. */
     const ordinaryDocument = (document: Document) => !isResearchDocument(document);

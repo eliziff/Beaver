@@ -182,10 +182,13 @@ describe("legal source reader", () => {
         payload.reference.kind = "legislation";
         let start = 0;
         payload.slices = [
-            ["sec32", undefined, "32 Application"],
+            ["sec32", undefined, "**32** Application"],
             ["sec32(1)", "sec32", "(1) This section applies."],
-            ["sec32(1)(a)", "sec32(1)", "(a) The first class."],
+            // Native legislation parents own text ranges, so descendants can name the root.
+            ["sec32(1)(a)", "sec32", "(a) The first class."],
+            ["sec32(1)(a)(i)", "sec32", "(i) A nested class."],
             ["sec32(2)", "sec32", "(2) An exception applies."],
+            ["sec32(2.01)", "sec32", "(2.01) A decimal exception."],
         ].map(([label, parentLabel, text], depth) => {
             const from = start; start += text!.length + 1;
             const primary = { kind: "section" as const, label: label!, parentLabel,
@@ -202,6 +205,12 @@ describe("legal source reader", () => {
             expect(block).toHaveAttribute("data-locator-value", address);
         }
         expect(screen.queryByText("32(1)(a)")).not.toBeInTheDocument();
+        expect(screen.getAllByText("32")).toHaveLength(1);
+        expect(screen.getByText("(i)")).toBeVisible();
+        const block = (label: string) => container.querySelector<HTMLElement>(`[data-legal-block="${label}"]`)!;
+        expect(block("sec32(2.01)").style.marginInlineStart).toBe(block("sec32(2)").style.marginInlineStart);
+        expect(parseFloat(block("sec32(1)(a)").style.marginInlineStart))
+            .toBeGreaterThan(parseFloat(block("sec32(1)").style.marginInlineStart));
     });
 
     it("shows Back over the reader and restores its scroll position", async () => {
@@ -229,6 +238,21 @@ describe("legal source reader", () => {
             .toEqual({ start: 107, end: 124 });
         root.remove();
         selection.removeAllRanges();
+    });
+
+    it("indexes one rendered block once and captures it within 20 ms", () => {
+        const root = document.createElement("div");
+        root.innerHTML = '<section data-legal-text="0">Before <span>the exact holding</span> after</section>';
+        document.body.append(root);
+        const text = root.querySelector("span")!.firstChild!, range = document.createRange();
+        range.selectNodeContents(text);
+        const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+        const started = performance.now();
+
+        expect(readerSelectionSpan(root, selection, [{ start: 100, text: "Before the exact holding after" }]))
+            .toEqual({ start: 107, end: 124 });
+        expect(performance.now() - started).toBeLessThan(20);
+        root.remove(); selection.removeAllRanges();
     });
 
     it("preserves punctuation and Unicode at both edges of a selected PDF passage", () => {
@@ -504,6 +528,23 @@ describe("legal source reader", () => {
         expect(await screen.findByRole("dialog", { name: "Highlight type and note" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Holding" })).toBeInTheDocument();
         expect(api.actOnResearchFile).not.toHaveBeenCalled();
+    });
+
+    it("restores a saved highlight without a detected structure", async () => {
+        api.direct.mockResolvedValue(multiSlicePayload());
+        const fallback = { ...savedEvidence, receipt: { ...savedEvidence.receipt,
+            evidence_id: "headnote", block_id: "chars:4-21", span: { start: 4, end: 21 },
+            span_text: "First proposition.", locator: { kind: "document", label: "line 5–21" } } };
+        api.researchItems.mockResolvedValue(researchPage(fallback));
+        const { container } = render(sourceViewer({ researchFile, initialLocator: "line 5–21",
+            initialEvidenceId: "headnote" }));
+
+        const highlight = await waitFor(() => {
+            const item = container.querySelector<HTMLElement>('[data-research-evidence="headnote"]');
+            expect(item).toHaveTextContent("First proposition.");
+            return item!;
+        });
+        await waitFor(() => expect(highlight.closest("article")!.parentElement).toHaveProperty("scrollTop", -16));
     });
 
     it("settles a deleted linked workspace and reports the error", async () => {

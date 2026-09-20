@@ -16,7 +16,6 @@ import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import type { Document } from "@/app/lib/api/documents";
-import type { LibraryDocumentPickerProps } from "@/app/components/shared/LibraryDocumentPicker";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { TabList } from "@/app/components/ui/tabs";
@@ -68,7 +67,12 @@ const DEFAULTS: StartPreferences = {
 const bookPreferences = (value: StartPreferences) =>
   authoritiesProfile(value.profileId).locked?.outputMode === "table"
     ? withProfile(value, GENERAL_PROFILE.id) : value;
-type LibraryPicker = ComponentType<LibraryDocumentPickerProps>;
+export type AuthoritiesDocumentPickerProps = {
+  open: boolean; title: string; busy?: boolean; projectId?: string;
+  formats: readonly ("pdf" | "docx")[];
+  onSelect: (document: Document) => void; onClose: () => void;
+};
+type LibraryPicker = ComponentType<AuthoritiesDocumentPickerProps>;
 
 type LibraryTarget = { kind: "import" } | { kind: "manual" } |
   { kind: "authority"; authorityId: string } |
@@ -274,7 +278,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   // Recognition starts as soon as a scan is found, unless the book keeps the scan as
   // images; the step then only lists what is still unrecognized.
   const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
-  const watched = scannedSources.files.filter((file) => ocr.tracked[file.role]);
   // The step only interrupts once a scan is known to be unrecognized, so a book whose
   // sources are all readable moves on without a dialog the reader never needed. Recognition
   // that is already running is not a reason to hold anyone here: it runs on past this step.
@@ -355,7 +358,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const stepOperation = STEP_PROGRESS.has(operation) ? operation : "";
   const busyText = stepOperation ? "" : building ? "Building outputs"
     : pendingImport ? "Finding citations" : operation || "Updating authorities";
-  const libraryAvailable = !!LibraryPicker && !!host.searchLibrary;
+  const libraryAvailable = !!LibraryPicker;
   const attachLibraryAvailable = libraryAvailable && !!host.attachLibraryPdf;
   const sourceLabel = (draft?.projectId ?? projectId) ? "Project" : "Library";
 
@@ -767,17 +770,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </StepSection>{quotationReview}</>}
                   {stage === "sources" && <><Sources key={draft.id} draft={draft} occurrences={occurrences}
+                    ocr={ocr}
                     {...authorityPanelProps}
                     {...(draft.state.import.kind === "manual" ? {
                       onPickMany: host.pickFiles ? () => void pickFiles(true, "pdf", appendManual) : undefined,
                       onLibraryAdd: attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined,
                       onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
                     } : {})} />
-                    {!!watched.length && <ul className="mt-3 divide-y divide-gray-200 rounded-xl border border-gray-300 bg-white shadow-sm">
-                      {watched.map((file) => <li key={file.role} className="grid gap-1 px-3 py-2.5">
-                        <span className="truncate text-sm font-medium text-gray-950" title={file.name}>{file.name}</span>
-                        <SourceOcrProgress ocr={ocr} status={ocr.tracked[file.role]} /></li>)}
-                    </ul>}
                     <div className="mt-3 flex items-center justify-end gap-3">
                       <StepProgress label={stepOperation || (recognitionAsked ? scannedSources.progress : "")} error={stepError} />
                       <Button disabled={busy || recognitionAsked} onClick={() => {
@@ -796,13 +795,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       {LibraryPicker && <LibraryPicker open={!!libraryTarget}
         key={`${draft?.id}:${draft?.projectId ?? projectId}:${libraryTarget?.kind}`}
         title={libraryTitle(libraryTarget, sourceLabel)}
-        formatLabel={libraryTarget?.kind === "import" ? "PDF or Word" : "PDF"}
-        sourceLabel={sourceLabel}
-        search={(query, signal) => host.searchLibrary?.(query, {
-          projectId: draft?.projectId ?? projectId,
-          formats: libraryTarget?.kind === "import" ? ["pdf", "docx"] : ["pdf"],
-        }, signal) ?? Promise.resolve([])}
-        onError={(caught) => setError(errorText(caught))}
+        projectId={draft?.projectId ?? projectId}
+        formats={libraryTarget?.kind === "import" ? ["pdf", "docx"] : ["pdf"]}
         onSelect={chooseLibrary} onClose={() => setLibraryTarget(undefined)} />}
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} size="xl"
         breadcrumbs={["Settings"]} fit
@@ -1047,7 +1041,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
   const authorityById = new Map(authorities.map((item) => [item.id, item]));
   const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
-  return <div className="authorities-review grid min-h-0 grid-rows-[14rem_auto] overflow-hidden @min-[35rem]:h-[30rem] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)]! @min-[35rem]:grid-rows-1">
+  return <div className="authorities-review grid min-h-0 grid-rows-[14rem_auto] overflow-hidden @min-[35rem]:h-[30rem] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)] @min-[35rem]:grid-rows-1">
     <div className="min-h-0 overflow-y-auto border-b border-gray-200 [scrollbar-width:thin] @min-[35rem]:border-b-0 @min-[35rem]:border-e" role="listbox"
       aria-label="Citations">
       {occurrences.map((item, index) => {
@@ -1676,7 +1670,7 @@ function highlight(text: string, occurrence: AuthorityOccurrence) {
         occurrence.pinpointSpan.start < end, value = text.slice(start, end);
     nodes.push(authority || pinpoint ? <mark key={`${start}:${end}`}
       data-authority-span={authority || undefined} data-pinpoint-span={pinpoint || undefined}
-      className={cn("rounded px-0.5 text-inherit", pinpoint ? "bg-red-200" : "bg-red-100")}>
+      className={cn("rounded px-0.5 text-inherit", pinpoint ? "bg-yellow-200" : "bg-red-100")}>
       {value}</mark> : value);
   }
   return <>{nodes}</>;

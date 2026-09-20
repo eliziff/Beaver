@@ -19,6 +19,7 @@ import "../loading.css";
 import { createPdfPageCache, pageAt } from "./pdfPageCache";
 import { matchesQuoteText, quoteSegments } from "./quoteText";
 import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from "./pdfAnnotationLayer";
+import type { PdfRecognizedText } from "@/app/lib/api/documents";
 
 export type PdfByteSource = (signal: AbortSignal, onError: (error: Error) => void) => Promise<
     { data: Uint8Array } | { range: import("pdfjs-dist").PDFDataRangeTransport;
@@ -35,6 +36,7 @@ export interface PdfCanvasProps {
     rounded?: boolean;
     ariaLabel?: string;
     onUnavailable?: () => void;
+    recognizedText?: PdfRecognizedText;
 }
 
 type RenderedPage = {
@@ -78,6 +80,7 @@ export function PdfCanvas({
     error,
     quotes,
     quoteFocusKey,
+    recognizedText,
     rounded = true,
     ariaLabel = "PDF document",
     onUnavailable,
@@ -239,6 +242,23 @@ export function PdfCanvas({
                     const layer = new lib.TextLayer({ textContentSource: page.streamTextContent(),
                         container: element, viewport });
                     await layer.render();
+                    if (!layer.textDivs.some(div => div.textContent?.trim())) {
+                        const recognized = recognizedText?.pages.find(item => item.pageNumber === index + 1);
+                        if (recognized) for (const sourceLine of recognized.lines) {
+                            const line = document.createElement("div");
+                            line.style.display = "contents"; line.dataset.legalText = String(index + 1);
+                            for (const word of sourceLine.words) {
+                                const span = document.createElement("span");
+                                const [x0, y0, x1, y1] = word.rect;
+                                Object.assign(span.style, { position: "absolute", left: `${x0 / recognized.width * viewport.width}px`,
+                                    top: `${y0 / recognized.height * viewport.height}px`, width: `${(x1-x0) / recognized.width * viewport.width}px`,
+                                    height: `${(y1-y0) / recognized.height * viewport.height}px`, fontSize: `${(y1-y0) / recognized.height * viewport.height}px`,
+                                    lineHeight: "1", color: "transparent", whiteSpace: "pre", userSelect: "text" });
+                                span.textContent = `${word.text} `; line.appendChild(span);
+                            }
+                            element.appendChild(line);
+                        }
+                    }
                     if (generation !== generationRef.current) return;
                     let line: HTMLDivElement | undefined, bottom = -Infinity;
                     for (const { div, rect } of layer.textDivs.filter(div => {

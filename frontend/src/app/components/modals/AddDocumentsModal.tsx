@@ -265,6 +265,7 @@ export function AddDocumentsModal({
           onChange={setSelected}
           uploadingFilenames={pendingNames}
           showTabs={showTabs}
+          projectId={!showTabs ? projectId : undefined}
           initialTab={initialTab}
           excludeProjectId={projectId}
           documentFilter={eligible}

@@ -117,6 +117,18 @@ export function createDocumentsRouter(
         ({ start, end, text: text.slice(start, end), page: Number(label.replace(/^page/iu, "")) })) });
   }));
 
+  router.get("/:documentId/pdf-text-layer", asyncRoute(async (req, res) => {
+    const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
+      ?? reject(404, "Document version not found");
+    if (source.fileType !== "pdf") reject(400, "Text layers require a PDF");
+    const pages = await documentProjectionService.pdfTextLayer(source.readBytes, {
+      documentId: source.documentId, versionId: source.versionId, sourceSha256: source.sourceSha256,
+      ...(source.pdfProfile ? { cacheKey: source.pdfProfile.cacheKey } : {}),
+    }, { pdfProfile: source.pdfProfile });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ pages });
+  }));
+
   router.post(
     "/",
     singleFileUpload("file"),

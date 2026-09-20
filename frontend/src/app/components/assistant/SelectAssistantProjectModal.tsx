@@ -63,10 +63,10 @@ export function SelectAssistantProjectModal({
                 label: creating
                     ? onSelectProject
                         ? "Moving…"
-                        : "Creating…"
+                        : "Starting…"
                     : onSelectProject
                       ? "Move chat"
-                      : "Continue",
+                      : "Start chat",
                 onClick: handleContinue,
                 disabled:
                     creating ||
