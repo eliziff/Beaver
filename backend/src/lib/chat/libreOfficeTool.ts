@@ -8,10 +8,12 @@ type Dependencies = Parameters<typeof createLibreOfficeApplication>[0] & Pick<As
 
 const CONSOLE_HELP = `Write a synchronous JavaScript function body. Native calls suspend automatically; return a small result.
 doc is the current Writer document; guest code has no Node, filesystem, network, imports or Python eval.
-object.get(name|[names]) reads up to 32 properties; set(values) writes them; call(method,...args) invokes UNO.
+object.get(name|[names]) reads up to 32 properties; set(values) writes a final property state in native groups. Use separate calls for order-sensitive edits. call(method,...args) invokes UNO.
+object.reset(name|[names]) removes direct formatting and verifies inherited defaults after export; a later set on the same object/property supersedes that reset.
+Styles expose ParentStyle and getParentStyle/setParentStyle; create derived styles instead of repeating formatting.
 object.items(offset=0,limit=20,properties=[]) returns {items:[{name,value,properties?}],next_offset,total}. Request property names to read the whole page in one call; value remains a usable handle.
 object.describe(filter='',offset=0,limit=50) discovers native signatures. writable describes the native property, not permission to mutate an inspect program.
-word.target(address) resolves an inspected object; retain it before structural edits and reinspect indexes afterward.
+word.target(address|[addresses]) resolves one object or up to 1000 in input order, scanning paragraphs once. Retain handles before structural edits; reinspect indexes afterward.
 word.inspect({family:'paragraph',limit:20,properties:['ParaStyleName'],include_text:false}) omits prose.
 word.create(service), word.constant(name), word.enum(type,value), word.struct(type,fields), word.any(type,value) supply native factories and typed arguments.
 word.mm(n)/word.pt(n) convert geometry to hundredths of a millimetre; font heights already use points.

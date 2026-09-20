@@ -46,6 +46,7 @@ async function main() {
           toJSON: () => ({ref}),
           get: name => invoke({op:'get',target:ref,name}),
           set: values => invoke({op:'set',target:ref,values}),
+          reset: names => invoke({op:'reset',target:ref,names:Array.isArray(names)?names:[names]}),
           items: (offset=0,limit=20,properties=[]) => invoke({op:'items',target:ref,offset,limit,properties}),
           find: text => invoke({op:'find',target:ref,text}),
           call: (name,...args) => invoke({op:'call',target:ref,name,args}),
