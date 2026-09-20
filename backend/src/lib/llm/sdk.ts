@@ -136,7 +136,8 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
             if (previous?.inputSchema === tool.inputSchema && previous.description === tool.description && previous.strict === tool.strict) continue;
             definitions.set(tool.name, tool);
             tools[tool.name] = { description: tool.description,
-              inputSchema: jsonSchema<Record<string, unknown>>(tool.inputSchema), strict: tool.strict ?? false,
+              inputSchema: jsonSchema(tool.inputSchema, { validate: value => validateModelOutput(tool.inputSchema, value) }),
+              strict: tool.strict ?? false,
               ...(params.runTools && { execute,
                 toModelOutput: ({ output: result }: { output: unknown }) => modelOutput(result as NormalizedToolResult) }),
             };

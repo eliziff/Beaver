@@ -116,19 +116,17 @@ const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => 
 };
 
 type Check = ReturnType<typeof schemaValidator>;
-type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Check };
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
 type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
 
 export class TurnToolRegistry<Context> {
-  readonly #tools: Compiled<Context>[];
-  readonly #byName = new Map<string, Compiled<Context>>();
+  readonly #tools = new Map<string, BeaverTool<Context>>();
   readonly #active = new Set<string>();
   #visible?: Tool[];
   #loadInput?: Check;
 
   constructor(tools: BeaverTool<Context>[]) {
-    this.#tools = tools.map((candidate) => {
+    for (const candidate of tools) {
       const parsed = ToolSchema.safeParse(schema(candidate));
       if (!parsed.success) throw new Error(
         `Invalid tool ${candidate.name || "<empty>"}: ${parsed.error.message}`);
@@ -136,47 +134,39 @@ export class TurnToolRegistry<Context> {
       if (!name || name === LOAD_TOOLS_NAME) {
         throw new Error(`Reserved or empty tool name: ${name || "<empty>"}`);
       }
-      if (this.#byName.has(name)) throw new Error(`Duplicate tool: ${name}`);
-      const compiled: Compiled<Context> = {
-        tool: { ...candidate, name },
-        input: schemaValidator(candidate.inputSchema),
-        ...(candidate.outputSchema && {
-          output: schemaValidator(candidate.outputSchema),
-        }),
-      };
-      this.#byName.set(name, compiled);
+      if (this.#tools.has(name)) throw new Error(`Duplicate tool: ${name}`);
+      this.#tools.set(name, { ...candidate, name });
       if (!candidate.specialist) this.#active.add(name);
-      return compiled;
-    });
+    }
   }
 
   specialists() {
-    return this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [] : [tool.name]);
+    return [...this.#tools.values()].flatMap((tool) => this.#active.has(tool.name) ? [] : [tool.name]);
   }
   visible() {
     if (this.#visible) return this.#visible;
     const specialists = this.specialists();
     return this.#visible = [
       ...(specialists.length ? [loader(specialists)] : []),
-      ...this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [schema(tool)] : []),
+      ...[...this.#tools.values()].flatMap((tool) => this.#active.has(tool.name) ? [schema(tool)] : []),
     ];
   }
   all() {
     const specialists = this.specialists();
     return [
       ...(specialists.length ? [loader(specialists)] : []),
-      ...this.#tools.map(({ tool }) => schema(tool)),
+      ...[...this.#tools.values()].map(schema),
     ];
   }
   activity(call: NormalizedToolCall) {
     // Reaching for a tool is machinery, not an act the reader follows, and a call whose
     // arguments the schema rejects never runs: neither is work to show as a step.
-    const compiled = this.#byName.get(call.name);
-    return compiled?.input(call.input).valid
-      ? compiled.tool.activity?.(call.input) ?? null : null;
+    const tool = this.#tools.get(call.name);
+    return tool && schemaValidator(tool.inputSchema)(call.input).valid
+      ? tool.activity?.(call.input) ?? null : null;
   }
   activityCitations(call: NormalizedToolCall) {
-    return this.#byName.get(call.name)?.tool.activityCitations?.(call.input) ?? [];
+    return this.#tools.get(call.name)?.activityCitations?.(call.input) ?? [];
   }
 
   async run(
@@ -186,7 +176,7 @@ export class TurnToolRegistry<Context> {
     onResult?: OnResult,
   ): Promise<NormalizedToolResult[]> {
     const serial = calls.some((call) => {
-      const setting = this.#byName.get(call.name)?.tool.sequential;
+      const setting = this.#tools.get(call.name)?.sequential;
       return typeof setting === "function" ? setting(call.input) : setting === true;
     });
     const executions = serial
@@ -239,18 +229,18 @@ export class TurnToolRegistry<Context> {
   ): Promise<Execution> {
     if (call.name === LOAD_TOOLS_NAME) {
       const checked = (this.#loadInput ??= schemaValidator(
-        loader([...this.#byName.keys()]).inputSchema))(call.input);
+        loader([...this.#tools.keys()]).inputSchema))(call.input);
       return { call, outcome: checked.valid
         ? { result: this.#load(call.input.names as string[]) }
         : failedOutcome("invalid_arguments", checked.errorMessage) };
     }
-    const compiled = this.#byName.get(call.name);
-    if (!compiled || !this.#active.has(call.name)) return {
+    const tool = this.#tools.get(call.name);
+    if (!tool || !this.#active.has(call.name)) return {
       call,
-      outcome: failedOutcome(compiled ? "tool_not_loaded" : "unknown_tool",
-        compiled ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
+      outcome: failedOutcome(tool ? "tool_not_loaded" : "unknown_tool",
+        tool ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
     };
-    const checked = compiled.input(call.input);
+    const checked = schemaValidator(tool.inputSchema)(call.input);
     if (!checked.valid) {
       // Rejected arguments never reach the tool, so log them here or the failure is invisible.
       console.error("[assistant-tool] rejected arguments",
@@ -259,13 +249,13 @@ export class TurnToolRegistry<Context> {
     }
     try {
       if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
-      const outcome = await compiled.tool.execute(call.input, context, signal, call);
+      const outcome = await tool.execute(call.input, context, signal, call);
       const parsed = CallToolResultSchema.safeParse(outcome?.result);
       if (!parsed.success) throw new Error(`Malformed tool result: ${parsed.error.message}`);
-      if (compiled.output) {
+      if (tool.outputSchema && !parsed.data.isError) {
         if (!parsed.data.structuredContent) throw new Error(
           "Tool declared outputSchema but returned no structuredContent");
-        const output = compiled.output(parsed.data.structuredContent);
+        const output = schemaValidator(tool.outputSchema)(parsed.data.structuredContent);
         if (!output.valid) throw new Error(`Invalid structuredContent: ${output.errorMessage}`);
       }
       return { call, outcome: { ...outcome, result: parsed.data } };

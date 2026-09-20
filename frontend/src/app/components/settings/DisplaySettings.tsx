@@ -2,8 +2,7 @@
 
 import { Switch } from "@/app/components/ui/switch";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
-import { providerShortLabel, type ModelProvider } from "@/app/lib/modelAvailability";
-import { PROVIDER_LOGO } from "@/app/lib/providerLogos";
+import { MODEL_PROVIDERS, providerLabel } from "@/app/lib/modelAvailability";
 
 /** Chat display switches, in render order. */
 const TOGGLES = [
@@ -20,12 +19,6 @@ const TOGGLES = [
         ariaLabel: "Enable Auto mode",
     },
 ] as const;
-
-// The providers a reader can hide from the model picker, in display order.
-const MODEL_PROVIDERS: ModelProvider[] = [
-    "claude", "claude-p", "openai", "codex", "gemini", "deepseek",
-    "opencode-go", "openrouter", "meta", "ollama",
-];
 
 export function DisplaySettings() {
     const [preferences, savePreferences] = useAssistantPreferences();
@@ -53,16 +46,12 @@ export function ModelProviderSettings() {
     return <div className="space-y-2.5">
         {MODEL_PROVIDERS.map((provider) => (
             <label key={provider} className="flex items-center justify-between gap-4">
-                <span className="flex min-w-0 items-center gap-2 text-sm text-gray-900">
-                    {PROVIDER_LOGO[provider] && <img src={PROVIDER_LOGO[provider]}
-                        alt="" aria-hidden="true" className="h-4 w-4 shrink-0" />}
-                    <span className="truncate">{providerShortLabel(provider)}</span>
-                </span>
+                <span className="truncate text-sm text-gray-900">{providerLabel(provider)}</span>
                 <Switch checked={!disabled.has(provider)}
-                    onChange={(enabled) => savePreferences({ disabledProviders: enabled
-                        ? preferences.disabledProviders.filter((item) => item !== provider)
-                        : [...preferences.disabledProviders, provider] })}
-                    size="md" ariaLabel={`Show ${providerShortLabel(provider)} in the model picker`} />
+                    onChange={(enabled) => savePreferences((current) => ({ ...current, disabledProviders: enabled
+                        ? current.disabledProviders.filter((item) => item !== provider)
+                        : [...current.disabledProviders, provider] }))}
+                    size="md" ariaLabel={`Show ${providerLabel(provider)} in the model picker`} />
             </label>
         ))}
     </div>;
