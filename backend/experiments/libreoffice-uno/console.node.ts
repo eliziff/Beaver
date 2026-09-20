@@ -60,14 +60,15 @@ test("QuickJS programs are expressive, isolated, and promptly cancellable", asyn
 test("real console discovers native APIs and performs compound edits", async () => {
   const bytes = await source;
   const { report, candidate } = await preview(bytes, `
-    const page=doc.get('Text').items(0,2);
+    const page=doc.get('Text').items(0,2,['String','CharHeight']);
     word.assert(page.items.length===2 && page.next_offset===2 && page.total===null);
-    word.assert(page.items[1].value.get(['String','CharHeight']).String.includes('unchanged'));
+    word.assert(page.items[1].properties.String.includes('unchanged') && page.items[1].properties.CharHeight>0);
     const props=word.inspect({family:'paragraph',limit:2,properties:['ParaStyleName'],include_text:false});
     word.assert(props.items.length===2 && !('text' in props.items[0]) && 'ParaStyleName' in props.items[0].properties);
     const tables=doc.get('TextTables').items();
     word.assert(tables.items[0].name==='Table1' && tables.next_offset===null);
-    const paragraph=word.target('paragraph:1');
+    const paragraph=page.items[1].value;
+    for (const String of ['x'.repeat(70000),'y'.repeat(70000),'Opening paragraph stays unchanged.']) paragraph.set({String});
     paragraph.set({CharWeight:150}); paragraph.expect({CharWeight:150});
     const selection=paragraph.find('unchanged');
     selection.set({CharColor:0x123456}); selection.expect({String:'unchanged',CharColor:0x123456});
@@ -99,6 +100,8 @@ test("real console discovers native APIs and performs compound edits", async () 
     return {rows:t.get('Rows').get('Count'),footnotes:word.inspect({family:'footnote'}).total};
   `);
   assert.ok(candidate); assert.equal(report.reopened, true);
+  assert.ok(Buffer.byteLength(JSON.stringify(report)) < 16000, "Receipts must not repeat large intermediate text values");
+  assert.equal(report.revision_count, 2);
   assert.deepEqual(report.result, { rows: 3, footnotes: 1 });
   assert.match(await xml(candidate, "word/document.xml"), /Additional item/);
   assert.match(await xml(candidate, "word/document.xml"), /Preamble\./);
@@ -124,6 +127,7 @@ test("text and note edits are native revisions and can be rejected without erasi
   `, "tracked");
   assert.ok(candidate); assert.equal(report.review_verified, true);
   assert.equal(report.mode, "tracked-candidate");
+  assert.equal(report.new_revision_count, 4); assert.equal(report.revision_count, 6);
   assert.match(await xml(candidate, "word/document.xml"), /w:ins/);
   assert.match(await xml(candidate, "word/footnotes.xml"), /w:del/);
   const { candidate: rejected } = await preview(candidate, `
@@ -162,7 +166,7 @@ test("creation, readonly policy, unsafe native access, and failed programs use t
   const unsafe = await JSZip.loadAsync(bytes); unsafe.file('word/vbaProject.bin', 'never execute');
   await assert.rejects(preview(await unsafe.generateAsync({type:'nodebuffer'}), 'return null;'), /Macros and embedded/);
   await assert.rejects(runLibreOffice(bytes, {action:'inspect',snapshot:hash(bytes),program:"word.target('paragraph:1').set({String:'forbidden'});"}, signal), /read-only/);
-  for (const program of ["doc.get(['Text','BasicLibraries']);", "doc.call('getPropertyDefault','BasicLibraries');"])
+  for (const program of ["doc.get(['Text','BasicLibraries']);", "doc.call('getPropertyDefault','BasicLibraries');", "doc.get('TextTables').items(100000,1,['BasicLibraries']);"])
     await assert.rejects(preview(bytes, program), /document-only/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({HyperLinkURL:'file:///etc/passwd'});"), /HTTP|document/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({String:'temporary'}); throw new Error('discard me');"), /discard me/);
