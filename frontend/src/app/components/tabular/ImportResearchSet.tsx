@@ -1,66 +1,37 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { applyWorkspaceLabels, getResearchFile, openWorkspaceTable, proposeWorkspaceLabels, proposeWorkspaceTable,
     type ProposalProgress, type ResearchLabelProposal, type ResearchTablePreview, type ResearchTableInput } from "@/app/lib/api/researchFiles";
-import { isResearchDocument, type ResearchFile, type ResearchLabel, type ResearchSelection, type ResearchSource } from "@/app/lib/researchFiles";
+import { isResearchDocument, type ResearchFile, type ResearchSelection } from "@/app/lib/researchFiles";
 import type { Document } from "@/app/lib/api/documents";
 import { errorMessage } from "@/app/lib/utils";
 import { Button } from "../ui/button";
 import { Modal } from "../modals/Modal";
 import { FileDirectory } from "../shared/FileDirectory";
-import { ResearchTree, type ResearchTreePreview } from "../legal/ResearchTree";
 import { ResearchLabelTree } from "../legal/ResearchLabelTree";
 import { SourcesWorkspace } from "../legal/SourcesWorkspace";
 import { tabularReviewPath } from "./tabularReviewRoute";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
 import { ActivityDisclosure } from "../assistant/message/EventBlocks";
+import { ResearchProposalEditor } from "../legal/ResearchProposalEditor";
 
 const HEAD = "text-sm font-semibold text-gray-900", META = "text-xs text-gray-500";
 const CARD = "relative min-w-0 break-words rounded-lg border border-gray-200 p-4 pe-10";
 const FIELD = "block w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-gray-200 focus:border-gray-300";
 const INPUT = "w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 type Props = { open: boolean; onClose: () => void; fileId?: string; projectId?: string | null; mode?: "table" | "labels";
-    selection?: ResearchSelection; chatId?: string; tableId?: string; columnIndex?: number; defaultRequest?: string; onOpen: (path: string) => void;
+    selection?: ResearchSelection; chatId?: string; conversationId?: string; tableId?: string; columnIndex?: number; defaultRequest?: string; onOpen: (path: string) => void;
     /** The chat composer's current selection; the global picker is the fallback. */
     model?: string | null; reasoningEffort?: string | null };
 type Design = ResearchTablePreview["design"];
 export const ImportResearchSet = ({ open, ...props }: Props) => open ? <OpenImportResearchSet {...props} /> : null;
-/** The proposed ontology as the tree it would create: the workspace's own labels, the proposed ones marked,
- *  each filed source under its label and, beneath a source, the passages the filing rests on. */
-function proposedTree(plan: ResearchLabelProposal, file: ResearchFile | null) {
-    const labels: Record<string, ResearchLabel> = { ...file?.state.labels }, marks: ResearchTreePreview["marks"] = {};
-    const passages: NonNullable<ResearchTreePreview["passages"]> = {}, sources: Record<string, ResearchSource> = {}, quoted = new Set<string>();
-    // A passage row is one source's row; a source row is its own. Either way the source carries the filing.
-    const source = (rowId: string) => {
-        const id = rowId.includes(":") ? rowId.slice(0, rowId.indexOf(":")) : rowId, saved = file?.state.sources[id];
-        return saved ? sources[id] ??= { ...saved, labelIds: [],
-            passages: { count: 0, sha256: "", unlabelledCount: 0, labelCounts: {} } } : null;
-    };
-    const order = (label: { scope: ResearchLabel["scope"] }) => label.scope === "highlight" ? 0 : 1;
-    // Highlight types first: the passages they name are the ones the filings then rest on.
-    for (const label of [...plan.labels].sort((first, second) => order(first) - order(second))) {
-        labels[label.id] = label;
-        if (!label.existing) marks[label.id] = "added";
-        for (const row of label.rows) {
-            const item = source(row.id); if (!item) continue;
-            if (label.scope === "source") { item.labelIds.push(label.id); marks[item.id] = "changed"; }
-            for (const quote of row.support) {
-                const key = `${item.id} ${quote}`; if (quoted.has(key)) continue;
-                quoted.add(key); (passages[item.id] ??= []).push({ labelId: label.id, quote });
-                if (label.scope === "highlight") item.passages!.labelCounts[label.id] = (item.passages!.labelCounts[label.id] ?? 0) + 1;
-            }
-        }
-    }
-    for (const row of plan.unassigned) source(row.id);
-    return { sources: Object.values(sources), preview: { labels, marks, passages } };
-}
 /** One organizing step in either direction: the model proposes the structure from the research; the user edits it before it exists. */
-function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, tableId, columnIndex, onOpen,
+function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, conversationId, tableId, columnIndex, onOpen,
     mode = "table", defaultRequest = "", model: chatModel, reasoningEffort: chatEffort }: Omit<Props, "open">) {
     const labelling = mode === "labels";
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
     const [preview, setPreview] = useState<ResearchTablePreview | null>(null), [plan, setPlan] = useState<ResearchLabelProposal | null>(null);
-    const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState(""), [name, setProposedName] = useState("");
+    const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState("");
     const [busy, setBusy] = useState(false), [creating, setCreating] = useState(false);
     const [error, setError] = useState(""), [note, setNote] = useState("");
     // The step is launched by the user, never on opening; while it runs the modal shows what the model is doing.
@@ -71,9 +42,9 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const [lane, setLane] = useState<"chat" | "picker">(chatModel ? "chat" : "picker");
     // Accept the proposal on the reading that produced it: a redesign is not re-filed under the existing ontology.
     const [redesigned, setRedesigned] = useState(false);
+    const savedDesign = useRef("");
     const laneModel = (which: "chat" | "picker") => which === "chat" && chatModel
         ? { model: chatModel, effort: chatEffort ?? undefined } : { model: pickerModel, effort: pickerEffort };
-    const { model, effort } = laneModel(lane);
     const existingStructure = labelling && file?.document.id === activeId && Object.keys(file.state.labels).length > 0;
     useEffect(() => {
         let active = true; setFile(null);
@@ -81,7 +52,8 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
             .catch((reason) => { if (active) setError(errorMessage(reason, "Could not load the current structure")); });
         return () => { active = false; };
     }, [activeId, labelling]);
-    const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
+    const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}),
+        ...(conversationId && labelling ? { conversationId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
     async function propose(instruction = "", repropose = false, which = lane) {
         if (!activeId) return;
@@ -90,43 +62,45 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         setBusy(true); setError(""); setNote(""); setProgress({ stage: "reading" }); setStarted(Date.now()); setNow(Date.now());
         try {
             const request = [defaultRequest.trim(), instruction.trim()].filter(Boolean).join("\n");
-            const body = { ...JSON.parse(inputKey) as ResearchTableInput, ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
+            const body = { ...JSON.parse(inputKey) as Omit<ResearchTableInput, "design">, ...(request ? { request } : {}), ...(repropose ? { repropose } : {}), model,
+                ...(labelling && plan ? { proposalId: plan.proposalId, currentDesign: plan.design } : {}),
                 ...(effort ? { reasoningEffort: effort } : {}) };
             const report = (event: ProposalProgress) => { if (run === generation.current) setProgress(event); };
             const [current, next] = await Promise.all([getResearchFile(activeId), labelling
                 ? proposeWorkspaceLabels(activeId, body, report, controller.signal) : proposeWorkspaceTable(activeId, body, report, controller.signal)]);
             if (run !== generation.current) return;
             setFile(current); setRedesigned(repropose || (labelling && !!(next as ResearchLabelProposal).reproposed));
-            if (labelling) { setPlan(next as ResearchLabelProposal); setProposedName((next as ResearchLabelProposal).title); }
+            if (labelling) { setPlan(next as ResearchLabelProposal); savedDesign.current = JSON.stringify((next as ResearchLabelProposal).design); }
             else { setPreview(next as ResearchTablePreview); setNote((next as ResearchTablePreview).fallback ?? ""); }
         } catch (reason) { if (run !== generation.current || controller.signal.aborted) return;
             if (which === "chat" && chatModel && pickerModel && pickerModel !== chatModel) { setLane("picker"); return propose(instruction, repropose, "picker"); }
             setError(errorMessage(reason, labelling
-            ? "Could not propose labels; nothing was changed" : "Could not propose a table; nothing was changed")); }
+            ? "Could not generate label suggestions; nothing was changed" : "Could not generate a table; nothing was changed")); }
         finally { if (run === generation.current) { setBusy(false); setProgress(null); } }
     }
     const cancel = () => { running.current?.abort(); generation.current++; setBusy(false); setProgress(null); };
     useEffect(() => { setPreview(null); setPlan(null); setBusy(false); setProgress(null); setError("");
         return () => { generation.current++; running.current?.abort(); }; }, [activeId, inputKey, labelling]);
     useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer); }, [busy]);
-    const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0, shortModel = (value = model) => value.split(":").pop() ?? value;
-    const working = progress?.stage === "reading" ? "Reading the research…"
-        : progress?.stage === "asking" ? [`Asking ${shortModel(progress.model)}…`,
+    const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0;
+    const working = progress?.stage === "reading" ? "Reading research…"
+        : progress?.stage === "asking" ? ["Generating suggestions…",
             progress.chars ? `${progress.chars.toLocaleString()} characters` : "", `${elapsed} s`].filter(Boolean).join(" · ")
-        : progress?.stage === "checking" ? "Checking the proposal against the research…"
-        : progress?.stage === "retrying" ? "Preparing the proposal…" : "";
+        : progress?.stage === "checking" ? "Checking the draft against the research…"
+        : progress?.stage === "retrying" ? "Preparing another suggestion…" : "";
     const columns = preview?.design.columns ?? [];
     const valid = labelling ? !!plan : columns.length > 0 && columns.every((column) => column.name.trim() && column.prompt.trim());
     async function create() {
         if (!activeId || creating || busy || !valid) return;
         setCreating(true); setError("");
         try {
-            if (labelling) { await applyWorkspaceLabels(activeId, { ...input, ...(redesigned ? { repropose: true } : {}), fingerprint: plan!.fingerprint, design: plan!.design });
+            if (labelling) { await applyWorkspaceLabels(activeId, { ...input, ...(redesigned ? { repropose: true } : {}),
+                ...(plan!.proposalId ? { proposalId: plan!.proposalId } : {}), fingerprint: plan!.fingerprint, design: plan!.design });
                 onOpen(`/sources?research_file=${encodeURIComponent(activeId)}`); }
             else onOpen(tabularReviewPath(await openWorkspaceTable(activeId, { ...input, fingerprint: preview!.fingerprint, design: preview!.design })));
             onClose();
         } catch (reason) { setError(errorMessage(reason, labelling
-            ? "Could not apply these labels. Propose them again before trying." : "Could not create the table. Propose it again before trying.")); }
+            ? "Could not apply these labels. Try suggesting them again." : "Could not create the table. Try suggesting a new table.")); }
         finally { setCreating(false); }
     }
     const edit = (patch: (design: Design) => Design) => setPreview((current) => current && { ...current, design: patch(current.design) });
@@ -144,22 +118,29 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         return !rows ? "Extracted for every source" : rows >= (preview?.rows.length ?? 0) ? "From your research"
             : "Partly from your research; extracted for the rest";
     };
-    const tree = useMemo(() => labelling && plan ? proposedTree(plan, file) : null, [labelling, plan, file]);
-    // Every source of the proposal opens with it: nothing the old flat list showed waits behind a chevron.
-    const [opened, setOpened] = useState<Set<string>>(() => new Set());
-    useEffect(() => { if (tree) setOpened(new Set(Object.keys(tree.preview.passages))); }, [tree]);
     const setName = (file?.document.filename ?? picked[0]?.filename ?? "").replace(/\.research\.md$/iu, "");
     const proposed = labelling ? !!plan : !!preview;
+    async function close() {
+        if (labelling && plan?.proposalId && activeId && JSON.stringify(plan.design) !== savedDesign.current) {
+            if (busy || creating) return;
+            setCreating(true); setError("");
+            try { await proposeWorkspaceLabels(activeId, { ...input, proposalId: plan.proposalId,
+                fingerprint: plan.fingerprint, design: plan.design }, () => undefined); }
+            catch (reason) { setError(errorMessage(reason, "Could not save your draft")); return; }
+            finally { setCreating(false); }
+        }
+        onClose();
+    }
     const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
-    return <Modal open onClose={onClose} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize this research" : "Extract a table"]}
+    return <Modal open onClose={() => void close()} size="lg" breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize research" : "Create a table"]}
         footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p>
             : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
         secondaryAction={!activeId ? undefined : busy ? { label: "Cancel", onClick: cancel }
-            : proposed ? { label: "Propose again", disabled: creating, onClick: () => void propose(adjust, true) }
+            : proposed ? { label: "Suggest again", disabled: creating, onClick: () => void propose(adjust, true) }
             : existingStructure ? { label: "Open workspace", onClick: () => { onOpen(`/sources?research_file=${encodeURIComponent(activeId)}`); onClose(); } } : undefined}
-        primaryAction={!activeId ? undefined : busy ? { label: "Proposing…", disabled: true }
-            : !proposed ? { label: existingStructure ? "Propose changes" : labelling ? "Propose labels" : "Propose a table", onClick: () => void propose(adjust, existingStructure || !!adjust.trim()) }
-            : { label: creating ? "Working…" : labelling ? "Apply labels" : "Create table", onClick: () => void create(), disabled: creating || !valid }}>
+        primaryAction={!activeId ? undefined : busy ? { label: "Generating suggestions…", disabled: true }
+            : !proposed ? { label: existingStructure ? "Suggest changes" : labelling ? "Suggest labels" : "Suggest a table", onClick: () => void propose(adjust, existingStructure || !!adjust.trim()) }
+            : { label: creating ? labelling ? "Applying labels…" : "Creating table…" : labelling ? "Apply labels" : "Create table", onClick: () => void create(), disabled: creating || !valid }}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
             {!activeId ? <div className="min-h-0 flex-1"><FileDirectory selectedDocuments={picked} showTabs
                 multiple={false} noun="research sets" documentFilter={isResearchDocument} onChange={setPicked}
@@ -180,21 +161,13 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                                 </section>)}</SourcesWorkspace>
                         </>}
                         <p className="text-sm text-gray-700">{labelling
-                            ? existingStructure ? "Review proposed changes before applying them." : "Propose labels and highlight types for this workspace. Nothing changes until you apply them."
-                            : "The model reads this research's sources, saved passages and findings and proposes a table: one row per source, one column per thing a lawyer wants to see. Nothing is created until you accept it."}</p>
-                        <p className={META}>Runs on {shortModel()}{effort ? ` · ${effort} reasoning` : ""}</p>
+                            ? existingStructure ? "Review the suggested changes, then apply them." : "Suggest labels and highlight types for this workspace. Review them before applying the changes."
+                            : "Review the suggested table before creating it. Each row represents a source; edit the columns to capture what you need."}</p>
                     </div>
-                    : labelling ? plan && tree && <>
-                        <input aria-label="Workspace name" value={name} className={`${FIELD} ${HEAD}`} onChange={(event) => setProposedName(event.target.value)} />
-                        {/* The proposal as the workspace it would become: labels file sources, highlight types hold the
-                            passages behind each filing, and whatever stays unfiled sits at the root. */}
-                        <SourcesWorkspace file={file}>{([["Labels", "source"], ["Highlight types", "highlight"]] as const)
-                            .filter(([, scope]) => plan.labels.some((label) => label.scope === scope)
-                                || scope === "source" && tree.sources.some(({ labelIds }) => !labelIds.length))
-                            .map(([heading, scope]) => <section key={heading} className="flex min-w-0 flex-col gap-1">
-                            <h3 className={META}>{heading}</h3>
-                            <ResearchTree scope={scope} sources={tree.sources} preview={tree.preview} opened={opened} setOpened={setOpened} />
-                        </section>)}</SourcesWorkspace></>
+                    : labelling ? plan && <>
+                        <ResearchProposalEditor proposal={{ sources: plan.sources, items: plan.items }} design={plan.design} disabled={busy || creating}
+                            onChange={(design) => setPlan({ ...plan, design })} />
+                    </>
                     : preview && <>
                         <input aria-label="Table name" value={preview.design.title} className={`${FIELD} ${HEAD}`}
                             onChange={(event) => edit((design) => ({ ...design, title: event.target.value }))} />
@@ -212,10 +185,12 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                     </>}
                 </div>
                 {!tableId && <label className="flex shrink-0 flex-col gap-1">
-                    <span className={META}>{proposed ? "Change the proposal" : "Organization to follow (optional)"}</span>
+                    <span className={META}>{proposed
+                        ? labelling ? "Adjust the labels" : "Adjust the table"
+                        : labelling ? "How should we group the research? (optional)" : "What should the table include? (optional)"}</span>
                     <input value={adjust} disabled={busy || creating} className={INPUT} onChange={(event) => setAdjust(event.target.value)}
                         onKeyDown={onEnter(() => void propose(adjust, proposed || !!adjust.trim()))}
-                        placeholder={labelling ? "e.g. group by the stage of the analysis" : "e.g. one column per Grant factor"} />
+                        placeholder={labelling ? "e.g. group by analysis stage" : "e.g. one column for each Grant factor"} />
                 </label>}
             </>}
         </div>

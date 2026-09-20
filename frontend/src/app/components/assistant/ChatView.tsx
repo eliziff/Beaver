@@ -49,6 +49,7 @@ import {
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
 import { ChatResearchFlow, type ChatResearchFlowHandle } from "./ChatResearchFlow";
+import { ResearchProposalCards } from "./ResearchProposalCards";
 import { OrganizeChatModal, organizeOpenAsIcons } from "./OrganizeChatModal";
 import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
 import { ChatFindingActions } from "./ChatFindingActions";
@@ -640,11 +641,11 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         />
     ) : undefined;
     const organizeOptions = chatId && researchSaveEnabled && hasResearchSources ? [
-        { label: "Workspace", description: "Label this chat's authorities and passages, then open them in Sources.",
+        { label: "Workspace", description: "Organize this chat's authorities and passages in Sources.",
             icon: organizeOpenAsIcons.workspace,
             onSelect: () => { setOrganizeOpen(false); void researchFlowRef.current?.openWorkspace(); } },
         { label: "Tabular Review",
-            description: "Turn this chat session into a tabular review, with the ability to continue this research in a tabular format.",
+            description: "Turn this chat's research into a table you can review and edit.",
             icon: organizeOpenAsIcons.table,
             onSelect: () => { setOrganizeOpen(false); void researchFlowRef.current?.openTable(); } },
     ] : [];
@@ -653,6 +654,8 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         ref={conversationRef}
         chatId={chatId}
         messageActions={messageActions}
+        afterMessages={chatId && <ResearchProposalCards chatId={chatId}
+            refreshKey={`${session.run?.id ?? ""}:${activeResearchFile?.workingRevision ?? ""}:${organizeOpen}`} />}
         session={session}
         handleChat={handleChat}
         cancel={cancel}
@@ -700,6 +703,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
             currentLocation={projectName} currentProjectId={projectId}
             onSelectProject={onProjectChange} />}
         {chatId && <ChatResearchFlow ref={researchFlowRef} chatId={chatId} projectId={projectId}
+            workspaceScope={layout === "panel" && !!researchFileId}
             question={messages.findLast((message) => message.role === "user")?.content}
             getModelPreferences={() => conversationRef.current?.getModelPreferences()} />}
         {poppedSource && <LegalSourcePopout tab={poppedSource} onClose={() => setPoppedSource(null)} />}

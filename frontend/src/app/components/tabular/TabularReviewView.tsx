@@ -467,7 +467,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setInteropError("");
         try { const { file, rows } = await prepareRows();
           setOrganizing({ fileId: file.document.id, selection: rowSelection(rows), columnIndex });
-        } catch (reason) { setInteropError(errorMessage(reason, "Could not propose labels")); }
+        } catch (reason) { setInteropError(errorMessage(reason, "Could not open label suggestions")); }
     }
     const rowMembers = rowSelection(documents).members ?? [];
     const workspaceSources = Object.values(workspace.file?.state.sources ?? {})

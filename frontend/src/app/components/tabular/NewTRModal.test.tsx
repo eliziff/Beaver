@@ -249,7 +249,7 @@ it("imports a research set and opens the created review", async () => {
     fireEvent.click(screen.getByRole("button", { name: "Create custom" }));
     fireEvent.click(screen.getByRole("button", { name: "Import a Research set" }));
     fireEvent.click(await screen.findByRole("radio", { name: "Select Appeal" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Propose a table" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Suggest a table" }));
     const create = () => screen.getByRole("button", { name: "Create table" });
     await waitFor(() => expect(create()).toBeEnabled());
     fireEvent.click(create());

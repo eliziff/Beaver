@@ -15,9 +15,18 @@ vi.mock("@/app/lib/api/researchFiles", () => ({
   getResearchFile: api.getResearchFile
 }));
 vi.mock("./ResearchFileBar", () => ({ ResearchFileBar: () => <div>Saved sources</div> }));
+vi.mock("./ResearchChatPanel", () => ({ ResearchChatPanel: () => <div>Workspace conversation</div> }));
 const file = { document: { id: "research-1" }, state: { labels: {}, sources: {} } } as ResearchFile;
 
 beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); });
+
+it("opens chat beside the workspace through the shared dock tabs at narrow widths", async () => {
+  render(<ResearchWorkspaceHost embedded={false} open onOpenChange={vi.fn()} file={file} onChange={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+  expect(await screen.findByText("Workspace conversation")).toBeVisible();
+  fireEvent.click(screen.getByRole("tab", { name: "Workspace" }));
+  expect(screen.getByText("Saved sources")).toBeVisible();
+});
 
 it("keeps the collection inline and retains its contents when returning to search", () => {
   const view = render(<ResearchWorkspaceHost embedded inline open onOpenChange={vi.fn()}

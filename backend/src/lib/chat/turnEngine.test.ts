@@ -395,21 +395,15 @@ it("does not preserve an unsupported draft after grounding repairs fail", async 
 });
 
 it.each(["R. v. Unsupported is decisive.", "See https://canlii.org/case."])(
-  "repairs an extraction draft through its selected submission tool: %s", async (draft) => {
+  "leaves extraction completion and repair to its submission owner: %s", async (draft) => {
     const receipt = observedPassage("input", "The appeal is allowed.");
     let turns = 0;
-    stream.mockImplementation(async ({ tools, callbacks, runTools, messages }) => {
+    stream.mockImplementation(async ({ tools, callbacks }) => {
       expect(tools.map(({ name }: { name: string }) => name)).toContain("submit_extraction");
       expect(tools.map(({ name }: { name: string }) => name)).not.toContain("submit_grounded_answer");
-      if (++turns === 1) {
-        callbacks.onContentDelta?.(draft);
-        return { fullText: draft };
-      }
-      expect(messages.at(-1).content).toContain("finish with submit_extraction");
-      await runTools([{ id: "answer", name: "submit_extraction", input: {
-        claims: [{ text: receipt.span_text, evidence_ids: [receipt.evidence_id] }],
-      } }]);
-      return { fullText: "" };
+      turns++;
+      callbacks.onContentDelta?.(draft);
+      return { fullText: draft };
     });
     const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
       messages: [{ role: "user", content: "Extract the disposition." }], emit() {},
@@ -424,8 +418,8 @@ it.each(["R. v. Unsupported is decisive.", "See https://canlii.org/case."])(
         } }];
       },
     });
-    expect(result.fullText).toBe(`${receipt.span_text} [1]`);
-    expect(turns).toBe(2);
+    expect(result.evidence.answer).toBeNull();
+    expect(turns).toBe(1);
   });
 
 it("does not turn non-legal journal retrieval into a grounding repair", async () => {

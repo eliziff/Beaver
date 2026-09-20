@@ -124,6 +124,9 @@ export async function runChatTurn(options: {
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;
   submissionTool?: string;
+  submissionsComplete?: () => boolean;
+  /** Provider receipts, including individual requests when the adapter exposes them. */
+  onProviderResult?: (result: StreamChatResult) => void;
   prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed") => void)
     => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
@@ -137,6 +140,7 @@ export async function runChatTurn(options: {
   const toolActivities = new Map<string, ToolActivity>();
   const evidence = options.evidenceState ?? createLegalEvidenceTurnState();
   const submissionTool = options.submissionTool ?? LEGAL_EVIDENCE_TOOL_NAME;
+  const chatAnswer = submissionTool === LEGAL_EVIDENCE_TOOL_NAME;
   registerPriorLegalEvidence(evidence, options.priorEvidence ?? []);
   registerPriorLegalResearchQueries(evidence, options.priorQueries ?? []);
   const addEvent = (event: AssistantEvent) => events.push(event);
@@ -466,12 +470,12 @@ export async function runChatTurn(options: {
       emit(paused);
       providerAbort.abort();
     }
-    const grounded = renderLegalEvidenceAnswer(evidence);
+    const grounded = chatAnswer ? renderLegalEvidenceAnswer(evidence) : null;
     if (grounded !== null) {
       text = grounded;
       boundary = false;
     }
-    return results;
+    return options.submissionsComplete?.() ? results.map(result => ({ ...result, terminal: true })) : results;
   };
   const callbacks = {
     onActivity() {
@@ -576,7 +580,7 @@ export async function runChatTurn(options: {
     },
   };
   options.onProviderControl?.(control);
-  const provider = (continuationId?: string,
+  const provider = async (continuationId?: string,
     repair?: { draft: string; findings: string }) => {
     const resumePrompt = readSubagentResumePrompt(resumableReaders);
     const providerMessages = continuationId && resumePrompt
@@ -585,7 +589,7 @@ export async function runChatTurn(options: {
             ? { ...message, content: `${message.content}\n\n${resumePrompt}` }
             : message)
       : activeMessages;
-    return streamChatWithTools({
+    const result = await streamChatWithTools({
     model: options.model,
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
@@ -620,6 +624,8 @@ export async function runChatTurn(options: {
       },
     } : undefined,
   });
+    options.onProviderResult?.(result);
+    return result;
   };
 
   let providerResult: StreamChatResult | undefined;
@@ -654,14 +660,15 @@ export async function runChatTurn(options: {
         throw error;
       }
     }
-    if (!paused && options.grounded !== false && renderLegalEvidenceAnswer(evidence) === null &&
+    if (!paused && chatAnswer && options.grounded !== false && renderLegalEvidenceAnswer(evidence) === null &&
         hasModelAuthoredLegalSourceUrl(text)) {
       await repairDraft(
         GROUNDED_LEGAL_REPAIR_INSTRUCTION.replace(LEGAL_EVIDENCE_TOOL_NAME, submissionTool));
       if (renderLegalEvidenceAnswer(evidence) === null) text = UNVERIFIED_LEGAL_ANSWER;
     }
     if (!paused) {
-      let finalized = options.grounded === false || finalizeLegalEvidence(evidence, text);
+      // Custom submission owners validate and persist each result themselves.
+      let finalized = !chatAnswer || options.grounded === false || finalizeLegalEvidence(evidence, text);
       for (let attempt = 0; !finalized && attempt < 2; attempt += 1) {
         const failure = evidence.failure ?? "No grounded submission was received.";
         evidence.answer = null;
@@ -681,7 +688,7 @@ export async function runChatTurn(options: {
         priorCitations.map(({ receipt }) => receipt), signal, false,
         [...evidence.presentedEvidenceIds].map((id) => evidence.evidence.get(id)!)))
         registerLegalEvidence(evidence, receipt, source);
-      text = renderLegalEvidenceAnswer(evidence) ?? text.trimEnd();
+      text = (chatAnswer ? renderLegalEvidenceAnswer(evidence) : null) ?? text.trimEnd();
     }
   } catch (error) {
     if (!paused) {

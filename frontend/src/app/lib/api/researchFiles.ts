@@ -52,7 +52,8 @@ export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?
   post<ResearchFile>(`/source-workspaces/${segment(id)}/bind`, input);
 export type ResearchTableInput = { labelId?: string; columnIndex?: number;
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
-  chatId?: string; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string };
+  chatId?: string; tableId?: string; fingerprint?: string; design?: ResearchTableDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string;
+  proposalId?: string; conversationId?: string; currentDesign?: ResearchLabelDesign };
 export type ResearchTableDesign = { title: string; columns: ColumnConfig[];
   cells: { rowId: string; columnIndex: number; itemIds: string[] }[] };
 export type ResearchTablePreview = { fingerprint: string; design: ResearchTableDesign;
@@ -77,15 +78,16 @@ export const proposeWorkspaceTable = (id: string, input: ResearchTableInput, onP
   proposalRequest<ResearchTablePreview>(`/source-workspaces/${segment(id)}/table/preview`, input, onProgress, signal);
 export const openWorkspaceTable = (id: string, input: ResearchTableInput) =>
   post<TabularReview>(`/source-workspaces/${segment(id)}/table`, input);
-export type ResearchLabelDesign = { title: string;
-  labels: { key: string; name: string; parentKey?: string | null; color?: string | null; definition?: string; scope?: "source" | "highlight" }[];
-  assignments: { labelKey: string; rowIds: string[]; itemIds?: string[] }[] };
-export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean; reproposed?: boolean;
+export type { ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "../../../../../backend/src/lib/researchContract";
+import type { ResearchLabelDesign } from "../../../../../backend/src/lib/researchContract";
+export type ResearchLabelProposal = { title: string; target: "sources" | "passages"; propose: boolean; reproposed?: boolean; proposalId?: string;
+  sources: { id: string; title: string }[];
+  items: { sourceId: string; evidenceId: string; title: string; text: string }[];
   fingerprint: string; design: ResearchLabelDesign; unassigned: { id: string; title: string }[];
   /** Each proposed label is a whole label: applying it puts exactly this into the workspace tree. */
-  labels: (ResearchLabel & { key: string; path: string; parentKey: string | null;
+  labels: (ResearchLabel & { path: string;
     existing: boolean; rows: { id: string; title: string; support: string[] }[] })[] };
-export const proposeWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design">, onProgress: (event: ProposalProgress) => void, signal?: AbortSignal) =>
+export const proposeWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { design?: ResearchLabelDesign }, onProgress: (event: ProposalProgress) => void, signal?: AbortSignal) =>
   proposalRequest<ResearchLabelProposal>(`/source-workspaces/${segment(id)}/labels/preview`, input, onProgress, signal);
 export const applyWorkspaceLabels = (id: string, input: Omit<ResearchTableInput, "design"> & { design: ResearchLabelDesign }) =>
   post<ResearchFile>(`/source-workspaces/${segment(id)}/labels`, input);

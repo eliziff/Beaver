@@ -1,119 +1,112 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { researchLabelDesignSchema, researchLabelInventory, researchLabelPlan } from "./researchLabelDesign";
+import { researchCategoryBudget, researchLabelDesignSchema, researchLabelDraft, researchLabelInventory, researchLabelModelView, researchLabelPlan } from "./researchLabelDesign";
 import type { ResearchFile } from "./researchFile";
+import type { ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
 import type { ResearchImportCatalog } from "./tabular/researchImport";
 
-const file = { document: { id: "f" }, state: { labels: {}, sources: {} } } as unknown as ResearchFile;
-const catalog = { title: "Detention", fingerprint: "x", entries: [],
-  rows: [{ id: "r1", sourceId: "s1", title: "R. v. Grant" }, { id: "r2", sourceId: "s2", title: "R. v. Omar" },
-    { id: "r3", sourceId: "s3", title: "R. v. White" }] } as unknown as ResearchImportCatalog;
-const design = (labels: { key: string; name: string; parentKey?: string | null; scope?: "source" | "highlight" }[],
-  assignments: { labelKey: string; rowIds: string[] }[]) => ({ title: "Detention", labels, assignments });
+const first = randomUUID(), second = randomUUID(), outside = randomUUID();
+const node = (name: string, members: string[] = [], children: ResearchSourceLabelNode[] = []): ResearchSourceLabelNode => ({ id: randomUUID(), name, members, children });
+const highlight = (name: string, members: ResearchHighlightTypeNode["members"] = [], children: ResearchHighlightTypeNode[] = []): ResearchHighlightTypeNode => ({ id: randomUUID(), name, members, children });
+const design = (sourceLabels: ResearchSourceLabelNode[] = [], highlightTypes: ResearchHighlightTypeNode[] = []): ResearchLabelDesign => ({ title: "Research", sourceLabels, highlightTypes });
+const file = { document: { id: randomUUID() }, state: { labels: {}, sources: {
+  [first]: { id: first, collected: true, labelIds: [], reference: { kind: "case" } },
+  [second]: { id: second, collected: true, labelIds: [], reference: { kind: "commentary" } },
+} } } as unknown as ResearchFile;
+const catalog = { title: "Detention", question: "When is a person detained?", labels: [], fingerprint: "x",
+  rows: [{ id: first, sourceId: first, title: "Judgment" }, { id: second, sourceId: second, title: "Journal analysis" }],
+  entries: [{ id: "item0", rowId: first, reference: { kind: "passage", sourceId: first, evidenceId: "e0:instance" },
+    kind: "passages", text: "A reasonable person would not feel free to leave.", quotes: [], column: { name: "Existing type" }, evidenceIds: ["e0"] },
+  { id: "item1", rowId: second, reference: { kind: "passage", sourceId: second, evidenceId: "e1" },
+    kind: "cited", text: "The analysis depends on practical compulsion.", quotes: [], column: { name: "Cited passage" }, evidenceIds: ["e1"] }],
+} as unknown as ResearchImportCatalog;
 
-describe("organization proposals preserve valid structures and exact membership", () => {
-  it("assigns existing categories without redeclaring them and retains their review hierarchy", () => {
-    const saved = { ...file, state: { ...file.state, labels: {
-      parent: { id: "parent", name: "Detention", parentId: null, scope: "source", order: 0, color: null },
-      child: { id: "child", name: "Psychological detention", parentId: "parent", scope: "source", order: 1, color: null },
-    } } } as ResearchFile;
-    const plan = researchLabelPlan(saved, catalog, design([], [{ labelKey: "child", rowIds: ["r1", "r2"] }]), "sources");
-    expect(plan.actions).toEqual([{ type: "label-selection", target: "sources", sourceIds: ["s1", "s2"], assign: ["child"], mode: "add" }]);
-    expect(plan.labels).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: "child", parentId: "parent", existing: true, rows: expect.any(Array) }),
-      expect.objectContaining({ id: "parent", existing: true }),
-    ]));
-    expect(() => researchLabelPlan(saved, catalog, design([], [{ labelKey: "unknown", rowIds: ["r1"] }]), "sources"))
-      .toThrow("An assignment names an unknown label");
+describe("canonical research organization", () => {
+  it("scales one combined category budget from the number of sources", () => {
+    expect(researchCategoryBudget(catalog)).toBe(12);
+    const many = { ...catalog, rows: Array.from({ length: 20 }, (_, index) => ({ id: `row${index}`,
+      sourceId: randomUUID(), title: `Source ${index}` })) } as unknown as ResearchImportCatalog;
+    expect(researchCategoryBudget(many)).toBe(40);
+    const nodes = Array.from({ length: 13 }, (_, index) => ({ name: `Issue ${index}` }));
+    expect(() => researchLabelDraft({ title: "Research", sourceLabels: nodes, highlightTypes: [] }, catalog, file,
+      undefined, researchCategoryBudget(catalog))).toThrow("at most 12 categories");
   });
-  it("allows a source-named category when proposed", () => {
-    expect(researchLabelPlan(file, catalog,
-      design([{ key: "a", name: "R. v. Grant" }], [{ labelKey: "a", rowIds: ["r1"] }]), "sources"))
-      .toMatchObject({ labels: [expect.objectContaining({ name: "R. v. Grant" })] });
+  it("compiles deep trees directly and keeps judgment and journal memberships together", () => {
+    const leaf = node("Security already worthless", [first, second]), waiver = node("Waiver", [second]),
+      root = node("Preservation of security", [], [node("Prejudice to recourse", [], [node("No prejudice found", [], [leaf])]), waiver]),
+      plan = researchLabelPlan(file, catalog, design([root]), "sources");
+    expect(plan.labels.find(({ id }) => id === leaf.id)).toMatchObject({ path: "Preservation of security / Prejudice to recourse / No prejudice found / Security already worthless",
+      rows: [{ id: first, title: "Judgment", support: [] }, { id: second, title: "Journal analysis", support: [] }] });
+    expect(plan.actions).toContainEqual({ type: "label-selection", target: "sources", sourceIds: [first, second], assign: [leaf.id], mode: "add" });
   });
-  it("allows useful distinctions that currently have one source each", () => {
-    expect(researchLabelPlan(file, catalog, design(
-      [{ key: "a", name: "Psychological detention" }, { key: "b", name: "Arbitrariness" }, { key: "c", name: "Exclusion" }],
-      [{ labelKey: "a", rowIds: ["r1"] }, { labelKey: "b", rowIds: ["r2"] }, { labelKey: "c", rowIds: ["r3"] }]), "sources")
-      .labels).toHaveLength(3);
+  it("resolves compact refs once and retains exact saved highlight instances", () => {
+    const raw = { title: "Detention", sourceLabels: [{ name: "Detention", children: [{ name: "Psychological detention", members: ["s0", "s1"] }] }],
+      highlightTypes: [{ name: "Compulsion", members: ["item0", "item1"] }] },
+      parsed = researchLabelDraft(raw, catalog, file), child = parsed.sourceLabels[0].children[0];
+    expect(child.members).toEqual([first, second]);
+    expect(parsed.highlightTypes[0].members).toEqual([{ sourceId: first, evidenceId: "e0:instance" }, { sourceId: second, evidenceId: "e1" }]);
+    expect(researchLabelPlan(file, catalog, parsed, "sources").actions).toContainEqual({ type: "annotate", kind: "evidence", sourceId: first, id: "e0:instance", labelIds: [parsed.highlightTypes[0].id] });
+    expect(researchLabelModelView(parsed, catalog)).toMatchObject(raw);
+    const revised = researchLabelDraft(raw, catalog, file, parsed);
+    expect(revised.sourceLabels[0].id).toBe(parsed.sourceLabels[0].id);
+    expect(revised.sourceLabels[0].children[0].id).toBe(child.id);
   });
-  it("allows the same concept to organize sources and highlights", () => {
-    expect(researchLabelPlan(file, catalog, design(
-      [{ key: "a", name: "Psychological detention" }, { key: "t", name: "Psychological detention", scope: "highlight" }],
-      [{ labelKey: "a", rowIds: ["r1", "r2"] }]), "sources")
-      .labels).toHaveLength(2);
+  it("uses one source alias when several selected passage rows belong to it", () => {
+    const passageCatalog = { ...catalog, rows: [{ id: "p0", sourceId: first, evidenceIds: ["e0"], title: "Judgment" },
+      { id: "p1", sourceId: first, evidenceIds: ["e2"], title: "Judgment" }], entries: [] },
+      inventory = JSON.parse(researchLabelInventory(passageCatalog, file, "passages"));
+    expect(inventory.sources).toHaveLength(1);
+    expect(researchLabelDraft({ title: "Research", sourceLabels: [{ name: "Detention", members: ["s0"] }], highlightTypes: [] }, passageCatalog, file).sourceLabels[0].members).toEqual([first]);
   });
-  it("accepts a concept ontology with the documents filed under it", () => {
-    const plan = researchLabelPlan(file, catalog, design(
-      [{ key: "a", name: "Detention under s. 9" }, { key: "b", name: "Psychological detention", parentKey: "a" },
-        { key: "c", name: "s. 24(2) exclusion" }],
-      [{ labelKey: "b", rowIds: ["r1", "r2"] }, { labelKey: "c", rowIds: ["r2", "r3"] }]), "sources");
-    expect(plan.labels.map(({ name }) => name)).toContain("Psychological detention");
+  it("rejects obsolete flat proposals, repeated node IDs and mismatched source/passage pairs", () => {
+    expect(researchLabelDesignSchema.safeParse({ title: "Research", labels: [], assignments: [] }).success).toBe(false);
+    const category = node("Issue");
+    expect(researchLabelDesignSchema.safeParse(design([category, category])).success).toBe(false);
+    expect(() => researchLabelPlan(file, catalog, design([], [highlight("Rule", [{ sourceId: second, evidenceId: "e0:instance" }])]), "sources"))
+      .toThrow("outside this research");
+    expect(() => researchLabelDraft({ title: "Research", sourceLabels: [{ id: randomUUID(), name: "Invented" }], highlightTypes: [] }, catalog, file)).toThrow("id must identify");
   });
-  it("reuses case and plural variants on a second proposal", () => {
-    const first = researchLabelPlan(file, catalog, design([{ key: "outcome", name: "Administrative outcome" }],
-      [{ labelKey: "outcome", rowIds: ["r1", "r2", "r3"] }]), "sources"),
-      labels = Object.fromEntries(first.actions.flatMap(action => action.type === "label" ? [[action.id!, action]] : [])),
-      saved = { ...file, state: { ...file.state, labels } } as ResearchFile,
-      second = researchLabelPlan(saved, catalog, design([{ key: "again", name: "ADMINISTRATIVE OUTCOMES" }],
-        [{ labelKey: "again", rowIds: ["r1", "r2", "r3"] }]), "sources");
-    expect(second.actions.some(action => action.type === "label")).toBe(false);
-    expect(second.labels).toMatchObject([{ name: "Administrative outcome", existing: true }]);
+  it("rejects assigning one highlight instance to two types", () => {
+    const member = { sourceId: first, evidenceId: "e0:instance" };
+    expect(() => researchLabelPlan(file, catalog, design([], [highlight("A", [member]), highlight("B", [member])]), "sources"))
+      .toThrow('assigned to both "A" and "B"');
   });
-});
-
-describe("answer excerpts frame the inventory", () => {
-  const answer = (id: string, rowId: string, text: string, evidenceIds: string[], claimIndex?: number) =>
-    ({ id, rowId, kind: "answer", text, evidenceIds, quotes: [], default: true, column: { index: 0, name: "Finding", prompt: "" },
-      reference: { kind: "answer", chatId: "c1", answerId: "a1", resource: "case:1",
-        ...(claimIndex === undefined ? {} : { claimIndices: [claimIndex] }) } });
-  const passage = (id: string, rowId: string, text: string, evidenceId: string) =>
-    ({ id, rowId, kind: "cited", text, evidenceIds: [evidenceId], quotes: [text], default: false,
-      column: { index: 0, name: "Cited passage", prompt: "" }, reference: { kind: "passage", sourceId: rowId, evidenceId } });
-  const framed = { ...catalog, question: "At what point was the client detained?", rows: catalog.rows.slice(0, 2),
-    entries: [passage("item0", "r1", "A detention is a significant restraint.", "e1"),
-      answer("item1", "r1", "Race and age inform the reasonable person.", ["e1"], 1),
-      answer("item2", "r1", "Detention runs from the first show of authority.", ["e1"], 0),
-      answer("item3", "r1", "Detention runs from the first show of authority.\n\nRace and age inform the reasonable person.", ["e1"]),
-      passage("item4", "r2", "The officers were exerting dominion from entry.", "e2"),
-      answer("item5", "r2", "Detention runs from the first show of authority.", ["e2"], 0)] } as unknown as ResearchImportCatalog;
-
-  it("carries the question and each claim once, in order, with the passages it cites", () => {
-    const inventory = JSON.parse(researchLabelInventory(framed, file, "sources"));
-    expect(inventory.question).toBe("At what point was the client detained?");
-    expect(inventory.answerExcerpts).toEqual([
-      { claim: "Detention runs from the first show of authority.", evidence: ["item0", "item4"] },
-      { claim: "Race and age inform the reasonable person.", evidence: ["item0"] }]);
+  it("leaves an omitted saved passage as plain Highlight", () => {
+    const generic = randomUUID(), saved = { ...file, state: { ...file.state, labels: { [generic]: {
+      id: generic, name: "Highlight", parentId: null, order: 0, scope: "highlight" as const, color: null } } } },
+      plan = researchLabelPlan(saved, catalog, design([node("Subrogation", [first])]), "sources");
+    expect(plan.actions).toContainEqual({ type: "annotate", kind: "evidence", sourceId: first,
+      id: "e0:instance", labelIds: [generic] });
   });
-  it("derives source membership from inventory items without redundant row IDs", () => {
-    const proposal = researchLabelDesignSchema.parse({ title: "Detention", labels: [{ key: "a", name: "Detention", scope: "source" }],
-      assignments: [{ labelKey: "a", itemIds: ["item0", "item4"] }] });
-    const plan = researchLabelPlan(file, framed, proposal, "sources");
-    expect(plan.actions).toContainEqual(expect.objectContaining({ type: "label-selection", target: "sources", sourceIds: ["s1", "s2"] }));
-    expect(() => researchLabelPlan(file, framed, { ...proposal, assignments: [{ labelKey: "a", rowIds: ["r2"], itemIds: ["item0"] }] }, "sources"))
-      .toThrow("A finding belongs to a row outside its assignment");
+  it("reconciles selected memberships while preserving outside sources and required ancestors", () => {
+    const existing = node("Old organization", [first, outside]), newNode = node("New organization", [second]),
+      saved = { ...file, state: { ...file.state, labels: { [existing.id]: { ...existing, parentId: null, order: 0, scope: "source" as const, color: null } },
+        sources: { ...file.state.sources, [first]: { ...file.state.sources[first], labelIds: [existing.id] },
+          [outside]: { ...file.state.sources[first], id: outside, labelIds: [existing.id] } } } },
+      plan = researchLabelPlan(saved, catalog, design([newNode]), "sources");
+    expect(plan.actions).toContainEqual({ type: "label-selection", target: "sources", sourceIds: [first], assign: [existing.id], mode: "remove" });
+    expect(plan.actions.some((action) => action.type === "remove" && action.id === existing.id)).toBe(false);
+    expect(researchLabelPlan(saved, catalog, design([newNode]), "sources", "file").actions.some((action) => action.type === "label-selection" && action.mode === "remove")).toBe(false);
   });
-  it("rejects conflicting highlight types for the same passage", () => {
-    const proposal = researchLabelDesignSchema.parse({ title: "Detention", labels: [
-      { key: "a", name: "Principle", scope: "highlight" }, { key: "b", name: "Application", scope: "highlight" }],
-      assignments: [{ labelKey: "a", itemIds: ["item0"] }, { labelKey: "b", itemIds: ["item0"] }] });
-    expect(() => researchLabelPlan(file, framed, proposal, "sources")).toThrow("A passage is assigned to more than one highlight type");
+  it("persists definitions and colors and removes omitted categories exclusively used by selected sources", () => {
+    const original = node("Issue", [first]), old = node("Obsolete", [second]),
+      saved = { ...file, state: { ...file.state, labels: Object.fromEntries([original, old].map((item) => [item.id,
+        { ...item, parentId: null, order: 0, scope: "source" as const, color: null }])),
+        sources: { ...file.state.sources, [second]: { ...file.state.sources[second], labelIds: [old.id] } } } },
+      updated = { ...original, members: [], color: "#223344", definition: "The governing issue" },
+      plan = researchLabelPlan(saved, catalog, design([updated]), "sources");
+    expect(plan.actions).toContainEqual(expect.objectContaining({ type: "label", id: original.id, definition: updated.definition, color: updated.color }));
+    expect(plan.actions).toContainEqual({ type: "remove", kind: "label", id: old.id });
   });
-  it("reparents and renames an existing category through the ordinary label operation", () => {
-    const saved = { ...file, state: { ...file.state, labels: {
-      parent: { id: "parent", name: "Detention", parentId: null, scope: "source", order: 0, color: null },
-      child: { id: "child", name: "Psychological", parentId: null, scope: "source", order: 1, color: null },
-    } } } as ResearchFile;
-    const plan = researchLabelPlan(saved, catalog, design([
-      { key: "child", name: "Psychological detention", parentKey: "parent" },
-    ], [{ labelKey: "child", rowIds: ["r1", "r2"] }]), "sources");
-    expect(plan.actions).toContainEqual(expect.objectContaining({ type: "label", id: "child", parentId: "parent", name: "Psychological detention" }));
-    expect(plan.labels.find(({ id }) => id === "child")).toMatchObject({ existing: true, path: "Detention / Psychological detention" });
-    expect(saved.state.labels.child.parentId).toBeNull();
-  });
-  it("describes each source once and never restates the claims under it", () => {
-    const inventory = JSON.parse(researchLabelInventory(framed, file, "sources"));
-    expect(inventory.sources).toEqual([{ id: "r1", title: "R. v. Grant" }, { id: "r2", title: "R. v. Omar" }]);
-    expect(inventory.passages).toEqual([{ id: "item0", source: "r1", quote: "A detention is a significant restraint." },
-      { id: "item4", source: "r2", quote: "The officers were exerting dominion from entry." }]);
+  it("preserves an untouched descendant when organizing only part of the workspace", () => {
+    const parent = node("Existing parent", [first]), child = node("Unselected empty child"),
+      saved = { ...file, state: { ...file.state, labels: {
+        [parent.id]: { ...parent, parentId: null, order: 0, scope: "source" as const, color: null },
+        [child.id]: { ...child, parentId: parent.id, order: 0, scope: "source" as const, color: null },
+      }, sources: { ...file.state.sources, [first]: { ...file.state.sources[first], labelIds: [parent.id] },
+        [outside]: { ...file.state.sources[first], id: outside } } } },
+      plan = researchLabelPlan(saved, catalog, design([node("New organization", [first])]), "sources");
+    expect(plan.actions.some((action) => action.type === "remove")).toBe(false);
+    expect(plan.actions).toContainEqual({ type: "label-selection", target: "sources", sourceIds: [first], assign: [parent.id], mode: "remove" });
   });
 });

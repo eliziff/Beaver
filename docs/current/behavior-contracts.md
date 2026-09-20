@@ -158,7 +158,7 @@ pagination or downloading.
 - Sources and Chat Open as Table open ready to propose. Table and workspace
   proposals reuse Chat's activity indicator, preserving the previous preview
   while a replacement is prepared. It shows progress (reading, asking with characters received
-  and elapsed time, checking, one corrected attempt) until the read-only preview. The research question describes the whole table; model columns divide
+  and elapsed time, checking, one corrected attempt) until the preview. The research question describes the whole table; model columns divide
   it into legal issues, factors and outcomes, never raw passage dumps. Labels,
   highlight types, notes and grounded findings supply the bounded inventory.
 - The title and columns are editable, columns can be removed or added, and Change
@@ -170,12 +170,31 @@ pagination or downloading.
   table proposal falls back to deterministic columns with a visible explanation.
   New questions stay pending. Accepting never performs another model call.
 - Chat Open as uses the composer's current model and reasoning effort.
-  Workspace proposals use the existing labels/assignments contract; inventory
-  item IDs determine their source rows without redundant model-supplied IDs.
+  Workspace proposals store one nested design with separate source-label and
+  highlight-type trees. The model supplies names, children and compact member
+  references; the host supplies category IDs and resolves durable memberships.
+  Editors and history use that same design; previews are computed, not stored
+  alongside it. There is no flat labels/assignments proposal compatibility path.
+  Organization uses plain generation with no chat tools. Applying
+  an organization replaces selected filings and removes unused omitted categories,
+  preserving assignments and necessary ancestors outside the selection. Filing
+  table findings remains additive.
+  Source labels may carry the organization without semantic typing of every saved
+  passage. Omitted passage memberships remain or return to the plain `Highlight`
+  type; a passage belongs to at most one semantic highlight type.
+  The proposal's combined category budget scales with selected source count:
+  twice the number of sources, with a minimum of 12 and maximum of 50.
   Validation protects references, hierarchy scope and single-type passage ownership,
   not category wording, group size or similarity to existing organization.
   A structural correction receives the previous proposal and its error internally;
   users review the result without troubleshooting validation messages.
+  Organization previews are pending batches in the workspace's existing history:
+  they preserve the design, feedback, saved manual edits and preceding proposal ID
+  without applying labels. Revising supersedes the earlier pending proposal;
+  applying accepts the reviewed version, and stale material requires review again.
+  Subsequent generation and workspace chat, including a selected-source chat,
+  receive previous designs and corrections. The ordinary research tool's
+  `organize` action creates the same pending proposal for inline review.
   Model and effort changes persist in the chat draft even with an empty message;
   saving the selection does not require sending a turn.
   Open as Workspace shows existing label and highlight-type hierarchies before

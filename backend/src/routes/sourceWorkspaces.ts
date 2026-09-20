@@ -44,7 +44,8 @@ const tableInput = z.object({ selection: researchSelectionSchema.optional(), tab
   repropose: z.boolean().optional(),
 }).strict().refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages");
 const labelInput = tableInput.innerType().omit({ design: true })
-  .extend({ design: researchLabelDesignSchema.optional() }).strict()
+  .extend({ design: researchLabelDesignSchema.optional(), currentDesign: researchLabelDesignSchema.optional(),
+    proposalId: z.string().uuid().optional(), conversationId: id.optional() }).strict()
   .refine((input) => !input.messageIds || !!input.chatId, "Select a chat for the chosen messages")
   .refine((input) => !(input.request && input.design), "Describe a label set or apply a proposed one");
 

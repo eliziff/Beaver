@@ -192,14 +192,15 @@ it("reviews a tag column in the shared dialog before filing it in the workspace"
     const file = workspaceFile({});
     mocks.getResearchFile.mockResolvedValue(file);
     mocks.ensureWorkspace.mockResolvedValue(file);
-    const proposal = { title: "Outcome", labels: [], unassigned: [], fingerprint: "a".repeat(64), design: { labels: [], assignments: [] } };
+    const proposal = { title: "Outcome", labels: [], sources: [], items: [], unassigned: [], fingerprint: "a".repeat(64),
+      design: { title: "Outcome", sourceLabels: [], highlightTypes: [] } };
     mocks.proposeWorkspaceLabels.mockResolvedValue(proposal);
     mocks.applyWorkspaceLabels.mockResolvedValue(file);
     renderReview();
     await screen.findByRole("checkbox", { name: "Select lease.pdf" });
 
     chooseColumnAction("Outcome", "Labels from this column");
-    fireEvent.click(await screen.findByRole("button", { name: "Propose labels" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Suggest labels" }));
     await waitFor(() => expect(mocks.proposeWorkspaceLabels).toHaveBeenCalledWith("workspace-1", {
       tableId: "review-1", columnIndex: 3, selection: { target: "sources", members: [{ sourceId: "source-1" }] }, model: "gpt-5", reasoningEffort: "medium" }, expect.any(Function), expect.any(AbortSignal)));
     const apply = await screen.findByRole("button", { name: "Apply labels" });

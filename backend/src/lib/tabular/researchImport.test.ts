@@ -180,7 +180,7 @@ it("uses the configured model only for a requested design and validates its retu
   let response = JSON.stringify(defaultResearchImport(catalog));
   const model = (await import("vitest")).vi.fn(async () => ({ fullText: response, status: "complete", events: [], citations: [] }));
   const app = createTabularApplication({} as never, {} as never, {} as never, { sources: async () => ({} as never),
-    settings: async () => ({ title_model: "codex:gpt-5.6", api_keys: {} } as never), runTurn: model as never });
+    settings: async () => ({ title_model: "codex:gpt-5.6", api_keys: {} } as never), stream: model });
   const accepted = await app.designResearch({ userId: "owner" }, catalog, "Compare notice and payment");
   expect(accepted).toEqual(defaultResearchImport(catalog));
   expect(model.mock.calls).toHaveLength(1);

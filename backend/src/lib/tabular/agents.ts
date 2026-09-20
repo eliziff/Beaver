@@ -23,6 +23,8 @@ const snapshotSchema = z.object({ subject: subjectSchema,
 columns: z.array(z.object({ index: z.number().int().min(0), name: z.string(), prompt: z.string(),
   format: z.string().optional(), tags: z.array(z.string()).optional() })), reviewVersion: z.string().min(1),
 selection: z.object({ subjects: z.array(subjectSchema), research_file_id: z.string().optional(),
+  jevRouting: z.record(z.string(), z.object({ kind: z.enum(["choice", "date", "number", "percentage", "monetary_amount"]),
+    labels: z.array(z.string()).optional() }).nullable()).optional(),
   versionId: z.string().optional(), workingRevision: z.number().int().min(0).optional() }) });
 
 export type TabularAgents = {
