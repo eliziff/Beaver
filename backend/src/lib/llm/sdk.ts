@@ -23,7 +23,7 @@ const compactionPart = (part: unknown) => {
 };
 
 /** Retain the SDK's native checkpoint and the output after it, not the prefix it replaces. */
-export function compactedMessages(messages: ModelMessage[]): ModelMessage[] | null {
+function compactedMessages(messages: ModelMessage[]): ModelMessage[] | null {
   for (let row = messages.length - 1; row >= 0; row--) {
     const message = messages[row];
     if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
