@@ -1,0 +1,39 @@
+name: SDK source capsule
+on:
+  push:
+    branches: [refactor/sdk-contracts-compaction]
+    paths: [.github/workflows/sdk-source-capsule.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /AGENTS.md
+            /CONTRIBUTING.md
+            /package*.json
+            /tsconfig.json
+            /backend/src/
+            /backend/*.json
+            /backend/vitest*
+            /frontend/src/
+            /frontend/*.json
+            /frontend/vitest*
+            /frontend/vite*
+            /shared/
+            /packages/
+            /scripts/
+            /docs/
+      - name: Archive tracked application source
+        run: |
+          git archive --format=tar HEAD AGENTS.md CONTRIBUTING.md package.json package-lock.json tsconfig.json backend/src backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.mts frontend/src frontend/package.json frontend/package-lock.json frontend/tsconfig.json shared packages scripts docs | gzip > "$RUNNER_TEMP/source.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-contract-source
+          path: ${{ runner.temp }}/source.tar.gz
+          retention-days: 1
