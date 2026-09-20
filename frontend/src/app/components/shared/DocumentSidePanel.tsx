@@ -265,9 +265,10 @@ export function DocumentSidePanel({
                 {highlightController && <Button variant="ghost" size="icon-sm" aria-label="Highlight"
                     disabled={!captureReady} aria-pressed={highlightController.armed} title="Highlight"
                     onPointerDown={(event) => event.preventDefault()}
-                    onClick={() => void highlightController.run().then((saved) => {
-                        if (!saved) highlightController.arm(!highlightController.armed);
-                    }).catch(() => undefined)}><Highlighter aria-hidden /></Button>}
+                    onClick={() => { const selected = window.getSelection()?.isCollapsed === false;
+                      void highlightController.run().then((saved) => {
+                        if (!saved && !selected) highlightController.arm(!highlightController.armed);
+                      }).catch(() => undefined); }}><Highlighter aria-hidden /></Button>}
                 <Button variant="ghost" size="icon-sm" disabled={nameDraft !== null && !!pendingAction}
                     aria-label={nameDraft !== null ? "Save document name" : "Rename document"}
                     title={nameDraft !== null ? "Save document name" : "Rename document"}

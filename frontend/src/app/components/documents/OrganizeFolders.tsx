@@ -37,23 +37,22 @@ export const OrganizeFolders = ({ open, ...props }: Props) => open ? <OpenOrgani
 function OpenOrganizeFolders({ onClose, target, title, onOrganized }: Omit<Props, "open">) {
     const [instruction, setInstruction] = useState(""), [proposal, setProposal] = useState<FolderProposal | null>(null);
     const [busy, setBusy] = useState(false), [applying, setApplying] = useState(false), [error, setError] = useState("");
-    const [progress, setProgress] = useState<ProposalProgress | null>(null), [started, setStarted] = useState(0), [now, setNow] = useState(0);
+    const [progress, setProgress] = useState<ProposalProgress | null>(null);
     const generation = useRef(0), running = useRef<AbortController | null>(null);
     const [model] = useSelectedModel(), [effort] = useSelectedReasoningEffort();
-    useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(timer); }, [busy]);
     useEffect(() => () => { generation.current++; running.current?.abort(); }, []);
     async function propose() {
         if (!instruction.trim() || busy) return;
         running.current?.abort(); const controller = new AbortController(); running.current = controller;
         const run = ++generation.current;
-        setBusy(true); setError(""); setProgress({ stage: "reading" }); setStarted(Date.now()); setNow(Date.now());
+        setBusy(true); setError(""); setProgress({ stage: "reading" });
         try {
             const next = await proposeFolders(target, { instruction: instruction.trim(), model,
                 ...(effort ? { reasoningEffort: effort } : {}) },
                 (event) => { if (run === generation.current) setProgress(event); }, controller.signal);
             if (run === generation.current) setProposal(next);
         } catch (reason) { if (run === generation.current && !controller.signal.aborted)
-            setError(errorMessage(reason, "Could not propose folders; nothing was moved")); }
+            setError(errorMessage(reason, "Could not generate folder suggestions; nothing was moved")); }
         finally { if (run === generation.current) { setBusy(false); setProgress(null); } }
     }
     async function apply() {
@@ -61,25 +60,22 @@ function OpenOrganizeFolders({ onClose, target, title, onOrganized }: Omit<Props
         setApplying(true); setError("");
         try { await applyFolders(target, { fingerprint: proposal.fingerprint, design: proposal.design });
             onOrganized?.(); onClose(); }
-        catch (reason) { setError(errorMessage(reason, "Could not file these documents. Propose again before trying.")); }
+        catch (reason) { setError(errorMessage(reason, "Could not file these documents. Try suggesting folders again.")); }
         finally { setApplying(false); }
     }
     const cancel = () => { running.current?.abort(); generation.current++; setBusy(false); setProgress(null); };
-    const elapsed = started ? Math.max(0, Math.round((now - started) / 1000)) : 0;
-    const shortModel = (value = model) => value.split(":").pop() ?? value;
-    const working = progress?.stage === "reading" ? "Reading these files…"
-        : progress?.stage === "asking" ? [`Asking ${shortModel(progress.model)}…`,
-            progress.chars ? `${progress.chars.toLocaleString()} characters` : "", `${elapsed} s`].filter(Boolean).join(" · ")
-        : progress?.stage === "checking" ? "Checking the proposed folders against these files…"
-        : progress?.stage === "retrying" ? `The first proposal was rejected (${progress.note}); asking for a correction…` : "";
+    const working = progress?.stage === "reading" ? "Reading files…"
+        : progress?.stage === "asking" ? "Generating folder suggestions…"
+        : progress?.stage === "checking" ? "Checking the folder plan…"
+        : progress?.stage === "retrying" ? "The first suggestion needs another pass; trying again…" : "";
     return <Modal open onClose={onClose} size="lg" breadcrumbs={[title, "Organize"]}
         footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p>
             : busy && proposal ? <p role="status" className={`me-auto ${META}`}>{working}</p> : undefined}
         secondaryAction={busy ? { label: "Cancel", onClick: cancel }
-            : proposal ? { label: "Propose again", disabled: applying, onClick: () => void propose() } : undefined}
-        primaryAction={busy ? { label: "Proposing…", disabled: true }
-            : !proposal ? { label: "Propose folders", disabled: !instruction.trim(), onClick: () => void propose() }
-            : { label: applying ? "Filing…" : "Apply", disabled: applying, onClick: () => void apply() }}>
+            : proposal ? { label: "Suggest again", disabled: applying, onClick: () => void propose() } : undefined}
+        primaryAction={busy ? { label: "Generating folder plan…", disabled: true }
+            : !proposal ? { label: "Suggest folders", disabled: !instruction.trim(), onClick: () => void propose() }
+            : { label: applying ? "Filing…" : "Apply folder plan", disabled: applying, onClick: () => void apply() }}>
         <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pe-1" aria-busy={busy}>
                 {busy && !proposal ? <div role="status" className="flex flex-col gap-3">
@@ -87,16 +83,15 @@ function OpenOrganizeFolders({ onClose, target, title, onOrganized }: Omit<Props
                     {[0, 1, 2].map((key) => <div key={key} className="h-20 shrink-0 animate-pulse rounded-lg bg-gray-100" />)}
                 </div>
                 : !proposal ? <div className="flex flex-col gap-2">
-                    <p className="text-sm text-gray-700">The model reads these files and proposes the folders they
-                        belong in, then files each one. Nothing moves until you apply it.</p>
-                    <p className={META}>Runs on {shortModel()}{effort ? ` · ${effort} reasoning` : ""}</p>
+                    <p className="text-sm text-gray-700">Describe how to group these files. Review the folder plan before moving them.</p>
                 </div>
                 : <ProposedTree proposal={proposal} />}
             </div>
             <label className="flex shrink-0 flex-col gap-1">
-                <span className={META}>{proposal ? "Change the proposal" : "How to organize these files"}</span>
-                <input value={instruction} disabled={busy || applying} className={INPUT} aria-label="How to organize these files"
-                    placeholder="e.g. organize by transaction workstream and counterparty"
+                <span className={META}>{proposal ? "Adjust the folder plan" : "How should these files be grouped?"}</span>
+                <input value={instruction} disabled={busy || applying} className={INPUT}
+                    aria-label={proposal ? "Adjust the folder plan" : "How should these files be grouped?"}
+                    placeholder="e.g. group by transaction workstream and counterparty"
                     onChange={(event) => setInstruction(event.target.value)}
                     onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void propose(); } }} />
             </label>

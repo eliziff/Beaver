@@ -18,6 +18,12 @@ export type DocumentReaderText = { revision: string;
 export const getDocumentReaderText = (id: string, versionId: string, signal?: AbortSignal) =>
   apiRequest<DocumentReaderText>(pagePath(`/single-documents/${segment(id)}/reader-text`,
     { version_id: versionId }), { signal });
+export type PdfRecognizedText = { pages: Array<{ pageNumber: number; width: number; height: number;
+  lines: Array<{ id: string; rect: [number, number, number, number];
+    words: Array<{ text: string; rect: [number, number, number, number] }> }> }> };
+export const getDocumentPdfTextLayer = (id: string, versionId: string, signal?: AbortSignal) =>
+  apiRequest<PdfRecognizedText>(pagePath(`/single-documents/${segment(id)}/pdf-text-layer`,
+    { version_id: versionId }), { signal });
 
 export interface Folder {
   id: string;

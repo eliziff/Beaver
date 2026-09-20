@@ -638,7 +638,7 @@ describe("Research v2 parts", () => {
       reader as never), updated = await act(f, action);
     expect((await pageResearchItems(f.documents as never, { userId: "user-1" }, updated,
       "passages")).items[0]).toMatchObject({ value: { receipt: {
-        span_text: "verified holding", locator: { kind: "document", label: "characters 5–20" } } } });
+        span_text: "verified holding", locator: { kind: "document", label: "line 5–20" } } } });
   });
 
   it("adaptively pages source parts when an aggregate read is too large", async () => {

@@ -6,8 +6,18 @@ import type { AuthoritiesProduct } from "@/app/authorities/types";
 import type { WorkProductFocus } from "@/app/lib/workProducts";
 import { WorkProductAssistant, WorkProductAssistantButton,
   useWorkProductAssistantState } from "@/app/components/assistant/WorkProductAssistant";
-import { LibraryDocumentPicker } from "@/app/components/shared/LibraryDocumentPicker";
+import { AddDocumentsModal } from "@/app/components/modals/AddDocumentsModal";
+import type { AuthoritiesDocumentPickerProps } from "@/app/authorities/AuthoritiesWorkspace";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
+
+export function AuthoritiesDocumentPicker({ open, title, busy, projectId, formats, onSelect, onClose }:
+  AuthoritiesDocumentPickerProps) {
+  const accept = formats.map((format) => `.${format}`).join(",");
+  return <AddDocumentsModal open={open} onClose={onClose} breadcrumb={[title]}
+    onSelect={(documents) => { const document = documents.at(-1); if (document) onSelect(document); }}
+    projectId={projectId} showTabs={false} accept={accept} multiple={false} busy={busy}
+    primaryLabel="Choose" />;
+}
 
 export default function TableOfAuthoritiesPage() {
   const [params, setParams] = useSearchParams();
@@ -31,7 +41,7 @@ export default function TableOfAuthoritiesPage() {
   }, [navigate, location.pathname, location.search]);
   return <div className="relative flex h-full min-h-0 w-full">
     <div className="min-h-0 min-w-0 flex-1">
-      <AuthoritiesWorkspace host={beaverAuthoritiesHost} LibraryPicker={LibraryDocumentPicker}
+      <AuthoritiesWorkspace host={beaverAuthoritiesHost} LibraryPicker={AuthoritiesDocumentPicker}
         jurisdictionOrder={profile?.jurisdictionPreference.jurisdictions}
         initialDraftId={params.get("draft") ?? undefined}
         projectId={params.get("project") || undefined}

@@ -11,7 +11,10 @@ Measurements below are recorded evidence, not fresh measurements of every build.
 Chat history, Projects, Library files/templates, project directories, shared pickers and tabular
 collections reuse one paged-collection engine. Resource, account/project/Library
 scope, query, filters and page size define identity. Sources' manually loaded,
-revision-sensitive passage/finding chains remain component-local.
+revision-sensitive passage/finding chains remain component-local. When the Sources
+highlight tree is present, its saved per-source counts warm only the passage chains
+known to contain highlights; expanding a highlight type reuses that snapshot instead
+of starting a request or showing a loading row.
 
 The account-keyed provider retains memory only—no localStorage, IndexedDB or
 persisted private rows. Inactive retention is bounded to 32 entries, 8,000 items

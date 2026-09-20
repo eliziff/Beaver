@@ -59,6 +59,8 @@ const SOURCE_TABS: Array<[SourceTab, string]> = [
     ["hansard", "Hansard"],
     ["library", "Library"],
 ];
+const sourceTab = (tab: LegalSourceTab): SourceTab => tab.docType === "auto" ? "all" : tab.docType;
+const sourceTabLabel = (tab: LegalSourceTab) => SOURCE_TABS.find(([value]) => value === sourceTab(tab))?.[1] ?? "Sources";
 /** Free-text filters that only some source categories carry: name, label, placeholder, grid span. */
 const TEXT_FILTERS: Partial<Record<SourceTab, ReadonlyArray<readonly [string, string, string, string]>>> = {
     articles: [["author", "Author", "Any author", "@min-[48rem]:col-span-2"],
@@ -212,12 +214,13 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
             dataset: ref.collection ?? null, language: ref.language ?? "en",
             docType: ref.kind === "legislation" ? "laws" : ref.kind === "journal" ? "articles" : "cases",
             researchFileId: researchFile?.document.id, ...extra });
-    function readSavedSource(source: ResearchSource, locator?: string) {
+    function readSavedSource(source: ResearchSource, locator?: string, evidenceId?: string) {
         const ref = source.reference;
-        const tab = legalTab(ref, ref.citation || ref.id, { researchSourceId: source.id, initialLocator: locator });
+        const tab = legalTab(ref, ref.citation || ref.id, {
+            researchSourceId: source.id, initialLocator: locator, initialEvidenceId: evidenceId });
         if (embedded && onOpenSource) return onOpenSource(tab);
         // Never on a first open: there is nowhere to go back to.
-        setBack(readingSource ? { tab: { ...readingSource, initialLocator: null }, top: viewerTop.current } : null);
+        setBack(readingSource ? { tab: { ...readingSource, initialLocator: null, initialEvidenceId: undefined }, top: viewerTop.current } : null);
         setRestoreTop(null);
         setReadingSource(tab);
     }
@@ -301,11 +304,18 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         selectedSourceId={readingSource?.researchSourceId ?? undefined}
         onOpenChange={setResearchOpen} projectId={projectId}
         sourceDropNonce={sourceDropNonce} />;
+    const closeReader = (tab?: SourceTab) => {
+        setBack(null); setReadingSource(null);
+        if (tab) updateFilters({ docType: tab, jurisdiction: "", sourceKind: "", dataset: "" });
+    };
     return (
         <div className="relative flex h-full min-w-0">
         <div className="flex min-w-0 flex-1 flex-col">
-            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: readingSource ? () => { setBack(null); setReadingSource(null); } : undefined },
-                ...(readingSource ? [{ label: "Source" }] : [])]}
+            {!embedded && <PageHeader breadcrumbs={[{ label: "Sources", onClick: readingSource ? () => closeReader() : undefined },
+                ...(readingSource ? [
+                    { label: sourceTabLabel(readingSource), onClick: () => closeReader(sourceTab(readingSource)) },
+                    { label: readingSource.name || readingSource.citation },
+                ] : [])]}
                 actions={readingSource ? [{ label: "Workspace", title: "Open research workspace",
                     icon: <PanelsTopLeft className="size-4" />, onClick: () => setResearchOpen(true) }]
                     : undefined} />}

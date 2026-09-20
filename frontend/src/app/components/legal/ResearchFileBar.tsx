@@ -18,7 +18,7 @@ const ResearchMemoPane = lazy(() => import("./ResearchMemoPane"));
 
 type Props = { projectId?: string;
   rail?: HTMLElement | null; sourceDropNonce?: number;
-  onReadSource?: (source: ResearchSource, locator?: string) => void; selectedSourceId?: string };
+  onReadSource?: (source: ResearchSource, locator?: string, evidenceId?: string) => void; selectedSourceId?: string };
 export function ResearchFileBar(props: Props) {
   const { file } = useSourcesWorkspace();
   return <ResearchFileBarContent key={file?.document.id ?? "empty"} {...props} />;
@@ -84,7 +84,8 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
   }
   async function runHighlight() {
     setStatus("");
-    try { if (!await highlight.run()) highlight.arm(!highlight.armed); }
+    const selected = window.getSelection()?.isCollapsed === false;
+    try { if (!await highlight.run() && !selected) highlight.arm(!highlight.armed); }
     catch { /* The shared highlight control displays the refusal for every gesture. */ }
   }
   const handedOff = !!(scope.members || scope.sourceIds || scope.evidenceIds || scope.labelIds);

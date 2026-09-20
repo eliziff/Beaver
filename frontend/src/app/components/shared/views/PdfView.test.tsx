@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     textRequests: [] as number[],
     textLayers: [] as number[],
     textError: false,
+    nativeText: true,
     textDelay: 0,
     pageGates: new Map<number, Promise<void>>(),
     textGates: new Map<number, Promise<void>>(),
@@ -96,10 +97,12 @@ vi.mock("./highlightQuote", async (importOriginal) => {
             mocks.textLayers.push(this.pageNumber);
             if (mocks.textDelay) await new Promise(resolve => setTimeout(resolve, mocks.textDelay));
             if (mocks.textError) throw new Error("Unreadable text");
-            const span = document.createElement("span");
-            span.textContent = `Page ${this.pageNumber} text`;
-            this.container.appendChild(span);
-            this.textDivs = [span];
+            if (mocks.nativeText) {
+                const span = document.createElement("span");
+                span.textContent = `Page ${this.pageNumber} text`;
+                this.container.appendChild(span);
+                this.textDivs = [span];
+            }
         }
         static cleanup() {}
     }
@@ -146,7 +149,8 @@ describe("PdfView", () => {
         mocks.sourceError = null;
         mocks.cancelled = 0;
         mocks.rendered = [];
-        mocks.textRequests = []; mocks.textLayers = []; mocks.textError = false; mocks.textDelay = 0;
+        mocks.textRequests = []; mocks.textLayers = []; mocks.textError = false;
+        mocks.nativeText = true; mocks.textDelay = 0;
         mocks.pageGates.clear(); mocks.textGates.clear();
         mocks.renderDelay = 20;
         mocks.clientWidth = 620;
@@ -219,6 +223,17 @@ describe("PdfView", () => {
             expect(page).toHaveAttribute("data-locator-value", page.dataset.pageNumber);
         }
         expect(await screen.findByText("Page 1 text")).toBeVisible();
+    });
+
+    it("uses recognized word geometry when a scanned page has no native text", async () => {
+        mocks.nativeText = false;
+        const { container } = render(<PdfView doc={null} bytes={new Uint8Array(8)} recognizedText={{
+            pages: [{ pageNumber: 1, width: 600, height: 800, lines: [{ id: "line-1",
+                rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] }] }],
+        }} />);
+        await waitFor(() => expect(container.querySelector(".pdf-text-layer")?.textContent)
+            .toContain("Recognized"));
+        expect(container.querySelector<HTMLElement>(".pdf-text-layer span")?.style.left).toBe("20px");
     });
 
     it("allows an ordinary reader selection to resolve to its PDF page", async () => {

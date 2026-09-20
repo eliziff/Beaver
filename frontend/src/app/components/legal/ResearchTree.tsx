@@ -44,12 +44,15 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   const passagePages = suppliedPages ?? passages, labels = preview?.labels ?? file?.state.labels ?? {};
   const [selectedHighlight, setSelectedHighlight] = useState<string | null>(null);
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
-  // A highlight type lists its passages on request; nothing loads before that. `wanted` only grows,
-  // so two open types never take the request list away from each other.
-  const [wanted, setWanted] = useState<ReadonlySet<string>>(() => new Set());
+  // Counts in the workspace tell us exactly which sources can appear below a highlight type.
+  // Warm those cached chains with the tree instead of making the first expansion discover them.
+  const highlightSourceIds = scope === "highlight" && !preview
+    ? sources.filter((source) => passageTotal(source) > 0).map(({ id }) => id).join("\0") : "";
   useEffect(() => {
-    for (const id of wanted) if (!passagePages.chains[id]) void passagePages.fetchPage(id, null, false);
-  }, [wanted, passagePages.chains, passagePages.fetchPage]);
+    for (const id of highlightSourceIds.split("\0")) {
+      if (id && !passagePages.chains[id]) void passagePages.fetchPage(id, null, false);
+    }
+  }, [highlightSourceIds, passagePages.chains, passagePages.fetchPage]);
   if (!file) return null;
   const mark = (id: string) => preview?.marks[id];
   const proposed = (source: ResearchSource) => preview?.passages?.[source.id] ?? [];
@@ -173,8 +176,6 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     const carrying = sources.filter((source) => counted(source) > 0), total = carrying.reduce((sum, source) => sum + counted(source), 0);
     if (!total) return [];
     // The type row's own caret is the only caret: the tree renders this list only once that row is open.
-    const missing = preview ? [] : carrying.filter((source) => !passagePages.chains[source.id] && !wanted.has(source.id)).map(({ id }) => id);
-    if (missing.length) setWanted((current) => new Set([...current, ...missing]));
     const rows = preview
       ? carrying.flatMap((source) => proposed(source).flatMap((item, index) => item.labelId === typeId
         ? [quoteNode(`${typeId}:${source.id}:${index}`, item, sourceName(source))] : []))

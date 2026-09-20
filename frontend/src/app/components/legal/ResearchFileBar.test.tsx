@@ -258,7 +258,8 @@ describe("ResearchFileBar", () => {
     expect(screen.queryByRole("button", { name: "Search target" })).not.toBeInTheDocument();
     openSearch();
     expect(screen.getByRole("tab", { name: "Search" })).toHaveAttribute("aria-selected", "true");
-    expect(api.getResearchItems).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.getResearchItems).toHaveBeenCalledWith("file-1",
+      expect.objectContaining({ kind: "passages", sourceId: "baker" }), expect.any(AbortSignal)));
   });
 
   it("edits a source's labels from its options menu and closes the palette on Escape", async () => {
@@ -366,9 +367,11 @@ describe("ResearchFileBar", () => {
 
   it("loads a source's passages on demand and removes one with its source identity", async () => {
     await renderWorkspace();
-    expect(api.getResearchItems.mock.calls.some(([, input]) => input.kind === "passages" && !input.sourceId)).toBe(false);
-    openBaker();
+    // The Highlights tree warms the one known passage chain; the Sources tree reuses it.
     await waitFor(() => expect(api.getResearchItems.mock.calls.some(([, input]) => input.sourceId === "baker")).toBe(true));
+    const requests = api.getResearchItems.mock.calls.length;
+    openBaker();
+    expect(api.getResearchItems).toHaveBeenCalledTimes(requests);
     menu("¶ 5 options");
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     const confirmation = screen.getByRole("alertdialog", { name: "Delete passage?" });
@@ -391,12 +394,16 @@ describe("ResearchFileBar", () => {
 
   it("shows each highlight type only its directly assigned passages", async () => {
     await renderWorkspace();
+    await waitFor(() => expect(api.getResearchItems.mock.calls.some(([, input]) => input.sourceId === "baker")).toBe(true));
     const tree = highlightTree();
+    const requests = api.getResearchItems.mock.calls.length;
     fireEvent.click(tree.getByRole("button", { name: "Expand Finding" }));
     expect(tree.queryByRole("treeitem", { name: "para 5" })).not.toBeInTheDocument();
 
     fireEvent.click(tree.getByRole("button", { name: "Expand Holding" }));
-    expect(await tree.findByRole("treeitem", { name: "para 5" })).toBeVisible();
+    expect(tree.getByRole("treeitem", { name: "para 5" })).toBeVisible();
+    expect(api.getResearchItems).toHaveBeenCalledTimes(requests);
+    expect(tree.queryByText("Loading passages…")).not.toBeInTheDocument();
   });
 
   it("flattens every instance's type to a leaf name and edits one instance by its own identity", async () => {
