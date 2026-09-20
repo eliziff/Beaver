@@ -33,6 +33,7 @@ describe("durable context checkpoints", () => {
   it("attaches a successful summary to an assistant boundary and keeps the recent tail", async () => {
     const messages = rows();
     const chats = store(messages);
+    const onStatus = vi.fn();
     llm.streamChatWithTools.mockResolvedValueOnce({ fullText: "Section 8 was reviewed." });
 
     const result = await compactChatContext({
@@ -41,8 +42,10 @@ describe("durable context checkpoints", () => {
       chatId: "chat",
       model: "gemini-3-flash-preview",
       force: true,
+      onStatus,
     });
 
+    expect(onStatus).toHaveBeenLastCalledWith("completed", { summary: "Section 8 was reviewed.", provider: "gemini" });
     expect(planContextCheckpoint(rows())?.messageId).toBe("a1");
     expect(result.messages).toEqual([
       {

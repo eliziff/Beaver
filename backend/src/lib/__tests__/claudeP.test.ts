@@ -264,3 +264,23 @@ describe("claude -p native MCP transport", () => {
     ).rejects.toThrow(/did not load.*invalid config/u);
   });
 });
+
+
+it("passes structured output to the native CLI without interpreting JSON as shell syntax", async () => {
+  const schema = { type: "object", properties: { count: { type: "integer" } },
+    required: ["count"], additionalProperties: false };
+  vi.mocked(spawn).mockImplementation((_file, rawArgs, rawOptions) => {
+    expect(JSON.parse(option(rawArgs as string[], "--json-schema"))).toEqual(schema);
+    expect(rawOptions).toMatchObject({ shell: false });
+    const child = fakeChild();
+    queueMicrotask(() => {
+      child.stdout.end(`${JSON.stringify({ type: "result", subtype: "success",
+        result: "Descriptive text", structured_output: { count: 7 }, usage: {} })}\n`);
+      queueMicrotask(() => child.emit("close", 0));
+    });
+    return child as never;
+  });
+  const result = await streamClaudeP({ model: "claude-p:sonnet", systemPrompt: "Count.",
+    messages: [{ role: "user", content: "Count." }], outputSchema: schema });
+  expect(JSON.parse(result.fullText)).toEqual({ count: 7 });
+});

@@ -1,12 +1,12 @@
-import type { LanguageModelUsage, ModelMessage, ToolSet } from "ai" with { "resolution-mode": "import" };
-import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv-provider.js";
+import type { LanguageModelUsage, ModelMessage, ToolSet, ToolResultPart } from "ai" with { "resolution-mode": "import" };
+import { validateModelOutput } from "./structured";
 import { hostedModel, type HostedModel } from "./sdkProviders";
 import { modelContextWindow, estimateContextTokens } from "./contextWindow";
 import { modelSupportsImageInput, providerForModel } from "./models";
 import { throwIfAborted } from "./abort";
 import { jsonRecord } from "../value";
 import type { LlmMessage, NormalizedLlmUsage, NormalizedToolCall, NormalizedToolResult,
-  StreamChatParams, StreamChatResult, LlmContextRoundReceipt } from "./types";
+  StreamChatParams, StreamChatResult, LlmContextRoundReceipt, Tool } from "./types";
 
 const sdk = import("ai");
 const MAX_STREAM_BYTES = 4 * 1024 * 1024, MAX_ARGUMENT_BYTES = 1024 * 1024;
@@ -59,21 +59,6 @@ export function modelMessages(messages: LlmMessage[], model: string): ModelMessa
   });
 }
 
-function resultMessage(calls: NormalizedToolCall[], results: NormalizedToolResult[], images: boolean): ModelMessage[] {
-  if (!calls.length) return [];
-  const byId = new Map(results.map(result => [result.tool_use_id, result]));
-  return [{ role: "tool", content: calls.map(call => {
-    const result = byId.get(call.id);
-    if (!result) throw new Error(`No result for tool call ${call.id}`);
-    const text = result.content + (!images && result.images?.length ? "\n[This model cannot see the returned images.]" : "");
-    return { type: "tool-result", toolCallId: call.id, toolName: call.name,
-      output: images && result.images?.length ? { type: "content", value: [
-        { type: "text", text }, ...result.images.map(image => ({ type: "image-data" as const,
-          data: image.data, mediaType: image.mimeType })),
-      ] } : { type: result.status === "error" ? "error-text" : "text", value: text } };
-  }) }];
-}
-
 export class IncompleteGenerationError extends Error {
   constructor(readonly finishReason: string, readonly fullText: string) {
     super(finishReason === "length" ? "The model reached its output limit before finishing."
@@ -83,63 +68,144 @@ export class IncompleteGenerationError extends Error {
   }
 }
 
-/** SDK owns streaming, retries, schemas and wire state. Beaver owns ordered tool effects and stopping. */
+/** SDK owns the multi-step loop. The registry remains the single ordered-effects boundary. */
 export async function streamHosted(params: StreamChatParams, configured?: HostedModel): Promise<StreamChatResult> {
-  const { streamText, jsonSchema, Output, pruneMessages } = await sdk;
+  const { streamText, jsonSchema, Output, pruneMessages, isStepCount } = await sdk;
   const config = configured ?? await hostedModel(params), callbacks = params.callbacks ?? {};
-  const controller = new AbortController(), signal = params.abortSignal
-    ? AbortSignal.any([params.abortSignal, controller.signal]) : controller.signal;
+  const controller = new AbortController();
+  // Cancellation interrupts inference immediately; an already-running tool batch settles and is saved first.
+  let generating = true, compacting = false;
+  const abort = () => { if (generating) controller.abort(params.abortSignal?.reason); };
   let messages = modelMessages(params.messages, params.model);
   messages = compactedMessages(messages) ?? messages;
-  let fullText = "", streamBytes = 0, argumentBytes = 0, callCount = 0;
-  const rounds: LlmContextRoundReceipt[] = [];
-  let total: NormalizedLlmUsage | undefined, serviceTier: string | undefined;
+  const rounds: LlmContextRoundReceipt[] = [], totals: LanguageModelUsage[] = [];
   const maxIterations = params.maxIterations ?? 32, window = modelContextWindow(params.model);
   const images = modelSupportsImageInput(params.model);
-  const validate = params.outputSchema && new AjvJsonSchemaValidator().getValidator(params.outputSchema);
   const output = params.outputSchema && Output.object({ schema: jsonSchema(params.outputSchema, {
-    validate(value) { const checked = validate!(value); return checked.valid
-      ? { success: true, value } : { success: false, error: new Error(checked.errorMessage) }; },
+    validate: value => validateModelOutput(params.outputSchema!, value),
   }) });
+  const tools: ToolSet = {}, definitions = new Map<string, Tool>();
+  let fullText = "", streamBytes = 0, generatedBytes = 0, argumentBytes = 0, callCount = 0, terminal = false;
+  let failure: unknown, serviceTier: string | undefined, structured: unknown;
+  let calls: NormalizedToolCall[] = [], batch: Promise<Map<string, NormalizedToolResult>> | undefined;
+  const modelOutput = (result: NormalizedToolResult): ToolResultPart["output"] => {
+    const text = result.content + (!images && result.images?.length ? "\n[This model cannot see the returned images.]" : "");
+    return images && result.images?.length ? { type: "content", value: [
+      { type: "text", text }, ...result.images.map(image => ({ type: "image-data" as const,
+        data: image.data, mediaType: image.mimeType })),
+    ] } : { type: result.status === "error" ? "error-text" : "text", value: text };
+  };
+  const execute = async (_input: unknown, { toolCallId }: { toolCallId: string }) => {
+    if (failure) throw failure;
+    batch ??= Promise.resolve().then(async () => {
+      throwIfAborted(params.abortSignal);
+      const results = await params.runTools!(calls);
+      const byId = new Map(results.map(result => [result.tool_use_id, result]));
+      for (const call of calls) if (!byId.has(call.id)) throw new Error(`No result for tool call ${call.id}`);
+      terminal ||= results.some(result => result.terminal);
+      rounds.at(-1)!.toolResultBytes = Buffer.byteLength(JSON.stringify(results));
+      return byId;
+    }).catch(error => { failure = error; throw error; });
+    return (await batch).get(toolCallId)!;
+  };
   if (!images && params.messages.some(message => message.images?.length))
     throw new Error("This model does not support image input.");
+  if (!Number.isSafeInteger(maxIterations) || maxIterations < 1)
+    throw new Error("maxIterations must be a positive integer");
+  params.abortSignal?.addEventListener("abort", abort);
   try {
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
-      throwIfAborted(signal);
-      const definitions = params.resolveTools?.() ?? params.tools ?? [];
-      const tools: ToolSet = Object.fromEntries(definitions.map(tool => [tool.name, {
-        description: tool.description, inputSchema: jsonSchema<Record<string, unknown>>(tool.inputSchema),
-        // Existing MCP contracts use optional fields; the host validates them before effects.
-        strict: false,
-      }]));
-      if (providerForModel(params.model) === "ollama" && window &&
-          estimateContextTokens({ messages: [{ role: "user", content: JSON.stringify(messages) }], tools: definitions }) > window * .9) {
-        messages = pruneMessages({ messages, toolCalls: "before-last-message" });
-        if (Buffer.byteLength(JSON.stringify({ messages, tools })) / 3 > window * .9)
-          throw new Error(`The request exceeds this local model's ${window}-token context.`);
-      }
-      const round: LlmContextRoundReceipt = { iteration, requestAttempts: 0,
-        instructionsBytes: Buffer.byteLength(params.systemPrompt), inputItems: messages.length,
-        inputBytes: Buffer.byteLength(JSON.stringify(messages)), toolCount: definitions.length,
-        toolBytes: Buffer.byteLength(JSON.stringify(definitions)), toolCallCount: 0, toolArgumentBytes: 0,
-        toolResultBytes: 0, usage: { inputTokens: null, outputTokens: null, reasoningTokens: null,
-          cacheReadInputTokens: null, cacheWriteInputTokens: null } };
-      rounds.push(round);
+    do {
+      throwIfAborted(params.abortSignal);
+      const offset = rounds.length;
       const generated = streamText({ model: config.model, instructions: params.systemPrompt,
         messages, tools, toolChoice: "auto", providerOptions: config.options,
-        ...(output && { output }),
-        maxOutputTokens: params.maxTokens ?? config.maxTokens,
+        ...(output && { output }), maxOutputTokens: params.maxTokens ?? config.maxTokens,
         maxRetries: Math.max(0, Math.min(2, (params.maxProviderAttempts ?? 3) - 1)),
-        streamRetries: 0, abortSignal: signal,
-        onLanguageModelCallStart() { round.requestAttempts++; }, onError() {},
+        streamRetries: 0, abortSignal: controller.signal,
+        stopWhen: [isStepCount(maxIterations - offset), () => terminal || Boolean(failure) || Boolean(params.abortSignal?.aborted)],
+        prepareStep({ messages: history }) {
+          if (failure) throw failure;
+          throwIfAborted(params.abortSignal);
+          generating = true;
+          const visible = params.resolveTools?.() ?? params.tools ?? [];
+          for (const tool of visible) {
+            const previous = definitions.get(tool.name);
+            if (previous?.inputSchema === tool.inputSchema && previous.description === tool.description && previous.strict === tool.strict) continue;
+            definitions.set(tool.name, tool);
+            tools[tool.name] = { description: tool.description,
+              inputSchema: jsonSchema<Record<string, unknown>>(tool.inputSchema), strict: tool.strict ?? false,
+              ...(params.runTools && { execute,
+                toModelOutput: ({ output: result }: { output: unknown }) => modelOutput(result as NormalizedToolResult) }),
+            };
+          }
+          const steering = rounds.length > offset ? params.takeSteering?.() ?? [] : [];
+          messages = compactedMessages(history) ?? history;
+          messages = [...messages, ...steering.map(({ text }) => ({ role: "user" as const, content: text }))];
+          if (providerForModel(params.model) === "ollama" && window &&
+              estimateContextTokens({ messages: [{ role: "user", content: JSON.stringify(messages) }], tools: visible }) > window * .9) {
+            messages = pruneMessages({ messages, toolCalls: "before-last-message" });
+            if (Buffer.byteLength(JSON.stringify({ messages, tools: visible })) / 3 > window * .9)
+              throw new Error(`The request exceeds this local model's ${window}-token context.`);
+          }
+          rounds.push({ iteration: rounds.length, requestAttempts: 0,
+            instructionsBytes: Buffer.byteLength(params.systemPrompt), inputItems: messages.length,
+            inputBytes: Buffer.byteLength(JSON.stringify(messages)), toolCount: visible.length,
+            toolBytes: Buffer.byteLength(JSON.stringify(visible)), toolCallCount: 0, toolArgumentBytes: 0,
+            toolResultBytes: 0, usage: { inputTokens: null, outputTokens: null, reasoningTokens: null,
+              cacheReadInputTokens: null, cacheWriteInputTokens: null } });
+          batch = undefined;
+          return { messages, activeTools: visible.map(tool => tool.name) };
+        },
+        onLanguageModelCallStart() { rounds.at(-1)!.requestAttempts++; },
+        onLanguageModelCallEnd(event) {
+          generating = false;
+          generatedBytes += event.content.reduce((n, part) => n +
+            ((part.type === "text" || part.type === "reasoning") ? Buffer.byteLength(part.text) : 0), 0);
+          if (generatedBytes > MAX_STREAM_BYTES) failure = new Error("Provider stream exceeded the output limit");
+          calls = event.content.flatMap(part => part.type === "tool-call" && !part.invalid && !part.providerExecuted
+            ? [{ id: part.toolCallId, name: part.toolName, input: jsonRecord(part.input) ?? {} }] : []);
+          const size = calls.reduce((n, call) => n + Buffer.byteLength(JSON.stringify(call.input)), 0);
+          callCount += calls.length; argumentBytes += size;
+          if (callCount > 128 || argumentBytes > MAX_ARGUMENT_BYTES)
+            failure = new Error("Provider tool calls exceeded the input limit");
+          const round = rounds.at(-1)!;
+          round.toolCallCount = calls.length; round.toolArgumentBytes = size; round.usage = usage(event.usage);
+          if (window && round.usage.inputTokens !== null)
+            callbacks.onContextUsage?.({ usedTokens: round.usage.inputTokens, contextWindowTokens: window });
+          if (typeof event.providerMetadata?.openai?.serviceTier === "string") serviceTier = event.providerMetadata.openai.serviceTier;
+        },
+        async onStepEnd(step) {
+          if (failure) return;
+          try {
+            const saved = [...step.response.messages];
+            const answered = new Set(saved.flatMap(message => message.role === "tool"
+              ? message.content.flatMap(part => part.type === "tool-result" ? [part.toolCallId] : []) : []));
+            const unexecuted = step.toolCalls.filter(call => !answered.has(call.toolCallId) && !call.providerExecuted);
+            if (unexecuted.length) saved.push({ role: "tool", content: unexecuted.map(call => ({
+              type: "tool-result", toolCallId: call.toolCallId, toolName: call.toolName,
+              output: { type: "error-text", value: `Tool not executed: generation stopped with ${step.finishReason}.` },
+            })) });
+            const compacted = compactedMessages(saved);
+            messages = compacted ?? [...messages, ...saved];
+            await callbacks.onModelMessages?.({ model: params.model, messages: compacted ?? saved,
+              ...(compacted && { compacted: true }) });
+            if (compacted) {
+              compacting = false;
+              const first = compacted[0].content;
+              const summary = Array.isArray(first) ? first.find(part => part.type === "text" && compactionPart(part)) : undefined;
+              callbacks.onCompaction?.("completed", { provider: providerForModel(params.model),
+                ...(summary?.type === "text" && { summary: summary.text }) });
+            }
+          } catch (error) { failure = error; }
+        },
+        onError() {},
       });
-      const calls: NormalizedToolCall[] = [], invalid = new Map<string, NormalizedToolResult>();
       const compactions = new Set<string>();
       for await (const part of generated.fullStream) {
         if (part.type === "error") throw part.error;
-        if (part.type === "abort") throwIfAborted(signal);
+        if (part.type === "abort") throwIfAborted(controller.signal);
         if (part.type === "text-start" && part.providerMetadata?.anthropic?.type === "compaction") {
-          compactions.add(part.id); callbacks.onCompaction?.("running");
+          compactions.add(part.id); compacting = true; callbacks.onCompaction?.("running");
         }
         if (part.type === "text-delta" || part.type === "reasoning-delta") {
           streamBytes += Buffer.byteLength(part.text);
@@ -149,57 +215,29 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
           } else if (part.type === "reasoning-delta") callbacks.onReasoningDelta?.(part.text);
         } else if (part.type === "text-end" && !compactions.has(part.id)) callbacks.onContentBlockEnd?.();
         else if (part.type === "reasoning-end") callbacks.onReasoningBlockEnd?.();
-        else if (part.type === "tool-call") {
-          argumentBytes += Buffer.byteLength(JSON.stringify(part.input) ?? "");
-          if (++callCount > 128 || argumentBytes > MAX_ARGUMENT_BYTES)
-            throw new Error("Provider tool calls exceeded the input limit");
-          const input = jsonRecord(part.input), call = { id: part.toolCallId, name: part.toolName, input: input ?? {} };
-          calls.push(call); callbacks.onToolCallStart?.(call);
-          if (part.invalid || !input) invalid.set(call.id, { tool_use_id: call.id,
-            content: "Invalid tool arguments; correct them against the tool schema.", status: "error" });
-        }
+        else if (part.type === "tool-call") callbacks.onToolCallStart?.({ id: part.toolCallId,
+          name: part.toolName, input: jsonRecord(part.input) ?? {} });
       }
-      throwIfAborted(signal);
-      const reason = await generated.finishReason, response = await generated.response;
-      const normal = reason === "stop" || reason === "tool-calls";
-      if (normal && params.outputSchema && !calls.length) await generated.output;
-      const executable = calls.filter(call => !invalid.has(call.id));
-      const results: NormalizedToolResult[] = normal ? [
-        ...invalid.values(), ...(executable.length && params.runTools ? await params.runTools(executable) : []),
-      ] : calls.map(call => ({ tool_use_id: call.id, status: "error" as const,
-        content: `Tool not executed: generation stopped with ${reason}.` }));
-      // The SDK supplies error results for invalid calls; do not answer those calls twice.
-      const answered = new Set(response.messages.flatMap(message => message.role === "tool"
-        ? message.content.flatMap(part => part.type === "tool-result" ? [part.toolCallId] : []) : []));
-      const step = [...response.messages, ...resultMessage(calls.filter(call => !answered.has(call.id)), results, images)];
-      const compacted = compactedMessages(step);
-      messages = compacted ?? [...messages, ...step];
-      // A completed pair is saved even if a tool paused/cancelled the turn. Never persist an orphan tool call.
-      await callbacks.onModelMessages?.({ model: params.model, messages: compacted ?? step,
-        ...(compacted && { compacted: true }) });
-      if (compacted) callbacks.onCompaction?.("completed");
-      round.usage = usage(await generated.usage);
-      total ??= { ...round.usage };
-      if (iteration) for (const key of Object.keys(total) as (keyof NormalizedLlmUsage)[]) {
-        const value = round.usage[key];
-        if (value !== null) total[key] = (total[key] ?? 0) + value;
+      if (failure) throw failure;
+      totals.push(await generated.totalUsage);
+      const reason = await generated.finishReason;
+      if (reason !== "stop" && reason !== "tool-calls") throw new IncompleteGenerationError(reason, fullText);
+      if (params.outputSchema && !calls.length) structured = await generated.output;
+      if (!terminal) throwIfAborted(params.abortSignal);
+      if (!terminal && calls.length && rounds.length >= maxIterations) throw new IncompleteGenerationError("step-limit", fullText);
+      const steering = terminal ? [] : params.takeSteering?.() ?? [];
+      if (!steering.length) {
+        const total = usage(totals[0]);
+        for (const value of totals.slice(1).map(usage)) for (const key of Object.keys(total) as (keyof NormalizedLlmUsage)[])
+          if (value[key] !== null) total[key] = (total[key] ?? 0) + value[key]!;
+        return { fullText, output: structured, usage: total, serviceTier, contextRounds: rounds, finishReason: reason };
       }
-      const metadata = await generated.providerMetadata;
-      if (typeof metadata?.openai?.serviceTier === "string") serviceTier = metadata.openai.serviceTier;
-      round.toolCallCount = calls.length;
-      round.toolArgumentBytes = calls.reduce((sum, call) => sum + Buffer.byteLength(JSON.stringify(call.input)), 0);
-      round.toolResultBytes = Buffer.byteLength(JSON.stringify(results));
-      if (window && round.usage.inputTokens !== null)
-        callbacks.onContextUsage?.({ usedTokens: round.usage.inputTokens, contextWindowTokens: window });
-      if (!normal) throw new IncompleteGenerationError(reason, fullText);
-      if (results.some(result => result.terminal)) return { fullText, usage: total, serviceTier,
-        contextRounds: rounds, finishReason: reason };
-      throwIfAborted(signal);
-      const steering = params.takeSteering?.() ?? [];
       messages.push(...steering.map(({ text }) => ({ role: "user" as const, content: text })));
-      if (!calls.length && !steering.length) return { fullText, usage: total, serviceTier,
-        contextRounds: rounds, finishReason: reason };
-    }
+    } while (rounds.length < maxIterations);
     throw new IncompleteGenerationError("step-limit", fullText);
-  } finally { controller.abort(); }
+  } finally {
+    if (compacting) callbacks.onCompaction?.("failed");
+    params.abortSignal?.removeEventListener("abort", abort);
+    controller.abort();
+  }
 }

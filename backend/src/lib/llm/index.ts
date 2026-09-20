@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { validateModelOutput } from "./structured";
 import { providerForModel } from "./models";
 import type {
   Provider,
@@ -27,6 +28,11 @@ export async function streamChatWithTools(
   const provider = providerForModel(params.model);
   const result = await streamProvider(provider, params);
   await appendMetrics(result);
+  if (params.outputSchema && result.output === undefined) {
+    const checked = validateModelOutput(params.outputSchema, JSON.parse(result.fullText));
+    if (!checked.success) throw checked.error;
+    result.output = checked.value;
+  }
   return result;
 }
 

@@ -151,7 +151,7 @@ describe("TurnToolRegistry", () => {
     expect(peak).toBe(4);
   });
 
-  it.each(["parallel", "serial"])("settles started %s work and retains mutations after result delivery fails", async (mode) => {
+  it.each(["parallel", "serial"])("settles started %s work after result delivery fails", async (mode) => {
     let release!: () => void, deliveryFailed!: () => void, settled = false;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const failureObserved = new Promise<void>((resolve) => { deliveryFailed = resolve; });
@@ -183,10 +183,10 @@ describe("TurnToolRegistry", () => {
     expect(context.order.filter((value) => value.startsWith("saved")))
       .toEqual((mode === "serial" ? [0] : [0, 1, 2, 3]).map((index) => `saved ${index}`));
     const [ask] = await registry.run([call("ask", "ask")], context);
-    expect(payload(ask.content).error).toBe("ask_inputs_after_mutation");
+    expect(ask.content).toBe("waiting");
   });
 
-  it("serializes a mixed batch and enforces pause-before-mutation", async () => {
+  it("pauses before subsequent effects while allowing questions after completed edits", async () => {
     const changed = tool("change", {
       sequential: true,
       async execute(_input, context) {
@@ -220,8 +220,8 @@ describe("TurnToolRegistry", () => {
       call("b", "ask"),
     ], context, undefined, (_call, outcome) => outcomes.push(outcome));
     expect(context.order).toEqual(["change", "ask"]);
-    expect(outcomes.every(({ pause }) => !pause)).toBe(true);
-    expect(payload(after[1].content).error).toBe("ask_inputs_after_mutation");
+    expect(outcomes[1].pause?.items).toHaveLength(1);
+    expect(payload(after[0].content).ok).toBe(true);
   });
 
   it("bounds thrown and malformed results and validates structured output", async () => {

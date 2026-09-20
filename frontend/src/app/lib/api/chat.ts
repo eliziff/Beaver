@@ -115,7 +115,7 @@ export const streamChatJob = (jobId: string, signal: AbortSignal) =>
 export const steerChat = (chatId: string, id: string, text: string) =>
   post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text });
 export const compactChat = (chatId: string, model: string) =>
-  post<{ compacted: true; transcriptVersion?: number }>(
+  post<{ compacted: true; transcriptVersion?: number; provider?: string; summary?: string }>(
     `/chat/${segment(chatId)}/compact`,
     { model },
   );

@@ -18,7 +18,7 @@ import type { UserApiKeys, LlmImage } from "../llm";
 import { throwIfAborted } from "../llm/abort";
 import type { TabularCellContent, TabularColumn } from "../tabularStore";
 import type { ResearchSubject } from "../researchSelection";
-import { answerJevRow, createJevRouter, jevConfig, jevPacketFits, JEV_LIMITS } from "./jev";
+import { answerJevRow, createJevRouter, jevConfig, jevPacketFits, JEV_LIMITS, JEV_ROUTING_SCHEMA } from "./jev";
 
 type PriorResearch = { passages: ResearchEvidence[]; queries: ResearchQueryReceipt[] };
 const routeJev = createJevRouter();
@@ -166,9 +166,9 @@ export async function extractTabularAnswers(input: {
     let textOnly = !first.result.content.some(({ type }) => type === "image");
     if (config && textOnly && jevPacketFits(freshEvidence)) {
       const routes = await routeJev({ userId: input.scope.userId, model: input.model, columns: input.columns, signal: input.signal,
-        ask: async (systemPrompt, user, signal) => (await turn({ model: input.model, apiKeys: input.apiKeys,
-          systemPrompt, messages: [{ role: "user", content: user }], createTools: () => [], emit() {},
-          signal, reasoningEffort: "low", subagentMode: "none", grounded: false, separateContentBlocks: false })).fullText });
+        ask: async (systemPrompt, user, signal) => JSON.stringify((await turn({ model: input.model, apiKeys: input.apiKeys,
+          systemPrompt, outputSchema: JEV_ROUTING_SCHEMA, messages: [{ role: "user", content: user }], createTools: () => [], emit() {},
+          signal, reasoningEffort: "low", subagentMode: "none", grounded: false, separateContentBlocks: false })).output) });
       while (routes.length && textOnly && next().length && pages.length < 8 && freshEvidence.length < JEV_LIMITS.passages && jevPacketFits(freshEvidence)) {
         const cursor = next()[0], page = await read(cursor.offset, cursor.start_char ?? 0, input.signal, cursor.resource,
           undefined, Math.min(100, JEV_LIMITS.passages - freshEvidence.length));
@@ -219,7 +219,7 @@ export async function extractTabularAnswers(input: {
           return read(Number(args.offset), Number(args.start_char ?? 0), signal,
             typeof args.resource === "string" ? args.resource : undefined, call.id);
         } }, {
-        name: "submit_extraction", description: "Save one column's grounded answer. Claims contain the complete explanation; value is the compact column result, written as an answer in plain prose with no citations, pinpoints or source handles in it. Flag green, grey, yellow or red according to the extraction question.",
+        name: "submit_extraction", strict: true, description: "Save one column's grounded answer. Claims contain the complete explanation; value is the compact column result, written as an answer in plain prose with no citations, pinpoints or source handles in it. Flag green, grey, yellow or red according to the extraction question.",
         inputSchema: { type: "object", properties: {
           column_index: { type: "integer", enum: remaining.map(({ index }) => index) },
           value: { anyOf: [{ type: "string" }, { type: "number" }, { type: "boolean" },
