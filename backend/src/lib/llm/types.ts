@@ -3,8 +3,9 @@ import type { ModelMessage } from "ai" with { "resolution-mode": "import" };
 // Shared provider-neutral LLM types. Tool contracts use MCP's standard shape;
 // provider adapters only translate at their wire boundary.
 
-export type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
+export type Tool = McpTool & { strict?: boolean };
+export type CompactionDetails = { summary?: string; provider?: string };
 
 export type Provider =
   | "claude"
@@ -92,7 +93,7 @@ export type StreamCallbacks = {
     usedTokens: number;
     contextWindowTokens: number;
   }) => void;
-  onCompaction?: (status: "running" | "completed" | "failed") => void;
+  onCompaction?: (status: "running" | "completed" | "failed", details?: CompactionDetails) => void;
   onContextCheckpoint?: (checkpoint: ProviderContextCheckpoint) => void;
   onSteer?: (message: { id: string; text: string }) => void;
   onSubagentUpdate?: (update: ProviderSubagentUpdate) => void;
@@ -213,6 +214,8 @@ export type LlmContextRoundReceipt = {
 };
 
 export type StreamChatResult = {
+  /** Validated machine-consumed result, separate from streamed prose. */
+  output?: unknown;
   finishReason?: string;
   fullText: string;
   /** Provider-reported usage when an adapter can supply it. */

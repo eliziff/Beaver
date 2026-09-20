@@ -3,7 +3,7 @@ import { parseAssistantCitations } from "./assistantWire";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderSubagentUpdate, type ProviderTurnControl,
   type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,
-  type SubagentMode, type UserApiKeys } from "../llm";
+  type SubagentMode, type UserApiKeys, type CompactionDetails } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
 import { safeErrorMessage } from "../safeError";
 import { assistantToolActivityLabel } from "./tools/a2ajTools";
@@ -51,6 +51,7 @@ import {
 } from "./readSubagents";
 import { SOURCE_SEARCH_SYSTEM_PROMPT, jurisdictionPreferencePrompt,
   type JurisdictionPreference } from "./prompts";
+import { providerForModel } from "../llm/models";
 import { estimateContextTokens, modelContextWindow } from "../llm/contextWindow";
 
 export class AssistantStreamError extends Error {
@@ -79,6 +80,7 @@ export type ChatToolContext = {
 export type ChatTurnResult = {
   status: "complete" | "paused";
   fullText: string;
+  output?: unknown;
   events: AssistantEvent[];
   citations: Record<string, unknown>[];
   continuationId?: string;
@@ -95,6 +97,7 @@ function contentBoundarySeparator(before: string, after: string) {
 
 export async function runChatTurn(options: {
   model: string;
+  outputSchema?: Record<string, unknown>;
   systemPrompt: string;
   messages: LlmMessage[];
   createTools: (evidence: LegalEvidenceTurnState, scope: "main" | ReadSubagentAssignment,
@@ -125,7 +128,7 @@ export async function runChatTurn(options: {
   canRetryProviderSession?: () => boolean;
   separateContentBlocks?: boolean;
   submissionTool?: string;
-  prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed") => void)
+  prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed", details?: CompactionDetails) => void)
     => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
   onModelMessages?: (event: Extract<AssistantEvent, { type: "model_messages" }>) => void | Promise<void>;
@@ -413,8 +416,8 @@ export async function runChatTurn(options: {
     },
   }));
   const registry = new TurnToolRegistry([
-    askTool,
-    ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : []),
+    ...(!options.outputSchema ? [askTool,
+      ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : [])] : []),
     ...mainTools,
     ...readerTools,
   ]);
@@ -465,14 +468,14 @@ export async function runChatTurn(options: {
       boundary = false;
       addEvent(paused);
       emit(paused);
-      providerAbort.abort();
+      if (["codex", "claude-p"].includes(providerForModel(options.model))) providerAbort.abort();
     }
     const grounded = renderLegalEvidenceAnswer(evidence);
     if (grounded !== null) {
       text = grounded;
       boundary = false;
     }
-    return results;
+    return paused ? results.map(result => ({ ...result, terminal: true })) : results;
   };
   let hasModelMessages = false;
   const callbacks = {
@@ -542,8 +545,9 @@ export async function runChatTurn(options: {
       replaceLastEvent("context_usage", event);
       emit(event);
     },
-    onCompaction(status: "running" | "completed" | "failed") {
-      const event: AssistantEvent = { type: "compaction", status };
+    onCompaction(status: "running" | "completed" | "failed", details?: CompactionDetails) {
+      const event: AssistantEvent = { type: "compaction", status,
+        provider: details?.provider ?? providerForModel(options.model), ...details };
       replaceLastEvent("compaction", event);
       emit(event);
     },
@@ -612,6 +616,7 @@ export async function runChatTurn(options: {
       : activeMessages;
     return streamChatWithTools({
     model: options.model,
+    outputSchema: options.outputSchema,
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
       ...(continuationId ? providerMessages.slice(-1) : providerMessages),
@@ -728,7 +733,7 @@ export async function runChatTurn(options: {
   if (receipt) addEvent(receipt);
   if (text) addEvent({ type: "content", text });
   const result: ChatTurnResult = { status: paused ? "paused" : "complete", fullText: text,
-    events, citations, continuationId: providerResult?.continuationId, evidence };
+    output: providerResult?.output, events, citations, continuationId: providerResult?.continuationId, evidence };
   if (!paused) {
     settleToolActivities("completed");
     emit({ type: "content_final", text, citations });

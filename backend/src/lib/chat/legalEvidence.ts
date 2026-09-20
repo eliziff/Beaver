@@ -827,7 +827,9 @@ export function submitLegalEvidenceAnswer(
   if (Object.keys(args).some((key) => key !== "claims" && key !== "replace"))
     return { ok: false, errors: ["answer has unknown fields"] };
   const replacements = Array.isArray(args.replace) ? args.replace : [];
-  if (args.claims !== undefined || !state.draft) state.draft = Array.isArray(args.claims) ? args.claims : [];
+  if (args.claims != null && replacements.length)
+    return { ok: false, errors: ["Send claims or replace; the other field must be null"] };
+  if (args.claims != null || !state.draft) state.draft = Array.isArray(args.claims) ? args.claims : [];
   if (replacements.length && !state.draft.length)
     return { ok: false, errors: ["there is no draft to replace; send the whole answer in claims"] };
   const draft = [...state.draft];
@@ -852,7 +854,7 @@ export function submitLegalEvidenceAnswer(
     }
   }
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12), draft_claims: draft.length,
-    next: `Your ${draft.length} claims are kept as this turn's draft. Send back only the claims named above, as replace: [{"index": 0, "text": "…", "evidence_ids": ["…"]}]; do not resend the answer.` };
+    next: `Your ${draft.length} claims are kept as this turn's draft. Send claims: null and only the claims named above as replace: [{"index": 0, "text": "…", "evidence_ids": ["…"]}]; do not resend the answer.` };
   state.answer = claims;
   state.draft = null;
   state.failure = null;
@@ -887,10 +889,11 @@ const replacementSchema = {
 } as const;
 
 const GROUNDED_SUBMIT_REPAIR =
-  "Send the whole answer in claims. If any claim is rejected, every claim you sent is kept as this turn's draft and the errors name the failing ones by position, so call the tool again with replace and send back only those claims, each as index, text and evidence_ids. Sending claims again replaces the whole draft, so use it only to start over. The answer is recorded once every claim in the draft passes.";
+  "Send the whole answer in claims with replace: null. If any claim is rejected, every claim you sent is kept as this turn's draft and the errors name the failing ones by position, so call the tool again with claims: null and replace containing only those claims, each as index, text and evidence_ids. Sending claims again replaces the whole draft, so use it only to start over. The answer is recorded once every claim in the draft passes.";
 
 export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
   name: LEGAL_EVIDENCE_TOOL_NAME,
+  strict: true,
   description: [
     GROUNDED_ANSWER_CONTRACT,
     GROUNDED_QUOTATION_POLICY,
@@ -898,9 +901,9 @@ export const LEGAL_EVIDENCE_SUBMIT_TOOL: Tool = {
     GROUNDED_SUBMIT_REPAIR,
   ].join(" "),
   inputSchema: objectSchema({
-    claims: { type: "array", minItems: 1, items: claimSchema },
-    replace: { type: "array", minItems: 1, items: replacementSchema },
-  }),
+    claims: { type: ["array", "null"], minItems: 1, items: claimSchema },
+    replace: { type: ["array", "null"], minItems: 1, items: replacementSchema },
+  }, ["claims", "replace"]),
 };
 
 export function finalizeLegalEvidence(

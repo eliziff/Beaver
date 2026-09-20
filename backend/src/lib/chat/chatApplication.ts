@@ -28,6 +28,7 @@ import {
   modelSupportsImageInput,
   resolveRequestedModel,
   type LlmImage,
+  type CompactionDetails,
   type SubagentMode,
   type UserApiKeys,
 } from "../llm";
@@ -441,6 +442,7 @@ export function createChatApplication(deps: Dependencies) {
         chat.transcript_version,
         "A response is already running",
       );
+      let details: CompactionDetails = { provider: providerForModel(model) };
       const provider = await deps.features.providerSession?.compact({
         auth,
         chatId: input.chatId,
@@ -457,6 +459,7 @@ export function createChatApplication(deps: Dependencies) {
           apiKeys: features.apiKeys,
           signal,
           force: true,
+          onStatus(status, value) { if (status === "completed") details = { ...details, ...value }; },
         });
         if (!result.compacted) throw new ChatApplicationError(409,
           "There is no older context to compact");
@@ -469,7 +472,7 @@ export function createChatApplication(deps: Dependencies) {
         auth,
         input.chatId,
         assistant.id,
-        { type: "compaction", status: "completed" },
+        { type: "compaction", status: "completed", ...details },
       );
       if (appended.status === "missing") {
         throw new Error("Context compaction receipt could not be saved");
@@ -478,7 +481,7 @@ export function createChatApplication(deps: Dependencies) {
         conflict("chat_version_conflict", appended.currentVersion);
       }
       await provider.save(appended.currentVersion);
-      return { compacted: true, transcriptVersion: appended.currentVersion };
+      return { compacted: true, transcriptVersion: appended.currentVersion, ...details };
     },
 
     async turn(

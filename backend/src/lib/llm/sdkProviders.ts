@@ -64,7 +64,7 @@ export async function hostedModel(params: StreamChatParams): Promise<HostedModel
         apiKey: requireApiKey(keys?.meta, "META_API_KEY", "Meta") }
       : go ?? { apiKey: requireApiKey(keys?.openai, "OPENAI_API_KEY", "OpenAI") };
     return { model: createOpenAI(config).responses(model), options: { openai: {
-      store: false, strictJsonSchema: false,
+      store: false,
       reasoningSummary: provider === "openai" && thinking && summaries ? "auto" : null,
       ...(requested && { reasoningEffort: requested }),
       ...(params.promptCacheKey && { promptCacheKey: params.promptCacheKey }),

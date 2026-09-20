@@ -67,7 +67,7 @@ it("starts from saved receipts and restores only cited sources for final pinpoin
     load = vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue(document);
   stream.mockImplementationOnce(async ({ runTools }) => {
     expect(load).not.toHaveBeenCalled();
-    await runTools([{ id: "answer", name: "submit_grounded_answer", input: {
+    await runTools([{ id: "answer", name: "submit_grounded_answer", input: { replace: null,
       claims: [{ text, evidence_ids: [receipt.evidence_id] }],
     } }]);
     return { fullText: "" };
@@ -386,7 +386,7 @@ it("repairs a failed grounded submission without exposing the validator error", 
     await runTools([{
       id: "grounded-1",
       name: "submit_grounded_answer",
-      input: {
+      input: { replace: null,
         claims: [{
           text: "My favourite is Example v Example.",
           evidence_ids: [evidence.evidence_id],
@@ -537,7 +537,7 @@ it.each(["failure", "cancellation", "grounding exhaustion"])(
         callbacks.onContentDelta?.("R. v. Unsupported is decisive.");
         return { fullText: "R. v. Unsupported is decisive." };
       }
-      await runTools([{ id: "answer", name: "submit_grounded_answer", input: {
+      await runTools([{ id: "answer", name: "submit_grounded_answer", input: { replace: null,
         claims: [{ text: passage.span_text, evidence_ids: [passage.evidence_id] }],
       } }]);
       if (ending === "cancellation") signal.abort(new DOMException("Cancelled", "AbortError"));
@@ -566,7 +566,7 @@ it.each([false, true])("shares all subagent reads and searches when failed=%s", 
     if (params.providerSession) {
       await params.runTools([{ id: `reader-${++reader}`, name: "Read", input: { file_path: "document://note/version/v1" } }]);
       if (failed) throw new Error("Reader disconnected");
-      await params.runTools([{ id: "reader-answer", name: "submit_grounded_answer", input: {
+      await params.runTools([{ id: "reader-answer", name: "submit_grounded_answer", input: { replace: null,
         claims: [{ text: used.span_text, evidence_ids: [used.evidence_id] }],
       } }]);
       return { fullText: "" };
@@ -576,7 +576,7 @@ it.each([false, true])("shares all subagent reads and searches when failed=%s", 
       { task: "Read the decision", scope: "Note A", jurisdiction: "CA" },
       { task: "Read the decision", scope: "Note B", jurisdiction: "CA" },
     ] } }]);
-    await params.runTools([{ id: "parent-answer", name: "submit_grounded_answer", input: {
+    await params.runTools([{ id: "parent-answer", name: "submit_grounded_answer", input: { replace: null,
       claims: [{ text: extra.span_text, evidence_ids: [extra.evidence_id] }],
     } }]);
     return { fullText: "" };

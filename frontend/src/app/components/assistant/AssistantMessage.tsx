@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, Copy, Minimize2 } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import type { WorkflowRunEvent } from "@/app/lib/api/chat";
 import type { Citation } from "@/app/lib/citations";
 import type { EditAnnotation, EditResolveHandlers, EditResolved } from "@/app/lib/api/documents";
@@ -231,16 +231,29 @@ export function AssistantMessage({
     return (
         <div style={{ minHeight }} className="w-full max-w-[46rem]">
             <div className="relative mt-2 w-full font-inter">
-                {(message.contextCompacted || message.activities.length || message.workflowRuns.length || dialogue.length || edits.length || isStreaming) ? (
+                {(message.compaction || message.contextCompacted || message.activities.length || message.workflowRuns.length || dialogue.length || edits.length || isStreaming) ? (
                     <div className="flex flex-col gap-4">
                         {message.workflowRuns.map((run) => (
                             <WorkflowRunButton key={workflowRunKey(run)} run={run} onOpen={onWorkflowRunClick ?? (() => undefined)} />
                         ))}
-                        {message.contextCompacted && (
-                            <div role="status" className="flex items-center gap-2 px-1 font-serif text-sm text-gray-500">
-                                <Minimize2 size={14} strokeWidth={1.75} aria-hidden="true" />
-                                <span>Context compacted</span>
-                            </div>
+                        {(message.compaction || message.contextCompacted) && (
+                            <details className="px-1 font-serif text-sm text-gray-600">
+                                <summary className="cursor-pointer" role="status">
+                                    {message.compaction?.status === "running" ? "Compacting conversation…"
+                                        : message.compaction?.status === "failed" ? "Context compaction failed"
+                                        : "Context compacted"}
+                                </summary>
+                                <p className="mt-2">Earlier messages remain in your conversation history.</p>
+                                {message.compaction?.provider && <p>Provider: {message.compaction.provider}</p>}
+                                {message.compaction?.summary ? (
+                                    <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap font-serif"
+                                        aria-label="Compaction summary">{message.compaction.summary}</pre>
+                                ) : message.compaction?.status === "running" ? <p>Reducing earlier context before continuing.</p>
+                                    : message.compaction?.status === "failed" ? <p>Compaction did not complete.</p>
+                                    : <p>{message.compaction?.provider === "openai"
+                                        ? "OpenAI returned an opaque checkpoint, not a readable summary."
+                                        : "No readable compaction summary was returned."}</p>}
+                            </details>
                         )}
                         {message.activities.length ? (
                             <ActivityDisclosure
