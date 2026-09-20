@@ -41,7 +41,7 @@ import { readerSelectionSpan } from "../shared/readerSelection";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
 function HighlightButton() {
   const { highlight } = useSourcesWorkspace();
-  return <button type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => void highlight.run().then((saved) => { if (!saved) highlight.arm(!highlight.armed); }).catch(() => undefined)}>Highlight</button>;
+  return highlight.reading ? <button type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => void highlight.run().then((saved) => { if (!saved) highlight.arm(!highlight.armed); }).catch(() => undefined)}>Highlight</button> : null;
 }
 function LegalSourceViewer({ researchFile, onResearchFileChange, ...props }: React.ComponentProps<typeof SourceViewer> &
   { researchFile?: ResearchFile | null; onResearchFileChange?: (file: ResearchFile | null) => void }) {
@@ -165,6 +165,15 @@ describe("legal source reader", () => {
             configurable: true,
             value: scrollIntoView,
         });
+    });
+
+    it("keeps highlighting registered while source text loads", async () => {
+        let finish!: (payload: LegalSourceViewerPayload) => void;
+        api.direct.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+        render(sourceViewer());
+        expect(await screen.findByRole("button", { name: "Highlight" })).toBeInTheDocument();
+        finish(viewerPayload());
+        expect(await screen.findByRole("heading", { name: "Fixture v. Test" })).toBeInTheDocument();
     });
 
     it("treats provider anchor labels as data, not regular expressions", async () => {

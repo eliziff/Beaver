@@ -3,11 +3,13 @@ import type { ApplicationScope } from "./applicationError";
 import type { ResearchEvidence, ResearchFile, ResearchFileAction } from "./researchFile";
 import { researchSourceResource } from "./researchFile";
 import { legalEvidenceResourceReference } from "./chat/legalEvidence";
-import type { ResearchChangeField } from "./researchHistory";
+import type { ResearchChangeField, ResearchChange } from "./researchHistory";
 
 export type ResearchOperationContext = {
   audit?: AuditStore["record"]; executor: "human" | "assistant"; model?: string;
   turnId?: string; callId?: string; jobId?: string; chatId?: string; reviewId?: string; subagentId?: string;
+  organization?: ResearchChange["organization"];
+  supersedes?: string;
 };
 export async function recordResearchOperation(context: ResearchOperationContext,
   scope: ApplicationScope, before: ResearchFile, after: ResearchFile,

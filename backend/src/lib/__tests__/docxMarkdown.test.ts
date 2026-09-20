@@ -198,6 +198,20 @@ break
     ]);
   });
 
+  it("renders adjacent citation objects as one legal footnote", async () => {
+    const other = { sources: [{ ...jordanCitation.sources[0], stableId: "case:other",
+      authority: "R v Other, 2020 SCC 2", shortAuthority: "Other" }] };
+    const bytes = await renderDocxMarkdown("Claim.[@jordan][@other]", {
+      citations: { jordan: jordanCitation, other }, citationPlacement: "footnotes",
+    });
+    const documentXml = await packageXml(bytes, "word/document.xml");
+    const footnotesXml = await packageXml(bytes, "word/footnotes.xml");
+    expect(documentXml.match(/<w:footnoteReference w:id="1"\/>/gu)).toHaveLength(1);
+    expect(footnotesXml).toContain("R v Jordan, 2016 SCC 27");
+    expect(footnotesXml).toContain("; ");
+    expect(footnotesXml).toContain("R v Other, 2020 SCC 2");
+  });
+
   it("parses the bounded structure and emits native Word features", async () => {
     const parsed = parseDocxMarkdown(sample);
     expect(parsed.blocks.map(({ type }) => type)).toEqual([

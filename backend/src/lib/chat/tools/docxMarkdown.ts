@@ -989,30 +989,30 @@ export async function renderDocxMarkdownDocument(
   const citationPlacement = options.citationPlacement ?? "inline";
   const citationHyperlinks = options.citationHyperlinks !== false;
   const bodyAppearances: DocxCitationAppearance[] = [], authoredAppearances: DocxCitationAppearance[] = [];
-  const citationNotes: { number: number; citation: DocxCitation;
-    marker: { id: string; occurrence: number }; displayedForm: "full" | "supra" | "ibid" }[] = [];
+  const citationNotes: { number: number; citations: { citation: DocxCitation;
+    marker: { id: string; occurrence: number }; displayedForm: "full" | "supra" | "ibid" }[] }[] = [];
   const firstNoteBySource = new Map<string, number>();
   let previousSource: string | null = null;
-  const citationNote = (citation: { id: string; occurrence: number }) => {
+  const citationNote = (markers: { id: string; occurrence: number }[]) => {
     const number = ++nextNote;
-    let resolved = citations[citation.id];
-    let displayedForm: "full" | "supra" | "ibid" = "full";
-    if (resolved.sources.length === 1) {
-      const source = resolved.sources[0];
-      const firstNote = firstNoteBySource.get(source.stableId);
-      displayedForm = previousSource === source.stableId ? "ibid" : firstNote ? "supra" : "full";
-      const authority = displayedForm === "ibid"
-        ? "Ibid"
-        : firstNote
-          ? `${source.shortAuthority}, supra note ${firstNote}`
-          : source.authority;
-      if (!firstNote) firstNoteBySource.set(source.stableId, number);
-      previousSource = source.stableId;
-      resolved = { sources: [{ ...source, authority }] };
-    } else {
-      previousSource = null;
-    }
-    citationNotes.push({ number, citation: resolved, marker: citation, displayedForm });
+    const grouped = markers.map((marker) => {
+      let citation = citations[marker.id];
+      let displayedForm: "full" | "supra" | "ibid" = "full";
+      if (citation.sources.length === 1) {
+        const source = citation.sources[0], firstNote = firstNoteBySource.get(source.stableId);
+        displayedForm = markers.length === 1 && previousSource === source.stableId
+          ? "ibid" : firstNote ? "supra" : "full";
+        const authority = displayedForm === "ibid" ? "Ibid"
+          : firstNote ? `${source.shortAuthority}, supra note ${firstNote}` : source.authority;
+        if (!firstNote) firstNoteBySource.set(source.stableId, number);
+        citation = { sources: [{ ...source, authority }] };
+      } else for (const source of citation.sources)
+        if (!firstNoteBySource.has(source.stableId)) firstNoteBySource.set(source.stableId, number);
+      return { citation, marker, displayedForm };
+    });
+    previousSource = markers.length === 1 && grouped[0].citation.sources.length === 1
+      ? grouped[0].citation.sources[0].stableId : null;
+    citationNotes.push({ number, citations: grouped });
     return new FootnoteReferenceRun(number);
   };
   const linkedRun = (text: string, url: string | null): ParagraphChild =>
@@ -1041,31 +1041,41 @@ export async function renderDocxMarkdownDocument(
     forceBold = false,
     placement = citationPlacement,
     noteId?: number,
-  ): ParagraphChild[] =>
-    children.flatMap((child): ParagraphChild[] => {
+  ): ParagraphChild[] => {
+    const rendered: ParagraphChild[] = [];
+    for (let index = 0; index < children.length; index += 1) {
+      const child = children[index];
       switch (child.type) {
         case "text":
-          return [run(child.text, { bold: forceBold })];
+          rendered.push(run(child.text, { bold: forceBold })); break;
         case "strong":
-          return [run(child.text, { bold: true })];
+          rendered.push(run(child.text, { bold: true })); break;
         case "emphasis":
-          return [run(child.text, { bold: forceBold, italics: true })];
+          rendered.push(run(child.text, { bold: forceBold, italics: true })); break;
         case "break":
-          return [new TextRun({ break: 1 })];
+          rendered.push(new TextRun({ break: 1 })); break;
         case "footnote":
           if (!noteNumbers.has(child.id)) noteNumbers.set(child.id, ++nextNote);
           previousSource = null;
-          return [new FootnoteReferenceRun(noteNumbers.get(child.id)!)];
+          rendered.push(new FootnoteReferenceRun(noteNumbers.get(child.id)!)); break;
         case "citation": {
-          if (unverifiedCitations.has(child.id)) return [];
-          if (placement === "none" || placement === "after-paragraph") return [];
-          if (placement === "footnotes") return [citationNote(child)];
-          return [run(" "), ...citationRuns(citations[child.id], child, noteId, "full", noteId !== undefined)];
+          if (unverifiedCitations.has(child.id) || placement === "none" || placement === "after-paragraph") break;
+          if (placement === "footnotes") {
+            const markers = [child];
+            while (children[index + 1]?.type === "citation") {
+              const next = children[++index] as Extract<DocxMarkdownInline, { type: "citation" }>;
+              if (!unverifiedCitations.has(next.id)) markers.push(next);
+            }
+            rendered.push(citationNote(markers));
+          } else rendered.push(run(" "), ...citationRuns(citations[child.id], child, noteId, "full", noteId !== undefined));
+          break;
         }
         case "control":
-          return [inlineControl(child.tag, child.occurrence)];
+          rendered.push(inlineControl(child.tag, child.occurrence)); break;
       }
-    });
+    }
+    return rendered;
+  };
   const followingCitations = (children: DocxMarkdownInline[]) => {
     if (citationPlacement !== "after-paragraph") return [];
     const markers = new Map<string, Extract<DocxMarkdownInline, { type: "citation" }>>();
@@ -1308,8 +1318,10 @@ export async function renderDocxMarkdownDocument(
     ...document.footnotes.filter(({ id }) => noteNumbers.has(id)).map(({ id, children }) =>
       [String(noteNumbers.get(id)),
         footnoteParagraph(inlines(children, false, "inline", noteNumbers.get(id)))] as const),
-    ...citationNotes.map(({ number, citation, marker, displayedForm }) =>
-      [String(number), footnoteParagraph(citationRuns(citation, marker, number, displayedForm))] as const),
+    ...citationNotes.map(({ number, citations: grouped }) =>
+      [String(number), footnoteParagraph(grouped.flatMap(({ citation, marker, displayedForm }, index) => [
+        ...(index ? [run("; ")] : []), ...citationRuns(citation, marker, number, displayedForm),
+      ]))] as const),
   ]);
   const headingStyle = (
     size: number,

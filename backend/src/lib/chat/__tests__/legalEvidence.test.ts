@@ -111,6 +111,27 @@ describe("production legal evidence", () => {
     expect(validateGroundedClaims(claims, state).errors.join(" ")).toContain("damaged passage");
   });
 
+  it("allows unquoted extraction wording without relaxing quote or receipt integrity", () => {
+    const sourceText = "The Customer shall obtain the Supplier's prior written consent before any change of control.",
+      state = createLegalEvidenceTurnState(), receipt = createLibraryEvidence({ documentId: "consent",
+        versionId: "v1", filename: "consent.txt", sourceText, spanText: sourceText, start: 0, end: sourceText.length }),
+      claim = (text: string, id = receipt.evidence_id) => [{ text, evidence_ids: [id] }],
+      options = { allowUnquotedCopies: true };
+    registerLegalEvidence(state, receipt);
+    expect(submitLegalEvidenceAnswer({ claims: claim(sourceText) }, state).errors)
+      .toEqual([expect.stringContaining("unmarked copied passage")]);
+    expect(validateGroundedClaims(claim(sourceText), state, options).errors).toEqual([]);
+    expect(validateGroundedClaims(claim(`"${sourceText}"`), state, options).errors).toEqual([]);
+    const mixed = `${sourceText} The exception says "Consent is never required for a change of control."`;
+    expect(validateGroundedClaims(claim(mixed), state, options).errors)
+      .toEqual([expect.stringContaining("does not match its cited evidence")]);
+    expect(validateGroundedClaims(claim(sourceText, "unavailable"), state, options).errors.join(" "))
+      .toContain("unknown evidence_id");
+    registerLegalEvidence(state, { ...receipt, span_text: "Tampered source text." });
+    expect(validateGroundedClaims(claim(sourceText), state, options).errors.join(" "))
+      .toContain("damaged passage");
+  });
+
   it("keeps a rejected submission as the draft and takes back only the claims that failed", () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);

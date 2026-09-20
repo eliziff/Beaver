@@ -126,7 +126,7 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
     question: findings.find(({ reference }) => reference.kind === "answer")?.question.prompt ?? null,
     labels: Object.values(file.state.labels).map(({ id, scope, definition }) => ({ id, path: researchLabelPath(file.state, id), scope,
       ...(definition ? { definition } : {}) })),
-    fingerprint: sha256(JSON.stringify([file.document.id, file.versionId, file.workingRevision, subjects, rows, entries, findings])) };
+    fingerprint: sha256(JSON.stringify([file.document.id, file.state.labels, subjects, rows, entries, findings])) };
 }
 
 export function defaultResearchImport(catalog: ResearchImportCatalog): ResearchImportDesign {

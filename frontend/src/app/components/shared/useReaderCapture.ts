@@ -34,10 +34,11 @@ export function useReaderCapture(root: React.RefObject<HTMLElement | null>,
     return span ? { reference, revision: text.revision, ...span } : null;
   };
   const register = highlight?.registerReader;
+  const readerMounted = supplied !== undefined || !!reference;
   useEffect(() => {
-    register?.(text ? () => capture.current() : null);
+    register?.(readerMounted ? () => capture.current() : null);
     return () => register?.(null);
-  }, [register, !!text]);
+  }, [register, readerMounted]);
   useEffect(() => {
     const element = root.current;
     if (!element || !highlight || !text) return;

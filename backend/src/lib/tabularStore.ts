@@ -6,6 +6,7 @@ import type { ResearchChange, ResearchChangeSummary } from "./researchHistory";
 import type { ResearchArrangement } from "./tabular/researchArrangement";
 import type { ResearchSelection, ResearchSubject } from "./researchSelection";
 import type { ResearchFindingReference } from "./researchFindingReference";
+import type { JevRouting } from "./tabular/jev";
 
 export type TabularScope = ApplicationScope;
 
@@ -19,6 +20,7 @@ export type TabularCellContent = GroundedResult & {
     workingRevision?: number; items?: ResearchArrangement["cells"][number]["items"] };
 };
 export type TabularSelection = { research_file_id?: string; versionId?: string;
+  jevRouting?: JevRouting;
   workingRevision?: number; subjects: ResearchSubject[]; arrangement?: ResearchArrangement;
   frozen?: boolean;
   selection?: ResearchSelection;

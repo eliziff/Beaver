@@ -11,12 +11,14 @@ const savedSource = (id: string, title: string) => ({ id, reference: { provider:
 const file = { document: { id: "workspace", filename: "Research.research.md" }, versionId: "v1", workingRevision: 0,
   state: { labels: {}, sources: { source: savedSource("source", "Case A"), other: savedSource("other", "Case B") } } } as unknown as ResearchFile;
 const proposal = { title: "Duties", target: "sources" as const, propose: false, fingerprint: "b".repeat(64),
-  design: { title: "Duties", labels: [{ key: "honesty", name: "Honest performance" }],
-    assignments: [{ labelKey: "honesty", rowIds: ["source"] }] },
-  labels: [{ key: "honesty", id: "honesty", name: "Honest performance", path: "Honest performance", parentKey: null, parentId: null,
+  design: { title: "Duties", sourceLabels: [{ id: "honesty", name: "Honest performance", definition: "What the parties owed each other", members: ["source"], children: [] }],
+    highlightTypes: [{ id: "ratio", name: "Ratio", members: [{ sourceId: "source", evidenceId: "passage" }], children: [] }] },
+  sources: [{ id: "source", title: "Case A" }, { id: "other", title: "Case B" }],
+  items: [{ sourceId: "source", evidenceId: "passage", title: "Case A", text: "it applies to every contract" }],
+  labels: [{ id: "honesty", name: "Honest performance", path: "Honest performance", parentId: null,
     order: 0, scope: "source" as const, color: "#d6b85a", definition: "What the parties owed each other", existing: true,
     rows: [{ id: "source", title: "Case A", support: ["a duty of honest performance"] }] },
-    { key: "ratio", id: "ratio", name: "Ratio", path: "Ratio", parentKey: null, parentId: null, order: 1,
+    { id: "ratio", name: "Ratio", path: "Ratio", parentId: null, order: 1,
       scope: "highlight" as const, color: "#8aa8c7", existing: false,
       rows: [{ id: "source", title: "Case A", support: ["it applies to every contract"] }] }],
   unassigned: [{ id: "other", title: "Case B" }] };
@@ -24,11 +26,11 @@ const preview = { fingerprint: "a".repeat(64), design: { title: "Research", colu
   cells: [{ rowId: "source", columnIndex: 0, itemIds: ["item"] }] }, rows: [{ id: "source", sourceId: "source", title: "Case A" }],
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
 const create = () => screen.getByRole("button", { name: "Create table" });
-const launch = (name = "Propose a table") => fireEvent.click(screen.getByRole("button", { name }));
+const launch = (name = "Suggest a table") => fireEvent.click(screen.getByRole("button", { name }));
 const streamed = expect.any(Function), aborted = expect.any(AbortSignal);
 async function ready() { launch(); await waitFor(() => expect(create()).toBeEnabled()); return create(); }
-const ask = (text: string) => { fireEvent.change(screen.getByLabelText("Change the proposal"), { target: { value: text } });
-  fireEvent.click(screen.getByRole("button", { name: "Propose again" })); };
+const ask = (text: string) => { fireEvent.change(screen.getByLabelText(/Adjust the (table|labels)/u), { target: { value: text } });
+  fireEvent.click(screen.getByRole("button", { name: "Suggest again" })); };
 
 beforeEach(() => { vi.clearAllMocks(); api.getResearchFile.mockResolvedValue(file); api.proposeWorkspaceTable.mockResolvedValue(preview); });
 it("shows shared model activity during proposals and preserves the preview during reproposals", async () => {
@@ -39,7 +41,7 @@ it("shows shared model activity during proposals and preserves the preview durin
     return new Promise(() => undefined);
   });
   ask("Group related findings");
-  expect(await screen.findByRole("status", { name: /Activity.*gpt-5.6-sol/ })).toHaveTextContent("1,234 characters");
+  expect(await screen.findByRole("status", { name: /Activity.*Generating suggestions/u })).toHaveTextContent("1,234 characters");
   expect(screen.getByDisplayValue("Finding")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("status", { name: /Activity/ })).not.toBeInTheDocument();
@@ -53,7 +55,7 @@ it("shows the current structure before proposing changes and can open it without
   api.getResearchFile.mockResolvedValue(existing);
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" />);
   expect(await screen.findByRole("treeitem", { name: "Honesty" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Propose changes" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Suggest changes" })).toBeEnabled();
   expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Open workspace" }));
   expect(onOpen).toHaveBeenCalledWith("/sources?research_file=workspace");
@@ -105,27 +107,20 @@ it("shows a stale-preview rejection without navigating away or silently reinterp
 it("shows a label proposal as the workspace tree it would create", async () => {
   api.proposeWorkspaceLabels.mockResolvedValue(proposal);
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" mode="labels" />);
-  launch("Propose labels");
-  // A label is a folder holding the sources it files, with what it means beside its name.
-  expect(await screen.findByRole("treeitem", { name: "Honest performance" })).toBeVisible();
-  expect(screen.getByText("What the parties owed each other")).toBeVisible();
-  expect(screen.getByRole("treeitem", { name: "Case A" })).toBeVisible();
-  // The passages behind the filing are open with it, and the source folds them away.
-  expect(await screen.findByRole("treeitem", { name: "a duty of honest performance" })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Passages in Case A" }));
-  expect(screen.queryByRole("treeitem", { name: "a duty of honest performance" })).not.toBeInTheDocument();
-  // Highlight types own their own hierarchy, holding the passages that carry them.
-  fireEvent.click(screen.getByRole("button", { name: "Expand Ratio" }));
-  expect(screen.getByRole("treeitem", { name: "it applies to every contract" })).toBeVisible();
-  // What the proposal leaves unfiled stays visible at the root, as it is in the workspace.
-  expect(screen.getByRole("treeitem", { name: "Case B" })).toBeVisible();
+  launch("Suggest labels");
+  const label = await screen.findByText("Honest performance", { selector: "summary" });
+  fireEvent.click(label);
+  expect(screen.getByLabelText("Move source from Honest performance")).toBeVisible();
+  fireEvent.click(screen.getByText("Ratio", { selector: "summary" }));
+  expect(screen.getByText("Case A: it applies to every contract")).toBeVisible();
+  expect(screen.getByLabelText("Move passage from Ratio")).toBeVisible();
 });
 it("applies a label proposal on the same reading of the research that produced it", async () => {
   const plan = proposal;
   api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(undefined);
   const onOpen = vi.fn(), apply = () => screen.getByRole("button", { name: "Apply labels" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" chatId="chat" />);
-  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled(); launch("Propose labels");
+  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled(); launch("Suggest labels");
   await waitFor(() => expect(apply()).toBeEnabled());
   fireEvent.click(apply());
   await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace",
@@ -133,7 +128,8 @@ it("applies a label proposal on the same reading of the research that produced i
   expect(onOpen).toHaveBeenCalledWith("/sources?research_file=workspace");
   ask("group by the stage of the analysis");
   await waitFor(() => expect(api.proposeWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
-    { chatId: "chat", model: "model", request: "group by the stage of the analysis", repropose: true }, streamed, aborted));
+    { chatId: "chat", model: "model", request: "group by the stage of the analysis", repropose: true,
+      currentDesign: plan.design, proposalId: undefined }, streamed, aborted));
   fireEvent.click(apply());
   await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenLastCalledWith("workspace",
     { chatId: "chat", repropose: true, design: plan.design, fingerprint: plan.fingerprint }));
@@ -152,13 +148,12 @@ it("waits for the lawyer to launch the step, shows the model working and can be 
   api.proposeWorkspaceTable.mockImplementationOnce((_id, _input, onProgress) => new Promise(() => { report = onProgress; }));
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" />);
   expect(api.proposeWorkspaceTable).not.toHaveBeenCalled();
-  expect(screen.getByText(/Runs on model/u)).toBeVisible();
   launch();
   await waitFor(() => expect(api.proposeWorkspaceTable).toHaveBeenCalledTimes(1));
-  expect(screen.getByRole("status")).toHaveTextContent("Reading the research");
+  expect(screen.getByRole("status")).toHaveTextContent("Reading research");
   await act(async () => report({ stage: "asking", model: "claude-p:claude-sonnet-4-6", chars: 1200 }));
-  expect(screen.getByRole("status")).toHaveTextContent(/Asking claude-sonnet-4-6.*1,200 characters/u);
+  expect(screen.getByRole("status")).toHaveTextContent(/Generating suggestions.*1,200 characters/u);
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(await screen.findByRole("button", { name: "Propose a table" })).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Suggest a table" })).toBeEnabled();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });

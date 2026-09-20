@@ -28,6 +28,7 @@ import type { ResearchSubject } from "./researchSelection";
 import type { ResearchOperationContext } from "./researchProvenance";
 
 import { researchFindingReferenceSchema } from "./researchFindingReference";
+import { researchLabelDesignSchema } from "./researchContract";
 
 
 const readCursor = z.object({ resource: z.string().min(1).max(4_000), offset: z.number().int().min(1),
@@ -37,6 +38,9 @@ export const researchReadContextSchema = z.object({
   workspace: z.object({ documentId: z.string(), versionId: z.string(),
     workingRevision: z.number().int().nonnegative() }).strict().optional(),
   restricted: z.boolean().optional(),
+  organizationHistory: z.array(z.object({ id: z.string(), status: z.enum(["pending", "applied", "rejected"]),
+    design: researchLabelDesignSchema, currentDesign: researchLabelDesignSchema.optional(),
+    request: z.string().optional(), previousId: z.string().optional() }).strict()).optional(),
   findingRefs: z.array(researchFindingReferenceSchema).max(500).optional(),
   subjects: z.array(z.object({ sourceId: z.string(), resource: z.string().min(1).max(4_000),
     rowId: z.string().optional(), reference: researchSourceReferenceSchema,
@@ -74,8 +78,9 @@ export function researchReadContextPrompt(context: ResearchReadContext | undefin
   if (!context) return "";
   return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells for the original answers and their support.` : "",
   context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
-    context.workspace.documentId, context.workspace.versionId)}. Read the workspace before organizing it with document_operation action:"research". Create labels, add filings and edit model-owned labels directly. Create a label first, then use its returned label_id to file the sources. Filing adds labels, preserving explicit ancestor and descendant filings. Name any removal separately with label-selection mode:"remove". Edits to human-created or human-approved labels and removals of human filings require acceptance. Report the tool outcome: pending means waiting for acceptance, not completed. For legal questions, Read selection and its saved evidence_ids; use saved passages before reading sources for missing support.` : "",
-  context.subjects ? "Read selection to page the scoped sources, saved passages and remaining reads." : ""].filter(Boolean).join("\n");
+    context.workspace.documentId, context.workspace.versionId)}. Read the workspace first. For an organization or a revision, use document_operation action:"research" with research_action type:"organize" and the user's instructions. Include the latest pending proposalId when revising. This produces an editable draft, not applied changes. Use individual label and filing operations for specific edits, not to construct a proposed organization one mutation at a time. Report the tool outcome: pending means waiting for acceptance, not completed. For legal questions, Read selection and its saved evidence_ids; use saved passages before reading sources for missing support.` : "",
+  context.subjects ? "Read selection to page the scoped sources, saved passages and remaining reads." : "",
+  context.organizationHistory?.length ? `ORGANIZATION PROPOSALS (drafts are not applied): ${JSON.stringify(context.organizationHistory)}\nUse the latest pending draft and the user's corrections when discussing revisions. Rejected proposals are history, not the current organization.` : ""].filter(Boolean).join("\n");
 }
 export function readResearchContextInventory(context: ResearchReadContext, args: { offset?: number; limit?: number }) {
   const offset = Math.max(0, (args.offset ?? 1) - 1), limit = Math.max(1, Math.min(50, args.limit ?? 20)),

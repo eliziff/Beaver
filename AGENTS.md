@@ -20,15 +20,9 @@ the latter owns project priorities and remaining gates.
 
 ## Working safely
 
-- Concurrent sessions can share a tree. Stage explicit paths, never `git add -A`;
-  preserve unrelated work, commit coherent changes, and push only when requested.
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.
-- No per-token API spend: use approved flat-rate surfaces. Never assume a checked-in
-  example or placeholder credential authorizes live calls or private-document transmission.
-- Exact deterministic operations return typed refusals instead of guesses. Models
-  handle residual semantics over bounded excerpts, not whole-document dumps.
 
 ## Validation and interface quality
 
@@ -45,7 +39,7 @@ the latter owns project priorities and remaining gates.
   `scripts/mike.ps1 smoke -WithAssistantDock` and inspection of its screenshots.
 
 Agents may run `.\scripts\full-sweep.ps1` only when the user includes the exact token
-`[FullSweep]`. That battery includes release, browser and isolated live-model checks;
+`[FullSweep]` (case insensitive). That battery includes release, browser and isolated live-model checks;
 ordinary documentation or refactor work does not implicitly authorize it.
 
 ## Writing model prompts

@@ -6,6 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import type { ResearchSource } from "@/app/lib/researchFiles";
 import { ResearchFileBar } from "./ResearchFileBar";
 import { useSourcesWorkspace } from "./SourcesWorkspace";
+import { ResearchChatPanel } from "./ResearchChatPanel";
 
 export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
   sourceDropNonce, inline = false, floating = false, rail: titleRail, onReadSource, selectedSourceId }: {
@@ -30,6 +31,16 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
       window.removeEventListener("resize", measure); window.removeEventListener("keydown", escape); };
   }, [floating, open, onOpenChange]);
   const [rail, setRail] = useState<HTMLElement | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState("research");
+  const [wide, setWide] = useState(() => window.matchMedia?.("(min-width: 1600px)").matches ?? false);
+  useEffect(() => {
+    const media = window.matchMedia?.("(min-width: 1600px)");
+    if (!media) return;
+    const change = () => setWide(media.matches);
+    media.addEventListener?.("change", change);
+    return () => media.removeEventListener?.("change", change);
+  }, []);
   const { loading: restoring, error: restoreError, retry } = useSourcesWorkspace();
   const body = restoring ? <p role="status" className="py-4 text-sm text-gray-600">Opening workspace…</p>
     : restoreError ? <div className="space-y-3 py-4">
@@ -53,10 +64,17 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
     className={`${open ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pb-3`}>
     {body}
   </section>;
-  return <AssistantDock
-    tabs={[{ id: "research", label: "Workspace", title: restoring || restoreError ? "Workspaces"
+  const researchTab = { id: "research", label: "Workspace", title: restoring || restoreError ? "Workspaces"
       : <span ref={setRail} className="block min-w-0 flex-1" />,
-      content: <section aria-label="Research collection" className="h-full min-h-0 overflow-hidden px-3 pb-3">{body}</section> }]}
-    activeTabId="research" onActivateTab={() => undefined} expanded={open}
-    onExpandedChange={onOpenChange} showCollapsedButton={false} defaultWidth={400} minWidth={300} maxWidth="40%" />;
+      actions: <Button variant="outline" onClick={() => { setChatOpen(true); setActivePanel("chat"); }}>Chat</Button>,
+      content: <section aria-label="Research collection" className="h-full min-h-0 overflow-hidden px-3 pb-3">{body}</section> };
+  const chatTab = { id: "chat", label: "Chat", content: <ResearchChatPanel /> };
+  return <><AssistantDock
+    tabs={!wide && chatOpen ? [researchTab, chatTab] : [researchTab]}
+    activeTabId={!wide && chatOpen ? activePanel : "research"} onActivateTab={setActivePanel} expanded={open || !wide && chatOpen}
+    onExpandedChange={(next) => { onOpenChange(next); if (!next) setChatOpen(false); }}
+    showCollapsedButton={false} defaultWidth={400} minWidth={300} maxWidth="40%" />
+    {wide && <AssistantDock tabs={[chatTab]} activeTabId="chat" onActivateTab={() => undefined}
+      expanded={chatOpen} onExpandedChange={setChatOpen} showCollapsedButton={false}
+      defaultWidth={440} minWidth={320} maxWidth="40%" />}</>;
 }

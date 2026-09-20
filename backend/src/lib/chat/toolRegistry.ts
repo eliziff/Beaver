@@ -38,6 +38,8 @@ export type BeaverToolPolicy = {
   activityCitations?: (input: Record<string, unknown>) => Record<string, unknown>[];
 };
 export type BeaverTool<Context> = Tool & BeaverToolPolicy & {
+  /** Application-owned submissions may defer a malformed item for isolated repair. */
+  onInvalidInput?: (input: Record<string, unknown>, detail: string) => BeaverOutcome;
   execute(
     input: Record<string, unknown>,
     context: Context,
@@ -260,6 +262,8 @@ export class TurnToolRegistry<Context> {
     };
     const checked = compiled.input(call.input);
     if (!checked.valid) {
+      if (compiled.tool.onInvalidInput) return { call,
+        outcome: compiled.tool.onInvalidInput(call.input, checked.errorMessage ?? "Invalid arguments") };
       // Rejected arguments never reach the tool, so log them here or the failure is invisible.
       console.error("[assistant-tool] rejected arguments",
         { tool: call.name, detail: checked.errorMessage?.slice(0, 500) });

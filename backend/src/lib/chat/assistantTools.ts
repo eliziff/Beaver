@@ -211,6 +211,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
     research_action: { type: "object", description:
       "Use {type:'create',title} without document_id, then reuse its returned resource as document_id. " +
       "Read an existing research file before changing it. " +
+      "{type:'organize',request,proposalId?} creates an editable organization proposal inline in this chat without applying labels. Use this for organization requests and subsequent corrections; include the latest pending proposalId to revise it. The organizer receives earlier proposals, feedback and saved user edits. " +
       "{type:'file-findings',references:[reference from Read findings],typeId:label_id} files original supporting passages under the chosen label. " +
       "{type:'save'} with top-level evidence_ids/query_ids saves verified evidence and returns " +
       "saved:[{evidence_id,source_id}] for annotation; " +
@@ -1505,6 +1506,7 @@ export type AssistantToolsDependencies = {
   projects: ProjectStore;
   workProducts: Pick<WorkProductApplication, "create" | "get" | "list" | "resolve">;
   model?: string;
+  reasoningEffort?: string;
   turnId?: string;
   chatId?: string;
   audit?: AuditStore["record"];
@@ -1565,6 +1567,7 @@ export function assistantTools<Context extends {
     projects,
     workProducts,
     model = "assistant",
+    reasoningEffort,
     turnId,
     chatId,
     audit,
@@ -1980,6 +1983,21 @@ export function assistantTools<Context extends {
       ...researchOperation, callId: call.id };
     const edit = turnEditState?.get(documentId), versionId = edit?.versionId ?? trimmed(input.version_id);
     if (!edit) return fail("Read the research file before changing it");
+    if (command.type === "organize") {
+      const request = trimmed(command.request), proposalId = trimmed(command.proposalId);
+      if (!request || request.length > 4_000) return fail("organize requires instructions of at most 4000 characters");
+      const preview = await sources.previewLabels(scope, documentId, { request, model, reasoningEffort, conversationId: chatId,
+        repropose: true, ...(proposalId ? { proposalId } : {}),
+        ...(researchContext?.restricted ? { selection: { target: "sources",
+          sourceIds: researchContext.subjects?.map(({ sourceId }) => sourceId) ?? [] } } : {}) }, signal);
+      const saved = await sources.get(scope, documentId);
+      if (!saved) return fail("Sources workspace not found");
+      Object.assign(edit, { versionId: saved.versionId, workingRevision: saved.workingRevision });
+      return mutationResult({ ok: true, action: "updated", status: "pending", document_id: documentId,
+        version_id: saved.versionId, filename: saved.document.filename, proposal_id: preview.proposalId,
+        title: preview.title, design: preview.design,
+        resource: resourceReference.document(documentId, saved.versionId) });
+    }
     if (command.type === "file-findings") {
       const saved = await sources.saveFindings(scope, documentId, {
         references: researchFindingReferenceSchema.array().min(1).max(500).parse(command.references),

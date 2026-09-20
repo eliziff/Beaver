@@ -146,11 +146,65 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             assert len(tree.find_elements(By.CSS_SELECTOR, f"[role='treeitem'][aria-label='{filename}']")) == 1
             assert "Unsorted" not in tree.text and "Unclassified" not in tree.text
             screenshot("02-research-rail.png")
+            print("Sources dock: workspace chat shares the research surface", flush=True)
+            click_text(driver, "Chat")
+            visible(driver, By.CSS_SELECTOR, "select[aria-label='Workspace chat']")
+            click_text(driver, "New chat")
+            chat_choice = visible(driver, By.CSS_SELECTOR, "select[aria-label='Workspace chat']")
+            report["chatId"] = WebDriverWait(driver, 30).until(lambda _: chat_choice.get_attribute("value"))
+            screenshot("03-workspace-chat-tabs.png")
+            driver.set_window_size(1920, 1080)
+            WebDriverWait(driver, 30).until(lambda page: len([node for node in page.find_elements(
+                By.CSS_SELECTOR, "[data-assistant-dock]") if node.is_displayed()]) == 2)
+            visible(driver, By.CSS_SELECTOR, "section[aria-label='Research collection']")
+            visible(driver, By.CSS_SELECTOR, "select[aria-label='Workspace chat']")
+            screenshot("04-workspace-chat-beside.png")
+            # A substantial four-level draft exercises disclosure without private research or a model call.
+            labels = []
+            for subject in ("Fairness", "Remedies", "Procedure"):
+                branch = {"id": str(uuid4()), "name": subject, "members": [], "children": []}
+                labels.append(branch)
+                for issue in range(1, 3):
+                    child = {"id": str(uuid4()), "name": f"Issue {issue}", "members": [], "children": []}
+                    branch["children"].append(child)
+                    for outcome in ("Established", "Not established"):
+                        result = {"id": str(uuid4()), "name": outcome, "members": [], "children": []}
+                        child["children"].append(result)
+                        for reason in range(1, 3):
+                            result["children"].append({"id": str(uuid4()), "name": f"Reason {reason}", "members": [], "children": []})
+            labels[0]["members"] = [source["id"]]
+            draft = api("POST", f"/api/source-workspaces/{research_id}/labels/preview", {
+                "conversationId": report["chatId"], "design": {
+                    "title": "Fairness research", "sourceLabels": labels, "highlightTypes": []}})
+            assert draft["proposalId"]
+            driver.refresh()
+            click_text(driver, "Chat")
+            visible(driver, By.XPATH, "//summary[contains(., 'Fairness research')]")
+            name = visible(driver, By.XPATH, "//label[contains(., 'Proposal title')]/input")
+            name.send_keys(Keys.CONTROL, "a")
+            name.send_keys("Fairness and remedies")
+            click_text(driver, "Save draft")
+            visible(driver, By.XPATH, "//summary[contains(., 'Fairness and remedies')]")
+            screenshot("05-inline-organization-draft.png")
+            click_text(driver, "Expand editor")
+            visible(driver, By.CSS_SELECTOR, "dialog[open]")
+            screenshot("06-expanded-organization-draft.png")
+            click_text(driver, "Close", visible(driver, By.CSS_SELECTOR, "dialog[open]"))
+            for heading in ("Fairness", "Issue 1", "Established"):
+                visible(driver, By.XPATH, f"//summary[normalize-space()='{heading}']").click()
+            visible(driver, By.XPATH, "//summary[normalize-space()='Reason 1']")
+            screenshot("07-deep-organization-branch.png")
+            report["proposalCategories"] = 45
             report["ok"] = True
         except Exception:
             screenshot("failure.png")
             raise
         finally:
+            if report.get("chatId"):
+                try:
+                    api("DELETE", f"/api/chat/{report['chatId']}")
+                except Exception as error:
+                    report["cleanupError"] = str(error)
             for key in ("researchId", "documentId"):
                 if key not in report:
                     continue

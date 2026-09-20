@@ -123,7 +123,7 @@ export type OpenCodeGoProtocol = keyof typeof OPENCODE_GO_MODELS;
 
 export const DEFAULT_MAIN_MODEL = "gemini-3-flash-preview";
 export const DEFAULT_TITLE_MODEL = "gemini-3.1-flash-lite-preview";
-export const DEFAULT_TABULAR_MODEL = "gemini-3-flash-preview";
+export const DEFAULT_TABULAR_MODEL = "codex:gpt-5.6-luna";
 
 const ALL_MODELS = new Set(STATIC_MODELS.map(model => model.id));
 

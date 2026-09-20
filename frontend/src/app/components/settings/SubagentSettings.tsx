@@ -33,21 +33,24 @@ export function SubagentSettings() {
             <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
                 Delegate bounded source review when parallel research would materially help. Subagents cannot edit files.
             </p>
-            <AccountSection className="divide-y divide-gray-200 p-0">
-                <label className="flex min-h-16 cursor-pointer items-center justify-between gap-5 px-4 py-3">
+            <AccountSection className="space-y-4 p-4">
+                <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
                     <span className="min-w-0">
                         <span className="block text-sm font-medium text-gray-900">
-                            Subagents
+                            Enable subagents
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+                            Let the assistant delegate bounded source review.
                         </span>
                     </span>
-                    <span className="relative grid h-11 w-12 shrink-0 place-items-center">
-                        <Switch checked={preference.enabled} size="lg"
+                    <span className="relative grid size-11 shrink-0 place-items-center">
+                        <Switch checked={preference.enabled} size="md"
                             disabled={!serverEnabled} ariaLabel="Subagents"
                             onChange={(on) => update({ enabled: on })} />
                     </span>
                 </label>
-                <div className="min-w-0 px-4 py-3">
-                    <p className="mb-1 text-xs font-medium text-gray-600">
+                <div className="min-w-0 space-y-2">
+                    <p className="text-sm font-medium text-gray-900">
                         Model and effort
                     </p>
                     <ModelEffortToggle
@@ -60,7 +63,7 @@ export function SubagentSettings() {
                         disabled={loading || !serverEnabled}
                     />
                 </div>
-                <label className="flex min-h-16 cursor-pointer items-center justify-between gap-5 px-4 py-3">
+                <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
                     <span className="min-w-0">
                         <span className="block text-sm font-medium text-gray-900">
                             Show runs in dock
@@ -69,8 +72,8 @@ export function SubagentSettings() {
                             Keep recent runs in the side gutter when space allows.
                         </span>
                     </span>
-                    <span className="relative grid h-11 w-12 shrink-0 place-items-center">
-                        <Switch checked={preference.showDock} size="lg" tone="dock"
+                    <span className="relative grid size-11 shrink-0 place-items-center">
+                        <Switch checked={preference.showDock} size="md"
                             onChange={(showDock) => update({ showDock })} />
                     </span>
                 </label>
