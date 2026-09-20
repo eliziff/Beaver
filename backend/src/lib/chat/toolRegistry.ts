@@ -3,9 +3,8 @@ import {
   CallToolResultSchema,
   ToolSchema,
   type CallToolResult,
-  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
+import type { NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
 import { safeErrorLog } from "../safeError";
 import { jsonRecord } from "../value";
 import type { AskInputsEvent, AssistantEvent } from "./assistantEvents";
@@ -52,6 +51,7 @@ const schema = (tool: Tool): Tool => ({
   ...(tool.title && { title: tool.title }),
   ...(tool.description && { description: tool.description }),
   inputSchema: tool.inputSchema,
+  ...(tool.strict !== undefined && { strict: tool.strict }),
   ...(tool.outputSchema && { outputSchema: tool.outputSchema }),
   ...(tool.annotations && { annotations: tool.annotations }),
   ...(tool.execution && { execution: tool.execution }),
@@ -125,7 +125,6 @@ export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
   readonly #byName = new Map<string, Compiled<Context>>();
   readonly #active = new Set<string>();
-  #mutated = false;
 
   constructor(tools: BeaverTool<Context>[]) {
     this.#tools = tools.map((candidate) => {
@@ -207,7 +206,6 @@ export class TurnToolRegistry<Context> {
           while (!failed && next < calls.length) {
             const index = next++;
             results[index] = await this.#execute(calls[index], context, signal);
-            this.#mutated ||= results[index].outcome.mutated === true;
             onResult?.(results[index].call, results[index].outcome);
           }
         } catch (error) { failed = true; throw error; }
@@ -223,17 +221,9 @@ export class TurnToolRegistry<Context> {
   ) {
     const results: Execution[] = [];
     for (const call of calls) {
-      let executed = results.some(({ outcome }) => outcome.pause)
+      const executed = results.some(({ outcome }) => outcome.pause)
         ? { call, outcome: failedOutcome("waiting_for_user") }
         : await this.#execute(call, context, signal);
-      if (executed.outcome.pause && this.#mutated) executed = {
-        call,
-        outcome: failedOutcome(
-          "ask_inputs_after_mutation",
-          "ask_inputs must run before document or workflow changes",
-        ),
-      };
-      this.#mutated ||= executed.outcome.mutated === true;
       results.push(executed);
       onResult?.(call, executed.outcome);
     }

@@ -312,7 +312,7 @@ export function useAssistantChat({
         if (Number.isSafeInteger(result.transcriptVersion)) {
           dispatch({ type: "transcript_version_changed", transcriptVersion: result.transcriptVersion! });
         }
-        dispatch({ type: "compaction_changed", status: "completed" });
+        dispatch({ type: "compaction_changed", status: "completed", provider: result.provider, summary: result.summary });
       } catch {
         dispatch({ type: "compaction_changed", status: "failed", error: ASSISTANT_GENERIC_ERROR });
       }
