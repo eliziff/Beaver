@@ -5,6 +5,8 @@ import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
 import { objectSchema as object, type BeaverToolPolicy } from "../toolRegistry";
 
 
+const questionText = (maxLength: number) => ({ type: "string", minLength: 1, maxLength, pattern: "\\S" });
+
 export const ASK_INPUTS_TOOL: Tool = {
   name: "ask_inputs",
   strict: true,
@@ -13,16 +15,16 @@ export const ASK_INPUTS_TOOL: Tool = {
     type: "array", minItems: 1, maxItems: 12,
     items: { anyOf: [
       object({
-        id: { type: "string", description: "Unique short id." },
+        id: { ...questionText(80), description: "Unique short id." },
         kind: { type: "string", enum: ["choice"] },
-        question: { type: "string" },
+        question: questionText(500),
         options: { type: "array", minItems: 1, maxItems: 8,
-          items: object({ value: { type: "string" } }, ["value"]) },
+          items: object({ value: questionText(500) }, ["value"]) },
       }, ["id", "kind", "question", "options"]),
       object({
-        id: { type: "string", description: "Unique short id." },
+        id: { ...questionText(80), description: "Unique short id." },
         kind: { type: "string", enum: ["documents"] },
-        document_types: { type: "array", maxItems: 8, items: { type: "string" } },
+        document_types: { type: "array", maxItems: 8, items: questionText(300) },
       }, ["id", "kind", "document_types"]),
     ] },
   } }, ["items"]),
