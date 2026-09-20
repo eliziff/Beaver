@@ -11,6 +11,7 @@ import { decodeAnnotationSet, emptyAnnotationSet,
 import type { AuthoritiesHost } from './host';
 import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
 import type { AuthoritiesAction, AuthoritiesProduct } from './types';
+import type { PdfRecognizedText } from '@/app/lib/api/documents';
 
 /** Text recognition for one scanned source, watched where the source is being used. */
 export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
@@ -45,6 +46,7 @@ type Choice = { authorityId: string; bindingRole: string; sourceSha256: string; 
 type OpenPdf = {
   bytes: Uint8Array; set: PdfAnnotationSet; history: PdfAnnotation[][]; position: number;
   warning: string; recognized: boolean;
+  recognizedText?: PdfRecognizedText;
 };
 const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string>): Choice[] =>
   product.state.authorityOrder.flatMap(id => {
@@ -93,6 +95,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
   const recognition = ocr.tracked[role];
+  const recognitionDone = recognition?.state === 'done';
   const recognized = recognition?.state !== 'running' && recognition?.state !== 'paused';
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
@@ -127,6 +130,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
       const blob = await host.readSource(base, source.bindingRole);
+      const recognizedText = recognitionDone && host.readSourceText
+        ? await host.readSourceText(base, source.bindingRole, abort.signal) : undefined;
       const bytes = new Uint8Array(await blob.arrayBuffer()); abort.signal.throwIfAborted();
       const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.slice().buffer))]
         .map(value => value.toString(16).padStart(2,'0')).join('');
@@ -151,7 +156,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       }
       abort.signal.throwIfAborted();
       savedMarks.current[role] = set.marks;
-      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning,recognized}}));
+      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning,recognized,recognizedText}}));
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
@@ -224,6 +229,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"
+              recognizedText={current.recognizedText}
               annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit([...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);

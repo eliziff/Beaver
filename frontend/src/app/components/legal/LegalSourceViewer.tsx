@@ -49,6 +49,7 @@ export type LegalSourceTab = {
   language: "en" | "fr";
   citationRef?: number;
   initialLocator?: string | null;
+  initialEvidenceId?: string;
   quotes?: { quote: string }[];
   researchFileId?: string | null;
   researchSourceId?: string | null;
@@ -67,6 +68,7 @@ export type LegalSourceViewerProps = {
   citationRef?: number;
   compact?: boolean;
   initialLocator?: string | null;
+  initialEvidenceId?: string;
   researchFileId?: string | null;
   researchSourceId?: string | null;
   projectId?: string;
@@ -102,11 +104,9 @@ export function normalizeLegalSourceLocator(value: string | null | undefined) {
 }
 
 function marginLabel(anchor: Anchor) {
-  const { label, parentLabel } = anchor;
-  if (anchor.kind === "section" && parentLabel && label.startsWith(parentLabel)) {
-    const relative = label.slice(parentLabel.length);
-    if (/^(?:\([^()]+\))+$/u.test(relative)) return relative;
-  }
+  const { label } = anchor;
+  // Range ownership can point to the whole section rather than the printed parent.
+  if (anchor.kind === "section") return label.match(/\([^()]+\)$/u)?.[0] ?? locatorLabel(label);
   return locatorLabel(label);
 }
 
@@ -138,6 +138,8 @@ function stripMarker(text: string, anchor: Anchor | null) {
   }
   if (anchor?.kind === "section") {
     const label = anchor.label.slice(3);
+    const bold = text.replace(new RegExp(`^\\s*\\*\\*${escapeRegExp(label)}\\*\\*(?=\\s|$)\\s*`, "iu"), "");
+    if (bold !== text) return bold;
     const stripped = text.replace(new RegExp(`^\\s*${escapeRegExp(label).replace(/\\\(/gu, "\\s*\\(")}\\s*`, "iu"), "");
     if (stripped !== text) return stripped;
     const child = label.match(/(\([^)]+\))$/u)?.[1];
@@ -244,6 +246,7 @@ function LegalSourceViewerContent({
   citationRef,
   compact = false,
   initialLocator,
+  initialEvidenceId,
   researchSourceId,
   onOpenResearch,
   onScrollTop,
@@ -319,7 +322,7 @@ function LegalSourceViewerContent({
     const quoteTexts = quotes.map(({ quote }) => quote);
     highlightMatches.current = highlightDocxQuotes(root.current, [...quoteTexts,
       ...savedPassages.map(({ receipt }) => ({ quote: receipt.span_text ?? "",
-        locator: receipt.locator.label }))]);
+        ...(receipt.locator.kind === "document" ? {} : { locator: receipt.locator.label }) }))]);
     root.current.querySelectorAll<HTMLElement>("[data-qspan]").forEach((span) => {
       const item = savedPassages[Number(span.dataset.qspan) - quoteTexts.length];
       if (!item) return;
@@ -352,6 +355,12 @@ function LegalSourceViewerContent({
       const back = requestAnimationFrame(() => { if (root.current) root.current.scrollTop = restoreScrollTop; });
       return () => cancelAnimationFrame(back);
     }
+    const evidence = initialEvidenceId && [...root.current.querySelectorAll<HTMLElement>("[data-research-evidence]")]
+      .find((item) => item.dataset.researchEvidence === initialEvidenceId);
+    if (evidence) {
+      const frame = requestAnimationFrame(() => { if (root.current) scrollTo(root.current, evidence, true); });
+      return () => cancelAnimationFrame(frame);
+    }
     const targetLocator = locator ?? decodeURIComponent(window.location.hash.slice(1)).replace(/^legal-/u, "");
     if (!targetLocator) return;
     const frame = requestAnimationFrame(() => {
@@ -359,7 +368,7 @@ function LegalSourceViewerContent({
       if (root.current && target) scrollTo(root.current, target, true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [locator, payload, navigationRequest, restoreScrollTop]);
+  }, [initialEvidenceId, locator, payload, navigationRequest, restoreScrollTop, savedPassages]);
 
   if (!payload) {
     return <div className="grid h-full place-items-center p-6">
@@ -504,7 +513,7 @@ function LegalSourceViewerContent({
                     contentVisibility: locator ? "visible" : "auto",
                     containIntrinsicSize: "auto 150px",
                     marginInlineStart: payload?.reference.docType === "laws"
-                      ? `${Math.min(slice.depth, 4) * 0.8}rem`
+                      ? `${Math.min(slice.primary?.label.match(/\([^()]+\)/gu)?.length ?? 0, 4) * 0.8}rem`
                       : undefined,
                   }}
                 >

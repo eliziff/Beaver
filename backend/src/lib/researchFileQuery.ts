@@ -341,7 +341,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
         const slices = adapter.legalSourceViewer(passage.documentArtifact,
           source.reference.kind === "legislation" ? "section" : "paragraph", text.length).slices;
         const blocks = slices.length ? slices.map(({ primary, start, end }) => primary ??
-          { kind: "document" as const, label: `characters ${start + 1}-${end}`, start, end })
+          { kind: "document" as const, label: `line ${start + 1}-${end}`, start, end })
           : adapter.documentAnchors(passage.documentArtifact);
         if (rules.length) {
           const captures: Capture[] = [], captureKeys = new Set<string>();

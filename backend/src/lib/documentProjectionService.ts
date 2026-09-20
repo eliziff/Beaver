@@ -681,6 +681,31 @@ async function pdfPassageGeometry(
   return nativePdfPassageGeometry(prepared.document, bytes, targets);
 }
 
+async function pdfTextLayer(
+  readBytes: () => Buffer | Promise<Buffer>,
+  reference: ProjectionReference,
+  options: PdfSourceOptions = {},
+) {
+  const bytes = await readBytes();
+  const prepared = await preparedForSource(() => bytes, reference, options);
+  const native = structureNative();
+  const pages = Array.from({ length: prepared.summary.pageCount }, (_, index) => index + 1);
+  const result: Array<{ pageNumber: number; width: number; height: number;
+    lines: Array<{ id: string; rect: [number, number, number, number];
+      words: Array<{ text: string; rect: [number, number, number, number] }> }> }> = [];
+  for (let offset = 0; offset < pages.length; offset += 100) {
+    const batch = pages.slice(offset, offset + 100);
+    const raw = await native.pdfPassageGeometryPages(prepared.document, bytes,
+      batch.map((page) => ({ id: String(page), locatorKind: "page", locator: String(page) })));
+    for (const target of raw.targets) for (const page of target.pages) {
+      if (page.source !== "unavailable" && page.lines.length) result.push({
+        pageNumber: page.pageNumber, width: page.width, height: page.height, lines: page.lines,
+      });
+    }
+  }
+  return result;
+}
+
 async function preparedForEvidence(
   handle: string,
   expected: ProjectionReference,
@@ -706,6 +731,7 @@ export const documentProjectionService = Object.freeze({
   preparePdf,
   lookupPdf,
   pdfPassageGeometry,
+  pdfTextLayer,
   async rehydratePdfEvidence(handle: string, expected: ProjectionReference) {
     const { document, receipt } = await preparedForEvidence(handle, expected);
     return rehydratePdfEvidence(document, receipt);
