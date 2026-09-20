@@ -1,3 +1,4 @@
+import { sha256 } from "../hash";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { textField } from "../textField";
@@ -35,7 +36,7 @@ import { isImageDocumentType, MAX_CHAT_IMAGES, toLlmImage } from "../llm/images"
 import { compactionThresholdForModel } from "../llm/contextWindow";
 import { compactChatContext } from "./contextCompaction";
 import { formatChatMessageContent } from "./messageFormatting";
-import { projectChatTranscript } from "./chatTranscript";
+import { projectChatTranscript, workflowForContinuation } from "./chatTranscript";
 import { availableDocumentsPrompt } from "./resourceTools";
 import {
   createLegalEvidenceTurnState,
@@ -264,7 +265,7 @@ const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
 const CHAT_PROGRESS_CHECKPOINT_MS = 30_000;
 const INTERRUPTED_TURN_MESSAGE =
   "This response was interrupted before it finished and is being retried.";
-const REPLACEABLE_EVENT_TYPES = new Set(["workflow_run", "subagent_run", "tool_activity"]);
+const REPLACEABLE_EVENT_TYPES = new Set(["workflow_run", "subagent_run", "tool_activity", "model_messages"]);
 const TRANSIENT_EVENT_TYPES = new Set(["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]);
 function pendingAskInputs(messages: ChatMessageRecord[]) {
   const assistant = [...messages].reverse().find(({ role }) => role === "assistant");
@@ -536,8 +537,9 @@ export function createChatApplication(deps: Dependencies) {
       }));
       const tabularPrompt = tabularDetail ? tabularChatPrompt(tabularDetail) : undefined;
       const features = await deps.features.load(auth);
-      const submittedWorkflow = input.current_turn.kind === "message"
-        ? input.current_turn.workflow : undefined;
+      const pending = input.current_turn.kind === "ask_inputs_response" ? pendingAskInputs(rows) : null;
+      const submittedWorkflow = input.current_turn.kind === "message" ? input.current_turn.workflow
+        : pending ? workflowForContinuation(rows, pending.assistant.id) : undefined;
       const registeredWorkflow = submittedWorkflow
         ? features.workflows?.get(submittedWorkflow.variant_id ?? submittedWorkflow.id) : undefined;
       if (submittedWorkflow &&
@@ -549,8 +551,6 @@ export function createChatApplication(deps: Dependencies) {
           ...(submittedWorkflow.variant_id && { variant_id: submittedWorkflow.variant_id }),
           title: registeredWorkflow.title }
         : undefined;
-      const pending = input.current_turn.kind === "ask_inputs_response"
-        ? pendingAskInputs(rows) : null;
       let assistant = pending?.assistant;
       let assistantContent = Array.isArray(assistant?.content)
         ? [...assistant.content] : [];
@@ -641,7 +641,7 @@ export function createChatApplication(deps: Dependencies) {
           : row)
         .filter((row) => !(retry && turnId &&
           row.role === "assistant" && row.turn_id === turnId));
-      const messages = projectChatTranscript(transcriptForModel, responseProvider);
+      const messages = projectChatTranscript(transcriptForModel, responseProvider, selectedModel);
       if (!retry && input.current_turn.kind === "message") messages.push({
         role: "user",
         content: input.current_turn.content,
@@ -832,6 +832,7 @@ ${registeredWorkflow.skill_md}` : "",
           content: formatChatMessageContent(message, slugByDocumentId),
           images: imageForMessage(message, images),
           contextCheckpoint: message.contextCheckpoint,
+          modelState: message.modelState,
         }));
       const assistantId = assistant?.id ?? randomUUID();
       function queuePersist(events: AssistantEvent[], citations: unknown[] = [], force = false) {
@@ -915,7 +916,7 @@ ${registeredWorkflow.skill_md}` : "",
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,
           compactThreshold: compactionThresholdForModel(selectedModel),
-          promptCacheKey: providerSession?.promptCacheKey,
+          promptCacheKey: providerSession?.promptCacheKey ?? sha256(JSON.stringify([auth.userId, chat.id, selectedModel])),
           signal,
           prepareMessages: async (onCompaction) => {
             const prepared = await compactChatContext({
@@ -945,6 +946,7 @@ ${registeredWorkflow.skill_md}` : "",
           onProviderControl: sink.setControl,
           canRetryProviderSession: () => !localTools.mutationCommitted(),
           onSubagentEvent,
+          onModelMessages: event => queuePersist([event], [], true),
         });
         activeContinuationId = result.continuationId ?? activeContinuationId;
         await persistence;

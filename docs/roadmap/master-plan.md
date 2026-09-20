@@ -2,8 +2,8 @@
 
 This is the single project-wide priority and status list. Current contracts live
 in [the documentation index](../README.md); focused plans below retain their
-acceptance requirements. Reviewed against published code on September 7, 2026.
-Implementation present, focused validation and release readiness are distinct.
+acceptance requirements. Implementation present, focused validation and release
+readiness are distinct; the document-engine direction was revised on September 19, 2026.
 
 ## Priorities and remaining gates
 
@@ -11,7 +11,7 @@ Implementation present, focused validation and release readiness are distinct.
 | --- | --- | --- |
 | 1 | [Application boundaries](application-boundaries.md) and [document storage](document-versioning.md) | Existing application/persistence owners are the foundation. Finish remaining policy cuts, version/blob lifecycle proof and exact process/native identities; do not recreate the displaced Authorities gateway. |
 | 2 | [Shared document structure](document-structure.md) | The standalone Rust engine exists. Preserve primary profiles and quotation ownership; separately establish compound-document gold and gate the exact structure/parser/Inspector/Beaver combination. |
-| 3 | [Document capabilities](document-capabilities.md) | Complete exact-target Word operations, linking and quotation workflows under their separate kernel, agent, live-Word and accepted-legal-gold gates. A tool or demo is not full property coverage. |
+| 3 | [Document capabilities](document-capabilities.md) | Semantic composition and surgical edits remain the efficient path. LibreOffice/UNO now has a cross-platform programmable document console, native tracked/direct candidates, selective review and version-safe publication. Real Windows/macOS/Linux and isolated Linux-container checks exist. Expand compatibility and combined persistence/browser coverage, not another engine or Word-required cloud runtime. |
 | 4 | [Legal work products](legal-work-products.md) | Authorities uses the TypeScript core in embedded/standalone hosts, with review and editable highlights. Close reference parity, durable binding/reopen and exact court-output/browser gates; do not claim all profiles filing-ready. |
 | 5 | [Saved research](research-sets.md) | Research-file foundations, the current Sources/Memo/Table UI and conversion routes are present. Remaining work is end-to-end round trips, configured live layout quality, scale/performance and Library polish—not recreating the historical overhaul. |
 
@@ -34,12 +34,12 @@ queries, UI and persistence. Exact receipts are version-bound; untrusted sources
 cannot authorize effects. Structure semantics, PDF mechanics and application
 policy keep their separate owners.
 
-Retain one UI/core across standalone and embedded work products, and shared Word
-operation contracts across Library/live-host executors. Respect Git links, locks,
-bundles and native identities. No migrations/compatibility layers unless requested,
-second research/ontology store, feature SDK, plugin marketplace or graph framework.
-Vectors need held-out benefit, not speculative adoption. Do not turn a refactor
-into experiment cleanup.
+Retain one UI/core across standalone and embedded work products. Word document
+work must not require Microsoft Word in the cloud; the existing live add-in is
+optional and unchanged. Respect Git links, locks, bundles and native identities.
+No migrations/compatibility layers unless requested, second research/ontology
+store, feature SDK, plugin marketplace or graph framework. Vectors need held-out
+benefit, not speculative adoption. Do not turn a refactor into experiment cleanup.
 
 Preserve accessibility and actual browser/dock proof. No court login, payment,
 filing, service or docket automation; no automated CanLII acquisition. Metered

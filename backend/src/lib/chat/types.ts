@@ -23,6 +23,7 @@ export type ChatMessage = {
   workflow?: { id: string; variant_id?: string; title: string };
   /** Resolved server-side from file references; never accepted as raw client bytes. */
   images?: LlmImage[];
+  modelState?: LlmMessage["modelState"];
   /** Internal provider continuation metadata; never accepted from the browser. */
   contextCheckpoint?: LlmMessage["contextCheckpoint"];
 };
