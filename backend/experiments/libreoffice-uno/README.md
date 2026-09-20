@@ -37,7 +37,7 @@ budgets, without Node, Python eval, imports, filesystem or network APIs.
 | --- | --- |
 | `object.get(name)` or `get([names])` | Read up to 32 properties; native multi-property reads share a character cursor. |
 | `object.set(values)` / `call(method,...args)` | Native properties and discoverable document-local methods. |
-| `object.items(offset=0,limit=20)` | Page collections as `{items:[{name,value}],next_offset,total}` with reusable object handles. |
+| `object.items(offset=0,limit=20,properties=[])` | Page reusable handles and up to 32 chosen properties per object in one call; rows contain `name`, `value`, and optional `properties`. |
 | `object.describe(filter,offset,limit)` | Paged native signatures/types; metadata is cached only within this program. |
 | `word.target(address)` / `word.inspect(query)` | Resolve targets or inspect a family; `properties` plus `include_text:false` omits text. |
 | `word.create(service)` / `word.constant(name)` | Document-local factories and native named constants. |
@@ -67,6 +67,10 @@ table ranges expose native `getDataArray`/`setDataArray` for bulk rows; select t
 rectangle with `table.call('getCellRangeByName','A1:B3')`, then call the array method.
 
 ## Preservation and review
+
+Receipts give mutating-call counts, at most 20 operation summaries, and exact
+revision counts, not text diffs. Inspect the candidate or page its revisions for
+details; return chosen before/after values from the program when useful.
 
 The user's application setting owns tracked/direct mode. Every preview verifies
 a no-edit round trip, exports/reopens the candidate, and checks ordered story

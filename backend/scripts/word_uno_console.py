@@ -159,10 +159,6 @@ class Broker:
         if target: self.targets[key] = target
         return {'ref': key}
 
-    def obj(self, key):
-        if key in self.refs: return self.refs[key]
-        return resolve(self.doc, key)
-
     def info(self, obj):
         key = id(obj)
         if key not in self.metadata: self.metadata[key] = (obj, self.introspection.inspect(obj))
@@ -185,7 +181,7 @@ class Broker:
         self.calls += 1
         if self.calls > 4000: raise ValueError('Native operation budget exhausted')
         op, target = command.get('op'), command.get('target', 'doc')
-        obj = self.obj(target)
+        obj = self.refs[target] if target in self.refs else resolve(self.doc, target)
         if op == 'target': return self.save(obj, target)
         if op == 'inspect':
             query = command.get('query', {})
@@ -217,8 +213,13 @@ class Broker:
             self.find_scopes[found] = self.find_scopes.get(obj, obj)
             return self.save(found)
         if op == 'items':
+            properties = command.get('properties', [])
+            if not isinstance(properties, list) or len(properties) > 32: raise ValueError('Select at most 32 properties')
+            for name in properties: check_name(name)
             entries, pagination = page(lambda start: enumerate_values(obj, start), command)
-            return {'items': [{'name': name, 'value': self.save(value)} for name, value in entries], **pagination}
+            return {'items': [{'name': name, 'value': self.save(value),
+                **({'properties': self.save(read_properties(value, properties))} if properties else {})}
+                for name, value in entries], **pagination}
         if op == 'get':
             names = command['name']
             if isinstance(names, list):
@@ -232,17 +233,16 @@ class Broker:
             for name, value in values.items():
                 check_value(name, value)
                 subject = property_object(obj, name)
-                before = encode(getattr(subject, name))
                 requested = decode(value, self.refs)
                 setattr(subject, name, requested)
                 after, expected = encode(getattr(subject, name)), encode(requested)
                 if after != expected and not (name == 'String' and self.doc.RecordChanges):
                     raise ValueError('Writer did not retain property ' + name)
                 if name == 'String': after = expected
-                if target not in self.scratch:
-                    self.changes.append({'target': self.targets.get(target, target), 'property': name, 'before': before, 'after': after})
                 if target in self.targets or name != 'String' and obj in self.find_scopes:
                     self.checks.setdefault(obj, {})[name] = after
+            if target not in self.scratch:
+                self.changes.append({'target': self.targets.get(target, target), 'properties': list(values)})
             return None
         if op == 'constant':
             name = command.get('name', '')
@@ -284,7 +284,7 @@ class Broker:
             for author, kind, text in removed:
                 tag = {'Insert':'ins', 'Delete':'del'}.get(kind)
                 if tag: self.removed_review[(tag,author,text)] += 1
-            self.changes.append({'targets': targets, 'review': command.get('decision')})
+            self.changes.append({'review': command.get('decision'), 'count': len(removed)})
             return True
         raise ValueError('Unknown document console operation')
 
@@ -414,9 +414,7 @@ def transact(source, output, request, binary, interact):
             reopened = load(desktop, output)
             try:
                 if native_state(reopened) != expected: raise ValueError('Export/reopen changed text, ordering or structural objects')
-                revisions = [{'target': 'revision:'+str(i), 'author': who, 'type': kind, 'text': text[:2000]}
-                             for i, (who, kind, text) in enumerate(expected['revisions'])]
-                new_indices = [i for i,r in enumerate(revisions) if r['author'] == author]
+                new_indices = [i for i, (who, _, _) in enumerate(expected['revisions']) if who == author]
                 verify_properties(reopened, raw_checks)
                 if mode == 'tracked' and new_indices and checks:
                     accepted = load(desktop, output)
@@ -440,9 +438,9 @@ def transact(source, output, request, binary, interact):
         return {'ok': True, 'snapshot': source_hash, 'candidate_sha256': sha256(output.read_bytes()).hexdigest(),
                 'engine_version': version, 'mode': mode + '-candidate', 'reopened': True,
                 'review_verified': mode == 'tracked',
-                'changes': broker.changes[:200], 'change_count': len(broker.changes),
-                'changes_truncated': len(broker.changes)>200, 'native_calls': broker.calls,
-                'revisions': revisions, 'author': author,
+                'changes': broker.changes[:20], 'change_count': len(broker.changes),
+                'changes_truncated': len(broker.changes)>20, 'native_calls': broker.calls,
+                'revision_count': len(expected['revisions']), 'new_revision_count': len(new_indices), 'author': author,
                 'changed_parts': [n for n in sorted(set(before_parts)|set(after_parts)) if before_parts.get(n)!=after_parts.get(n)],
                 'warning': 'LibreOffice compatibility and tested native postconditions, not universal Word-identical fidelity.'}
     except BaseException:

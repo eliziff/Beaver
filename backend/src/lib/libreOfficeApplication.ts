@@ -79,7 +79,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
       options.onPublished(source.meta.id, version.id, version.working_revision, source.file.version.id);
       const outcome = artifact(source.meta.id, version.id, version.version_number, source.file.filename,
         "edited", { ok: true, mode: raw.mode, preview_resource: preview.reference,
-          revisions: raw.report.revisions, review_verified: raw.report.review_verified });
+          revision_count: raw.report.revision_count, review_verified: raw.report.review_verified });
       published.set(key, outcome);
       return outcome;
     }
@@ -88,7 +88,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     if (input.action === "preview" && (!unchanged() || input.snapshot !== sourceSha256))
       throw new Error("Preview requires an inspected current snapshot");
     if (input.action === "preview" && (typeof input.program !== "string" || !input.program.trim()))
-      throw new Error("preview requires a JavaScript program; use word.batch for exact replacements");
+      throw new Error("preview requires a JavaScript program; use object.find(literal).set(values) for exact edits");
     const { file_path: _path, preview_resource: _preview, ...request } = input;
     const result = await execute(source.file.bytes, { ...request, mode,
       ...(input.program !== undefined ? { snapshot: sourceSha256 } : {}) }, signal);
