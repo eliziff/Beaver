@@ -5,17 +5,16 @@ import { useState, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ModalSelect } from "@/app/components/modals/ModalSelect";
 import { Tabs } from "@/app/components/ui/tabs";
-import { ApiKeySettings } from "./ApiKeySettings";
 import { JurisdictionPreferenceEditor } from "./JurisdictionPreferenceEditor";
 import { SubagentSettings } from "./SubagentSettings";
 import { isLocalMode } from "@/app/lib/authMode";
 import { AccountSection } from "@/app/(pages)/account/AccountSection";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { DraftingStyleSettings } from "./DraftingStyleSettings";
-import { DisplaySettings } from "./DisplaySettings";
+import { DisplaySettings, ModelProviderSettings } from "./DisplaySettings";
 import { WorkflowFileTargetSettings } from "./WorkflowFileTargetSettings";
 
-const TABS = ["General", "Display", "Drafting", "Providers", "Subagents"] as const;
+const TABS = ["General", "Display", "Drafting", "Model Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
 const TAB_OPTIONS = TABS.map((value) => ({ value, label: value }));
 
@@ -97,7 +96,17 @@ export function AppSettingsModal({
                 </AccountSection>
             </section>
         ),
-        Providers: <ApiKeySettings />,
+        "Model Providers": (
+            <section>
+                <h2 className="mb-1 text-base font-semibold text-gray-900">Model Providers</h2>
+                <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
+                    Turn off a provider to hide it from the model picker.
+                </p>
+                <AccountSection className="p-4">
+                    <ModelProviderSettings />
+                </AccountSection>
+            </section>
+        ),
         Subagents: <SubagentSettings />,
     };
 

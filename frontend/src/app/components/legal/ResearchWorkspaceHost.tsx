@@ -12,7 +12,7 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
   embedded: boolean; open: boolean; onOpenChange: (open: boolean) => void;
   projectId?: string; sourceDropNonce?: number;
   inline?: boolean; floating?: boolean; rail?: HTMLElement | null;
-  onReadSource?: (source: ResearchSource, locator?: string) => void;
+  onReadSource?: (source: ResearchSource, locator?: string, evidenceId?: string) => void;
   selectedSourceId?: string;
 }) {
   /** Opened from inside a dock there is no room to nest in: the workspace floats beside it instead,

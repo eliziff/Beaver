@@ -39,9 +39,12 @@ export function readerSelectionSpan(root: HTMLElement, selection: Selection | nu
   return readerRangeSpan(root, selection.getRangeAt(0), slices);
 }
 function readerRangeSpan(root: HTMLElement, range: Range, slices: ReaderSlice[]) {
+  const alignments = new Map<HTMLElement, ReturnType<typeof alignment>>();
   const edge = (node: Node, offset: number, trailing: boolean) => {
     const element = node instanceof Element ? node : node.parentElement,
-      body = element?.closest<HTMLElement>("[data-legal-text]"), found = body && alignment(body, slices);
+      body = element?.closest<HTMLElement>("[data-legal-text]");
+    if (body && !alignments.has(body)) alignments.set(body, alignment(body, slices));
+    const found = body ? alignments.get(body) : null;
     if (!body || !root.contains(body) || !found) return null;
     const upto = document.createRange(); upto.selectNodeContents(found.body); upto.setEnd(node, offset);
     const count = normalizeSelectionText(upto.toString()).length;

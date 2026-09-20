@@ -13,6 +13,8 @@ import { authorityName, authorityCitationForms, requiresBilingualSources,
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
 import type { AuthoritiesSourceIssue } from "./host";
+import { SourceOcrProgress } from "./AuthoritiesHighlightEditor";
+import type { SourceOcrPanel } from "./sourceOcr";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export type AuthorityPanelProps = {
@@ -27,6 +29,7 @@ export type AuthorityPanelProps = {
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
   onPickMany?: () => void; onLibraryAdd?: () => void; onFiles?: (files: File[]) => void;
+  ocr?: SourceOcrPanel;
 };
 export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft: AuthoritiesProduct }) {
   return <SourcePanel {...props} state={draft.state} />;
@@ -34,7 +37,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity }: PanelProps) {
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
@@ -68,7 +71,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAction={onAction} onPick={onPick ? () => onPick(authority.id) : undefined}
           onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
-          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)} />)}
+          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
         {!authorities.length && <p className="px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
@@ -80,7 +83,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onEditIdentity, order }: {
+  onRelink, onOpen, onEditIdentity, order, ocr }: {
   order: string[];
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
@@ -88,6 +91,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
   onOpen?: (role: string) => void; onEditIdentity: () => void;
+  ocr?: SourceOcrPanel;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const styleOfCause = authority.displayName || authority.name || "";
@@ -184,6 +188,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         const file = event.target.files?.[0]; event.target.value = "";
         if (file) onAttach(file);
       }} />
+    {sources.some(({ bindingRole }) => ocr?.tracked[bindingRole]) &&
+      <div className="col-start-3 col-end-[-1] min-w-0 pb-1">
+        {sources.map(({ bindingRole }) => ocr?.tracked[bindingRole] &&
+          <SourceOcrProgress key={bindingRole} ocr={ocr} status={ocr.tracked[bindingRole]} />)}
+      </div>}
   </article>;
 }
 

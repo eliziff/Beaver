@@ -14,7 +14,7 @@ export const sourceMatches = (source: ResearchSource, filter: string) => !filter
     .join(" ").toLowerCase().includes(filter.toLowerCase());
 type Reading = { citation: Citation; reference?: ResearchSource["reference"] };
 type PassagePages = ReturnType<typeof usePagedChains<ResearchPageItem>>;
-type ReadSource = (source: ResearchSource, locator?: string) => void;
+type ReadSource = (source: ResearchSource, locator?: string, evidenceId?: string) => void;
 
 /** Opens saved sources and passages in the reader, resolving the exact saved passage first. */
 export function useSourceReader({ file, passagePages, onReadSource, onStatus }: { file: ResearchFile | null;
@@ -34,7 +34,7 @@ export function useSourceReader({ file, passagePages, onReadSource, onStatus }: 
    *  the panel away, so the workspace beside it keeps its place. */
   async function readSource(source: ResearchSource, locator?: string, evidenceId?: string) {
     if (source.reference.kind !== "document") {
-      if (onReadSource) return onReadSource(source, locator);
+      if (onReadSource) return onReadSource(source, locator, evidenceId);
       const reference = source.reference;
       return setReading({ reference, citation: reference.provider === "journal"
         ? { kind: "public_legal", ref: 1, provider: "journal", identifier: reference.id, title: reference.title ?? null,

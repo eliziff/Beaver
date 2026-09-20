@@ -59,9 +59,9 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     <ActionMenu label="Workspace options" className="shrink-0" items={[
     { label: "Rename", onSelect: () => setRenameOpen(true) },
     { label: "History", onSelect: onHistory },
-    { label: "Suggest organization…", onSelect: () => {
+    { label: "Suggest labels…", onSelect: () => {
       setStatus(""); void workspace.chat().then(({ path }) => navigate(path, { state: { assistantIntent: assistantIntent(
-        "Suggest a simpler organization of this research using its existing sources and saved highlights. Keep whole-source labels separate from highlight types. Present the changes as a proposal for me to approve; do not apply them or save additional passages.") } }))
+        "Suggest labels for this research using its existing sources and saved passages. Keep source labels separate from highlight types. Show me the proposed changes before applying them; do not save anything yet.") } }))
         .catch((reason) => setStatus(errorMessage(reason, "Could not open research chat")));
     } },
     { label: "Open another", onSelect: () => setOpen(true) },

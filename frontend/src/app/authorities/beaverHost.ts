@@ -23,7 +23,7 @@ import {
   listWorkProducts,
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
-import { directoryResource, downloadDocument } from "@/app/lib/api/documents";
+import { directoryResource, downloadDocument, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
@@ -90,6 +90,13 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
       : input?.status === "changed" ? input.current : null;
     if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
     return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
+  },
+  async readSourceText(draft, role, signal) {
+    const input = (await getWorkProductResolution(draft.id)).inputs[role];
+    const resolved = input?.status === "ready" ? input.resolved
+      : input?.status === "changed" ? input.current : null;
+    if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
+    return getDocumentPdfTextLayer(resolved.documentId, resolved.versionId, signal);
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),

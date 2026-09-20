@@ -824,7 +824,7 @@ export function CourtRecordsWorkspace({ host, headerActions, onDraftChange, refr
   const initialKind = firstInput && !firstInput.repeatable && sourceKindMayFillCover(firstInput.id)
     ? firstInput : undefined;
   const awaitingSource = !!initialKind && !entries.some((entry) => entry.kindId === initialKind.id && !entry.descriptionOnly);
-  const compactLayout = awaitingSource || !profile.cover.generated || profile.outputMode === "separate-files";
+  const compactLayout = awaitingSource;
   const remainingKinds = profile.documentKinds.filter((kind) => kind.id !== initialKind?.id &&
     kind.requirement !== "forbidden").map(({ id }) => id);
   const actions = <>{host.outputFolder && <Button type="button" variant="outline"

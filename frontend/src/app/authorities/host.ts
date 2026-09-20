@@ -5,6 +5,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
   AuthoritiesProfileId, AuthoritySourceLanguage } from "./types";
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
+import type { PdfRecognizedText } from "@/app/lib/api/documents";
 
 export type AuthoritiesFile = { file: File; input?: WorkProductInput };
 export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" };
@@ -62,6 +63,7 @@ export interface AuthoritiesHost {
   attachLibraryPdf?(id: string, revision: number, document: Document,
     target: AuthoritiesLibraryPdfTarget): Promise<AuthoritiesProduct>;
   readSource?(draft: AuthoritiesProduct, role: string): Promise<Blob>;
+  readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<PdfRecognizedText>;
   sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
 }

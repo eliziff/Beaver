@@ -86,10 +86,15 @@ pagination or downloading.
   renaming, recolouring and reordering use the same label operations. Choosing the
   drawing type does not filter the source list. Optional source/highlight filters
   narrow the existing list and preserve any narrower carried evidence scope.
+- An open source is headed `Sources › category › source name`. The category
+  breadcrumb returns to that category without clearing the current search query.
 - Highlights stay under their source with brief quoted previews and exact
   pinpoints. Opening a passage keeps its evidence ID and pinned source version.
   Reader marks remain editable; saved marks load progressively without a second
-  previous/next paragraph navigation strip. Full findings and notes remain
+  previous/next paragraph navigation strip. A regular text selection followed by
+  Highlight saves that selection without arming the drawing tool; only a click
+  without a selection toggles the tool. Marks outside detected structure still
+  render, using `line n–n` as the fallback pinpoint. Full findings and notes remain
   available inside the expanded source.
 - Read/search receipts are background evidence, not highlights or findings. A
   bound chat retains all receipts and queries but collects only explicitly saved
@@ -144,8 +149,14 @@ pagination or downloading.
 
 ## Research interoperability
 
-- Sources and Chat Open as Table open ready to propose; Propose a table launches
-  the model's step and shows it working (reading, asking with characters received
+- The Sources legislation reader displays the final provision marker, such as
+  `(a)` for `231(4)(a)`, with one indent per parenthesized level. Decimal labels
+  such as `(6.01)` remain aligned with sibling subsections. Full addresses remain
+  the citation and selection targets; parser text-range ownership does not
+  determine the printed marker.
+- Sources and Chat Open as Table open ready to propose. Table and workspace
+  proposals reuse Chat's activity indicator, preserving the previous preview
+  while a replacement is prepared. It shows progress (reading, asking with characters received
   and elapsed time, checking, one corrected attempt) until the read-only preview. The research question describes the whole table; model columns divide
   it into legal issues, factors and outcomes, never raw passage dumps. Labels,
   highlight types, notes and grounded findings supply the bounded inventory.
