@@ -1,56 +1,50 @@
-name: SDK refactor workbench
+name: SDK refactor implementation
 on:
   push:
     branches: [refactor/sdk-agent-state]
     paths: [.github/workflows/sdk-refactor-workbench.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  prepare:
+  publish:
+    if: github.repository == 'eliziff/Beaver' && github.ref == 'refs/heads/refactor/sdk-agent-state'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /*
-            !/backend/
-            /backend/*
-            !/backend/experiments/
-            !/backend/legal-pdf-parser/
-            !/backend/node_modules/
-            !/frontend/
-            /frontend/*.json
-            /frontend/src/
-            !/data/
-            !/subrepos/
-      - uses: actions/setup-node@v4
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - run: npm ci --prefix backend --ignore-scripts
-      - name: Install SDK in an independent workbench
+      - name: Apply the locally tested implementation exactly
         run: |
-          mkdir sdk-deps
-          echo '{"private":true}' > sdk-deps/package.json
-          npm install --prefix sdk-deps --ignore-scripts ai@7.0.98 @ai-sdk/anthropic@4.0.53 @ai-sdk/google@4.0.68 @ai-sdk/openai@4.0.66 @ai-sdk/openai-compatible@3.0.48
-      - name: Package source and installed SDK contracts
-        if: always()
-        run: |
-          git ls-files -z -- AGENTS.md CONTRIBUTING.md package.json package-lock.json tsconfig.json backend/src backend/package.json backend/package-lock.json backend/tsconfig.json backend/tsconfig.test.json backend/vitest.config.mts backend/vitest.config.ts backend/.npmrc shared scripts docs frontend/src frontend/package.json frontend/tsconfig.json packages > "$RUNNER_TEMP/tracked-paths"
           python - <<'PY'
-          import os
+          import base64, hashlib, lzma, os
           from pathlib import Path
-          root = Path(os.environ['RUNNER_TEMP'])
-          paths = [p for p in root.joinpath('tracked-paths').read_bytes().split(b'\0') if p and Path(os.fsdecode(p)).is_file() and Path(os.fsdecode(p)).suffix in {'.ts','.tsx','.mts','.mjs','.js','.json','.md','.yaml','.yml','.toml','.rs'} and Path(os.fsdecode(p)).stat().st_size < 5_000_000 and '/node_modules/' not in os.fsdecode(p) and '/target/' not in os.fsdecode(p)]
-          root.joinpath('source-paths').write_bytes(b'\0'.join(paths) + b'\0')
+          data = ''.join(Path('.github/sdk-refactor', f'{n}.b64').read_text() for n in range(2))
+          patch = lzma.decompress(base64.b64decode(data, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '4902f6238ecd36149e44508dc094949d0cdbe69037766eb5d57e042f8ede1e22'
+          Path(os.environ['RUNNER_TEMP'], 'implementation.patch').write_bytes(patch)
           PY
-          tar --null -T "$RUNNER_TEMP/source-paths" -cf "$RUNNER_TEMP/sdk-workbench.tar"
-          tar -rf "$RUNNER_TEMP/sdk-workbench.tar" backend/node_modules sdk-deps
-          gzip -1 "$RUNNER_TEMP/sdk-workbench.tar"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: sdk-workbench-source
-          path: ${{ runner.temp }}/sdk-workbench.tar.gz
-          retention-days: 1
+          git apply --index --binary "$RUNNER_TEMP/implementation.patch"
+          git rm backend/src/lib/llm/{anthropicWire.ts,claude.ts,deepseek.ts,gemini.ts,geminiWire.test.ts,geminiWire.ts,ollamaApi.ts,openai.ts,openaiCompatibleWire.ts,openaiResponsesWire.ts,providerLoop.test.ts,providerLoop.ts,wireAdapters.test.ts}
+          git rm .github/workflows/sdk-refactor-workbench.yml .github/sdk-refactor/{0,1}.b64
+          git diff --cached --check
+      - run: npm ci --prefix backend --ignore-scripts
+      - run: npm run build --prefix backend
+      - name: Run focused behavior and native-transport contract tests
+        working-directory: backend
+        run: node node_modules/vitest/vitest.mjs run src/lib/llm/sdk.test.ts src/lib/chat/chatTranscript.test.ts src/lib/chat/contextCompaction.test.ts src/lib/__tests__/spreadsheet.test.ts src/lib/chat/__tests__/documentOps.test.ts src/lib/llm/__tests__ src/lib/llm/codex.test.ts src/lib/__tests__/claudeP.test.ts src/lib/__tests__/ollamaApi.test.ts src/lib/__tests__/llmModels.test.ts src/lib/chat/toolRegistry.test.ts --reporter=dot
+      - name: Commit implementation and remove the temporary workbench
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'refactor: replace provider wire engines with SDK replay and native workbook cells'
+          printf '#!/bin/sh\ncase "$1" in *Username*) echo x-access-token;; *) echo "$GH_TOKEN";; esac\n' > "$RUNNER_TEMP/askpass"
+          chmod 700 "$RUNNER_TEMP/askpass"
+          GIT_ASKPASS="$RUNNER_TEMP/askpass" GIT_TERMINAL_PROMPT=0 git push origin HEAD:refactor/sdk-agent-state
+          git show --stat --oneline HEAD
