@@ -1,90 +1,66 @@
 # LibreOffice/UNO document console
 
-`word_uno` is the main assistant's lazy rich-document tool. Ordinary `Read`,
-`Edit`, deterministic text operations and Markdown `Write` retain their efficient
-paths. No Microsoft Word, new browser editor, document model or agent loop.
+`word_uno` supplements compact `Read`, surgical `Edit` and Markdown `Write`.
+The [tool's help](../../src/lib/chat/libreOfficeTool.ts) owns the console API;
+`describe` discovers the installed UNO interfaces, not a second Beaver catalogue.
 
 ## Runtime
 
 Install LibreOffice Writer with its matching Python bridge. Windows/macOS probe
-the installed application's bundled interpreter where available; Linux normally
-uses `/usr/bin/python3` and `python3-uno`. Overrides: `WORD_UNO_PYTHON`,
-`SOFFICE_BINARY_PATH`, `LIBREOFFICE_BINARY_PATH`, `LIBRE_OFFICE_EXE`.
-Keep `backend/scripts` with the compiled backend. No global Python, registry or
-signing changes. The gateway owns a fresh profile/local pipe and a Windows Job
-Object or POSIX process group; Stop terminates its script and native processes.
+the application's bundled interpreter; Linux normally uses `/usr/bin/python3`
+and `python3-uno`. Overrides: `WORD_UNO_PYTHON`, `SOFFICE_BINARY_PATH`,
+`LIBREOFFICE_BINARY_PATH`, `LIBRE_OFFICE_EXE`. Ship `backend/scripts` with the backend.
+Each job owns a private profile/pipe and Windows Job Object or POSIX process group;
+Stop terminates its script and native processes without touching the user's office.
 
-Cloud: build `backend/uno.Dockerfile` and set `WORD_UNO_CONTAINER_IMAGE` to the
-qualified immutable image digest. `WORD_UNO_CONTAINER_RUNTIME` defaults to Docker.
-The job has no network, read-only root, dropped capabilities, no-new-privileges,
-CPU/memory/PID limits, temporary storage and only its assigned directory mount.
-Do not expose the daemon socket to models. Native local execution restricts
-capabilities but is not an OS sandbox against office-engine vulnerabilities.
+For cloud isolation, build `backend/uno.Dockerfile` and set
+`WORD_UNO_CONTAINER_IMAGE` to a qualified immutable digest. The runtime defaults
+to Docker (`WORD_UNO_CONTAINER_RUNTIME` overrides it). Jobs have no network,
+a read-only root, dropped capabilities, no-new-privileges, resource limits,
+scratch storage and only their assigned mount. Never expose the daemon socket
+to models. Native local execution is not an OS sandbox against engine exploits.
 
-## Interface
+## Editing
 
-Load `word_uno`, request `help`, then inspect a versioned `file_path` for its
-snapshot and targets. `inspect` with `program` runs read-only JavaScript.
-`preview` requires a JavaScript program and the inspected snapshot; `apply`
-publishes its frozen `preview_resource` through existing version checks.
-Compose edits with ordinary JavaScript, not a separate batch language.
+Inspect a versioned `file_path` for its snapshot. `inspect` programs are read-only;
+`preview` runs synchronous JavaScript on that snapshot; `apply` publishes the
+exact frozen `preview_resource`, never a rerun. QuickJS is separately terminable
+and bounded by memory, stack, time, calls and output, without host APIs.
 
-Programs are synchronous function bodies; native calls suspend automatically.
-QuickJS WASM runs on a terminable thread with memory/stack/time/call/output
-budgets, without Node, Python eval, imports, filesystem or network APIs.
+```js
+const [a, b] = word.target(['paragraph:1', 'paragraph:2']);
+a.set({ ParaStyleName: 'Body Text', CharHeight: 18 });
+a.reset(['CharHeight']); // Inherit the style, not an equal-looking direct value.
+b.find('paragraph 12').set({ String: 'paragraph 15' });
+return a.get(['ParaStyleName', 'CharHeight']);
+```
 
-| API | Use |
-| --- | --- |
-| `object.get(name)` or `get([names])` | Read up to 32 properties; native multi-property reads share a character cursor. |
-| `object.set(values)` / `call(method,...args)` | Native properties and discoverable document-local methods. |
-| `object.items(offset=0,limit=20,properties=[])` | Page reusable handles and up to 32 chosen properties per object in one call; rows contain `name`, `value`, and optional `properties`. |
-| `object.describe(filter,offset,limit)` | Paged native signatures/types; metadata is cached only within this program. |
-| `word.target(address)` / `word.inspect(query)` | Resolve targets or inspect a family; `properties` plus `include_text:false` omits text. |
-| `word.create(service)` / `word.constant(name)` | Document-local factories and native named constants. |
-| `word.enum(type,value)` / `struct(type,fields)` / `any(type,value)` | Typed native arguments, including numbering sequences. |
-| `textObject.find(literal)` | Select one exact native range within a paragraph/cell/note/header; refuse missing or ambiguous matches. |
-| `object.expect(values)` | Verify retained objects, selected ranges and attached notes before and after export. |
-| `word.review(targets,decision)` | Selective accept/reject; use a separate program from new edits. |
+Batch targets retain input order and scan paragraphs once. Collection `items`
+can project properties alongside editable handles. Follow `next_offset`; unknown
+counts remain null rather than scanning unseen content. Handles live only within
+a program, not as legal evidence IDs; retain them before edits and reinspect
+indexes afterward. `set` specifies final state in native property groups; use
+separate calls when order matters. Styles expose `ParentStyle`; `reset` removes
+direct formatting. Native default/state methods share the same text-cursor path.
 
-Follow `next_offset` until null. Enumeration pages leave `total` null rather than
-scan an unseen tail or invent a count beyond the end. Indexed/named collections
-fetch only the requested suffix; enumeration-only collections must traverse the
-prefix. Native handles live within one program: retain objects before structural
-edits, then reinspect indexed addresses. They are not durable legal citations.
-Postconditions bind live objects to their final location before export, not the
-index captured before an insertion. Selected ranges retain their native scope
-and exact prefix; removed or unaddressable checked objects fail. Formatting checks
-on found ranges are automatic; use `expect` for newly attached objects. Repeated
-assignments coalesce into final-value checks, without replaying the edit program.
-`String` includes redline deletions; explicit expectations check that raw view.
-The native `writable` metadata does not grant mutation rights to read-only programs.
-Ordinary `Read` supplies final prose.
-`word.mm`/`word.pt` convert geometry to hundredths of a millimetre; fonts use points.
+## Verification
 
-For an exact edit: `word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'})`.
-Retain the returned range to inspect or edit it without counting offsets. Rectangular
-table ranges expose native `getDataArray`/`setDataArray` for bulk rows; select the
-rectangle with `table.call('getCellRangeByName','A1:B3')`, then call the array method.
+The user's setting owns tracked/direct mode. Every preview checks a no-edit round
+trip, export/reopen state, ordered text/stories, tables, bookmarks, drawings and
+property postconditions. Prior reviews/comments, custom XML, bindings and opaque
+assets are protected. Tracked edits must reject back to a normalized no-edit
+control except named volatile metadata. Untrackable edits fail Review mode.
 
-## Preservation and review
+Checks follow retained objects to their final locations. Selected ranges retain
+native scope/prefix witnesses; unaddressable objects fail. Resets also verify
+native DEFAULT_VALUE state after export; later sets on the same object/property
+supersede them. Explicit String assertions use raw redline text, including deletions.
+Receipts carry bounded operation summaries and exact revision counts; inspect
+the candidate for detail. Scope, hashes and compare-and-swap publication apply.
 
-Receipts give mutating-call counts, at most 20 operation summaries, and exact
-revision counts, not text diffs. Inspect the candidate or page its revisions for
-details; return chosen before/after values from the program when useful.
-
-The user's application setting owns tracked/direct mode. Every preview verifies
-a no-edit round trip, exports/reopens the candidate, and checks ordered story
-text, tables, bookmarks, drawings, revisions and targeted properties. Existing
-review/comment text/authors, custom XML, bindings and opaque assets are protected.
-Only tracked editing needs the extra normalized control export: rejecting new
-revisions must restore that control except named volatile metadata. Untrackable
-mixed changes refuse Review mode, never silently become direct changes.
-
-These witnesses are not complete OOXML validation, every anchor/formatting
-property or Word-identical layout. Unsupported round trips fail; discarded XML
-is never pasted back. Active fields/links, macros and embedded objects are refused;
-load disables macros/link updates. Scope, mode, hashes, working revision and
-compare-and-swap publication remain enforced. Apply never reruns the program.
+These checks do not certify all OOXML, anchors or Word-identical layout. Unsupported
+round trips fail without pasting XML back. Active fields/links, macros and embedded
+objects are refused; loading disables macros/link updates.
 
 ## Validation
 
@@ -92,17 +68,12 @@ compare-and-swap publication remain enforced. Apply never reruns the program.
 cd backend
 npx tsx --test experiments/libreoffice-uno/console.node.ts
 npx tsx --test experiments/libreoffice-uno/application.node.ts
-# Isolated Linux cloud path:
 docker build -f uno.Dockerfile -t beaver-uno:test .
 WORD_UNO_CONTAINER_IMAGE=beaver-uno:test npx tsx --test experiments/libreoffice-uno/console.node.ts
 ```
 
-Path-filtered CI runs the real console on Windows x64, macOS ARM64 and Linux x64,
-plus the Linux container; missing runtimes fail. Existing scenarios cover native
-creation, revisions/rejection, restricted access, cancellation, paged collections
-and bulk table operations. Fixtures are built with JSZip using the original XML
-payloads; the container suite no longer needs a host Python/UNO just to build input.
-The application suite uses an injected store/engine, not a real
-database. Remaining qualification: wider real-document fidelity, joined native
-engine/persistence/browser coverage, additional OS/CPU packaging, and live-model
-token/performance measurements. Exact candidate CI evidence belongs in the PR.
+CI runs actual Windows x64, macOS ARM64, Linux x64 and isolated-container paths;
+missing runtimes fail. Application tests use an injected store, not a real database.
+Wider document fidelity, joined native/persistence/browser coverage, other CPU/OS
+packaging and live-model task measurements remain qualification work. Exact-head
+results and reproducible performance evidence belong in the PR.
