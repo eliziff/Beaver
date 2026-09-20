@@ -53,10 +53,10 @@ The schemas are sent as part of the provider request. Beaver constructs
 available (`streaming.ts:193`).
 OpenAI continuation uses `previous_response_id`, which is good, but still
 supplies instructions and tools on loop iterations
-([`openai.ts:250`](../../backend/src/lib/llm/openai.ts#L250)). Claude and Gemini
+([`openai.ts:250`](https://github.com/eliziff/Beaver/blob/883aa5b46d7f693a6b665577bdd1c0479365a04d/backend/src/lib/llm/openai.ts#L250)). Claude and Gemini
 also receive their system/tool definitions in their iterative loops
-([`claude.ts:152`](../../backend/src/lib/llm/claude.ts#L152),
-[`gemini.ts:192`](../../backend/src/lib/llm/gemini.ts#L192)). Provider-side prefix
+([`claude.ts:152`](https://github.com/eliziff/Beaver/blob/883aa5b46d7f693a6b665577bdd1c0479365a04d/backend/src/lib/llm/claude.ts#L152),
+[`gemini.ts:192`](https://github.com/eliziff/Beaver/blob/883aa5b46d7f693a6b665577bdd1c0479365a04d/backend/src/lib/llm/gemini.ts#L192)). Provider-side prefix
 caching can reduce the billed cost of repeated identical prefixes, but it does
 not make needless schemas or full-document results free: they still occupy
 context, affect cache eligibility, and must be handled by the orchestration

@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import fs from "node:fs";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,43 +9,17 @@ import { createParser, elAttrs, elChildren, elName, getTextContent, type XNode }
 import { decodeXmlText } from "./text";
 import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "./zip";
 import { isolatedProcessEnv } from "./subprocessEnv";
+import { resolveSofficeBinary } from "./libreOfficeRuntime";
 
 const MAX_OFFICE_BYTES = 100 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
 const execute = promisify(execFile);
-let sofficeBinary: string | null | undefined;
 
 function xmlElements(nodes: XNode[], wanted: string): XNode[] {
   return nodes.flatMap((node) => [
     ...(elName(node)?.split(":").at(-1) === wanted ? [node] : []),
     ...xmlElements(elChildren(node), wanted),
   ]);
-}
-
-function executable(file: string) {
-  try { fs.accessSync(file, fs.constants.X_OK); return true; }
-  catch { return false; }
-}
-
-function resolveSofficeBinary() {
-  if (sofficeBinary !== undefined) return sofficeBinary;
-  const windows = process.platform === "win32";
-  const names = windows ? ["soffice.exe"] : ["soffice", "libreoffice"];
-  const candidates = [
-    process.env.SOFFICE_BINARY_PATH,
-    process.env.LIBREOFFICE_BINARY_PATH,
-    process.env.LIBRE_OFFICE_EXE,
-    ...(process.env.PATH ?? "").split(path.delimiter)
-      .flatMap((directory) => directory ? names.map((name) => path.join(directory, name)) : []),
-    ...(windows
-      ? [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]
-          .flatMap((directory) => directory
-            ? [path.join(directory, "LibreOffice", "program", "soffice.exe")] : [])
-      : ["/usr/bin/libreoffice", "/usr/bin/soffice", "/snap/bin/libreoffice",
-          "/opt/libreoffice/program/soffice", "/opt/libreoffice7.6/program/soffice",
-          "/Applications/LibreOffice.app/Contents/MacOS/soffice"]),
-  ].flatMap((candidate) => candidate?.trim() ? [candidate.trim()] : []);
-  return sofficeBinary = [...new Set(candidates)].find(executable) ?? null;
 }
 
 export async function assertSafeOfficeConversion(zip: JSZip) {
