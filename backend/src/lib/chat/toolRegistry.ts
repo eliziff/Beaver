@@ -1,4 +1,4 @@
-import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv-provider.js";
+import { schemaValidator } from "../llm/structured";
 import {
   CallToolResultSchema,
   ToolSchema,
@@ -45,7 +45,6 @@ export type BeaverTool<Context> = Tool & BeaverToolPolicy & {
   ): Promise<BeaverOutcome>;
 };
 
-const validator = new AjvJsonSchemaValidator();
 const schema = (tool: Tool): Tool => ({
   name: tool.name,
   ...(tool.title && { title: tool.title }),
@@ -116,7 +115,7 @@ const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => 
   };
 };
 
-type Check = ReturnType<AjvJsonSchemaValidator["getValidator"]>;
+type Check = ReturnType<typeof schemaValidator>;
 type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Check };
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
 type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
@@ -125,6 +124,8 @@ export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
   readonly #byName = new Map<string, Compiled<Context>>();
   readonly #active = new Set<string>();
+  #visible?: Tool[];
+  #loadInput?: Check;
 
   constructor(tools: BeaverTool<Context>[]) {
     this.#tools = tools.map((candidate) => {
@@ -138,9 +139,9 @@ export class TurnToolRegistry<Context> {
       if (this.#byName.has(name)) throw new Error(`Duplicate tool: ${name}`);
       const compiled: Compiled<Context> = {
         tool: { ...candidate, name },
-        input: validator.getValidator(candidate.inputSchema),
+        input: schemaValidator(candidate.inputSchema),
         ...(candidate.outputSchema && {
-          output: validator.getValidator(candidate.outputSchema),
+          output: schemaValidator(candidate.outputSchema),
         }),
       };
       this.#byName.set(name, compiled);
@@ -153,8 +154,9 @@ export class TurnToolRegistry<Context> {
     return this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [] : [tool.name]);
   }
   visible() {
+    if (this.#visible) return this.#visible;
     const specialists = this.specialists();
-    return [
+    return this.#visible = [
       ...(specialists.length ? [loader(specialists)] : []),
       ...this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [schema(tool)] : []),
     ];
@@ -236,8 +238,8 @@ export class TurnToolRegistry<Context> {
     signal: AbortSignal,
   ): Promise<Execution> {
     if (call.name === LOAD_TOOLS_NAME) {
-      const checked = validator.getValidator(
-        loader([...this.#byName.keys()]).inputSchema)(call.input);
+      const checked = (this.#loadInput ??= schemaValidator(
+        loader([...this.#byName.keys()]).inputSchema))(call.input);
       return { call, outcome: checked.valid
         ? { result: this.#load(call.input.names as string[]) }
         : failedOutcome("invalid_arguments", checked.errorMessage) };
@@ -279,6 +281,7 @@ export class TurnToolRegistry<Context> {
   #load(names: string[]) {
     const added = names.filter((name) => !this.#active.has(name));
     added.forEach((name) => this.#active.add(name));
+    if (added.length) this.#visible = undefined;
     return toolText({ ok: true, loaded: added });
   }
 }

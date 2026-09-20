@@ -53,6 +53,20 @@ describe("TurnToolRegistry", () => {
     expect(payload(batch[0].content).error).toBe("invalid_arguments");
   });
 
+  it("isolates identical schema IDs across unrelated tools and rejects the wrong shape", async () => {
+    const execute = vi.fn(async () => ({ result: toolText("accepted") }));
+    const definition = (name: string, field: string) => tool(name, { execute, inputSchema: {
+      $id: "https://example.test/request", type: "object", properties: { [field]: { type: "integer" } },
+      required: [field], additionalProperties: false,
+    } });
+    const first = new TurnToolRegistry([definition("first", "a")]);
+    const second = new TurnToolRegistry([definition("second", "b")]);
+    const result = await second.run([call("wrong", "second", { a: 1 }), call("right", "second", { b: 2 })], { order: [] });
+    expect(result.map(item => item.status)).toEqual(["error", "ok"]);
+    expect(execute).toHaveBeenCalledExactlyOnceWith({ b: 2 }, expect.anything(), expect.anything(), expect.anything());
+    expect((await first.run([call("first", "first", { a: 3 })], { order: [] }))[0].status).toBe("ok");
+  });
+
   it("shows no activity for a call the schema rejects", () => {
     const registry = new TurnToolRegistry([
       tool("read", { activity: () => "Checking draft" }),

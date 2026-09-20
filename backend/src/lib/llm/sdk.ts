@@ -1,7 +1,7 @@
 import type { LanguageModelUsage, ModelMessage, ToolSet, ToolResultPart } from "ai" with { "resolution-mode": "import" };
 import { validateModelOutput } from "./structured";
 import { hostedModel, type HostedModel } from "./sdkProviders";
-import { modelContextWindow, estimateContextTokens } from "./contextWindow";
+import { modelContextWindow } from "./contextWindow";
 import { modelSupportsImageInput, providerForModel } from "./models";
 import { throwIfAborted } from "./abort";
 import { jsonRecord } from "../value";
@@ -80,7 +80,8 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
   messages = compactedMessages(messages) ?? messages;
   const rounds: LlmContextRoundReceipt[] = [], totals: LanguageModelUsage[] = [];
   const maxIterations = params.maxIterations ?? 32, window = modelContextWindow(params.model);
-  const images = modelSupportsImageInput(params.model);
+  const images = modelSupportsImageInput(params.model), provider = providerForModel(params.model);
+  const instructionsBytes = Buffer.byteLength(params.systemPrompt);
   const output = params.outputSchema && Output.object({ schema: jsonSchema(params.outputSchema, {
     validate: value => validateModelOutput(params.outputSchema!, value),
   }) });
@@ -101,6 +102,8 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       throwIfAborted(params.abortSignal);
       const results = await params.runTools!(calls);
       const byId = new Map(results.map(result => [result.tool_use_id, result]));
+      if (results.length !== byId.size || byId.size !== calls.length)
+        throw new Error("Tool results must pair exactly with the requested batch");
       for (const call of calls) if (!byId.has(call.id)) throw new Error(`No result for tool call ${call.id}`);
       terminal ||= results.some(result => result.terminal);
       rounds.at(-1)!.toolResultBytes = Buffer.byteLength(JSON.stringify(results));
@@ -141,16 +144,17 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
           const steering = rounds.length > offset ? params.takeSteering?.() ?? [] : [];
           messages = compactedMessages(history) ?? history;
           messages = [...messages, ...steering.map(({ text }) => ({ role: "user" as const, content: text }))];
-          if (providerForModel(params.model) === "ollama" && window &&
-              estimateContextTokens({ messages: [{ role: "user", content: JSON.stringify(messages) }], tools: visible }) > window * .9) {
+          let inputBytes = Buffer.byteLength(JSON.stringify(messages));
+          const toolBytes = Buffer.byteLength(JSON.stringify(visible));
+          const exceedsContext = () => window !== null && (instructionsBytes + inputBytes + toolBytes) / 3 > window * .9;
+          if (provider === "ollama" && exceedsContext()) {
             messages = pruneMessages({ messages, toolCalls: "before-last-message" });
-            if (Buffer.byteLength(JSON.stringify({ messages, tools: visible })) / 3 > window * .9)
-              throw new Error(`The request exceeds this local model's ${window}-token context.`);
+            inputBytes = Buffer.byteLength(JSON.stringify(messages));
+            if (exceedsContext()) throw new Error(`The request exceeds this local model's ${window}-token context.`);
           }
           rounds.push({ iteration: rounds.length, requestAttempts: 0,
-            instructionsBytes: Buffer.byteLength(params.systemPrompt), inputItems: messages.length,
-            inputBytes: Buffer.byteLength(JSON.stringify(messages)), toolCount: visible.length,
-            toolBytes: Buffer.byteLength(JSON.stringify(visible)), toolCallCount: 0, toolArgumentBytes: 0,
+            instructionsBytes, inputItems: messages.length, inputBytes, toolCount: visible.length,
+            toolBytes, toolCallCount: 0, toolArgumentBytes: 0,
             toolResultBytes: 0, usage: { inputTokens: null, outputTokens: null, reasoningTokens: null,
               cacheReadInputTokens: null, cacheWriteInputTokens: null } });
           batch = undefined;
@@ -162,14 +166,17 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
           generatedBytes += event.content.reduce((n, part) => n +
             ((part.type === "text" || part.type === "reasoning") ? Buffer.byteLength(part.text) : 0), 0);
           if (generatedBytes > MAX_STREAM_BYTES) failure = new Error("Provider stream exceeded the output limit");
-          calls = event.content.flatMap(part => part.type === "tool-call" && !part.invalid && !part.providerExecuted
+          const proposed = event.content.filter(part => part.type === "tool-call");
+          if (new Set(proposed.map(call => call.toolCallId)).size !== proposed.length)
+            failure = new Error("Duplicate tool call IDs in model response");
+          calls = proposed.flatMap(part => !part.invalid && !part.providerExecuted
             ? [{ id: part.toolCallId, name: part.toolName, input: jsonRecord(part.input) ?? {} }] : []);
-          const size = calls.reduce((n, call) => n + Buffer.byteLength(JSON.stringify(call.input)), 0);
-          callCount += calls.length; argumentBytes += size;
+          const size = proposed.reduce((n, call) => n + Buffer.byteLength(JSON.stringify(call.input) ?? ""), 0);
+          callCount += proposed.length; argumentBytes += size;
           if (callCount > 128 || argumentBytes > MAX_ARGUMENT_BYTES)
             failure = new Error("Provider tool calls exceeded the input limit");
           const round = rounds.at(-1)!;
-          round.toolCallCount = calls.length; round.toolArgumentBytes = size; round.usage = usage(event.usage);
+          round.toolCallCount = proposed.length; round.toolArgumentBytes = size; round.usage = usage(event.usage);
           if (window && round.usage.inputTokens !== null)
             callbacks.onContextUsage?.({ usedTokens: round.usage.inputTokens, contextWindowTokens: window });
           if (typeof event.providerMetadata?.openai?.serviceTier === "string") serviceTier = event.providerMetadata.openai.serviceTier;
@@ -193,7 +200,7 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
               compacting = false;
               const first = compacted[0].content;
               const summary = Array.isArray(first) ? first.find(part => part.type === "text" && compactionPart(part)) : undefined;
-              callbacks.onCompaction?.("completed", { provider: providerForModel(params.model),
+              callbacks.onCompaction?.("completed", { provider,
                 ...(summary?.type === "text" && { summary: summary.text }) });
             }
           } catch (error) { failure = error; }
@@ -224,7 +231,8 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       if (reason !== "stop" && reason !== "tool-calls") throw new IncompleteGenerationError(reason, fullText);
       if (params.outputSchema && !calls.length) structured = await generated.output;
       if (!terminal) throwIfAborted(params.abortSignal);
-      if (!terminal && calls.length && rounds.length >= maxIterations) throw new IncompleteGenerationError("step-limit", fullText);
+      if (!terminal && reason === "tool-calls")
+        throw new IncompleteGenerationError(rounds.length >= maxIterations ? "step-limit" : reason, fullText);
       const steering = terminal ? [] : params.takeSteering?.() ?? [];
       if (!steering.length) {
         const total = usage(totals[0]);

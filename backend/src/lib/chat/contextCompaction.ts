@@ -61,13 +61,10 @@ async function summarize(
   apiKeys: UserApiKeys | undefined,
   signal: AbortSignal | undefined,
 ) {
-  const transcript = messages
-    .map(({ role, content, modelState }) => `${role.toUpperCase()}: ${modelState ? JSON.stringify(modelState.messages) : content}`)
-    .join("\n\n");
   const result = await streamChatWithTools({
     model,
     systemPrompt: CHECKPOINT_PROMPT,
-    messages: [{ role: "user", content: transcript }],
+    messages: [...messages, { role: "user", content: "Write the continuation checkpoint." }],
     maxIterations: 1,
     apiKeys,
     abortSignal: signal,

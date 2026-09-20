@@ -242,3 +242,43 @@ it("requests a strict OpenAI result schema and returns the parsed object", async
   expect(bodies[0].text.format).toMatchObject({ type: "json_schema", strict: true, schema });
   expect(result.output).toEqual({ count: 7 });
 });
+
+
+it("does not call an exhausted invalid-tool repair loop a successful answer", async () => {
+  const { fetch } = transport([() => gemini([{ functionCall: { name: "MissingTool", args: {} } }])]);
+  const run = vi.fn(async () => []), saved = vi.fn();
+  await expect(streamHosted({ ...params, maxIterations: 1, runTools: run,
+    callbacks: { onModelMessages: saved } })).rejects.toMatchObject({ finishReason: "step-limit" });
+  expect(run).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(saved.mock.calls[0][0].messages.at(-1).content[0].output.type).toBe("error-text");
+});
+
+it("refuses ambiguous duplicate call IDs before any effects", async () => {
+  transport([() => gemini([
+    { functionCall: { id: "duplicate", name: "Read", args: { file: "a" } } },
+    { functionCall: { id: "duplicate", name: "Read", args: { file: "b" } } },
+  ])]);
+  const run = vi.fn(async calls => calls.map((call: any) => ({ tool_use_id: call.id, content: "read", terminal: true })));
+  await expect(streamHosted({ ...params, runTools: run })).rejects.toThrow(/duplicate.*call/i);
+  expect(run).not.toHaveBeenCalled();
+});
+
+it("rejects duplicate result IDs instead of choosing an arbitrary successful result", async () => {
+  transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
+  await expect(streamHosted({ ...params, runTools: async calls => [
+    { tool_use_id: calls[0].id, content: "failed", status: "error" },
+    { tool_use_id: calls[0].id, content: "published", terminal: true },
+  ] })).rejects.toThrow(/result/i);
+});
+
+
+it("includes instructions in the local context preflight before making a request", async () => {
+  const { fetch } = transport([() => openai()]);
+  vi.stubEnv("OLLAMA_NUM_CTX", "128");
+  try {
+    await expect(streamHosted({ ...params, model: "ollama:example", tools: [], systemPrompt: "x".repeat(4096) }))
+      .rejects.toThrow(/exceeds.*context/);
+    expect(fetch).not.toHaveBeenCalled();
+  } finally { vi.unstubAllEnvs(); }
+});

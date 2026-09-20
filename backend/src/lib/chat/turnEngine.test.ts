@@ -675,3 +675,22 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
     expect(parseAssistantEvent(JSON.parse(JSON.stringify(checkpoint)))).toEqual(checkpoint);
   }
 });
+
+
+it("rejects blank or duplicate clarification items instead of inventing or dropping blockers", async () => {
+  const responses: unknown[] = [], events: unknown[] = [];
+  stream.mockImplementationOnce(async ({ runTools }) => {
+    for (const items of [
+      [{ id: "q", kind: "choice", question: " ", options: [{ value: "Continue" }] }],
+      [{ id: "q", kind: "documents", document_types: [] }, { id: " q ", kind: "documents", document_types: [] }],
+    ]) responses.push(...await runTools([{ id: "question", name: "ask_inputs", input: { items } }]));
+    return { fullText: "Unable to form a valid question." };
+  });
+  const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "", grounded: false,
+    messages: [{ role: "user", content: "Ask about the missing files." }], createTools: () => [], emit: event => events.push(event),
+  });
+  expect(result.status).toBe("complete");
+  expect(responses).toHaveLength(2);
+  expect(responses).toEqual([expect.objectContaining({ status: "error" }), expect.objectContaining({ status: "error" })]);
+  expect(events).not.toContainEqual(expect.objectContaining({ type: "ask_inputs" }));
+});
