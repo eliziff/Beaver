@@ -8,6 +8,11 @@
       "bundle": "subrepos/OpenLegalData.bundle",
       "remote": null
     },
+    "AuthoritiesHelper": {
+      "branch": "main",
+      "bundle": null,
+      "remote": "https://github.com/eliziff/AuthoritiesHelper.git"
+    },
     "legal-structure": {
       "branch": "main",
       "bundle": null,
