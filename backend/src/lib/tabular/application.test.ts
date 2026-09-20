@@ -1,11 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import type { DocumentStore } from "../documentStore";
-import type { UserApiKeys } from "../llm";
+import type { streamChatWithTools, UserApiKeys } from "../llm";
 import type { TabularCell, TabularCellContent, TabularColumn, TabularRepository } from "../tabularStore";
 import { createLegalEvidenceTurnState, createLibraryEvidence } from "../chat/legalEvidence";
 import type { runChatTurn } from "../chat/turnEngine";
 import { createTabularApplication, tabularDtos } from "./application";
+import { tabularAgentJobHandler, type TabularAgents } from "./agents";
+
+beforeEach(() => vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "off"));
+afterEach(() => vi.unstubAllEnvs());
 
 const scope = { userId: "owner", userEmail: "owner@example.test" };
 const review = { id: "review", user_id: "owner", project_id: "project",
@@ -71,7 +75,7 @@ function generated(columns: TabularColumn[], seed?: TabularCell[]) {
 }
 function model(execute: (submit: (args: Record<string, unknown>) => Promise<unknown>,
   read: (args: Record<string, unknown>) => Promise<unknown>, evidenceId: string,
-  firstMessage: string) => Promise<void>): typeof runChatTurn {
+  firstMessage: string, columns: number[]) => Promise<void>): typeof runChatTurn {
   return async (options) => {
     const state = options.evidenceState ?? createLegalEvidenceTurnState(),
       context = { evidence: state, addEvent() {}, operation: { executor: "assistant" as const, model: options.model } },
@@ -79,7 +83,10 @@ function model(execute: (submit: (args: Record<string, unknown>) => Promise<unkn
     const run = (name: string, args: Record<string, unknown>) => tools.find((tool) => tool.name === name)!.execute(
       args, context, signal, { id: name, name, input: args });
     await execute((args) => run("submit_extraction", args), (args) => run("Read", args),
-      [...state.evidence.keys()][0], String(options.messages[0].content));
+      [...state.evidence.keys()][0], String(options.messages[0].content),
+      (tools.find((tool) => tool.name === "submit_extraction")!.inputSchema as {
+        properties: { column_index: { enum: number[] } };
+      }).properties.column_index.enum);
     return { status: "complete", fullText: "", citations: [], events: [], evidence: state };
   };
 }
@@ -93,6 +100,73 @@ const sources = async () => { throw new Error("This unit fixture has no Sources 
 const projects = { get: vi.fn(async () => ({ id: "project" })) } as never;
 
 describe("TabularApplication", () => {
+  it("sends rejected drafts and current user edits to a fresh organization turn", async () => {
+    const sourceId = "00000000-0000-4000-8000-000000000011";
+    const draft = { title: "Research", sourceLabels: [{ id: "00000000-0000-4000-8000-000000000010",
+      name: "Duties", members: [sourceId], children: [] }], highlightTypes: [] };
+    const edited = { ...draft, sourceLabels: [{ ...draft.sourceLabels[0], name: "Preservation of security" }] };
+    const stream = vi.fn<typeof import("../llm").streamChatWithTools>(async () => ({
+      fullText: JSON.stringify({ title: "Research", sourceLabels: [{ name: "Preservation of security", members: ["s0"] }], highlightTypes: [] }) }));
+    const app = createTabularApplication(port(), documentStore(), projects, { settings, sources, stream });
+    const proposed = await app.designLabels(scope, { title: "Research", question: "Which duties apply?", fingerprint: "f",
+      labels: [], entries: [], rows: [{ id: sourceId, sourceId, title: "Source" }] },
+    { document: { id: "workspace" }, state: { labels: {}, sources: {} } } as never, "sources", "Keep my revised label", {
+      currentDesign: edited, organizationHistory: [{ id: "prior", status: "rejected", organization: {
+        design: draft, request: "Organize", target: "sources", fingerprint: "f", input: {},
+      } }],
+    });
+    const request = JSON.stringify(stream.mock.calls[0][0].messages);
+    expect(request).toContain("rejected");
+    expect(request).toContain("Duties");
+    expect(request).toContain("Preservation of security");
+    expect(request).toContain("Keep my revised label");
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(proposed.sourceLabels[0].id).toBe(edited.sourceLabels[0].id);
+  });
+  it.each([true, false])("persists classification once and carries it through durable jobs (configured before generation: %s)", async (configured) => {
+    vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "auto");
+    vi.stubEnv("TYPESAFE_API_KEY", "unit-test-no-network");
+    const subjects = ["document", "second"].map(id => ({ sourceId: id, resource: `document://${id}/version/v1`,
+      reference: { provider: "library" as const, kind: "document" as const, id, versionId: "v1" } }));
+    let saved: import("../tabularStore").TabularReview = { ...review, document_ids: subjects.map(s => s.sourceId),
+      columns_config: [{ index: 0, name: "Consent", prompt: "Is consent required?", format: "yes_no" }],
+      scope_config: { subjects } };
+    const repository = port({ detail: async () => ({ review: saved, cells: subjects.map(s => ({ ...cell, document_id: s.sourceId })) }),
+      update: vi.fn(async (_scope, _id, version, input) => {
+        expect(version).toBe(saved.updated_at);
+        saved = { ...saved, updated_at: `${version}+1`, scope_config: input.scopeConfig,
+          columns_config: input.columns ?? saved.columns_config };
+        return { status: "committed", value: saved };
+      }) }),
+      enqueue = vi.fn<TabularAgents["enqueue"]>(async (_scope, input) => input.assignments.map((_, i) => ({ id: `job-${i}`, created: true }))),
+      runTurn = vi.fn<typeof runChatTurn>(async () => ({ status: "complete", fullText: '{"routes":[{"index":0,"kind":"choice"}]}', citations: [], events: [] })),
+      dependencies = { settings, sources, runTurn, agents: { active: async () => false, enqueue, cancel: async () => false } },
+      documents = { ...documentStore(), metadataMany: async () => subjects.map(s => ({ id: s.sourceId, project_id: "project" })) } as unknown as DocumentStore;
+    const app = createTabularApplication(repository, documents, projects, dependencies);
+    if (configured) {
+      await app.update(scope, "review", { columns_config: saved.columns_config });
+      expect(runTurn).toHaveBeenCalledTimes(1);
+      expect(saved.scope_config?.jevRouting).toBeDefined();
+    }
+    await app.generate(scope, "review", {});
+    expect(saved.scope_config?.jevRouting).toBeDefined();
+    const snapshots = enqueue.mock.calls[0][1].assignments.map(a => a.snapshot);
+    expect(snapshots).toHaveLength(2);
+    for (const snapshot of snapshots) {
+      expect(snapshot.reviewVersion).toBe(saved.updated_at);
+      expect(snapshot.selection.jevRouting).toEqual(saved.scope_config!.jevRouting);
+    }
+    // A fresh application instance reads persisted decisions rather than a process cache.
+    await createTabularApplication(repository, documents, projects, dependencies).generate(scope, "review", {});
+    expect(runTurn).toHaveBeenCalledTimes(1);
+    expect(repository.update).toHaveBeenCalledTimes(1);
+    const runAgent = vi.fn<ReturnType<typeof createTabularApplication>["runAgent"]>(async () => null), handler = tabularAgentJobHandler({ runAgent } as unknown as ReturnType<typeof createTabularApplication>);
+    await handler({ id: "job", payload: JSON.parse(JSON.stringify({ actor_user_id: scope.userId,
+      review_id: "review", document_id: "document", model: "codex:gpt-5.6-luna", snapshot: snapshots[0] })) } as Parameters<typeof handler>[0],
+    { signal: new AbortController().signal, progress: async () => {} });
+    expect(runAgent.mock.calls[0][1].snapshot!.selection.jevRouting).toEqual(saved.scope_config!.jevRouting);
+  });
+
   it("maps committed, conflict, and missing writes explicitly", async () => {
     const committed = createTabularApplication(port(), documentStore(), projects, { settings, sources });
     await expect(committed.update(scope, "review", {
@@ -150,13 +224,15 @@ describe("TabularApplication", () => {
       columns = formats.map((format, index) => ({ index, name: format, prompt: "Extract", format, tags: ["High", "Low"] }));
     const { repository, cells } = generated(columns);
     const app = createTabularApplication(repository, documentStore(), projects, { settings, sources,
-      runTurn: model(async (submit, _read, id) => {
-        await submit(answer(2, "not a number", id));
-        await submit(answer(7, "2026-02-31", id));
-        await submit(answer(8, "Unconfigured", id));
-        expect(cells.every((cell) => cell.status === "generating")).toBe(true);
-        for (const [index, value] of values.entries()) await submit(answer(index, value, id));
-        await submit(answer(0, "Duplicate", id));
+      runTurn: model(async (submit, _read, id, _message, active) => {
+        if (active.length === columns.length) {
+          await submit(answer(2, "not a number", id));
+          await submit(answer(7, "2026-02-31", id));
+          await submit(answer(8, "Unconfigured", id));
+          expect(cells.every((cell) => cell.status === "generating")).toBe(true);
+        }
+        for (const index of active) await submit(answer(index, values[index], id));
+        if (active.includes(0)) await submit(answer(0, "Duplicate", id));
       }) });
     await app.runAgent(scope, { reviewId: "review", documentId: "document" });
     expect(cells.map((cell) => cell.content?.summary)).toEqual([
@@ -174,7 +250,9 @@ describe("TabularApplication", () => {
       (_, index) => `Line ${index + 1}`).join("\n"));
     const missing = { column_index: 0, value: null, flag: "grey", outcome: "not_found", claims: [] };
     const app = createTabularApplication(repository, documentStore(bytes), projects, { settings, sources,
-      runTurn: model(async (submit, read) => {
+      runTurn: model(async (submit, read, _id, _message, active) => {
+        if (!active.includes(0)) return;
+        if (active.length === 1) { await submit(missing); return; }
         await submit(missing);
         expect(cells[0].status).toBe("generating");
         await read({ offset: 101 });
@@ -187,16 +265,40 @@ describe("TabularApplication", () => {
     ]);
   });
 
+  it("streams plain proposals without chat tools and preserves effort, progress and cancellation", async () => {
+    const signal = new AbortController(), progress = vi.fn(),
+      design = { folders: [{ key: "f", name: "Contracts" }, { key: "g", name: "Correspondence" }],
+        filings: [{ folderKey: "f", documentIds: ["a", "b"] }, { folderKey: "g", documentIds: ["c", "d"] }] },
+      stream = vi.fn<typeof streamChatWithTools>(async (input) => {
+        expect(input.tools).toEqual([]);
+        expect(input.staticTools).toBeUndefined(); expect(input.runTools).toBeUndefined();
+        expect(input.enableThinking).toBeUndefined(); expect(input.maxIterations).toBe(1);
+        expect(input.reasoningEffort).toBe("max"); expect(input.abortSignal).toBe(signal.signal);
+        input.callbacks?.onContentDelta?.(JSON.stringify(design));
+        return { fullText: JSON.stringify(design) };
+      }),
+      app = createTabularApplication(port(), documentStore(), projects, { settings, sources, stream }),
+      files = [{ id: "a", filename: "Lease.docx" }, { id: "b", filename: "Guarantee.docx" },
+        { id: "c", filename: "Letter.docx" }, { id: "d", filename: "Email.pdf" }],
+      options = { reasoningEffort: "max", signal: signal.signal, progress };
+    await expect(app.designFolders(scope, files, "Group by subject", options)).resolves.toEqual(design);
+    expect(progress.mock.calls.map(([value]) => value)).toContainEqual(expect.objectContaining({ stage: "asking", chars: JSON.stringify(design).length }));
+    stream.mockImplementationOnce(async (input) => { signal.abort(); input.abortSignal?.throwIfAborted(); return { fullText: "" }; });
+    await expect(app.designFolders(scope, files, "Revise", options)).rejects.toMatchObject({ name: "AbortError" });
+    await expect(app.designFolders(scope, files, "Already cancelled", options)).rejects.toMatchObject({ name: "AbortError" });
+    expect(stream.mock.calls).toHaveLength(2);
+  });
+
   it("designs a review and revises supplied columns from the same request", async () => {
     const prompts: string[] = [];
     let payload = JSON.stringify({ title: "Lease review", columns: [
       { name: "Term", prompt: "How long is the term?", format: "number" },
       { name: "Governing law", prompt: "Which law governs?", format: "unsupported" }] });
-    const runTurn = (async (options: Parameters<typeof runChatTurn>[0]) => {
+    const stream: typeof streamChatWithTools = async (options) => {
       prompts.push(String(options.messages[0].content));
-      return { status: "complete", fullText: payload, citations: [], events: [] };
-    }) as unknown as typeof runChatTurn;
-    const app = createTabularApplication(port(), documentStore(), projects, { settings, sources, runTurn });
+      return { fullText: payload };
+    };
+    const app = createTabularApplication(port(), documentStore(), projects, { settings, sources, stream });
 
     const designed = await app.design(scope, tabularDtos.design.parse({
       request: "Review commercial leases", documentNames: ["lease.txt"] }));

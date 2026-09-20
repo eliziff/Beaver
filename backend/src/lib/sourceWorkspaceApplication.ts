@@ -1,4 +1,5 @@
 import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { randomUUID } from "node:crypto";
 import type { AuditStore } from "./audit";
 import type { ChatStore } from "./chatStore";
 import type { DocumentStore } from "./documentStore";
@@ -24,6 +25,8 @@ import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign, type ResearchImportCatalog } from "./tabular/researchImport";
 import { researchConceptKey, researchLabelPlan, type ProposalProgress, type ResearchLabelDesign } from "./researchLabelDesign";
+import { readResearchHistory, sameResearchValue } from "./researchHistory";
+import type { ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
 import type { TabularApplication } from "./tabular/application";
 import { tabularSubjectId,
   type TabularRepository, type TabularReview } from "./tabularStore";
@@ -39,7 +42,8 @@ type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: numb
 type TableInput = { tableId?: string; columnIndex?: number; chatId?: string; messageIds?: string[];
   selection?: ResearchSelection; findingRefs?: ResearchFindingReference[];
   fingerprint?: string; design?: ResearchImportDesign; request?: string; repropose?: boolean; model?: string; reasoningEffort?: string } & Partial<ResearchImportInput>;
-type LabelInput = Omit<TableInput, "design"> & { design?: ResearchLabelDesign };
+type LabelInput = Omit<TableInput, "design"> & { design?: ResearchLabelDesign;
+  proposalId?: string; currentDesign?: ResearchLabelDesign; conversationId?: string };
 
 /** The Sources workspace use cases share the existing document, chat and table persistence ports. */
 export function createSourceWorkspaceApplication(documents: DocumentStore, dependencies: {
@@ -122,8 +126,16 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   async function items(scope: Scope, id: string, input: { kind: "passages" | "evidence" | "queries" | "history";
     sourceId?: string; offset: number; limit: number }) {
     const { file, contentRevision } = await revision(scope, id, input);
-    return { ...await pageResearchItems(documents, scope, file, input.kind, input.offset, input.limit,
-      input.sourceId && (input.kind === "passages" || input.kind === "evidence") ? [input.sourceId] : undefined), contentRevision };
+    const page = await pageResearchItems(documents, scope, file, input.kind, input.offset, input.limit,
+      input.sourceId && (input.kind === "passages" || input.kind === "evidence") ? [input.sourceId] : undefined);
+    if (input.kind !== "history") return { ...page, contentRevision };
+    return { ...page, contentRevision, items: await Promise.all(page.items.map(async (item) => {
+      if (item.kind !== "change" || !item.value.organization) return item;
+      let metadata: ReturnType<typeof proposalMetadata> | undefined;
+      try { metadata = proposalMetadata((await importCatalog(scope, id, item.value.organization.input)).catalog); }
+      catch (error) { if (!(error instanceof ApplicationError) || ![400, 404].includes(error.status)) throw error; }
+      return { ...item, value: { ...item.value, organization: { ...item.value.organization, ...metadata } } };
+    })) };
   }
   async function citation(scope: Scope, id: string, sourceId: string, evidenceId?: string) {
     return readResearchMemoCitation(documents, scope, await required(scope, id), sourceId, evidenceId);
@@ -140,6 +152,9 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       parts.forEach((items, sourceId) => saved.set(sourceId, [...new Map(Object.values(items)
         .filter(({ labelIds }) => labelIds.length).map(({ receipt }) => [receipt.evidence_id, receipt])).values()])); });
     return { workspace: { documentId: id, versionId: resolved.versionId, workingRevision: resolved.workingRevision },
+      organizationHistory: (await readResearchHistory(documents, scope, file))
+        .flatMap(({ id, status, organization }) => organization ? [{ id, status, design: organization.design,
+          request: organization.request, currentDesign: organization.currentDesign, previousId: organization.previousId }] : []),
       subjects: resolved.subjects.map((subject) => ({ ...subject, savedEvidence: subject.evidence ?? saved.get(subject.sourceId) ?? [] })),
       ...(selected?.findingRefs ? { findingRefs: selected.findingRefs } : {}), ...(selected ? { restricted: true } : {}) };
   }
@@ -404,13 +419,50 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, scope: label.scope }));
     return { ...opened, target };
   }
+  function proposalMetadata(catalog: ResearchImportCatalog) {
+    const rows = new Map(catalog.rows.map((row) => [row.id, row]));
+    return { sources: [...new Map(catalog.rows.map((row) => [row.sourceId, { id: row.sourceId, title: row.title }])).values()],
+      items: [...new Map(catalog.entries.flatMap((entry) => (entry.reference.kind === "passage" ? [entry.reference.evidenceId] : entry.evidenceIds).map((evidenceId) => {
+        const row = rows.get(entry.rowId)!;
+        return [`${row.sourceId}:${evidenceId}`, { sourceId: row.sourceId, evidenceId, title: row.title, text: entry.text.slice(0, 500) }] as const;
+      }))).values()] };
+  }
+  function category(design: ResearchLabelDesign, file: ResearchFile, scope: "source" | "highlight", name: string,
+    existingId?: string, parent?: ResearchSourceLabelNode | ResearchHighlightTypeNode): ResearchSourceLabelNode | ResearchHighlightTypeNode {
+    const existing = existingId ? file.state.labels[existingId] : Object.values(file.state.labels).find((label) =>
+      label.scope === scope && label.parentId === (parent?.id ?? null) && researchConceptKey(label.name) === researchConceptKey(name));
+    if (!parent && existing?.parentId) {
+      const ancestor = file.state.labels[existing.parentId]; parent = category(design, file, scope, ancestor.name, ancestor.id);
+    }
+    const siblings = parent?.children ?? (scope === "source" ? design.sourceLabels : design.highlightTypes),
+      prior = siblings.find((node) => node.id === existing?.id || researchConceptKey(node.name) === researchConceptKey(name));
+    if (prior) return prior;
+    const node = { id: existing?.id ?? randomUUID(), name, members: [], children: [],
+      ...(existing?.definition !== undefined ? { definition: existing.definition } : {}), ...(existing ? { color: existing.color } : {}) };
+    siblings.push(node); return node;
+  }
   async function previewLabels(scope: Scope, id: string, input: LabelInput, signal?: AbortSignal, progress?: (event: ProposalProgress) => void) {
     progress?.({ stage: "reading" });
+    const history = await readResearchHistory(documents, scope, await required(scope, id)),
+      previous = input.proposalId ? history.find(({ id }) => id === input.proposalId) : undefined;
+    if (input.proposalId && (!previous?.organization || previous.status !== "pending"))
+      return conflict("This proposal was already applied or revised. Open the latest proposal.");
+    if (previous?.organization) input = { ...previous.organization.input, ...input };
     const { file, catalog, resolveFinding, target } = await labelCatalog(scope, id, input);
+    const conversationId = input.conversationId ?? input.chatId;
+    if (input.conversationId) {
+      const chat = await dependencies.chats.get(scope, input.conversationId);
+      if (!chat || chat.research_file_id !== id && !file.state.chats?.includes(chat.id))
+        return fail(404, "Chat is outside this workspace");
+    }
+    const organizationHistory = history.filter((change) => change.organization &&
+      change.organization.chatId === conversationId && change.organization.target === target)
+      .map(({ id, status, organization }) => ({ id, status, organization }));
     const modelDesign = () => (async () => (await dependencies.tabular()).designLabels(scope, catalog, file, target,
-      input.request, { model: input.model, reasoningEffort: input.reasoningEffort, signal, progress }))();
+      input.request, { model: input.model, reasoningEffort: input.reasoningEffort, signal, progress,
+        organizationHistory, currentDesign: input.currentDesign ?? previous?.organization?.design }))();
     let design = input.design ?? (catalog.columns ? await columnLabels(file, catalog, resolveFinding, input.columnIndex !== undefined) : await modelDesign());
-    let { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target);
+    let { actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target, catalog.columns ? "file" : "organize");
     // A sparse hand-made ontology that files fewer than half the sources is no organization; propose a fresh one
     // instead of "Not filed: everything" (Eli, 2026-09-10). The client then applies on the reproposed reading.
     let reproposed = false;
@@ -419,16 +471,38 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       delete catalog.columns; design = await modelDesign();
       ({ actions: _actions, ...plan } = researchLabelPlan(file, catalog, design, target)); reproposed = true;
     }
-    return { ...plan, design, fingerprint: catalog.fingerprint, reproposed };
+    const preview = { ...plan, design, fingerprint: catalog.fingerprint, reproposed, ...proposalMetadata(catalog) },
+      { design: _design, currentDesign: _current, proposalId: _previous, request: _request, fingerprint: _fingerprint, ...origin } = input,
+      organization = { design, target, fingerprint: catalog.fingerprint, input: origin,
+        ...(input.request ? { request: input.request } : {}), ...(conversationId ? { chatId: conversationId } : {}),
+        ...(input.currentDesign && !sameResearchValue(input.currentDesign, previous?.organization?.design) ? { currentDesign: input.currentDesign } : {}),
+        ...(input.proposalId ? { previousId: input.proposalId } : {}) },
+      saved = await commitResearchFile(documents, scope, file, { type: "batch", title: plan.title, actions: _actions, propose: true },
+        undefined, operation({ executor: input.design ? "human" : "assistant", model: input.model,
+          organization, supersedes: input.proposalId }));
+    if (!saved) return conflict("The workspace changed. Review the proposal again.");
+    const proposalId = saved.state.proposals?.at(-1)?.id;
+    return { ...preview, proposalId };
   }
   async function applyLabels(scope: Scope, id: string, input: LabelInput, actor?: Operation): Promise<ResearchFile> {
     const { file, catalog, target } = await labelCatalog(scope, id, input);
     if (input.fingerprint !== catalog.fingerprint)
       return conflict("This research changed after the proposal. Review the refreshed proposal before applying it.");
-    const { title, propose, actions } = researchLabelPlan(file, catalog,
-      input.design ?? fail(400, "Propose a label set before applying it"), target);
-    return await commitResearchFile(documents, scope, file, { type: "batch", title, actions, ...(propose ? { propose } : {}) },
-      undefined, operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
+    const design = input.design ?? fail(400, "Propose a label set before applying it"),
+      { title, actions } = researchLabelPlan(file, catalog, design, target, catalog.columns ? "file" : "organize"),
+      history = await readResearchHistory(documents, scope, file),
+      proposal = input.proposalId ? history.find(({ id }) => id === input.proposalId)
+        : [...history].reverse().find((change) => change.status === "pending" && change.organization?.fingerprint === input.fingerprint &&
+          sameResearchValue(change.organization?.design, design));
+    if (input.proposalId && (!proposal?.organization || proposal.status !== "pending"))
+      return conflict("This proposal was already applied or revised. Open the latest proposal.");
+    if (proposal?.organization && sameResearchValue(proposal.organization.design, design))
+      return await commitResearchFile(documents, scope, file, { type: "accept", changeId: proposal.id }, undefined,
+        operation(actor)) ?? conflict("The workspace changed. Reload it before editing.");
+    return await commitResearchFile(documents, scope, file, { type: "batch", title, actions }, undefined,
+      operation({ ...actor, executor: "human", ...(proposal?.organization ? { supersedes: proposal.id,
+        organization: { ...proposal.organization, design, previousId: proposal.id } } : {}) }))
+      ?? conflict("The workspace changed. Reload it before editing.");
   }
   async function table(scope: Scope, id: string, input: TableInput = {}, actor?: Operation): Promise<TabularReview> {
     if (input.tableId) { await bind(scope, id, { tableId: input.tableId, selection: input.selection }, actor);
@@ -457,11 +531,12 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     if (input.typeId && !file.state.labels[input.typeId]) return fail(400, "Choose a label from this research set");
     if (!evidence.size) return fail(400, "These findings contain no supporting passages to highlight");
     const label = input.typeId && file.state.labels[input.typeId],
-      { actions, title } = researchLabelPlan(file, { ...catalog, columns: [] }, {
-        title: label ? `File under ${label.name}` : "File passages", labels: [label ? { key: label.id, name: label.name, scope: label.scope }
-          : { key: "highlight", name: "Highlight", scope: "highlight" }],
-        assignments: [{ labelKey: label ? label.id : "highlight", rowIds: catalog.rows.map(({ id }) => id),
-          itemIds: entries.map(({ id }) => id) }] }, "sources");
+      design: ResearchLabelDesign = { title: label ? `File under ${label.name}` : "File passages", sourceLabels: [], highlightTypes: [] },
+      node = category(design, file, label ? label.scope : "highlight", label ? label.name : "Highlight", label ? label.id : undefined);
+    if (label && label.scope === "source") (node as ResearchSourceLabelNode).members = catalog.rows.map(({ sourceId }) => sourceId);
+    const highlight = label && label.scope === "source" ? category(design, file, "highlight", "Highlight") : node;
+    (highlight as ResearchHighlightTypeNode).members = proposalMetadata({ ...catalog, entries }).items.map(({ sourceId, evidenceId }) => ({ sourceId, evidenceId }));
+    const { actions, title } = researchLabelPlan(file, { ...catalog, columns: [] }, design, "sources", "file");
     const saved = await commitResearchFile(documents, scope, file, { type: "merge", title, actions,
       evidence: (await Promise.all(entries.map(({ reference }) => reference.kind === "answer" || reference.kind === "cell"
         ? resolveFinding(reference) : null))).flatMap((finding) => finding?.evidence ?? []) }, undefined, operation(actor)) ?? conflict("The research set changed. Reload before saving.");
@@ -469,13 +544,13 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
   async function columnLabels(file: ResearchFile, catalog: ResearchImportCatalog,
     resolve: (ref: ResearchFindingReference) => Promise<ResearchFinding | null>, categorical: boolean): Promise<ResearchLabelDesign> {
-    const design: ResearchLabelDesign = { title: catalog.title, labels: [], assignments: [] };
+    const design: ResearchLabelDesign = { title: catalog.title, sourceLabels: [], highlightTypes: [] },
+      supporting = new Map<string, { sourceId: string; evidenceId: string }>();
     for (const column of catalog.columns ?? []) {
       const current = Object.values(file.state.labels).find((label) => label.scope === column.scope &&
         researchConceptKey(researchLabelPath(file.state, label.id)) === researchConceptKey(column.name)),
-        key = current?.id ?? `column:${column.index}`, groups = new Map<string, ResearchImportCatalog["entries"]>();
-      design.labels.push({ key, name: current?.name ?? column.name, parentKey: current?.parentId,
-        scope: column.scope, definition: column.prompt });
+        parent = category(design, file, column.scope, current?.name ?? column.name, current?.id);
+      parent.definition = column.prompt;
       for (const entry of catalog.entries) {
         if (entry.reference.kind === "cell" ? entry.reference.columnIndex !== column.index
           : researchConceptKey(entry.column.name) !== researchConceptKey(column.name)) continue;
@@ -487,15 +562,31 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         for (const value of values) {
           if (value !== null && (typeof value !== "string" || !value.trim() || value.length > 200))
             return fail(400, "Consolidate long column values before creating labels; no values were truncated");
-          const labelKey = value === null ? key : `${key}:${sha256(String(value)).slice(0, 12)}`;
-          if (value !== null && !design.labels.some(({ key }) => key === labelKey))
-            design.labels.push({ key: labelKey, name: String(value).trim(), parentKey: key, scope: column.scope });
-          groups.set(labelKey, [...groups.get(labelKey) ?? [], entry]);
+          const node = value === null ? parent : category(design, file, column.scope, String(value).trim(), undefined, parent),
+            row = catalog.rows.find(({ id }) => id === entry.rowId)!,
+            members = entry.reference.kind === "passage" ? [{ sourceId: row.sourceId, evidenceId: entry.reference.evidenceId }]
+              : entry.evidenceIds.map((evidenceId) => ({ sourceId: row.sourceId, evidenceId }));
+          if (column.scope === "source") {
+            const sourceNode = node as ResearchSourceLabelNode;
+            if (!sourceNode.members.includes(row.sourceId)) sourceNode.members.push(row.sourceId);
+            for (const member of members) supporting.set(JSON.stringify(member), member);
+          } else {
+            const highlightNode = node as ResearchHighlightTypeNode;
+            for (const member of members) if (!highlightNode.members.some((saved) => saved.sourceId === member.sourceId && saved.evidenceId === member.evidenceId))
+              highlightNode.members.push(member);
+          }
         }
       }
-      for (const [labelKey, entries] of groups) design.assignments.push({ labelKey,
-        rowIds: [...new Set(entries.map(({ rowId }) => rowId))], itemIds: entries.map(({ id }) => id) });
     }
+    const typed = new Set<string>();
+    const visit = (nodes: ResearchHighlightTypeNode[]) => { for (const node of nodes) { node.members.forEach((member) => typed.add(JSON.stringify(member))); visit(node.children); } };
+    visit(design.highlightTypes);
+    const highlighted = new Set(catalog.entries.filter(({ kind }) => kind === "passages").flatMap((entry) => {
+      const sourceId = catalog.rows.find(({ id }) => id === entry.rowId)!.sourceId;
+      return entry.evidenceIds.map((evidenceId) => JSON.stringify({ sourceId, evidenceId }));
+    }));
+    const untyped = [...supporting].filter(([key]) => !typed.has(key) && !highlighted.has(key)).map(([, member]) => member);
+    if (untyped.length) (category(design, file, "highlight", "Highlight") as ResearchHighlightTypeNode).members.push(...untyped);
     return design;
   }
 

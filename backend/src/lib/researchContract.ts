@@ -39,6 +39,44 @@ export type ResearchFileState = { schemaVersion: "beaver.research.v2";
   queries: ResearchPartReference | null; note: string; tables?: string[]; chats?: string[];
   history?: ResearchPartReference; proposals?: ResearchChangeSummary[] };
 const uuid = z.string().uuid();
+type ResearchCategory<Member> = { id: string; name: string; definition?: string; color?: string | null;
+  members: Member[]; children: ResearchCategory<Member>[] };
+export type ResearchSourceLabelNode = ResearchCategory<string>;
+export type ResearchHighlightTypeNode = ResearchCategory<{ sourceId: string; evidenceId: string }>;
+const sourceLabelNode: z.ZodType<ResearchSourceLabelNode> = z.lazy(() => z.object({
+  id: uuid, name: textField(200), definition: z.string().trim().max(20_000).optional(),
+  color: z.string().regex(/^#[a-f0-9]{6}$/iu).nullable().optional(),
+  members: z.array(uuid).max(5_000), children: z.array(sourceLabelNode).max(100),
+}).strict());
+const highlightTypeNode: z.ZodType<ResearchHighlightTypeNode> = z.lazy(() => z.object({
+  id: uuid, name: textField(200), definition: z.string().trim().max(20_000).optional(),
+  color: z.string().regex(/^#[a-f0-9]{6}$/iu).nullable().optional(),
+  members: z.array(z.object({ sourceId: uuid, evidenceId: textField(200) }).strict()).max(25_000),
+  children: z.array(highlightTypeNode).max(100),
+}).strict());
+export const researchLabelDesignSchema = z.object({
+  title: textField(200), sourceLabels: z.array(sourceLabelNode).max(100), highlightTypes: z.array(highlightTypeNode).max(100),
+}).strict().superRefine((design, context) => {
+  const pending: Array<ResearchCategory<unknown>> = [...design.sourceLabels, ...design.highlightTypes], ids = new Set<string>();
+  for (let index = 0; index < pending.length; index++) {
+    const node = pending[index];
+    if (ids.has(node.id)) { context.addIssue({ code: "custom", message: "A category ID occurs more than once" }); return; }
+    ids.add(node.id); pending.push(...node.children);
+    if (pending.length > 100) { context.addIssue({ code: "custom", message: "Use at most 100 categories across both trees" }); return; }
+  }
+});
+export type ResearchLabelDesign = z.infer<typeof researchLabelDesignSchema>;
+const organizationInput = z.object({ tableId: textField(200).optional(), columnIndex: z.number().int().min(0).max(10_000).optional(),
+  chatId: textField(200).optional(), conversationId: textField(200).optional(),
+  messageIds: z.array(textField(200)).min(1).max(100).optional(), rows: z.enum(["sources", "passages"]).optional(),
+  labelId: textField(200).optional(), selection: z.lazy(() => researchSelectionSchema).optional(),
+  findingRefs: z.array(researchFindingReferenceSchema).max(10_000).optional(),
+  model: textField(200).optional(), reasoningEffort: textField(20).optional(), repropose: z.boolean().optional() }).strict();
+const researchOrganizationSchema = z.object({ design: researchLabelDesignSchema,
+  currentDesign: researchLabelDesignSchema.optional(), previousId: uuid.optional(),
+  request: z.string().max(4_000).optional(), chatId: z.string().max(200).optional(),
+  target: z.enum(["sources", "passages"]), fingerprint: z.string(),
+  input: organizationInput }).strict();
 const ids = z.array(uuid).max(10_000).transform((values) => [...new Set(values)]);
 const offset = z.number().int().min(0).max(50_000_000);
 export const researchMutationSchema = z.discriminatedUnion("type", [
@@ -74,7 +112,7 @@ export const researchFileActionSchema = z.union([researchMutationSchema,
     actions: z.array(researchMutationSchema.refine((action) =>
       action.type === "source" || action.type === "label" || action.type === "annotate" || action.type === "label-selection" ||
       action.type === "remove" && action.kind === "label", "Batch changes collect sources or organize labels and assignments"))
-      .min(1).max(400) }).strict(),
+      .max(400) }).strict(),
   z.object({ type: z.enum(["accept", "reject", "undo"]), changeId: uuid }).strict(),
 ]);
 export type PublicResearchFileAction = z.infer<typeof researchFileActionSchema>;
@@ -143,6 +181,7 @@ const changeField = z.object({ target: z.enum(["label", "source", "passage", "wo
   field: z.string().min(1).max(300), before: z.unknown(), after: z.unknown() }).strict();
 export const researchChangeSchema = researchChangeSummarySchema.extend({ userId: z.string(),
   status: z.enum(["pending", "applied", "rejected"]), undoOf: z.string().uuid().optional(),
+  supersededBy: uuid.optional(), organization: researchOrganizationSchema.optional(),
   resolvedBy: z.string().optional(), resolvedAt: z.string().datetime().optional(),
   changes: z.array(changeField).max(500_000) }).strict();
 export type ResearchChangeField = z.infer<typeof changeField>;

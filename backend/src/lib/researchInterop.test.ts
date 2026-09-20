@@ -6,6 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("./localMode", () => ({ isLocalRuntime: () => true }));
 // Previews propose a structure with the model by default; these tests exercise the deterministic fallback.
 vi.mock("./chat/turnEngine", () => ({ runChatTurn: async () => { throw new Error("No model in this test"); } }));
+vi.mock("./llm", async (original) => ({ ...await original<typeof import("./llm")>(),
+  streamChatWithTools: async () => { throw new Error("No model in this test"); } }));
 const owner = { userId: "00000000-0000-0000-0000-000000000001" };
 let directory: string, close: (() => Promise<void>) | undefined;
 beforeEach(async () => {
@@ -61,9 +63,8 @@ it("files a chat's cited passage under every reviewed concept and undoes the who
     findings = await f.sources.findings(owner, file.document.id, { chatId: f.chat.id, offset: 0, limit: 50 }),
     catalog = researchImportCatalog(file, subjects, parts, findings.items, { rows: "sources" }),
     support = catalog.entries.filter((entry) => entry.kind === "answer").map(({ id }) => id),
-    design = { title: "Interacting duties", labels: [{ key: "honesty", name: "Honest performance" },
-      { key: "exclusion", name: "Exclusion of duties" }], assignments: ["honesty", "exclusion"].map((labelKey) =>
-      ({ labelKey, rowIds: [f.sourceId], itemIds: support })) },
+    design = { title: "Interacting duties", sourceLabels: ["Honest performance", "Exclusion of duties"].map((name) =>
+      ({ id: randomUUID(), name, members: [f.sourceId], children: [] })), highlightTypes: [] },
     preview = await f.sources.previewLabels(owner, file.document.id, { chatId: f.chat.id, design }),
     saved = await f.sources.applyLabels(owner, file.document.id, { chatId: f.chat.id, design, fingerprint: preview.fingerprint });
   expect(saved.state.proposals).toEqual([]);
@@ -85,6 +86,60 @@ it("files a chat's cited passage under every reviewed concept and undoes the who
   const restored = await f.act({ type: "undo", changeId: change.value.id });
   expect(restored.state.labels).toEqual(file.state.labels);
   expect(restored.state.sources).toEqual(file.state.sources);
+});
+it("keeps superseded organization drafts and manual edits available to the next revision and chat", async () => {
+  const f = await fixture(); await f.turn("Organize this research", "The provisions are read together.");
+  const id = f.file().document.id,
+    design = { title: "Organization", sourceLabels: [{ id: randomUUID(), name: "Duties", members: [f.sourceId], children: [] }], highlightTypes: [] },
+    first = await f.sources.previewLabels(owner, id, { chatId: f.chat.id, design }),
+    edited = { ...design, sourceLabels: [{ ...design.sourceLabels[0], name: "Preservation of security" }] },
+    second = await f.sources.previewLabels(owner, id, { chatId: f.chat.id, proposalId: first.proposalId, design: edited });
+  const manual = { ...edited, title: "Edited organization" }, generated = { ...manual, sourceLabels: [{ ...edited.sourceLabels[0],
+    children: [{ id: randomUUID(), name: "Prejudice to recourse", members: [], children: [] }] }] };
+  const model = vi.spyOn(f.tables, "designLabels").mockImplementation(async (_scope, _catalog, _file, _target, _request, options) => {
+    expect(options?.currentDesign).toEqual(manual);
+    expect(options?.organizationHistory?.map(({ organization }) => organization?.design)).toEqual([design, edited]);
+    return generated;
+  });
+  const third = await f.sources.previewLabels(owner, id, { chatId: f.chat.id, proposalId: second.proposalId,
+    currentDesign: manual, request: "Keep my edits and distinguish prejudice", repropose: true });
+  model.mockRestore();
+  const records = (await f.sources.items(owner, id, { kind: "history", offset: 0, limit: 50 })).items
+    .flatMap((item) => item.kind === "change" && item.value.organization ? [item.value] : []);
+  expect(records.map(({ status }) => status)).toEqual(["pending", "rejected", "rejected"]);
+  expect(records[0].organization).toMatchObject({ currentDesign: manual, request: "Keep my edits and distinguish prejudice" });
+  expect(records[1].supersededBy).toBe(third.proposalId);
+  const context = await f.sources.context(owner, id);
+  expect(context.organizationHistory?.map(({ design }) => design)).toEqual([design, edited, generated]);
+  expect((await f.sources.context(owner, id, { target: "sources", sourceIds: [f.sourceId] })).organizationHistory)
+    .toEqual(context.organizationHistory);
+  expect(Object.values((await f.sources.get(owner, id))!.state.labels).some(({ name }) => name === "Preservation of security")).toBe(false);
+  await expect(f.sources.applyLabels(owner, id, { chatId: f.chat.id, proposalId: first.proposalId,
+    design, fingerprint: first.fingerprint })).rejects.toMatchObject({ status: 409 });
+  const saved = await f.sources.applyLabels(owner, id, { chatId: f.chat.id, proposalId: third.proposalId,
+    design: generated, fingerprint: third.fingerprint, repropose: true });
+  expect(saved.state.proposals).toEqual([]);
+  expect(Object.values(saved.state.labels).some(({ name }) => name === "Preservation of security")).toBe(true);
+});
+it("creates a reviewable inline proposal from the ordinary research chat tool", async () => {
+  const f = await fixture();
+  const { runLocalAssistantTools } = await import("./__tests__/support/localAssistantTools"),
+    { resourceReference } = await import("./resourceReferences"), file = f.file(),
+    resource = resourceReference.document(file.document.id, file.versionId),
+    design = { title: "Contract duties", sourceLabels: [{ id: randomUUID(), name: "Preservation of security", members: [f.sourceId], children: [] }], highlightTypes: [] },
+    generate = vi.spyOn(f.tables, "designLabels").mockResolvedValue(design),
+    options = { documents: f.documents, sources: f.sources, chatId: f.chat.id, reasoningEffort: "high", edits: new Map(),
+      documentNames: new Map([[file.document.id, file.document.filename]]) };
+  await runLocalAssistantTools(owner.userId, [{ id: "read", name: "Read", input: { file_path: resource } }], options);
+  const [result] = await runLocalAssistantTools(owner.userId, [{ id: "organize", name: "document_operation",
+    input: { action: "research", document_id: resource, research_action: { type: "organize", request: "Organize the substantive issues" } } }], options);
+  expect(generate.mock.calls[0][5]).toMatchObject({ reasoningEffort: "high" });
+  generate.mockRestore();
+  expect(JSON.parse(result.content)).toMatchObject({ status: "pending", proposal_id: expect.any(String), design });
+  const saved = (await f.sources.get(owner, file.document.id))!;
+  expect(saved.state.labels).toEqual(file.state.labels);
+  const history = (await f.sources.items(owner, file.document.id, { kind: "history", offset: 0, limit: 1 })).items[0];
+  expect(history).toMatchObject({ kind: "change", value: { status: "pending", organization: { chatId: f.chat.id, design } } });
 });
 it("projects and edits additional highlight instances without changing their shared receipt", async () => {
   const f = await fixture(), typeId = randomUUID(), evidenceId = f.receipts[0].evidence_id;
@@ -111,10 +166,32 @@ it("accepts a Chat proposal that refiles under the existing ontology it was show
   const saved = await f.sources.applyLabels(owner, id, { ...input, design: preview.design, fingerprint: preview.fingerprint });
   expect(saved.state.sources[f.sourceId].labelIds).toEqual([f.labelId]);
   expect(Object.values(saved.state.labels).map(({ name }) => name).sort()).toEqual(["Integrated scheme", "Rule"]);
-  const reproposed = await f.sources.applyLabels(owner, id, { ...input, repropose: true, design: preview.design,
-    fingerprint: preview.fingerprint });
+  const refreshed = await f.sources.previewLabels(owner, id, { ...input, repropose: true, design: preview.design }),
+    reproposed = await f.sources.applyLabels(owner, id, { ...input, repropose: true, design: refreshed.design,
+      proposalId: refreshed.proposalId, fingerprint: refreshed.fingerprint });
   expect(reproposed.state.sources[f.sourceId].labelIds).toEqual([f.labelId]);
-  expect(Object.keys(reproposed.state.labels).sort()).toEqual(Object.keys(saved.state.labels).sort());
+  expect(Object.keys(reproposed.state.labels)).toEqual([f.labelId]);
+});
+
+it("applies edited trees to exact highlight instances and undoes the replacement", async () => {
+  const f = await fixture(), extraType = randomUUID(), replacement = randomUUID(), receipt = f.receipts[0];
+  await f.act({ type: "label", id: extraType, name: "Second reading", scope: "highlight" });
+  const before = await f.act({ type: "merge", evidence: [receipt], labels: { [receipt.evidence_id]: [extraType] } });
+  const read = async (file: typeof before) => Object.values((await f.research.readResearchEvidenceParts(f.documents, owner, file, [f.sourceId])).get(f.sourceId)!);
+  const initial = await read(before), extra = initial.find((passage) => passage.highlightId)!;
+  const design = { title: "Edited organization", sourceLabels: [], highlightTypes: [{ id: replacement,
+    name: "Waiver", children: [], members: [{ sourceId: f.sourceId, evidenceId: extra.highlightId! }] }] };
+  const preview = await f.sources.previewLabels(owner, before.document.id, { design, repropose: true });
+  const saved = await f.sources.applyLabels(owner, before.document.id, { design, repropose: true,
+    proposalId: preview.proposalId, fingerprint: preview.fingerprint });
+  const passages = await read(saved);
+  expect(saved.state.sources[f.sourceId].labelIds).toEqual([]);
+  expect(Object.keys(saved.state.labels)).toEqual([replacement]);
+  expect(passages.find((passage) => passage.highlightId === extra.highlightId)).toEqual({ ...extra, labelIds: [replacement] });
+  expect(passages.find((passage) => !passage.highlightId && passage.receipt.evidence_id === receipt.evidence_id)?.labelIds).toEqual([]);
+  const restored = await f.act({ type: "undo", changeId: preview.proposalId! });
+  expect(restored.state.labels).toEqual(before.state.labels);
+  expect(await read(restored)).toEqual(initial);
 });
 
 it("stores accepted table concepts on the set and projects them into both later proposals", async () => {
@@ -267,7 +344,7 @@ it("reviews categorical labels for selected rows in the shared proposal before a
   }
   const input = { tableId: review.id, columnIndex: 0, selection: { target: "sources" as const, sourceIds: [f.sourceId] } },
     before = await f.sources.get(owner, file.document.id), proposal = await f.sources.previewLabels(owner, file.document.id, input);
-  expect(await f.sources.get(owner, file.document.id)).toEqual(before);
+  expect((await f.sources.get(owner, file.document.id))?.state).toMatchObject({ labels: before!.state.labels, sources: before!.state.sources });
   const accepted = await f.sources.applyLabels(owner, file.document.id, { ...input, design: proposal.design, fingerprint: proposal.fingerprint });
   const yes = Object.values(accepted.state.labels).find(({ name }) => name === "Yes")!;
   expect(yes).toBeDefined(); expect(accepted.state.sources[f.sourceId].labelIds).toContain(yes.id);
@@ -350,7 +427,7 @@ it.each([false, true])("round trips every table column with joint evidence and u
     preview = await f.sources.previewLabels(owner, before.document.id, input);
   // Cell evidence becomes highlights of the default type, so every filing has a passage to open (Eli, 2026-09-11).
   expect(preview.labels.map(({ name }) => name)).toEqual([...columns.map(({ name }) => name), "Highlight"]);
-  expect(await f.sources.get(owner, before.document.id)).toEqual(before);
+  expect((await f.sources.get(owner, before.document.id))?.state).toMatchObject({ labels: before.state.labels, sources: before.state.sources });
   const saved = await f.sources.applyLabels(owner, before.document.id, { ...input, design: preview.design, fingerprint: preview.fingerprint }),
     page = await f.sources.items(owner, saved.document.id, { kind: "evidence", offset: 0, limit: 50 }),
     passages = page.items.flatMap((item) => item.kind === "evidence" ? [item.value] : []);

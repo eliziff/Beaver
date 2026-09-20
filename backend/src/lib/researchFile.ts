@@ -687,9 +687,9 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
         selected.counts = researchChangeCounts(changes); selected.resolvedBy = scope.userId; selected.resolvedAt = new Date().toISOString(); }
     }
   } else changes = researchStateChanges(current.state, state, originalEvidence, allEvidence());
-  if (changes.length && request.type !== "accept") {
+  if ((changes.length || context?.organization) && request.type !== "accept") {
     const history = await loadHistory();
-    pending = executor === "human" && request.type === "batch" && request.propose === true || executor !== "human" &&
+    pending = (executor === "human" || !!context?.organization) && request.type === "batch" && request.propose === true || executor !== "human" &&
       changes.some((change) => (change.target === "label" && current.state.labels[change.id] ||
         change.target === "source" && change.field.startsWith("labelIds.") && change.before === true && change.after === false) &&
         history.some((prior) => prior.status === "applied" && (prior.executor === "human" || prior.resolvedBy) &&
@@ -698,8 +698,17 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
     const title = request.type === "batch" ? request.title : request.type === "undo" ? `Undo: ${selected!.title}`
         : request.type === "label" ? `Label: ${request.name}` : request.type === "label-selection" ? "Update classifications"
         : request.type === "note" ? "Update memo" : request.type === "merge" ? request.title ?? "Collect research" : "Update research";
-    history.push({ id: randomUUID(), title: title.slice(0, 200), createdAt: new Date().toISOString(),
+    const changeId = randomUUID();
+    if (context?.supersedes) {
+      const previous = history.find(({ id }) => id === context.supersedes);
+      if (!previous || previous.status !== "pending" || !previous.organization)
+        throw new ApplicationError(409, "This proposal was already applied or revised. Open the latest proposal.");
+      previous.status = "rejected"; previous.supersededBy = changeId;
+      previous.resolvedBy = scope.userId; previous.resolvedAt = new Date().toISOString();
+    }
+    history.push({ id: changeId, title: title.slice(0, 200), createdAt: new Date().toISOString(),
       executor, userId: scope.userId, ...(context?.model && { model: context.model }), status: pending ? "pending" : "applied",
+      ...(context?.organization ? { organization: context.organization } : {}),
       ...(request.type === "undo" && { undoOf: request.changeId }), changes, counts: researchChangeCounts(changes) });
     if (pending) { state = { ...current.state }; puts.length = 0; removes.length = 0; }
   }

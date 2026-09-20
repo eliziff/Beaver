@@ -38,11 +38,12 @@ function availableModel(
   keys: Partial<Record<"gemini" | "openai" | "deepseek" | "claude", unknown>>,
   tabular = false,
 ) {
-  if (keys.gemini) return tabular ? DEFAULT_TABULAR_MODEL : DEFAULT_TITLE_MODEL;
+  if (tabular) return DEFAULT_TABULAR_MODEL;
+  if (keys.gemini) return DEFAULT_TITLE_MODEL;
   if (keys.openai) return "gpt-5.4-lite";
   if (keys.deepseek) return "deepseek-v4-flash";
-  if (keys.claude) return tabular ? "claude-sonnet-4-6" : "claude-haiku-4-5";
-  return tabular ? DEFAULT_TABULAR_MODEL : DEFAULT_TITLE_MODEL;
+  if (keys.claude) return "claude-haiku-4-5";
+  return DEFAULT_TITLE_MODEL;
 }
 
 const resolveSettings = (

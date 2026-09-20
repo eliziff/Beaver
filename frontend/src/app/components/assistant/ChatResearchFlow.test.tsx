@@ -19,9 +19,9 @@ const preview = { fingerprint: "a".repeat(64), design: { title: "Research", colu
   stats: [{ index: 0, reused: 1, kinds: ["answer"], evidence: 1 }], samples: [{ rowId: "source", columnIndex: 0, text: "Grounded prior work", kinds: ["answer"] }] };
 function Location() { const location = useLocation(); return <output aria-label="Location">{location.pathname}{location.search}
   {location.state?.assistantIntent?.text}</output>; }
-function setup(getModelPreferences?: React.ComponentProps<typeof ChatResearchFlow>["getModelPreferences"]) {
+function setup(getModelPreferences?: React.ComponentProps<typeof ChatResearchFlow>["getModelPreferences"], workspaceScope = false) {
   const ref = React.createRef<ChatResearchFlowHandle>();
-  render(<MemoryRouter><SourcesWorkspaceProvider><ChatResearchFlow ref={ref} chatId="chat" getModelPreferences={getModelPreferences} /><Location />
+  render(<MemoryRouter><SourcesWorkspaceProvider file={workspaceScope ? file : undefined}><ChatResearchFlow ref={ref} chatId="chat" workspaceScope={workspaceScope} getModelPreferences={getModelPreferences} /><Location />
   </SourcesWorkspaceProvider></MemoryRouter>);
   return ref;
 }
@@ -35,17 +35,26 @@ async function actOn(name: string) { const at = () => screen.getByRole("button",
   await waitFor(() => expect(at()).toBeEnabled()); fireEvent.click(at()); }
 beforeEach(() => { vi.clearAllMocks(); localStorage.clear();
   api.ensureSourcesWorkspace.mockResolvedValue(file); api.getResearchFile.mockResolvedValue(file); api.proposeWorkspaceTable.mockResolvedValue(preview); });
+it("organizes the whole workspace from its dock without filtering to an empty conversation", async () => {
+  api.proposeWorkspaceLabels.mockResolvedValue({ title: "Draft", design: { title: "Draft", sourceLabels: [], highlightTypes: [] },
+    sources: [], items: [], labels: [], unassigned: [], fingerprint: "a".repeat(64) });
+  const ref = setup(undefined, true); await open(ref, "Workspace"); await actOn("Suggest labels");
+  await waitFor(() => expect(api.proposeWorkspaceLabels).toHaveBeenCalledWith("workspace",
+    { conversationId: "chat", model: "model", request: "Research" }, expect.any(Function), expect.any(AbortSignal)));
+  expect(api.ensureSourcesWorkspace).not.toHaveBeenCalled();
+});
 it("organizes the chat into a proposed label set before landing in the workspace", async () => {
   const plan = { title: "Cases stating the test", target: "sources" as const, propose: false, fingerprint: "b".repeat(64),
-    design: { title: "Cases stating the test", labels: [{ key: "l1", name: "States the test" }],
-      assignments: [{ labelKey: "l1", rowIds: ["source"], itemIds: ["item"] }] },
-    labels: [{ key: "l1", id: "l1", name: "States the test", path: "States the test", parentKey: null,
+    design: { title: "Cases stating the test", sourceLabels: [{ id: "l1", name: "States the test", members: ["source"], children: [] }], highlightTypes: [] },
+    sources: [{ id: "source", title: "Case A" }], items: [],
+    labels: [{ id: "l1", name: "States the test", path: "States the test",
       parentId: null, order: 0, scope: "source" as const, color: "#d6b85a",
       existing: false, rows: [{ id: "source", title: "Case A", support: ["The test is stated at para 21."] }] }],
     unassigned: [] };
   api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(file);
-  const ref = setup(); await open(ref, "Workspace"); await actOn("Propose labels");
-  expect(await screen.findByText("States the test")).toBeVisible(); expect(await screen.findByText("The test is stated at para 21.")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
+  const ref = setup(); await open(ref, "Workspace"); await actOn("Suggest labels");
+  fireEvent.click(await screen.findByText("States the test", { selector: "summary" }));
+  expect(screen.getByLabelText("Move source from States the test")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply labels" }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
   expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace", { chatId: "chat",
@@ -53,7 +62,7 @@ it("organizes the chat into a proposed label set before landing in the workspace
 });
 it("previews grounded Chat work and creates a table only after acceptance", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table" });
-  const ref = setup(); await open(ref, "Table"); await actOn("Propose a table");
+  const ref = setup(); await open(ref, "Table"); await actOn("Suggest a table");
   expect(await screen.findByDisplayValue("Finding")).toBeVisible(); expect(api.openWorkspaceTable).not.toHaveBeenCalled();
   expect(api.proposeWorkspaceTable).toHaveBeenCalledWith("workspace", expect.objectContaining({ chatId: "chat", model: "model" }), expect.any(Function), expect.any(AbortSignal));
   await actOn("Create table");
@@ -65,7 +74,7 @@ it("uses the composer's current model and effort when Open as is chosen", async 
   let current = { model: "old-model", reasoningEffort: "low" };
   const ref = setup(() => current);
   current = { model: "codex:gpt-5.6-sol", reasoningEffort: "high" };
-  await open(ref, "Table"); await actOn("Propose a table");
+  await open(ref, "Table"); await actOn("Suggest a table");
   await waitFor(() => expect(api.proposeWorkspaceTable).toHaveBeenCalledWith("workspace",
     expect.objectContaining(current), expect.any(Function), expect.any(AbortSignal)));
 });

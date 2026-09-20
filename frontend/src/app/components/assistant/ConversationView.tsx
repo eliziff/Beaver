@@ -49,6 +49,7 @@ interface Props {
     sendDisabled?: boolean;
     searchMessageId?: string | null;
     messageActions?: (messageId: string) => ReactNode;
+    afterMessages?: ReactNode;
 }
 
 function without<T>(items: Set<T>, item: T) {
@@ -66,7 +67,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, dock, showContextTools = true,
         onOpenWorkflows, onOrganize, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
-        editModeLabels, sendDisabled, searchMessageId, messageActions,
+        editModeLabels, sendDisabled, searchMessageId, messageActions, afterMessages,
     }, ref) {
     const { messages, rejectedTurn } = session;
     const messagesContainerRef = useRef<HTMLDivElement>(null),
@@ -232,6 +233,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                     )}
                                 </div>
                             ))}
+                            {afterMessages}
                             <div ref={messagesEndRef} />
                         </div>
                     </div>

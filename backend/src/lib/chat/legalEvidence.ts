@@ -196,7 +196,7 @@ export function createA2AJPassageEvidence(args: PassageSpanArgs & {
 }): LegalEvidenceReceipt {
   const locator = args.locator ?? {
     kind: "document" as const,
-    label: `characters ${args.start + 1}–${args.end}`,
+    label: `line ${args.start + 1}–${args.end}`,
   };
   return passageEvidence({
     provider: "a2aj",
@@ -462,7 +462,7 @@ export function legalSourceEvidence(passage: LegalSourcePassage,
     locatorKind: span?.locator?.kind ??
       (span ? "document" : passage.locator.requested?.kind ?? "document"),
     locatorLabel: span?.locator?.label ??
-      (span ? `characters ${span.start + 1}–${span.end}` : passage.locator.label) });
+      (span ? `line ${span.start + 1}–${span.end}` : passage.locator.label) });
 }
 
 export function registerLegalEvidence(
@@ -720,10 +720,10 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
 }
 
 export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnState,
-  limits: { maxClaims?: number; maxTextLength?: number } = {}) {
-  if (!Array.isArray(value) || !value.length || value.length > (limits.maxClaims ?? Infinity))
-    return { claims: null, errors: [limits.maxClaims
-      ? `claims must contain 1 to ${limits.maxClaims} items` : "claims must contain at least one item"] };
+  options: { maxClaims?: number; maxTextLength?: number; allowUnquotedCopies?: boolean } = {}) {
+  if (!Array.isArray(value) || !value.length || value.length > (options.maxClaims ?? Infinity))
+    return { claims: null, errors: [options.maxClaims
+      ? `claims must contain 1 to ${options.maxClaims} items` : "claims must contain at least one item"] };
   const claims: GroundedClaim[] = [];
   const errors: string[] = [];
   value.forEach((value, index) => {
@@ -740,8 +740,8 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
     if (/\[\d+(?:,\s*\d+)*\]\s*$/u.test(text))
       errors.push(`claims[${index}] must cite evidence_ids, not numeric reference markers`);
     if (!text) errors.push(`claims[${index}].text is empty; give one sentence of the answer`);
-    else if (text.length > (limits.maxTextLength ?? Infinity))
-      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${limits.maxTextLength}; split it into separate claims, each one sentence with its own evidence_ids`);
+    else if (text.length > (options.maxTextLength ?? Infinity))
+      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${options.maxTextLength}; split it into separate claims, each one sentence with its own evidence_ids`);
     if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
     for (const id of ids) {
@@ -762,6 +762,9 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
   });
   if (!errors.length) for (const [index, claim] of claims.entries())
     errors.push(...legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
+      // The native API returns diagnostics as text. Only this editorial finding is optional;
+      // explicit quotation mismatches and every evidence-integrity failure remain errors.
+      .filter(error => !options.allowUnquotedCopies || !error.startsWith("unmarked copied passage "))
       .map((error) => `claims[${index}] ${error}`));
   return { claims, errors };
 }
