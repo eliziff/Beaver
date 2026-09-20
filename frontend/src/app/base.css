@@ -156,7 +156,7 @@ textarea,
 .tab-list::-webkit-scrollbar {
     display: none;
 }
-@container (min-width: 64rem) {
+@container (min-width: 48rem) {
     .court-record-layout {
         grid-template-columns: minmax(0, 1fr) 19rem;
     }

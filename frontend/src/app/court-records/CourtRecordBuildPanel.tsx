@@ -1,10 +1,13 @@
 import { Download, FileCheck2, FolderUp, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PdfView } from "@/app/components/shared/views/PdfView";
+import { ReaderExpandButton } from "@/app/components/shared/ReaderExpandButton";
+import { useReaderExpansion } from "@/app/components/shared/useReaderExpansion";
 import { Button } from "@/app/components/ui/button";
 import { cn, formatBytes } from "@/app/lib/utils";
 import { CourtCoverPreview } from "./CourtCoverPreview";
 import { outputFilename } from "./validation";
+import { sourceFormat } from "./formats";
 import { hasMatchingExhibitCertificate } from "./types";
 import type { BuildArtifact, BuildResult, ComplianceReport, CourtProfile, CoverValues, RecordEntry } from "./types";
 
@@ -30,9 +33,20 @@ export function CourtRecordBuildPanel(props: Props) {
   const [previewFilename, setPreviewFilename] = useState<string>();
   const pdfs = props.result?.artifacts.filter((artifact) => artifact.mimeType === "application/pdf") ?? [];
   const pdf = pdfs.find((artifact) => artifact.filename === previewFilename) ?? pdfs[0];
+  const source = props.entries.flatMap((entry) => entry.descriptionOnly ? [] : [entry.pdfRendition ?? entry.file])
+    .find((file) => sourceFormat(file) === "pdf");
+  const [sourceBytes, setSourceBytes] = useState<Uint8Array>();
+  const previewBytes = pdf?.bytes ?? sourceBytes;
+  const previewRoot = useRef<HTMLDivElement>(null);
+  const previewExpansion = useReaderExpansion(previewRoot, !!previewBytes || props.profile.cover.generated);
+  useEffect(() => {
+    let live = true;
+    if (!source) { setSourceBytes(undefined); return; }
+    void source.arrayBuffer().then((bytes) => { if (live) setSourceBytes(new Uint8Array(bytes)); });
+    return () => { live = false; };
+  }, [source]);
   const sourcePages = props.entries.reduce((sum, entry) => sum + (entry.pageCount ?? 0), 0);
   const sourceFiles = props.entries.filter((entry) => !entry.descriptionOnly).length;
-  const summary = separate || !props.profile.cover.generated;
   const forSignature = props.profile.documentKinds.some(({ id, generated }) =>
     generated === "federal-form-344-certificate" && !props.entries.some((entry) => entry.kindId === id)) || !!props.profile.exhibitCertificate &&
     props.entries.some((entry) => entry.kindId === "exhibit" &&
@@ -42,25 +56,31 @@ export function CourtRecordBuildPanel(props: Props) {
   return (
     <aside className="court-record-build-panel min-w-0" aria-label="Build output" aria-busy={props.building || props.saving}>
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        {(!summary || pdf) && <div className="px-4 py-3.5">
+        {(previewBytes || props.profile.cover.generated) && <div ref={previewRoot}
+          {...previewExpansion.dialogProps} aria-label={previewExpansion.expanded ? "Expanded court record preview" : undefined}
+          style={previewExpansion.style} className={cn("flex flex-col bg-white", previewExpansion.expanded && "h-full")}>
+          <div className="flex items-center gap-2 px-4 py-3.5">
           {pdfs.length > 1 ? <select aria-label="Preview file" value={pdf.filename}
             onChange={(event) => setPreviewFilename(event.target.value)}
-            className="h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus-visible:ring-2 focus-visible:ring-ring">
+            className="h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus-visible:ring-2 focus-visible:ring-ring">
             {pdfs.map((artifact) => <option key={artifact.filename} value={artifact.filename}>{artifact.filename}</option>)}
-          </select> : <h2 className="break-words text-sm font-semibold leading-6 text-gray-950">
-            {separate ? pdf?.filename ?? "Filing set" : pdf ? "Built record"
-              : props.profile.cover.generated ? "Cover preview" : "Record"}
+          </select> : <h2 className="min-w-0 flex-1 break-words text-sm font-semibold leading-6 text-gray-950">
+            {pdf ? (separate ? pdf.filename : "Built record")
+              : source ? "Source preview" : "Cover preview"}
           </h2>}
-        </div>}
-        {(!summary || pdf) && <div className="flex h-[24rem] items-center justify-center bg-gray-100 p-4">
-          {pdf ? (
+          <ReaderExpandButton expanded={previewExpansion.expanded} onChange={previewExpansion.onChange} />
+          </div>
+        <div className={cn("flex min-h-0 items-center justify-center bg-gray-100 p-4",
+          previewExpansion.expanded ? "flex-1" : "h-[24rem]")}>
+          {previewBytes ? (
             <div className="flex h-full w-full overflow-hidden rounded-md border border-gray-300 bg-white">
-              <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Built court record preview" />
+              <PdfView doc={null} bytes={previewBytes} rounded={false}
+                ariaLabel={pdf ? "Built court record preview" : "Court record source preview"} />
             </div>
           ) : (
             <CourtCoverPreview profile={props.profile} cover={props.cover} />
           )}
-        </div>}
+        </div></div>}
         <div className="p-4">
           {!props.result && <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">

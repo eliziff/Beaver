@@ -192,6 +192,26 @@ describe("LegalLibraryPage search", () => {
             .toHaveAttribute("href", "https://example.test/privacy");
     });
 
+    it("breadcrumbs a source through its category and returns with the search intact", async () => {
+        api.searchLegalSources.mockResolvedValue({ status: "available", results: [{
+            provider: "a2aj", kind: "legislation", id: "privacy-act", language: "en",
+            collection: "federal-statutes", citation: "RSC 1985, c P-21", title: "Privacy Act",
+            date: null, url: null, snippet: null,
+        }] });
+        render(<MemoryRouter><LegalLibraryPage /></MemoryRouter>);
+        fireEvent.click(screen.getByRole("tab", { name: "Legislation" }));
+        const search = screen.getByRole("searchbox", { name: "Search sources" });
+        fireEvent.change(search, { target: { value: "privacy" } });
+        fireEvent.click(screen.getByRole("button", { name: "Search" }));
+        fireEvent.click(await screen.findByRole("button", { name: "View Privacy Act" }));
+
+        expect(screen.getByRole("heading", { name: "Privacy Act" })).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: "Legislation" }));
+
+        expect(screen.getByRole("tab", { name: "Legislation" })).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByRole("searchbox", { name: "Search sources" })).toHaveValue("privacy");
+    });
+
     it("does not repeat a journal title inside its displayed citation", async () => {
         const title = "The [Unwritten] Principles (Again): C++?";
         api.searchLegalSources.mockResolvedValue({ status: "available", results: [{

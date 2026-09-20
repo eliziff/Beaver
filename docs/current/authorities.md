@@ -16,6 +16,10 @@ as a competing pre-import stage. Resolve source identities and attach remaining
 PDFs before proceeding to highlight review; build follows review.
 
 After Sources, scanned inputs open the **Recognize text** modal before Highlights.
+
+Authorities uses the shared folder-aware document chooser for existing files.
+Initial imports show PDF and DOCX files; authority and book attachments show PDFs
+only. It does not maintain a separate search-only Library picker.
 The modal lists scanned PDFs, page choices, recognition controls and progress;
 eager recognition does not bypass it. Physical page citations can narrow OCR; paragraph/section targets may
 need broader processing. Missing runtime dependencies are actionable errors.
