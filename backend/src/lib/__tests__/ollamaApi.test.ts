@@ -60,10 +60,10 @@ describe("Ollama API", () => {
             index: 0,
             id: "call-1",
             function: { name: "lookup", arguments: "{}" },
-          }] } }] })
-        : sse({ choices: [{ delta: { content: "Found." } }] });
+          }] }, finish_reason: "tool_calls" }] })
+        : sse({ choices: [{ delta: { content: "Found." }, finish_reason: "stop" }] });
     }));
-    const { streamOllama } = await import("../llm/ollamaApi");
+    const { streamHosted: streamOllama } = await import("../llm/sdk");
     const result = await streamOllama({
       model: "ollama:qwen3:32b",
       systemPrompt: "system",
@@ -82,9 +82,9 @@ describe("Ollama API", () => {
     let request: Record<string, unknown> = {};
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
       request = JSON.parse(String(init.body));
-      return sse({ choices: [{ delta: { content: "Ready." } }] });
+      return sse({ choices: [{ delta: { content: "Ready." }, finish_reason: "stop" }] });
     }));
-    const { streamOllama } = await import("../llm/ollamaApi");
+    const { streamHosted: streamOllama } = await import("../llm/sdk");
     await streamOllama({
       model: "ollama:qwen3.8:27b-ud-q2-k-xl",
       systemPrompt: "system",

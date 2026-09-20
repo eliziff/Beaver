@@ -1737,8 +1737,8 @@ export function assistantTools<Context extends {
     const requestedFilename = trimmed(args.filename);
     const markdown = trimmed(args.content);
     const extension = /\.([^.]+)$/u.exec(requestedFilename)?.[1].toLowerCase();
-    if (!markdown || !["docx", "xlsx", "pptx"].includes(extension ?? "")) {
-      return fail("Write requires content and a .docx, .xlsx, or .pptx filename.");
+    if ((!markdown && !(extension === "xlsx" && args.sheets)) || !["docx", "xlsx", "pptx"].includes(extension ?? "")) {
+      return fail("Write requires a .docx, .xlsx, or .pptx filename and content (or sheets for XLSX).");
     }
     const title = requestedFilename.replace(/\.[^.]+$/u, "");
     const filename = safeGeneratedFilename(title, extension!);
@@ -1756,7 +1756,7 @@ export function assistantTools<Context extends {
     try {
       if (extension !== "docx") {
         const bytes = extension === "xlsx"
-          ? await renderXlsxWorkbook(title, workbookFromMarkdown(markdown))
+          ? await renderXlsxWorkbook(title, args.sheets ?? workbookFromMarkdown(markdown))
           : await buildPptxPresentation(presentationFromMarkdown(markdown));
         return persistGenerated(filename, bytes);
       }

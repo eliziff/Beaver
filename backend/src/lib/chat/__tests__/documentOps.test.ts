@@ -53,6 +53,26 @@ describe("renderXlsxWorkbook", () => {
   });
 });
 
+it("round-trips native numbers, booleans, literal strings and formulas without losing uncached cells", async () => {
+  const XLSX = await import("xlsx"), { spreadsheetToLLMStructure } = await import("../../spreadsheet");
+  const bytes = await renderXlsxWorkbook("Calculation", [{ name: "Costs", rows: [
+    ["Rate", "Hours", "Amount", "Literal"],
+    [100, 2, { t: "n", f: "A2*B2" }, "=A2*B2"],
+    [0.125, true, { t: "n", f: "A2*B2", v: 200, z: "$0.00" }, "0012"],
+  ] }]);
+  const sheet = XLSX.read(bytes, { type: "buffer", cellNF: true, sheetStubs: true }).Sheets.Costs;
+  expect(sheet.A2).toMatchObject({ t: "n", v: 100 });
+  expect(sheet.B3).toMatchObject({ t: "b", v: true });
+  expect(sheet.C2.f).toBe("A2*B2");
+  expect(sheet.C3).toMatchObject({ t: "n", f: "A2*B2", v: 200, z: "$0.00" });
+  expect(sheet.D2).toMatchObject({ t: "s", v: "=A2*B2" });
+  expect(sheet.D3.v).toBe("0012");
+  const projection = await spreadsheetToLLMStructure(bytes);
+  expect(projection.text).toContain("=A2*B2 ⟨n; cached:");
+  expect(projection.tableCells.find(cell => cell.address === "C2")).toMatchObject({ formula: "A2*B2", type: "n" });
+  await expect(renderXlsxWorkbook("Invalid", [{ name: "Bad", rows: [[{ t: "n", v: "wrong" }]] }])).rejects.toThrow();
+});
+
 describe("Write markup", () => {
   it("parses workbook sheets and presentation slides", () => {
     expect(workbookFromMarkdown([

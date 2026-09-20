@@ -21,6 +21,10 @@
     "test:experiments": "node ../packages/legal-grammar-tables/check.mjs && node ../scripts/check-source-boundaries.mjs && vitest run --config experiments/vitest.config.mts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.53",
+    "@ai-sdk/google": "^4.0.68",
+    "@ai-sdk/openai": "^4.0.66",
+    "@ai-sdk/openai-compatible": "^3.0.48",
     "@anthropic-ai/sdk": "^0.115.0",
     "@aws-sdk/client-s3": "^3.787.0",
     "@aws-sdk/s3-request-presigner": "^3.787.0",
@@ -28,6 +32,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
+    "ai": "^7.0.98",
     "dictionary-en": "^4.0.0",
     "dictionary-en-ca": "^3.0.0",
     "docx": "^9.7.1",
@@ -47,6 +52,7 @@
     "pdf-lib": "^1.17.1",
     "postal-mime": "^2.7.5",
     "postgres": "^3.4.9",
+    "quickjs-emscripten": "0.31.0",
     "undici": "6.28.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76"

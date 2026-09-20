@@ -14,7 +14,7 @@ import { DraftingStyleSettings } from "./DraftingStyleSettings";
 import { DisplaySettings, ModelProviderSettings } from "./DisplaySettings";
 import { WorkflowFileTargetSettings } from "./WorkflowFileTargetSettings";
 
-const TABS = ["General", "Display", "Drafting", "Providers", "Subagents"] as const;
+const TABS = ["General", "Display", "Drafting", "Model Providers", "Subagents"] as const;
 type SettingsTab = (typeof TABS)[number];
 const TAB_OPTIONS = TABS.map((value) => ({ value, label: value }));
 
@@ -96,9 +96,9 @@ export function AppSettingsModal({
                 </AccountSection>
             </section>
         ),
-        Providers: (
+        "Model Providers": (
             <section>
-                <h2 className="mb-1 text-base font-semibold text-gray-900">Providers</h2>
+                <h2 className="mb-1 text-base font-semibold text-gray-900">Model Providers</h2>
                 <p className="mb-4 max-w-2xl text-sm leading-6 text-gray-600">
                     Turn off a provider to hide it from the model picker.
                 </p>
@@ -117,7 +117,6 @@ export function AppSettingsModal({
             breadcrumbs={["Settings"]}
             size="xl"
             className="h-[min(40rem,calc(100dvh-2rem))]"
-            bodyClassName="py-0"
             headerAction={
                 !isLocalMode ? (
                     <Link

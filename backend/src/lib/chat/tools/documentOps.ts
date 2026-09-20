@@ -1,3 +1,4 @@
+import { workbookSheetsSchema } from "../../spreadsheet";
 import {
   renderDocxMarkdown,
   type RenderDocxMarkdownOptions,
@@ -90,19 +91,17 @@ export function presentationFromMarkdown(markdown: string) {
 
 export async function renderXlsxWorkbook(
   title: string,
-  sheets: ReturnType<typeof workbookFromMarkdown>,
+  input: unknown,
 ) {
+  const sheets = workbookSheetsSchema.parse(input);
   const XLSX = await import("xlsx");
   const workbook = XLSX.utils.book_new();
   workbook.Props = { Title: title, Author: "Beaver" };
   sheets.forEach((sheet, index) => {
-    const header = sheet.columns.length ? sheet.columns : ["Value"];
     XLSX.utils.book_append_sheet(
       workbook,
-      XLSX.utils.aoa_to_sheet([
-        header,
-        ...sheet.rows.map((row) => header.map((_, column) => row[column] ?? "")),
-      ]),
+      XLSX.utils.aoa_to_sheet([...(sheet.columns ? [sheet.columns] : []), ...sheet.rows.map(row => row.map(cell =>
+        cell && typeof cell === "object" && cell.f && cell.v === undefined ? { ...cell, v: null } : cell))]),
       normalizeSheetName(sheet.name, `Sheet ${index + 1}`),
       true,
     );

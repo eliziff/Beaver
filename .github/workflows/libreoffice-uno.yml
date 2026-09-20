@@ -1,0 +1,72 @@
+name: LibreOffice UNO integration
+on:
+  pull_request:
+    paths:
+      - 'backend/scripts/word_*'
+      - 'backend/src/lib/libreOffice*.ts'
+      - 'backend/src/lib/chat/libreOfficeTool.ts'
+      - 'backend/src/lib/chat/chatToolRunner.ts'
+      - 'backend/src/lib/convert.ts'
+      - 'backend/experiments/libreoffice-uno/**'
+      - 'backend/package*.json'
+      - '.github/workflows/libreoffice-uno.yml'
+      - 'backend/uno.Dockerfile'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          # Unrelated historical docs contain Windows-invalid angle-bracket paths.
+          # Fetch the application and fixtures actually exercised by this suite.
+          sparse-checkout: |
+            backend
+            shared
+            packages
+            scripts
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install Linux native engine and matching bridge
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer python3-uno fonts-liberation
+      - name: Install Windows native engine including its Python component
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install libreoffice-fresh --yes --no-progress
+      - name: Install macOS native engine
+        if: runner.os == 'macOS'
+        run: brew install --cask libreoffice
+      - run: npm ci --prefix backend --ignore-scripts
+      - name: Real engine, console, review and isolation tests (missing runtime fails)
+        working-directory: backend
+        env:
+          UNO_EVIDENCE_DIR: ${{ runner.temp }}/uno-evidence
+        run: npx tsx --test experiments/libreoffice-uno/console.node.ts
+      - name: Application publication and review policy
+        working-directory: backend
+        run: npx tsx --test experiments/libreoffice-uno/application.node.ts
+      - name: Exercise the network-isolated cloud image
+        if: runner.os == 'Linux'
+        working-directory: backend
+        run: |
+          docker build -f uno.Dockerfile -t beaver-uno:test .
+          WORD_UNO_CONTAINER_IMAGE=beaver-uno:test npx tsx --test experiments/libreoffice-uno/console.node.ts
+      - name: Retain native artifacts and exact engine receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: uno-${{ matrix.os }}
+          path: ${{ runner.temp }}/uno-evidence
+          if-no-files-found: ignore

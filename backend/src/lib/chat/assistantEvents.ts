@@ -1,3 +1,5 @@
+import { modelMessageSchema } from "ai";
+import type { ModelMessage } from "ai" with { "resolution-mode": "import" };
 import { z } from "zod";
 import { activity, subagent, sharedEvents, type PublicAssistantEvent } from "./assistantWire";
 export { parsePublicAssistantEvent } from "./assistantWire";
@@ -33,6 +35,9 @@ const privateSubagent = subagent.extend({ model: text, effort: text,
 
 const storedEvent = z.discriminatedUnion("type", [
   ...sharedEvents, privateSubagent, checkpoint, receipt,
+  z.object({ type: z.literal("model_messages"), id: text, model: text,
+    messages: z.array(z.custom<ModelMessage>(value => modelMessageSchema.safeParse(value).success)),
+    compacted: z.literal(true).optional() }).strict(),
   z.object({ type: z.literal("mcp_tool_call"), connector_id: text, connector_name: text,
     tool_name: text, openai_tool_name: text, status: z.enum(["ok", "error"]), error: text.optional() }).strict(),
   z.object({ type: z.literal("local_mutation_committed"), schema_version: z.literal(1) }).strict(),

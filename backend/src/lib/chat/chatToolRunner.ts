@@ -6,6 +6,7 @@ import { resourceReference } from "../resourceReferences";
 import type { ReadSubagentAssignment } from "./assistantEvents";
 import type { ResearchFile } from "../researchFile";
 import { createResearchTableTool } from "./researchTableTool";
+import { createLibreOfficeTool } from "./libreOfficeTool";
 
 function state() {
   return {
@@ -47,6 +48,13 @@ export function createChatToolRunner(options: Omit<AssistantToolsDependencies, T
     mutationCommitted = true;
     options.onMutationCommitted();
   };
+  const word = createLibreOfficeTool({ ...options, ...artifacts,
+    onMutationCommitted: commitMutation,
+    onPublished(documentId, versionId, workingRevision, sourceVersion) {
+      main.edits.set(documentId, { versionId, workingRevision, turnVersionId: versionId,
+        parentVersionId: main.edits.get(documentId)?.parentVersionId ?? sourceVersion });
+    },
+  });
 
   const createTools = (
     evidence: ChatToolContext["evidence"],
@@ -76,6 +84,7 @@ export function createChatToolRunner(options: Omit<AssistantToolsDependencies, T
           return file ?? null;
         } : undefined,
       }),
+      ...(scope === "main" ? [word] : []),
       ...(scope === "main" && options.researchTables ? [createResearchTableTool<ChatToolContext>({
         ...options.researchTables,
         scope: { userId: options.userId, userEmail: options.userEmail },

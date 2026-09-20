@@ -16,11 +16,13 @@ const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI leg
 Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
 
 
-function llmMessages(rows: ChatMessageRecord[], provider?: Provider): LlmMessage[] {
-  return projectChatTranscript(rows, provider).map((message) => ({
+function llmMessages(rows: ChatMessageRecord[], provider?: Provider, model?: string): LlmMessage[] {
+  return projectChatTranscript(rows, provider, model).map((message) => ({
     role: message.role === "assistant" ? "assistant" : "user",
     content: formatChatMessageContent(message),
     images: message.images,
+    modelState: message.modelState,
+    contextCheckpoint: message.contextCheckpoint,
   }));
 }
 
@@ -28,6 +30,7 @@ export function planContextCheckpoint(
   rows: ChatMessageRecord[],
   recentTailTokens = RECENT_TAIL_TOKENS,
   provider?: Provider,
+  model?: string,
 ) {
   let prior = -1;
   for (let index = rows.length - 1; index >= 0; index -= 1) {
@@ -41,12 +44,12 @@ export function planContextCheckpoint(
   let boundary = -1;
   for (let index = rows.length - 1; index > prior; index -= 1) {
     if (rows[index].role !== "assistant") continue;
-    const tail = llmMessages(rows.slice(index + 1), provider);
+    const tail = llmMessages(rows.slice(index + 1), provider, model);
     if (estimateContextTokens({ messages: tail }) > recentTailTokens) break;
     boundary = index;
   }
   if (boundary < 0) return null;
-  const source = llmMessages(rows.slice(0, boundary + 1), provider);
+  const source = llmMessages(rows.slice(0, boundary + 1), provider, model);
   return source.length
     ? { messageId: rows[boundary].id, source }
     : null;
@@ -59,7 +62,7 @@ async function summarize(
   signal: AbortSignal | undefined,
 ) {
   const transcript = messages
-    .map(({ role, content }) => `${role.toUpperCase()}: ${content}`)
+    .map(({ role, content, modelState }) => `${role.toUpperCase()}: ${modelState ? JSON.stringify(modelState.messages) : content}`)
     .join("\n\n");
   const result = await streamChatWithTools({
     model,
@@ -87,22 +90,23 @@ export async function compactChatContext(args: {
   let rows = await args.store.transcript(args.scope, args.chatId);
   if (!rows) throw new Error("Chat not found");
   const provider = providerForModel(args.model);
-  const messages = llmMessages(rows, provider);
+  const messages = llmMessages(rows, provider, args.model);
   const threshold = compactionThresholdForModel(args.model);
   if (
     !args.force &&
     (!needsHostCheckpoint(args.model) || !threshold ||
       estimateContextTokens({ messages }) < threshold)
   ) {
-    return { compacted: false, messages: projectChatTranscript(rows, provider) };
+    return { compacted: false, messages: projectChatTranscript(rows, provider, args.model) };
   }
   const plan = planContextCheckpoint(
     rows,
     Math.min(RECENT_TAIL_TOKENS, Math.floor((threshold ?? 80_000) / 4)),
     provider,
+    args.model,
   );
   if (!plan) {
-    return { compacted: false, messages: projectChatTranscript(rows, provider) };
+    return { compacted: false, messages: projectChatTranscript(rows, provider, args.model) };
   }
   args.onStatus?.("running");
   try {
@@ -133,7 +137,7 @@ export async function compactChatContext(args: {
     rows = await args.store.transcript(args.scope, args.chatId);
     if (!rows) throw new Error("Chat not found");
     args.onStatus?.("completed");
-    return { compacted: true, messages: projectChatTranscript(rows, provider) };
+    return { compacted: true, messages: projectChatTranscript(rows, provider, args.model) };
   } catch (error) {
     args.onStatus?.("failed");
     throw error;
