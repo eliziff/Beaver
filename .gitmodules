@@ -18,3 +18,7 @@
 	path = OpenLegalData
 	url = subrepos/OpenLegalData.bundle
 	update = none
+[submodule "AuthoritiesHelper"]
+	path = AuthoritiesHelper
+	url = https://github.com/eliziff/AuthoritiesHelper.git
+	branch = main

@@ -2,12 +2,13 @@
 
 Beaver is the application and integration repository. [subrepos.lock.json](../../subrepos.lock.json)
 records repository ownership and the local-bundle strategy;
-[.gitmodules](../../.gitmodules) declares four public submodules and the bundled local repository. Public revisions
+[.gitmodules](../../.gitmodules) declares five public submodules and the bundled local repository. Public revisions
 are pinned by Git links, not by the upstream branch name or newest README.
 
 | Checkout / repository | Owner and role |
 | --- | --- |
 | [Beaver](https://github.com/eliziff/Beaver) | Application, UI, Node adapter, persistence and cross-project roadmap |
+| `AuthoritiesHelper` / [AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) | Python Authorities application plus the modern standalone deployment, launcher and packaging adapter |
 | `legal-structure` / [Legal Structure Parser](https://github.com/eliziff/legal-structure-parser) | Provider-neutral Rust structure, citations, queries, grammar and Python binding |
 | `legal-pdf-parser` / [Legal PDF Parser](https://github.com/eliziff/legal-pdf-parser) | PDF extraction, geometry, OCR and PDF Inspector integration |
 | `legal-browser-ocr` / [Legal Browser OCR](https://github.com/eliziff/legal-browser-ocr) | Browser/HTML OCR application and packaging |
@@ -15,8 +16,6 @@ are pinned by Git links, not by the upstream branch name or newest README.
 | `OpenLegalData` | Local repository restored from the tracked bundle; no public remote is declared |
 
 Related repositories, **not Beaver submodules**:
-[AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) is the Python
-reference application; current Authorities runs in Beaver's TypeScript core.
 [Legal Pinpointer](https://github.com/eliziff/legal-pinpointer) consumes packaged
 structure WASM and legal-source metadata. Archived repositories preserve history,
 not another active product or backlog.
@@ -39,7 +38,7 @@ remote or replace an existing local checkout. From PowerShell:
 ```powershell
 git clone https://github.com/eliziff/Beaver.git
 cd Beaver
-git submodule update --init --recursive -- legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
+git submodule update --init --recursive -- AuthoritiesHelper legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
 git clone .\subrepos\OpenLegalData.bundle .\OpenLegalData
 $lock = Get-Content .\subrepos.lock.json -Raw | ConvertFrom-Json
 git -C OpenLegalData checkout --detach $lock.repositories.OpenLegalData.commit
@@ -57,8 +56,8 @@ Inspect each working tree before updating; never reset or overwrite another
 session's work. Once the required pins are available, for the public paths:
 
 ```sh
-git submodule sync -- legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
-git submodule update --init --recursive -- legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
+git submodule sync -- AuthoritiesHelper legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
+git submodule update --init --recursive -- AuthoritiesHelper legal-structure legal-pdf-parser legal-browser-ocr mike-workflows
 ```
 
 For an existing OpenLegalData checkout, fetch the current bundle from its absolute
