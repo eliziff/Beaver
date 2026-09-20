@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - name: Apply the locally tested implementation exactly
+      - name: Apply the tested implementation
         run: |
           python - <<'PY'
           import base64, hashlib, lzma, os
@@ -29,6 +29,27 @@ jobs:
           Path(os.environ['RUNNER_TEMP'], 'implementation.patch').write_bytes(patch)
           PY
           git apply --index --binary "$RUNNER_TEMP/implementation.patch"
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          def replace(path, old, new):
+              p = Path(path)
+              value = p.read_text()
+              assert old in value, path
+              p.write_text(value.replace(old, new))
+          replace('backend/src/lib/spreadsheet.ts', 'import { z } from "zod";', 'import { z } from "zod/v4";')
+          replace('backend/src/lib/chat/tools/toolSchemas.ts', 'import { zodToJsonSchema } from "zod-to-json-schema";', 'import { z } from "zod/v4";')
+          replace('backend/src/lib/chat/tools/toolSchemas.ts', 'zodToJsonSchema(workbookSheetsSchema, { $refStrategy: "none" })', 'z.toJSONSchema(workbookSheetsSchema, { target: "draft-7" })')
+          for path in ['backend/package.json', 'backend/package-lock.json']:
+              p = Path(path)
+              data = json.loads(p.read_text())
+              deps = data['dependencies'] if path.endswith('/package.json') else data['packages']['']['dependencies']
+              assert deps.pop('zod-to-json-schema', None)
+              p.write_text(json.dumps(data, indent=2) + '\n')
+          for name in ['openai', 'claude', 'gemini']:
+              replace('docs/decisions/document-mutation.md', f'../../backend/src/lib/llm/{name}.ts', f'https://github.com/eliziff/Beaver/blob/883aa5b46d7f693a6b665577bdd1c0479365a04d/backend/src/lib/llm/{name}.ts')
+          PY
+          git add backend/src/lib/spreadsheet.ts backend/src/lib/chat/tools/toolSchemas.ts backend/package.json backend/package-lock.json docs/decisions/document-mutation.md
           git rm backend/src/lib/llm/{anthropicWire.ts,claude.ts,deepseek.ts,gemini.ts,geminiWire.test.ts,geminiWire.ts,ollamaApi.ts,openai.ts,openaiCompatibleWire.ts,openaiResponsesWire.ts,providerLoop.test.ts,providerLoop.ts,wireAdapters.test.ts}
           git rm .github/workflows/sdk-refactor-workbench.yml .github/sdk-refactor/{0,1}.b64
           git diff --cached --check
