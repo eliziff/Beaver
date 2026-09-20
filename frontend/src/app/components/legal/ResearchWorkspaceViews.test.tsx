@@ -29,8 +29,8 @@ beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); api.getResearchFile
   api.getWorkspaceViews.mockResolvedValue({ tables: [], chats: [] }); api.proposeWorkspaceTable.mockResolvedValue(preview); });
 it("opens a table through the deterministic Research-set import", async () => {
   api.openWorkspaceTable.mockResolvedValue({ id: "table", project_id: "project" }); setup(); open("Table");
-  expect(await screen.findByRole("dialog", { name: /Create a table/u })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Suggest a table" }));
+  expect(await screen.findByRole("dialog", { name: /Extract a table/u })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Propose a table" }));
   await screen.findByDisplayValue("Finding");
   expect(api.openWorkspaceTable).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Create table" }));

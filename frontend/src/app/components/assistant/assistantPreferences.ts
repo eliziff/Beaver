@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { MODEL_PROVIDERS, type ModelProvider } from "@/app/lib/modelAvailability";
 
 export const QUICK_ACTIONS = [
     { id: "proofread", label: "Proofread" },
@@ -61,6 +62,7 @@ const DEFAULT_READ_SUBAGENT_MODEL = "codex:gpt-5.6-luna";
 const DEFAULT_READ_SUBAGENT_EFFORT = "high";
 
 export type AssistantPreferences = {
+    disabledProviders: ModelProvider[];
     activityDetail: "auto" | "standard" | "tools" | "trace";
     showContextUsage: boolean;
     showAutoMode: boolean;
@@ -74,8 +76,11 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const exact = (value: Record<string, unknown>, keys: readonly string[]) =>
     Object.keys(value).length === keys.length && keys.every((key) => key in value);
 function parsePreferences(value: unknown): AssistantPreferences | null {
-    if (!record(value) || !record(value.quickActions) || !record(value.readSubagents) ||
-        !exact(value, ["activityDetail", "showContextUsage", "showAutoMode", "editMode", "quickActions", "readSubagents"]) ||
+    if (!record(value)) return null;
+    const { disabledProviders = [], ...required } = value;
+    if (!Array.isArray(disabledProviders) || !disabledProviders.every((provider) => MODEL_PROVIDERS.includes(provider)) ||
+        !record(value.quickActions) || !record(value.readSubagents) ||
+        !exact(required, ["activityDetail", "showContextUsage", "showAutoMode", "editMode", "quickActions", "readSubagents"]) ||
         !exact(value.quickActions, QUICK_ACTIONS.map(({ id }) => id)) ||
         !exact(value.readSubagents, ["mode", "showDock", "model", "effort"]) ||
         !["auto", "standard", "tools", "trace"].includes(String(value.activityDetail)) ||
@@ -86,9 +91,10 @@ function parsePreferences(value: unknown): AssistantPreferences | null {
         typeof value.readSubagents.showDock !== "boolean" ||
         typeof value.readSubagents.model !== "string" || value.readSubagents.model.length > 200 ||
         typeof value.readSubagents.effort !== "string" || value.readSubagents.effort.length > 100) return null;
-    return value as AssistantPreferences;
+    return { ...value, disabledProviders: [...new Set(disabledProviders)] } as AssistantPreferences;
 }
 const DEFAULTS: AssistantPreferences = {
+    disabledProviders: [],
     activityDetail: "auto", showContextUsage: true, showAutoMode: false, editMode: "manual",
     quickActions: quickActionDefaults,
     readSubagents: { mode: "none", showDock: true, model: DEFAULT_READ_SUBAGENT_MODEL, effort: DEFAULT_READ_SUBAGENT_EFFORT },

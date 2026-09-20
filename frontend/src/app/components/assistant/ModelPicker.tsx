@@ -2,7 +2,8 @@ import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { SearchableChoiceModal } from "@/app/components/modals/ModalSelect";
 import { TabList } from "@/app/components/ui/tabs";
-import { isModelAvailable } from "@/app/lib/modelAvailability";
+import { useAssistantPreferences } from "./assistantPreferences";
+import { getModelProvider, isModelAvailable } from "@/app/lib/modelAvailability";
 import type { ApiKeyState } from "@/app/lib/api/account";
 import { cn } from "@/app/lib/utils";
 import type { ModelOption } from "@/app/lib/api/account";
@@ -28,6 +29,7 @@ export function ModelPicker({
     effortControls?: ReactNode;
     onOpen?: () => void;
 }) {
+    const [preferences] = useAssistantPreferences();
     const [open, setOpen] = useState(false);
     const [provider, setProvider] = useState<ModelOption["group"] | undefined>();
     const selected = models.find((model) => model.id === value);
@@ -42,7 +44,10 @@ export function ModelPicker({
         (apiKeys
             ? isModelAvailable(model.id, apiKeys)
             : model.group === "Codex" || model.group === "Desktop");
-    const availableModels = models.filter(available);
+    const availableModels = models.filter((model) => {
+        const provider = getModelProvider(model.id);
+        return available(model) && !(provider && preferences.disabledProviders.includes(provider));
+    });
     const providers = [...new Set(availableModels.map((model) => model.group))];
     const activeProvider = provider && providers.includes(provider) ? provider : providers[0];
     const selectedAvailable = available(selected);
