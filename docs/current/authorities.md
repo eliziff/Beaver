@@ -99,7 +99,7 @@ cargo build --locked --release --manifest-path native/legal-structure-node/Cargo
 npm run dev:authorities
 ```
 
-The helper builds into `.authorities-dev` and serves loopback port 3002 by default;
+The helper builds into `AuthoritiesHelper/modern/.authorities-dev` and serves loopback port 3002 by default;
 `PORT` selects another port. `LEGAL_STRUCTURE_NATIVE` can select the addon for the
 current operating system. This is a build-and-launch helper, not hot reload.
 The portable Windows package uses the same application/runtime boundary, not
