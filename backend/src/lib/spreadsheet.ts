@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 import type * as XLSX from "xlsx";
 import { assertBoundedZip, loadZip } from "./zip";
 
@@ -12,6 +13,10 @@ export interface SpreadsheetCellSpan {
   column: number;
   address: string;
   displayValue: string;
+  type?: XLSX.ExcelDataType;
+  value?: XLSX.CellObject["v"];
+  formula?: string;
+  numberFormat?: XLSX.CellObject["z"];
   start: number;
   end: number;
   columnSpan?: number;
@@ -34,10 +39,26 @@ const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
 const MAX_PACKAGE_ENTRIES = 10_000;
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
+const scalar = z.union([z.string().max(32_767), z.number().finite(), z.boolean(), z.null()]);
+const nativeCell = z.object({ t: z.enum(["s", "n", "b"]), v: scalar.optional(),
+  f: z.string().min(1).max(8_192).optional(), z: z.string().max(256).optional() }).strict()
+  .refine(cell => cell.v !== undefined || !!cell.f, "A cell needs a value or formula")
+  .refine(cell => !cell.f?.startsWith("="), "SheetJS formulas omit the leading equals sign")
+  .refine(cell => cell.v == null || typeof cell.v === ({ n: "number", s: "string", b: "boolean" }[cell.t]),
+    "Cell type and value disagree");
+export const workbookSheetsSchema = z.array(z.object({
+  name: z.string().min(1).max(100), columns: z.array(z.string().max(32_767)).max(16_384).optional(),
+  rows: z.array(z.array(z.union([scalar, nativeCell])).max(16_384)).max(100_000),
+})).min(1).max(256).refine(sheets => sheets.reduce((n, sheet) =>
+  n + (sheet.columns?.length ?? 0) + sheet.rows.reduce((n, row) => n + row.length, 0), 0) <= 500_000,
+  "Workbook exceeds the cell limit");
+
 function cellText(cell: XLSX.CellObject | undefined): string {
   if (!cell) return "";
-  const value = typeof cell.w === "string" && cell.w.length > 0 ? cell.w
-    : cell.v == null ? "" : String(cell.v);
+  const display = typeof cell.w === "string" && cell.w.length ? cell.w : cell.v == null ? "" : String(cell.v);
+  const value = cell.f ? `=${cell.f} ⟨${cell.t}; cached:${JSON.stringify(cell.v ?? null)}⟩`
+    : display && cell.t !== "s" ? `${display} ⟨${cell.t}:${JSON.stringify(cell.v)}⟩`
+    : display.startsWith("=") ? `${display} ⟨s⟩` : display;
   return value.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
 }
 
@@ -62,7 +83,10 @@ function renderSheet({ utils }: XlsxModule, table: number, sheetName: string,
     const covered = [...mergeAnchors].some(([anchor, merge]) => anchor !== address &&
       row >= merge.s.r && row <= merge.e.r && column >= merge.s.c && column <= merge.e.c);
     if (covered) continue;
-    const value = cellText(ws[address]);
+    const original = ws[address];
+    // SheetJS represents an uncached numeric formula as a stub with a synthetic zero.
+    if (original?.f && original.t === "z") { original.t = "n"; delete original.v; delete original.w; }
+    const value = cellText(original);
     const merge = mergeAnchors.get(address);
     const text = merge
       ? `${value ? `${value} ` : ""}⟨merged ${utils.encode_range(merge)}⟩` : value;
@@ -104,6 +128,8 @@ function renderSheet({ utils }: XlsxModule, table: number, sheetName: string,
             column: column + 1,
             address: cell.address,
             displayValue: cell.value,
+            type: ws[cell.address]?.t, value: ws[cell.address]?.v,
+            formula: ws[cell.address]?.f, numberFormat: ws[cell.address]?.z,
             ...(merge && merge.e.c > merge.s.c ? { columnSpan: merge.e.c - merge.s.c + 1 } : {}),
             ...(merge && merge.e.r > merge.s.r ? { rowSpan: merge.e.r - merge.s.r + 1 } : {}),
             start,
@@ -132,7 +158,7 @@ async function spreadsheetProjection(buffer: Buffer, fileType: string,
     });
   }
   const xlsx = await (xlsxModule ??= import("xlsx"));
-  const workbook = xlsx.read(buffer, { type: "buffer" });
+  const workbook = xlsx.read(buffer, { type: "buffer", cellFormula: true, cellNF: true, sheetStubs: true });
   if (workbook.SheetNames.length > MAX_SHEETS)
     throw new Error("Spreadsheet contains too many sheets");
   let cells = 0;

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord } from "../chatStore";
 import {
-  projectChatTranscript,
+  projectChatTranscript, workflowForContinuation,
 } from "./chatTranscript";
 
 function message(
@@ -188,4 +188,46 @@ describe("visibleChatMessages", () => {
     expect(projected[0].content).not.toContain("e_hidden");
     expect(projected[0].content).not.toContain("hidden passage");
   });
+});
+
+
+it("replays tool pairs and steering without duplicating the display answer or leaking private events", async () => {
+  const { parseAssistantEvent, publicAssistantEvent } = await import("./assistantEvents");
+  const step = { type: "model_messages" as const, id: "step", model: "gemini-3-flash-preview", messages: [
+    { role: "assistant" as const, content: [{ type: "tool-call" as const, toolCallId: "r1", toolName: "Read", input: { file: "A" } }] },
+    { role: "tool" as const, content: [{ type: "tool-result" as const, toolCallId: "r1", toolName: "Read",
+      output: { type: "text" as const, value: "Evidence" } }] },
+  ] };
+  expect(parseAssistantEvent(step)).not.toBeNull();
+  expect(publicAssistantEvent(step)).toBeNull();
+  const projected = projectChatTranscript([message("assistant", [step,
+    { type: "steering", id: "s1", text: "Do not change the indemnity clause." },
+    { type: "content", text: "Display-only answer" },
+  ])]);
+  expect(projected).toHaveLength(2);
+  expect(projected[0].modelState?.messages).toEqual(step.messages);
+  expect(projected[1]).toEqual({ role: "user", content: "Do not change the indemnity clause." });
+  expect(JSON.stringify(projected)).not.toContain("Display-only answer");
+});
+
+it("recovers the workflow that asked the pending question, rather than a later or earlier workflow", () => {
+  const original = message("user", "Review", { workflow: { id: "review", variant_id: "detailed", title: "Detailed review" } });
+  const pending = message("assistant", []), later = message("user", "Other task", {
+    workflow: { id: "other", title: "Other" },
+  });
+  expect(workflowForContinuation([original, pending, later], pending.id)).toEqual(original.workflow);
+  expect(workflowForContinuation([message("user", "No workflow"), pending], pending.id)).toBeUndefined();
+});
+
+it("native compaction replaces only the history of the same model", () => {
+  const model = "gpt-5.5", rows = [message("user", "Earlier instruction"), message("assistant", [{
+    type: "model_messages", id: "compact", model, compacted: true, messages: [{ role: "assistant", content: [
+      { type: "custom", kind: "openai.compaction", providerOptions: { openai: { itemId: "c1", encryptedContent: "opaque" } } },
+      { type: "text", text: "After compaction" },
+    ] }],
+  }, { type: "content", text: "Display-only answer" }])];
+  const native = projectChatTranscript(rows, "openai", model);
+  expect(native).toHaveLength(1);
+  expect(native[0].modelState?.compacted).toBe(true);
+  expect(projectChatTranscript(rows, "openai", "gpt-5.4")[0].content).toBe("Earlier instruction");
 });

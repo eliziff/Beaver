@@ -1,22 +1,32 @@
 # LLM boundary
 
-Purpose: translate Beaver's provider-neutral messages and MCP-shaped tools to
-each provider's native protocol.
+`index.ts` dispatches hosted models through the Vercel AI SDK, matching upstream
+Mike's SDK family. Codex app-server and Claude Code remain native transports.
+`sdkProviders.ts` contains endpoint/authentication and supported provider options;
+`sdk.ts` retains only Beaver's ordered tool rounds, limits and callbacks. SDK
+providers own request/stream parsing, reasoning signatures, usage and stop reasons.
+No second SSE parser or automatic tool execution belongs here: the existing
+`TurnToolRegistry` must still validate and order the complete tool batch.
 
-Public entrypoint: `lib/llm/index.ts`.
+Hosted chat persists SDK `ModelMessage` pairs as private `model_messages` events
+in the existing chat store. Display events are not the agent's resumable history.
+Tool results, errors, images and signatures replay on the same model; model changes
+retain text/tool pairs without foreign reasoning signatures. Native compaction
+replaces a prefix only for its exact model. OpenAI uses stateless Responses item
+replay (`store: false`), including encrypted reasoning, rather than another remote
+session store. Codex continues to own its native durable thread.
 
-Canonical operations:
+Steering is replayed as a user instruction. Answering a workflow's input question
+retains that workflow; an ordinary new message does not implicitly select it.
+Provider output exhaustion and the host step limit raise explicit incomplete
+results, not successful completion. Completed tool pairs persist before stopping;
+truncated generation never authorizes tool effects.
 
-- `streamChatWithTools` for interactive/provider tool loops.
-- `completeText` for one-shot text generation.
-- model/provider helpers exported by `index.ts`.
+Claude caching is enabled explicitly and cache reads/writes count toward context.
+Effort and summary visibility are separate provider options. Discovery expands the
+tool list without forcing a newly discovered tool to execute. Normal telemetry
+remains content-free; `MIKE_LLM_METRICS_PATH` enables numeric benchmark receipts.
 
-`providerLoop.ts` owns every API-provider agent loop. Protocol wire adapters
-only encode requests and normalize wire events; provider-named modules contain
-fixed endpoint and credential configuration. Tool authorization and execution
-stay with the caller's `TurnToolRegistry`. Do not add provider call-through
-modules or recreate completion dispatch outside `index.ts`.
-
-Production records no prompts, responses, hashes, or provider identifiers.
-Benchmarks may set `MIKE_LLM_METRICS_PATH` to append numeric token and byte
-counts; do not turn that opt-in receipt into product telemetry.
+References: [SDK message replay](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling),
+[provider options](https://ai-sdk.dev/providers/ai-sdk-providers), and
+[Responses conversation state](https://developers.openai.com/api/docs/guides/conversation-state).

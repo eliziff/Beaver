@@ -1,3 +1,5 @@
+import type { ModelMessage } from "ai" with { "resolution-mode": "import" };
+
 // Shared provider-neutral LLM types. Tool contracts use MCP's standard shape;
 // provider adapters only translate at their wire boundary.
 
@@ -20,9 +22,12 @@ export type ProviderContextCheckpoint =
   | { provider: "claude"; content: string; block: Record<string, unknown> }
   | { provider: "openai"; item: Record<string, unknown> };
 
+export type ModelState = { model: string; messages: ModelMessage[]; compacted?: true };
+
 export type LlmMessage = {
   role: "user" | "assistant";
   content: string;
+  modelState?: ModelState;
   images?: LlmImage[];
   /** Provider-native continuation block retained alongside the plain summary. */
   contextCheckpoint?: ProviderContextCheckpoint;
@@ -74,6 +79,8 @@ export type ProviderSubagentUpdate = {
 };
 
 export type StreamCallbacks = {
+  /** Complete SDK response/tool pairs, private to durable agent history. */
+  onModelMessages?: (state: ModelState) => void | Promise<void>;
   /** Provider or nested-tool progress used by inactivity watchdogs. */
   onActivity?: () => void;
   onReasoningDelta?: (text: string) => void;
@@ -206,6 +213,7 @@ export type LlmContextRoundReceipt = {
 };
 
 export type StreamChatResult = {
+  finishReason?: string;
   fullText: string;
   /** Provider-reported usage when an adapter can supply it. */
   usage?: NormalizedLlmUsage;
