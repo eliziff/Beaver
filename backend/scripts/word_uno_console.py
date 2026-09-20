@@ -12,27 +12,22 @@ import xml.etree.ElementTree as ET
 import zipfile
 from urllib.parse import quote
 
-from word_uno import (W, collection, resolve, encode, decode, check_name, check_value,
-                      package, props, writer, load, inspect, property_object, read_property, read_properties, page, enumerate_values, STYLE_FAMILIES)
+from word_uno import (W, collection, resolve, resolve_many, encode, decode, check_name, check_value,
+                      package, props, writer, load, inspect, properties, read_property, page, enumerate_values, STYLE_FAMILIES)
 import uno
 
 # Discover document interfaces rather than maintaining a formatting catalogue.
 # Application, storage and scripting interfaces are never console capabilities.
 INTERFACES = ('com.sun.star.text.', 'com.sun.star.style.', 'com.sun.star.table.',
               'com.sun.star.drawing.', 'com.sun.star.container.')
-METHODS = {'getString', 'setString', 'getText', 'getStart', 'getEnd', 'getAnchor',
-           'getPosition', 'setPosition', 'getSize', 'setSize', 'getShapeType',
-           'getCount', 'getByIndex', 'getByName', 'getElementNames', 'getElementType',
-           'hasByName', 'hasElements', 'createEnumeration', 'hasMoreElements', 'nextElement',
-           'createTextCursor', 'createTextCursorByRange', 'createSearchDescriptor', 'findAll', 'findFirst', 'findNext',
-           'supportsService', 'getSupportedServiceNames', 'getAvailableServiceNames',
-           'getDataArray', 'setDataArray',
-           'getPropertyDefault', 'getPropertyState', 'getPropertyStates', 'setPropertyToDefault'}
-DENIED_METHOD = re.compile(r'^(?:queryInterface|getTypes|getImplementationId|acquire|release|dispose|close|'
-    r'store.*|load.*|attachResource|setParent|setPropertyValues|getPropertyValues|'
-    r'setPropertyValue|getPropertyValue|setFastPropertyValue|getFastPropertyValue|'
-    r'add.*Listener|remove.*Listener|insertDocumentFromURL|updateLinks|refresh|'
-    r'createInstanceWithArguments|createInstanceWithContext|createInstanceWithArgumentsAndContext)$')
+METHODS = {
+    'com.sun.star.beans.XPropertyState': {'getPropertyDefault', 'getPropertyState', 'getPropertyStates', 'setPropertyToDefault'},
+    'com.sun.star.beans.XMultiPropertyStates': {'getPropertyStates', 'setPropertiesToDefault'},
+    'com.sun.star.lang.XMultiServiceFactory': {'getAvailableServiceNames'},
+    'com.sun.star.lang.XServiceInfo': {'supportsService', 'getSupportedServiceNames'},
+    'com.sun.star.util.XSearchable': {'createSearchDescriptor', 'findAll', 'findFirst', 'findNext'},
+    'com.sun.star.sheet.XCellRangeData': {'getDataArray', 'setDataArray'},
+}
 READ_METHOD = re.compile(r'^(?:get|has|is|supports|createTextCursor|createSearchDescriptor|createEnumeration|nextElement|find|goto|goLeft|goRight|collapse|compareRegion)')
 DOCUMENT_SERVICES = re.compile(r'^com\.sun\.star\.(?:text|style|drawing)\.')
 ACTIVE_SERVICES = re.compile(r'OLE|Applet|Plugin|MediaShape|Script|Macro|Database|DDE|DataSource', re.I)
@@ -139,7 +134,7 @@ class Broker:
     def __init__(self, doc, readonly=False):
         self.doc, self.readonly = doc, readonly
         self.refs, self.targets, self.changes, self.checks = {'doc': doc}, {}, [], {}
-        self.find_scopes = {}
+        self.find_scopes, self.resets = {}, {}
         self.scratch = set()
         self.metadata = {}
         self.removed_review = Counter()
@@ -165,13 +160,11 @@ class Broker:
         return self.metadata[key][1]
 
     def method_allowed(self, obj, name):
-        try: check_name(name)
-        except ValueError: return False
-        if DENIED_METHOD.fullmatch(name): return False
-        if name in METHODS: return True
+        if name == 'printPages': return False
         try:
-            method = self.info(obj).getMethod(name, -1)
-            return method.DeclaringClass.Name.startswith(INTERFACES)
+            check_name(name)
+            declaring = self.info(obj).getMethod(name, -1).DeclaringClass.Name
+            return declaring.startswith(INTERFACES) or name in METHODS.get(declaring, ())
         except Exception: return False
 
     def mutate(self):
@@ -181,6 +174,10 @@ class Broker:
         self.calls += 1
         if self.calls > 4000: raise ValueError('Native operation budget exhausted')
         op, target = command.get('op'), command.get('target', 'doc')
+        if op == 'target' and isinstance(target, list):
+            if not 1 <= len(target) <= 1000: raise ValueError('Select 1-1000 targets')
+            resolved = resolve_many(self.doc, target)
+            return [self.save(resolved[t], t) for t in target]
         obj = self.refs[target] if target in self.refs else resolve(self.doc, target)
         if op == 'target': return self.save(obj, target)
         if op == 'inspect':
@@ -213,36 +210,44 @@ class Broker:
             self.find_scopes[found] = self.find_scopes.get(obj, obj)
             return self.save(found)
         if op == 'items':
-            properties = command.get('properties', [])
-            if not isinstance(properties, list) or len(properties) > 32: raise ValueError('Select at most 32 properties')
-            for name in properties: check_name(name)
+            names = command.get('properties', [])
+            if not isinstance(names, list) or len(names) > 32: raise ValueError('Select at most 32 properties')
+            for name in names: check_name(name)
             entries, pagination = page(lambda start: enumerate_values(obj, start), command)
             return {'items': [{'name': name, 'value': self.save(value),
-                **({'properties': self.save(read_properties(value, properties))} if properties else {})}
+                **({'properties': self.save(properties(value, names))} if names else {})}
                 for name, value in entries], **pagination}
-        if op == 'get':
+        if op in ('get', 'state', 'default'):
             names = command['name']
-            if isinstance(names, list):
-                if not 1 <= len(names) <= 32: raise ValueError('get needs 1-32 properties')
-                return {name: self.save(value) for name, value in read_properties(obj, names).items()}
-            return self.save(read_property(obj, names))
-        if op == 'set':
+            selected = names if isinstance(names, list) else [names]
+            if not 1 <= len(selected) <= 32: raise ValueError('get needs 1-32 properties')
+            result = self.save(properties(obj, selected, operation=op))
+            return result if isinstance(names, list) else result[names]
+        if op in ('set', 'reset'):
             if target not in self.scratch: self.mutate()
-            values = command.get('values')
-            if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('set requires 1-100 properties')
-            for name, value in values.items():
-                check_value(name, value)
-                subject = property_object(obj, name)
-                requested = decode(value, self.refs)
-                setattr(subject, name, requested)
-                after, expected = encode(getattr(subject, name)), encode(requested)
-                if after != expected and not (name == 'String' and self.doc.RecordChanges):
-                    raise ValueError('Writer did not retain property ' + name)
-                if name == 'String': after = expected
-                if target in self.targets or name != 'String' and obj in self.find_scopes:
-                    self.checks.setdefault(obj, {})[name] = after
+            names = command.get('names', [])
+            if op == 'reset' and (not isinstance(names, list) or not 1 <= len(names) <= 100):
+                raise ValueError('reset requires 1-100 property names')
+            for name in names: check_name(name)
+            values = command.get('values') if op == 'set' else dict.fromkeys(names)
+            if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('set/reset requires 1-100 properties')
+            for name, value in values.items(): check_value(name, value)
+            requested = {name: decode(value, self.refs) for name, value in values.items()}
+            after = {name: encode(value) for name, value in properties(obj, values,
+                values=requested, operation=op).items()}
+            if op == 'set':
+                expected = {name: encode(value) for name, value in requested.items()}
+                if 'String' in expected and self.doc.RecordChanges: after['String'] = expected['String']
+                if after != expected: raise ValueError('Writer did not retain requested properties')
+                self.resets.get(obj, set()).difference_update(values)
+                if target in self.targets or obj in self.find_scopes:
+                    self.checks.setdefault(obj, {}).update({name: value for name, value in after.items()
+                        if name != 'String' or obj not in self.find_scopes})
+            elif target not in self.scratch:
+                self.resets.setdefault(obj, set()).update(values)
+                for name in values: self.checks.get(obj, {}).pop(name, None)
             if target not in self.scratch:
-                self.changes.append({'target': self.targets.get(target, target), 'properties': list(values)})
+                self.changes.append({'target': self.targets.get(target, target), op: list(values)})
             return None
         if op == 'constant':
             name = command.get('name', '')
@@ -259,8 +264,19 @@ class Broker:
             name, args = command.get('name'), command.get('args', [])
             if not self.method_allowed(obj, name): raise ValueError('Method is not a document-only capability: ' + str(name))
             if not isinstance(args, list) or len(args) > 20: raise ValueError('Too many native arguments')
-            if name in ('setPropertyToDefault', 'getPropertyDefault', 'getPropertyState', 'getPropertyStates'):
-                for prop in args[0] if isinstance(args[0], list) else [args[0]]: check_name(prop)
+            if name == 'setParentStyle':
+                if len(args) != 1: raise ValueError('setParentStyle requires one style name')
+                return self.rpc({'op': 'set', 'target': target, 'values': {'ParentStyle': args[0]}})
+            aliases = {'getPropertyDefault': 'default', 'getPropertyState': 'state', 'getPropertyStates': 'state',
+                       'setPropertyToDefault': 'reset', 'setPropertiesToDefault': 'reset'}
+            if name in aliases:
+                if len(args) != 1: raise ValueError('Property access requires one name or name list')
+                if aliases[name] != 'reset':
+                    result = self.rpc({'op': aliases[name], 'target': target, 'name': args[0]})
+                    return [result[n] for n in args[0]] if name == 'getPropertyStates' else result
+                names = args[0] if name == 'setPropertiesToDefault' else [args[0]]
+                if not isinstance(names, list): raise ValueError('reset requires a property-name list')
+                return self.rpc({'op': 'reset', 'target': target, 'names': names})
             if not READ_METHOD.match(name): self.mutate()
             result = uno.invoke(obj, name, tuple(decode(a, self.refs) for a in args))
             if not READ_METHOD.match(name): self.changes.append({'target': self.targets.get(target, target), 'method': name})
@@ -270,7 +286,7 @@ class Broker:
         if op == 'expect':
             values = command.get('values')
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('expect requires 1-100 properties')
-            actual = {name: encode(value) for name, value in read_properties(obj, values).items()}
+            actual = {name: encode(value) for name, value in properties(obj, values).items()}
             if actual != values: raise ValueError('Postcondition failed: ' + str(target))
             self.checks.setdefault(obj, {}).update(values)
             return True
@@ -291,6 +307,11 @@ class Broker:
 
 def freeze_checks(broker):
     """Bind live objects to final addresses, not indexes captured before edits."""
+    for obj, names in broker.resets.items():
+        if names:
+            if any(state.value != 'DEFAULT_VALUE' for state in properties(obj, names, operation='state').values()):
+                raise ValueError('A formatting reset was overridden; set its final properties explicitly')
+            broker.checks.setdefault(obj, {}).update({n: encode(v) for n, v in properties(obj, names).items()})
     if not broker.checks: return [], []
     pending = {broker.find_scopes.get(obj, obj) for obj in broker.checks}
     addresses = {}
@@ -315,10 +336,10 @@ def freeze_checks(broker):
         for wanted in matches:
             addresses[wanted] = target
             pending.remove(wanted)
-    # Most existing targets have not moved; avoid a document scan for those.
+    # Named targets resolve directly; bind all paragraph indexes in one pass.
     for ref, target in broker.targets.items():
         obj = broker.refs[ref]
-        if obj in pending:
+        if obj in pending and not target.startswith('paragraph:'):
             try:
                 remember(target, resolve(broker.doc, target))
             except Exception: pass
@@ -345,26 +366,27 @@ def freeze_checks(broker):
             # Formatting/explicit expectations describe the actual redline view.
             # Only a tracked String setter can require an accepted-view check.
             if broker.doc.RecordChanges and 'String' in values and read_property(obj, 'String') != values['String']:
-                accepted.append((addresses[obj], None, None, {'String': values['String']}))
+                accepted.append((addresses[obj], None, None, {'String': values['String']}, ()))
                 values = {name: value for name, value in values.items() if name != 'String'}
-            if values: raw.append((addresses[obj], None, None, values))
+            if values: raw.append((addresses[obj], None, None, values, tuple(broker.resets.get(obj, ()))))
             continue
         scope, text = broker.find_scopes[obj], obj.String
         if not text: raise ValueError('An empty selection has no persistent formatting to verify')
         owner = scope.getText() if hasattr(scope, 'getText') else scope
         prefix = owner.createTextCursorByRange(scope.Start); prefix.gotoRange(obj.Start, True)
-        raw.append((addresses[scope], prefix.String, text, values))
+        raw.append((addresses[scope], prefix.String, text, values, tuple(broker.resets.get(obj, ()))))
     return accepted, raw
 
 
 def verify_properties(doc, checks):
-    scopes = {}
-    for target, prefix, text, values in checks:
-        if target not in scopes: scopes[target] = resolve(doc, target)
+    scopes = resolve_many(doc, (check[0] for check in checks))
+    for target, prefix, text, values, defaults in checks:
         obj = scopes[target]
         if prefix is not None: obj = unique_range(doc, obj, text, prefix)
-        actual = {name: encode(value) for name, value in read_properties(obj, values).items()}
+        actual = {name: encode(value) for name, value in properties(obj, values).items()}
         if actual != values: raise ValueError('Export/reopen lost properties at ' + target)
+        if any(state.value != 'DEFAULT_VALUE' for state in properties(obj, defaults, operation='state').values()):
+            raise ValueError('Export/reopen restored direct formatting at ' + target)
 
 
 def emit(value):

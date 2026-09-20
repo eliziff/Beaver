@@ -67,9 +67,17 @@ test("real console discovers native APIs and performs compound edits", async () 
     word.assert(props.items.length===2 && !('text' in props.items[0]) && 'ParaStyleName' in props.items[0].properties);
     const tables=doc.get('TextTables').items();
     word.assert(tables.items[0].name==='Table1' && tables.next_offset===null);
-    const paragraph=page.items[1].value;
+    const [paragraph,unicode,t]=word.target(['paragraph:1','paragraph:2','table:Table1']);
     for (const String of ['x'.repeat(70000),'y'.repeat(70000),'Opening paragraph stays unchanged.']) paragraph.set({String});
-    paragraph.set({CharWeight:150}); paragraph.expect({CharWeight:150});
+    const paragraphStyles=doc.get('StyleFamilies').call('getByName','ParagraphStyles');
+    paragraphStyles.call('insertByName','BeaverDerived',word.create('com.sun.star.style.ParagraphStyle'));
+    const style=word.target('paragraph-style:BeaverDerived'); style.call('setParentStyle','Standard');
+    style.set({CharHeight:13});
+    paragraph.set({ParaStyleName:'BeaverDerived',CharHeight:18,CharWeight:150,CharUnderline:1});
+    paragraph.reset(['CharHeight','CharUnderline']); style.set({CharHeight:14}); style.expect({ParentStyle:'Standard',CharHeight:14});
+    word.assert(style.call('getParentStyle')==='Standard' && paragraph.get('CharHeight')===14);
+    word.assert(paragraph.call('getPropertyStates',['CharHeight','CharWeight'])[0].value==='DEFAULT_VALUE');
+    paragraph.expect({CharWeight:150});
     const selection=paragraph.find('unchanged');
     selection.set({CharColor:0x123456}); selection.expect({String:'unchanged',CharColor:0x123456});
     const format=paragraph.get(['CharWeight','CharHeight','CharFontName','String']);
@@ -80,7 +88,6 @@ test("real console discovers native APIs and performs compound edits", async () 
     const rules=styles.call('getByName','BeaverOutline').get('NumberingRules');
     const level=rules.call('getByIndex',0);
     rules.call('replaceByIndex',0,word.any('[]com.sun.star.beans.PropertyValue',level));
-    const t=word.target('table:Table1');
     word.assert(t.describe('Header').items.length>0);
     t.set({RepeatHeadline:true});
     t.get('Rows').call('insertByIndex',2,1);
@@ -88,7 +95,7 @@ test("real console discovers native APIs and performs compound edits", async () 
     cells.call('setDataArray', [['Additional item','$250']]);
     word.assert(cells.call('getDataArray')[0][1]==='$250');
     word.target('cell:Table1/B2').find('$100').set({String:'$125'});
-    word.target('paragraph:2').find('🦫 anchor').set({String:'🦫 exact selection'});
+    unicode.find('🦫 anchor').set({String:'🦫 exact selection'});
     word.assert(word.target('header:Standard').find('UNCHANGED HEADER').get('String')==='UNCHANGED HEADER');
     word.target('page-style:Standard').set({LeftMargin:1905});
     word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'});
@@ -112,6 +119,7 @@ test("real console discovers native APIs and performs compound edits", async () 
   assert.match(await xml(candidate, "word/document.xml"), /beaver_anchor/);
   assert.match(await xml(candidate, "word/footnotes.xml"), /paragraph 15/);
   assert.match(await xml(candidate, "word/comments.xml"), /Do not remove my note/);
+  assert.match(await xml(candidate, "word/styles.xml"), /BeaverDerived/);
   if (process.env.UNO_EVIDENCE_DIR) {
     await mkdir(process.env.UNO_EVIDENCE_DIR, { recursive: true });
     await writeFile(path.join(process.env.UNO_EVIDENCE_DIR, process.platform + "-candidate.docx"), candidate);
@@ -166,10 +174,12 @@ test("creation, readonly policy, unsafe native access, and failed programs use t
   const unsafe = await JSZip.loadAsync(bytes); unsafe.file('word/vbaProject.bin', 'never execute');
   await assert.rejects(preview(await unsafe.generateAsync({type:'nodebuffer'}), 'return null;'), /Macros and embedded/);
   await assert.rejects(runLibreOffice(bytes, {action:'inspect',snapshot:hash(bytes),program:"word.target('paragraph:1').set({String:'forbidden'});"}, signal), /read-only/);
-  for (const program of ["doc.get(['Text','BasicLibraries']);", "doc.call('getPropertyDefault','BasicLibraries');", "doc.get('TextTables').items(100000,1,['BasicLibraries']);"])
+  for (const program of ["doc.get(['Text','BasicLibraries']);", "doc.get('Parent');", "doc.call('createInstance','com.sun.star.text.Footnote');", "doc.call('printPages',[]);", "doc.call('getPropertyDefault','BasicLibraries');", "doc.get('TextTables').items(100000,1,['BasicLibraries']);"])
     await assert.rejects(preview(bytes, program), /document-only/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({HyperLinkURL:'file:///etc/passwd'});"), /HTTP|document/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({String:'temporary'}); throw new Error('discard me');"), /discard me/);
+  await assert.rejects(runLibreOffice(bytes, {action:'inspect',program:"word.target('paragraph:1').reset(['CharWeight']);"}, signal), /read-only/);
+  await assert.rejects(preview(bytes, "word.target(['paragraph:1','paragraph:99999']);"), /does not exist/);
   const inspected = await runLibreOffice(bytes, { action:'inspect', target:'paragraph:1' }, signal);
   assert.match(String(inspected.report.text), /stays unchanged/);
 });

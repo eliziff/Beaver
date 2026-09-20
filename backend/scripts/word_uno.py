@@ -40,7 +40,8 @@ FORBIDDEN = re.compile(r'(?:URL|URI|Events|Script|Macro|Library|Libraries|Intero
     r'Context|ServiceManager|Controller|DocumentStorage|DocumentSubStorage|Parent|'
     r'DDE|DataSource|Database|Connection|Password|Command|External|Link|RecordChanges|'
     r'RecordChangesProtection|RedlineDisplay|RedlineProtection)', re.I)
-SAFE_HYPERLINKS = {'HyperLinkURL', 'HyperLinkTarget', 'HyperLinkName'}
+SAFE_MEMBERS = {'HyperLinkURL', 'HyperLinkTarget', 'HyperLinkName',
+                'ParentStyle', 'getParentStyle', 'setParentStyle'}
 
 
 def props(**values):
@@ -327,6 +328,21 @@ def resolve(doc, target):
     raise ValueError('Target does not exist in this snapshot')
 
 
+def resolve_many(doc, targets):
+    resolved, paragraphs = {}, {}
+    for target in dict.fromkeys(targets):
+        if not isinstance(target, str): raise ValueError('Use inspected target addresses')
+        if re.fullmatch(r'paragraph:(0|[1-9][0-9]*)', target):
+            paragraphs[target.partition(':')[2]] = target
+        else: resolved[target] = resolve(doc, target)
+    if paragraphs:
+        for index, node in collection(doc, 'paragraph'):
+            if index in paragraphs: resolved[paragraphs.pop(index)] = node
+            if not paragraphs: break
+    if paragraphs: raise ValueError('Target does not exist in this snapshot')
+    return resolved
+
+
 def encode(value, depth=0):
     if depth > 10: raise ValueError('Native value is too deeply nested')
     if value is None or isinstance(value, (str, bool, int, float)):
@@ -346,7 +362,7 @@ def encode(value, depth=0):
 def check_name(name):
     if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,100}', name):
         raise ValueError('Invalid native member name')
-    if FORBIDDEN.search(name) and name not in SAFE_HYPERLINKS:
+    if FORBIDDEN.search(name) and name not in SAFE_MEMBERS:
         raise ValueError('Member is outside document-only capabilities: ' + name)
 
 
@@ -404,9 +420,12 @@ def property_object(node, name):
     return cursor
 
 
-def read_properties(node, names):
-    # Reuse the character cursor and use XMultiPropertySet where available.
-    # String/Text/etc. are UNO attributes, not beans properties: retain that path.
+def properties(node, names, *, operation="get", values=None):
+    """One property path for native reads, writes and resetting direct formatting.
+
+    Attribute writes remain separate; only actual beans properties use sorted
+    XMultiPropertySet calls. Unknown names must not be silently ignored by UNO.
+    """
     groups, result, character = {}, {}, None
     for name in names:
         check_name(name)
@@ -420,17 +439,33 @@ def read_properties(node, names):
         if len(selected) > 1 and hasattr(subject, 'getPropertyValues'):
             info = subject.getPropertySetInfo()
             bulk = tuple(sorted({n for n in selected if info.hasPropertyByName(n)}))
-            if bulk: result.update(zip(bulk, subject.getPropertyValues(bulk)))
+        if operation in ('state', 'default'):
+            method = 'getPropertyState' if operation == 'state' else 'getPropertyDefault'
+            result.update((name, getattr(subject, method)(name)) for name in selected)
+            continue
+        if operation == 'reset':
+            if bulk and hasattr(subject, 'setPropertiesToDefault'): subject.setPropertiesToDefault(bulk)
+            else: bulk = ()
+            for name in selected:
+                if name not in bulk: subject.setPropertyToDefault(name)
+        elif operation == 'set':
+            if bulk and hasattr(subject, 'setPropertyValues'):
+                subject.setPropertyValues(bulk, tuple(values[n] for n in bulk))
+            else: bulk = ()
+            for name in selected:
+                if name not in bulk: setattr(subject, name, values[name])
+        if operation in ('set', 'reset'): continue
+        if bulk: result.update(zip(bulk, subject.getPropertyValues(bulk)))
         for name in selected:
             if name not in bulk:
                 value = getattr(subject, name)
                 if callable(value): raise ValueError('Use call for native methods')
                 result[name] = value
-    return result
+    return properties(node, names) if operation in ('set', 'reset') else result
 
 
 def read_property(node, name):
-    return read_properties(node, [name])[name]
+    return properties(node, [name])[name]
 
 
 def bounded(request, key, default, maximum):
@@ -453,11 +488,11 @@ def page(entries, request):
 def inspect(doc, request):
     offset, limit = bounded(request, 'offset', 0, 100000), bounded(request, 'limit', 20, 100)
     if not limit: raise ValueError('limit must be positive')
-    properties = request.get('properties', [])
-    if not isinstance(properties, list) or len(properties) > 32: raise ValueError('Select at most 32 properties')
-    for name in properties: check_name(name)
+    names = request.get('properties', [])
+    if not isinstance(names, list) or len(names) > 32: raise ValueError('Select at most 32 properties')
+    for name in names: check_name(name)
     def selected(node):
-        return {'properties': {name: encode(value) for name, value in read_properties(node, properties).items()}} if properties else {}
+        return {'properties': {name: encode(value) for name, value in properties(node, names).items()}} if names else {}
     target = request.get('target')
     if target:
         node = resolve(doc, target)
