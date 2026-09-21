@@ -63,8 +63,15 @@ match.
 preferences seed automatic marks; **None** starts without them and still permits
 manual text selection/area drawing. Card selection navigates to exact geometry;
 selecting a mark identifies its card, including cycling overlapping marks.
-Edits have per-source undo/redo. Save and close commits all edited sources
-atomically through the draft revision boundary; Cancel protects unsaved edits.
+Edits have per-source undo/redo and revision-checked, serialized autosave; editing
+continues while a save is in flight. A failed save remains dirty and can be retried.
+Only the active source retains PDF bytes; switching sources preserves mark history.
+OCR geometry is retained by the parser and read independently of annotation state,
+including when reopening a draft. Word boxes are used when available; line-only
+recognition retains its text and line box rather than inventing word coordinates.
+Completed recognition updates the selectable
+layer in place without replacing marks, history, scroll position or PDF canvases.
+A manual-only source is not opted into OCR by opening the editor.
 
 `AuthorityIdentity.annotations[bindingRole]` stores a `beaver.pdf-annotations.v1`
 set bound to the exact source SHA-256. Missing means initialization is permitted;

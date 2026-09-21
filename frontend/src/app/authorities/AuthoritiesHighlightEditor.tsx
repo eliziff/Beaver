@@ -44,9 +44,7 @@ export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; oc
 type Entry = Extract<AuthoritiesAction, { type: 'set-annotations' }>['entries'][number];
 type Choice = { authorityId: string; bindingRole: string; sourceSha256: string; title: string };
 type OpenPdf = {
-  bytes: Uint8Array; set: PdfAnnotationSet; history: PdfAnnotation[][]; position: number;
-  warning: string; recognized: boolean;
-  recognizedText?: PdfRecognizedText;
+  set: PdfAnnotationSet; history: PdfAnnotation[][]; position: number; warning: string;
 };
 const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string>): Choice[] =>
   product.state.authorityOrder.flatMap(id => {
@@ -86,23 +84,22 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
+  const [pdf, setPdf] = useState<{ role: string; bytes: Uint8Array; recognizedText?: PdfRecognizedText } | null>(null);
   const [tool, setTool] = useState<AnnotationTool>('select');
   const [selectedId, setSelectedId] = useState<string|null>(null);
   const [focus, setFocus] = useState<{ id: string; request: number }>();
   const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''), [textError, setTextError] = useState('');
   const request = useRef<AbortController|null>(null);
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
   const recognition = ocr.tracked[role];
-  const recognitionDone = recognition?.state === 'done';
-  const recognized = recognition?.state !== 'running' && recognition?.state !== 'paused';
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
   const current = documents[role], marks = current?.history[current.position] ?? [];
   const dirty = Object.entries(documents).some(([key, document]) =>
     savedMarks.current[key] !== document.history[document.position]);
-  const disabled = saving || loading || !current;
+  const disabled = loading || !current;
   const changeDocument = (update: (document: OpenPdf) => OpenPdf) => setDocuments(values => {
     const document = values[role]; return document ? { ...values, [role]: update(document) } : values;
   });
@@ -120,22 +117,21 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const close = () => { if (!saving && !dirty) onClose(); };
 
   useEffect(() => {
-    setSelectedId(null); setFocus(undefined); setError('');
+    setSelectedId(null); setFocus(undefined); setError(''); setTextError('');
     const loaded = documents[role];
-    // Marks prepared while a scan was still being read are prepared again once its text
-    // arrives, unless the reader has changed them in the meantime.
-    if (loaded && (loaded.recognized || savedMarks.current[role] !== loaded.history[loaded.position]))
-      { setLoading(false); return; }
+    // Only the active PDF owns bytes. Mark histories survive source switches independently.
+    setPdf(null);
     const abort = new AbortController(); request.current?.abort(); request.current=abort; setLoading(true);
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
       const blob = await host.readSource(base, source.bindingRole);
-      const recognizedText = recognitionDone && host.readSourceText
-        ? await host.readSourceText(base, source.bindingRole, abort.signal) : undefined;
       const bytes = new Uint8Array(await blob.arrayBuffer()); abort.signal.throwIfAborted();
-      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.slice().buffer))]
+      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.buffer))]
         .map(value => value.toString(16).padStart(2,'0')).join('');
+      abort.signal.throwIfAborted();
       if (hash !== source.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
+      setPdf({role, bytes});
+      if (loaded) return;
       const saved = base.state.authorities[source.authorityId].annotations?.[role];
       const replaced = !!saved && saved.sourceSha256 !== hash;
       let set = saved && !replaced ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
@@ -156,12 +152,23 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       }
       abort.signal.throwIfAborted();
       savedMarks.current[role] = set.marks;
-      setDocuments(values => ({...values,[role]:{bytes,set,history:[set.marks],position:0,warning,recognized,recognizedText}}));
+      setDocuments(values => ({...values,[role]:{set,history:[set.marks],position:0,warning}}));
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-    // A loaded document is retained when switching sources; edits do not reload its PDF bytes.
-  }, [role, base, host, recognized]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [role, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!pdf || pdf.role !== role || !host.readSourceText ||
+        recognition && recognition.state !== 'done') return;
+    const abort = new AbortController(), bytes = pdf.bytes;
+    setTextError('');
+    // Also read persisted recognition when reopening: the in-memory progress tracker is not a cache.
+    void host.readSourceText(base, role, abort.signal).then(recognizedText => {
+      if (!abort.signal.aborted) setPdf(value => value?.role === role && value.bytes === bytes
+        ? {...value, recognizedText} : value);
+    }).catch(cause => { if (!abort.signal.aborted) setTextError(`Text selection could not be prepared. ${errorMessage(cause)}`); });
+    return () => abort.abort();
+  }, [role, pdf?.bytes, recognition?.state, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if(selectedId) cardRefs.current.get(selectedId)?.scrollIntoView({block:'nearest'}); },[selectedId]);
   useEffect(() => {
@@ -169,7 +176,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     const guard=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';};
     window.addEventListener('beforeunload',guard); return ()=>window.removeEventListener('beforeunload',guard);
   },[dirty]);
-  useEffect(() => { if (dirty) void save(); }, [documents]);
+  useEffect(() => { if (dirty && !saving && !loading && !error) void save(); }, [documents, saving, loading, error]);
 
   async function save() {
     if(saving || loading) return;
@@ -192,12 +199,12 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     <Modal open onClose={close} breadcrumbs={['Highlights']} size="2xl"
       className="h-[calc(100dvh-2rem)] max-w-[96rem]"
       primaryAction={error && dirty ? {label:'Retry',disabled:saving,onClick:()=>void save()} : undefined}
-      footerStatus={<span role={error?'alert':'status'} className={cn('text-sm',error?'text-red-800':'text-gray-500')}>
-        {error || (loading?'Preparing PDF…':saving?'Saving…':'')}</span>}>
+      footerStatus={<span role={error || textError?'alert':'status'} className={cn('text-sm',error || textError?'text-red-800':'text-gray-500')}>
+        {error || textError || (loading?'Preparing PDF…':saving?'Saving…':'')}</span>}>
       <div className="flex min-h-0 flex-1 flex-col" onKeyDown={event=>{
         const input=event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true]');
         const arrow=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:0;
-        if(input || (arrow ? saving||loading||choices.length<2 : disabled)) return;
+        if(input || arrow && (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) || (arrow ? saving||loading||choices.length<2 : disabled)) return;
         if(arrow) {event.preventDefault();go(arrow);}
         else if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z') {
           event.preventDefault();event.stopPropagation();if(event.shiftKey)redo();else undo();
@@ -228,8 +235,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <SourceOcrProgress status={recognition} ocr={ocr} /></div>}
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
-            {current ? <PdfView key={role} doc={null} bytes={current.bytes} rounded={false} ariaLabel="Authority PDF editor"
-              recognizedText={current.recognizedText}
+            {current && pdf?.role === role ? <PdfView key={role} doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
+              recognizedText={pdf.recognizedText}
               annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit([...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
