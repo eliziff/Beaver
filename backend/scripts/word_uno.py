@@ -35,21 +35,24 @@ MAX_EXPANDED = 256 * 1024 * 1024
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 STYLE_FAMILIES = {'page-style': 'PageStyles', 'paragraph-style': 'ParagraphStyles',
                   'character-style': 'CharacterStyles', 'numbering-style': 'NumberingStyles'}
+# Only independent, enabled stories are targets; shared variants alias the default.
+PAGE_STORIES = {kind.lower() + suffix: (kind + 'Text' + variant, kind + 'IsOn', shared)
+    for kind in ('Header', 'Footer')
+    for suffix, variant, shared in (('', '', None), ('-left', 'Left', kind + 'IsShared'), ('-first', 'First', 'FirstIsShared'))}
+
+
 # Block host/application capabilities, not a short whitelist of Word formatting.
 FORBIDDEN = re.compile(r'(?:URL|URI|Events|Script|Macro|Library|Libraries|InteropGrabBag|'
     r'Context|ServiceManager|Controller|DocumentStorage|DocumentSubStorage|Parent|'
     r'DDE|DataSource|Database|Connection|Password|Command|External|Link|RecordChanges|'
     r'RecordChangesProtection|RedlineDisplay|RedlineProtection)', re.I)
-SAFE_HYPERLINKS = {'HyperLinkURL', 'HyperLinkTarget', 'HyperLinkName'}
+SAFE_MEMBERS = {'HyperLinkURL', 'HyperLinkTarget', 'HyperLinkName',
+                'ParentStyle', 'getParentStyle', 'setParentStyle'}
 
 
 def props(**values):
-    result = []
-    for key, value in values.items():
-        item = uno.createUnoStruct('com.sun.star.beans.PropertyValue')
-        item.Name, item.Value = key, value
-        result.append(item)
-    return tuple(result)
+    return tuple(uno.createUnoStruct('com.sun.star.beans.PropertyValue', Name=key, Value=value)
+                 for key, value in values.items())
 
 
 def package(path):
@@ -57,6 +60,8 @@ def package(path):
     if not 0 < path.stat().st_size <= MAX_FILE:
         raise ValueError('DOCX is empty or exceeds 100 MiB')
     hashes, protected, internal, paragraphs = {}, Counter(), [], Counter()
+    reviews = {W + tag for tag in ('ins', 'del', 'moveFrom', 'moveTo', 'comment')}
+    text_tags = {W + tag for tag in ('t', 'delText', 'instrText')}
     with zipfile.ZipFile(path) as archive:
         entries = [entry for entry in archive.infolist() if not entry.is_dir()]
         if len(entries) > 10000 or sum(e.file_size for e in entries) > MAX_EXPANDED:
@@ -136,8 +141,8 @@ def package(path):
                         raise ValueError('Active external relationships are forbidden')
                 if local in ('instrText', 'fldSimple'):
                     instructions.append(node.get(W + 'instr', '') + (node.text or ''))
-                if node.tag in {W + t for t in ('ins', 'del', 'moveFrom', 'moveTo', 'comment')}:
-                    text = ''.join(n.text or '' for n in node.iter() if n.tag in (W + 't', W + 'delText', W + 'instrText'))
+                if node.tag in reviews:
+                    text = ''.join(n.text or '' for n in node.iter() if n.tag in text_tags)
                     protected[(local, node.get(W + 'author', ''), text)] += 1
                 if node.tag == W + 'dataBinding':
                     protected[('binding', tuple(sorted(node.attrib.items())))] += 1
@@ -293,8 +298,18 @@ def native_collection(doc, family):
     return getattr(doc, names[family])
 
 
+def page_story(style, family, include_shared=False):
+    prop, enabled, shared = PAGE_STORIES[family]
+    if getattr(style, enabled) and (include_shared or not (shared and getattr(style, shared))):
+        return getattr(style, prop)
+
+
 def collection(doc, family, offset=0):
-    if family == 'document': return iter([('root', doc)][offset:])
+    if family in ('document', 'body'): return iter([('root', doc if family == 'document' else doc.Text)][offset:])
+    if family in PAGE_STORIES:
+        stories = ((name, story) for name, style in collection(doc, 'page-style')
+                   if (story := page_story(style, family)) is not None)
+        return islice(stories, offset, None)
     if family == 'paragraph':
         nodes = (node for _, node in enumerate_values(doc.Text) if node.supportsService('com.sun.star.text.Paragraph'))
         return ((str(i), node) for i, node in islice(enumerate(nodes), offset, None))
@@ -309,22 +324,35 @@ def resolve(doc, target):
     if family == 'cell':
         table, _, cell = name.partition('/')
         return doc.TextTables.getByName(unquote(table)).getCellByName(unquote(cell))
-    if family in ('header', 'footer'):
-        page = doc.StyleFamilies.getByName('PageStyles').getByName(unquote(name))
-        return page.getPropertyValue('HeaderText' if family == 'header' else 'FooterText')
+    if family in PAGE_STORIES:
+        story = page_story(doc.StyleFamilies.getByName('PageStyles').getByName(unquote(name)), family)
+        if story is None: raise ValueError('Header/footer is disabled or shared; inspect its page style')
+        return story
     name = unquote(name)
-    if family != 'paragraph':
-        values = native_collection(doc, family)
-        if hasattr(values, 'getByName'): return values.getByName(name)
-        if hasattr(values, 'getByIndex') and re.fullmatch(r'0|[1-9][0-9]*', name):
-            return values.getByIndex(int(name))
     if family == 'paragraph' and re.fullmatch(r'0|[1-9][0-9]*', name):
-        found = next(collection(doc, family, int(name)), None)
-        if found is not None: return found[1]
-    else:
-        for key, node in collection(doc, family):
-            if key == name: return node
+        address = 'paragraph:' + name
+        return resolve_many(doc, [address])[address]
+    values = native_collection(doc, family)
+    if hasattr(values, 'getByName'): return values.getByName(name)
+    if hasattr(values, 'getByIndex') and re.fullmatch(r'0|[1-9][0-9]*', name): return values.getByIndex(int(name))
+    for key, node in enumerate_values(values):
+        if key == name: return node
     raise ValueError('Target does not exist in this snapshot')
+
+
+def resolve_many(doc, targets):
+    resolved, paragraphs = {}, {}
+    for target in dict.fromkeys(targets):
+        if not isinstance(target, str): raise ValueError('Use inspected target addresses')
+        if re.fullmatch(r'paragraph:(0|[1-9][0-9]*)', target):
+            paragraphs[target.partition(':')[2]] = target
+        else: resolved[target] = resolve(doc, target)
+    if paragraphs:
+        for index, node in collection(doc, 'paragraph'):
+            if index in paragraphs: resolved[paragraphs.pop(index)] = node
+            if not paragraphs: break
+    if paragraphs: raise ValueError('Target does not exist in this snapshot')
+    return resolved
 
 
 def encode(value, depth=0):
@@ -346,7 +374,7 @@ def encode(value, depth=0):
 def check_name(name):
     if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,100}', name):
         raise ValueError('Invalid native member name')
-    if FORBIDDEN.search(name) and name not in SAFE_HYPERLINKS:
+    if FORBIDDEN.search(name) and name not in SAFE_MEMBERS:
         raise ValueError('Member is outside document-only capabilities: ' + name)
 
 
@@ -355,18 +383,17 @@ def check_value(name, value):
     if name == 'HyperLinkURL' and value and not re.match(r'^(?:https?://|mailto:|#)', value, re.I):
         raise ValueError('Only HTTP/mailto and internal hyperlinks are permitted')
     if isinstance(value, dict):
-        for k, v in value.get('fields', {}).items(): check_value(k, v)
         fields = value.get('fields', {})
-        if 'Name' in fields and 'Value' in fields: check_value(fields['Name'], fields['Value'])
+        for key, item in fields.items():
+            check_value(fields.get('Name', key) if key == 'Value' else key, item)
     elif isinstance(value, list):
         for v in value: check_value(name, v)
 
 
 def decode(value, refs=None, depth=0):
     if depth > 10: raise ValueError('Native value is too deeply nested')
-    if value is None or isinstance(value, (bool, int, float)): return value
-    if isinstance(value, str):
-        if len(value) > 100000: raise ValueError('Value exceeds 100000 characters')
+    if value is None or isinstance(value, (bool, int, float, str)):
+        if isinstance(value, str) and len(value) > 100000: raise ValueError('Value exceeds 100000 characters')
         return value
     if isinstance(value, list) and len(value) <= 10000:
         return tuple(decode(v, refs, depth + 1) for v in value)
@@ -385,52 +412,52 @@ def decode(value, refs=None, depth=0):
     if isinstance(value, dict) and set(value) == {'struct', 'fields'}:
         if not re.fullmatch(r'com\.sun\.star\.(?:text|style|table|drawing|awt|lang|beans|util)\.[A-Za-z0-9_.]+', value['struct']):
             raise ValueError('Struct is outside document types')
-        result = uno.createUnoStruct(value['struct'])
-        for key, item in value['fields'].items():
-            check_value(key, item)
-            if not hasattr(result, key): raise ValueError('Unknown struct field: ' + key)
-            setattr(result, key, decode(item, refs, depth + 1))
-        return result
+        for key, item in value['fields'].items(): check_value(key, item)
+        return uno.createUnoStruct(value['struct'], **{key: decode(item, refs, depth + 1)
+                                   for key, item in value['fields'].items()})
     raise ValueError('Use primitives, native enum/struct values or owned handles')
 
 
-def property_object(node, name):
-    # Character properties on a paragraph mark do not describe its text runs.
-    if name.startswith('Char') and hasattr(node, 'supportsService') and node.supportsService('com.sun.star.text.Paragraph'):
-        cursor = node.getText().createTextCursorByRange(node.Start); cursor.gotoRange(node.End, True)
-        return cursor
-    if hasattr(node, name): return node
-    cursor = node.createTextCursor(); cursor.gotoStart(False); cursor.gotoEnd(True)
-    return cursor
+def properties(node, names, *, operation="get", values=None):
+    """One property path for native reads, writes and resetting direct formatting.
 
-
-def read_properties(node, names):
-    # Reuse the character cursor and use XMultiPropertySet where available.
-    # String/Text/etc. are UNO attributes, not beans properties: retain that path.
-    groups, result, character = {}, {}, None
+    Attribute writes remain separate; only actual beans properties use sorted
+    XMultiPropertySet calls. Unknown names must not be silently ignored by UNO.
+    """
+    groups, result, cursor = {}, {}, None
+    paragraph = bool(names) and hasattr(node, 'supportsService') and node.supportsService('com.sun.star.text.Paragraph')
     for name in names:
         check_name(name)
-        if name.startswith('Char'):
-            if character is None: character = property_object(node, name)
-            subject = character
-        else: subject = property_object(node, name)
+        subject = node
+        if name.startswith('Char') and paragraph or not hasattr(node, name):
+            if cursor is None:
+                owner = node.getText() if paragraph else node
+                cursor = owner.createTextCursorByRange(node.Start); cursor.gotoRange(node.End, True)
+            subject = cursor
         groups.setdefault(subject, []).append(name)
+    methods = {'get': 'getPropertyValues', 'set': 'setPropertyValues',
+               'state': 'getPropertyStates', 'default': 'getPropertyDefaults', 'reset': 'setPropertiesToDefault'}
     for subject, selected in groups.items():
         bulk = ()
-        if len(selected) > 1 and hasattr(subject, 'getPropertyValues'):
-            info = subject.getPropertySetInfo()
-            bulk = tuple(sorted({n for n in selected if info.hasPropertyByName(n)}))
-            if bulk: result.update(zip(bulk, subject.getPropertyValues(bulk)))
+        if len(selected) > 1 and hasattr(subject, methods[operation]):
+            bulk = tuple(sorted(set(selected)))
+            if operation in ('get', 'set'):
+                info = subject.getPropertySetInfo()
+                bulk = tuple(n for n in bulk if info.hasPropertyByName(n))
+        if bulk:
+            args = (bulk, tuple(values[n] for n in bulk)) if operation == 'set' else (bulk,)
+            found = getattr(subject, methods[operation])(*args)
+            if operation not in ('set', 'reset'): result.update(zip(bulk, found))
         for name in selected:
-            if name not in bulk:
-                value = getattr(subject, name)
+            if name in bulk: continue
+            if operation == 'set': setattr(subject, name, values[name])
+            elif operation == 'reset': subject.setPropertyToDefault(name)
+            else:
+                value = (getattr(subject, name) if operation == 'get' else
+                         getattr(subject, 'getPropertyState' if operation == 'state' else 'getPropertyDefault')(name))
                 if callable(value): raise ValueError('Use call for native methods')
                 result[name] = value
-    return result
-
-
-def read_property(node, name):
-    return read_properties(node, [name])[name]
+    return properties(node, names) if operation in ('set', 'reset') else result
 
 
 def bounded(request, key, default, maximum):
@@ -450,14 +477,21 @@ def page(entries, request):
                          'next_offset': offset + limit if more else None}
 
 
+def revision_range(revision):
+    start = revision.RedlineStart
+    cursor = start.getText().createTextCursorByRange(start)
+    cursor.gotoRange(revision.RedlineEnd, True)
+    return cursor
+
+
 def inspect(doc, request):
     offset, limit = bounded(request, 'offset', 0, 100000), bounded(request, 'limit', 20, 100)
     if not limit: raise ValueError('limit must be positive')
-    properties = request.get('properties', [])
-    if not isinstance(properties, list) or len(properties) > 32: raise ValueError('Select at most 32 properties')
-    for name in properties: check_name(name)
+    names = request.get('properties', [])
+    if not isinstance(names, list) or len(names) > 32: raise ValueError('Select at most 32 properties')
+    for name in names: check_name(name)
     def selected(node):
-        return {'properties': {name: encode(value) for name, value in read_properties(node, properties).items()}} if properties else {}
+        return {'properties': {name: encode(value) for name, value in properties(node, names).items()}} if names else {}
     target = request.get('target')
     if target:
         node = resolve(doc, target)
@@ -480,9 +514,7 @@ def inspect(doc, request):
         if family == 'revision':
             row.update(author=node.RedlineAuthor, type=node.RedlineType)
             if request.get('include_text', True):
-                start, end = node.RedlineStart, node.RedlineEnd
-                cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
-                row['text'] = cursor.String[:1000]
+                row['text'] = revision_range(node).String[:1000]
         elif request.get('include_text', True): row['text'] = getattr(node, 'String', '')[:300]
         rows.append(row)
     return {'family': family, 'items': rows, **pagination}
