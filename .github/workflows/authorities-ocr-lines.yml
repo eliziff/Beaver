@@ -1,0 +1,67 @@
+name: Authorities line-only OCR validation
+on:
+  push:
+    branches: [fix/authorities-highlight-selection-ocr]
+    paths: [.github/workflows/authorities-ocr-lines.yml]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Use exact line-and-word geometry producer
+        run: |
+          git submodule update --init legal-pdf-parser legal-structure
+          git -C legal-pdf-parser fetch origin 507566d5c6ed0da28250253b8a2fd2a597f6cbba
+          git -C legal-pdf-parser checkout 507566d5c6ed0da28250253b8a2fd2a597f6cbba
+      - name: Preserve selectable provider lines without inventing word boxes
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('frontend/src/app/lib/api/documents.ts'); s = p.read_text()
+          old = 'lines: Array<{ id: string; rect: [number, number, number, number];'
+          assert old in s
+          p.write_text(s.replace(old, 'lines: Array<{ id: string; text?: string; rect: [number, number, number, number];', 1))
+          p = Path('backend/src/lib/structureNative.ts'); s = p.read_text()
+          old = 'lines: Array<{ id: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };'
+          assert old in s
+          p.write_text(s.replace(old, 'lines: Array<{ id: string; text?: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };', 1))
+          p = Path('frontend/src/app/components/shared/views/pdfRecognizedText.ts'); s = p.read_text()
+          old = '    for (const word of source.words) {'
+          assert old in s
+          p.write_text(s.replace(old, '    const runs = source.words.length ? source.words : source.text ? [{ text: source.text, rect: source.rect }] : [];\n    for (const word of runs) {', 1))
+          p = Path('frontend/src/app/components/shared/views/PdfView.test.tsx'); s = p.read_text()
+          old = 'rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] }] }],'
+          assert old in s
+          s = s.replace(old, 'rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] },\n                { id: "line-2", text: "Line-only recognition", rect: [20, 50, 200, 65], words: [] }] }],', 1)
+          old = 'expect(container.querySelector<HTMLElement>(".pdf-text-layer span")?.style.left).toBe("20px");'
+          assert old in s
+          s = s.replace(old, old+'\n        const line = await screen.findByText("Line-only recognition");\n        const range = document.createRange(); range.selectNodeContents(line);\n        const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);\n        expect(selection.toString().trim()).toBe("Line-only recognition");', 1)
+          p.write_text(s)
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+          npm ci --prefix backend --ignore-scripts --no-audit --no-fund
+      - name: Frontend types, backend build and focused frontend regressions
+        run: |
+          npm run build --prefix backend
+          (cd frontend && npx tsc --noEmit)
+          (cd frontend && npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/QuotationFinding.test.tsx src/app/authorities/standaloneHost.test.tsx)
+          npm run check:source-boundaries
+      - name: Compile the exact native addon and parser combination
+        run: cargo check --manifest-path native/legal-structure-node/Cargo.toml
+      - name: Publish validated line fallback and remove temporary workflow
+        run: |
+          git diff --check
+          rm .github/workflows/authorities-ocr-lines.yml
+          git add frontend/src/app/lib/api/documents.ts backend/src/lib/structureNative.ts frontend/src/app/components/shared/views/pdfRecognizedText.ts frontend/src/app/components/shared/views/PdfView.test.tsx legal-pdf-parser .github/workflows/authorities-ocr-lines.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: select line-only OCR text as well as recognized words'
+          git push origin HEAD:fix/authorities-highlight-selection-ocr
+          git rev-parse HEAD
