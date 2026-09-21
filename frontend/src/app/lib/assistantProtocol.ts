@@ -1,5 +1,5 @@
 import type { ProtocolEvent } from "./assistantSession";
-import { publicEvent } from "../../../../backend/src/lib/chat/assistantWire";
+import { publicEvent, PROVIDER_ERROR_MESSAGES } from "../../../../backend/src/lib/chat/assistantWire";
 export { ASSISTANT_LIMITS, FIELD_TEXT_LIMIT, SHORT_TEXT_LIMIT, parseAssistantCitations }
   from "../../../../backend/src/lib/chat/assistantWire";
 
@@ -19,7 +19,7 @@ export function parseAssistantProtocolEvent(value: unknown) {
         case "reasoning_block_end": return { type: "reasoning", text: "", append: false, done: true };
         case "error": return event.message.trim() === "Cancelled by user."
           ? { type: "turn_status", status: "cancelled" }
-          : { ...event, message: ASSISTANT_GENERIC_ERROR, retryable: event.retryable !== false };
+          : { ...event, message: event.code ? PROVIDER_ERROR_MESSAGES[event.code] : ASSISTANT_GENERIC_ERROR, retryable: event.retryable !== false };
         case "ask_inputs": case "ask_inputs_response": return { type: event.type, event } as ProtocolEvent;
         case "tool_activity": {
           const { type: _type, ...activity } = event;

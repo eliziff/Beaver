@@ -11,6 +11,13 @@ import {
   type AssistantTranscriptMessage,
 } from "./assistantSession";
 
+it("shows bounded provider guidance, never the upstream request or credential", () => {
+  expect(parseAssistantProtocolEvent({ type: "error", code: "provider_auth", message: "PRIVATE credential" }))
+    .toMatchObject({ ok: true, event: { message: "The model provider rejected the credentials. Check its key or sign in again, then retry." } });
+  expect(parseAssistantProtocolEvent({ type: "error", message: "PRIVATE request" }))
+    .toMatchObject({ ok: true, event: { message: "Unable to get a response. Try again." } });
+});
+
 const user: Message = { id: "user-1", role: "user", content: "Research this" };
 
 function running(chatId = "chat-1") {

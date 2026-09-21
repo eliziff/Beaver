@@ -32,13 +32,18 @@ it("delivers pending steering as soon as the provider becomes ready, and resumes
   const { durableChatTurns } = await import("../chatTurnQueue");
   const accepted = deferred(), enableControl = deferred(), steered = deferred<string>();
   const clientCall = deferred<string>(), result = deferred<unknown>(), chatId = randomUUID();
+  const readers = { enabled: true, model: "opencode-go/deepseek-v4-pro", effort: "high" };
+  const configured = deferred();
   // The only double is the model turn. Real persistence, worker, control loop,
   // event parser, and observer deliver the steering and client result.
   const application = { turn: async (_scope, _input, sink, signal, execution) => {
     expect(sink.claim(chatId)).toBe(true);
     await execution?.onAccepted?.(chatId); accepted.resolve();
     await enableControl.promise;
-    sink.setControl({ steer: async message => { steered.resolve(message.text); } });
+    sink.setControl({ steer: async message => {
+      if (message.readers) { expect(message.text).toBe(""); expect(message.readers).toEqual(readers); configured.resolve(); }
+      else steered.resolve(message.text);
+    } });
     result.resolve(await execution!.clientTool!("word.read", {}, signal));
     return { chatId, transcriptVersion: 1 };
   } } as ChatApplication;
@@ -51,11 +56,16 @@ it("delivers pending steering as soon as the provider becomes ready, and resumes
   await queue.enqueueJobCommand("owner", job.id, "steer", { id: "steer-1", text: "Use the new instructions" });
   enableControl.resolve();
   expect(await steered.promise).toBe("Use the new instructions");
+  await queue.enqueueJobCommand("owner", job.id, "steer", { id: "settings-1", text: "", readers });
+  await configured.promise;
   const callId = await clientCall.promise;
   expect(await queue.enqueueJobCommand("other", job.id, "client_tool_result", { callId, result: "wrong user" })).toBe(false);
   expect(await queue.enqueueJobCommand("owner", job.id, "client_tool_result", { callId, result: "paragraph text" })).toBe(true);
   expect(await result.promise).toBe("paragraph text");
-  expect((await observing).status).toBe("succeeded");
+  const completed = await observing;
+  expect(completed.status).toBe("succeeded");
+  expect(completed.payload).toMatchObject({ input: { subagents: true,
+    subagent_model: readers.model, subagent_effort: "high" } });
   expect(await queue.pendingJobCommands(job.id)).toEqual([]);
 });
 

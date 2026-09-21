@@ -199,7 +199,7 @@ it("does not advertise resume when a reader never started", async () => {
   }));
   expect(privateEvents.some((event) => "resume" in event)).toBe(false);
   expect(publicEvents).toContainEqual(expect.objectContaining({
-    status: "error", error: "Reading agent failed before it started; retry it.",
+    status: "error", error: "Reading agent failed; retry it or select another reader model.",
   }));
 });
 
@@ -654,4 +654,37 @@ it("adds the reader tools to the direct tool list only when subagents are enable
   const disabled = (calls[0].tools as { name: string }[]).map((tool) => tool.name);
   expect(disabled).not.toContain("delegate_read");
   expect(disabled).not.toContain("resume_read");
+});
+
+it("uses current reader settings at dispatch and aborts readers before accepting late output", async () => {
+  const abort = new AbortController(), events: any[] = [], controls: any[] = [], models: string[] = [];
+  stream.mockImplementation(async params => {
+    if (params.providerSession) {
+      models.push(params.model);
+      expect(params.promptCacheKey).toMatch(/^parent:batch:/u);
+      return new Promise(resolve => params.abortSignal.addEventListener("abort", () => {
+        params.callbacks.onContentDelta("Late reader output"); resolve({ fullText: "Late reader output" });
+      }, { once: true }));
+    }
+    await controls.at(-1).steer({ id: "setting", text: "", readers: {
+      enabled: true, model: "opencode-go:deepseek-v4.1-flash", effort: "medium" } });
+    expect(params.resolveTools().map((tool: any) => tool.name)).toContain("delegate_read");
+    const reading = params.runTools([{ id: "batch", name: "delegate_read", input: { assignments: [
+      { task: "Read source A", scope: "A", jurisdiction: "CA" },
+      { task: "Read source B", scope: "B", jurisdiction: "CA" },
+    ] } }]);
+    await vi.waitFor(() => expect(models).toHaveLength(2));
+    abort.abort(); await reading;
+    params.callbacks.onContentDelta("Late parent output");
+    return { fullText: "Late parent output" };
+  });
+  await expect(runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "", messages: [],
+    createTools: () => [], emit: event => events.push(event), subagents: false,
+    subagentModel: "openai:gpt-5.5", promptCacheKey: "parent", signal: abort.signal,
+    onProviderControl: control => controls.push(control),
+  })).rejects.toMatchObject({ name: "AbortError", fullText: "" });
+  expect(models).toEqual(["opencode-go:deepseek-v4.1-flash", "opencode-go:deepseek-v4.1-flash"]);
+  expect(events.filter(event => event.type === "subagent_run" && event.status === "interrupted")).toHaveLength(2);
+  expect(events.some(event => event.type === "content_final" || event.output?.includes("Late"))).toBe(false);
+  expect(controls.at(-1)).toBeNull();
 });

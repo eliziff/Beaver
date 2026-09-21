@@ -72,3 +72,19 @@ export function safeErrorLog(error: unknown): {
     message,
   };
 }
+
+/** Public classifications never expose provider response bodies, prompts or credentials. */
+export function providerErrorCode(error: unknown) {
+  for (let depth = 0; error instanceof Error && depth < 5; depth++) {
+    const value = error as Error & { statusCode?: number; status?: number; lastError?: unknown };
+    const status = value.statusCode ?? value.status;
+    if (status === 401 || status === 403) return "provider_auth" as const;
+    if (status === 429) return "provider_limit" as const;
+    if (status === 400 || status === 404) return "provider_request" as const;
+    if (status && status >= 500) return "provider_unavailable" as const;
+    if (/API key is not configured|Unsupported OpenCode Go model/u.test(value.message))
+      return "provider_config" as const;
+    error = value.cause ?? value.lastError;
+  }
+  return undefined;
+}

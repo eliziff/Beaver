@@ -41,6 +41,30 @@ This is Beaver's only current tool-runtime contract. The displaced registry,
 parallel policy tables, and artifact-generation tools are not compatibility
 surfaces.
 
+## Reader and turn lifecycle (September 2026)
+
+Provider adapters remove Beaver's picker prefix before sending model IDs. OpenCode
+Go uses its existing model-to-protocol routing, an identified client and stable
+turn/session headers. CLI sign-in and key changes are visible without restarting
+Beaver. Provider failures expose bounded classifications, never upstream bodies.
+
+Stop propagates the turn's abort signal to provider streams, tools and child
+readers. Buffered post-abort text is ignored. Completed tool receipts remain
+inspectable; transcript reload preserves an explicit cancellation and does not
+restore its already-accepted user prompt as a failed send.
+
+Reader model/effort changes use the existing durable steering command. They apply
+to the next dispatch, not a running child's frozen request. A native continuation
+is reused only on its original model; scoped evidence remains portable.
+
+`Read` accepts `patterns` (one to eight literal phrases) instead of `pattern` for
+one public legal source. The source is acquired once; local searches share the
+result/character budget and retain per-query counts, truncation and evidence.
+This is not parallel inference or a guarantee that a model will choose batching.
+New read activity carries source identity and query/range arrays. The UI groups
+by that identity, truncates long query text and retains the actual call count in
+its tooltip. It does not infer grouping by parsing or replacing source titles.
+
 ## Outcome
 
 Beaver will have:
