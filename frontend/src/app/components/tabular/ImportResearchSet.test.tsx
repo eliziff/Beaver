@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ResearchFile } from "@/app/lib/researchFiles";
 import { ImportResearchSet } from "./ImportResearchSet";
-const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), proposeWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn(),
+const api = vi.hoisted(() => ({ getResearchFile: vi.fn(), getResearchItems: vi.fn(), proposeWorkspaceTable: vi.fn(), openWorkspaceTable: vi.fn(),
   proposeWorkspaceLabels: vi.fn(), applyWorkspaceLabels: vi.fn() }));
 vi.mock("@/app/lib/api/researchFiles", async (original) => ({ ...await original<typeof import("@/app/lib/api/researchFiles")>(), ...api }));
 vi.mock("@/app/hooks/useSelectedModel", () => ({ useSelectedModel: () => ["model", vi.fn()], useSelectedReasoningEffort: () => [undefined, vi.fn()] }));
@@ -104,23 +104,33 @@ it("shows a stale-preview rejection without navigating away or silently reinterp
   expect(await screen.findByRole("alert")).toHaveTextContent("Research changed");
   expect(onOpen).not.toHaveBeenCalled(); expect(screen.getByDisplayValue("Finding")).toBeVisible();
 });
-it("shows a label proposal as the workspace tree it would create", async () => {
+it("reopens a pending organization in the shared modal and saves edits without applying it", async () => {
+  const input = { conversationId: "chat", repropose: true };
+  const organization = { ...proposal, input, chatId: "chat" };
+  api.getResearchFile.mockResolvedValue({ ...file, state: { ...file.state, proposals: [{ id: "draft" }] } });
+  api.getResearchItems.mockResolvedValue({ items: [{ kind: "change", value: { id: "draft", status: "pending", organization } }], next_cursor: null });
   api.proposeWorkspaceLabels.mockResolvedValue(proposal);
-  render(<ImportResearchSet open onClose={vi.fn()} onOpen={vi.fn()} fileId="workspace" mode="labels" />);
-  launch("Suggest labels");
-  const label = await screen.findByText("Honest performance", { selector: "summary" });
-  fireEvent.click(label);
-  expect(screen.getByLabelText("Move source from Honest performance")).toBeVisible();
-  fireEvent.click(screen.getByText("Ratio", { selector: "summary" }));
-  expect(screen.getByText("Case A: it applies to every contract")).toBeVisible();
-  expect(screen.getByLabelText("Move passage from Ratio")).toBeVisible();
+  const onClose = vi.fn();
+  render(<ImportResearchSet open onClose={onClose} onOpen={vi.fn()} fileId="workspace" mode="labels" conversationId="chat" />);
+  expect(await screen.findByRole("treeitem", { name: "Honest performance" })).toBeVisible();
+  expect(screen.getByRole("treeitem", { name: "Case B" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Expand Ratio" }));
+  expect(screen.getByRole("treeitem", { name: "it applies to every contract" })).toBeVisible();
+  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Edited duties" } });
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(onClose).toHaveBeenCalled());
+  expect(api.proposeWorkspaceLabels).toHaveBeenCalledWith("workspace", { ...input, proposalId: "draft",
+    fingerprint: proposal.fingerprint, design: { ...proposal.design, title: "Edited duties" } }, streamed);
+  expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
 });
 it("applies a label proposal on the same reading of the research that produced it", async () => {
   const plan = proposal;
   api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(undefined);
   const onOpen = vi.fn(), apply = () => screen.getByRole("button", { name: "Apply labels" });
   render(<ImportResearchSet open onClose={vi.fn()} onOpen={onOpen} fileId="workspace" mode="labels" chatId="chat" />);
-  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled(); launch("Suggest labels");
+  expect(api.proposeWorkspaceLabels).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Suggest labels" })).toBeEnabled()); launch("Suggest labels");
   await waitFor(() => expect(apply()).toBeEnabled());
   fireEvent.click(apply());
   await waitFor(() => expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace",
