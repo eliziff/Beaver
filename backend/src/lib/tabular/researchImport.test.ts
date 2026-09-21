@@ -112,7 +112,7 @@ it("groups by actual question, not an entire chat, and offers individual origina
     design = defaultResearchImport(catalog);
   expect(design.columns.map(({ name }) => name)).toEqual(["Contract", "Notice", "Payment"]);
   expect(catalog.entries.filter(({ reference }) => reference.kind === "answer" && reference.claimIndices).map(({ text }) => text))
-    .toEqual(["First reason", "Second reason"]);
+    .toEqual(["First reason", "Second reason", "Exact wording"]);
   const claim = catalog.entries.find(({ text }) => text === "Second reason")!;
   const plan = researchImportPlan(catalog, { title: "Reasons", columns: [{ index: 4, name: "Second reason", prompt: "Second reason?" }],
     cells: [{ rowId: sourceId, columnIndex: 4, itemIds: [claim.id] }] });
@@ -204,7 +204,7 @@ it("maps joint findings to each receipt's source without changing their full gro
       entries = catalog.entries.filter(({ kind }) => kind === "answer");
     expect(entries).toHaveLength(1);
     expect(entries[0].evidenceIds).toEqual([f.receipts[0].evidence_id]);
-    expect(entries[0].reference).toEqual(answer.reference);
+    expect(entries[0].reference).toEqual({ ...answer.reference, claimIndices: [0] });
   }
   expect(answer.answer.claims[0].evidence_ids).toContain(other.evidence_id);
   expect(answer.evidence).toContain(other);

@@ -20,6 +20,7 @@ beforeEach(async () => {
   vi.stubEnv("MIKE_LOCAL_DATA_DIR", path.join(directory, "library"));
   vi.stubEnv("SUPABASE_URL", "");
   vi.stubEnv("SUPABASE_SECRET_KEY", "");
+  vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "off");
   model.mockClear();
   vi.resetModules();
 });
@@ -206,16 +207,19 @@ it("proposes column labels within the chosen research set without a Library onto
     cell = (await tabularRepository.detail(owner, review.id))!.cells.find((cell) =>
       cell.column_index === 0 && cell.document_id === sourceId)!;
   const previewPath = `/source-workspaces/${f.workspace.id}/labels/preview`, input = { tableId: review.id, columnIndex: 0 };
-  expect((await request(f.api).post(previewPath).send(input)).status).toBe(200);
+  const first = await request(f.api).post(previewPath).send(input);
+  expect(first.status).toBe(200);
   await tabularRepository.setCell(owner, { reviewId: review.id, documentId: sourceId, columnIndex: 0,
     expected: cell, status: "done", content: { value: "Leases", summary: "Leases", claims: [], evidence: [],
       flag: "green", outcome: "answered", coverage: "complete", resource: f.resource } });
-  const proposal = await request(f.api).post(previewPath).send(input);
+  const proposal = await request(f.api).post(previewPath)
+    .send({ ...input, proposalId: first.body.proposalId, currentDesign: first.body.design });
   expect(proposal.status).toBe(200);
   expect(proposal.body.labels.map(({ path }: { path: string }) => path)).toEqual(["Topic", "Topic / Leases"]);
   expect(Object.values((await sources.get(owner, f.workspace.id))!.state.labels).map(({ name }) => name)).toEqual(["Leases"]);
   const applied = await request(f.api).post(`/source-workspaces/${f.workspace.id}/labels`)
-    .send({ ...input, fingerprint: proposal.body.fingerprint, design: proposal.body.design });
+    .send({ ...input, proposalId: proposal.body.proposalId, fingerprint: proposal.body.fingerprint,
+      design: proposal.body.design });
   expect(applied.status).toBe(200);
   const labels = Object.values(applied.body.state.labels) as Array<{ id: string; name: string; scope: string; parentId: string | null }>,
     parent = labels.find((label) => label.name === "Topic" && label.scope === "source")!,
