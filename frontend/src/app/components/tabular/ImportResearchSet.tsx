@@ -164,8 +164,8 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                             ? existingStructure ? "Review the suggested changes, then apply them." : "Suggest labels and highlight types for this workspace. Review them before applying the changes."
                             : "Review the suggested table before creating it. Each row represents a source; edit the columns to capture what you need."}</p>
                     </div>
-                    : labelling ? plan && <>
-                        <ResearchProposalEditor proposal={{ sources: plan.sources, items: plan.items }} design={plan.design} disabled={busy || creating}
+                    : labelling ? plan && file && <>
+                        <ResearchProposalEditor file={file} proposal={{ sources: plan.sources, items: plan.items }} design={plan.design} disabled={busy || creating}
                             onChange={(design) => setPlan({ ...plan, design })} />
                     </>
                     : preview && <>

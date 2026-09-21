@@ -1,48 +1,33 @@
-import { useState } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
-import type { ResearchLabelDesign, ResearchLabelProposal } from "@/app/lib/api/researchFiles";
-import { ResearchProposalEditor } from "./ResearchProposalEditor";
+import type { ResearchLabelDesign } from "@/app/lib/api/researchFiles";
+import { editResearchProposal, mergeResearchProposal } from "./researchProposalDraft";
 
 it("edits hierarchy and assignments without allowing cycles or dropping merged children", () => {
-  let saved: ResearchLabelDesign;
   const design: ResearchLabelDesign = { title: "Research", sourceLabels: [
     { id: "a", name: "Security", members: ["row"], children: [{ id: "b", name: "Prejudice", members: [], children: [] }] },
     { id: "c", name: "Recourse", members: [], children: [] }], highlightTypes: [] };
-  const proposal = { sources: [{ id: "row", title: "A source" }], items: [], labels: [] } as unknown as ResearchLabelProposal;
-  function Editor() {
-    const [current, setCurrent] = useState(design); saved = current;
-    return <ResearchProposalEditor proposal={proposal} design={current} onChange={setCurrent} />;
-  }
-  render(<Editor />);
-  const security = screen.getByText("Security", { selector: "summary" }).closest("details")!;
-  fireEvent.click(within(security).getByText("Security", { selector: "summary" }));
-  const controls = security.querySelector("details")!;
-  fireEvent.click(within(controls).getByText("Edit category", { selector: "summary" }));
-  const parent = within(controls).getByLabelText("Parent");
-  expect(within(parent).queryByRole("option", { name: /Prejudice/ })).not.toBeInTheDocument();
-  fireEvent.change(within(controls).getByLabelText("Merge into"), { target: { value: "c" } });
-  expect(saved!.sourceLabels.find((label) => label.id === "a")).toBeUndefined();
-  expect(saved!.sourceLabels[0].children[0].id).toBe("b");
-  expect(saved!.sourceLabels[0].members).toEqual(["row"]);
-  fireEvent.change(screen.getByLabelText("Proposal title"), { target: { value: "My organization" } });
-  expect(saved!.title).toBe("My organization");
+  const metadata = { sources: [{ id: "row", title: "A source" }], items: [] };
+  expect(() => editResearchProposal(design, metadata, { type: "label", id: "a", name: "Security", parentId: "b" })).toThrow();
+  expect(() => mergeResearchProposal(design, "a", "b")).toThrow();
+  const merged = mergeResearchProposal(design, "a", "c");
+  expect(merged.sourceLabels).toMatchObject([{ id: "c", members: ["row"], children: [{ id: "b" }] }]);
+  expect(design.sourceLabels).toHaveLength(2);
+  const added = editResearchProposal(merged, metadata, { type: "annotate", kind: "source", id: "row", labelIds: ["b"] });
+  expect(added.sourceLabels[0].members).toEqual(["row"]);
+  expect(added.sourceLabels[0].children[0].members).toEqual(["row"]);
 });
 
-it("moves one supported passage without moving the other passages in its model assignment", () => {
-  let saved: ResearchLabelDesign;
+it("moves one supported passage without moving other passages or accepting cross-source references", () => {
+  const first = { sourceId: "source", evidenceId: "first" }, second = { sourceId: "source", evidenceId: "second" };
   const design: ResearchLabelDesign = { title: "Research", sourceLabels: [], highlightTypes: [
-    { id: "a", name: "Prejudice", children: [], members: [{ sourceId: "source", evidenceId: "first" }, { sourceId: "source", evidenceId: "second" }] },
+    { id: "a", name: "Prejudice", children: [], members: [first, second] },
     { id: "b", name: "Waiver", children: [], members: [] }] };
-  const proposal = { sources: [], labels: [], items: [
-    { evidenceId: "first", sourceId: "source", title: "A source", text: "First passage" },
-    { evidenceId: "second", sourceId: "source", title: "A source", text: "Second passage" }] } as unknown as ResearchLabelProposal;
-  function Editor() {
-    const [current, setCurrent] = useState(design); saved = current;
-    return <ResearchProposalEditor proposal={proposal} design={current} onChange={setCurrent} />;
-  }
-  render(<Editor />);
-  fireEvent.change(screen.getAllByLabelText("Move passage from Prejudice")[0], { target: { value: "b" } });
-  expect(saved!.highlightTypes[0].members).toEqual([{ sourceId: "source", evidenceId: "second" }]);
-  expect(saved!.highlightTypes[1].members).toEqual([{ sourceId: "source", evidenceId: "first" }]);
+  const metadata = { sources: [{ id: "source", title: "A source" }], items: [first, second].map((member) =>
+    ({ ...member, title: "A source", text: member.evidenceId })) };
+  const action = { type: "annotate" as const, kind: "evidence" as const, id: "first", sourceId: "source", labelIds: ["b"] };
+  const edited = editResearchProposal(design, metadata, action);
+  expect(edited.highlightTypes[0].members).toEqual([second]);
+  expect(edited.highlightTypes[1].members).toEqual([first]);
+  expect(() => editResearchProposal(design, metadata, { ...action, sourceId: "other" })).toThrow();
+  expect(design.highlightTypes[0].members).toEqual([first, second]);
 });
