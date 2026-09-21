@@ -53,8 +53,8 @@ it("organizes the chat into a proposed label set before landing in the workspace
     unassigned: [] };
   api.proposeWorkspaceLabels.mockResolvedValue(plan); api.applyWorkspaceLabels.mockResolvedValue(file);
   const ref = setup(); await open(ref, "Workspace"); await actOn("Suggest labels");
-  fireEvent.click(await screen.findByText("States the test", { selector: "summary" }));
-  expect(screen.getByLabelText("Move source from States the test")).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
+  expect(await screen.findByRole("treeitem", { name: "States the test" })).toBeVisible();
+  expect(screen.getByRole("treeitem", { name: "Case A" })).toBeVisible(); expect(api.applyWorkspaceLabels).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apply labels" }));
   await waitFor(() => expect(screen.getByLabelText("Location")).toHaveTextContent("/sources?research_file=workspace"));
   expect(api.applyWorkspaceLabels).toHaveBeenCalledWith("workspace", { chatId: "chat",

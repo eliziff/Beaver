@@ -49,7 +49,6 @@ import {
 import { ReadSubagentTabs, type ReadSubagentGroup } from "./ReadSubagentTabs";
 import { useAssistantPreferences } from "./assistantPreferences";
 import { ChatResearchFlow, type ChatResearchFlowHandle } from "./ChatResearchFlow";
-import { ResearchProposalCards } from "./ResearchProposalCards";
 import { OrganizeChatModal, organizeOpenAsIcons } from "./OrganizeChatModal";
 import { SelectAssistantProjectModal } from "./SelectAssistantProjectModal";
 import { ChatFindingActions } from "./ChatFindingActions";
@@ -654,8 +653,6 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         ref={conversationRef}
         chatId={chatId}
         messageActions={messageActions}
-        afterMessages={chatId && <ResearchProposalCards chatId={chatId}
-            refreshKey={`${session.run?.id ?? ""}:${activeResearchFile?.workingRevision ?? ""}:${organizeOpen}`} />}
         session={session}
         handleChat={handleChat}
         cancel={cancel}
