@@ -628,6 +628,8 @@ export function createTabularApplication(
         return fail(403, "Only the review owner can change columns");
       if (!current.review.is_owner && input.shared_with !== undefined)
         return fail(403, "Only the review owner can change sharing");
+      if (!current.review.is_owner && input.project_id !== undefined)
+        return fail(403, "Only the review owner can move a review");
       if (input.shared_with) {
         const missing = await store.missingRecipient(scope, input.shared_with);
         if (missing) fail(400, `${missing} does not belong to a Beaver user.`);
