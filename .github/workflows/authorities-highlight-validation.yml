@@ -16,13 +16,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Package tracked source and pinned public parser sources
+      - name: Package bounded source workspace
         run: |
           mkdir -p /tmp/highlight-validation
-          git archive --format=tar HEAD | gzip > /tmp/highlight-validation/beaver-source.tar.gz
+          git archive --format=tar HEAD frontend/src frontend/scripts frontend/vendor frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vite.config.ts frontend/vitest.config.mts frontend/vitest.setup.ts shared backend/src backend/package.json backend/package-lock.json native/legal-structure-node packages docs/current/authorities.md docs/current/performance.md subrepos.lock.json | gzip > /tmp/highlight-validation/beaver-source.tar.gz
           git submodule update --init legal-pdf-parser legal-structure
-          git -C legal-pdf-parser archive --format=tar HEAD | gzip > /tmp/highlight-validation/pdf-parser-source.tar.gz
-          git -C legal-structure archive --format=tar HEAD | gzip > /tmp/highlight-validation/structure-source.tar.gz
+          git -C legal-pdf-parser archive --format=tar HEAD legal-pdf-core legal-pdf-support rust Cargo.toml Cargo.lock AGENTS.md | gzip > /tmp/highlight-validation/pdf-parser-source.tar.gz
+          git -C legal-structure archive --format=tar HEAD Cargo.toml Cargo.lock src | gzip > /tmp/highlight-validation/structure-source.tar.gz
       - name: Install locked frontend dependencies without lifecycle scripts
         run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
       - name: Package offline frontend test dependencies
@@ -30,6 +30,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: authorities-highlight-validation-workspace
-          path: /tmp/highlight-validation/*.tar.gz
+          name: highlight-source
+          path: /tmp/highlight-validation/*source.tar.gz
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: highlight-dependencies
+          path: /tmp/highlight-validation/frontend-dependencies.tar.gz
           retention-days: 1
