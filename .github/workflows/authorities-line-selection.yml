@@ -1,4 +1,4 @@
-name: Authorities line selection candidate
+name: Authorities final selection integration
 on:
   push:
     branches: [fix/authorities-highlight-selection-ocr]
@@ -8,12 +8,16 @@ permissions:
 jobs:
   candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    env:
+      CARGO_BUILD_JOBS: '2'
+      MIKE_PDF_LAYOUT_PROVIDER: none
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
       - name: Apply the locally validated line-only text path
         shell: python
         run: |
@@ -28,18 +32,92 @@ jobs:
             result=''.join(lines).encode()
             assert hashlib.sha256(result).hexdigest()==after,(name,'patch mismatch')
             p.write_bytes(result)
-      - name: Check frontend types and the existing affected suites
+      - name: Restore the exact producer and locked dependencies
         run: |
+          git submodule update --init legal-pdf-parser legal-structure
+          git -C legal-pdf-parser fetch origin 507566d5c6ed0da28250253b8a2fd2a597f6cbba
+          git -C legal-pdf-parser checkout 507566d5c6ed0da28250253b8a2fd2a597f6cbba
+          npm ci --ignore-scripts --no-audit --no-fund
           npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
-          cd frontend
-          npx tsc --noEmit
-          npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/QuotationFinding.test.tsx src/app/authorities/standaloneHost.test.tsx
-      - name: Pin validated producer and publish source changes only
+          npm ci --prefix backend --ignore-scripts --no-audit --no-fund
+          echo "LEGAL_STRUCTURE_NATIVE=$PWD/native/legal-structure-node/target/debug/liblegal_structure_node.so" >> "$GITHUB_ENV"
+          echo "MIKE_LOCAL_DATA_DIR=$RUNNER_TEMP/authorities-selection-data" >> "$GITHUB_ENV"
+          echo "HIGHLIGHT_RECEIPTS=$RUNNER_TEMP/authorities-selection-receipts" >> "$GITHUB_ENV"
+      - name: Link the final native addon and build backend
+        run: |
+          cargo build --manifest-path native/legal-structure-node/Cargo.toml --lib --locked
+          npm run build --prefix backend
+      - name: Typecheck frontend and run the affected existing suites
+        run: |
+          (cd frontend && npx tsc --noEmit && npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/QuotationFinding.test.tsx src/app/authorities/standaloneHost.test.tsx)
+          (cd backend && npx vitest run src/lib/__tests__/documentProjectionService.test.ts)
+          npm run check:source-boundaries
+      - name: Prepare a synthetic two-page scan
+        run: |
+          command -v tesseract || (sudo apt-get update -qq && sudo apt-get install -y tesseract-ocr)
+          python -m pip install --quiet pillow reportlab
+          mkdir -p "$HIGHLIGHT_RECEIPTS"
+          python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          from reportlab.pdfgen import canvas
+          from reportlab.lib.utils import ImageReader
+          from io import BytesIO
+          import os
+          pdf=canvas.Canvas(os.path.join(os.environ['HIGHLIGHT_RECEIPTS'],'scan.pdf'),pagesize=(612,792))
+          font=ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',36)
+          for lines in [['Recognized words are selectable','Second scanned line remains aligned','Third line for reverse selection'],['This page was not selected for recognition','Do not run OCR on an unrequested page']]:
+              image=Image.new('RGB',(1224,1584),'white');draw=ImageDraw.Draw(image)
+              for i,line in enumerate(lines):draw.text((120,160+100*i),line,fill='black',font=font)
+              buffer=BytesIO();image.save(buffer,format='PNG');buffer.seek(0)
+              pdf.drawImage(ImageReader(buffer),0,0,width=612,height=792);pdf.showPage()
+          pdf.save()
+          PY
+      - name: Real OCR to selectable geometry and fresh-process restore
+        run: |
+          cat > "$HIGHLIGHT_RECEIPTS/verify.cjs" <<'JS'
+          const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+          const {createHash}=require('node:crypto'),{execFileSync}=require('node:child_process');
+          const {documentProjectionService:service}=require(path.resolve('backend/dist/lib/documentProjectionService.js'));
+          const root=process.env.HIGHLIGHT_RECEIPTS;
+          const neverRead=()=>{throw Error('A cached text layer must not reread or re-OCR source bytes');};
+          (async()=>{
+            if(process.argv[2]==='restore'){
+              const {reference,profile}=JSON.parse(fs.readFileSync(path.join(root,'reference.json')));
+              assert.deepEqual({pages:await service.pdfTextLayer(neverRead,reference,{pdfProfile:profile})},JSON.parse(fs.readFileSync(path.join(root,'ocr.json'))));
+              console.log('PASS: fresh-process restoration without source rereading or OCR');return;
+            }
+            const bytes=fs.readFileSync(path.join(root,'scan.pdf'));
+            const reference={documentId:'highlight-scan',versionId:'v1',sourceSha256:createHash('sha256').update(bytes).digest('hex')};
+            assert.deepEqual(await service.pdfTextLayer(neverRead,reference),[]);
+            const prepared=await service.preparePdf({...reference,bytes,pages:[1],ocrProvider:'tesseract',layout:false});
+            assert.equal(prepared.pageCount,2);assert.deepEqual(prepared.ocrRoutedPages,[0]);
+            const profile={profile:prepared.profile,cacheKey:prepared.cacheKey,status:prepared.status};reference.cacheKey=prepared.cacheKey;
+            const pages=await service.pdfTextLayer(neverRead,reference,{pdfProfile:profile});
+            fs.writeFileSync(path.join(root,'ocr.json'),JSON.stringify({pages},null,2));
+            fs.writeFileSync(path.join(root,'reference.json'),JSON.stringify({reference,profile},null,2));
+            const page=pages.find(page=>page.pageNumber===1);assert.ok(page?.lines.length);
+            const words=page.lines.flatMap(line=>line.words),text=words.map(word=>word.text).join(' ');
+            assert.match(text,/Recognized words are selectable/);assert.match(text,/Second scanned line remains aligned/);
+            assert.ok(!pages.some(page=>page.pageNumber===2&&page.lines.some(line=>line.words.length||line.text?.trim())));
+            for(const word of words){assert.ok(word.rect.every(Number.isFinite));assert.ok(word.rect[2]>word.rect[0]&&word.rect[3]>word.rect[1]);assert.ok(word.rect[0]>=0&&word.rect[1]>=0&&word.rect[2]<=page.width&&word.rect[3]<=page.height);}
+            fs.writeFileSync(path.join(root,'result.json'),JSON.stringify({parser:'507566d5c6ed0da28250253b8a2fd2a597f6cbba',recognizedWords:words.length,text,recognizedPages:[1],unrequestedPageRecognized:false},null,2));
+            console.log('PASS: real Tesseract words reach viewer geometry; page 2 remains unrecognized',text);
+            execFileSync(process.execPath,[__filename,'restore'],{stdio:'inherit',env:process.env});
+          })().catch(error=>{console.error(error);process.exitCode=1;});
+          JS
+          node "$HIGHLIGHT_RECEIPTS/verify.cjs"
+      - name: Publish the verified changes without temporary workflows
         run: |
           git diff --check
-          git update-index --cacheinfo 160000,507566d5c6ed0da28250253b8a2fd2a597f6cbba,legal-pdf-parser
           rm .github/workflows/authorities-line-selection.yml
-          git add backend/src/lib/structureNative.ts docs/current/authorities.md frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx frontend/src/app/components/shared/views/pdfRecognizedText.ts frontend/src/app/lib/api/documents.ts .github/workflows/authorities-line-selection.yml
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: support retained OCR words and line-only recognition in Authorities'
+          if test -f .github/workflows/authorities-highlight-validation.yml; then rm .github/workflows/authorities-highlight-validation.yml; fi
+          git add legal-pdf-parser backend/src/lib/structureNative.ts docs/current/authorities.md frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx frontend/src/app/components/shared/views/pdfRecognizedText.ts frontend/src/app/lib/api/documents.ts .github/workflows/authorities-line-selection.yml .github/workflows/authorities-highlight-validation.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: finish Authorities OCR selection with the validated native producer'
           git push origin HEAD:fix/authorities-highlight-selection-ocr
-          git rev-parse HEAD
+          git rev-parse HEAD | tee "$HIGHLIGHT_RECEIPTS/candidate-sha.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authorities-final-ocr-receipt
+          path: ${{ runner.temp }}/authorities-selection-receipts/
+          retention-days: 1
