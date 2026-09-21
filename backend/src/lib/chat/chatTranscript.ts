@@ -64,14 +64,26 @@ function projectAssistant(content: ChatMessageRecord["content"], sdkHistory = fa
   sdkHistory ||= content.some(event => event.type === "model_messages");
   const messages: ChatMessage[] = [];
   let pending = "";
+  let grounded: Extract<AssistantEvent, { type: "legal_evidence_receipt" }> | undefined;
   let requested = new Map<string, AskInputItem>();
   const flush = () => {
     if (pending) messages.push({ role: "assistant", content: pending });
     pending = "";
+    grounded = undefined;
   };
   for (const event of content) {
     if (event.type === "content") {
-      if (!sdkHistory && event.text !== "Cancelled by user.") pending += event.text;
+      if (!sdkHistory && event.text !== "Cancelled by user.") {
+        // Native/CLI turns have no SDK tool history. Keep the answer's original
+        // bindings instead of replaying display-only numeric citation markers.
+        pending += grounded?.status === "passed" && grounded.claims.length
+          ? `[Previously grounded answer; reuse these evidence_ids for follow-up edits.]\n${JSON.stringify(
+            grounded.claims.map(({ text, evidence_ids }) => ({ text, evidence_ids })),
+          )}` : event.text;
+      }
+      grounded = undefined;
+    } else if (event.type === "legal_evidence_receipt" && !sdkHistory) {
+      grounded = event;
     } else if (event.type === "model_messages") {
       flush();
       messages.push({ role: "assistant", content: "", modelState: {
@@ -85,6 +97,7 @@ function projectAssistant(content: ChatMessageRecord["content"], sdkHistory = fa
         event.filename,
       )}; resource: document://${event.document_id}/version/${event.version_id}]`;
     } else if (event.type === "error") {
+      grounded = undefined;
       pending += `${pending ? "\n\n" : ""}[The previous assistant response ended before completion.]`;
     } else if (event.type === "ask_inputs") {
       requested = new Map(event.items.map((item) => [item.id, item]));
