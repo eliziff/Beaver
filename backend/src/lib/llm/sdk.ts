@@ -139,6 +139,7 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       const calls: NormalizedToolCall[] = [], invalid = new Map<string, NormalizedToolResult>();
       const compactions = new Set<string>();
       for await (const part of generated.fullStream) {
+        throwIfAborted(signal);
         if (part.type === "error") throw part.error;
         if (part.type === "abort") throwIfAborted(signal);
         callbacks.onActivity?.();
@@ -202,9 +203,9 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       if (window && round.usage.inputTokens !== null)
         callbacks.onContextUsage?.({ usedTokens: round.usage.inputTokens, contextWindowTokens: window });
       if (!normal) throw new IncompleteGenerationError(reason, fullText);
+      throwIfAborted(signal);
       if (results.some(result => result.terminal)) return { fullText, usage: total, serviceTier,
         contextRounds: rounds, finishReason: reason };
-      throwIfAborted(signal);
       const steering = params.takeSteering?.() ?? [];
       messages.push(...steering.map(({ text }) => ({ role: "user" as const, content: text })));
       if (!calls.length && !steering.length) return { fullText, usage: total, serviceTier,

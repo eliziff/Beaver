@@ -1,3 +1,4 @@
+import { readPatterns } from "./chat/resourceTools";
 import { readDocumentProjection } from "./documentApplication";
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -493,6 +494,11 @@ export async function readLegalSourceResource(
   if (call.name !== "Read") return null;
   const resource = parseResourceReference(trimmed(args.file_path));
   if (resource?.kind !== "source" || resource.provider === "pdf") return null;
+  if (args.patterns !== undefined && (args.pattern !== undefined || !Array.isArray(args.patterns) ||
+      !args.patterns.length || args.patterns.length > 8 || args.patterns.some(pattern =>
+        typeof pattern !== "string" || !pattern.trim() || pattern.length > 256)))
+    return fail("Use pattern or one to eight non-empty patterns, not both.");
+  const patterns = readPatterns(args);
   const locator = trimmed(args.locator);
   const locatorKind = trimmed(args.locator_kind);
   const endLocator = trimmed(args.end_locator);
@@ -542,13 +548,13 @@ export async function readLegalSourceResource(
     sources.forEach((source) => options.knownSources.set(researchSourceResource(source), source));
     const activityCitations = sourceActivityCitations(sources);
 
-    const pattern = trimmed(args.pattern), next: Array<{
+    const next: Array<{
       file_path: string; offset: number; start_char: number;
     }> = [], unclassified = new Set<string>();
     // The character budget is the real limit; the old 20 made needless windows.
     let remaining = Math.min(2_000, Math.max(1, Math.trunc(Number(args.limit) || 2_000))), chars = 0;
     const registered = read.values.flatMap((passage) => {
-      if (locator || pattern) return [{ passage, receipt: legalSourceEvidence(passage),
+      if (locator || patterns.length) return [{ passage, receipt: legalSourceEvidence(passage),
         source: legalEvidenceSource(passage) }];
       const native = structureNative(), artifact = passage.documentArtifact,
         resource = researchSourceResource(passage.source), offset = Number(args.offset) || 1,
@@ -625,81 +631,67 @@ export async function readLegalSourceResource(
         ? { source: sourceDetails.findIndex(({ resource }) => resource === researchSourceResource(reference)) + 1 }
         : {}) };
     };
-    if (pattern) {
+    if (patterns.length) {
       const maxResults = Math.min(50, Math.max(1, Math.trunc(Number(args.max_results) || 20)));
-      const contextChars = Math.min(2_000, Math.max(40,
-        Math.trunc(Number(args.context_chars) || 160)));
-      let total = 0, headnote = 0;
-      const hits = registered.flatMap(({ passage }) => {
-        const found = findTextMatches({
-          text: passage.text,
-          query: pattern,
-          maxResults: Math.max(0, maxResults - total),
-          contextChars,
-          startIndex: total,
-        });
-        // A case's headnote is never evidence: a hit before the first numbered paragraph is counted, not returned.
-        const judgment = passage.source.kind === "case" && passage.role === "document"
-          ? structureNative().documentAnchors(passage.documentArtifact).find(({ kind }) => kind === "paragraph")?.start ?? 0 : 0;
-        const inJudgment = found.hits.filter(({ at }) => at >= judgment);
-        headnote += found.hits.length - inJudgment.length;
-        total += found.totalMatches - (found.hits.length - inJudgment.length);
-        return inJudgment.map((hit) => {
-          const span = passage.locator.requested
-            ? { start: 0, end: passage.text.length, text: passage.text }
-            : cleanSearchEvidenceSpan(passage, hit);
-          const receipt = passage.locator.requested
-            ? legalSourceEvidence(passage)
-            : legalSourceEvidence(passage, span);
-          if (receipt) {
-            evidenceSources.set(receipt.evidence_id, legalEvidenceSource(passage));
-          }
-          const before = passage.text.slice(Math.max(0, hit.at - contextChars), span.start),
-            after = passage.text.slice(span.end, Math.min(passage.text.length,
-              hit.at + hit.excerpt.length + contextChars));
-          return {
-            at: hit.at, receipt,
-            ...(receipt ? { evidence_id: receipt.evidence_id,
+      const contextChars = Math.min(2_000, Math.max(40, Math.trunc(Number(args.context_chars) || 160)));
+      let available = maxResults, remainingChars = 40_000;
+      const corpus = registered.map(({ passage }) => ({ passage,
+        judgment: passage.source.kind === "case" && passage.role === "document"
+          ? structureNative().documentAnchors(passage.documentArtifact).find(({ kind }) => kind === "paragraph")?.start ?? 0 : 0 }));
+      const queries = patterns.map((pattern, index) => {
+        options.signal?.throwIfAborted();
+        const allowance = Math.ceil(available / (patterns.length - index));
+        let total = 0, headnote = 0, kept = 0;
+        const hits = corpus.flatMap(({ passage, judgment }) => {
+          const find = (text: string, maxResults: number) => findTextMatches({ text,
+            query: pattern, maxResults, contextChars });
+          // Exclude editorial text before limiting hits, so headnotes cannot hide judgment matches.
+          if (judgment) headnote += find(passage.text.slice(0, judgment), 0).totalMatches;
+          const found = find(passage.text.slice(judgment), Math.max(0, allowance - kept));
+          total += found.totalMatches;
+          return found.hits.flatMap(raw => {
+            const hit = { ...raw, at: raw.at + judgment };
+            const span = passage.locator.requested
+              ? { start: 0, end: passage.text.length, text: passage.text }
+              : cleanSearchEvidenceSpan(passage, hit);
+            const receipt = passage.locator.requested ? legalSourceEvidence(passage)
+              : legalSourceEvidence(passage, span);
+            const before = passage.text.slice(Math.max(judgment, hit.at - contextChars), span.start),
+              after = passage.text.slice(span.end, Math.min(passage.text.length, hit.at + hit.excerpt.length + contextChars));
+            const value = { at: hit.at, ...(receipt ? { evidence_id: receipt.evidence_id,
               ...(before ? { before } : {}), ...(after ? { after } : {}) }
-              : { context: hit.context, locator: passage.locator.label }),
-          };
+              : { context: hit.context, locator: passage.locator.label }) };
+            const size = JSON.stringify(value).length + (receipt ? JSON.stringify(modelPassage(receipt)).length : 0);
+            if (size > remainingChars) return [];
+            remainingChars -= size; kept++;
+            if (receipt) evidenceSources.set(receipt.evidence_id, legalEvidenceSource(passage));
+            return [{ ...value, receipt }];
+          });
         });
+        available -= hits.length;
+        return { pattern, allowance, total_matches: total,
+          ...(headnote ? { headnote_matches: headnote } : {}),
+          truncated: total > hits.length, hits };
       });
-      const evidence = uniqueReceipts(hits.map(({ receipt }) => receipt));
-      const visibleHits = hits.map(({ receipt: _receipt, ...hit }) => hit);
+      const evidence = uniqueReceipts(queries.flatMap(query => query.hits.map(hit => hit.receipt)));
+      const visible = queries.map(({ allowance: _allowance, hits, ...query }) => ({ ...query,
+        hits: hits.map(({ receipt: _receipt, ...hit }) => hit) }));
       return {
         activityCitations,
-        ...result({
-          ok: true,
-          sources: sourceDetails,
-          total_matches: total,
-          ...(headnote ? { headnote_matches: headnote } : {}),
-          ...(total > hits.length ? { truncated: true } : {}),
-          hits: visibleHits,
+        ...result({ ok: true, sources: sourceDetails,
+          ...(args.patterns ? { queries: visible } : visible[0]),
           ...(evidence.length ? { passages: evidence.map(modelPassage) } : {}),
-          ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}),
-        }),
+          ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}) }),
         ...(evidence.length ? { evidence } : {}),
         ...(evidenceSources.size ? { evidenceSources } : {}),
-        queryReceipts: [{
-          call_id: call.id,
-          tool: "Read",
-          executed_at: new Date().toISOString(),
-          executor_version: "legal-source-pattern-v1",
-          input: {
-            resource: trimmed(args.file_path),
-            pattern,
+        queryReceipts: queries.map(query => ({ call_id: call.id, tool: "Read",
+          executed_at: new Date().toISOString(), executor_version: "legal-source-pattern-v1",
+          input: { resource: trimmed(args.file_path), pattern: query.pattern,
             ...(locator ? { locator_kind: locatorKind, locator } : {}),
             ...(endLocator ? { end_locator: endLocator } : {}),
-            context_blocks: locator ? contextBlocks : 0,
-            max_results: maxResults,
-            context_chars: contextChars,
-          },
-          results: evidence.map(({ evidence_id }, rank) => ({
-            rank: rank + 1,
-            evidence_id,
-          })),
-        }],
+            context_blocks: locator ? contextBlocks : 0, max_results: query.allowance, context_chars: contextChars },
+          results: uniqueReceipts(query.hits.map(hit => hit.receipt)).map(({ evidence_id }, rank) => ({ rank: rank + 1, evidence_id })),
+        })),
       };
     }
 

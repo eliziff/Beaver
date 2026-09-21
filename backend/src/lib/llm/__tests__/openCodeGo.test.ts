@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { normalizeOpenCodeGoCatalog } from "../openCodeGo";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { normalizeOpenCodeGoCatalog, openCodeGoConnection } from "../openCodeGo";
 
 describe("OpenCode Go catalog", () => {
     it("exposes every published slug, including newly released models", () => {
@@ -22,4 +25,22 @@ describe("OpenCode Go catalog", () => {
     ])("ignores malformed or namespaced entries: %j", (value) => {
         expect(normalizeOpenCodeGoCatalog(value)).toEqual([]);
     });
+});
+
+afterEach(() => vi.unstubAllEnvs());
+it("rereads CLI sign-in and rotated credentials without restarting, with explicit overrides first", () => {
+    const directory = mkdtempSync(join(tmpdir(), "beaver-go-auth-")), auth = join(directory, "auth.json");
+    vi.stubEnv("OPENCODE_AUTH_PATH", auth); vi.stubEnv("OPENCODE_GO_API_KEY", "");
+    const params = { model: "opencode-go:deepseek-v4.1-flash", systemPrompt: "", messages: [], promptCacheKey: "same-chat" };
+    try {
+        expect(() => openCodeGoConnection(params)).toThrow(/not configured/u);
+        for (const key of ["first-test-key", "rotated-test-key"]) {
+            writeFileSync(auth, JSON.stringify({ "opencode-go": { type: "api", key } }));
+            expect(openCodeGoConnection(params)).toMatchObject({ apiKey: key, protocol: "chat",
+                model: "deepseek-v4.1-flash", headers: { "User-Agent": "beaver/1.0", "x-opencode-session": "same-chat" } });
+        }
+        vi.stubEnv("OPENCODE_GO_API_KEY", "environment-test-key");
+        expect(openCodeGoConnection(params).apiKey).toBe("environment-test-key");
+        expect(openCodeGoConnection({ ...params, apiKeys: { "opencode-go": "user-test-key" } }).apiKey).toBe("user-test-key");
+    } finally { rmSync(directory, { recursive: true, force: true }); }
 });

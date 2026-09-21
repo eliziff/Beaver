@@ -32,6 +32,8 @@ export type AssistantActivity = {
   items?: { label: string; detail?: string; url?: string | null; error?: boolean }[];
   citations?: Citation[];
   action?: { type: "reader"; readerId: string };
+  read?: import("../../../../backend/src/lib/chat/assistantWire").ToolActivity["read"];
+  callCount?: number;
 };
 
 export type AssistantReaderRun = {
@@ -436,7 +438,7 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
   if (!event.active) {
     const last = next.messages.at(-1);
     const open = last?.role === "assistant" && (last.activities.some((activity) => activity.status === "running") || next.readers.some((reader) => reader.status === "running") || last.turnComplete === false);
-    if (open) next = interrupt(next, "interrupted");
+    if (open) next = interrupt(next, last.turnStatus ?? "interrupted");
     else if (last?.role === "user" && last.turnId) next = { ...next, rejectedTurn: { message: { role: "user", content: last.content, files: last.files, workflow: last.workflow, turnId: last.turnId }, options: { turnId: last.turnId } } };
   }
   const lastAssistant = next.messages.findLast((message) => message.role === "assistant");

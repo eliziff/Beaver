@@ -29,7 +29,7 @@ export function setChatTurnControl(
 
 export async function steerChatTurn(
   chatId: string,
-  message: { id: string; text: string },
+  message: Parameters<ProviderTurnControl["steer"]>[0],
 ) {
   const turn = activeTurns.get(chatId), provider = turn?.provider;
   if (!turn || !provider || turn.controller.signal.aborted) return false;

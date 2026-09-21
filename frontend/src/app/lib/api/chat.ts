@@ -112,8 +112,9 @@ export const streamChatJob = (jobId: string, signal: AbortSignal) =>
   apiFetch(`/chat/jobs/${segment(jobId)}/stream`, {
     headers: { Accept: "text/event-stream" }, signal,
   });
-export const steerChat = (chatId: string, id: string, text: string) =>
-  post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text });
+export const steerChat = (chatId: string, id: string, text: string,
+  readers?: import("../../../../../backend/src/lib/chat/assistantWire").ReaderSettings) =>
+  post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text, ...(readers && { readers }) });
 export const compactChat = (chatId: string, model: string) =>
   post<{ compacted: true; transcriptVersion?: number }>(
     `/chat/${segment(chatId)}/compact`,

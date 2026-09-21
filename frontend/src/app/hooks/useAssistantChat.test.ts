@@ -763,7 +763,13 @@ describe("useAssistantChat local transcript boundary", () => {
       "chat-1",
       expect.any(String),
       "Focus on remedies",
+      expect.objectContaining({ model: expect.any(String), effort: expect.any(String), enabled: expect.any(Boolean) }),
     );
+    act(() => updateAssistantPreferences({ readSubagents: { ...readAssistantPreferences().readSubagents,
+      enabled: true, model: "opencode-go:deepseek-v4.1-flash", effort: "medium" } }));
+    await waitFor(() => expect(mocks.steerChat).toHaveBeenLastCalledWith("chat-1", expect.any(String), "",
+      { enabled: true, model: "opencode-go:deepseek-v4.1-flash", effort: "medium" }));
+    expect(mocks.streamChat).toHaveBeenCalledOnce();
     const steered = result.current.messages.at(-1);
     expect(steered?.role === "assistant" ? steered.blocks : []).toContainEqual(
       expect.objectContaining({ role: "user", text: "Focus on remedies" }),
@@ -818,10 +824,10 @@ describe("useAssistantChat local transcript boundary", () => {
       .mockResolvedValue({
       chat: { id: "chat-1", transcript_version: 2 },
       messages: [
-        { id: "user-stop", role: "user", content: "Stop after this sentence" },
+        { id: "user-stop", role: "user", turn_id: "stopped-turn", content: "Stop after this sentence" },
         {
           id: "assistant-stop",
-          role: "assistant",
+          role: "assistant", turn_id: "stopped-turn", turn_complete: false,
           content: [
             { type: "content", text: expected },
             { type: "turn_status", status: "cancelled" },
