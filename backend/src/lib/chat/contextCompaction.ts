@@ -13,7 +13,7 @@ import type { ContextCheckpointEvent } from "./assistantEvents";
 
 const RECENT_TAIL_TOKENS = 20_000;
 const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI legal-work assistant.
-Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
+Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Preserve grounded claim-to-evidence bindings and saved evidence_ids when they are present; do not replace them with display citation numbers or tell a later turn to reconstruct already-completed research. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
 
 
 function llmMessages(rows: ChatMessageRecord[], provider?: Provider, model?: string): LlmMessage[] {
