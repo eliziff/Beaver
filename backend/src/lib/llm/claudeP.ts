@@ -129,7 +129,7 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
       callbacks.onContentDelta?.(event.delta.text);
     }
   } else if (event?.type === "content_block_stop") {
-    if (state.contentOpen) paramsCallbacksEnd(callbacks);
+    if (state.contentOpen) callbacks.onContentBlockEnd?.();
     state.contentOpen = false;
   }
   return ["assistant", "stream_event", "result"].includes(message.type ?? "") ||
