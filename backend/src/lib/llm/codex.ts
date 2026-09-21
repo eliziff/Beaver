@@ -28,12 +28,12 @@ const CODEX_TOOL_TIMEOUT_SECONDS = 86_400;
 const INTERRUPT_GRACE_MS = 5_000;
 export const CODEX_THREAD_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu;
 
-// Beaver drives the turn itself: every Codex surface that would act outside the
-// conversation stays off.
+// Disable configurable native tool surfaces. The read-only sandbox and rejected
+// approval requests still enforce the boundary for model-provided built-ins.
 const DISABLED_CODEX_FEATURES = [
-  "shell_tool", "unified_exec", "shell_snapshot", "apps", "connectors", "plugins",
-  "hooks", "codex_hooks", "browser_use", "in_app_browser", "computer_use",
-  "image_generation", "memories", "memory_tool", "skill_search", "tool_suggest",
+  "shell_tool", "unified_exec", "shell_snapshot", "apps", "plugins",
+  "hooks", "browser_use", "in_app_browser", "computer_use",
+  "image_generation", "memories", "skill_search", "tool_suggest",
   "view_image",
 ];
 
@@ -211,10 +211,6 @@ async function runCodexTurn(params: StreamChatParams,
   let interruptRequested = false;
   const streamedByItem = new Map<string, string>();
   const pendingEvents: CodexAppServerNotification[] = [];
-  let markTurnReady!: () => void;
-  const turnReady = new Promise<void>((resolve) => {
-    markTurnReady = resolve;
-  });
   const { promise: completion, settle: complete, settled } = settlement();
   completion.catch(() => undefined);
 
@@ -248,11 +244,9 @@ async function runCodexTurn(params: StreamChatParams,
     resetIdle();
     params.callbacks?.onActivity?.();
     switch (event.method) {
-      case "turn/started": {
-        const startedTurn = record(event.params.turn);
-        if (startedTurn?.id === turnId) markTurnReady();
+      case "turn/started":
+        if (params.abortSignal?.aborted) onAbort();
         return;
-      }
       case "item/agentMessage/delta": {
         const delta = typeof event.params.delta === "string" ? event.params.delta : "";
         const itemId = String(event.params.itemId ?? "");
@@ -340,17 +334,20 @@ async function runCodexTurn(params: StreamChatParams,
   const unsubscribe = server.subscribe(listener);
   params.abortSignal?.addEventListener("abort", onAbort, { once: true });
   try {
+    throwIfAborted(params.abortSignal);
     const common = threadParams(params, bridge, server.inheritedMcpServers);
     const opened = continuationId
       ? await server.request<ThreadResponse>("thread/resume",
-        { threadId: continuationId, ...common })
+        { threadId: continuationId, excludeTurns: true, ...common })
       : await server.request<ThreadResponse>("thread/start",
         { ...common, ephemeral: params.providerSession?.persist !== true });
     threadId = typeof opened.thread?.id === "string" ? opened.thread.id : "";
     if (!CODEX_THREAD_ID.test(threadId)) {
       throw new Error("Codex app-server returned an invalid thread ID.");
     }
+    throwIfAborted(params.abortSignal);
     await params.providerSession?.onContinuationId?.(threadId);
+    throwIfAborted(params.abortSignal);
     const model = codexModelSlug(params.model);
     const started = await server.request<TurnResponse>("turn/start", {
       threadId,
@@ -365,16 +362,15 @@ async function runCodexTurn(params: StreamChatParams,
         : params.enableThinking ? { effort: "max" } : {}),
       summary: params.enableThinking ? (params.reasoningSummary ?? "auto") : "none",
     });
-    turnId = typeof started.turn?.id === "string" ? started.turn.id : "";
-    if (!turnId) throw new Error("Codex app-server returned an invalid turn ID.");
+    const acceptedId = started.turn?.id;
+    if (typeof acceptedId !== "string" || !acceptedId || turnId && turnId !== acceptedId)
+      throw new Error("Codex app-server returned an invalid turn ID.");
+    turnId = acceptedId;
     for (const event of pendingEvents.splice(0)) listener(event);
     params.providerSession?.onControl?.({
       steer: async (message) => {
-        await Promise.race([turnReady, completion.then(() => {
-          throw new Error("Codex turn ended before it could be steered.");
-        })]);
-        if (settled()) throw new Error("Codex turn ended before it could be steered.");
         throwIfAborted(params.abortSignal);
+        if (settled()) throw new Error("Codex turn ended before it could be steered.");
         const steered = await server.request<SteerResponse>("turn/steer", {
           threadId,
           expectedTurnId: turnId,
@@ -390,6 +386,7 @@ async function runCodexTurn(params: StreamChatParams,
     resetIdle();
     if (params.abortSignal?.aborted) onAbort();
     await completion;
+    throwIfAborted(params.abortSignal);
     endReasoning();
     if (!fullText.trim() && !bridge?.hasTerminalResult()) {
       throw new Error(failure || "Codex app-server returned no response.");
@@ -397,6 +394,7 @@ async function runCodexTurn(params: StreamChatParams,
     return { fullText, ...(usage ? { usage } : {}),
       ...(params.providerSession?.persist ? { continuationId: threadId } : {}) };
   } finally {
+    if (compactionRunning) params.callbacks?.onCompaction?.("failed");
     idle.stop();
     clearTimeout(interruptTimer);
     params.abortSignal?.removeEventListener("abort", onAbort);
@@ -420,7 +418,8 @@ export async function compactCodexSession(
   }
   throwIfAborted(params.abortSignal);
   const server = await acquireCodexAppServer(params.apiKey?.trim() || "");
-  await server.request("thread/resume", { threadId: params.continuationId });
+  await server.request("thread/resume", { threadId: params.continuationId, excludeTurns: true });
+  throwIfAborted(params.abortSignal);
 
   let turnId = "";
   const { promise: completed, settle } = settlement();
@@ -456,6 +455,7 @@ export async function compactCodexSession(
   };
   params.abortSignal?.addEventListener("abort", abort, { once: true });
   try {
+    throwIfAborted(params.abortSignal);
     resetIdle();
     await server.request("thread/compact/start", { threadId: params.continuationId });
     await completed;

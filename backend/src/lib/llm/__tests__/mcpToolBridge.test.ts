@@ -186,3 +186,37 @@ describe("MCP tool bridge", () => {
     await transport.close();
   });
 });
+
+
+it("advertises the normalized result contract without changing effect annotations", async () => {
+  const annotations = { readOnlyHint: false, destructiveHint: true };
+  const registry = new TurnToolRegistry([{ ...tool("edit"), annotations,
+    outputSchema: { type: "object", properties: { count: { type: "integer" } }, required: ["count"] },
+    execute: async () => ({ result: { content: [{ type: "text" as const, text: "Edited one paragraph" }],
+      structuredContent: { count: 1 } } }),
+  }]);
+  const bridge = await startMcpToolBridge({ tools: registry.all(), runTools: calls => registry.run(calls, {}) });
+  bridges.push(bridge);
+  const { client } = await clientFor(bridge);
+  try {
+    const [exposed] = (await client.listTools()).tools;
+    expect(exposed.annotations).toEqual(annotations);
+    expect(exposed.outputSchema).toBeUndefined();
+    expect(await client.callTool({ name: "edit", arguments: {} })).toMatchObject({
+      content: [{ type: "text", text: "Edited one paragraph" }],
+    });
+  } finally { await client.close(); }
+});
+
+it("rejects ambiguous dispatcher results rather than selecting the first match", async () => {
+  const bridge = await startMcpToolBridge({ tools: [tool("inspect")], runTools: async ([call]) => [
+    { tool_use_id: call.id, content: "first", terminal: true },
+    { tool_use_id: call.id, content: "duplicate" },
+  ] });
+  bridges.push(bridge);
+  const { client } = await clientFor(bridge);
+  try {
+    expect((await client.callTool({ name: "inspect", arguments: {} })).isError).toBe(true);
+    expect(bridge.hasTerminalResult()).toBe(false);
+  } finally { await client.close(); }
+});

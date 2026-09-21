@@ -37,8 +37,7 @@ function key(override: string | null | undefined) {
     subscriptionToken(), "OPENCODE_GO_API_KEY", label);
 }
 
-// The gateway rejects the default Node agent and routes chat-format requests by
-// session, so both headers are mandatory on every protocol.
+// Identify this client honestly and keep a stable conversation routing key.
 const wireHeaders = (session: string) =>
   ({ "User-Agent": "beaver/1.0", "x-opencode-session": session });
 
