@@ -84,7 +84,7 @@ describe("LegalLibraryPage search", () => {
         const reader = screen.getByRole("region", { name: "Source reader" });
         expect(reader).toHaveTextContent("Decision text");
         expect(within(reader).queryByRole("button", { name: "Back" })).toBeNull();
-        const workspace = screen.getByRole("complementary", { name: "Workspace" });
+        const workspace = screen.getByRole("region", { name: "Workspace" });
         expect(workspace).not.toContainElement(reader);
         expect(workspace).toContainElement(screen.getByRole("region", { name: "Research collection" }));
         fireEvent.click(screen.getByRole("button", { name: "Collapse workspace" }));
