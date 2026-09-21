@@ -51,9 +51,11 @@ permissions. Native dispatch also requires exactly one matching result per call.
 
 Codex uses the stable stdio initialize/initialized, thread/start or thread/resume,
 turn/start, turn/steer and turn/completed lifecycle. A start response identifies
-the turn; notifications received in the same stdout chunk wait for that identity.
-Only that turn's events update the answer. Steering waits for turn/started and
-must acknowledge the same `expectedTurnId`; completion remains authoritative.
+the turn; notifications received before that identity are queued and replayed once
+it is confirmed. Only that turn's events update the answer. A successful
+`turn/start` response makes steering available without waiting for a second
+notification; `turn/steer` must acknowledge the same ID. Completion remains
+authoritative.
 Use `codex app-server generate-json-schema` from the installed binary to check
 its contract rather than adding a second hand-maintained protocol specification.
 Normal telemetry remains content-free; `MIKE_LLM_METRICS_PATH` enables numeric
@@ -69,3 +71,59 @@ References: [SDK manual loop control](https://ai-sdk.dev/docs/agents/loop-contro
 [Claude Code CLI permissions](https://code.claude.com/docs/en/cli-reference),
 [MCP tool contract](https://modelcontextprotocol.io/specification/2025-06-18/server/tools),
 and [DeepSeek reasoning replay](https://api-docs.deepseek.com/guides/thinking_mode/).
+
+## Transport contracts
+
+The hosted path uses the SDK's documented external-execution contract: omit
+`execute`, consume a complete response, run the existing ordered dispatcher,
+append its tool results to `response.messages`, and await durable persistence
+before the next request. `jsonSchema` without a `validate` callback describes the
+wire schema; it does not replace runtime validation. The registry validates every
+call and owns deferred per-cell repair (`onInvalidInput`). Moving validation into
+an SDK-only rejection path would bypass that existing behavior. Structured final
+outputs separately use `Output.object` with an actual validator.
+
+Codex initialization and stdio flags are checked against the real CLI, not inferred
+from an overview example. A successful `turn/start` response makes steering
+available without waiting for a second notification; earlier start events retain
+their turn ID, and other-turn events are ignored. `turn/steer` must acknowledge
+that same ID. Stop uses `turn/interrupt` and waits for native completion. Resume
+uses `excludeTurns: true`: Codex retains its conversation; Beaver does not download
+a duplicate history it never consumes.
+
+Only the authenticated `mike_runtime` MCP server receives Codex's documented
+`default_tools_approval_mode = "approve"`. Other approvals remain `never`, inherited
+servers remain disabled, and the sandbox stays read-only. Claude Code uses its
+existing `--allowedTools mcp__beaver` permission. Neither transport needs false
+`readOnlyHint` annotations. Some Codex built-ins can still be advertised; the
+sandbox and rejection of native approval requests, not prompt text, prevent
+out-of-band file edits.
+
+The MCP bridge exposes normalized text/images, not the original executor's
+`structuredContent`, so it does not advertise the executor's `outputSchema`.
+Underlying successful structured outputs still pass registry validation; URL
+filtering, result limits, and explicit errors are unchanged.
+
+Hosted providers receive `modelForProvider`'s native model ID, never Beaver's
+`provider:model` picker identity. OpenCode Go lists every valid published slug;
+its connection uses the existing vendor-aware wire resolver rather than rejecting
+new releases through the older fixed list. Requests identify `beaver/1.0` and
+retain the conversation's stable `x-opencode-session` header, as the gateway
+requires. No additional gateway, model router, or protocol implementation is added.
+
+Qualified protocol versions: locked AI SDK **7.0.98**, MCP SDK **1.29.0**, and
+Codex CLI **0.155.1**. Focused tests run with `vitest run src/lib/llm/sdk.test.ts
+src/lib/llm/codex.test.ts src/lib/llm/__tests__/mcpToolBridge.test.ts` from `backend`.
+Native qualification also runs that CLI with an isolated home and loopback-only
+scripted Responses server: initialize, scoped MCP load/call, resume, steering,
+interruption and rejection of an out-of-band file edit. Generate its protocol with
+`codex app-server generate-json-schema --out <dir>` when checking another release;
+do not treat mocked RPC responses as proof that an installed CLI accepts a field.
+
+Contract references: [Vercel external execution](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling),
+[JSON Schema validation](https://ai-sdk.dev/docs/reference/ai-sdk-core/json-schema),
+[Codex app server](https://developers.openai.com/codex/app-server),
+[Codex configuration](https://developers.openai.com/codex/config-reference),
+[Claude Code MCP permissions](https://code.claude.com/docs/en/permissions#mcp),
+[OpenCode Go endpoints and client headers](https://opencode.ai/docs/go/),
+and [MCP tool results](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
