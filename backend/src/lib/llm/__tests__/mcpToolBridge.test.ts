@@ -143,6 +143,35 @@ describe("MCP tool bridge", () => {
     await transport.close();
   });
 
+  it("preserves tool annotations rather than labelling writes as read-only", async () => {
+    const tools = [tool("unspecified"), { ...tool("write"), annotations: { readOnlyHint: false, destructiveHint: true } },
+      { ...tool("inspect"), annotations: { readOnlyHint: true } }];
+    const bridge = await startMcpToolBridge({ tools, runTools: async () => [] });
+    bridges.push(bridge);
+    const { client } = await clientFor(bridge);
+    try { expect((await client.listTools()).tools).toEqual(tools); } finally { await client.close(); }
+  });
+
+  it("rejects missing, duplicate and foreign dispatcher results without publishing their content", async () => {
+    let defect = "missing";
+    const bridge = await startMcpToolBridge({ tools: [tool("inspect")], runTools: async ([call]) => {
+      const correct = { tool_use_id: call.id, content: "not a verified result", terminal: true };
+      const foreign = { ...correct, tool_use_id: "foreign" };
+      return defect === "missing" ? [] : defect === "duplicate" ? [correct, correct]
+        : defect === "foreign" ? [foreign] : [correct, foreign];
+    } });
+    bridges.push(bridge);
+    const { client } = await clientFor(bridge);
+    try {
+      for (defect of ["missing", "duplicate", "foreign", "extra"]) {
+        const result = await client.callTool({ name: "inspect", arguments: {} });
+        expect(result.isError).toBe(true);
+        expect(JSON.stringify(result.content)).not.toContain("not a verified result");
+        expect(bridge.hasTerminalResult()).toBe(false);
+      }
+    } finally { await client.close(); }
+  });
+
   it("redacts provider credentials from tool failures", async () => {
     const bridge = await startMcpToolBridge({
       tools: [tool("inspect")],
