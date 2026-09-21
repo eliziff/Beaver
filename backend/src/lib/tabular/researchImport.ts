@@ -99,13 +99,13 @@ export function researchImportCatalog(file: ResearchFile, subjects: ResearchSubj
         const question = { name: finding.reference.kind === "answer" ? "Finding" : clip(finding.question.title, 60) || "Finding", prompt: finding.question.prompt || "Recorded finding",
           format: finding.question.format ?? "text", ...(finding.question.tags ? { tags: finding.question.tags } : {}) };
         const complete = relevant.length === finding.answer.claims.length;
-        if (complete) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
+        if (complete && (finding.reference.kind !== "answer" || finding.answer.claims.length > 1)) add(rowId, finding.reference, "answer", finding.answer.summary ?? (finding.answer.value == null ? finding.answer.claims.map(({ text }) => text).join("\n\n") :
           Array.isArray(finding.answer.value) ? finding.answer.value.join("\n") : String(finding.answer.value)), question,
           [...new Set(finding.answer.claims.flatMap(({ evidence_ids }) => evidence_ids.filter((id) => owned.has(id))))]);
         // A semantic layout may put separate claims from one Chat answer in different columns.
-        if (finding.reference.kind === "answer" && (!complete || finding.answer.claims.length > 1)) for (const { claim, index } of relevant)
+        if (finding.reference.kind === "answer") for (const { claim, index } of relevant)
           add(rowId, { ...finding.reference, claimIndices: [finding.reference.claimIndices?.[index] ?? index] }, "answer", claim.text, question,
-            claim.evidence_ids.filter((id) => owned.has(id)), !complete);
+            claim.evidence_ids.filter((id) => owned.has(id)), !complete || finding.answer.claims.length === 1);
       }
       // Each passage the research cited but never highlighted is an item of its own, quoted once: the grain a
       // highlight type attaches to and the support a filing points at (Eli, 2026-09-11).

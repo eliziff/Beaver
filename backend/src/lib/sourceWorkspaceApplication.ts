@@ -441,6 +441,8 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       return conflict("This proposal was already applied or revised. Open the latest proposal.");
     if (previous?.organization) input = { ...previous.organization.input, ...input };
     const { file, catalog, resolveFinding, target } = await labelCatalog(scope, id, input);
+    if (input.design && previous?.organization && previous.organization.fingerprint !== catalog.fingerprint)
+      return conflict("This research changed after the proposal. Refresh it before saving your edits.");
     const conversationId = input.conversationId ?? input.chatId;
     if (input.conversationId) {
       const chat = await dependencies.chats.get(scope, input.conversationId);
