@@ -113,3 +113,21 @@ describe("durable context checkpoints", () => {
     ]);
   });
 });
+
+it("summarizes typed history instead of stringifying private SDK state into user prose", async () => {
+  const messages = rows();
+  const step = { type: "model_messages" as const, id: "s1", model: "gpt-5.5", messages: [
+    { role: "assistant" as const, content: [{ type: "reasoning" as const, text: "Provider reasoning",
+      providerOptions: { openai: { encryptedContent: "opaque-signature" } } }] },
+  ] };
+  messages[1].content = [step];
+  llm.streamChatWithTools.mockResolvedValueOnce({ fullText: "Section 8 was reviewed." });
+  await compactChatContext({ store: store(messages), scope: { userId: "local" }, chatId: "chat",
+    model: "gemini-3-flash-preview", force: true });
+  const request = llm.streamChatWithTools.mock.lastCall![0];
+  expect(request.messages).toEqual([{ role: "user", content: "Review the agreement.",
+    images: undefined, modelState: undefined, contextCheckpoint: undefined },
+  { role: "assistant", content: "", modelState: { model: step.model, messages: step.messages },
+    images: undefined, contextCheckpoint: undefined }]);
+  expect(request.messages.some(message => message.content.includes("opaque-signature"))).toBe(false);
+});
