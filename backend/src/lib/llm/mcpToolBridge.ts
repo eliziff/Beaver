@@ -52,10 +52,6 @@ function catalog(tools: Tool[]): ReadonlyMap<string, Tool> {
     unique.set(name, {
       ...tool,
       name,
-      // Beaver, not a headless provider client, authorizes and performs all
-      // effects. The hint prevents providers from adding a second approval
-      // layer that cannot be answered in print mode.
-      annotations: { ...tool.annotations, readOnlyHint: true },
       inputSchema: { ...tool.inputSchema, type: "object" },
     });
   }
@@ -99,10 +95,9 @@ function bridgeServer(params: McpToolBridgeParams, state: BridgeState,
       });
       state.dispatchTail = dispatch.then(() => undefined, () => undefined);
       const results = await dispatch;
-      const result = results.find(({ tool_use_id }) => tool_use_id === call.id);
-      if (!result) {
-        return toolError(`Beaver did not return a result for tool ${name}.`);
-      }
+      if (results.length !== 1 || results[0].tool_use_id !== call.id)
+        return toolError(`Beaver must return exactly one matching result for tool ${name}.`);
+      const [result] = results;
       const images = result.images ?? [];
       state.toolResultBytes += Buffer.byteLength(result.content) +
         images.reduce((total, image) => total + image.data.length, 0);

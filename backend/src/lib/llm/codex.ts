@@ -155,7 +155,8 @@ function threadParams(params: StreamChatParams, bridge: McpToolBridge | null,
         url: bridge.url,
         bearer_token_env_var: "MIKE_CODEX_BRIDGE_TOKEN",
         required: true,
-        default_tools_approval_mode: "auto",
+        // Approve only Beaver's authenticated bridge; its registry authorizes effects.
+        default_tools_approval_mode: "approve",
         startup_timeout_sec: 10,
         tool_timeout_sec: CODEX_TOOL_TIMEOUT_SECONDS,
       } }),
@@ -209,6 +210,7 @@ async function runCodexTurn(params: StreamChatParams,
   let interruptTimer: NodeJS.Timeout | undefined;
   let interruptRequested = false;
   const streamedByItem = new Map<string, string>();
+  const pendingEvents: CodexAppServerNotification[] = [];
   let markTurnReady!: () => void;
   const turnReady = new Promise<void>((resolve) => {
     markTurnReady = resolve;
@@ -237,7 +239,12 @@ async function runCodexTurn(params: StreamChatParams,
       complete(new Error(String(event.params.message ?? "Codex app-server exited.")));
       return;
     }
-    if (event.params.threadId !== threadId) return;
+    if (event.params.threadId !== threadId || settled()) return;
+    // Responses and notifications can share one stdout chunk. Route them only
+    // after the start response identifies this turn, retaining their order.
+    if (!turnId) { pendingEvents.push(event); return; }
+    const eventTurnId = event.params.turnId ?? record(event.params.turn)?.id;
+    if (eventTurnId && eventTurnId !== turnId) return;
     resetIdle();
     params.callbacks?.onActivity?.();
     switch (event.method) {
@@ -360,21 +367,23 @@ async function runCodexTurn(params: StreamChatParams,
     });
     turnId = typeof started.turn?.id === "string" ? started.turn.id : "";
     if (!turnId) throw new Error("Codex app-server returned an invalid turn ID.");
+    for (const event of pendingEvents.splice(0)) listener(event);
     params.providerSession?.onControl?.({
       steer: async (message) => {
         await Promise.race([turnReady, completion.then(() => {
           throw new Error("Codex turn ended before it could be steered.");
         })]);
+        if (settled()) throw new Error("Codex turn ended before it could be steered.");
+        throwIfAborted(params.abortSignal);
         const steered = await server.request<SteerResponse>("turn/steer", {
           threadId,
           expectedTurnId: turnId,
           clientUserMessageId: message.id,
           input: [{ type: "text", text: message.text, text_elements: [] }],
         });
-        if (typeof steered.turnId !== "string" || !steered.turnId) {
+        if (steered.turnId !== turnId) {
           throw new Error("Codex app-server returned an invalid steered turn ID.");
         }
-        turnId = steered.turnId;
         params.callbacks?.onSteer?.(message);
       },
     });
