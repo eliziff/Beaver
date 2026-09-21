@@ -686,24 +686,23 @@ async function pdfTextLayer(
   reference: ProjectionReference,
   options: PdfSourceOptions = {},
 ) {
-  const bytes = await readBytes();
-  const prepared = await preparedForSource(() => bytes, reference, options);
+  const profile = options.pdfProfile;
+  // Opening the editor never opts a manual-only source into recognition.
+  if (!profile?.profile.ocr) return [];
   const native = structureNative();
-  const pages = Array.from({ length: prepared.summary.pageCount }, (_, index) => index + 1);
-  const result: Array<{ pageNumber: number; width: number; height: number;
-    lines: Array<{ id: string; rect: [number, number, number, number];
-      words: Array<{ text: string; rect: [number, number, number, number] }> }> }> = [];
-  for (let offset = 0; offset < pages.length; offset += 100) {
-    const batch = pages.slice(offset, offset + 100);
-    const raw = await native.pdfPassageGeometryPages(prepared.document, bytes,
-      batch.map((page) => ({ id: String(page), locatorKind: "page", locator: String(page) })));
-    for (const target of raw.targets) for (const page of target.pages) {
-      if (page.source !== "unavailable" && page.lines.length) result.push({
-        pageNumber: page.pageNumber, width: page.width, height: page.height, lines: page.lines,
-      });
-    }
-  }
-  return result;
+  const cached = await native.restorePdfDocument(pdfCacheRequest(reference, profile.cacheKey));
+  const geometry = cached ? native.pdfRecognizedText(cached) : [];
+  if (geometry.length) return geometry;
+  const summary = cached ? native.pdfDocumentSummary(cached) : undefined;
+  if (summary && !summary.ocrRoutedPages.length) return [];
+  if (!summary && profile.status !== "ready")
+    throw new Error("Recognized text is no longer cached. Resume text recognition for this PDF.");
+  // A compact cache written before geometry was retained can recover only the previously
+  // recognized pages. Never turn a cited-page pass into an implicit whole-document pass.
+  const pages = summary?.pagesNeedingOcr.length ? summary.ocrRoutedPages.map(page => page + 1) : undefined;
+  const document = await openPdf({ ...reference, bytes: await readBytes(), pages,
+    pdfProfile: profile, signal: options.signal });
+  return native.pdfRecognizedText(document);
 }
 
 async function preparedForEvidence(

@@ -117,7 +117,13 @@ need not wait for an unrelated page. Unknown geometry stays hidden; viewport
 anchoring handles mixed sizes, and annotation navigation awaits exact geometry.
 Per-open page reuse survives zoom/resize. Quote search uses normalized text, not
 whole-document text-layer DOM; visible/matched pages share text tasks. Rotation
-and crop alignment retain the existing annotation coordinate contract.
+and crop alignment retain the existing annotation coordinate contract. Distant text
+layers are cancelled/evicted with the bitmap buffer, except during a live selection;
+page cleanup releases PDF.js render resources, and zoom/close zero old canvases.
+Quote matches survive eviction as data and are reapplied when their page returns.
+Annotation overlays are indexed by mark and exist only on marked/drawn pages;
+selection and autosave do not rebuild every page's SVG. Mouse drags resolve nearby
+text runs without reordering native text or reading every glyph's layout per move.
 
 PDF.js import overlaps acquisition. Supplied bytes do not trigger an unused
 download. The complete-file cache retains at most eight files/64 MiB with LRU
