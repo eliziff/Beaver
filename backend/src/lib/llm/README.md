@@ -23,9 +23,14 @@ results, not successful completion. Completed tool pairs persist before stopping
 truncated generation never authorizes tool effects.
 
 Claude caching is enabled explicitly and cache reads/writes count toward context.
-Effort and summary visibility are separate provider options. Discovery expands the
-tool list without forcing a newly discovered tool to execute. Normal telemetry
-remains content-free; `MIKE_LLM_METRICS_PATH` enables numeric benchmark receipts.
+Effort and summary visibility are separate provider options. Hosted discovery
+expands the tool list without forcing a newly discovered tool to execute. Native
+MCP transports advertise the complete scoped turn catalog (`staticTools`) once;
+`load_tools` activates specialists in `TurnToolRegistry`, not in the client's tool
+catalog. This avoids depending on list-change notifications over stateless HTTP.
+Unloaded tools remain blocked by the registry, and failures retain MCP `isError`.
+Normal telemetry remains content-free; `MIKE_LLM_METRICS_PATH` enables numeric
+benchmark receipts.
 
 References: [SDK message replay](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling),
 [provider options](https://ai-sdk.dev/providers/ai-sdk-providers), and
