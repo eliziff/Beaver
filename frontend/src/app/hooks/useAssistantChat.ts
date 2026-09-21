@@ -32,6 +32,7 @@ import {
 import {
   jurisdictionPreferenceForChat,
   readAssistantPreferences,
+  useAssistantPreferences,
 } from "@/app/components/assistant/assistantPreferences";
 import { DEFAULT_MODEL_ID } from "@/app/components/assistant/ModelToggle";
 import type { WorkProductFocus, WorkProductKind } from "@/app/lib/workProducts";
@@ -89,6 +90,7 @@ export function useAssistantChat({
   // Review and work-product chats belong to their surface, not to the assistant history list.
   const detached = !!tabularReviewId || !!workProduct;
   const { profile } = useUserProfile();
+  const [{ readSubagents }] = useAssistantPreferences();
   const {
     claimPendingChatMessage,
     peekPendingChatMessage,
@@ -275,6 +277,16 @@ export function useAssistantChat({
     return () => { if (loadGenerationRef.current === generation) loadGenerationRef.current += 1; };
   }, [initialChatId, observeTurn, loadAttempt, loadTranscript]);
 
+  useEffect(() => {
+    const current = stateRef.current;
+    if (!current.run || !current.chatId) return;
+    // The existing durable command channel applies settings to the next dispatch,
+    // without restarting already-running readers or injecting an empty model message.
+    void steerChat(current.chatId, crypto.randomUUID(), "", {
+      enabled: readSubagents.enabled, model: readSubagents.model, effort: readSubagents.effort,
+    }).catch(() => undefined); // A turn may complete while its settings request is in flight.
+  }, [state.chatId, state.run?.id, readSubagents.enabled, readSubagents.model, readSubagents.effort]);
+
   const cancel = () => {
     const current = stateRef.current;
     const runId = current.run?.id;
@@ -324,7 +336,10 @@ export function useAssistantChat({
       const text = message.content.trim();
       dispatch({ type: "steering_queued", runId: current.run.id, id, text });
       try {
-        await steerChat(current.chatId, id, text);
+        const readers = readAssistantPreferences().readSubagents;
+        await steerChat(current.chatId, id, text, {
+          enabled: readers.enabled, model: readers.model, effort: readers.effort,
+        });
       } catch {
         dispatch({ type: "protocol", runId: current.run.id, chatId: current.chatId, event: { type: "error", message: ASSISTANT_GENERIC_ERROR, retryable: false } });
       }

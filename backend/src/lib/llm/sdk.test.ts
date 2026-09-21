@@ -257,3 +257,36 @@ it("DeepSeek reasoning and tool results survive both a step and a later turn", a
     .toEqual(["Find the exact passage.", "The passage answers this."]);
   expect(runTools).toHaveBeenCalledOnce();
 });
+
+it.each([
+  ["openai:gpt-5.5", "gpt-5.5", "responses"],
+  ["claude:claude-sonnet-4-6", "claude-sonnet-4-6", "messages"],
+  ["gemini:gemini-3-flash-preview", "gemini-3-flash-preview", "gemini"],
+  ["opencode-go:gpt-5.5", "gpt-5.5", "responses"],
+  ["opencode-go:minimax-m2.7", "minimax-m2.7", "messages"],
+  ["opencode-go:deepseek-v4.1-flash", "deepseek-v4.1-flash", "chat/completions"],
+])("sends %s through its native SDK endpoint without a picker prefix", async (model, native, endpoint) => {
+  const response = () => endpoint === "responses" ? openai() : endpoint === "messages" ? anthropic()
+    : endpoint === "gemini" ? gemini([{ text: "Answer" }]) : sse([
+      { id: "chat", object: "chat.completion.chunk", created: 1, model: native,
+        choices: [{ index: 0, delta: { role: "assistant", content: "Answer" }, finish_reason: null }] },
+      { id: "chat", object: "chat.completion.chunk", created: 1, model: native,
+        choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+    ]);
+  const { bodies, fetch } = transport([response]);
+  expect((await streamHosted({ ...params, model, tools: [], promptCacheKey: "conversation",
+    apiKeys: { ...params.apiKeys, "opencode-go": "test" } })).fullText).toBe("Answer");
+  expect(String(fetch.mock.calls[0][0])).toContain(endpoint === "gemini" ? native : `/${endpoint}`);
+  if (endpoint !== "gemini") expect(bodies[0].model).toBe(native);
+  if (model.startsWith("opencode-go:")) expect(new Headers(fetch.mock.calls[0][1].headers)
+    .get("x-opencode-session")).toBe("conversation");
+});
+
+it("discards buffered SDK deltas and tool calls after cancellation", async () => {
+  const controller = new AbortController(), deltas: string[] = [], run = vi.fn(), saved = vi.fn();
+  transport([() => gemini([{ text: "Kept" }, { text: "Late" }, { functionCall: { name: "Read", args: { file: "x" } } }])]);
+  await expect(streamHosted({ ...params, abortSignal: controller.signal, runTools: run,
+    callbacks: { onModelMessages: saved, onContentDelta(text) { deltas.push(text); controller.abort(); } },
+  })).rejects.toMatchObject({ name: "AbortError" });
+  expect(deltas).toEqual(["Kept"]); expect(run).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
+});

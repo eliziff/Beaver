@@ -121,7 +121,7 @@ const READ_LABEL = /^Reading (\S+) (.+) of (.+)$/u;
 
 const activitySource = (activity: AssistantActivity) => {
     const citation = activity.citations?.[0];
-    return citation ? citationSourceKey(citation) : `label:${activity.label}`;
+    return citation ? citationSourceKey(citation) : `activity:${activity.id}`;
 };
 
 /**
@@ -131,7 +131,7 @@ const activitySource = (activity: AssistantActivity) => {
  * up and how much cites it.
  */
 export function collapseActivities(activities: readonly AssistantActivity[]): AssistantActivity[] {
-    const rows: AssistantActivity[] = [];
+    const rows: AssistantActivity[] = [], groups = new Map<string, number>();
     for (const activity of activities) {
         if (activity.tool === "note_up") {
             const count = activity.citations?.length ?? 0;
@@ -139,12 +139,25 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
                 label: count ? `${activity.label} — ${count} citing source${count === 1 ? "" : "s"}` : activity.label });
             continue;
         }
-        // Windows of one source are one act however they interleave with another's.
-        const index = activity.tool !== "Read" ? -1 : rows.findLastIndex((row) =>
-            row.tool === "Read" && activitySource(row) === activitySource(activity));
-        const previous = index < 0 ? undefined : rows[index];
+        const key = activity.tool === "Read" ? activity.read
+            ? `${activity.read.queries?.length ? "search" : "read"}:${activity.read.resource}`
+            : activitySource(activity) : activity.id;
+        const index = groups.get(key), previous = index === undefined ? undefined : rows[index];
         if (!previous) {
+            groups.set(key, rows.length);
             rows.push(activity);
+            continue;
+        }
+        const statuses = [previous.status, activity.status];
+        const status = statuses.includes("running") ? "running" : statuses.includes("error") ? "error"
+            : statuses.includes("interrupted") ? "interrupted" : "completed";
+        if (previous.read && activity.read) {
+            rows[index!] = { ...previous, status, callCount: (previous.callCount ?? 1) + 1,
+                read: { resource: previous.read.resource,
+                    ...(activity.read.queries ? { queries: [...new Set([
+                        ...(previous.read.queries ?? []), ...activity.read.queries])] }
+                        : { ranges: [...new Set([...(previous.read.ranges ?? []), ...(activity.read.ranges ?? [])])] }) },
+                citations: previous.citations?.length ? previous.citations : activity.citations };
             continue;
         }
         const before = READ_LABEL.exec(previous.label), next = READ_LABEL.exec(activity.label);
@@ -152,7 +165,7 @@ export function collapseActivities(activities: readonly AssistantActivity[]): As
             LOCATOR_NOUNS.has(before[1]) && LOCATOR_NOUNS.has(next[1])
             ? `Reading ${next[1]} ${[...new Set([...before[2].split(", "), ...next[2].split(", ")])].join(", ")} of ${next[3]}`
             : activity.label;
-        rows[index] = { ...previous, label: merged, status: activity.status,
+        rows[index!] = { ...previous, label: merged, status,
             citations: [...(previous.citations ?? []), ...(activity.citations ?? [])]
                 .filter((citation, index, all) =>
                     all.findIndex((other) => citationSourceKey(other) === citationSourceKey(citation)) === index) };
@@ -188,8 +201,11 @@ export function ActivityRow({
     // "Searching for “essence of a seizure”" + chip (Eli, 2026-09-10).
     const parts = compactRead ? citationPillParts(citations[0], true) : null;
     const chipName = parts?.styleOfCause || parts?.rest || null;
-    const sentence = chipName && activity.label.includes(chipName)
-        ? activity.label.replace(chipName, "").replace(/s{2,}/gu, " ").replace(/s+([,.;:])/gu, "$1").trim() : activity.label;
+    const read = activity.read;
+    const readLabel = read?.queries?.length ? `Searching for ${read.queries.map(query => `“${query}”`).join(", ")}`
+        : read ? `Reading${read.ranges?.length ? ` ${read.ranges.join(", ")}` : ""}` : undefined;
+    const sentence = readLabel ?? (chipName && activity.label.includes(chipName)
+        ? activity.label.replace(chipName, "").replace(/\s{2,}/gu, " ").replace(/\s+([,.;:])/gu, "$1").trim() : activity.label);
     const label = `${sentence}${{ running: busy && !activity.markdown ? "..." : "",
         completed: "", error: " — failed", interrupted: " — stopped" }[activity.status]}`;
     const labelNode = onClick ? (
@@ -201,7 +217,8 @@ export function ActivityRow({
             {label}
         </button>
     ) : (
-        <span className="font-medium">{label}</span>
+        <span className={read ? "min-w-0 truncate font-medium" : "font-medium"}
+            title={read ? `${label}${activity.callCount ? ` (${activity.callCount} calls)` : ""}` : undefined}>{label}</span>
     );
     return (
         <div
@@ -221,10 +238,10 @@ export function ActivityRow({
                 )}
             </span>
             <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                <div>
+                <div className={read ? "flex min-w-0 items-baseline gap-1" : undefined}>
                     {labelNode}{" "}
                     {!markdown && citations.length > 0 && (
-                        <span className={compactRead ? "inline" : "mt-1 flex flex-wrap gap-1.5"}>
+                        <span className={read ? "max-w-[50%] shrink-0 truncate" : compactRead ? "inline" : "mt-1 flex flex-wrap gap-1.5"}>
                             {citations.map((citation, index) => (
                                 <CitationPill
                                     key={`${citationSourceKey(citation)}:${index}`}

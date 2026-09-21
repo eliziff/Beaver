@@ -70,7 +70,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To find where a source you already hold says something, Read it with pattern instead of searching again. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. List prior receipts with file_path evidence or queries, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. List prior receipts with file_path evidence or queries, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
@@ -110,6 +110,9 @@ export const RESOURCE_TOOLS = [
         maxLength: 256,
         description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID returned by a findings read.",
       },
+      patterns: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true,
+        items: { type: "string", minLength: 1, maxLength: 256 },
+        description: "Literal phrases to search together in one public legal source. Use instead of pattern; max_results bounds all returned hits together. Each query retains its own counts and truncation flag." },
       max_results: { type: "integer", minimum: 1, maximum: 50 },
       context_chars: { type: "integer", minimum: 40, maximum: 2000 },
     },
@@ -132,6 +135,12 @@ export const RESOURCE_TOOLS = [
     false,
   ),
 ] satisfies Tool[];
+
+export function readPatterns(args: Record<string, unknown>): string[] {
+  return [...new Map((Array.isArray(args.patterns) ? args.patterns : [args.pattern])
+    .flatMap(value => typeof value === "string" && value.trim() ? [value.trim()] : [])
+    .map(pattern => [pattern.toLowerCase().replace(/\s+/gu, " "), pattern])).values()];
+}
 
 function globAlternatives(pattern: string): string[] {
   const queue = [pattern], result: string[] = [];
