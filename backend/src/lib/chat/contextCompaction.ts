@@ -10,7 +10,6 @@ import type { Provider } from "../llm/types";
 import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
 import type { ContextCheckpointEvent } from "./assistantEvents";
-import { priorLegalEvidenceReceipts } from "./legalEvidence";
 
 const RECENT_TAIL_TOKENS = 20_000;
 const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI legal-work assistant.
