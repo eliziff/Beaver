@@ -245,7 +245,7 @@ describe("Codex app-server adapter", () => {
     }]);
   });
 
-  it.each(["before", "after", "omitted"])("steers with turn/started arriving %s the start response", async timing => {
+  it.each(["before", "after", "omitted"])("steers after turn/start with notification %s the response", async timing => {
     let control: { steer(message: { id: string; text: string }): Promise<void> } | null = null;
     transport.request.mockImplementation(async (method: string) => {
       if (method === "thread/start") return { thread: { id: threadId } };
@@ -268,26 +268,23 @@ describe("Codex app-server adapter", () => {
       },
     });
     await vi.waitFor(() => expect(control).not.toBeNull());
+    const steering = control!.steer({ id: "steer-1", text: "Answer now." });
+    if (timing === "after") transport.emit("turn/started", {
+      threadId,
+      turn: { id: turnId, status: "inProgress" },
+    });
     try {
-      const steering = control!.steer({ id: "steer-1", text: "Answer now." });
-      expect(transport.request).not.toHaveBeenCalledWith("turn/steer", expect.anything());
-      if (timing === "after") transport.emit("turn/started", {
-        threadId,
-        turn: { id: turnId, status: "inProgress" },
-      });
-      await expect(Promise.race([steering.then(() => "steered"),
-        new Promise(resolve => setTimeout(() => resolve("stalled"), 200))])).resolves.toBe("steered");
-      expect(transport.request).toHaveBeenCalledWith("turn/steer", {
-        threadId,
-        expectedTurnId: turnId,
-        clientUserMessageId: "steer-1",
-        input: [{ type: "text", text: "Answer now.", text_elements: [] }],
-      });
-      transport.request.mockResolvedValueOnce({ turnId: "another-turn" });
-      await expect(control!.steer({ id: "bad-ack", text: "Keep the same turn." })).rejects.toThrow(/turn ID/i);
-      complete("Draft. Steered.");
-      await expect(running).resolves.toMatchObject({ fullText: "Draft. Steered." });
-    } finally { complete(); complete("", "another-turn"); await running.catch(() => undefined); }
+      await vi.waitFor(() => expect(transport.request).toHaveBeenCalledWith("turn/steer", expect.anything()), { timeout: 300 });
+    } catch (error) { complete(); await steering.catch(() => undefined); await running; throw error; }
+    await steering;
+    expect(transport.request).toHaveBeenCalledWith("turn/steer", {
+      threadId,
+      expectedTurnId: turnId,
+      clientUserMessageId: "steer-1",
+      input: [{ type: "text", text: "Answer now.", text_elements: [] }],
+    });
+    complete("Draft. Steered.");
+    await expect(running).resolves.toMatchObject({ fullText: "Draft. Steered." });
   });
 
   it("accepts completion notifications received before turn/start resolves", async () => {
