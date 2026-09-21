@@ -19,7 +19,7 @@ import {
     citationPillParts,
     citationTooltip,
 } from "./CitationSources";
-import { uniqueCitations } from "./citationUtils";
+import { CITATION_MARKERS, uniqueCitations } from "./citationUtils";
 export const MessageSearchHighlight = createContext("");
 
 function highlightText(query: string) {
@@ -75,7 +75,7 @@ const PLAIN_LINK =
 const ASSISTANT_SOURCE = "/__beaver_source/";
 function sourceCitations(text: string, citations: Citation[]) {
     const byRef = new Map(citations.map((citation) => [citation.ref, citation]));
-    return text.replace(/(?<!\\)\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*(?!\()/gu, (markers) => {
+    return text.replace(CITATION_MARKERS, (markers) => {
         const selected = (markers.match(/\d+/gu) ?? [])
             .flatMap((ref) => byRef.get(Number(ref)) ?? []);
         return selected.length ? uniqueCitations(selected).map(({ ref }) =>
