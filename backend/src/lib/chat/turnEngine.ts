@@ -606,7 +606,7 @@ export async function runChatTurn(options: {
     model: options.model,
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
-      ...(continuationId ? providerMessages.slice(-1) : providerMessages),
+      ...(continuationId ? repair ? [] : providerMessages.slice(-1) : providerMessages),
       ...(repair ? [
         ...(!hasModelMessages && !continuationId ? [{ role: "assistant" as const, content: repair.draft }] : []),
         { role: "user" as const, content: repair.findings }] : []),

@@ -231,3 +231,29 @@ it.each([false, true])("settles native compaction and keeps it out of prose (fai
   expect(JSON.stringify(content.mock.calls)).not.toContain("Retained research checkpoint");
   expect(statuses.mock.calls).toEqual([["running"], [fail ? "failed" : "completed"]]);
 });
+
+it("DeepSeek reasoning and tool results survive both a step and a later turn", async () => {
+  const chunk = (delta: unknown, finish_reason: string | null = null) => ({ id: "completion", model: "deepseek-flash",
+    created: 1, choices: [{ index: 0, delta, finish_reason }] });
+  const { bodies } = transport([
+    () => sse([chunk({ role: "assistant", reasoning_content: "Find the exact passage." }),
+      chunk({ tool_calls: [{ index: 0, id: "read-1", type: "function", function: { name: "Read", arguments: '{"file":"a"}' } }] }),
+      chunk({}, "tool_calls")]),
+    () => sse([chunk({ role: "assistant", reasoning_content: "The passage answers this." }), chunk({ content: "It says 47." }, "stop")]),
+    () => sse([chunk({ role: "assistant", content: "Still 47." }, "stop")]),
+  ]);
+  const history: ModelState[] = [];
+  const runTools = vi.fn(async calls => calls.map((call: { id: string }) => ({ tool_use_id: call.id, content: "Exact passage: 47" })));
+  const request = { ...params, model: "deepseek-flash", apiKeys: { deepseek: "test" }, enableThinking: true, runTools };
+  await streamHosted({ ...request, callbacks: { onModelMessages: state => { history.push(state); } } });
+  await streamHosted({ ...request, messages: [params.messages[0], ...history.map(modelState => ({
+    role: "assistant" as const, content: "", modelState })), { role: "user", content: "Reformat it." }] });
+  expect(bodies[1].messages).toEqual(expect.arrayContaining([
+    expect.objectContaining({ role: "assistant", reasoning_content: "Find the exact passage." }),
+    expect.objectContaining({ role: "tool", tool_call_id: "read-1", content: "Exact passage: 47" }),
+  ]));
+  expect(bodies[2].messages.filter((message: { role: string }) => message.role === "assistant")
+    .map((message: { reasoning_content: string }) => message.reasoning_content))
+    .toEqual(["Find the exact passage.", "The passage answers this."]);
+  expect(runTools).toHaveBeenCalledOnce();
+});
