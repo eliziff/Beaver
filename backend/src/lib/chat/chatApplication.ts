@@ -697,8 +697,8 @@ export function createChatApplication(deps: Dependencies) {
         features.sourceCoveragePrompt,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
         tabularPrompt,
-        research ? `Read the workspace for labels and history, and Read findings for saved answers.\n` +
-          `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells to read its supported answers.` : "",
+        research ? `CURRENT RESEARCH WORKSPACE IS AVAILABLE. Reuse conversation evidence and saved evidence_ids first; read workspace labels/history, findings, selection, tables or source passages only when the current request needs information not already available.\n` +
+          `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells only when its supported answers are needed.` : "",
         registeredWorkflow?.skill_md
           ? `SELECTED WORKFLOW — follow these instructions for this turn:
 ${registeredWorkflow.skill_md}` : "",
