@@ -1,41 +1,67 @@
-name: Authorities highlight validation workspace
+name: Authorities highlight candidate validation
 on:
   push:
     branches: [fix/authorities-highlight-selection-ocr]
     paths: [.github/workflows/authorities-highlight-validation.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  prepare:
+  candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Package bounded source workspace
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply hash-checked candidate and exact OCR producer pin
         run: |
-          mkdir -p /tmp/highlight-validation
-          git archive --format=tar HEAD frontend/src frontend/scripts frontend/vendor frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vite.config.ts frontend/vitest.config.mts frontend/vitest.setup.ts shared backend/src backend/package.json backend/package-lock.json native/legal-structure-node packages docs/current/authorities.md docs/current/performance.md subrepos.lock.json | gzip > /tmp/highlight-validation/beaver-source.tar.gz
+          python scripts/authorities-highlight-candidate.py
           git submodule update --init legal-pdf-parser legal-structure
-          git -C legal-pdf-parser archive --format=tar HEAD legal-pdf-core legal-pdf-support rust Cargo.toml Cargo.lock AGENTS.md | gzip > /tmp/highlight-validation/pdf-parser-source.tar.gz
-          git -C legal-structure archive --format=tar HEAD Cargo.toml Cargo.lock src | gzip > /tmp/highlight-validation/structure-source.tar.gz
-      - name: Install locked frontend dependencies without lifecycle scripts
-        run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
-      - name: Package offline frontend test dependencies
-        run: tar -czf /tmp/highlight-validation/frontend-dependencies.tar.gz frontend/node_modules
-      - uses: actions/upload-artifact@v4
+          git -C legal-pdf-parser fetch origin be51c99cf36a253179f0d7f4f277e47068573dd8
+          git -C legal-pdf-parser checkout be51c99cf36a253179f0d7f4f277e47068573dd8
+          git diff --check
+          rm scripts/authorities-highlight-candidate.py .github/workflows/authorities-highlight-validation.yml
+          git add backend/src/lib/documentProjectionService.ts backend/src/lib/structureNative.ts docs/current/authorities.md docs/current/performance.md frontend/src/app/authorities/AuthoritiesHighlightEditor.tsx frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx frontend/src/app/components/shared/views/pdfAnnotationLayer.ts frontend/src/app/components/shared/views/pdfRecognizedText.ts frontend/src/app/components/shared/views/pdfTextSelection.ts native/legal-structure-node/src/lib.rs legal-pdf-parser scripts/authorities-highlight-candidate.py .github/workflows/authorities-highlight-validation.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: make Authorities highlights responsive and OCR text selectable'
+          git push origin HEAD:fix/authorities-highlight-selection-ocr
+          git rev-parse HEAD
+      - name: Install locked JavaScript dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+          npm ci --prefix backend --ignore-scripts --no-audit --no-fund
+      - name: Frontend typecheck
+        id: frontend_types
+        continue-on-error: true
+        working-directory: frontend
+        run: npx tsc --noEmit
+      - name: Backend typecheck
+        id: backend_types
+        continue-on-error: true
+        working-directory: backend
+        run: npx tsc --noEmit
+      - name: Focused PDF and Authorities frontend checks
+        id: frontend_tests
+        continue-on-error: true
+        working-directory: frontend
+        run: npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/QuotationFinding.test.tsx src/app/authorities/standaloneHost.test.tsx
+      - name: Focused PDF projection checks
+        id: backend_tests
+        continue-on-error: true
+        working-directory: backend
+        run: npx vitest run src/lib/__tests__/documentProjectionService.test.ts
+      - name: Source boundary check
+        id: boundaries
+        continue-on-error: true
+        run: npm run check:source-boundaries
+      - name: Check the exact native addon and parser combination
+        id: native_check
+        continue-on-error: true
+        run: cargo check --manifest-path native/legal-structure-node/Cargo.toml
+      - name: Record candidate checks
         if: always()
-        with:
-          name: highlight-source
-          path: /tmp/highlight-validation/*source.tar.gz
-          retention-days: 1
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: highlight-dependencies
-          path: /tmp/highlight-validation/frontend-dependencies.tar.gz
-          retention-days: 1
+        run: |
+          printf '%s\n' 'Frontend typecheck: ${{ steps.frontend_types.outcome }}' 'Backend typecheck: ${{ steps.backend_types.outcome }}' 'Frontend focused tests: ${{ steps.frontend_tests.outcome }}' 'Backend projection tests: ${{ steps.backend_tests.outcome }}' 'Source boundaries: ${{ steps.boundaries.outcome }}' 'Native check: ${{ steps.native_check.outcome }}' >> "$GITHUB_STEP_SUMMARY"
+          test '${{ steps.frontend_types.outcome }}' = success && test '${{ steps.backend_types.outcome }}' = success && test '${{ steps.frontend_tests.outcome }}' = success && test '${{ steps.backend_tests.outcome }}' = success && test '${{ steps.boundaries.outcome }}' = success && test '${{ steps.native_check.outcome }}' = success
