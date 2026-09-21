@@ -315,7 +315,7 @@ it("persists private tool receipts without emitting them", async () => {
   expect(emitted).not.toContainEqual(receipt);
 });
 
-it("repairs a failed grounded submission without exposing the validator error", async () => {
+it.each([false, true])("repairs only the failed submission without resending a native user turn (%s)", async native => {
   const evidence = createTnaEvidence({
     jurisdiction: "CA",
     sourceClass: "case",
@@ -336,8 +336,15 @@ it("repairs a failed grounded submission without exposing the validator error", 
     call += 1;
     if (call === 1) {
       callbacks.onContentDelta?.("My favourite is Example v Example, 2024 SCC 1.");
-      return { fullText: "My favourite is Example v Example, 2024 SCC 1." };
+      return { fullText: "My favourite is Example v Example, 2024 SCC 1.",
+        ...(native && { continuationId: "11111111-1111-1111-1111-111111111111" }) };
     }
+    if (native) {
+      expect(params.messages).toHaveLength(1);
+      expect(params.messages[0].role).toBe("user");
+      expect(params.messages[0].content).not.toContain("What is your favourite case?");
+      expect(params.providerSession.continuationId).toBe("11111111-1111-1111-1111-111111111111");
+    } else expect(params.messages).toHaveLength(3);
     await runTools([{
       id: "grounded-1",
       name: "submit_grounded_answer",
@@ -352,7 +359,8 @@ it("repairs a failed grounded submission without exposing the validator error", 
   });
 
   const result = await runChatTurn({
-    model: "gemini-3-flash-preview",
+    model: native ? "codex:gpt-5.6-luna" : "gemini-3-flash-preview",
+    ...(native && { providerSession: { persist: true as const } }),
     systemPrompt: "",
     messages: [{ role: "user", content: "What is your favourite case?" }],
     createTools: (state) => {

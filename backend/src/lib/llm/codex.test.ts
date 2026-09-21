@@ -86,7 +86,7 @@ describe("Codex app-server adapter", () => {
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
   });
 
-  it("exposes specialists only after loading through the native MCP connection", async () => {
+  it("keeps the native catalog stable while loading authorizes specialists", async () => {
     const registry = new TurnToolRegistry([{ name: "inspect", specialist: true,
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       async execute() { return { result: toolText("inspected") }; },
@@ -95,6 +95,7 @@ describe("Codex app-server adapter", () => {
     transport.request.mockImplementation(async (method: string, params) => {
       if (method === "thread/start") {
         bridgeUrl = params.config.mcp_servers.mike_runtime.url;
+        expect(params.config.mcp_servers.mike_runtime.default_tools_approval_mode).toBe("approve");
         return { thread: { id: threadId } };
       }
       if (method === "turn/start") {
@@ -103,9 +104,11 @@ describe("Codex app-server adapter", () => {
           requestInit: { headers: { Authorization: "Bearer test-token" } },
         }));
         try {
-          expect((await client.listTools()).tools.map(({ name }) => name)).toEqual(["load_tools"]);
+          const catalog = (await client.listTools()).tools;
+          expect(catalog.map(({ name }) => name)).toEqual(["load_tools", "inspect"]);
+          expect((await client.callTool({ name: "inspect", arguments: {} })).isError).toBe(true);
           await client.callTool({ name: "load_tools", arguments: { names: ["inspect"] } });
-          expect((await client.listTools()).tools.map(({ name }) => name)).toEqual(["inspect"]);
+          expect((await client.listTools()).tools).toEqual(catalog);
           expect((await client.callTool({ name: "inspect", arguments: {} })).content)
             .toEqual([{ type: "text", text: "inspected" }]);
         } finally { await client.close(); }
@@ -177,6 +180,9 @@ describe("Codex app-server adapter", () => {
       if (method === "thread/start") return { thread: { id: threadId } };
       if (method === "turn/start") {
         setTimeout(() => {
+          complete("Old turn must not leak.", "old-turn");
+          transport.emit("item/reasoning/summaryTextDelta", { threadId, turnId: "old-turn", delta: "Stale reasoning" });
+          transport.emit("error", { threadId, turnId: "old-turn", error: { message: "Stale failure" }, willRetry: false });
           transport.emit("item/reasoning/summaryTextDelta", {
             threadId,
             turnId,
@@ -218,7 +224,7 @@ describe("Codex app-server adapter", () => {
       return {};
     });
 
-    await streamCodex({
+    const result = await streamCodex({
       model: "codex:gpt-5.6-luna",
       systemPrompt: "",
       messages: [{ role: "user", content: "Reply." }],
@@ -230,6 +236,7 @@ describe("Codex app-server adapter", () => {
       },
     });
 
+    expect(result.fullText).toBe("Done");
     expect(reasoning).toEqual(["Planning", "|", "Writing", "|"]);
     expect(context).toEqual([{
       usedTokens: 20_000,
@@ -237,11 +244,14 @@ describe("Codex app-server adapter", () => {
     }]);
   });
 
-  it("steers the active native turn", async () => {
+  it.each(["before", "after"])("steers when turn/started arrives %s the start response", async timing => {
     let control: { steer(message: { id: string; text: string }): Promise<void> } | null = null;
     transport.request.mockImplementation(async (method: string) => {
       if (method === "thread/start") return { thread: { id: threadId } };
-      if (method === "turn/start") return { turn: { id: turnId } };
+      if (method === "turn/start") {
+        if (timing === "before") transport.emit("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
+        return { turn: { id: turnId } };
+      }
       if (method === "turn/steer") return { turnId };
       return {};
     });
@@ -257,21 +267,39 @@ describe("Codex app-server adapter", () => {
       },
     });
     await vi.waitFor(() => expect(control).not.toBeNull());
-    const steering = control!.steer({ id: "steer-1", text: "Answer now." });
-    expect(transport.request).not.toHaveBeenCalledWith("turn/steer", expect.anything());
-    transport.emit("turn/started", {
-      threadId,
-      turn: { id: turnId, status: "inProgress" },
+    try {
+      const steering = control!.steer({ id: "steer-1", text: "Answer now." });
+      expect(transport.request).not.toHaveBeenCalledWith("turn/steer", expect.anything());
+      if (timing === "after") transport.emit("turn/started", {
+        threadId,
+        turn: { id: turnId, status: "inProgress" },
+      });
+      await expect(Promise.race([steering.then(() => "steered"),
+        new Promise(resolve => setTimeout(() => resolve("stalled"), 200))])).resolves.toBe("steered");
+      expect(transport.request).toHaveBeenCalledWith("turn/steer", {
+        threadId,
+        expectedTurnId: turnId,
+        clientUserMessageId: "steer-1",
+        input: [{ type: "text", text: "Answer now.", text_elements: [] }],
+      });
+      transport.request.mockResolvedValueOnce({ turnId: "another-turn" });
+      await expect(control!.steer({ id: "bad-ack", text: "Keep the same turn." })).rejects.toThrow(/turn ID/i);
+      complete("Draft. Steered.");
+      await expect(running).resolves.toMatchObject({ fullText: "Draft. Steered." });
+    } finally { complete(); complete("", "another-turn"); await running.catch(() => undefined); }
+  });
+
+  it("accepts completion notifications received before turn/start resolves", async () => {
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") { complete("Early result"); return { turn: { id: turnId } }; }
+      return {};
     });
-    await steering;
-    expect(transport.request).toHaveBeenCalledWith("turn/steer", {
-      threadId,
-      expectedTurnId: turnId,
-      clientUserMessageId: "steer-1",
-      input: [{ type: "text", text: "Answer now.", text_elements: [] }],
-    });
-    complete("Draft. Steered.");
-    await expect(running).resolves.toMatchObject({ fullText: "Draft. Steered." });
+    const running = streamCodex({ model: "codex:gpt-5.6-luna", systemPrompt: "", messages: [] });
+    try {
+      await expect(Promise.race([running.then(result => result.fullText),
+        new Promise(resolve => setTimeout(() => resolve("stalled"), 200))])).resolves.toBe("Early result");
+    } finally { complete(); await running.catch(() => undefined); }
   });
 
   it("interrupts the provider turn before reporting an abort", async () => {
