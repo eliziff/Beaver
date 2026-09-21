@@ -6,7 +6,7 @@ Source labels organize sources; highlight types organize particular passages wit
 
 A source can have multiple source labels when it substantively addresses multiple parts of the organization. Each passage can have at most one highlight type. Consider all supplied sources and passages, but leave material unclassified where assigning a category would add no useful organization.
 
-Use concise, descriptive category names whose meaning is clear in their parent context. Preserve existing categories and user edits when revising unless the requested revision requires changing them.
+Use concise, descriptive category names whose meaning is clear in their parent context. Preserve existing categories and user edits when revising unless the requested revision requires changing them. When revising, follow the user's corrections and current edits; use the proposal history to avoid repeating rejected choices.
 
 ILLUSTRATIVE EXAMPLE
 
