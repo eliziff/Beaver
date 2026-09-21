@@ -95,30 +95,35 @@ export function researchLabelInventory(catalog: ResearchImportCatalog, file: Res
     .filter((label) => label.scope === kind && label.parentId === parentId).sort((a, b) => a.order - b.order)
     .map(({ id, name, definition }) => ({ id, name, ...(definition ? { definition } : {}), children: hierarchy(kind, id) }));
   const passages = catalog.entries.filter(({ kind }) => kind === "passages" || kind === "cited"),
-    passageOf = new Map(passages.flatMap(({ id, rowId, evidenceIds }) => evidenceIds.map((evidence) => [`${rowSources.get(rowId)}:${evidence}`, id] as const))),
+    passageOf = new Map(passages.flatMap(({ id, rowId, evidenceIds }) => evidenceIds.map((evidence) =>
+      [JSON.stringify([rowSources.get(rowId), evidence]), id] as const))),
     answers = catalog.entries.filter(({ kind }) => kind === "answer");
-  const claimOf = ({ reference }: ResearchImportCatalog["entries"][number]) => reference.kind === "answer"
-    ? [JSON.stringify([reference.chatId, reference.answerId]), reference.claimIndices?.length === 1 ? reference.claimIndices[0] : undefined] as const
-    : [JSON.stringify(reference), undefined] as const;
-  const sourceAnswer = ({ reference }: ResearchImportCatalog["entries"][number]) => reference.kind === "answer"
-    ? JSON.stringify([reference.chatId, reference.answerId, reference.resource]) : JSON.stringify(reference);
-  // Atomized claims replace only their own source's summary, never another source's singleton finding.
-  const split = new Set(answers.filter((entry) => claimOf(entry)[1] !== undefined).map(sourceAnswer)),
-    order = new Map([...new Set(answers.map((entry) => claimOf(entry)[0]))].map((id, index) => [id, index])),
-    claims = new Map<string, { order: number; index: number; claim: string; evidence: Set<string> }>();
+  const projection = ({ reference }: ResearchImportCatalog["entries"][number]) => JSON.stringify(reference.kind === "answer"
+    ? [reference.chatId, reference.answerId, reference.resource] : reference);
+  const split = new Map<string, Set<number>>(), order = new Map<string, number>(),
+    claims = new Map<string, { at: number; index: number; claim: string; evidence: Set<string> }>();
+  for (const entry of answers) if (entry.reference.kind === "answer" && entry.reference.claimIndices?.length === 1) {
+    const key = projection(entry), indices = split.get(key) ?? new Set<number>();
+    indices.add(entry.reference.claimIndices[0]); split.set(key, indices);
+  }
   for (const entry of answers) {
-    const [answer, index] = claimOf(entry);
-    if (index === undefined && split.has(sourceAnswer(entry))) continue;
-    const key = index === undefined ? JSON.stringify(entry.reference) : JSON.stringify([answer, index]),
-      claim = claims.get(key) ?? { order: order.get(answer)!, index: index ?? -1, claim: clip(entry.text, 600), evidence: new Set<string>() };
+    const ref = entry.reference, indices = ref.kind === "answer" ? ref.claimIndices : undefined, projected = projection(entry);
+    // Suppress only aggregates fully represented by original claims from this same source projection.
+    if (indices && indices.length > 1 && indices.every((index) => split.get(projected)?.has(index))) continue;
+    const answer = ref.kind === "answer" ? JSON.stringify([ref.chatId, ref.answerId]) : projected,
+      index = indices?.length === 1 ? indices[0] : -1,
+      key = JSON.stringify(index >= 0 ? [answer, index] : [projected, indices ?? null]);
+    if (!order.has(answer)) order.set(answer, order.size);
+    const claim = claims.get(key) ?? { at: order.get(answer)!, index, claim: clip(entry.text, 600), evidence: new Set<string>() };
     for (const id of entry.evidenceIds) {
-      const passage = passageOf.get(`${rowSources.get(entry.rowId)}:${id}`);
+      const passage = passageOf.get(JSON.stringify([rowSources.get(entry.rowId), id]));
       if (passage) claim.evidence.add(passage);
     }
     claims.set(key, claim);
   }
   return JSON.stringify({ title: catalog.title, sourceKind: target === "sources" ? "source" : "saved passage", question: catalog.question,
-    answerExcerpts: [...claims.values()].sort((a, b) => a.order - b.order || a.index - b.index).map(({ claim, evidence }) => ({ claim, ...(evidence.size ? { evidence: [...evidence] } : {}) })),
+    answerExcerpts: [...claims.values()].sort((a, b) => a.at - b.at || a.index - b.index)
+      .map(({ claim, evidence }) => ({ claim, ...(evidence.size ? { evidence: [...evidence] } : {}) })),
     existingHighlightTypes: hierarchy("highlight"), existingLabels: hierarchy("source"),
     passages: passages.map(({ id, rowId, kind, column, text }) => ({ id, source: sourceKeys.get(rowSources.get(rowId)!), ...(kind === "passages" ? { type: column.name } : {}), quote: clip(text, 500) })),
     sources: sourceRows(catalog).map((row) => {
@@ -150,16 +155,15 @@ export function researchLabelPlan(file: ResearchFile, catalog: ResearchImportCat
   const bad = (message: string): never => { throw new ApplicationError(400, message); };
   for (const entry of catalog.entries) {
     const sourceId = byRow.get(entry.rowId)?.sourceId; if (!sourceId) continue;
-    const ids = entry.reference.kind === "passage" ? [entry.reference.evidenceId] : entry.evidenceIds;
-    for (const id of ids) if (!evidence.has(`${sourceId}:${id}`)) evidence.set(`${sourceId}:${id}`, []);
+    const passage = (entry.kind === "passages" || entry.kind === "cited") && entry.reference.kind === "passage" ? entry.reference : null,
+      ids = passage ? [passage.evidenceId, ...entry.evidenceIds] : entry.evidenceIds;
+    for (const id of ids) {
+      const key = `${sourceId}:${id}`;
+      if (passage) evidence.set(key, [clip(entry.text, 240)]);
+      else if (!evidence.has(key)) evidence.set(key, []);
+    }
     if (entry.kind === "passages" && entry.reference.kind === "passage") selectedHighlights.set(`${sourceId}:${entry.reference.evidenceId}`,
       { sourceId, id: entry.reference.evidenceId, labelId: catalog.labels.find(({ path, scope }) => scope === "highlight" && path === entry.column.name)?.id });
-  }
-  for (const entry of catalog.entries) {
-    if ((entry.kind !== "passages" && entry.kind !== "cited") || entry.reference.kind !== "passage") continue;
-    const sourceId = byRow.get(entry.rowId)?.sourceId; if (!sourceId) continue;
-    for (const id of new Set([entry.reference.evidenceId, ...entry.evidenceIds]))
-      evidence.set(`${sourceId}:${id}`, [clip(entry.text, 240)]);
   }
   for (const row of catalog.rows) for (const id of row.evidenceIds ?? []) if (!evidence.has(`${row.sourceId}:${id}`)) evidence.set(`${row.sourceId}:${id}`, []);
   const visit = (nodes: Node[], scope: ResearchLabel["scope"], parentId: string | null) => {
