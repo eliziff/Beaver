@@ -278,16 +278,16 @@ describe("ResearchFileBar", () => {
     const title = screen.getAllByRole("button", { name: "Baker v Canada", exact: true })[0];
     expect(title).toHaveAttribute("aria-current", "true");
     fireEvent.click(title);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined, undefined);
     read.mockClear();
     fireEvent.click(title.closest("[data-source-row]")!);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined, undefined);
     read.mockClear();
     fireEvent.click(screen.getAllByRole("button", { name: "Open Baker v Canada" })[0]);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined);
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, undefined, undefined);
     fireEvent.click(screen.getAllByRole("button", { name: "Passages in Baker v Canada" })[0]);
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
-    expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5");
+    expect(read).toHaveBeenLastCalledWith(file.state.sources.baker, "para 5", "e_1");
   });
 
   it("warms a saved source's document when its row is pointed at or focused", async () => {
@@ -317,7 +317,7 @@ describe("ResearchFileBar", () => {
     render(<><ResearchFileBar file={file} onChange={vi.fn()} onReadSource={read} /><Location /></>);
     openBaker();
     fireEvent.click((await screen.findAllByRole("button", { name: /^¶ 5/u }))[0]);
-    expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5");
+    expect(read).toHaveBeenCalledWith(file.state.sources.baker, "para 5", "e_1");
     expect(screen.getByRole("status", { name: "Location" })).toHaveTextContent(/^\/$/u);
   });
 
