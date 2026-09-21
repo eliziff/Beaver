@@ -11,6 +11,7 @@ import {
 const mocks = vi.hoisted(() => ({
     clearDraft: vi.fn(),
     getChat: vi.fn(),
+    steerChat: vi.fn().mockResolvedValue(undefined),
     streamChat: vi.fn(),
     streamChatJob: vi.fn(),
     generateChatTitle: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("react-router-dom", () => ({
 vi.mock("@/app/lib/authMode", () => ({ isLocalMode: true }));
 vi.mock("@/app/lib/api/chat", () => ({
   getChat: mocks.getChat,
+  steerChat: mocks.steerChat,
   streamChat: mocks.streamChat,
   streamChatJob: mocks.streamChatJob,
   streamActiveChat: vi.fn().mockRejectedValue(new Error("observer unavailable")),
