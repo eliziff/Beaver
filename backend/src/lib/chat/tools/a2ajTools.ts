@@ -19,6 +19,8 @@ const SOURCE_LABELS: Record<string, string> = {
   "govuk-et": "GOV.UK", govinfo: "GovInfo", pdf: "the source PDF",
 };
 
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu;
+
 function activityLocatorLabel(label: string, kind?: string) {
   const value = label
     .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
@@ -59,6 +61,7 @@ export function assistantToolActivityLabel(
   args: Record<string, unknown>,
   sourceName?: string,
 ): string | null | undefined {
+  sourceName = trimmedText(sourceName) || undefined;
   if (name === "load_tools") {
     const names = Array.isArray(args.names)
       ? args.names.filter((value): value is string => typeof value === "string").slice(0, 3)
@@ -68,8 +71,13 @@ export function assistantToolActivityLabel(
   if (name === "Glob") return null;
   if (name === "Grep") {
     const query = activityText(args.pattern, 80);
-    const path = activityText(args.path, 80);
-    const scope = sourceName ?? (path ? `${path} in your Library` : "all documents in your Library");
+    const path = trimmedText(args.path);
+    const resource = parseResourceReference(path);
+    const scope = sourceName ?? (resource?.kind === "source"
+      ? SOURCE_LABELS[resource.provider] ?? "the selected source"
+      : resource ? `the selected ${resource.kind}`
+      : UUID.test(path) ? "the selected document"
+      : path ? `${activityText(path, 80)} in your Library` : "all documents in your Library");
     return query ? `Searching ${scope} for “${query}”` : `Searching ${scope}`;
   }
   if (name === "Read") {
@@ -93,6 +101,10 @@ export function assistantToolActivityLabel(
         } catch {}
       }
       title ??= SOURCE_LABELS[resource.provider] ?? resource.provider;
+    } else if (resource || UUID.test(file)) {
+      title ??= `the selected ${resource?.kind ?? "document"}`;
+    } else if (/^[eq]_[A-Za-z0-9_-]+$/u.test(file)) {
+      title ??= file.startsWith("e_") ? "the saved evidence" : "the saved search";
     } else {
       title ??= activityText(file.replace(/^.*[\\/]/u, ""), 80);
     }
@@ -133,7 +145,8 @@ export function assistantToolActivityLabel(
         ? `Reading ${title} from ${SOURCE_LABELS[resource.provider] ?? resource.provider}`
         : `Reading a source from ${SOURCE_LABELS[resource.provider] ?? resource.provider}`;
     }
-    return sourceName ? `Reading ${title}` : `Reading ${title} from your Library`;
+    return sourceName || (resource && resource.kind !== "document") || /^[eq]_[A-Za-z0-9_-]+$/u.test(file)
+      ? `Reading ${title}` : `Reading ${title} from your Library`;
   }
   if (name === "search_sources") {
     const query = activityText(args.query, 160);

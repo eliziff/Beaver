@@ -1,5 +1,8 @@
 import { citationPinpoint, type Citation } from "@/app/lib/citations";
 
+// Citation groups are inline: consuming a newline can join two table rows.
+export const CITATION_MARKERS = /(?<!\\)\[(?:\d+(?:,[ \t]*\d+)*)\](?:[ \t]*\[(?:\d+(?:,[ \t]*\d+)*)\])*(?!\()/gu;
+
 export function citationSourceKey(annotation: Citation): string {
     if (annotation.kind === "a2aj") {
         const identity = annotation.citation?.trim().toLocaleLowerCase();
@@ -23,7 +26,7 @@ export function preprocessCitations(
     citations: Map<number, Citation>,
     inlineCitationTargets: Citation[],
 ): string {
-    return text.replace(/\[(?:\d+(?:,\s*\d+)*)\](?:\s*\[(?:\d+(?:,\s*\d+)*)\])*/g, (full) => {
+    return text.replace(CITATION_MARKERS, (full) => {
         const selected = (full.match(/\d+/g) ?? [])
             .flatMap((ref) => citations.get(Number(ref)) ?? []);
         const tokens = uniqueCitations(selected).map((citation) => {
