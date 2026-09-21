@@ -3,6 +3,7 @@ import {
     useCallback,
     useEffect,
     useEffectEvent,
+    useMemo,
     useRef,
     useState,
     type MouseEvent as ReactMouseEvent,
@@ -19,6 +20,8 @@ import "../loading.css";
 import { createPdfPageCache, pageAt } from "./pdfPageCache";
 import { matchesQuoteText, quoteSegments } from "./quoteText";
 import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from "./pdfAnnotationLayer";
+import { renderRecognizedText } from "./pdfRecognizedText";
+import { attachPdfTextSelection } from "./pdfTextSelection";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 
 export type PdfByteSource = (signal: AbortSignal, onError: (error: Error) => void) => Promise<
@@ -43,6 +46,8 @@ type RenderedPage = {
     wrapper: HTMLDivElement;
     hasTextLayer: boolean;
     textLayer?: Promise<void>;
+    cancelTextLayer?: () => void;
+    textSource?: PdfRecognizedText["pages"][number];
     top: number;
     height: number;
 };
@@ -85,8 +90,13 @@ export function PdfCanvas({
     ariaLabel = "PDF document",
     onUnavailable,
 }: PdfCanvasProps) {
+    const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
+    const recognizedRef = useRef(recognizedPages); recognizedRef.current = recognizedPages;
+    const refreshTextRef = useRef<(() => void) | null>(null);
+    const disposeLayoutRef = useRef<(() => void) | null>(null);
     const editorRef = useRef(annotationEditor);
     editorRef.current = annotationEditor;
+    const annotationLayerRef = useRef<ReturnType<typeof attachPdfAnnotationLayer> | null>(null);
     const [layoutRevision, setLayoutRevision] = useState(0);
     const [pageInput, setPageInput] = useState("1");
     const containerRef = useRef<HTMLDivElement>(null);
@@ -133,6 +143,8 @@ export function PdfCanvas({
             searchRef.current = null;
             preparePageRef.current = null;
             quoteGenerationRef.current += 1;
+            disposeLayoutRef.current?.(); disposeLayoutRef.current = null;
+            refreshTextRef.current = null;
             container.innerHTML = "";
             pagesRef.current = [];
             const lib = await getPdfJs();
@@ -221,15 +233,29 @@ export function PdfCanvas({
             };
             scrollToHighlight(pages, scrollRef.current, target);
 
+            const textPages = new Set<number>();
+            const pageQuotes = new Map<number, CitationQuote[]>();
+            function releaseTextLayer(index: number) {
+                const entry = pages[index];
+                entry.cancelTextLayer?.(); entry.cancelTextLayer = undefined;
+                entry.textLayer = undefined; entry.hasTextLayer = false; entry.textSource = undefined;
+                textPages.delete(index);
+            }
             function ensureTextLayer(index: number): Promise<void> {
                 if (generation !== generationRef.current) return Promise.resolve();
                 return pages[index].textLayer ??= renderTextLayer(index);
             }
             async function renderTextLayer(index: number) {
-                let element: HTMLDivElement | undefined;
+                const entry = pages[index];
+                let element: HTMLDivElement | undefined, layer: import("pdfjs-dist").TextLayer | undefined;
+                let cancelled = false;
+                textPages.add(index);
+                entry.textSource = recognizedRef.current.get(index + 1);
+                entry.cancelTextLayer = () => { cancelled = true; layer?.cancel?.(); element?.remove(); };
+                const current = () => !cancelled && generation === generationRef.current;
                 try {
                     const page = await cache.get(index + 1);
-                    if (generation !== generationRef.current) return;
+                    if (!current()) return;
                     updateGeometry();
                     const viewport = page.getViewport({ scale });
                     element = document.createElement("div");
@@ -238,48 +264,34 @@ export function PdfCanvas({
                     Object.assign(element.style, { position: "absolute", left: "0", top: "0",
                         width: `${viewport.width}px`, height: `${viewport.height}px`, zIndex: "1" });
                     element.style.setProperty("--scale-factor", String(scale));
-                    pages[index].wrapper.appendChild(element);
-                    const layer = new lib.TextLayer({ textContentSource: page.streamTextContent(),
-                        container: element, viewport });
-                    await layer.render();
-                    if (!layer.textDivs.some(div => div.textContent?.trim())) {
-                        const recognized = recognizedText?.pages.find(item => item.pageNumber === index + 1);
-                        if (recognized) for (const sourceLine of recognized.lines) {
-                            const line = document.createElement("div");
-                            line.style.display = "contents"; line.dataset.legalText = String(index + 1);
-                            for (const word of sourceLine.words) {
-                                const span = document.createElement("span");
-                                const [x0, y0, x1, y1] = word.rect;
-                                Object.assign(span.style, { position: "absolute", left: `${x0 / recognized.width * viewport.width}px`,
-                                    top: `${y0 / recognized.height * viewport.height}px`, width: `${(x1-x0) / recognized.width * viewport.width}px`,
-                                    height: `${(y1-y0) / recognized.height * viewport.height}px`, fontSize: `${(y1-y0) / recognized.height * viewport.height}px`,
-                                    lineHeight: "1", color: "transparent", whiteSpace: "pre", userSelect: "text" });
-                                span.textContent = `${word.text} `; line.appendChild(span);
-                            }
-                            element.appendChild(line);
-                        }
+                    entry.wrapper.appendChild(element);
+                    if (entry.textSource?.lines.some(line => line.words.length)) {
+                        renderRecognizedText(element, entry.textSource, viewport.width, viewport.height);
+                    } else {
+                        layer = new lib.TextLayer({ textContentSource: page.streamTextContent(), container: element, viewport });
+                        await layer.render();
+                        if (!current()) return;
+                        // Keep PDF.js reading order, EOLs and rotations; sorting by Y interleaves columns.
+                        for (const div of layer.textDivs) div.dataset.pdfTextRun = "";
                     }
-                    if (generation !== generationRef.current) return;
-                    let line: HTMLDivElement | undefined, bottom = -Infinity;
-                    for (const { div, rect } of layer.textDivs.filter(div => {
-                        if (div.textContent?.trim()) return true; div.remove(); return false;
-                    }).map(div => ({ div, rect: div.getBoundingClientRect() }))
-                        .sort((a, b) => Math.abs(a.rect.bottom - b.rect.bottom) < 2 * scale
-                            ? a.rect.left - b.rect.left : a.rect.bottom - b.rect.bottom)) {
-                        if (!line || Math.abs(rect.bottom - bottom) >= 2 * scale) {
-                            line = document.createElement("div"); line.style.display = "contents"; bottom = rect.bottom;
-                            line.dataset.legalText = String(index + 1); element.appendChild(line); }
-                        line.appendChild(div);
-                    }
+                    if (!current()) return;
                     const end = document.createElement("div"); end.className = "endOfContent";
                     element.appendChild(end);
                     element.addEventListener("mousedown", () => element!.classList.add("selecting"));
-                    pages[index].hasTextLayer = true;
+                    entry.hasTextLayer = true;
+                    const found = pageQuotes.get(index);
+                    if (found) highlightQuote(entry.wrapper, found);
                 } catch (cause) {
                     element?.remove();
-                    if (generation === generationRef.current) console.warn("PDF text selection unavailable", cause);
+                    if (current()) console.warn("PDF text selection unavailable", cause);
                 }
             }
+            refreshTextRef.current = () => {
+                for (const index of textPages) {
+                    if (pages[index].textSource === recognizedRef.current.get(index + 1)) continue;
+                    releaseTextLayer(index); void ensureTextLayer(index);
+                }
+            };
 
             let geometryStarted = false;
             async function finishGeometry() {
@@ -295,6 +307,11 @@ export function PdfCanvas({
             }
 
             const rendered = new Map<number, HTMLCanvasElement>();
+            disposeLayoutRef.current = () => {
+                for (const index of textPages) releaseTextLayer(index);
+                for (const canvas of rendered.values()) { canvas.width = canvas.height = 0; canvas.remove(); }
+                rendered.clear();
+            };
             const failed = new Set<number>();
             const loadingPages = new Set<number>();
             let running = false;
@@ -395,13 +412,23 @@ export function PdfCanvas({
                 } finally { running = false; }
             };
             scheduleRef.current = () => {
-                // Keep a second viewport as a back-scroll buffer; release distant
-                // bitmap allocations without changing any page's layout box.
+                // Retain only nearby bitmaps/text, plus any live selection crossing pages.
+                const selection = document.getSelection();
+                const selected = (index: number) => {
+                    if (!selection || selection.isCollapsed) return false;
+                    for (let i = 0; i < selection.rangeCount; i++)
+                        if (selection.getRangeAt(i).intersectsNode(pages[index].wrapper)) return true;
+                    return false;
+                };
                 for (const [index, canvas] of rendered) {
                     if (nearby(index, 2)) continue;
-                    canvas.remove();
-                    canvas.width = canvas.height = 0;
-                    rendered.delete(index);
+                    canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
+                    if (index !== active) cache.peek(index + 1)?.cleanup?.();
+                }
+                for (const index of textPages) {
+                    if (nearby(index, 2) || selected(index)) continue;
+                    releaseTextLayer(index);
+                    if (index !== active) cache.peek(index + 1)?.cleanup?.();
                 }
                 if (active >= 0 && !nearby(active)) taskRef.current?.cancel();
                 void paint().catch(fail);
@@ -413,7 +440,8 @@ export function PdfCanvas({
                 const quoteGeneration = ++quoteGenerationRef.current;
                 const current = () => generation === generationRef.current && quoteGeneration === quoteGenerationRef.current;
                 pages.forEach(({ wrapper }) => clearHighlights(wrapper));
-                const found = new Map<number, CitationQuote[]>();
+                pageQuotes.clear();
+                const found = pageQuotes;
                 let focused = false;
                 for (const entry of entries) {
                     const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page! - 1 : undefined;
@@ -439,6 +467,7 @@ export function PdfCanvas({
                         break;
                     }
                 }
+                if (current()) scheduleRef.current?.();
                 if (!focused && current()) {
                     const page = entries.find(entry => !entry.color && Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length)?.page;
                     if (page && await preparePageRef.current?.(page) && current()) {
@@ -475,18 +504,23 @@ export function PdfCanvas({
         // pdf.js's text-selection rule (TextLayerBuilder): while a drag is under way the layer
         // carries "selecting" and its endOfContent block sits right after the anchor span, so
         // the browser sweeps whole lines instead of hopping between absolutely placed spans.
+        const detachSelection = attachPdfTextSelection(element, () =>
+            !editorRef.current?.disabled && editorRef.current?.tool !== "draw");
         const layers = () => element.querySelectorAll<HTMLElement>(".pdf-text-layer");
         const reset = (layer: HTMLElement) => {
             const end = layer.querySelector<HTMLElement>(":scope .endOfContent");
-            if (end) { layer.append(end); end.style.width = end.style.height = ""; }
+            if (end) { if (end.parentNode !== layer || end.nextSibling) layer.append(end);
+                end.style.width = end.style.height = ""; }
             layer.classList.remove("selecting");
         };
-        const endSelecting = () => layers().forEach(reset);
         let previous: Range | null = null;
+        const endSelecting = () => { layers().forEach(reset); previous = null; };
         const onSelectionChange = () => {
             const selection = document.getSelection();
-            if (!selection?.rangeCount) { endSelecting(); previous = null; return; }
+            if (!selection?.rangeCount || selection.isCollapsed || !element.contains(selection.anchorNode)) { endSelecting(); return; }
             const range = selection.getRangeAt(0);
+            if (previous?.startContainer.isConnected && range.compareBoundaryPoints(Range.START_TO_START, previous) === 0 &&
+                range.compareBoundaryPoints(Range.END_TO_END, previous) === 0) return;
             layers().forEach((layer) => range.intersectsNode(layer) ? layer.classList.add("selecting") : reset(layer));
             const modifyStart = !!previous && (range.compareBoundaryPoints(Range.END_TO_END, previous) === 0 ||
                 range.compareBoundaryPoints(Range.START_TO_END, previous) === 0);
@@ -496,7 +530,9 @@ export function PdfCanvas({
             const end = layer?.querySelector<HTMLElement>(":scope .endOfContent");
             if (layer && end && anchor) {
                 end.style.width = layer.style.width; end.style.height = layer.style.height;
-                anchor.parentElement!.insertBefore(end, modifyStart ? anchor : anchor.nextSibling);
+                const before = modifyStart ? anchor : anchor.nextSibling;
+                if (before !== end && (end.parentNode !== anchor.parentNode || end.nextSibling !== before))
+                    anchor.parentElement!.insertBefore(end, before);
             }
             previous = range.cloneRange();
         };
@@ -504,6 +540,7 @@ export function PdfCanvas({
         document.addEventListener("pointerup", endSelecting);
         window.addEventListener("blur", endSelecting);
         return () => {
+            detachSelection(); previous = null;
             element.removeEventListener("scroll", onScroll);
             document.removeEventListener("selectionchange", onSelectionChange);
             document.removeEventListener("pointerup", endSelecting);
@@ -599,6 +636,7 @@ export function PdfCanvas({
         const teardown = () => {
             generationRef.current += 1; quoteGenerationRef.current += 1;
             taskRef.current?.cancel(); scheduleRef.current = null;
+            disposeLayoutRef.current?.(); disposeLayoutRef.current = null; refreshTextRef.current = null;
             pageCacheRef.current = null; pagesRef.current = [];
             searchRef.current = null; preparePageRef.current = null;
             containerRef.current?.replaceChildren();
@@ -652,12 +690,18 @@ export function PdfCanvas({
         else void renderPdf(quoteList);
     }, [quoteFocusKey, quoteKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    useEffect(() => { refreshTextRef.current?.(); }, [recognizedPages]);
+
     useEffect(() => setPageInput(String(currentPage)), [currentPage]);
     useEffect(() => {
         const scroll = scrollRef.current;
         if (!annotationEditor || !scroll) return;
-        return attachPdfAnnotationLayer(scroll, pagesRef.current.map(page => page.wrapper), annotationEditor);
-    }, [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled, layoutRevision]); // eslint-disable-line react-hooks/exhaustive-deps
+        const layer = attachPdfAnnotationLayer(scroll, pagesRef.current.map(page => page.wrapper), () => editorRef.current!);
+        annotationLayerRef.current = layer;
+        return () => { layer.destroy(); annotationLayerRef.current = null; };
+    }, [!!annotationEditor, layoutRevision]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { annotationLayerRef.current?.update(); },
+        [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled]);
     useEffect(() => {
         const scroll = scrollRef.current, focus = editorRef.current?.focus;
         const mark = editorRef.current?.marks.find(mark => mark.id === focus?.id);

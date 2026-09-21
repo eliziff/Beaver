@@ -532,6 +532,17 @@ mod legalpdf_exports {
         js_value(env, &legalpdf::pdf_document_summary(document))
     }
 
+    #[napi(js_name = "pdfRecognizedText")]
+    pub fn pdf_recognized_text_node(
+        env: Env,
+        document: &External<NativeDocument>,
+    ) -> napi::Result<Unknown<'static>> {
+        let NativeProduct::Pdf(document) = &document.product else {
+            return Err(Error::from_reason("PDF text geometry requires a PDF document"));
+        };
+        js_value(env, &document.recognized_pages())
+    }
+
     #[napi(js_name = "pdfAuthorityTextUnits")]
     pub fn pdf_authority_text_units_node(
         env: Env,
