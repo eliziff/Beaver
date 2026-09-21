@@ -1,0 +1,64 @@
+name: Publish verified Authorities selection candidate
+on:
+  push:
+    branches: [fix/authorities-highlight-selection-ocr]
+    paths: [.github/workflows/authorities-ocr-publication.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify completed integration gates and exact candidate bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib,json,os,re,subprocess,time,urllib.request
+          run_id=35552956949
+          root='https://api.github.com/repos/eliziff/Beaver/actions/runs/'+str(run_id)
+          def get(url):
+              req=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req,timeout=30) as response:return json.load(response)
+          for attempt in range(40):
+              run=get(root)
+              if run['status']=='completed':break
+              time.sleep(10)
+          else:raise RuntimeError('Integration validation did not finish')
+          assert run['head_sha']=='23d355f07ec2db4b296eeef8d8fb9ac0d941b802'
+          jobs=get(root+'/jobs')['jobs']
+          job=next(job for job in jobs if job['name']=='candidate')
+          results={step['name']:step['conclusion'] for step in job['steps']}
+          required=['Apply the locally validated line-only text path','Restore the exact producer and locked dependencies','Link the final native addon and build backend','Typecheck frontend and run the affected existing suites','Prepare a synthetic two-page scan','Real OCR to selectable geometry and fresh-process restore']
+          for step in required:assert results.get(step)=='success',(step,results.get(step))
+          print('Verified actual integration outcomes:',json.dumps({step:results[step] for step in required}))
+          workflow=Path('.github/workflows/authorities-line-selection.yml')
+          assert subprocess.check_output(['git','hash-object',str(workflow)],text=True).strip()=='347713c34480079421e043b52b5890a927634751','Candidate recipe changed'
+          payload=re.search(r"changes=json.loads\(r'''(.*?)'''\)",workflow.read_text(),re.S)
+          assert payload
+          changes=json.loads(payload.group(1))
+          for name,before,after,edits in changes:
+              p=Path(name); old=p.read_bytes()
+              digest=hashlib.sha256(old).hexdigest()
+              if digest==after:continue
+              assert digest==before,(name,'source changed outside the validated candidate')
+              lines=old.decode().splitlines(keepends=True)
+              for start,end,text in reversed(edits):lines[start:end]=[text]
+              result=''.join(lines).encode()
+              assert hashlib.sha256(result).hexdigest()==after,(name,'candidate mismatch')
+              p.write_bytes(result)
+          subprocess.run(['git','add','--']+[item[0] for item in changes],check=True)
+          subprocess.run(['git','update-index','--cacheinfo','160000,507566d5c6ed0da28250253b8a2fd2a597f6cbba,legal-pdf-parser'],check=True)
+          for name in ['authorities-highlight-validation.yml','authorities-line-selection.yml','authorities-ocr-lines.yml','authorities-ocr-publication.yml']:
+              Path('.github/workflows',name).unlink(missing_ok=True)
+          subprocess.run(['git','add','-u','--','.github/workflows'],check=True)
+      - name: Commit only the verified source and transient-workflow removal
+        run: |
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: finish Authorities highlights with verified selectable OCR geometry'
+          git push origin HEAD:fix/authorities-highlight-selection-ocr
+          git rev-parse HEAD
