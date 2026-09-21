@@ -194,7 +194,13 @@ pagination or downloading.
   applying accepts the reviewed version, and stale material requires review again.
   Subsequent generation and workspace chat, including a selected-source chat,
   receive previous designs and corrections. The ordinary research tool's
-  `organize` action creates the same pending proposal for inline review.
+  `organize` action creates the same pending proposal for modal review.
+  Organize opens a matching pending draft from that history without generating
+  another proposal. The dialog renders the existing Sources workspace trees and
+  label palette, with a local draft mutation lane instead of live writes.
+  Closing saves manual edits to the pending draft; Apply rechecks the original
+  scope and fingerprint. No proposal cards or editor are appended below chat.
+  Inline organization review is deferred.
   Model and effort changes persist in the chat draft even with an empty message;
   saving the selection does not require sending a turn.
   Open as Workspace shows existing label and highlight-type hierarchies before
@@ -265,7 +271,7 @@ pagination or downloading.
 - Evidence binds document, version, source hash, locator, and exact passage.
 - DOCX generation/editing preserves unsupported package content, records owned
   mutations, and fails closed on unsafe boundaries.
-- Tracked edits are reviewable and their accept/reject operations are
+- Tracked edits are reviewable; their accept/reject operations are
   conflict-safe.
 
 Library and project folders preserve nested paths, reject cycles and foreign
