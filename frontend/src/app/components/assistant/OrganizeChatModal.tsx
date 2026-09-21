@@ -33,9 +33,6 @@ export function OrganizeChatModal({ open, onClose, projectName, onAddToProject, 
                     <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
                         Project
                     </h3>
-                    <p className="mb-2 text-xs leading-5 text-gray-500">
-                        Keep this chat with the documents and research for this matter.
-                    </p>
                     <button type="button" onClick={onAddToProject} disabled={!onAddToProject}
                         className="group flex w-full items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:opacity-60">
                         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-gray-100 text-gray-600 group-hover:bg-white group-hover:text-gray-900">
