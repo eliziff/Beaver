@@ -1,10 +1,11 @@
-import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, ChevronRight, FileText, Gavel, Landmark, Newspaper, ScrollText } from "lucide-react";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
 import { Button } from "../ui/button";
-import { researchHighlightCount, researchLabelPath, type ResearchEvidence, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
+import { researchHighlightCount, researchLabelPath, type ResearchAction, type ResearchEvidence, type ResearchFile, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { researchLabelColor } from "./ResearchLabelMarker";
+import { errorMessage } from "@/app/lib/utils";
 import { ResearchLabelEditor, RESEARCH_SOURCE_DRAG, type ResearchLabelTarget } from "./ResearchLabelPicker";
 import { ResearchLabelTree } from "./ResearchLabelTree";
 import { passageLabel, trimPassageMarker } from "@/app/lib/researchPassage";
@@ -14,8 +15,10 @@ import { sourceName, type SourceReader } from "./useSourceReader";
 
 export type ResearchRemoval = { kind: "label" | "source" | "evidence"; id: string; name: string; sourceId?: string };
 export type ResearchTreePreview = { labels: Record<string, ResearchLabel>; marks: Record<string, "added" | "changed">;
-  /** Passages a proposal would save, by source: they stand in for the chains a saved workspace loads. */
-  passages?: Record<string, { labelId: string; quote: string }[]> };
+  /** Available draft passages; an empty labelId leaves a passage untyped. */
+  passages?: Record<string, { labelId: string; quote: string; evidenceId?: string }[]>;
+  file?: ResearchFile; act?: (action: ResearchAction) => Promise<ResearchFile>;
+  merge?: (fromId: string, toId: string) => void };
 const NO_ROWS = new Set<string>();
 const KIND_ICON = { case: Gavel, legislation: ScrollText, journal: Newspaper, hansard: Landmark, document: FileText } as const;
 const NEWLINE = "\n";
@@ -40,10 +43,13 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   onRemove?: (removal: ResearchRemoval) => void; onStatus?: (message: string) => void;
   onSourceDrag?: () => void; preview?: ResearchTreePreview;
 }) {
-  const { file, mutations: commit, passages } = useSourcesWorkspace();
+  const { file: savedFile, mutations: savedMutations, passages } = useSourcesWorkspace();
+  const file = preview?.file ?? savedFile, editable = !preview || !!preview.act;
+  const commit = preview ? { ...savedMutations, act: preview.act ?? (async () => { throw new Error("This proposal is read-only"); }) } : savedMutations;
   const passagePages = suppliedPages ?? passages, labels = preview?.labels ?? file?.state.labels ?? {};
   const [selectedHighlight, setSelectedHighlight] = useState<string | null>(null);
   const [labelTarget, setLabelTarget] = useState<ResearchLabelTarget | null>(null);
+  const treeRoot = useRef<HTMLDivElement>(null);
   // Counts in the workspace tell us exactly which sources can appear below a highlight type.
   // Warm those cached chains with the tree instead of making the first expansion discover them.
   const highlightSourceIds = scope === "highlight" && !preview
@@ -76,7 +82,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
   function sourceRow(source: ResearchSource) {
     const name = sourceName(source), open = opened.has(source.id), expandable = hasPassages(source);
     const jump = () => { if (!preview && reader?.canRead(source)) void reader.readSource(source); };
-    return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={!preview}
+    return <div data-source-row={source.id} className={`${ROW} ${selectedSourceId === source.id ? "bg-gray-100" : "hover:bg-gray-50"}`} draggable={editable}
       onClick={(event) => { if (!(event.target as Element).closest("button,a")) jump(); }}
       onPointerEnter={(event) => { if (event.pointerType !== "touch") reader?.prefetch(source); }}
       onFocus={() => reader?.prefetch(source)}
@@ -90,11 +96,12 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
         aria-current={selectedSourceId === source.id ? "true" : undefined} data-mark={mark(source.id)}
         className={`min-w-0 flex-1 truncate text-start text-sm text-gray-700 ${mark(source.id) ? "font-semibold underline decoration-gray-400" : ""}`}>{name}</button>
       <span className={ROW_ACTIONS}>
-        {!preview && <MoreActionsMenu label={`${name} options`} items={[
-          { label: "Label", onSelect: () => { const row = document.querySelector<HTMLElement>(`[data-source-row="${source.id}"]`)!;
+        {editable && <MoreActionsMenu label={`${name} options`} items={[
+          { label: "Label", onSelect: () => { const row = treeRoot.current?.querySelector<HTMLElement>(`[data-source-row="${source.id}"]`);
+            if (!row) return;
             setLabelTarget({ file: file!, kind: "source", itemId: source.id, labelIds: source.labelIds, note: source.note,
-              title: name, anchor: row.getBoundingClientRect(), returnFocus: row }); } },
-          { label: "Remove", onSelect: () => onRemove({ kind: "source", id: source.id, name }) },
+              title: name, anchor: row.getBoundingClientRect(), returnFocus: row, hideNote: !!preview }); } },
+          ...(!preview ? [{ label: "Remove", onSelect: () => onRemove({ kind: "source" as const, id: source.id, name }) }] : []),
         ]} />}
       </span>
     </div>;
@@ -106,11 +113,20 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     <span className="h-4 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
     {!!context && <span title={context} className="max-w-24 shrink-0 truncate text-[10px] text-gray-500">{context}</span>}
     {body}</>;
-  /** A proposed passage has no receipt to open yet, so the quote is the whole row. */
-  const quoteNode = (key: string, { labelId, quote }: { labelId: string; quote: string }, context?: string) =>
+  const quoteNode = (key: string, { labelId, quote, evidenceId }: { labelId: string; quote: string; evidenceId?: string }, context?: string, sourceId?: string) =>
     <div key={key} role="treeitem" aria-label={quote} title={quote} className={ROW}>
-      {passageLine(labels[labelId] ? researchLabelColor(labels[labelId]) : "#d1d5db", context,
-        <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{quote}</span>)}</div>;
+      {passageLine(labels[labelId] ? researchLabelColor(labels[labelId]) : "#d1d5db", context, <>
+        <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{quote}</span>
+        {preview?.act && evidenceId && sourceId && <span className={ROW_ACTIONS}>
+          <MoreActionsMenu label="Passage options" items={[
+            { label: "Highlight type", onSelect: () => setLabelTarget({ file, kind: "evidence", itemId: evidenceId,
+              sourceId, labelIds: labelId ? [labelId] : [], title: quote, hideNote: true,
+              anchor: document.activeElement?.getBoundingClientRect() }) },
+            ...(labelId ? [{ label: "Remove type", onSelect: () => { void preview.act!({ type: "annotate", kind: "evidence",
+              id: evidenceId, sourceId, labelIds: [] }).catch((reason) => onStatus(errorMessage(reason, "Could not change this highlight"))); } }] : []),
+          ]} />
+        </span>}
+      </>)}</div>;
 
   function passageRow(source: ResearchSource, item: ResearchEvidence) {
     const locator = passageLabel(item.receipt.locator), id = item.highlightId ?? item.receipt.evidence_id;
@@ -158,7 +174,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       {opened.has(source.id) && preview && <div role="group" className="ms-4">
         {/* As in a saved workspace, a passage under a source names its highlight type, never the folder it already sits in. */}
         {proposed(source).map((item, index) => quoteNode(`${source.id}:${index}`, item,
-          labels[item.labelId]?.scope === "highlight" ? labels[item.labelId]?.name : undefined))}</div>}
+          labels[item.labelId]?.scope === "highlight" ? labels[item.labelId]?.name : undefined, source.id))}</div>}
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
         {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
           ? [passageNode(source, item.value)] : [])}
@@ -178,7 +194,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     // The type row's own caret is the only caret: the tree renders this list only once that row is open.
     const rows = preview
       ? carrying.flatMap((source) => proposed(source).flatMap((item, index) => item.labelId === typeId
-        ? [quoteNode(`${typeId}:${source.id}:${index}`, item, sourceName(source))] : []))
+        ? [quoteNode(`${typeId}:${source.id}:${index}`, item, sourceName(source), source.id)] : []))
       : carrying.flatMap((source) => (passagePages.chains[source.id]?.items ?? []).flatMap((item) =>
       (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value) && item.value.labelIds.includes(typeId)
         ? [passageNode(source, item.value, `${typeId}:`)] : []));
@@ -193,11 +209,11 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
         researchLabelPath(labels, id).some(({ id: ancestor }) => ancestor === labelId))
     : !source.labelIds.some((id) => labels[id]?.scope === "source"));
 
-  return <>
+  return <div ref={treeRoot} className="min-w-0">
     <ResearchLabelTree scope={scope} sources={navigationSources} selectedId={labelId} onSelect={onLabelChange}
       onRemove={onRemove} onStatus={onStatus} preview={preview}
       renderSources={(id) => scope === "highlight" ? (id ? typePassages(id) : []) : under(id).map((source) => sourceNode(source, id))} />
     {!sources.length && <p className="p-2 text-xs text-gray-500">{filter || labelId ? "No matching sources." : "No sources yet."}</p>}
     {labelTarget && <ResearchLabelEditor target={labelTarget} mutations={commit} onError={onStatus} onClose={() => setLabelTarget(null)} />}
-  </>;
+  </div>;
 }

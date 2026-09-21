@@ -4,6 +4,7 @@ import { buttonClassName } from "../ui/button";
 import { FolderSvgIcon } from "../shared/FolderSvgIcon";
 import { InlineNameInput } from "../shared/InlineNameInput";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
+import { Modal } from "../modals/Modal";
 import { researchLabelPath, type ResearchAction, type ResearchLabel, type ResearchSource } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { researchLabelColor } from "./ResearchLabelMarker";
@@ -23,7 +24,9 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
   /** Sources carried by a label render inline beneath it; `null` covers the unlabelled ones. */
   renderSources?: (labelId: string | null) => React.ReactNode;
 }) {
-  const { file, mutations } = useSourcesWorkspace();
+  const { file: savedFile, mutations } = useSourcesWorkspace();
+  const file = preview?.file ?? savedFile, editable = !preview || !!preview.act;
+  const [merging, setMerging] = useState<string | null>(null), [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const noun = (shape: string) => shape.replace("{x}", NOUN[scope]).replace(/^./, (first) => first.toUpperCase());
   const labels = preview?.labels ?? file?.state.labels ?? {};
   // Source folders start open; highlight types start closed so their passages load only when the caret asks.
@@ -40,7 +43,8 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     return result;
   }, [sources, scope]);
   async function act(action: ResearchAction) {
-    try { await mutations.act(action); return true; }
+    if (!editable) return false;
+    try { await (preview?.act ?? mutations.act)(action); return true; }
     catch (error) { onStatus(errorMessage(error, "Could not update labels")); return false; }
   }
   function expand(id: string) { setToggled((current) => { const next = new Set(current); if (scope === "highlight") next.add(id); else next.delete(id); return next; }); }
@@ -82,24 +86,24 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
         open = isOpen(label.id);
       return <div key={label.id} role="treeitem" aria-label={label.name} aria-selected={selectedId === label.id}
         aria-expanded={hasChildren ? open : undefined}>
-        <div data-tree-drop-folder={label.id} draggable={!preview && !busy}
+        <div data-tree-drop-folder={label.id} draggable={editable && !busy}
           onDragStart={(event) => { dragged.current = label.id; event.dataTransfer.setData(LABEL_DRAG, label.id); event.dataTransfer.effectAllowed = "move"; }}
           onDragEnd={() => { dragged.current = null; setDrop(null); }}
           onDragOver={(event) => {
-            const isSource = scope === "source" && event.dataTransfer.types.some((type) => [RESEARCH_SOURCE_DRAG, RESEARCH_SOURCE_REFERENCE_DRAG].includes(type));
+            const isSource = scope === "source" && event.dataTransfer.types.some((type) => type === RESEARCH_SOURCE_DRAG || !preview && type === RESEARCH_SOURCE_REFERENCE_DRAG);
             const box = event.currentTarget.getBoundingClientRect(), y = box.height ? (event.clientY - box.top) / box.height : .5;
             const mode = isSource ? "inside" : y < .25 ? "before" : y > .75 ? "after" : "inside";
-            if (preview || busy || !isSource && !canMove(dragged.current ?? "", mode === "inside" ? label.id : label.parentId)) return;
+            if (!editable || busy || !isSource && !canMove(dragged.current ?? "", mode === "inside" ? label.id : label.parentId)) return;
             event.preventDefault(); setDrop({ id: label.id, mode });
           }}
           onDragLeave={() => setDrop(null)}
           onDrop={(event) => {
             event.preventDefault(); const mode = drop?.id === label.id ? drop.mode : "inside"; setDrop(null);
-            if (preview || busy) return;
+            if (!editable || busy) return;
             const sourceId = event.dataTransfer.getData(RESEARCH_SOURCE_DRAG), source = file?.state.sources[sourceId];
             if (source && scope === "source") { void act({ type: "annotate", kind: "source", id: sourceId, labelIds: [label.id] }); return; }
             const raw = event.dataTransfer.getData(RESEARCH_SOURCE_REFERENCE_DRAG);
-            if (raw && scope === "source") { try { void act({ type: "source", reference: JSON.parse(raw), labelIds: [label.id] }); } catch { onStatus("Could not add that source"); } return; }
+            if (raw && scope === "source" && !preview) { try { void act({ type: "source", reference: JSON.parse(raw), labelIds: [label.id] }); } catch { onStatus("Could not add that source"); } return; }
             void move(event.dataTransfer.getData(LABEL_DRAG), mode === "inside" ? label.id : label.parentId,
               mode === "inside" ? children.get(label.id)?.length ?? 0 : label.order + (mode === "before" ? -.5 : .5));
           }}
@@ -111,7 +115,7 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
                 A highlight type is a highlighter, not a folder. */}
             {scope === "highlight" ? <Highlighter aria-hidden className="size-4" style={{ color: researchLabelColor(label) }} />
               : <FolderSvgIcon fill="currentColor" className="size-4" style={{ color: researchLabelColor(label) }} />}
-            {!preview && <input type="color" disabled={busy} aria-label={`${label.name} colour`} value={researchLabelColor(label)}
+            {editable && <input type="color" disabled={busy} aria-label={`${label.name} colour`} value={researchLabelColor(label)}
               onChange={(event) => void act({ type: "label", ...label, color: event.target.value })} className="absolute inset-0 size-5 cursor-pointer opacity-0" />}
           </label>
           {renaming === label.id ? <InlineNameInput kind="folder" value={label.name} label={noun("{x} name")}
@@ -125,12 +129,13 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
               {!!(preview && label.definition) && <span title={label.definition}
                 className="min-w-0 max-w-[45%] shrink truncate text-xs text-gray-500">{label.definition}</span>}</>}
           <span className={ROW_ACTIONS}>
-            {!preview && <MoreActionsMenu label={`${label.name} options`} items={[
+            {editable && <MoreActionsMenu label={`${label.name} options`} items={[
               { label: "Rename", onSelect: () => setRenaming(label.id) },
               { label: noun("New {x} inside"), onSelect: () => { expand(label.id); setAdding(label.id); } },
               { label: "Move up", onSelect: () => moveKey(label, "ArrowUp"), disabled: (children.get(label.parentId) ?? [])[0]?.id === label.id },
               { label: "Move down", onSelect: () => moveKey(label, "ArrowDown"), disabled: (children.get(label.parentId) ?? []).at(-1)?.id === label.id },
               ...(label.parentId ? [{ label: "Move out", onSelect: () => moveKey(label, "ArrowLeft") }] : []),
+              ...(preview?.merge ? [{ label: "Merge with…", onSelect: () => { setMerging(label.id); setMergeTarget(null); } }] : []),
               { label: "Delete", onSelect: () => onRemove({ kind: "label", id: label.id, name: label.name }) },
             ]} />}
           </span>
@@ -139,13 +144,13 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
       </div>;
     })}</>;
   }
-  return <div ref={tree} role="tree" aria-label={scope === "source" ? "Sources" : "Highlight types"} className="min-w-0"
+  return <><div ref={tree} role="tree" aria-label={scope === "source" ? "Sources" : "Highlight types"} className="min-w-0"
     onKeyDown={(event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-label-select]");
       if (!button || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();
       const id = button.dataset.labelSelect!, label = labels[id];
-      if (event.altKey && label && !preview) return moveKey(label, event.key);
+      if (event.altKey && label && editable) return moveKey(label, event.key);
       const buttons = Array.from(tree.current?.querySelectorAll<HTMLButtonElement>("[data-label-select]") ?? []), index = buttons.indexOf(button);
       if (event.key === "ArrowRight" && label && children.has(id)) { expand(id); return; }
       if (event.key === "ArrowLeft" && label) {
@@ -158,16 +163,27 @@ export function ResearchLabelTree({ scope, sources = [], selectedId, onSelect, o
     }}>
     {scope === "source" && <div role="treeitem" aria-selected={selectedId === null}>
       <button type="button" data-label-select="" data-tree-drop-root aria-pressed={selectedId === null} onClick={() => onSelect(null)}
-        onDragOver={(event) => { if (canMove(dragged.current ?? "", null)) event.preventDefault(); }}
+        onDragOver={(event) => { if (editable && canMove(dragged.current ?? "", null)) event.preventDefault(); }}
         onDrop={(event) => { event.preventDefault(); void move(event.dataTransfer.getData(LABEL_DRAG), null, children.get(null)?.length ?? 0); setDrop(null); }}
         className={`${ROW} w-full text-sm text-gray-700 aria-pressed:bg-gray-100 aria-pressed:font-semibold`}>
         <span className="size-6 shrink-0" /><span className="min-w-0 flex-1 truncate text-start">All sources</span>
         <span className={ROW_ACTIONS} />
       </button></div>}
     {branch(null)}{renderSources?.(null)}{addField(null)}
-    {!preview && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
+    {editable && <button type="button" disabled={busy} data-tree-drop-root onClick={() => setAdding(null)}
       className={buttonClassName({ variant: "outline", size: "compact", className: "mt-1 gap-1" })}>
       <Plus aria-hidden className="size-3" />{noun("New {x}")}
     </button>}
-  </div>;
+  </div>
+    {merging && preview?.merge && <Modal open size="sm" breadcrumbs={["Merge categories"]}
+      onClose={() => setMerging(null)} primaryAction={{ label: "Merge", disabled: !mergeTarget,
+        onClick: () => { if (!mergeTarget) return;
+          try { preview.merge!(merging, mergeTarget); setMerging(null); }
+          catch (reason) { onStatus(errorMessage(reason, "Could not merge these categories")); } } }}>
+      <p className="my-2 text-sm">Choose the category to keep.</p>
+      <ResearchLabelTree scope={scope} selectedId={mergeTarget} onSelect={setMergeTarget}
+        onRemove={() => undefined} onStatus={onStatus} preview={{ marks: {}, labels: Object.fromEntries(
+          Object.entries(labels).filter(([id]) => !researchLabelPath(labels, id).some((node) => node.id === merging))) }} />
+    </Modal>}
+  </>;
 }

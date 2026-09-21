@@ -179,20 +179,27 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             assert draft["proposalId"]
             driver.refresh()
             click_text(driver, "Chat")
-            visible(driver, By.XPATH, "//summary[contains(., 'Fairness research')]")
-            name = visible(driver, By.XPATH, "//label[contains(., 'Proposal title')]/input")
+            assert not driver.find_elements(By.CSS_SELECTOR, "input[aria-label='Organization name']")
+
+            def open_organization():
+                click_text(driver, "Organize")
+                visible(driver, By.XPATH, "//dialog[@open]//button[.//span[normalize-space()='Workspace']]").click()
+                return visible(driver, By.CSS_SELECTOR, "dialog[open] input[aria-label='Organization name']")
+
+            name = open_organization()
+            assert name.get_attribute("value") == "Fairness research"
+            assert visible(driver, By.CSS_SELECTOR, "dialog[open] [role='tree'][aria-label='Sources']")
             name.send_keys(Keys.CONTROL, "a")
             name.send_keys("Fairness and remedies")
-            click_text(driver, "Save draft")
-            visible(driver, By.XPATH, "//summary[contains(., 'Fairness and remedies')]")
-            screenshot("05-inline-organization-draft.png")
-            click_text(driver, "Expand editor")
-            visible(driver, By.CSS_SELECTOR, "dialog[open]")
-            screenshot("06-expanded-organization-draft.png")
+            screenshot("05-modal-organization-draft.png")
             click_text(driver, "Close", visible(driver, By.CSS_SELECTOR, "dialog[open]"))
-            for heading in ("Fairness", "Issue 1", "Established"):
-                visible(driver, By.XPATH, f"//summary[normalize-space()='{heading}']").click()
-            visible(driver, By.XPATH, "//summary[normalize-space()='Reason 1']")
+            WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
+            assert api("GET", f"/api/source-workspaces/{research_id}")["state"]["labels"] == saved["state"]["labels"]
+            assert open_organization().get_attribute("value") == "Fairness and remedies"
+            screenshot("06-reopened-organization-draft.png")
+            deepest = labels[0]["children"][0]["children"][0]["children"][0]["id"]
+            leaf = visible(driver, By.CSS_SELECTOR, f"dialog[open] [data-label-select='{deepest}']")
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'})", leaf)
             screenshot("07-deep-organization-branch.png")
             report["proposalCategories"] = 45
             report["ok"] = True
