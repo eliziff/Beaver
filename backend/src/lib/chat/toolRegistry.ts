@@ -186,6 +186,8 @@ export class TurnToolRegistry<Context> {
     signal: AbortSignal = new AbortController().signal,
     onResult?: OnResult,
   ): Promise<NormalizedToolResult[]> {
+    if (new Set(calls.map(call => call.id)).size !== calls.length)
+      throw new Error("Duplicate tool call IDs");
     const serial = calls.some((call) => {
       const setting = this.#byName.get(call.name)?.tool.sequential;
       return typeof setting === "function" ? setting(call.input) : setting === true;
@@ -274,7 +276,7 @@ export class TurnToolRegistry<Context> {
       const outcome = await compiled.tool.execute(call.input, context, signal, call);
       const parsed = CallToolResultSchema.safeParse(outcome?.result);
       if (!parsed.success) throw new Error(`Malformed tool result: ${parsed.error.message}`);
-      if (compiled.output) {
+      if (compiled.output && !parsed.data.isError) {
         if (!parsed.data.structuredContent) throw new Error(
           "Tool declared outputSchema but returned no structuredContent");
         const output = compiled.output(parsed.data.structuredContent);

@@ -1552,3 +1552,82 @@ describe("chat PDF evidence durability", () => {
     });
   });
 });
+
+
+it.each(["host", "native", "model-switch"])("reformats stored grounded claims without reads after %s compaction", async kind => {
+  const { createLegalEvidenceTurnState, createLibraryEvidence, registerLegalEvidence,
+    submitLegalEvidenceAnswer, legalEvidenceReceiptEvent } = await import("../lib/chat/legalEvidence");
+  const state = createLegalEvidenceTurnState(), passage = "The response deadline is 15 days after delivery.";
+  const receipt = createLibraryEvidence({ documentId: "retained", versionId: "v1", filename: "Notice.txt",
+    sourceText: passage, spanText: passage, start: 0, end: passage.length });
+  registerLegalEvidence(state, receipt);
+  const claims = [{ text: 'The notice says “15 days”.', evidence_ids: [receipt.evidence_id] }];
+  expect(submitLegalEvidenceAnswer({ claims }, state).ok).toBe(true);
+  const loaded = await loadApp(), created = await request(loaded.app).post("/chat/create").send({});
+  const checkpoint = kind === "host" ? { type: "context_checkpoint", schema_version: 1,
+    summary: "Research completed; the user wants a table.", keep_current: false }
+    : { type: "model_messages", id: "native-checkpoint", model: "gpt-5.5", compacted: true,
+      messages: [{ role: "assistant", content: [{ type: "custom", kind: "openai.compaction",
+        providerOptions: { openai: { itemId: "cp1", encryptedContent: "opaque" } } }] }] };
+  await loaded.store.commitTurn({ userId: USER_ID }, created.body.id, { expectedVersion: 0,
+    userMessage: { id: crypto.randomUUID(), content: "Read the notice." },
+    assistantMessage: { id: crypto.randomUUID(), content: [legalEvidenceReceiptEvent(state)!,
+      { type: "content", text: 'The notice says “15 days”. [1]' }, checkpoint] as never } });
+  let previous = claims;
+  mocks.streamChatWithTools.mockImplementation(async params => {
+    const offered = [params.systemPrompt, ...params.messages.map(message => message.content)]
+      .flatMap(text => text.split("\n").flatMap(line => {
+        try { const value = JSON.parse(line); return Array.isArray(value) ? [value] : []; }
+        catch { return []; }
+      }));
+    expect(offered).toContainEqual(previous);
+    previous = previous.map(claim => ({ ...claim, text: `| Answer |\n| --- |\n| ${claims[0].text} |` }));
+    const result = await params.runTools([{ id: "format", name: "submit_grounded_answer", input: { claims: previous } }]);
+    expect(result[0].terminal).toBe(true);
+    return { fullText: "" };
+  });
+  for (let index = 0; index < 2; index++) {
+    const version = (await storedChat(loaded.store, created.body.id))!.transcript_version;
+    const response = await request(loaded.app).post("/chat").send({ chat_id: created.body.id,
+      expected_version: version, model: kind === "model-switch" ? "gemini-3-flash-preview" : "gpt-5.5",
+      current_turn: { kind: "message", content: "Make that a table; change nothing substantive." } });
+    expect(response.text).toContain('"type":"content_final"');
+    expect(response.text).toContain("15 days");
+  }
+  expect(mocks.runLocalAssistantTool).not.toHaveBeenCalled();
+  const events = (await storedChat(loaded.store, created.body.id))!.messages.at(-1)!.content as any[];
+  expect(events.find(event => event.type === "legal_evidence_receipt").claims[0].evidence_ids).toEqual([receipt.evidence_id]);
+});
+
+it("keeps SDK reads and steering in causal order across a failed read-only retry", async () => {
+  let attempt = 0;
+  const model = "gemini-3-flash-preview", turn_id = crypto.randomUUID();
+  mocks.streamChatWithTools.mockImplementation(async params => {
+    if (attempt++ === 0) {
+      await params.callbacks.onModelMessages({ model, messages: [
+        { role: "assistant", content: [{ type: "tool-call", toolCallId: "r1", toolName: "Read", input: {} }] },
+        { role: "tool", content: [{ type: "tool-result", toolCallId: "r1", toolName: "Read",
+          output: { type: "text", value: "Already read: exact source passage" } }] },
+      ] });
+      params.callbacks.onSteer({ id: "steer1", text: "Use only the saved passage." });
+      await params.callbacks.onModelMessages({ model, messages: [{ role: "assistant", content: "After steering" }] });
+      throw new Error("Interrupted after a completed read");
+    }
+    const history = JSON.stringify(params.messages);
+    expect(history).toContain("Already read: exact source passage");
+    expect(history.indexOf("Use only the saved passage.")).toBeLessThan(history.indexOf("After steering"));
+    params.callbacks.onContentDelta("Resumed without rereading.");
+    return { fullText: "Resumed without rereading." };
+  });
+  const loaded = await loadApp(), created = await request(loaded.app).post("/chat/create").send({});
+  const current_turn = { kind: "message", turn_id, content: "Read and answer." };
+  await request(loaded.app).post("/chat").send({ chat_id: created.body.id, expected_version: 0, model, current_turn });
+  const failed = (await storedChat(loaded.store, created.body.id))!;
+  const events = failed.messages.at(-1)!.content as any[];
+  expect(events.filter(event => ["model_messages", "steering"].includes(event.type)).map(event => event.type))
+    .toEqual(["model_messages", "steering", "model_messages"]);
+  const retry = await request(loaded.app).post("/chat").send({ chat_id: created.body.id,
+    expected_version: failed.transcript_version, model, current_turn });
+  expect(retry.text).toContain("Resumed without rereading.");
+  expect(mocks.runLocalAssistantTool).not.toHaveBeenCalled();
+});
