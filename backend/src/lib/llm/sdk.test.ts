@@ -172,3 +172,62 @@ it("validates structured output rather than accepting schema-shaped instructions
   expect(bodies[0].generationConfig.responseMimeType).toBe("application/json");
   await expect(streamHosted({ ...params, tools: [], outputSchema: schema })).rejects.toThrow();
 });
+
+
+it.each(["missing", "duplicate", "foreign"])("rejects %s tool results before saving ambiguous history", async defect => {
+  transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
+  const saved = vi.fn();
+  await expect(streamHosted({ ...params, callbacks: { onModelMessages: saved }, runTools: async calls => {
+    const result = { tool_use_id: calls[0].id, content: "read" };
+    return defect === "missing" ? [] : defect === "duplicate" ? [result, result]
+      : [{ ...result, tool_use_id: "not-requested" }];
+  } })).rejects.toThrow(/result|pair/i);
+  expect(saved).not.toHaveBeenCalled();
+});
+
+it("forwards the tool heartbeat through the real SDK loop", async () => {
+  transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
+  const heartbeat = vi.fn();
+  await streamHosted({ ...params, callbacks: { onActivity: heartbeat }, runTools: async (calls, progress) => {
+    const before = heartbeat.mock.calls.length;
+    progress?.();
+    expect(heartbeat).toHaveBeenCalledTimes(before + 1);
+    return [{ tool_use_id: calls[0].id, content: "read", terminal: true }];
+  } });
+  expect(heartbeat.mock.calls.length).toBeGreaterThan(1);
+});
+
+it("counts system instructions in the local-model context budget", async () => {
+  const { fetch } = transport([() => gemini([{ text: "Should not run" }])]);
+  await expect(streamHosted({ ...params, model: "ollama:test", systemPrompt: "x".repeat(120_000) }))
+    .rejects.toThrow(/context/i);
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it.each([false, true])("settles native compaction and keeps it out of prose (failure: %s)", async fail => {
+  transport([() => sse([
+    { type: "message_start", message: { id: "msg_compact", type: "message", role: "assistant", model: "claude-sonnet-4-6",
+      content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "compaction", content: null } },
+    { type: "content_block_delta", index: 0, delta: { type: "compaction_delta", content: "Retained research checkpoint" } },
+    ...(fail ? [{ type: "error", error: { type: "overloaded_error", message: "Compaction interrupted" } }] : [
+      { type: "content_block_stop", index: 0 },
+      { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Answer" } },
+      { type: "content_block_stop", index: 1 },
+      { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 5 } },
+      { type: "message_stop" },
+    ]),
+  ])]);
+  const statuses = vi.fn(), content = vi.fn(), saved = vi.fn();
+  const result = streamHosted({ ...params, model: "claude-sonnet-4-6", tools: [],
+    callbacks: { onCompaction: statuses, onContentDelta: content, onModelMessages: saved } });
+  if (fail) { await expect(result).rejects.toThrow(); expect(saved).not.toHaveBeenCalled(); }
+  else {
+    expect((await result).fullText).toBe("Answer");
+    expect(saved.mock.calls[0][0].compacted).toBe(true);
+    expect(JSON.stringify(saved.mock.calls[0][0])).toContain("Retained research checkpoint");
+  }
+  expect(JSON.stringify(content.mock.calls)).not.toContain("Retained research checkpoint");
+  expect(statuses.mock.calls).toEqual([["running"], [fail ? "failed" : "completed"]]);
+});

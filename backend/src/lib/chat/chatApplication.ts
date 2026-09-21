@@ -36,7 +36,7 @@ import { isImageDocumentType, MAX_CHAT_IMAGES, toLlmImage } from "../llm/images"
 import { compactionThresholdForModel } from "../llm/contextWindow";
 import { compactChatContext } from "./contextCompaction";
 import { formatChatMessageContent } from "./messageFormatting";
-import { projectChatTranscript, workflowForContinuation } from "./chatTranscript";
+import { priorGroundedAnswerPrompt, projectChatTranscript, workflowForContinuation } from "./chatTranscript";
 import { availableDocumentsPrompt } from "./resourceTools";
 import {
   createLegalEvidenceTurnState,
@@ -265,7 +265,7 @@ const LOCAL_TURN_COMPLETED_EVENT = "local_turn_completed";
 const CHAT_PROGRESS_CHECKPOINT_MS = 30_000;
 const INTERRUPTED_TURN_MESSAGE =
   "This response was interrupted before it finished and is being retried.";
-const REPLACEABLE_EVENT_TYPES = new Set(["workflow_run", "subagent_run", "tool_activity", "model_messages"]);
+const REPLACEABLE_EVENT_TYPES = new Set(["workflow_run", "subagent_run", "tool_activity", "model_messages", "steering"]);
 const TRANSIENT_EVENT_TYPES = new Set(["reasoning", "error", "context_usage", "subagent_run", "tool_activity"]);
 function pendingAskInputs(messages: ChatMessageRecord[]) {
   const assistant = [...messages].reverse().find(({ role }) => role === "assistant");
@@ -615,7 +615,9 @@ export function createChatApplication(deps: Dependencies) {
           retry = true;
           assistant = prior.assistant;
           assistantContent = Array.isArray(assistant?.content)
-            ? assistant.content.filter((event) => event.type === "subagent_run" &&
+            ? assistant.content.filter((event) => event.type === "model_messages" ||
+                event.type === "legal_evidence_receipt" || event.type === "steering" ||
+                event.type === "subagent_run" &&
                 (event.status === "interrupted" || event.status === "running" || event.status === "error") &&
                 event.resume) : [];
           assistantCitations = [];
@@ -638,9 +640,7 @@ export function createChatApplication(deps: Dependencies) {
       const transcriptForModel = rows
         .map((row) => row.id === assistant?.id
           ? { ...row, content: assistantContent, citations: assistantCitations }
-          : row)
-        .filter((row) => !(retry && turnId &&
-          row.role === "assistant" && row.turn_id === turnId));
+          : row);
       const messages = projectChatTranscript(transcriptForModel, responseProvider, selectedModel);
       if (!retry && input.current_turn.kind === "message") messages.push({
         role: "user",
@@ -696,6 +696,7 @@ export function createChatApplication(deps: Dependencies) {
         features.personalisationPrompt,
         features.sourceCoveragePrompt,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
+        priorGroundedAnswerPrompt(rows, new Set(priorEvidenceReceipts.map(({ evidence_id }) => evidence_id))),
         tabularPrompt,
         research ? `CURRENT RESEARCH WORKSPACE IS AVAILABLE. Reuse conversation evidence and saved evidence_ids first; read workspace labels/history, findings, selection, tables or source passages only when the current request needs information not already available.\n` +
           `Linked tables: ${(research.state.tables ?? []).join(", ") || "none"}. Use update_research_table to create or organize a table and read_table_cells only when its supported answers are needed.` : "",
@@ -910,8 +911,8 @@ ${registeredWorkflow.skill_md}` : "",
           },
           emit: (event) => {
             sink.emit(event);
-            if (event.type === "tool_activity")
-              void queuePersist([event])?.catch(() => undefined);
+            if (event.type === "tool_activity" || event.type === "steering")
+              void queuePersist([event], [], event.type === "steering")?.catch(() => undefined);
           },
           apiKeys: features.apiKeys,
           reasoningEffort: input.reasoning_effort,

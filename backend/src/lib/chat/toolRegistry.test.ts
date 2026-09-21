@@ -339,3 +339,22 @@ describe("TurnToolRegistry", () => {
     expect(batch[0].status).toBe("error");
   });
 });
+
+
+it("rejects duplicate call identities before any tool effects", async () => {
+  const execute = vi.fn(async () => ({ result: toolText("changed"), mutated: true }));
+  const registry = new TurnToolRegistry([tool("change", { sequential: true, execute })]);
+  await expect(registry.run([call("same", "change"), call("same", "change")], { order: [] }))
+    .rejects.toThrow(/Duplicate/i);
+  expect(execute).not.toHaveBeenCalled();
+});
+
+it("preserves explicit tool errors without applying the success output schema", async () => {
+  const registry = new TurnToolRegistry([tool("read", {
+    outputSchema: { type: "object", properties: { value: { type: "string" } }, required: ["value"] },
+    execute: async () => ({ result: toolText("Source version changed; select the new version.", true) }),
+  })]);
+  expect(await registry.run([call("read", "read")], { order: [] })).toEqual([
+    { tool_use_id: "read", content: "Source version changed; select the new version.", status: "error" },
+  ]);
+});

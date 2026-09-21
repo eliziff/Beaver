@@ -91,11 +91,13 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
     ? AbortSignal.any([params.abortSignal, controller.signal]) : controller.signal;
   let messages = modelMessages(params.messages, params.model);
   messages = compactedMessages(messages) ?? messages;
-  let fullText = "", streamBytes = 0, argumentBytes = 0, callCount = 0;
+  let fullText = "", streamBytes = 0, argumentBytes = 0, callCount = 0, compacting = false;
   const rounds: LlmContextRoundReceipt[] = [];
   let total: NormalizedLlmUsage | undefined, serviceTier: string | undefined;
   const maxIterations = params.maxIterations ?? 32, window = modelContextWindow(params.model);
   const images = modelSupportsImageInput(params.model);
+  if (!Number.isSafeInteger(maxIterations) || maxIterations < 1)
+    throw new Error("maxIterations must be a positive integer");
   const validate = params.outputSchema && new AjvJsonSchemaValidator().getValidator(params.outputSchema);
   const output = params.outputSchema && Output.object({ schema: jsonSchema(params.outputSchema, {
     validate(value) { const checked = validate!(value); return checked.valid
@@ -113,9 +115,10 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
         strict: false,
       }]));
       if (providerForModel(params.model) === "ollama" && window &&
-          estimateContextTokens({ messages: [{ role: "user", content: JSON.stringify(messages) }], tools: definitions }) > window * .9) {
+          estimateContextTokens({ systemPrompt: params.systemPrompt,
+            messages: [{ role: "user", content: JSON.stringify(messages) }], tools: definitions }) > window * .9) {
         messages = pruneMessages({ messages, toolCalls: "before-last-message" });
-        if (Buffer.byteLength(JSON.stringify({ messages, tools })) / 3 > window * .9)
+        if (Buffer.byteLength(JSON.stringify({ systemPrompt: params.systemPrompt, messages, tools })) / 3 > window * .9)
           throw new Error(`The request exceeds this local model's ${window}-token context.`);
       }
       const round: LlmContextRoundReceipt = { iteration, requestAttempts: 0,
@@ -138,8 +141,9 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       for await (const part of generated.fullStream) {
         if (part.type === "error") throw part.error;
         if (part.type === "abort") throwIfAborted(signal);
+        callbacks.onActivity?.();
         if (part.type === "text-start" && part.providerMetadata?.anthropic?.type === "compaction") {
-          compactions.add(part.id); callbacks.onCompaction?.("running");
+          compactions.add(part.id); compacting = true; callbacks.onCompaction?.("running");
         }
         if (part.type === "text-delta" || part.type === "reasoning-delta") {
           streamBytes += Buffer.byteLength(part.text);
@@ -163,11 +167,17 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       const reason = await generated.finishReason, response = await generated.response;
       const normal = reason === "stop" || reason === "tool-calls";
       if (normal && params.outputSchema && !calls.length) await generated.output;
+      if (new Set(calls.map(call => call.id)).size !== calls.length)
+        throw new Error("Duplicate tool call IDs in model response");
       const executable = calls.filter(call => !invalid.has(call.id));
       const results: NormalizedToolResult[] = normal ? [
-        ...invalid.values(), ...(executable.length && params.runTools ? await params.runTools(executable) : []),
+        ...invalid.values(), ...(executable.length && params.runTools ? await params.runTools(executable, callbacks.onActivity) : []),
       ] : calls.map(call => ({ tool_use_id: call.id, status: "error" as const,
         content: `Tool not executed: generation stopped with ${reason}.` }));
+      const resultIds = new Set(results.map(result => result.tool_use_id));
+      if (results.length !== calls.length || resultIds.size !== calls.length ||
+          calls.some(call => !resultIds.has(call.id)))
+        throw new Error("Tool results must pair exactly with the requested batch");
       // The SDK supplies error results for invalid calls; do not answer those calls twice.
       const answered = new Set(response.messages.flatMap(message => message.role === "tool"
         ? message.content.flatMap(part => part.type === "tool-result" ? [part.toolCallId] : []) : []));
@@ -177,7 +187,7 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
       // A completed pair is saved even if a tool paused/cancelled the turn. Never persist an orphan tool call.
       await callbacks.onModelMessages?.({ model: params.model, messages: compacted ?? step,
         ...(compacted && { compacted: true }) });
-      if (compacted) callbacks.onCompaction?.("completed");
+      if (compacted) { compacting = false; callbacks.onCompaction?.("completed"); }
       round.usage = usage(await generated.usage);
       total ??= { ...round.usage };
       if (iteration) for (const key of Object.keys(total) as (keyof NormalizedLlmUsage)[]) {
@@ -201,5 +211,8 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
         contextRounds: rounds, finishReason: reason };
     }
     throw new IncompleteGenerationError("step-limit", fullText);
-  } finally { controller.abort(); }
+  } finally {
+    if (compacting) callbacks.onCompaction?.("failed");
+    controller.abort();
+  }
 }
