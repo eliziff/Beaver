@@ -23,7 +23,7 @@ export type ChatTurnQueue = {
   clientResult(scope: ChatScope, jobId: string, callId: string,
     result: unknown): Promise<boolean>;
   steer(scope: ChatScope, chatId: string,
-    message: { id: string; text: string }): Promise<boolean>;
+    message: import("./llm").SteeringMessage): Promise<boolean>;
 };
 
 export const durableChatTurns: ChatTurnQueue = {

@@ -2437,6 +2437,27 @@ describe("local assistant tools", () => {
       }),
       results: [{ rank: 1, evidence_id: receipt?.evidence_id }],
     })]);
+    const { legalSourceOperations } = await import("../legalSourceApplication");
+    const acquisition = vi.spyOn(legalSourceOperations, "readWithRenditions");
+    const [batch] = await tools.runLocalAssistantTools("local-user", [{ id: "batched-patterns", name: "Read",
+      input: { file_path: resourceReference.source("a2aj", JSON.stringify(["2099 SCC 3", "cases", "SCC"])),
+        patterns: ["distinctive governing principle", "substantive judicial language", "not present"], max_results: 3 },
+    }], { legalEvidence: state });
+    expect(acquisition).toHaveBeenCalledTimes(1);
+    const [invalid] = await tools.runLocalAssistantTools("local-user", [{ id: "ambiguous", name: "Read",
+      input: { file_path: resourceReference.source("a2aj", JSON.stringify(["2099 SCC 3", "cases", "SCC"])),
+        patterns: ["mask"], pattern: "disguise" },
+    }], { legalEvidence: state });
+    expect(invalid.status).toBe("error");
+    expect(acquisition).toHaveBeenCalledTimes(1);
+    acquisition.mockRestore();
+    const searched = JSON.parse(batch.content);
+    expect(searched.queries.map((query: any) => [query.pattern, query.total_matches, query.truncated]))
+      .toEqual([["distinctive governing principle", 1, false], ["substantive judicial language", 6, true], ["not present", 0, false]]);
+    expect(searched.queries.flatMap((query: any) => query.hits)).toHaveLength(2);
+    expect(batch.queryReceipts).toHaveLength(3);
+    expect(batch.evidence?.every(item => item.locator.kind === "paragraph")).toBe(true);
+    expect(new Set(searched.passages.map((item: any) => item.evidence_id)).size).toBe(searched.passages.length);
     const { presentLegalEvidence } = await import("../chat/citationPresentation");
     expect(presentLegalEvidence(entry!).passageUrl)
       .toContain("https://example.test/case-3#:~:text=");

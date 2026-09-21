@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    providerErrorCode,
     redactSensitiveText,
     safeErrorLog,
     safeErrorMessage,
@@ -7,6 +8,16 @@ import {
 } from "../safeError";
 
 describe("safe errors", () => {
+    it("classifies wrapped provider failures without returning their body", () => {
+        for (const [status, code] of [[401, "provider_auth"], [429, "provider_limit"],
+            [400, "provider_request"], [503, "provider_unavailable"]] as const) {
+            const provider = Object.assign(new Error("private request and credential"), { statusCode: status });
+            expect(providerErrorCode(new Error("retry failed", { cause: provider }))).toBe(code);
+            expect(providerErrorCode(Object.assign(new Error("retry failed"), { lastError: provider }))).toBe(code);
+        }
+        expect(providerErrorCode(new Error("OpenCode Go API key is not configured."))).toBe("provider_config");
+        expect(providerErrorCode(new Error("private unknown error"))).toBeUndefined();
+    });
     it("redacts labelled and provider-shaped secrets", () => {
         const inputs = {
             incorrectKey:
