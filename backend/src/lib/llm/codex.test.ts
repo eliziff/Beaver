@@ -94,8 +94,9 @@ describe("Codex app-server adapter", () => {
     let bridgeUrl = "";
     transport.request.mockImplementation(async (method: string, params) => {
       if (method === "thread/start") {
-        bridgeUrl = params.config.mcp_servers.mike_runtime.url;
+        expect(params.approvalPolicy).toBe("never");
         expect(params.config.mcp_servers.mike_runtime.default_tools_approval_mode).toBe("approve");
+        bridgeUrl = params.config.mcp_servers.mike_runtime.url;
         return { thread: { id: threadId } };
       }
       if (method === "turn/start") {
@@ -169,7 +170,7 @@ describe("Codex app-server adapter", () => {
     );
     expect(transport.request).toHaveBeenCalledWith(
       "thread/resume",
-      expect.not.objectContaining({ excludeTurns: expect.anything() }),
+      expect.objectContaining({ excludeTurns: true }),
     );
   });
 
@@ -244,7 +245,7 @@ describe("Codex app-server adapter", () => {
     }]);
   });
 
-  it.each(["before", "after"])("steers when turn/started arrives %s the start response", async timing => {
+  it.each(["before", "after", "omitted"])("steers with turn/started arriving %s the start response", async timing => {
     let control: { steer(message: { id: string; text: string }): Promise<void> } | null = null;
     transport.request.mockImplementation(async (method: string) => {
       if (method === "thread/start") return { thread: { id: threadId } };
@@ -354,4 +355,53 @@ describe("Codex app-server adapter", () => {
       "Codex app-server interrupted the turn without a Beaver cancellation request.",
     );
   });
+  it("accepts early turn events and ignores stale events from the same thread", async () => {
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") {
+        transport.emit("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
+        complete("stale", "previous-turn");
+        complete("Current answer");
+        return { turn: { id: turnId } };
+      }
+      return {};
+    });
+    const running = streamCodex({ model: "codex:gpt-5.6-luna", systemPrompt: "", messages: [] });
+    // The later completion lets the old implementation fail without leaving a hung turn.
+    const guard = setTimeout(() => complete(""), 100);
+    try { expect((await running).fullText).toBe("Current answer"); }
+    finally { clearTimeout(guard); }
+  });
+
+  it("does not start inference when cancelled during thread setup", async () => {
+    const abort = new AbortController();
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") { abort.abort(); return { thread: { id: threadId } }; }
+      if (method === "turn/start") { setTimeout(() => complete(), 0); return { turn: { id: turnId } }; }
+      return {};
+    });
+    await expect(streamCodex({ model: "codex:gpt-5.6-luna", systemPrompt: "", messages: [],
+      abortSignal: abort.signal })).rejects.toMatchObject({ name: "AbortError" });
+    expect(transport.request.mock.calls.some(([method]) => method === "turn/start")).toBe(false);
+  });
+
+  it("rejects a steering acknowledgement for another turn", async () => {
+    let control: { steer(message: { id: string; text: string }): Promise<void> } | null = null;
+    transport.request.mockImplementation(async (method: string) => {
+      if (method === "thread/start") return { thread: { id: threadId } };
+      if (method === "turn/start") return { turn: { id: turnId } };
+      if (method === "turn/steer") return { turnId: "different-turn" };
+      return {};
+    });
+    const onSteer = vi.fn();
+    const running = streamCodex({ model: "codex:gpt-5.6-luna", systemPrompt: "", messages: [],
+      callbacks: { onSteer }, providerSession: { persist: true, onControl(value) { control = value; } } });
+    await vi.waitFor(() => expect(control).not.toBeNull());
+    transport.emit("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
+    try {
+      await expect(control!.steer({ id: "s1", text: "Correction" })).rejects.toThrow(/turn ID/i);
+      expect(onSteer).not.toHaveBeenCalled();
+    } finally { complete(); complete("", "different-turn"); await running; }
+  });
+
 });
