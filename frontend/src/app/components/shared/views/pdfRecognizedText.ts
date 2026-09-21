@@ -8,7 +8,10 @@ export function renderRecognizedText(element: HTMLElement, page: PdfRecognizedTe
   for (const source of page.lines) {
     const line = document.createElement('div');
     line.style.display = 'contents'; line.dataset.legalText = String(page.pageNumber);
-    for (const word of source.words) {
+    // Line-only providers still supply a real text run and its measured line box.
+    const runs = source.words.length ? source.words : source.text?.trim()
+      ? [{ text: source.text, rect: source.rect }] : [];
+    for (const word of runs) {
       const [x0,y0,x1,y1] = word.rect;
       if (!word.text.trim() || !word.rect.every(Number.isFinite) || x1 <= x0 || y1 <= y0) continue;
       const span = document.createElement('span'), size = (y1-y0) / page.height * height;

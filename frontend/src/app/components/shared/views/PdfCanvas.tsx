@@ -265,7 +265,7 @@ export function PdfCanvas({
                         width: `${viewport.width}px`, height: `${viewport.height}px`, zIndex: "1" });
                     element.style.setProperty("--scale-factor", String(scale));
                     entry.wrapper.appendChild(element);
-                    if (entry.textSource?.lines.some(line => line.words.length)) {
+                    if (entry.textSource?.lines.some(line => line.words.length || line.text?.trim())) {
                         renderRecognizedText(element, entry.textSource, viewport.width, viewport.height);
                     } else {
                         layer = new lib.TextLayer({ textContentSource: page.streamTextContent(), container: element, viewport });

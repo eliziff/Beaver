@@ -92,7 +92,7 @@ export type NativePdfPassageGeometry = {
 };
 
 export type NativePdfTextPage = { pageNumber: number; width: number; height: number;
-  lines: Array<{ id: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };
+  lines: Array<{ id: string; text?: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };
 
 type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
   schemaVersion: "legalpdf.passage-pages.v1";
