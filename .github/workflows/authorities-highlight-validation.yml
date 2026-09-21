@@ -1,0 +1,35 @@
+name: Authorities highlight validation workspace
+on:
+  push:
+    branches: [fix/authorities-highlight-selection-ocr]
+    paths: [.github/workflows/authorities-highlight-validation.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Package tracked source and pinned public parser sources
+        run: |
+          mkdir -p /tmp/highlight-validation
+          git archive --format=tar HEAD | gzip > /tmp/highlight-validation/beaver-source.tar.gz
+          git submodule update --init legal-pdf-parser legal-structure
+          git -C legal-pdf-parser archive --format=tar HEAD | gzip > /tmp/highlight-validation/pdf-parser-source.tar.gz
+          git -C legal-structure archive --format=tar HEAD | gzip > /tmp/highlight-validation/structure-source.tar.gz
+      - name: Install locked frontend dependencies without lifecycle scripts
+        run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Package offline frontend test dependencies
+        run: tar -czf /tmp/highlight-validation/frontend-dependencies.tar.gz frontend/node_modules
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authorities-highlight-validation-workspace
+          path: /tmp/highlight-validation/*.tar.gz
+          retention-days: 1
