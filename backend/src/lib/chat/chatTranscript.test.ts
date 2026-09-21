@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { ChatMessageRecord } from "../chatStore";
 import {
-  projectChatTranscript, workflowForContinuation,
+  priorGroundedAnswerPrompt, projectChatTranscript, workflowForContinuation,
 } from "./chatTranscript";
 
 function message(
@@ -191,7 +191,7 @@ describe("visibleChatMessages", () => {
 });
 
 
-it("replays tool pairs and steering without duplicating the display answer or leaking private events", async () => {
+it("replays tool pairs, steering and the host answer without leaking private events", async () => {
   const { parseAssistantEvent, publicAssistantEvent } = await import("./assistantEvents");
   const step = { type: "model_messages" as const, id: "step", model: "gemini-3-flash-preview", messages: [
     { role: "assistant" as const, content: [{ type: "tool-call" as const, toolCallId: "r1", toolName: "Read", input: { file: "A" } }] },
@@ -204,10 +204,10 @@ it("replays tool pairs and steering without duplicating the display answer or le
     { type: "steering", id: "s1", text: "Do not change the indemnity clause." },
     { type: "content", text: "Display-only answer" },
   ])]);
-  expect(projected).toHaveLength(2);
+  expect(projected).toHaveLength(3);
   expect(projected[0].modelState?.messages).toEqual(step.messages);
   expect(projected[1]).toEqual({ role: "user", content: "Do not change the indemnity clause." });
-  expect(JSON.stringify(projected)).not.toContain("Display-only answer");
+  expect(projected[2]).toEqual({ role: "assistant", content: "Display-only answer" });
 });
 
 it("recovers the workflow that asked the pending question, rather than a later or earlier workflow", () => {
@@ -225,9 +225,39 @@ it("native compaction replaces only the history of the same model", () => {
       { type: "custom", kind: "openai.compaction", providerOptions: { openai: { itemId: "c1", encryptedContent: "opaque" } } },
       { type: "text", text: "After compaction" },
     ] }],
-  }, { type: "content", text: "Display-only answer" }])];
+  }, { type: "content", text: "After compaction" }])];
   const native = projectChatTranscript(rows, "openai", model);
   expect(native).toHaveLength(1);
   expect(native[0].modelState?.compacted).toBe(true);
   expect(projectChatTranscript(rows, "openai", "gpt-5.4")[0].content).toBe("Earlier instruction");
+});
+
+
+it("keeps the host's final answer when SDK history contains only reads or a different draft", () => {
+  const events = [{ type: "model_messages" as const, id: "sdk", model: "gemini-3-flash-preview",
+    messages: [{ role: "assistant" as const, content: "Provider draft" }] },
+    { type: "content" as const, text: "The answer could not be verified." }];
+  const projected = projectChatTranscript([message("assistant", events)]);
+  expect(projected.at(-1)?.content).toBe("The answer could not be verified.");
+  events[1].text = "Provider draft";
+  expect(projectChatTranscript([message("assistant", events)])).toHaveLength(1);
+});
+
+it("copies the latest scoped answer, never detaching an ID or falling back to an unrelated answer", () => {
+  const claims = [{ text: "First conclusion.", evidence_ids: ["e_a"] },
+    { text: "Joint conclusion.", evidence_ids: ["e_a", "e_b"] }];
+  const receipt = { type: "legal_evidence_receipt", status: "passed", claims } as never;
+  const rows = [message("assistant", [receipt]), message("assistant", [{
+    type: "context_checkpoint", schema_version: 1, keep_current: false, summary: "All identifiers were omitted.",
+  }])];
+  const source = JSON.stringify(rows);
+  expect(priorGroundedAnswerPrompt(rows, new Set(["e_a", "e_b"])))
+    .toContain(JSON.stringify(claims));
+  expect(priorGroundedAnswerPrompt(rows, new Set(["e_a"])))
+    .toContain(JSON.stringify([claims[0]]));
+  expect(priorGroundedAnswerPrompt(rows, new Set(["e_b"]))).toBe("");
+  expect(JSON.stringify(rows)).toBe(source);
+  rows.push(message("assistant", [{ type: "legal_evidence_receipt", status: "passed",
+    claims: [{ text: "Other source.", evidence_ids: ["e_other"] }] } as never]));
+  expect(priorGroundedAnswerPrompt(rows, new Set(["e_a", "e_b"]))).toBe("");
 });
