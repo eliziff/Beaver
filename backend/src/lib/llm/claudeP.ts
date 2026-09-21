@@ -129,7 +129,7 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
       callbacks.onContentDelta?.(event.delta.text);
     }
   } else if (event?.type === "content_block_stop") {
-    if (state.contentOpen) callbacks.onContentBlockEnd?.();
+    if (state.contentOpen) paramsCallbacksEnd(callbacks);
     state.contentOpen = false;
   }
   return ["assistant", "stream_event", "result"].includes(message.type ?? "") ||
@@ -292,12 +292,11 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
   }
   const callbacks = params.callbacks ?? {};
   const initialTools =
-    params.resolveTools?.() ?? params.staticTools ?? params.tools ?? [];
+    params.staticTools ?? params.resolveTools?.() ?? params.tools ?? [];
   let bridge: McpToolBridge | null = null;
   if (initialTools.length && params.runTools) {
     bridge = await startMcpToolBridge({
-      tools: params.staticTools ?? params.tools ?? initialTools,
-      resolveTools: params.resolveTools,
+      tools: initialTools,
       runTools: params.runTools,
       callbacks,
       abortSignal: params.abortSignal,
