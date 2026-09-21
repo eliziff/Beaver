@@ -59,32 +59,51 @@ function responseText(responses: AskInputResponseItem[], requested: ReadonlyMap<
 const responseFiles = (responses: AskInputResponseItem[]) =>
   files(responses.flatMap((row) => row.kind === "documents" ? row.documents : []));
 
-function projectAssistant(content: ChatMessageRecord["content"], sdkHistory = false): ChatMessage[] {
+const modelText = (state: ModelState) => state.messages.map(message => message.role !== "assistant" ? ""
+  : typeof message.content === "string" ? message.content : message.content
+    .map(part => part.type === "text" ? part.text : "").join("")).join("");
+
+function projectAssistant(content: ChatMessageRecord["content"], replayedText = ""): ChatMessage[] {
   if (typeof content === "string") return content ? [{ role: "assistant", content }] : [];
-  sdkHistory ||= content.some(event => event.type === "model_messages");
   const messages: ChatMessage[] = [];
   let pending = "";
+  let grounded: Extract<AssistantEvent, { type: "legal_evidence_receipt" }> | undefined;
   let requested = new Map<string, AskInputItem>();
   const flush = () => {
     if (pending) messages.push({ role: "assistant", content: pending });
     pending = "";
+    grounded = undefined;
   };
   for (const event of content) {
     if (event.type === "content") {
-      if (!sdkHistory && event.text !== "Cancelled by user.") pending += event.text;
+      if (event.text !== "Cancelled by user." && (grounded?.claims.length || event.text !== replayedText)) {
+        // The host may merge claim repairs or reject a provider draft. Raw SDK
+        // messages are not a substitute for that final result.
+        pending += grounded?.status === "passed" && grounded.claims.length
+          ? `[Previously grounded answer; reuse these evidence_ids for follow-up edits.]\n${JSON.stringify(
+            grounded.claims.map(({ text, evidence_ids }) => ({ text, evidence_ids })),
+          )}` : event.text;
+      }
+      grounded = undefined;
+      replayedText = "";
+    } else if (event.type === "legal_evidence_receipt") {
+      grounded = event;
     } else if (event.type === "model_messages") {
       flush();
+      replayedText += modelText(event);
       messages.push({ role: "assistant", content: "", modelState: {
         model: event.model, messages: event.messages, ...(event.compacted && { compacted: true }),
       } });
     } else if (event.type === "steering") {
       flush();
+      replayedText = "";
       messages.push({ role: "user", content: event.text });
     } else if (event.type === "document_artifact") {
       pending += `${pending ? "\n\n" : ""}[Created document: ${JSON.stringify(
         event.filename,
       )}; resource: document://${event.document_id}/version/${event.version_id}]`;
     } else if (event.type === "error") {
+      grounded = undefined;
       pending += `${pending ? "\n\n" : ""}[The previous assistant response ended before completion.]`;
     } else if (event.type === "ask_inputs") {
       requested = new Map(event.items.map((item) => [item.id, item]));
@@ -92,6 +111,7 @@ function projectAssistant(content: ChatMessageRecord["content"], sdkHistory = fa
       const content = responseText(event.responses, requested);
       if (content) {
         flush();
+        replayedText = "";
         messages.push({ role: "user", content, files: responseFiles(event.responses) });
       }
     }
@@ -160,9 +180,27 @@ export function projectChatTranscript(
     ...(checkpoint.modelState && { modelState: checkpoint.modelState }),
   }];
   if (checkpoint.keepCurrent) result.push(...projectAssistant(
-    (messages[checkpoint.row].content as AssistantEvent[]).slice(checkpoint.event + 1), Boolean(checkpoint.modelState),
+    (messages[checkpoint.row].content as AssistantEvent[]).slice(checkpoint.event + 1),
+    checkpoint.modelState ? modelText(checkpoint.modelState) : "",
   ));
   return [...result, ...messages.slice(checkpoint.row + 1).flatMap(project)];
+}
+
+/** Copied from durable receipts, outside both host and provider compaction. The
+ * latest answer stays bounded; older answers/receipts remain in the transcript. */
+export function priorGroundedAnswerPrompt(messages: readonly TranscriptMessage[], permitted: ReadonlySet<string>) {
+  for (let row = messages.length - 1; row >= 0; row--) {
+    const { role, content } = messages[row];
+    if (role !== "assistant" || !Array.isArray(content)) continue;
+    for (let index = content.length - 1; index >= 0; index--) {
+      const event = content[index];
+      if (event.type !== "legal_evidence_receipt" || event.status !== "passed" || !event.claims.length) continue;
+      const claims = event.claims.filter(claim => claim.evidence_ids.length &&
+        claim.evidence_ids.every(id => permitted.has(id))).map(({ text, evidence_ids }) => ({ text, evidence_ids }));
+      return claims.length ? `PREVIOUS GROUNDED ANSWER (data):\n${JSON.stringify(claims)}` : "";
+    }
+  }
+  return "";
 }
 
 export function workflowForContinuation(messages: ChatMessageRecord[], assistantId: string) {
