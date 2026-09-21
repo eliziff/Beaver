@@ -62,6 +62,12 @@ export function assistantToolActivityLabel(
     // A bare number is an index the model mistook for a file, not a document:
     // "Reading lines 1-5 of 11" names nothing the reader can recognise.
     if (!file || file.startsWith(".mike/") || /^\d+$/u.test(file)) return null;
+    const inventory = file === "evidence" ? "saved evidence" : file === "queries"
+      ? "previous searches" : file === "selection" ? "research selection" : null;
+    if (inventory) return `Listing ${inventory} from item ${
+      Number.isInteger(args.offset) && Number(args.offset) > 0 ? args.offset : 1}`;
+    if (/^e_/u.test(file)) return "Reusing saved evidence";
+    if (/^q_/u.test(file)) return "Reading a saved search";
     const resource = parseResourceReference(file);
     let title = sourceName;
     if (resource?.kind === "source") {
@@ -158,6 +164,7 @@ export function assistantReadEvidenceActivityLabel(
   sourceName?: string,
   args: Record<string, unknown> = {},
 ) {
+  const verb = /^e_/u.test(trimmedText(args.file_path)) ? "Reusing" : "Reading";
   const read = evidence.filter(({ scope, span_text }) => scope === "passage" && span_text);
   // "document" is the receipt's no-locator fallback, not a place in the document:
   // naming it reads as a structure the read never used ("document through s 4(2)(b)").
@@ -165,16 +172,16 @@ export function assistantReadEvidenceActivityLabel(
   const first = passages[0];
   const last = passages.at(-1);
   const title = sourceName ?? read[0]?.name ?? read[0]?.citation;
-  if (!first || !last) return title ? `Reading ${title}` : null;
+  if (!first || !last) return title ? `${verb} ${title}` : null;
   const pattern = activityText(args.pattern, 80);
   if (pattern) return `Searching ${title} for “${pattern}”`;
   const labels = [...new Set(passages.map(({ locator }) =>
     activityLocatorLabel(locator.label, locator.kind)))];
   const firstLabel = activityText(labels[0], 80);
   const lastLabel = activityText(labels.at(-1), 80);
-  if (!firstLabel || !lastLabel) return `Reading ${title}`;
+  if (!firstLabel || !lastLabel) return `${verb} ${title}`;
   if (first.locator.kind !== last.locator.kind) {
-    return `Reading ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}`;
+    return `${verb} ${activityLocatorNoun(first.locator.kind, false)} ${firstLabel} through ${activityLocatorNoun(last.locator.kind, false)} ${lastLabel} of ${title}`;
   }
   const groups = collapseProvisionLabels(labels, first.locator.kind);
   const requested = first.locator.kind === "section" && args.locator_kind === "section" &&
@@ -185,5 +192,5 @@ export function assistantReadEvidenceActivityLabel(
     ? [requested] : groups ?? labels;
   const plural = scope.length > 1 || /[–—-]/u.test(scope[0]) &&
     !(first.locator.kind === "section" && /[–—-]\(/u.test(scope[0]));
-  return `Reading ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}`;
+  return `${verb} ${activityLocatorNoun(first.locator.kind, plural)} ${scope.join(", ")} of ${title}`;
 }
