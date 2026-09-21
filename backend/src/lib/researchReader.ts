@@ -76,10 +76,10 @@ export function researchReadCursors(context: ResearchReadContext) {
 }
 export function researchReadContextPrompt(context: ResearchReadContext | undefined) {
   if (!context) return "";
-  return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells for the original answers and their support.` : "",
+  return [context.findingRefs ? `SELECTED RESEARCH RESULTS: ${JSON.stringify(context.findingRefs)}. Read findings or read_table_cells only when the original answers or their support are not already available in the conversation.` : "",
   context.workspace ? `CURRENT RESEARCH WORKSPACE: ${resourceReference.document(
-    context.workspace.documentId, context.workspace.versionId)}. Read the workspace first. For an organization or a revision, use document_operation action:"research" with research_action type:"organize" and the user's instructions. Include the latest pending proposalId when revising. This produces an editable draft, not applied changes. Use individual label and filing operations for specific edits, not to construct a proposed organization one mutation at a time. Report the tool outcome: pending means waiting for acceptance, not completed. For legal questions, Read selection and its saved evidence_ids; use saved passages before reading sources for missing support.` : "",
-  context.subjects ? "Read selection to page the scoped sources, saved passages and remaining reads." : "",
+    context.workspace.documentId, context.workspace.versionId)}. Read the workspace when the request needs its current labels, sources or history, not as a prerequisite to every reply. For an organization or a revision, use document_operation action:"research" with research_action type:"organize" and the user's instructions. Include the latest pending proposalId when revising. This produces an editable draft, not applied changes. Use individual label and filing operations for specific edits, not to construct a proposed organization one mutation at a time. Report the tool outcome: pending means waiting for acceptance, not completed. For legal questions, reuse available passages and evidence_ids; read selection only for missing scope or saved support, then retrieve only the missing passages.` : "",
+  context.subjects ? "Read selection pages the scoped sources, saved passages and remaining reads when needed; the inventory is not a reading checklist." : "",
   context.organizationHistory?.length ? `ORGANIZATION PROPOSALS (drafts are not applied): ${JSON.stringify(context.organizationHistory)}\nUse the latest pending draft and the user's corrections when discussing revisions. Rejected proposals are history, not the current organization.` : ""].filter(Boolean).join("\n");
 }
 export function readResearchContextInventory(context: ResearchReadContext, args: { offset?: number; limit?: number }) {
@@ -797,7 +797,6 @@ export async function readLegalSourceResource(
     );
   }
 }
-
 type TextRange = { start: number; end: number };
 type LibraryReadLine = { rendered: string; lineNumber?: number; span?: [number, number];
   locator?: Parameters<typeof createLibraryEvidence>[0]["locator"] };
