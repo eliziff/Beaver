@@ -1,3 +1,4 @@
+import { annotationLineBands, selectedPdfFragments } from "./pdfSelectionGeometry";
 import { markContains, validRect, type AnnotationFragment, type AnnotationRect,
   type PdfAnnotation } from '../../../../../../shared/pdf-annotations.mjs';
 export type AnnotationTool = 'select' | 'highlight' | 'draw';
@@ -22,37 +23,10 @@ function rectangle(parent: SVGElement, r: AnnotationRect, color: string, opacity
     shape.setAttribute('vector-effect','non-scaling-stroke'); }
   parent.appendChild(shape); return shape;
 }
-/** Individual text-node ranges avoid ancestor boxes that accidentally select an entire page. */
-function selectedPdfFragments(pages: HTMLElement[], range: Range): AnnotationFragment[] {
-  const fragments: AnnotationFragment[] = [];
-  for(const page of pages) {
-    const layer=page.querySelector<HTMLElement>('.pdf-text-layer');
-    if(!layer || !range.intersectsNode(layer)) continue;
-    const b=page.getBoundingClientRect(); if(!b.width || !b.height) continue;
-    const walker=document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
-    const rects: AnnotationRect[]=[]; const seen=new Set<string>(); let node: Node | null;
-    while((node=walker.nextNode())) {
-      if(!node.textContent?.length || !range.intersectsNode(node)) continue;
-      const part=document.createRange(); part.selectNodeContents(node);
-      if(node===range.startContainer) part.setStart(node,range.startOffset);
-      if(node===range.endContainer) part.setEnd(node,range.endOffset);
-      if(part.collapsed) continue;
-      for(const box of Array.from(part.getClientRects())) {
-        if(box.width<.1 || box.height<.1) continue;
-        const r: AnnotationRect=[clamp((box.left-b.left)/b.width),clamp((box.top-b.top)/b.height),
-          clamp((box.right-b.left)/b.width),clamp((box.bottom-b.top)/b.height)];
-        const key=r.map(v=>v.toFixed(7)).join(':');
-        if(validRect(r) && !seen.has(key)) { seen.add(key); rects.push(r); }
-      }
-    }
-    if(rects.length) fragments.push({pageNumber:Number(page.dataset.pageNumber),rects});
-  }
-  return fragments;
-}
 /** The renderer owns page DOM. Marks never paint the source canvas or modify its text. */
 export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLElement[], read: () => PdfAnnotationEditorPort) {
   const overlays=new Map<HTMLElement,SVGSVGElement>();
-  const groups=new Map<string,{ mark:PdfAnnotation; selected:boolean; nodes:SVGGElement[] }>();
+  const groups=new Map<string,{ mark:PdfAnnotation; selected:boolean; nodes:SVGGElement[]; fragments:AnnotationFragment[] }>();
   const overlay=(page:HTMLElement)=>{
     let svg=overlays.get(page); if(svg) return svg;
     svg=document.createElementNS(NS,'svg');
@@ -70,14 +44,19 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
       const selected=mark.id===port.selectedId, old=groups.get(mark.id);
       if(old?.mark===mark && old.selected===selected) continue;
       old?.nodes.forEach(node=>node.remove());
-      const nodes:SVGGElement[]=[];
+      const nodes:SVGGElement[]=[], fragments:AnnotationFragment[]=[];
       for(const fragment of mark.fragments) {
         const page=pages[fragment.pageNumber-1]; if(!page) continue;
         const group=document.createElementNS(NS,'g'); group.dataset.annotationId=mark.id; overlay(page).appendChild(group);
-        for(const r of fragment.rects) rectangle(group,r,`rgb(${mark.rgb.map(v=>Math.round(v*255)).join(' ')})`,mark.opacity,selected);
+        const scale=Number(page.dataset.pdfScale) || 1;
+        const rects=mark.kind==='highlight' ? annotationLineBands(fragment.rects,
+          parseFloat(page.style.width)/scale,parseFloat(page.style.height)/scale) : fragment.rects;
+        fragments.push({pageNumber:fragment.pageNumber,rects});
+        for(const r of rects) rectangle(group,r,`rgb(${mark.rgb.map(v=>Math.round(v*255)).join(' ')})`,
+          Math.min(1,mark.opacity+(selected ? .1 : 0)),selected && mark.kind==='margin');
         nodes.push(group);
       }
-      groups.set(mark.id,{mark,selected,nodes});
+      groups.set(mark.id,{mark,selected,nodes,fragments});
     }
     for(const [page,svg] of overlays) if(!svg.childNodes.length) { svg.remove(); overlays.delete(page); }
   };
@@ -131,7 +110,7 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     } else if(!moved && (!selection || selection.isCollapsed)) {
       const [x,y]=point(start.page,event.clientX,event.clientY);
       const tolerance = 5 / start.page.getBoundingClientRect().width;
-      const hits=port.marks.filter(mark=>markContains(mark,Number(start.page.dataset.pageNumber),x,y) ||
+      const hits=port.marks.filter(mark=>markContains({...mark,fragments:groups.get(mark.id)?.fragments ?? mark.fragments},Number(start.page.dataset.pageNumber),x,y) ||
         mark.kind==='margin' && mark.fragments.some(fragment=>
           fragment.pageNumber===Number(start.page.dataset.pageNumber) && fragment.rects.some(r=>
             x>=r[0]-tolerance && x<=r[2]+tolerance && y>=r[1] && y<=r[3])));
