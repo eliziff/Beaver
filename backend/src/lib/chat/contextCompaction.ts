@@ -15,7 +15,6 @@ const RECENT_TAIL_TOKENS = 20_000;
 const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI legal-work assistant.
 Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
 
-
 function llmMessages(rows: ChatMessageRecord[], provider?: Provider, model?: string): LlmMessage[] {
   return projectChatTranscript(rows, provider, model).map((message) => ({
     role: message.role === "assistant" ? "assistant" : "user",
@@ -61,13 +60,10 @@ async function summarize(
   apiKeys: UserApiKeys | undefined,
   signal: AbortSignal | undefined,
 ) {
-  const transcript = messages
-    .map(({ role, content, modelState }) => `${role.toUpperCase()}: ${modelState ? JSON.stringify(modelState.messages) : content}`)
-    .join("\n\n");
   const result = await streamChatWithTools({
     model,
     systemPrompt: CHECKPOINT_PROMPT,
-    messages: [{ role: "user", content: transcript }],
+    messages,
     maxIterations: 1,
     apiKeys,
     abortSignal: signal,
