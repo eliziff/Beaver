@@ -91,6 +91,9 @@ export type NativePdfPassageGeometry = {
   }>;
 };
 
+export type NativePdfTextPage = { pageNumber: number; width: number; height: number;
+  lines: Array<{ id: string; text?: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };
+
 type NativePdfPassagePages = Omit<NativePdfPassageGeometry, "schemaVersion" | "targets"> & {
   schemaVersion: "legalpdf.passage-pages.v1";
   targets: Array<{ id: string; status: PassageStatus; pages: Array<{
@@ -154,6 +157,7 @@ type StructureAddon = {
   preparePdfDocument(bytes: Buffer, request: unknown): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
+  pdfRecognizedText(document: NativeDocument): NativePdfTextPage[];
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   pdfPassageGeometryPages(document: NativeDocument, bytes: Buffer,
     targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;

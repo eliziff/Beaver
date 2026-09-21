@@ -26,8 +26,9 @@ function rectangle(parent: SVGElement, r: AnnotationRect, color: string, opacity
 function selectedPdfFragments(pages: HTMLElement[], range: Range): AnnotationFragment[] {
   const fragments: AnnotationFragment[] = [];
   for(const page of pages) {
-    const layer=page.querySelector<HTMLElement>('.pdf-text-layer'), b=page.getBoundingClientRect();
-    if(!layer || !b.width || !b.height || !range.intersectsNode(layer)) continue;
+    const layer=page.querySelector<HTMLElement>('.pdf-text-layer');
+    if(!layer || !range.intersectsNode(layer)) continue;
+    const b=page.getBoundingClientRect(); if(!b.width || !b.height) continue;
     const walker=document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
     const rects: AnnotationRect[]=[]; const seen=new Set<string>(); let node: Node | null;
     while((node=walker.nextNode())) {
@@ -49,28 +50,43 @@ function selectedPdfFragments(pages: HTMLElement[], range: Range): AnnotationFra
   return fragments;
 }
 /** The renderer owns page DOM. Marks never paint the source canvas or modify its text. */
-export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLElement[], port: PdfAnnotationEditorPort) {
+export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLElement[], read: () => PdfAnnotationEditorPort) {
   const overlays=new Map<HTMLElement,SVGSVGElement>();
-  for(const page of pages) {
-    const svg=document.createElementNS(NS,'svg');
+  const groups=new Map<string,{ mark:PdfAnnotation; selected:boolean; nodes:SVGGElement[] }>();
+  const overlay=(page:HTMLElement)=>{
+    let svg=overlays.get(page); if(svg) return svg;
+    svg=document.createElementNS(NS,'svg');
     svg.setAttribute('viewBox','0 0 1 1'); svg.setAttribute('preserveAspectRatio','none'); svg.setAttribute('aria-hidden','true');
     svg.dataset.pdfAnnotations='true';
     Object.assign(svg.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none',zIndex:'2',mixBlendMode:'multiply'});
-    page.appendChild(svg); overlays.set(page,svg);
-    for(const mark of port.marks) {
-      const fragment=mark.fragments.find(f=>f.pageNumber===Number(page.dataset.pageNumber));
-      if(!fragment) continue;
-      const group=document.createElementNS(NS,'g'); group.dataset.annotationId=mark.id; svg.appendChild(group);
-      for(const r of fragment.rects) rectangle(group,r,`rgb(${mark.rgb.map(v=>Math.round(v*255)).join(' ')})`,mark.opacity,mark.id===port.selectedId);
-    }
-  }
+    page.appendChild(svg); overlays.set(page,svg); return svg;
+  };
   const priorCursor=scroller.style.cursor;
-  scroller.style.cursor=port.disabled ? 'default' : port.tool === 'draw' ? 'crosshair' : 'auto';
+  const update=()=>{
+    const port=read(), ids=new Set(port.marks.map(mark=>mark.id));
+    scroller.style.cursor=port.disabled ? 'default' : port.tool === 'draw' ? 'crosshair' : 'auto';
+    for(const [id,entry] of groups) if(!ids.has(id)) { entry.nodes.forEach(node=>node.remove()); groups.delete(id); }
+    for(const mark of port.marks) {
+      const selected=mark.id===port.selectedId, old=groups.get(mark.id);
+      if(old?.mark===mark && old.selected===selected) continue;
+      old?.nodes.forEach(node=>node.remove());
+      const nodes:SVGGElement[]=[];
+      for(const fragment of mark.fragments) {
+        const page=pages[fragment.pageNumber-1]; if(!page) continue;
+        const group=document.createElementNS(NS,'g'); group.dataset.annotationId=mark.id; overlay(page).appendChild(group);
+        for(const r of fragment.rects) rectangle(group,r,`rgb(${mark.rgb.map(v=>Math.round(v*255)).join(' ')})`,mark.opacity,selected);
+        nodes.push(group);
+      }
+      groups.set(mark.id,{mark,selected,nodes});
+    }
+    for(const [page,svg] of overlays) if(!svg.childNodes.length) { svg.remove(); overlays.delete(page); }
+  };
   let drag: {page:HTMLElement;x:number;y:number;clientX:number;clientY:number;pointerId:number;preview?:SVGRectElement}|undefined;
   const down=(event:PointerEvent)=>{
+    const port=read();
     if(port.disabled || event.button!==0 || !event.isPrimary) return;
     const page=event.target instanceof Element ? event.target.closest<HTMLElement>('[data-page-number]') : null;
-    if(!page || !overlays.has(page)) return;
+    if(!page || pages[Number(page.dataset.pageNumber)-1]!==page) return;
     const [x,y]=point(page,event.clientX,event.clientY);
     drag={page,x,y,clientX:event.clientX,clientY:event.clientY,pointerId:event.pointerId};
     if(port.tool === 'draw') {
@@ -82,9 +98,9 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     return [Math.min(x,drag.x),Math.min(y,drag.y),Math.max(x,drag.x),Math.max(y,drag.y)];
   };
   const move=(event:PointerEvent)=>{
-    if(!drag || drag.pointerId!==event.pointerId || port.tool !== 'draw') return;
+    if(!drag || drag.pointerId!==event.pointerId || read().tool !== 'draw') return;
     const rect=area(event); drag.preview?.remove();
-    if(rect && validRect(rect)) drag.preview=rectangle(overlays.get(drag.page)!,rect,'#ffe270',.35,true);
+    if(rect && validRect(rect)) drag.preview=rectangle(overlay(drag.page),rect,'#ffe270',.35,true);
   };
   const cancel=()=>{
     if(!drag) return; drag.preview?.remove();
@@ -92,9 +108,11 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     drag=undefined;
   };
   const up=(event:PointerEvent)=>{
+    const port=read();
     if(!drag || drag.pointerId!==event.pointerId) return;
     const start=drag, rect=area(event);
     const moved=Math.hypot(event.clientX-start.clientX,event.clientY-start.clientY)>3; cancel();
+    if(port.disabled) return;
     if(port.tool==='draw') {
       if(!moved || !rect || !validRect(rect)) return;
       const fragments=[{pageNumber:Number(start.page.dataset.pageNumber),rects:[rect]}];
@@ -125,12 +143,13 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
   };
   scroller.addEventListener('pointerdown',down); scroller.addEventListener('pointermove',move);
   window.addEventListener('pointerup',up); scroller.addEventListener('pointercancel',cancel);
-  return ()=>{
+  update();
+  return {update, destroy:()=>{
     cancel(); scroller.style.cursor=priorCursor;
     scroller.removeEventListener('pointerdown',down); scroller.removeEventListener('pointermove',move);
     window.removeEventListener('pointerup',up); scroller.removeEventListener('pointercancel',cancel);
-    overlays.forEach(svg=>svg.remove());
-  };
+    overlays.forEach(svg=>svg.remove()); groups.clear(); overlays.clear();
+  }};
 }
 export function focusPdfAnnotation(scroller:HTMLElement,pages:HTMLElement[],mark:PdfAnnotation) {
   const fragment=mark.fragments[0],page=pages[fragment.pageNumber-1]; if(!page) return;

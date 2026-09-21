@@ -225,15 +225,20 @@ describe("PdfView", () => {
         expect(await screen.findByText("Page 1 text")).toBeVisible();
     });
 
-    it("uses recognized word geometry when a scanned page has no native text", async () => {
+    it("installs late recognized word geometry without reopening a scanned PDF", async () => {
         mocks.nativeText = false;
-        const { container } = render(<PdfView doc={null} bytes={new Uint8Array(8)} recognizedText={{
+        const bytes = new Uint8Array(8);
+        const { container, rerender } = render(<PdfView doc={null} bytes={bytes} />);
+        await waitFor(() => expect(container.querySelector(".pdf-text-layer")).not.toBeNull());
+        rerender(<PdfView doc={null} bytes={bytes} recognizedText={{
             pages: [{ pageNumber: 1, width: 600, height: 800, lines: [{ id: "line-1",
-                rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] }] }],
+                rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] },
+                { id: "line-2", text: "Line-only recognition", rect: [20, 50, 220, 65], words: [] }] }],
         }} />);
         await waitFor(() => expect(container.querySelector(".pdf-text-layer")?.textContent)
             .toContain("Recognized"));
         expect(container.querySelector<HTMLElement>(".pdf-text-layer span")?.style.left).toBe("20px");
+        expect(container.querySelector(".pdf-text-layer")?.textContent).toContain("Line-only recognition");
     });
 
     it("allows an ordinary reader selection to resolve to its PDF page", async () => {
@@ -279,7 +284,7 @@ describe("PdfView", () => {
         await waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
         expect(pages[200].querySelector("canvas")).toBeNull();
         expect(pages[0].querySelectorAll(".pdf-text-layer")).toHaveLength(1);
-        expect(mocks.textLayers.filter(page => page === 1)).toHaveLength(1);
+        expect(pages[200].querySelector(".pdf-text-layer")).toBeNull();
         expect(mocks.textLayers.length).toBeLessThan(10);
     });
 
