@@ -10,10 +10,22 @@ import type { Provider } from "../llm/types";
 import { formatChatMessageContent } from "./messageFormatting";
 import { projectChatTranscript } from "./chatTranscript";
 import type { ContextCheckpointEvent } from "./assistantEvents";
+import { priorLegalEvidenceReceipts } from "./legalEvidence";
 
 const RECENT_TAIL_TOKENS = 20_000;
 const CHECKPOINT_PROMPT = `Write a concise continuation checkpoint for an AI legal-work assistant.
-Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Preserve grounded claim-to-evidence bindings and saved evidence_ids when they are present; do not replace them with display citation numbers or tell a later turn to reconstruct already-completed research. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
+Preserve the user's instructions and decisions, unfinished work, material conclusions, exact document names and identifiers, citations, changes already made, and the next concrete steps. Do not invent facts or reproduce long source passages. Return only the checkpoint.`;
+
+function groundedBindings(rows: ChatMessageRecord[]) {
+  const latest = [...rows].reverse().flatMap((row) => Array.isArray(row.content)
+    ? [...row.content].reverse().flatMap((event) =>
+      event.type === "legal_evidence_receipt" && event.status === "passed" && event.claims.length
+        ? [event.claims.map(({ text, evidence_ids }) => ({ text, evidence_ids }))] : [])
+    : []).at(0);
+  return latest?.length
+    ? `[Grounded claim bindings — authoritative; preserve these IDs unless the substance changes.]\n${JSON.stringify(latest)}`
+    : "";
+}
 
 
 function llmMessages(rows: ChatMessageRecord[], provider?: Provider, model?: string): LlmMessage[] {
@@ -116,10 +128,11 @@ export async function compactChatContext(args: {
       args.apiKeys,
       args.signal,
     );
+    const bindings = groundedBindings(rows);
     const event: ContextCheckpointEvent = {
       type: "context_checkpoint",
       schema_version: 1,
-      summary,
+      summary: [summary, bindings].filter(Boolean).join("\n\n"),
       keep_current: false,
     };
     const appended = await args.store.appendAssistantEvent(
