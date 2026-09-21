@@ -232,11 +232,13 @@ describe("PdfView", () => {
         await waitFor(() => expect(container.querySelector(".pdf-text-layer")).not.toBeNull());
         rerender(<PdfView doc={null} bytes={bytes} recognizedText={{
             pages: [{ pageNumber: 1, width: 600, height: 800, lines: [{ id: "line-1",
-                rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] }] }],
+                rect: [20, 30, 120, 45], words: [{ text: "Recognized", rect: [20, 30, 90, 45] }] },
+                { id: "line-2", text: "Line-only recognition", rect: [20, 50, 220, 65], words: [] }] }],
         }} />);
         await waitFor(() => expect(container.querySelector(".pdf-text-layer")?.textContent)
             .toContain("Recognized"));
         expect(container.querySelector<HTMLElement>(".pdf-text-layer span")?.style.left).toBe("20px");
+        expect(container.querySelector(".pdf-text-layer")?.textContent).toContain("Line-only recognition");
     });
 
     it("allows an ordinary reader selection to resolve to its PDF page", async () => {
