@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TurnToolRegistry, toolOutcome } from "../../chat/toolRegistry";
 import { startMcpToolBridge, type McpToolBridge } from "../mcpToolBridge";
 
 const bridges: McpToolBridge[] = [];
@@ -24,38 +25,42 @@ async function clientFor(bridge: McpToolBridge) {
 }
 
 describe("MCP tool bridge", () => {
-  it("refreshes its catalog after exact loading", async () => {
-    let tools = [tool("load_tools")];
+  it("executes loaded specialists without refreshing the client's catalog", async () => {
+    const names = ["edit_docx_advanced", "document_operation", "lint_document"];
+    const executed: string[] = [];
+    const registry = new TurnToolRegistry<null>(names.map((name) => ({
+      ...tool(name), specialist: true,
+      async execute() { executed.push(name); return toolOutcome(name); },
+    })));
     const bridge = await startMcpToolBridge({
-      tools,
-      resolveTools: () => tools,
-      runTools: async (calls) => {
-        tools = [tool("load_tools"), tool("transform_docx")];
-        return calls.map((call) => ({
-          tool_use_id: call.id,
-          status: "ok" as const,
-          content: "done",
-        }));
-      },
+      tools: registry.all(),
+      runTools: (calls) => registry.run(calls, null),
     });
     bridges.push(bridge);
     const { client, transport } = await clientFor(bridge);
+    const cachedTools = (await client.listTools()).tools;
+    expect(cachedTools.map(({ name }) => name)).toEqual(["load_tools", ...names]);
 
-    expect((await client.listTools()).tools.map(({ name }) => name)).toEqual([
-      "load_tools",
-    ]);
-    await client.callTool({
-      name: "load_tools",
-      arguments: { names: ["transform_docx"] },
-    });
-    expect((await client.listTools()).tools.map(({ name }) => name)).toEqual([
-      "load_tools",
-      "transform_docx",
-    ]);
-    expect(bridge.stats()).toMatchObject({
-      toolCallCount: 1,
-      toolResultBytes: 4,
-    });
+    const blocked = await client.callTool({ name: names[0], arguments: {} });
+    expect(blocked.isError).toBe(true);
+    expect(JSON.stringify(blocked.content)).toContain("tool_not_loaded");
+    expect(executed).toEqual([]);
+    expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
+      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: names }) }]);
+
+    // No second tools/list request or list-changed notification before these calls.
+    for (const name of names) {
+      const result = await client.callTool({ name, arguments: {} });
+      expect(result.isError).not.toBe(true);
+      expect(result.content).toEqual([{ type: "text", text: name }]);
+    }
+    expect(executed).toEqual(names);
+    expect((await client.callTool({ name: "missing_tool", arguments: {} })).isError).toBe(true);
+    expect(executed).toEqual(names);
+    expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
+      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: [] }) }]);
+    expect((await client.listTools()).tools).toEqual(cachedTools);
+    expect(bridge.stats().toolCallCount).toBe(6);
     await transport.close();
   });
 

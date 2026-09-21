@@ -292,12 +292,11 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
   }
   const callbacks = params.callbacks ?? {};
   const initialTools =
-    params.resolveTools?.() ?? params.staticTools ?? params.tools ?? [];
+    params.staticTools ?? params.resolveTools?.() ?? params.tools ?? [];
   let bridge: McpToolBridge | null = null;
   if (initialTools.length && params.runTools) {
     bridge = await startMcpToolBridge({
-      tools: params.staticTools ?? params.tools ?? initialTools,
-      resolveTools: params.resolveTools,
+      tools: initialTools,
       runTools: params.runTools,
       callbacks,
       abortSignal: params.abortSignal,
