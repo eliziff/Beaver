@@ -186,10 +186,10 @@ async function runCodexTurn(params: StreamChatParams,
   const { callbacks, endReasoning } = codexStreamCallbacks(params);
   let noteToolActivity: () => void = () => undefined;
   let bridge: McpToolBridge | null = null;
-  if (params.tools?.length && params.runTools) {
+  const tools = params.staticTools ?? params.resolveTools?.() ?? params.tools ?? [];
+  if (tools.length && params.runTools) {
     bridge = await startMcpToolBridge({
-      tools: params.staticTools ?? params.tools,
-      resolveTools: params.resolveTools,
+      tools,
       runTools: params.runTools,
       callbacks,
       onActivity: () => noteToolActivity(),
