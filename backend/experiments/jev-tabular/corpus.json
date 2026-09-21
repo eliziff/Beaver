@@ -12,7 +12,7 @@
     {"index":1,"name":"Consent Required","format":"text","prompt":"Does a change of control require prior consent from any party? Identify who must consent, the notice period, and any conditions."}]},
   {"id":"credit-mixed","source":"The Term Loan A commitment is CAD 1000000. The Revolving Facility commitment is CAD 500000.\nThe Term Loan A maturity date is 2030-06-30. The Revolving Facility maturity date is 2029-06-30.\nThe commitment fee is 0.5% per annum on undrawn commitments.\nNo borrower may assign its obligations without every lender's prior consent.","columns":[
     {"index":0,"name":"Term Loan A commitment","format":"monetary_amount","prompt":"What is the explicitly stated committed amount of Term Loan A?"},
-    {"index":1,"name":"Maturity","format":"date","prompt":"What is the final maturity date of the facilities under this agreement? If different facilities have different maturities, state each."},
+    {"index":1,"name":"Maturity","format":"bulleted_list","prompt":"What is the final maturity date of the facilities under this agreement? If different facilities have different maturities, state each."},
     {"index":2,"name":"Commitment fee rate","format":"percentage","prompt":"What is the stated annual commitment fee percentage?"}]},
   {"id":"rubric","source":"Either party may terminate for material breach after giving notice and allowing 30 days to cure. Neither party may terminate for convenience.","columns":[
     {"index":0,"name":"Playbook category","format":"tag","tags":["Low","Medium","High"],"prompt":"Assign High if either party has a termination-for-convenience right; Medium if termination for breach has no cure opportunity; otherwise Low. Return only the category."}]},
