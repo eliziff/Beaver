@@ -21,7 +21,10 @@ export function renderRecognizedText(element: HTMLElement, page: PdfRecognizedTe
       if (measure?.measureText) {
         measure.font = `${size}px sans-serif`;
         const advance = measure.measureText(word.text).width;
-        if (advance > 0) span.style.transform = `scaleX(${(x1-x0) / page.width * width / advance})`;
+        if (advance > 0) {
+          span.style.width = `${advance}px`;
+          span.style.transform = `scaleX(${(x1-x0) / page.width * width / advance})`;
+        }
       }
       span.textContent = `${word.text} `; line.append(span);
     }

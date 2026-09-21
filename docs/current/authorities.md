@@ -73,6 +73,16 @@ Completed recognition updates the selectable
 layer in place without replacing marks, history, scroll position or PDF canvases.
 A manual-only source is not opted into OCR by opening the editor.
 
+Live text selection and newly saved highlights use the same continuous band per
+selected line, retaining precise character endpoints and native copy/keyboard
+semantics. Pointer hit testing chooses the page and line before the text run;
+drag starts on page whitespace do not require a glyph hit. PDF.js line endings
+and OCR line breaks supply the order, not a new semantic reading-order engine.
+Existing word-box marks are coalesced for display and hit testing without changing
+their stored coordinates. Text highlights have no per-word selection outlines;
+area drawing and margin marks remain separate. The shared geometry module retains
+source attribution to Zotero reader and react-pdf-highlighter with license notices.
+
 `AuthorityIdentity.annotations[bindingRole]` stores a `beaver.pdf-annotations.v1`
 set bound to the exact source SHA-256. Missing means initialization is permitted;
 explicitly empty means the user removed all marks. Refresh preserves reviewed
