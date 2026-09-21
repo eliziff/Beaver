@@ -85,7 +85,8 @@ export type StreamCallbacks = {
 };
 
 export type ProviderTurnControl = {
-  steer: (message: { id: string; text: string }) => Promise<void>;
+  steer: (message: { id: string; text: string;
+    readers?: import("../chat/assistantWire").ReaderSettings }) => Promise<void>;
 };
 
 export type SteeringMessage = Parameters<ProviderTurnControl["steer"]>[0];

@@ -49,7 +49,7 @@ import {
 } from "./legalEvidence";
 import { resumableReadSubagents } from "./readSubagents";
 import { tabularChatPrompt } from "./tabularContext";
-import { safeErrorLog, safeErrorMessage } from "../safeError";
+import { providerErrorCode, safeErrorLog, safeErrorMessage } from "../safeError";
 import {
   normalizeChatTitle,
   type ChatMessageRecord,
@@ -983,7 +983,7 @@ ${registeredWorkflow.skill_md}` : "",
             // Only a real cancellation is recorded as one. A lost lease ends this
             // attempt while the turn is still owed an answer, so the transcript
             // carries a visible interruption that the re-attempt replaces.
-            !isAbortError(error) ? { type: "error", message }
+            !isAbortError(error) ? { type: "error", message, code: providerErrorCode(error) }
               : leaseWasLost(signal) ? { type: "error", message: INTERRUPTED_TURN_MESSAGE }
                 : { type: "turn_status", status: "cancelled" },
           ], [], true)?.catch((persistError) => console.error(
@@ -994,7 +994,7 @@ ${registeredWorkflow.skill_md}` : "",
         auditTurn({ status: isAbortError(error) ? "cancelled" : "failed", events: null });
         if (!signal.aborted) {
           sink.emit({
-            type: "error", message,
+            type: "error", message, code: providerErrorCode(error),
             ...(localTools.mutationCommitted() ? { retryable: false } : {}),
           });
           sink.emit({ type: "transcript_version", transcriptVersion: version });

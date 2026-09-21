@@ -1,7 +1,7 @@
 import type { LanguageModel } from "ai" with { "resolution-mode": "import" };
 import type { JSONValue } from "ai" with { "resolution-mode": "import" };
 import { requireApiKey } from "./apiKeys";
-import { providerForModel } from "./models";
+import { modelForProvider, providerForModel } from "./models";
 import { openCodeGoConnection } from "./openCodeGo";
 import { ollamaBaseUrl } from "./ollamaModels";
 import type { StreamChatParams } from "./types";
@@ -17,7 +17,7 @@ const effort = (value: string | undefined, allowed: readonly string[]) => {
 export async function hostedModel(params: StreamChatParams): Promise<HostedModel> {
   const provider = providerForModel(params.model), keys = params.apiKeys;
   const go = provider === "opencode-go" ? openCodeGoConnection(params) : undefined;
-  const model = go?.model ?? params.model.replace(/^ollama:/u, "");
+  const model = go?.model ?? modelForProvider(params.model);
   const requested = params.reasoningEffort?.toLowerCase();
   const thinking = params.enableThinking === true || Boolean(requested);
   const summaries = params.reasoningSummary !== "none";

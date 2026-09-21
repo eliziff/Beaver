@@ -21,6 +21,9 @@ const id = short.min(1), integer = z.number().int().nonnegative().max(Number.MAX
 const longText = z.string().max(ASSISTANT_LIMITS.text), finite = z.number().finite();
 const url = text.nullable().transform((value) => safeAssistantUrl(value));
 const validUrl = url.refine((value): value is string => value !== null);
+export const readerSettings = z.object({ enabled: z.boolean(),
+  model: z.string().trim().min(1).max(200), effort: z.string().trim().max(100) }).strict();
+export type ReaderSettings = z.infer<typeof readerSettings>;
 const status = z.enum(["running", "completed", "error", "interrupted", "cancelled"]);
 const display = { source_class: z.enum(["case", "legislation", "commentary"]).optional(),
   external_url: url.optional(), authority: short.optional(), short_authority: short.optional(),
@@ -64,6 +67,8 @@ export function parseAssistantCitations(value: unknown): AssistantCitation[] {
 }
 const citations = z.array(z.unknown()).transform(parseAssistantCitations);
 export const activity = z.object({ id, tool: id, label: id, status,
+  read: z.object({ resource: text.min(1), queries: z.array(short.min(1)).max(8).optional(),
+    ranges: z.array(short.min(1)).max(8).optional() }).strict().optional(),
   citations: citations.optional() }).strict();
 const choice = z.object({ id, kind: z.literal("choice"), question: text,
   options: z.array(z.object({ value: id }).strict()).min(1).max(32) }).strict();
@@ -94,6 +99,13 @@ export const workflow = z.object({ type: z.literal("workflow_run"), id: short.op
 export const subagent = z.object({ type: z.literal("subagent_run"), id, task: longText, status,
   activity: activity.optional(), activities: z.array(activity).max(ASSISTANT_LIMITS.activities).optional(),
   output: longText.optional(), error: short.optional(), citations: citations.optional() }).strict();
+export const PROVIDER_ERROR_MESSAGES = {
+  provider_auth: "The model provider rejected the credentials. Check its key or sign in again, then retry.",
+  provider_config: "The model provider is not configured. Add its key or sign in, or choose another provider.",
+  provider_limit: "The model provider's rate or usage limit was reached. Try later or choose another provider.",
+  provider_request: "The model provider rejected this request. Check the selected model or try another provider.",
+  provider_unavailable: "The model provider is unavailable. Try again or choose another provider.",
+} as const;
 export const sharedEvents = [
   z.object({ type: z.literal("reasoning"), text: longText }).strict(),
   z.object({ type: z.literal("content"), text: longText }).strict(),
@@ -108,6 +120,7 @@ export const sharedEvents = [
   z.object({ type: z.literal("compaction"), status: z.enum(["running", "completed", "failed"]) }).strict(),
   z.object({ type: z.literal("turn_status"), status: z.literal("cancelled") }).strict(),
   z.object({ type: z.literal("error"), message: text,
+    code: z.enum(["provider_auth", "provider_config", "provider_limit", "provider_request", "provider_unavailable"]).optional(),
     retryable: z.boolean().optional(), accepted: z.boolean().optional() }).strict(),
 ] as const;
 export const publicEvent = z.discriminatedUnion("type", [

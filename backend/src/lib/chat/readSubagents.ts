@@ -1,5 +1,5 @@
 import { getCodexModelCatalog, type CodexModelCatalog } from "../codexCatalog";
-import { isSupportedModel } from "../llm/models";
+import { isSupportedModel, providerForModel } from "../llm/models";
 import type { NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
 import { jsonRecord as record, trimmedText } from "../value";
 import { objectSchema } from "./toolRegistry";
@@ -294,7 +294,8 @@ export async function getReadSubagentCapability(
   };
   // A bare slug the Codex catalog knows stays a Codex reader; any other picker model id
   // (gemini, claude, deepseek, opencode-go, ...) reads through its own provider (Eli, 2026-09-10).
-  const selected = /^[a-z-]+:/u.test(requested) && !requested.startsWith("codex:") ? undefined
+  const hosted = requested !== DEFAULT_MODEL && isSupportedModel(requested) && providerForModel(requested) !== "codex";
+  const selected = hosted ? undefined
     : (catalog ?? await getCodexModelCatalog()).models.find((item) => item.slug === model);
   if (!selected && isSupportedModel(requested)) return {
     available: true, serverEnabled: true, model: requested, runModel: requested,
