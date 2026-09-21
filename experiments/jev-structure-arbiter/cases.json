@@ -1,0 +1,94 @@
+[
+  {
+    "id": "interleaved-columns",
+    "kind": "order",
+    "expected": "column_major",
+    "state": "A 600x800 legal page has a full-width title at y=20 and an author line at y=50. Below them are six prose rows. Every row contains a left line at x=60..240 followed in source order by a right line at x=360..540. Thus source order alternates left, right, left, right six times. The proposed column-major order keeps the title and author first, then reads all six left lines top-to-bottom, then all six right lines top-to-bottom.",
+    "criteria": {
+      "source": "Keep the alternating source order.",
+      "column_major": "Use the proposed column-major order.",
+      "uncertain": "Neither candidate is sufficiently supported."
+    }
+  },
+  {
+    "id": "misplaced-preamble",
+    "kind": "order",
+    "expected": "source",
+    "state": "A 600x800 page contains three left-column lines followed by three right-column lines, already in coherent column-major reading order. A full-width title and an author line appear late in the source sequence even though their y coordinates are 20 and 50. Re-sorting the whole page geometrically would move only that preamble; the two body columns themselves are not interleaved.",
+    "criteria": {
+      "source": "Keep the coherent source order and do not repair the page solely for the misplaced preamble.",
+      "column_major": "Reorder the complete page into geometric column-major order.",
+      "uncertain": "Neither candidate is sufficiently supported."
+    }
+  },
+  {
+    "id": "endnote-columns",
+    "kind": "order",
+    "expected": "column_major",
+    "state": "An endnotes page contains notes 1 through 6 in the left column and notes 7 through 12 in the right column. Source extraction alternates same-row lines: note 1, note 7, note 2, note 8, and so on. Every line is explicitly classified as endnote material and the two columns are geometrically distinct.",
+    "criteria": {
+      "source": "Keep the row-interleaved source order.",
+      "column_major": "Read notes 1-6 down the left column, then notes 7-12 down the right column.",
+      "uncertain": "Neither candidate is sufficiently supported."
+    }
+  },
+  {
+    "id": "table-grid-order",
+    "kind": "order",
+    "expected": "source",
+    "state": "A page has a visible 'Table 3' caption and a dense aligned numeric grid. Its extracted lines alternate across cells in the table's source order. A column-major challenger would group all left-side cells before all right-side cells, destroying row relationships. Both candidates preserve every line.",
+    "criteria": {
+      "source": "Keep the table's source order.",
+      "column_major": "Read all left-side cells before all right-side cells.",
+      "uncertain": "Neither candidate is sufficiently supported."
+    }
+  },
+  {
+    "id": "compact-bottom-notes",
+    "kind": "role",
+    "expected": "footnote",
+    "state": "Near the bottom of a legal page, several compact 7-point lines begin with consecutive note labels 12, 13, and 14. The 10-point main body ends above them with a clear vertical gap. The compact lines contain ordinary citation prose and are not repeated on adjacent pages.",
+    "criteria": {
+      "body": "Ordinary main body text.",
+      "footnote": "Footnote body material.",
+      "footer": "Repeated running footer or folio.",
+      "uncertain": "The role is not sufficiently supported."
+    }
+  },
+  {
+    "id": "table-numbers",
+    "kind": "role",
+    "expected": "table",
+    "state": "Inside a region captioned 'Table 2', six aligned rows each begin with a number and continue with multiple numeric cells. The labels form a row sequence, occupy a three-column grid, and use the same type size as the other cells. There is a genuine separately labelled note beneath the grid.",
+    "criteria": {
+      "table": "Table rows and cells.",
+      "footnote": "A sequence of footnote bodies.",
+      "body": "Ordinary numbered prose.",
+      "uncertain": "The role is not sufficiently supported."
+    }
+  },
+  {
+    "id": "attached-top-note-labels",
+    "kind": "role",
+    "expected": "footnote",
+    "state": "At the top of several continuation pages, a small number is horizontally attached to compact note prose on the same baseline. The number changes with the continuing note; the combined material is not repeated verbatim across pages and is followed by more compact note lines.",
+    "criteria": {
+      "header": "Repeated running header or page furniture.",
+      "footnote": "Continuing footnote or endnote material.",
+      "body": "Ordinary main body text.",
+      "uncertain": "The role is not sufficiently supported."
+    }
+  },
+  {
+    "id": "repeated-journal-title",
+    "kind": "role",
+    "expected": "header",
+    "state": "The exact text 'ALBERTA LAW REVIEW' appears in the top band at nearly the same x position and 8-point size on four consecutive interior pages. Each occurrence precedes unique 10-point article prose. It is not attached to a note label or sentence.",
+    "criteria": {
+      "header": "Repeated running header or page furniture.",
+      "heading": "A substantive heading in the article.",
+      "body": "Ordinary main body text.",
+      "uncertain": "The role is not sufficiently supported."
+    }
+  }
+]
