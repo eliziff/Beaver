@@ -284,3 +284,22 @@ describe("AssistantMessage activity", () => {
     });
 
 });
+
+it("groups structured searches by resource without replacing queries or hiding running calls", () => {
+    const citation = { kind: "a2aj", ref: 1, citation: "2021 BCSC 2156", name: "R. v. Zakuti", dataset: "BCSC", url: "https://example.test/one", quotes: [] };
+    renderEvents([
+        { type: "tool_activity", id: "one", tool: "Read", status: "running", label: "Searching",
+          read: { resource: "source://one", queries: ["mask", "face covering"] }, citations: [citation] },
+        { type: "tool_activity", id: "two", tool: "Read", status: "completed", label: "Changed title",
+          read: { resource: "source://one", queries: ["mask", "disguise"] }, citations: [citation] },
+        { type: "tool_activity", id: "three", tool: "Read", status: "completed", label: "Searching",
+          read: { resource: "source://two", queries: ["mask"] },
+          citations: [{ ...citation, ref: 2, citation: "2021 BCSC 2253", url: "https://example.test/two" }] },
+    ]);
+    const grouped = screen.getByText('Searching for “mask”, “face covering”, “disguise”...');
+    expect(grouped).toHaveClass("truncate");
+    expect(grouped).toHaveAttribute("title", expect.stringContaining("2 calls"));
+    expect(grouped.closest('[role="listitem"]')).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByText("Changed title")).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+});

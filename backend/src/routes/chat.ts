@@ -1,3 +1,4 @@
+import { readerSettings } from "../lib/chat/assistantWire";
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -230,10 +231,12 @@ export function createChatRouter(
       return void res.status(404).json({ detail: "Chat not found" });
     }
     const id = text(req.body?.id), instruction = text(req.body?.text);
-    if (!CODEX_THREAD_ID.test(id) || !instruction) {
-      return void res.status(400).json({ detail: "id and text are required" });
+    const readers = req.body?.readers === undefined ? undefined : readerSettings.safeParse(req.body.readers);
+    if (!CODEX_THREAD_ID.test(id) || (!instruction && !readers?.success) || readers?.success === false) {
+      return void res.status(400).json({ detail: "A valid id and instruction or reader settings are required" });
     }
-    if (!await turns.steer(scope, req.params.chatId, { id, text: instruction })) {
+    if (!await turns.steer(scope, req.params.chatId, { id, text: instruction,
+      ...(readers?.success && { readers: readers.data }) })) {
       return void res.status(409).json({
         detail: "No steerable response is running",
       });

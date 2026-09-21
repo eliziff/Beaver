@@ -1622,6 +1622,13 @@ export function assistantTools<Context extends {
         ? { ...provenance, turnId } : provenance }));
   const coding: AssistantToolRun = async (call, args, signal, progress) => {
     const requested = trimmed(args.file_path);
+    if (call.name === "Read" && args.patterns) {
+      const target = parseResourceReference(requested);
+      if (args.pattern || target?.kind !== "source" || target.provider === "pdf")
+        return fail("Use patterns instead of pattern with one public legal-source resource. Use Grep for Library documents.");
+      if (researchContext?.subjects?.some(subject => subject.resource === requested && subject.evidence !== undefined))
+        return fail("This selection permits only saved passages, not a whole-source search. Read selection for the permitted evidence_ids.");
+    }
     if (call.name === "Read" && requested === "selection") return researchContext?.subjects
       ? readResearchContextInventory(researchContext, { offset: Number(args.offset) || 1, limit: Number(args.limit) || 20 })
       : fail("No research scope is selected");
@@ -1685,13 +1692,13 @@ export function assistantTools<Context extends {
         saved = String(args.locator ?? "").split(/\s*,\s*/u).map((label) =>
           selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
             locator.kind === args.locator_kind && locatorKey(locator.label) === locatorKey(label)));
-      if (saved.every((receipt) => receipt !== undefined) && legalEvidenceState && !args.context_blocks && !args.pattern && !args.section &&
+      if (saved.every((receipt) => receipt !== undefined) && legalEvidenceState && !args.context_blocks && !args.pattern && !args.patterns && !args.section &&
         (!args.end_locator || args.end_locator === args.locator) && (!args.references || args.references === "none")) {
         saved.forEach((receipt) => registerLegalEvidence(legalEvidenceState, receipt));
         if (saved.every(({ evidence_id }) => readPriorLegalEvidence(legalEvidenceState, evidence_id)))
           return { ...result(saved.length === 1 ? modelEvidencePassage(saved[0]) : saved.map(modelEvidencePassage)), evidence: saved };
       }
-      if (selected.some(({ evidence }) => evidence !== undefined) || !args.locator_kind && !args.section && !args.pattern && !args.references &&
+      if (selected.some(({ evidence }) => evidence !== undefined) || !args.locator_kind && !args.section && !args.pattern && !args.patterns && !args.references &&
           args.mode !== "drafting" && args.mode !== "redline") return readResearchContext(documents, scope, researchContext,
         { resource: requested, offset: Number(args.offset) || 1, start_char: Number(args.start_char) || 0,
           limit: Number(args.limit) || 100, signal, callId: call.id, reader: readerAssignment });

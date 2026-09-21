@@ -1,3 +1,4 @@
+import { readPatterns } from "../resourceTools";
 import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "../../resourceReferences";
 import { collapseProvisionLabels } from "../../provisionLabels";
@@ -37,6 +38,20 @@ function activityLocatorNoun(kind: string, plural: boolean) {
   if (kind === "paragraph") return plural ? "paras" : "para";
   if (kind === "section") return plural ? "ss" : "s";
   return plural ? `${kind}s` : kind;
+}
+
+/** Source identity and requested operations are stable before metadata arrives. */
+export function assistantReadActivity(args: Record<string, unknown>) {
+  const resource = trimmedText(args.file_path), reference = parseResourceReference(resource);
+  if (resource.length > 8_192 || reference?.kind !== "source" && reference?.kind !== "document") return undefined;
+  const queries = readPatterns(args).slice(0, 8).map(query => query.slice(0, 256));
+  if (queries.length) return { resource, queries };
+  const kind = trimmedText(args.locator_kind), first = activityLocatorLabel(trimmedText(args.locator), kind),
+    last = activityLocatorLabel(trimmedText(args.end_locator), kind);
+  const range = first ? `${activityLocatorNoun(kind, !!last && last !== first)} ${first}${last && last !== first ? `–${last}` : ""}`
+    : args.page ? `page ${args.page}` : args.section ? `section ${activityText(args.section, 100)}`
+    : args.offset ? `from line ${args.offset}` : args.start_char != null ? `from character ${args.start_char}` : "";
+  return { resource, ...(range && { ranges: [range] }) };
 }
 
 export function assistantToolActivityLabel(

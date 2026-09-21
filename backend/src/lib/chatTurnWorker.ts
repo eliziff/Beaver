@@ -1,3 +1,4 @@
+import { readerSettings } from "./chat/assistantWire";
 import { randomUUID } from "node:crypto";
 import { ChatApplicationError, chatTurnInputSchema,
   type ChatApplication, type EventSink } from "./chat/chatApplication";
@@ -102,9 +103,16 @@ export function chatTurnJobHandler(
             const payload = jsonRecord(command.payload);
             const id = typeof payload?.id === "string" ? payload.id : "";
             const text = typeof payload?.text === "string" ? payload.text : "";
-            if (command.kind === "steer" && id && text && claimedChatId &&
-                await steerChatTurn(claimedChatId, { id, text })) {
+            const readers = readerSettings.safeParse(payload?.readers);
+            if (command.kind === "steer" && id && (text || readers.success) && claimedChatId &&
+                await steerChatTurn(claimedChatId, { id, text,
+                  ...(readers.success && { readers: readers.data }) })) {
               if (commandStop.signal.aborted || controller.signal.aborted) return;
+              if (readers.success) {
+                turn.input = { ...turn.input, subagents: readers.data.enabled,
+                  subagent_model: readers.data.model, subagent_effort: readers.data.effort };
+                await context.checkpoint({ payload: jsonValue({ ...jsonRecord(job.payload), input: turn.input }) });
+              }
               await finishJobCommand(command.id); handled += 1;
             } else if (command.kind === "client_tool_result") {
               const callId = typeof payload?.callId === "string" ? payload.callId : "";

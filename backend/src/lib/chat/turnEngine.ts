@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { parseAssistantCitations } from "./assistantWire";
+import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "./assistantWire";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderTurnControl,
   type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,
   type UserApiKeys } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
-import { safeErrorMessage } from "../safeError";
-import { assistantToolActivityLabel } from "./tools/a2ajTools";
+import { providerErrorCode, safeErrorMessage } from "../safeError";
+import { assistantReadActivity, assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
 import { publicAssistantEvent, type AssistantEvent, type AskInputsEvent,
   type PublicAssistantEvent, type ReadSubagentAssignment, type ReadSubagentCheckpoint,
@@ -54,8 +54,8 @@ import { SOURCE_SEARCH_SYSTEM_PROMPT, jurisdictionPreferencePrompt,
 import { estimateContextTokens, modelContextWindow } from "../llm/contextWindow";
 
 export class AssistantStreamError extends Error {
-  constructor(message: string, readonly fullText: string, readonly events: AssistantEvent[]) {
-    super(message);
+  constructor(message: string, readonly fullText: string, readonly events: AssistantEvent[], cause?: unknown) {
+    super(message, { cause });
     this.name = "AssistantStreamError";
   }
 }
@@ -174,7 +174,7 @@ export async function runChatTurn(options: {
     addEvent,
     updateActivity(id, label) {
       const activity = toolActivities.get(id);
-      if (activity?.status === "running" && label !== activity.label) {
+      if (activity?.status === "running" && !activity.read && !providerSignal.aborted && label !== activity.label) {
         emitToolActivity({ ...activity, label });
       }
     },
@@ -188,6 +188,7 @@ export async function runChatTurn(options: {
     .filter((tool) => !internalNames.has(tool.name) && (!options.readerAssignment ||
       tool.reader?.includes(options.readerAssignment.jurisdiction)))
     .map((tool) => options.readerAssignment ? { ...tool, specialist: false } : tool);
+  let readerSelection = { enabled: subagents, model: options.subagentModel, effort: options.subagentEffort };
   const resumableReaders = new Map(options.resumableSubagents);
   const request = [...options.messages].reverse()
     .find((message) => message.role === "user")?.content ?? "";
@@ -209,7 +210,7 @@ export async function runChatTurn(options: {
     ? AbortSignal.any([signal, providerAbort.signal]) : providerAbort.signal;
 
   const append = (delta: string) => {
-    if (!delta || paused) return;
+    if (!delta || paused || providerSignal.aborted) return;
     if (boundary) {
       boundary = false;
       text += contentBoundarySeparator(text, delta);
@@ -254,12 +255,15 @@ export async function runChatTurn(options: {
       tool_use_id: call.id, status: "error",
       content: JSON.stringify({ ok: false, error }),
     });
+    const selection = { ...readerSelection };
+    if (!selection.enabled) return refuse("Reading agents are disabled. Continue in the main turn.");
     const assignment = resume?.assignment ?? readSubagentAssignment(call);
     if (!assignment) return refuse("task and scope are required.");
     const capability = await getReadSubagentCapability(undefined, {
-      model: resume?.model ?? options.subagentModel,
-      effort: resume?.effort ?? options.subagentEffort,
+      model: selection.model ?? resume?.model,
+      effort: selection.effort ?? resume?.effort,
     });
+    throwIfAborted(providerSignal);
     if (!capability.available) return refuse(capability.reason);
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
     const inheritReads = (grounding: LegalEvidenceReceiptEvent) => {
@@ -267,7 +271,9 @@ export async function runChatTurn(options: {
         childEvidence.evidence.get(receipt.evidence_id));
       for (const query of grounding.queries) registerLegalResearchQueries(evidence, [query], query.model);
     };
-    let continuationId = resume?.continuation_id;
+    // Native continuations belong to their original model; evidence is portable.
+    let continuationId = resume && [capability.model, capability.runModel].includes(resume.model)
+      ? resume.continuation_id : undefined;
     const id = resume?.id ?? call.id;
     let research = resume?.research;
     const activities =
@@ -283,7 +289,7 @@ export async function runChatTurn(options: {
     const checkpoint = (): ReadSubagentCheckpoint | undefined => continuationId ? {
       id,
       continuation_id: continuationId,
-      model: capability.model,
+      model: capability.runModel,
       effort: capability.effort,
       assignment,
       evidence: [...childEvidence.evidence.values()].map(({ receipt }) => receipt),
@@ -305,7 +311,7 @@ export async function runChatTurn(options: {
       }, { ...base, status: "running", ...(activity && { activity }) });
     };
     try {
-      research ??= childResearchReadContext(options.researchContext, assignment,
+      research ??= childResearchReadContext(context.research, assignment,
         [...evidence.evidence.values()].map(({ receipt }) => receipt));
       const inScope = researchResultFilter(research), priorEvidence = resume?.evidence.filter((receipt) =>
         inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }));
@@ -320,7 +326,7 @@ export async function runChatTurn(options: {
         ].filter(Boolean).join("\n\n"),
         messages: [{
           role: "user",
-          content: resume
+          content: continuationId
             ? "Continue the original assignment from where the session stopped and complete its grounded answer."
             : `Assigned scope: ${assignment.scope}\n\nQuestion: ${assignment.task}`,
         }],
@@ -344,7 +350,8 @@ export async function runChatTurn(options: {
         },
         apiKeys: options.apiKeys,
         reasoningEffort: capability.effort,
-        signal,
+        signal: providerSignal,
+        promptCacheKey: `${options.promptCacheKey ?? "reader"}:${id}`,
         subagents: false,
         activityDetail: "tools",
         providerSession: { persist: true, ...(continuationId ? { continuationId } : {}) },
@@ -354,6 +361,7 @@ export async function runChatTurn(options: {
         },
         onActivity: () => context.onActivity?.(),
       });
+      throwIfAborted(providerSignal);
       const grounding = legalEvidenceReceiptEvent(child.evidence);
       if (!grounding || grounding.status !== "passed") {
         throw new Error("Reader returned no grounded answer.");
@@ -377,10 +385,10 @@ export async function runChatTurn(options: {
     } catch (error) {
       const observed = legalEvidenceReceiptEvent({ ...childEvidence, answer: null, attempted: false, failure: null });
       if (observed) inheritReads(observed);
-      const interrupted = Boolean(signal?.aborted) || isAbortError(error);
+      const interrupted = providerSignal.aborted || isAbortError(error);
       const status = interrupted ? "interrupted" as const : "error" as const;
       const saved = checkpoint();
-      const errorMessage = safeErrorMessage(error, "Reading agent failed");
+      const errorMessage = safeErrorMessage(error, "Reading agent failed"), code = providerErrorCode(error);
       for (const [key, activity] of activities) {
         if (activity.status === "running") activities.set(key, { ...activity, status });
       }
@@ -391,7 +399,8 @@ export async function runChatTurn(options: {
         error: errorMessage,
         publicError: saved
           ? `${/ground(?:ed|ing)/iu.test(errorMessage) ? "Grounding verification" : "Reading agent"} failed; this reading agent can be resumed.`
-          : "Reading agent failed before it started; retry it.",
+          : code ? PROVIDER_ERROR_MESSAGES[code]
+          : "Reading agent failed; retry it or select another reader model.",
         activities: [...activities.values()],
         ...(saved && { resume: saved }),
       });
@@ -403,8 +412,7 @@ export async function runChatTurn(options: {
       };
     }
   };
-  const readerSchemas = subagents
-    ? [READ_SUBAGENT_TOOL, RESUME_SUBAGENT_TOOL] : [];
+  const readerSchemas = [READ_SUBAGENT_TOOL, RESUME_SUBAGENT_TOOL];
   const readerTools: BeaverTool<ChatToolContext>[] = readerSchemas.map((schema) => ({
     ...schema,
     // Delegation is an ordinary chat tool, not a load_tools specialist.
@@ -424,7 +432,8 @@ export async function runChatTurn(options: {
   ]);
   const systemPrompt = [options.systemPrompt,
     researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
-  const resolveTools = () => registry.visible();
+  const resolveTools = () => registry.visible().filter(tool => readerSelection.enabled ||
+    ![READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(tool.name));
   const runTools = async (calls: NormalizedToolCall[], onActivity?: () => void) => {
     throwIfAborted(signal);
     const previousActivity = context.onActivity;
@@ -450,7 +459,7 @@ export async function runChatTurn(options: {
           : createLegalEvidenceCitationsFromEntries(entries);
         emitToolActivity({
           ...activity,
-          status: (outcome.metadata?.status ?? (outcome.result.isError ? "error" : "ok")) === "error"
+          status: providerSignal.aborted ? "interrupted" : (outcome.metadata?.status ?? (outcome.result.isError ? "error" : "ok")) === "error"
             ? "error" : "completed",
           ...(citations.length && { citations }),
         });
@@ -497,12 +506,13 @@ export async function runChatTurn(options: {
     onContentDelta(delta: string) {
       if (delta) providerActivity = true;
       append(delta);
-      options.onContentDelta?.(delta);
+      if (!providerSignal.aborted) options.onContentDelta?.(delta);
     },
     onContentBlockEnd() {
       if (!paused && options.separateContentBlocks !== false) boundary = Boolean(text);
     },
     onReasoningDelta(delta: string) {
+      if (providerSignal.aborted) return;
       if (activityDetail !== "auto" && activityDetail !== "trace") return;
       if (delta) providerActivity = true;
       if (!paused) reasoning += delta;
@@ -517,6 +527,7 @@ export async function runChatTurn(options: {
       if (!paused) emit({ type: "reasoning_block_end" });
     },
     onToolCallStart(call: NormalizedToolCall) {
+      if (providerSignal.aborted) return;
       providerActivity = true;
       if (call.name === ASK_INPUTS_TOOL.name ||
           call.name === LEGAL_EVIDENCE_TOOL_NAME ||
@@ -529,6 +540,7 @@ export async function runChatTurn(options: {
         : registry.activity(call);
       if (defaultLabel === null && activityDetail !== "tools" &&
           activityDetail !== "trace") return;
+      const read = call.name === "Read" ? assistantReadActivity(call.input) : undefined;
       const label = defaultLabel ??
         assistantToolActivityLabel(call.name, call.input) ?? call.name;
       const citations = parseAssistantCitations(registry.activityCitations(call));
@@ -537,7 +549,8 @@ export async function runChatTurn(options: {
         id: call.id,
         tool: call.name,
         status: "running",
-        label,
+        label: read ? read.queries?.length ? "Searching" : "Reading" : label,
+        ...(read && { read }),
         ...(citations.length && { citations }),
       });
     },
@@ -585,6 +598,10 @@ export async function runChatTurn(options: {
   };
   const control: ProviderTurnControl = {
     async steer(message) {
+      throwIfAborted(providerSignal);
+      if (message.readers) readerSelection = { ...message.readers };
+      if (!message.text.trim()) return;
+      message = { id: message.id, text: message.text };
       if (!nativeControl) {
         steering.push(message);
         return;
@@ -638,6 +655,7 @@ export async function runChatTurn(options: {
       },
     } : undefined,
   });
+    if (!paused) throwIfAborted(providerSignal);
     options.onProviderResult?.(result);
     return result;
   };
@@ -706,16 +724,16 @@ export async function runChatTurn(options: {
     }
   } catch (error) {
     if (!paused) {
-      settleToolActivities(isAbortError(error) ? "interrupted" : "error");
+      settleToolActivities(signal?.aborted || isAbortError(error) ? "interrupted" : "error");
       partialEvents();
       const observed = legalEvidenceReceiptEvent({ ...evidence, answer: null, attempted: false, failure: null });
       if (observed) addEvent(observed);
-      if (isAbortError(error)) throw new AssistantStreamAbortError(text, events);
+      if (signal?.aborted || isAbortError(error)) throw new AssistantStreamAbortError(text, events);
       const message = safeErrorMessage(error, "Stream error");
-      addEvent({ type: "error", message });
-      throw new AssistantStreamError(message, text, events);
+      addEvent({ type: "error", message, code: providerErrorCode(error) });
+      throw new AssistantStreamError(message, text, events, error);
     }
-  }
+  } finally { options.onProviderControl?.(null); }
 
   const citations = paused ? [] : createLegalEvidenceCitations(evidence);
   const receipt = legalEvidenceReceiptEvent(evidence);
@@ -727,7 +745,6 @@ export async function runChatTurn(options: {
     settleToolActivities("completed");
     emit({ type: "content_final", text, citations });
   }
-  options.onProviderControl?.(null);
   return result;
 }
 
