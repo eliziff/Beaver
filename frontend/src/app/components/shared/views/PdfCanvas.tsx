@@ -177,6 +177,7 @@ export function PdfCanvas({
                     visibility: known ? "" : "hidden",
                 });
                 wrapper.dataset.pageNumber = String(index + 1);
+                wrapper.dataset.pdfScale = String(scale);
                 wrapper.dataset.geometryReady = String(!!known);
                 wrapper.dataset.legalBlock = "";
                 wrapper.dataset.locatorKind = "page";
