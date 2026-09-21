@@ -258,30 +258,6 @@ it("DeepSeek reasoning and tool results survive both a step and a later turn", a
   expect(runTools).toHaveBeenCalledOnce();
 });
 
-it.each([
-  ["openai:gpt-5.5", "gpt-5.5", "responses"],
-  ["claude:claude-sonnet-4-6", "claude-sonnet-4-6", "messages"],
-  ["gemini:gemini-3-flash-preview", "gemini-3-flash-preview", "gemini"],
-  ["opencode-go:gpt-5.5", "gpt-5.5", "responses"],
-  ["opencode-go:minimax-m2.7", "minimax-m2.7", "messages"],
-  ["opencode-go:deepseek-v4.1-flash", "deepseek-v4.1-flash", "chat/completions"],
-])("sends %s through its native SDK endpoint without a picker prefix", async (model, native, endpoint) => {
-  const response = () => endpoint === "responses" ? openai() : endpoint === "messages" ? anthropic()
-    : endpoint === "gemini" ? gemini([{ text: "Answer" }]) : sse([
-      { id: "chat", object: "chat.completion.chunk", created: 1, model: native,
-        choices: [{ index: 0, delta: { role: "assistant", content: "Answer" }, finish_reason: null }] },
-      { id: "chat", object: "chat.completion.chunk", created: 1, model: native,
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
-    ]);
-  const { bodies, fetch } = transport([response]);
-  expect((await streamHosted({ ...params, model, tools: [], promptCacheKey: "conversation",
-    apiKeys: { ...params.apiKeys, "opencode-go": "test" } })).fullText).toBe("Answer");
-  expect(String(fetch.mock.calls[0][0])).toContain(endpoint === "gemini" ? native : `/${endpoint}`);
-  if (endpoint !== "gemini") expect(bodies[0].model).toBe(native);
-  if (model.startsWith("opencode-go:")) expect(new Headers(fetch.mock.calls[0][1].headers)
-    .get("x-opencode-session")).toBe("conversation");
-});
-
 it("discards buffered SDK deltas and tool calls after cancellation", async () => {
   const controller = new AbortController(), deltas: string[] = [], run = vi.fn(), saved = vi.fn();
   transport([() => gemini([{ text: "Kept" }, { text: "Late" }, { functionCall: { name: "Read", args: { file: "x" } } }])]);
@@ -289,4 +265,56 @@ it("discards buffered SDK deltas and tool calls after cancellation", async () =>
     callbacks: { onModelMessages: saved, onContentDelta(text) { deltas.push(text); controller.abort(); } },
   })).rejects.toMatchObject({ name: "AbortError" });
   expect(deltas).toEqual(["Kept"]); expect(run).not.toHaveBeenCalled(); expect(saved).not.toHaveBeenCalled();
+});
+
+it("keeps validation and targeted invalid-input handling at the ordered dispatcher", async () => {
+  const { TurnToolRegistry, toolText } = await import("../chat/toolRegistry");
+  const execute = vi.fn(async (_input: Record<string, unknown>) => ({ result: toolText("accepted"), terminal: true }));
+  const deferred = vi.fn(() => ({ result: toolText("Correct file without resending other work", true) }));
+  const registry = new TurnToolRegistry([{ ...read, execute, onInvalidInput: deferred }]);
+  const { bodies } = transport([
+    () => gemini([{ functionCall: { name: "Read", args: { file: 7 } }, thoughtSignature: "invalid-signature" }]),
+    () => gemini([{ functionCall: { name: "Read", args: { file: "source" } }, thoughtSignature: "valid-signature" }]),
+  ]);
+  const saved: ModelState[] = [];
+  await streamHosted({ ...params, resolveTools: () => registry.visible(),
+    runTools: calls => registry.run(calls, {}), callbacks: { onModelMessages: state => { saved.push(state); } } });
+  expect(deferred).toHaveBeenCalledOnce();
+  expect(execute).toHaveBeenCalledOnce();
+  expect(execute.mock.calls[0][0]).toEqual({ file: "source" });
+  expect(JSON.stringify(bodies[1])).toContain("Correct file without resending other work");
+  expect(saved.flatMap(state => state.messages).filter(message => message.role === "tool")).toHaveLength(2);
+});
+
+it.each([
+  ["gemini:gemini-3-flash-preview", "gemini-3-flash-preview", "google"],
+  ["claude:claude-sonnet-4-6", "claude-sonnet-4-6", "messages"],
+  ["openai:gpt-5.5", "gpt-5.5", "responses"],
+  ["deepseek:deepseek-v4-pro", "deepseek-v4-pro", "chat"],
+  ["opencode-go/deepseek-v4.1-flash", "deepseek-v4.1-flash", "chat"],
+  ["opencode-go:qwen3.9-max", "qwen3.9-max", "messages"],
+  ["opencode-go:grok-5", "grok-5", "responses"],
+  ["opencode-go:gpt-5.5", "gpt-5.5", "responses"],
+  ["opencode-go:minimax-m2.7", "minimax-m2.7", "messages"],
+])("sends native model identity and the correct wire for %s", async (model, native, protocol) => {
+  const { bodies, fetch } = transport([() => protocol === "google" ? gemini([{ text: "Answer" }])
+    : protocol === "messages" ? anthropic() : protocol === "responses" ? openai() : sse([
+      { id: "chat-1", created: 1, model: native, choices: [
+        { index: 0, delta: { role: "assistant", content: "Answer" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } },
+    ])]);
+  const result = await streamHosted({ ...params, model, tools: [], promptCacheKey: "conversation-1",
+    apiKeys: { ...params.apiKeys, deepseek: "test", "opencode-go": "test" } });
+  expect(result.fullText).toBe("Answer");
+  expect(fetch).toHaveBeenCalledTimes(1);
+  const [url, init] = fetch.mock.calls[0];
+  if (protocol === "google") expect(String(url)).toContain(`/models/${native}:streamGenerateContent`);
+  else {
+    expect(bodies[0].model).toBe(native);
+    expect(String(url)).toMatch(new RegExp(`/${protocol === "chat" ? "chat/completions" : protocol}$`));
+  }
+  if (model.startsWith("opencode-go")) {
+    expect(new Headers(init.headers).get("User-Agent")).toMatch(/^beaver\/1\.0(?: |$)/u);
+    expect(new Headers(init.headers).get("x-opencode-session")).toBe("conversation-1");
+  }
 });

@@ -49,11 +49,11 @@ function catalog(tools: Tool[]): ReadonlyMap<string, Tool> {
   for (const tool of tools) {
     const name = tool.name.trim();
     if (!name || unique.has(name)) continue;
-    unique.set(name, {
-      ...tool,
-      name,
-      inputSchema: { ...tool.inputSchema, type: "object" },
-    });
+    // This bridge returns normalized text/images, not the executor's original
+    // structuredContent. Its outputSchema belongs to registry validation only.
+    const { outputSchema: _outputSchema, ...exposed } = tool;
+    unique.set(name, { ...exposed, name,
+      inputSchema: { ...tool.inputSchema, type: "object" } });
   }
   return unique;
 }
