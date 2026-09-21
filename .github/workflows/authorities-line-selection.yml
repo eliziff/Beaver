@@ -1,0 +1,45 @@
+name: Authorities line selection candidate
+on:
+  push:
+    branches: [fix/authorities-highlight-selection-ocr]
+    paths: [.github/workflows/authorities-line-selection.yml]
+permissions:
+  contents: write
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply the locally validated line-only text path
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib,json
+          changes=json.loads(r'''[["backend/src/lib/structureNative.ts", "ff378cb3e824b9237ff878da6bfab2b973f44b8b7cacdbc6cd2b50c61e78b6f9", "44f26ab9b3fa58b7ef56eddfa5f5ace3725db5a94c677947437dafe1f9aba439", [[94, 95, "  lines: Array<{ id: string; text?: string; rect: Rect; words: Array<{ text: string; rect: Rect }> }> };\n"]]], ["docs/current/authorities.md", "96ceffc6bbfdce8c29897dd7713b59082eec0771bcd99cef2cbd3d8608412eac", "5c37de7fd0f0fe4c3030388a35be800dd286df0e73be37a58b3a215cc521c7d3", [[69, 70, "including when reopening a draft. Word boxes are used when available; line-only\nrecognition retains its text and line box rather than inventing word coordinates.\nCompleted recognition updates the selectable\n"]]], ["frontend/src/app/components/shared/views/PdfCanvas.tsx", "59e323e4ae5f061e434ef8a37d9a1919405d1b3b7ecd03d876c31d18e608518e", "a20eeeac2fa90c4faf6a8596a9cd6a10a2ec494922cbc70efa9b0142b01aa75f", [[267, 268, "                    if (entry.textSource?.lines.some(line => line.words.length || line.text?.trim())) {\n"]]], ["frontend/src/app/components/shared/views/PdfView.test.tsx", "a27f4e0cc96453f661ab9d47583e7cc62c4a269556041f5f650197190d79e4f7", "8c35ab401f6f016f55760913e7cdcb37a2d0f89e37a5bf0b789c4e815d446cf2", [[234, 235, "                rect: [20, 30, 120, 45], words: [{ text: \"Recognized\", rect: [20, 30, 90, 45] }] },\n                { id: \"line-2\", text: \"Line-only recognition\", rect: [20, 50, 220, 65], words: [] }] }],\n"], [239, 239, "        expect(container.querySelector(\".pdf-text-layer\")?.textContent).toContain(\"Line-only recognition\");\n"]]], ["frontend/src/app/components/shared/views/pdfRecognizedText.ts", "2e1ae8e22dbee99d6fe27873573ffcb9829b31b43084daf0830a0f24eaa0f485", "ae593b93c102680b618b4df30d3a110bdc1aad06bc289d8293acbda52979104e", [[10, 11, "    // Line-only providers still supply a real text run and its measured line box.\n    const runs = source.words.length ? source.words : source.text?.trim()\n      ? [{ text: source.text, rect: source.rect }] : [];\n    for (const word of runs) {\n"]]], ["frontend/src/app/lib/api/documents.ts", "e3317b692c0b365387ffb214f41a4a7690f7d6bbe16abb0cf9f4c7f42464d6e5", "d6eca2e715c27c6ed301e4add659a4d393c2f1ac0794a5b549214b622e78afab", [[21, 22, "  lines: Array<{ id: string; text?: string; rect: [number, number, number, number];\n"]]]]''')
+          for name,before,after,edits in changes:
+            p=Path(name);old=p.read_bytes()
+            assert hashlib.sha256(old).hexdigest()==before,(name,'source changed')
+            lines=old.decode().splitlines(keepends=True)
+            for start,end,text in reversed(edits):lines[start:end]=[text]
+            result=''.join(lines).encode()
+            assert hashlib.sha256(result).hexdigest()==after,(name,'patch mismatch')
+            p.write_bytes(result)
+      - name: Check frontend types and the existing affected suites
+        run: |
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+          cd frontend
+          npx tsc --noEmit
+          npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/QuotationFinding.test.tsx src/app/authorities/standaloneHost.test.tsx
+      - name: Pin validated producer and publish source changes only
+        run: |
+          git diff --check
+          git update-index --cacheinfo 160000,507566d5c6ed0da28250253b8a2fd2a597f6cbba,legal-pdf-parser
+          rm .github/workflows/authorities-line-selection.yml
+          git add backend/src/lib/structureNative.ts docs/current/authorities.md frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx frontend/src/app/components/shared/views/pdfRecognizedText.ts frontend/src/app/lib/api/documents.ts .github/workflows/authorities-line-selection.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: support retained OCR words and line-only recognition in Authorities'
+          git push origin HEAD:fix/authorities-highlight-selection-ocr
+          git rev-parse HEAD
