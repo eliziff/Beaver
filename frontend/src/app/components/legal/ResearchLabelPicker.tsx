@@ -15,7 +15,7 @@ const MODAL_BOUNDARY = 'dialog,[role="dialog"],[data-assistant-dock]';
 
 type Ready = { file: ResearchFile; itemId: string; sourceId?: string };
 export type ResearchLabelTarget = Ready & { kind: "source" | "evidence"; labelIds: string[];
-  note?: string; title: string;
+  note?: string; title: string; hideNote?: boolean;
   anchor?: HTMLElement | DOMRect; returnFocus?: HTMLElement;
   prepare?: (file: ResearchFile) => Promise<Ready> };
 
@@ -168,8 +168,8 @@ export function ResearchLabelEditor({ target, onClose, onPreview, onError, mutat
       <ResearchLabelWaterfall labels={labels} scope={scope} selectedId={slot} onChoose={put}
         noneLabel={scope === "source" ? "None" : undefined} />
     </div>
-    <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
-      rows={1} placeholder="Note" className="mt-1 block min-h-9 w-full resize-y rounded border border-gray-300 px-[7px] py-[5px] text-xs" />
+    {!target.hideNote && <textarea value={note} onChange={(event) => setNote(event.target.value)} onBlur={() => persist(slots, note)} aria-label="Item note"
+      rows={1} placeholder="Note" className="mt-1 block min-h-9 w-full resize-y rounded border border-gray-300 px-[7px] py-[5px] text-xs" />}
     {error && <p role="status" className="mt-1 text-xs text-red-700">{error}</p>}
   </div>;
 }
