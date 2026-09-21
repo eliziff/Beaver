@@ -24,7 +24,7 @@ import { parseResourceReference } from "./resourceReferences";
 import { resolveResearchArrangement, type ResearchArrangement } from "./tabular/researchArrangement";
 import { researchImportCatalog, defaultResearchImport, researchImportPlan,
   type ResearchImportInput, type ResearchImportDesign, type ResearchImportCatalog } from "./tabular/researchImport";
-import { researchConceptKey, researchLabelPlan, type ProposalProgress, type ResearchLabelDesign } from "./researchLabelDesign";
+import { researchConceptKey, researchLabelMetadata as proposalMetadata, researchLabelPlan, type ProposalProgress, type ResearchLabelDesign } from "./researchLabelDesign";
 import { readResearchHistory, sameResearchValue } from "./researchHistory";
 import type { ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
 import type { TabularApplication } from "./tabular/application";
@@ -419,14 +419,6 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         name: label.path, prompt: label.definition || `What does this source establish about ${label.path}?`, scope: label.scope }));
     return { ...opened, target };
   }
-  function proposalMetadata(catalog: ResearchImportCatalog) {
-    const rows = new Map(catalog.rows.map((row) => [row.id, row]));
-    return { sources: [...new Map(catalog.rows.map((row) => [row.sourceId, { id: row.sourceId, title: row.title }])).values()],
-      items: [...new Map(catalog.entries.flatMap((entry) => (entry.reference.kind === "passage" ? [entry.reference.evidenceId] : entry.evidenceIds).map((evidenceId) => {
-        const row = rows.get(entry.rowId)!;
-        return [`${row.sourceId}:${evidenceId}`, { sourceId: row.sourceId, evidenceId, title: row.title, text: entry.text.slice(0, 500) }] as const;
-      }))).values()] };
-  }
   function category(design: ResearchLabelDesign, file: ResearchFile, scope: "source" | "highlight", name: string,
     existingId?: string, parent?: ResearchSourceLabelNode | ResearchHighlightTypeNode): ResearchSourceLabelNode | ResearchHighlightTypeNode {
     const existing = existingId ? file.state.labels[existingId] : Object.values(file.state.labels).find((label) =>
@@ -535,7 +527,11 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       node = category(design, file, label ? label.scope : "highlight", label ? label.name : "Highlight", label ? label.id : undefined);
     if (label && label.scope === "source") (node as ResearchSourceLabelNode).members = catalog.rows.map(({ sourceId }) => sourceId);
     const highlight = label && label.scope === "source" ? category(design, file, "highlight", "Highlight") : node;
-    (highlight as ResearchHighlightTypeNode).members = proposalMetadata({ ...catalog, entries }).items.map(({ sourceId, evidenceId }) => ({ sourceId, evidenceId }));
+    const rowSources = new Map(catalog.rows.map(({ id, sourceId }) => [id, sourceId]));
+    (highlight as ResearchHighlightTypeNode).members = [...new Map(entries.flatMap(({ rowId, evidenceIds }) => evidenceIds.map((evidenceId) => {
+      const member = { sourceId: rowSources.get(rowId)!, evidenceId };
+      return [JSON.stringify(member), member] as const;
+    }))).values()];
     const { actions, title } = researchLabelPlan(file, { ...catalog, columns: [] }, design, "sources", "file");
     const saved = await commitResearchFile(documents, scope, file, { type: "merge", title, actions,
       evidence: (await Promise.all(entries.map(({ reference }) => reference.kind === "answer" || reference.kind === "cell"

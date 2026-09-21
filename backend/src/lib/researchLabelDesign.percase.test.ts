@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { researchCategoryBudget, researchLabelDesignSchema, researchLabelDraft, researchLabelInventory, researchLabelModelView, researchLabelPlan } from "./researchLabelDesign";
-import type { ResearchFile } from "./researchFile";
-import type { ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
-import type { ResearchImportCatalog } from "./tabular/researchImport";
+import { researchCategoryBudget, researchLabelDesignSchema, researchLabelDraft, researchLabelInventory, researchLabelMetadata, researchLabelModelView, researchLabelPlan } from "./researchLabelDesign";
+import { researchSourceResource, type ResearchFile } from "./researchFile";
+import { resolveChatFindings, selectFindingClaims } from "./researchChat";
+import type { ChatMessageRecord } from "./chatStore";
+import type { LegalEvidenceReceipt, ResearchEvidence, ResearchLabelDesign, ResearchSourceLabelNode, ResearchHighlightTypeNode } from "./researchContract";
+import { researchImportCatalog, type ResearchImportCatalog } from "./tabular/researchImport";
 
 const first = randomUUID(), second = randomUUID(), outside = randomUUID();
 const node = (name: string, members: string[] = [], children: ResearchSourceLabelNode[] = []): ResearchSourceLabelNode => ({ id: randomUUID(), name, members, children });
@@ -108,5 +110,55 @@ describe("canonical research organization", () => {
       plan = researchLabelPlan(saved, catalog, design([node("New organization", [first])]), "sources");
     expect(plan.actions.some((action) => action.type === "remove")).toBe(false);
     expect(plan.actions).toContainEqual({ type: "label-selection", target: "sources", sourceIds: [first], assign: [parent.id], mode: "remove" });
+  });
+  it.each(["answer", "subagent"])("preserves original %s claim identities through source grouping and narrowing", (kind) => {
+    const ids = [first, second, outside], version = randomUUID(),
+      sources = ids.map((id, index) => ({ id, collected: true, labelIds: [], note: "", passages: null,
+        reference: { provider: "library" as const, kind: "document" as const, id, versionId: version, title: `Source ${index}` } })),
+      sourceFile = { ...file, state: { ...file.state, sources: Object.fromEntries(sources.map((source) => [source.id, source])) } },
+      receipts: LegalEvidenceReceipt[] = ids.map((id, index) => ({ evidence_id: `e_${index}`, provider: "library", jurisdiction: "CA",
+        source_class: "commentary", stable_source_id: id, source_sha256: "a".repeat(64), scope: "passage", block_id: "1",
+        span_sha256: "b".repeat(64), span_text: `Original passage ${index}`, citation: "", name: `Source ${index}`,
+        dataset: "Library", language: "en", version, external_url: null, locator: { kind: "paragraph", label: "1" }, resolver_version: "library-read-v1" })),
+      claims = [{ text: "First source's distinct claim", evidence_ids: ["e_0"] },
+        { text: "Second source's distinct claim", evidence_ids: ["e_1"] },
+        { text: "Shared claim", evidence_ids: ["e_0", "e_1"] },
+        { text: "Third source's singleton claim", evidence_ids: ["e_2"] }],
+      event = kind === "answer" ? { type: "legal_evidence_receipt", status: "passed", claims, evidence: receipts, queries: [] }
+        : { type: "subagent_run", id: "reader", status: "completed", task: "Research", grounding: { status: "passed", claims, evidence: receipts, queries: [] } },
+      messages = [{ id: "message", role: "assistant", content: [event] }] as unknown as ChatMessageRecord[],
+      findings = resolveChatFindings(sourceFile, "chat", messages),
+      parts = new Map<string, Record<string, ResearchEvidence>>(receipts.map((receipt, index) => [ids[index], {
+        [receipt.evidence_id]: { receipt, sourceId: ids[index], labelIds: [], note: "" } }]));
+    for (const ordered of [sources, [...sources].reverse()]) {
+      const imported = researchImportCatalog(sourceFile, ordered.map(({ id: sourceId, reference }) =>
+        ({ sourceId, reference, resource: researchSourceResource(reference) })), parts, findings, { rows: "sources" }),
+        inventory = JSON.parse(researchLabelInventory(imported, sourceFile, "sources")),
+        byItem = new Map(imported.entries.map((entry) => [entry.id, entry.evidenceIds]));
+      expect(inventory.answerExcerpts.map((entry: { claim: string; evidence: string[] }) => ({ text: entry.claim,
+        evidence_ids: entry.evidence.flatMap((id) => byItem.get(id) ?? []).sort() }))).toEqual(claims);
+    }
+    const finding = findings.find(({ sourceId }) => sourceId === first)!, reference = finding.reference;
+    if (reference.kind !== "answer") throw new Error("Expected chat finding");
+    const selected = selectFindingClaims(finding, { ...reference, claimIndices: [2, 0, 2] });
+    expect(selected.reference).toMatchObject({ claimIndices: [0, 2] });
+    expect(selectFindingClaims(selected, { ...reference, claimIndices: [2] }).answer.claims).toEqual([claims[2]]);
+    expect(() => selectFindingClaims(finding, { ...reference, claimIndices: [1] })).toThrow("unavailable");
+  });
+  it("keeps passage previews and support distinct from findings and notes citing the same evidence", () => {
+    const answer: ResearchImportCatalog["entries"][number] = { id: "answer", rowId: second, kind: "answer", default: false, text: "Commentary discussing the source.",
+      reference: { kind: "answer", chatId: "chat", answerId: "answer", resource: "journal", claimIndices: [0] },
+      evidenceIds: ["e1"], quotes: [catalog.entries[0].text, catalog.entries[1].text], column: { index: 0, name: "Finding", prompt: "What does the source explain?", format: "text" } },
+      mixed: ResearchImportCatalog = { ...catalog, entries: [...catalog.entries, answer, { ...answer, id: "note", kind: "note", text: "My note", quotes: [],
+        reference: { kind: "note", sourceId: second, evidenceId: "e1" } }] },
+      metadata = researchLabelMetadata(mixed),
+      plan = researchLabelPlan(file, mixed, design([], [highlight("Compulsion", metadata.items.map(({ sourceId, evidenceId }) => ({ sourceId, evidenceId })))]), "sources");
+    expect(metadata.items).toEqual([
+      { sourceId: first, evidenceId: "e0:instance", title: "Judgment", text: catalog.entries[0].text },
+      { sourceId: second, evidenceId: "e1", title: "Journal analysis", text: catalog.entries[1].text },
+    ]);
+    expect(plan.labels[0].rows.map(({ support }) => support)).toEqual(catalog.entries.map(({ text }) => [text]));
+    expect(JSON.parse(researchLabelInventory(mixed, file, "sources")).answerExcerpts)
+      .toEqual([{ claim: answer.text, evidence: ["item1"] }]);
   });
 });
