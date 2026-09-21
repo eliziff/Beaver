@@ -19,7 +19,7 @@ export function selectFindingClaims(finding: ResearchFinding, ref: ResearchFindi
   const claims = indices.map((index) => finding.answer.claims[available ? available.indexOf(index) : index]);
   if (claims.some((claim) => !claim)) throw new ApplicationError(409, "The selected Chat claim is unavailable");
   const ids = new Set(claims.flatMap(({ evidence_ids }) => evidence_ids));
-  return { ...finding, reference: ref, answer: { claims, coverage: "partial" },
+  return { ...finding, reference: { ...ref, claimIndices: indices }, answer: { claims, coverage: "partial" },
     evidence: finding.evidence.filter(({ evidence_id }) => ids.has(evidence_id)) };
 }
 
@@ -47,15 +47,17 @@ export function resolveChatFindings(file: ResearchFile, chatId: string, rows: Ch
       const ids = [...new Set(claims.flatMap(({ evidence_ids }) => evidence_ids))],
         supporting = ids.map((id) => byId.get(id));
       if (supporting.some((value) => !value)) throw new ApplicationError(409, "An original supporting passage is unavailable");
+      // Claim indices belong to the original answer, not a source-specific subset.
+      const indexed = claims.map((claim, index) => ({ claim, index }));
       for (const resource of new Set(supporting.flatMap((item) => item && legalEvidenceResourceReference(item) || []))) {
         const sourceId = sources.get(resource); if (!sourceId) continue;
-        const selected = claims.filter((claim) => claim.evidence_ids.some((id) =>
+        const selected = indexed.filter(({ claim }) => claim.evidence_ids.some((id) =>
           legalEvidenceResourceReference(byId.get(id)!) === resource)),
-          selectedIds = [...new Set(selected.flatMap(({ evidence_ids }) => evidence_ids))];
-        findings.push({ reference: { kind: "answer", chatId, answerId, resource },
+          selectedIds = [...new Set(selected.flatMap(({ claim }) => claim.evidence_ids))];
+        findings.push({ reference: { kind: "answer", chatId, answerId, resource, claimIndices: selected.map(({ index }) => index) },
           kind, sourceId, resource, question: { id: answerId,
           title: question.slice(0, 100), prompt: question },
-          answer: { claims: selected.map(({ text, evidence_ids }) => ({ text, evidence_ids })) },
+          answer: { claims: selected.map(({ claim: { text, evidence_ids } }) => ({ text, evidence_ids })) },
           evidence: selectedIds.map((id) => byId.get(id)!), origin: { chatId, messageId: row.id,
             ...(subagentId && { subagentId }) } });
       }

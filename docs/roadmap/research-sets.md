@@ -24,6 +24,21 @@ Human and assistant operations share the same mutation, revision and undo/histor
 boundaries. A read-only preview is not acceptance. Conversions reuse saved data
 and exact provenance; they do not parse generated prose back into source facts.
 
+## Organization proposals
+
+The [organization prompt](../../backend/src/lib/researchOrganizationPrompt.ts)
+uses the agreed mixed-source instructions and an illustrative municipal-demonstrations
+example. Scholarship can supply central analysis; source labels and highlight types
+are complementary, with no preferred hierarchy depth or category count. The example
+is instructional, not a benchmark result; live proposal quality remains a gate below.
+
+Source-grouped chat findings retain original answer claim indices, including singleton
+and shared claims. Inventory compaction must not combine different claims or discard
+another source's finding. Passage previews and support excerpts come from the actual
+source passages, retaining saved highlight-instance identities. Findings and notes
+remain analysis, not substitute quote text. Save highlights uses selected findings'
+supporting receipts directly rather than display metadata.
+
 ## Remaining validation and product work
 
 | Gate | Required evidence |
