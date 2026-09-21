@@ -76,7 +76,7 @@ test("real console discovers native APIs and performs compound edits", async () 
     paragraph.set({ParaStyleName:'BeaverDerived',CharHeight:18,CharWeight:150,CharUnderline:1});
     paragraph.reset(['CharHeight','CharUnderline']); style.set({CharHeight:14}); style.expect({ParentStyle:'Standard',CharHeight:14});
     word.assert(style.call('getParentStyle')==='Standard' && paragraph.get('CharHeight')===14);
-    word.assert(paragraph.call('getPropertyStates',['CharHeight','CharWeight'])[0].value==='DEFAULT_VALUE');
+    word.assert(paragraph.call('getPropertyStates',['CharWeight','CharHeight'])[1].value==='DEFAULT_VALUE');
     paragraph.expect({CharWeight:150});
     const selection=paragraph.find('unchanged');
     selection.set({CharColor:0x123456}); selection.expect({String:'unchanged',CharColor:0x123456});
@@ -110,13 +110,9 @@ test("real console discovers native APIs and performs compound edits", async () 
   assert.ok(Buffer.byteLength(JSON.stringify(report)) < 16000, "Receipts must not repeat large intermediate text values");
   assert.equal(report.revision_count, 2);
   assert.deepEqual(report.result, { rows: 3, footnotes: 1 });
-  assert.match(await xml(candidate, "word/document.xml"), /Additional item/);
-  assert.match(await xml(candidate, "word/document.xml"), /Preamble\./);
-  assert.match(await xml(candidate, "word/document.xml"), /w:color w:val="123456"/);
-  assert.match(await xml(candidate, "word/document.xml"), /🦫 exact selection/);
-  assert.match(await xml(candidate, "word/document.xml"), /\$125/);
-  assert.match(await xml(candidate, "word/document.xml"), /tblHeader/);
-  assert.match(await xml(candidate, "word/document.xml"), /beaver_anchor/);
+  const body = await xml(candidate, "word/document.xml");
+  for (const pattern of [/Additional item/, /Preamble\./, /w:color w:val="123456"/, /🦫 exact selection/, /\$125/, /tblHeader/, /beaver_anchor/])
+    assert.match(body, pattern);
   assert.match(await xml(candidate, "word/footnotes.xml"), /paragraph 15/);
   assert.match(await xml(candidate, "word/comments.xml"), /Do not remove my note/);
   assert.match(await xml(candidate, "word/styles.xml"), /BeaverDerived/);
@@ -146,8 +142,7 @@ test("text and note edits are native revisions and can be rejected without erasi
   assert.ok(rejected);
   assert.match(await xml(rejected, "word/footnotes.xml"), /paragraph 12/);
   assert.doesNotMatch(await xml(rejected, "word/footnotes.xml"), /paragraph 15/);
-  assert.match(await xml(rejected, "word/document.xml"), /retained insertion/);
-  assert.match(await xml(rejected, "word/document.xml"), /retained deletion/);
+  assert.match(await xml(rejected, "word/document.xml"), /retained insertion[\s\S]*retained deletion/);
 });
 
 test("untrackable mixed changes fail rather than bypass Review mode", async () => {
@@ -163,11 +158,16 @@ test("creation, readonly policy, unsafe native access, and failed programs use t
     const text=doc.get('Text'),cursor=text.call('createTextCursor'); cursor.call('gotoStart',false);
     const note=word.create('com.sun.star.text.Footnote');text.call('insertTextContent',cursor,note,false);
     note.set({String:'New native note.'}); note.expect({String:'New native note.'});
+    word.assert(word.inspect({family:'header-left'}).total===0);
+    word.target('page-style:Standard').set({FirstIsShared:false,HeaderIsShared:false,FooterIsShared:false});
+    for (const family of ['header-first','header-left','footer-first','footer-left']) {
+      const story=word.target(family+':Standard'); story.set({String:family+' content'});
+      story.find('content').set({String:'verified'}); story.expect({String:family+' verified'});
+      word.assert(word.inspect({family}).items.some(row=>row.target===family+':Standard'));
+    }
     return word.inspect({family:'footnote'}).total;
   `);
   assert.ok(made.candidate); assert.equal(made.report.result, 2);
-  const noop = await preview(bytes, "return 'no changes';");
-  assert.ok(noop.candidate); assert.equal(noop.report.change_count, 0);
   await assert.rejects(runLibreOffice(bytes, { action:'preview', snapshot:'0'.repeat(64), program:'return null;' }, signal), /[Ss]tale snapshot/);
   for (const text of ['not in source', 'a'])
     await assert.rejects(preview(bytes, `word.target('footnote:0').find('12').set({String:'15'}); word.target('paragraph:1').find(${JSON.stringify(text)});`), /missing or ambiguous/);

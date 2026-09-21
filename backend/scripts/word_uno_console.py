@@ -13,7 +13,7 @@ import zipfile
 from urllib.parse import quote
 
 from word_uno import (W, collection, resolve, resolve_many, encode, decode, check_name, check_value,
-                      package, props, writer, load, inspect, properties, read_property, page, enumerate_values, STYLE_FAMILIES)
+                      package, props, writer, load, inspect, properties, page, enumerate_values, STYLE_FAMILIES, PAGE_STORIES, page_story, revision_range)
 import uno
 
 # Discover document interfaces rather than maintaining a formatting catalogue.
@@ -22,7 +22,7 @@ INTERFACES = ('com.sun.star.text.', 'com.sun.star.style.', 'com.sun.star.table.'
               'com.sun.star.drawing.', 'com.sun.star.container.')
 METHODS = {
     'com.sun.star.beans.XPropertyState': {'getPropertyDefault', 'getPropertyState', 'getPropertyStates', 'setPropertyToDefault'},
-    'com.sun.star.beans.XMultiPropertyStates': {'getPropertyStates', 'setPropertiesToDefault'},
+    'com.sun.star.beans.XMultiPropertyStates': {'getPropertyStates', 'getPropertyDefaults', 'setPropertiesToDefault'},
     'com.sun.star.lang.XMultiServiceFactory': {'getAvailableServiceNames'},
     'com.sun.star.lang.XServiceInfo': {'supportsService', 'getSupportedServiceNames'},
     'com.sun.star.util.XSearchable': {'createSearchDescriptor', 'findAll', 'findFirst', 'findNext'},
@@ -59,45 +59,48 @@ def semantic_package(path):
                 for n in z.namelist() if not n.endswith('/') and not n.startswith('docProps/thumbnail.')}
 
 
+def page_text(story):
+    # Pagination displays are calculated; retain field identity, not cached digits.
+    paragraphs = []
+    for _, node in enumerate_values(story):
+        if node.supportsService('com.sun.star.text.TextTable'):
+            paragraphs.append(('table', node.Name)); continue
+        pieces = []
+        for _, portion in enumerate_values(node):
+            field = portion.TextField if portion.TextPortionType == 'TextField' else None
+            kind = next((k for k in ('PageNumber', 'PageCount') if field and field.supportsService('com.sun.star.text.TextField.' + k)), None)
+            pieces.append('\0' + kind if kind else portion.String)
+        paragraphs.append(''.join(pieces))
+    return paragraphs
+
+
 def native_state(doc):
     """Ordered text/story and structural readback; not a complete OOXML validator."""
-    result = {'body': [], 'stories': {}, 'tables': [], 'bookmarks': [], 'drawings': []}
-    for _, node in enumerate_values(doc.Text):
-        result['body'].append(('table', node.Name) if node.supportsService('com.sun.star.text.TextTable')
-                              else ('paragraph', node.String))
-    for family in ('footnote', 'endnote', 'frame'):
-        result['stories'][family] = [(key, node.String) for key, node in collection(doc, family)]
-    for key, style in collection(doc, 'page-style'):
-        for kind in ('Header', 'Footer'):
-            if getattr(style, kind + 'IsOn'): result['stories'][kind + ':' + key] = getattr(style, kind + 'Text').String
-    for name, t in collection(doc, 'table'):
-        result['tables'].append((name, tuple((cell, t.getCellByName(cell).String) for cell in t.getCellNames()), t.Rows.Count))
-    for name, b in collection(doc, 'bookmark'):
-        result['bookmarks'].append((name, b.Anchor.String))
-    for name, s in collection(doc, 'drawing'):
-        result['drawings'].append((name, s.ShapeType, encode(s.Position), encode(s.Size)))
-    result['revisions'] = [(r.RedlineAuthor, r.RedlineType, redline_text(r)) for _,r in collection(doc, 'revision')]
-    return result
-
-
-def redline_text(r):
-    start, end = r.getPropertyValue('RedlineStart'), r.getPropertyValue('RedlineEnd')
-    cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
-    return cursor.String
+    return {
+        'body': [('table', node.Name) if node.supportsService('com.sun.star.text.TextTable') else ('paragraph', node.String)
+                 for _, node in enumerate_values(doc.Text)],
+        'stories': {**{family: [(key, node.String) for key, node in collection(doc, family)]
+                       for family in ('footnote', 'endnote', 'frame')},
+                    **{family + ':' + key: page_text(story) for key, style in collection(doc, 'page-style')
+                       for family in PAGE_STORIES if (story := page_story(style, family, include_shared=True)) is not None}},
+        'tables': [(name, tuple((cell, table.getCellByName(cell).String) for cell in table.getCellNames()), table.Rows.Count)
+                   for name, table in collection(doc, 'table')],
+        'bookmarks': [(name, bookmark.Anchor.String) for name, bookmark in collection(doc, 'bookmark')],
+        'drawings': [(name, shape.ShapeType, encode(shape.Position), encode(shape.Size)) for name, shape in collection(doc, 'drawing')],
+        'revisions': [(r.RedlineAuthor, r.RedlineType, revision_range(r).String) for _, r in collection(doc, 'revision')],
+    }
 
 
 def review(doc, indices, decision):
     if decision not in ('accept', 'reject'): raise ValueError('Review must accept or reject named changes')
     selected = [doc.Redlines.getByIndex(i) for i in sorted(set(indices), reverse=True)]
-    signatures = lambda: Counter((r.RedlineAuthor, r.RedlineType, redline_text(r)) for _,r in collection(doc, 'revision'))
-    removed = [(r.RedlineAuthor, r.RedlineType, redline_text(r)) for r in selected]
+    signatures = lambda: Counter((r.RedlineAuthor, r.RedlineType, revision_range(r).String) for _,r in collection(doc, 'revision'))
+    removed = [(r.RedlineAuthor, r.RedlineType, revision_range(r).String) for r in selected]
     expected = signatures() - Counter(removed)
     ctx = uno.getComponentContext()
     dispatcher = ctx.ServiceManager.createInstanceWithContext('com.sun.star.frame.DispatchHelper', ctx)
     for r in selected:
-        start, end = r.getPropertyValue('RedlineStart'), r.getPropertyValue('RedlineEnd')
-        cursor = start.getText().createTextCursorByRange(start); cursor.gotoRange(end, True)
-        doc.CurrentController.select(cursor)
+        doc.CurrentController.select(revision_range(r))
         count = doc.Redlines.Count
         dispatcher.executeDispatch(doc.CurrentController.Frame,
             '.uno:AcceptTrackedChange' if decision == 'accept' else '.uno:RejectTrackedChange', '', 0, ())
@@ -107,22 +110,28 @@ def review(doc, indices, decision):
 
 
 def unique_range(doc, scope, text, prefix=None):
-    """Unique literal selection, or an exact native-prefix postcondition lookup."""
+    """Select exact native text; validate cursor movement, never trust text offsets."""
     if prefix is None:
         if not isinstance(text, str) or not text or len(text) > 10000 or any(c in text for c in '\r\n\t'):
             raise ValueError('find needs 1-10000 literal characters inside a paragraph')
-        if scope.String.count(text) != 1: raise ValueError('Replacement target is missing or ambiguous')
+        prefix, match, suffix = scope.String.partition(text)
+        if not match or text in suffix: raise ValueError('Replacement target is missing or ambiguous')
+    owner = scope.getText() if hasattr(scope, 'getText') else scope
+    cursor = owner.createTextCursorByRange(scope.Start)
+    # This also reaches first/left page stories excluded from document search.
+    # Native cursor units can differ at fields/Unicode: read back BOTH ranges.
+    for part in (prefix, text):
+        cursor.collapseToEnd()
+        if not all(cursor.goRight(min(32767, len(part)-i), True) for i in range(0, len(part), 32767)) or cursor.String != part: break
+    else:
+        if owner.compareRegionEnds(scope.End, cursor.End) <= 0: return cursor
     search = doc.createSearchDescriptor()
     search.SearchString, search.SearchCaseSensitive, search.SearchRegularExpression = text, True, False
     found = doc.findNext(scope.Start, search)
-    owner = scope.getText() if hasattr(scope, 'getText') else scope
     for _ in range(10000):
         try: inside = found is not None and owner.compareRegionStarts(scope.Start, found.Start) >= 0 and owner.compareRegionEnds(scope.End, found.End) <= 0
         except Exception: inside = False
         if not inside: break
-        if prefix is None:
-            if found.String == text: return found
-            break
         before = owner.createTextCursorByRange(scope.Start); before.gotoRange(found.Start, True)
         if before.String == prefix and found.String == text: return found
         if len(before.String) > len(prefix): break
@@ -159,11 +168,11 @@ class Broker:
         if key not in self.metadata: self.metadata[key] = (obj, self.introspection.inspect(obj))
         return self.metadata[key][1]
 
-    def method_allowed(self, obj, name):
+    def method_allowed(self, obj, name, method=None):
         if name == 'printPages': return False
         try:
             check_name(name)
-            declaring = self.info(obj).getMethod(name, -1).DeclaringClass.Name
+            declaring = (method or self.info(obj).getMethod(name, -1)).DeclaringClass.Name
             return declaring.startswith(INTERFACES) or name in METHODS.get(declaring, ())
         except Exception: return False
 
@@ -189,7 +198,7 @@ class Broker:
             if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 100: raise ValueError('Invalid metadata page')
             info = self.info(obj); pattern = command.get('filter', '').lower()
             members = [('property', p) for p in info.getProperties(-1) if pattern in p.Name.lower()] + [
-                ('method', m) for m in info.getMethods(-1) if pattern in m.Name.lower() and self.method_allowed(obj, m.Name)]
+                ('method', m) for m in info.getMethods(-1) if pattern in m.Name.lower() and self.method_allowed(obj, m.Name, m)]
             rows = []
             # Signatures and values are expensive remote objects: expand only this page.
             for kind, member in members[offset:offset + limit]:
@@ -199,7 +208,7 @@ class Broker:
                     try:
                         check_name(member.Name)
                         row['writable'] = not bool(member.Attributes & 16)
-                        if command.get('values'): row['value'] = encode(read_property(obj, member.Name))
+                        if command.get('values'): row['value'] = encode(properties(obj, [member.Name])[member.Name])
                     except Exception: row['unavailable'] = True
                 else: row.update(returns=member.ReturnType.Name,
                     arguments=[{'name': p.aName, 'type': p.aType.Name, 'mode': str(p.aMode)} for p in member.ParameterInfos])
@@ -228,7 +237,6 @@ class Broker:
             names = command.get('names', [])
             if op == 'reset' and (not isinstance(names, list) or not 1 <= len(names) <= 100):
                 raise ValueError('reset requires 1-100 property names')
-            for name in names: check_name(name)
             values = command.get('values') if op == 'set' else dict.fromkeys(names)
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('set/reset requires 1-100 properties')
             for name, value in values.items(): check_value(name, value)
@@ -267,16 +275,16 @@ class Broker:
             if name == 'setParentStyle':
                 if len(args) != 1: raise ValueError('setParentStyle requires one style name')
                 return self.rpc({'op': 'set', 'target': target, 'values': {'ParentStyle': args[0]}})
-            aliases = {'getPropertyDefault': 'default', 'getPropertyState': 'state', 'getPropertyStates': 'state',
+            aliases = {'getPropertyDefaults': 'default', 'getPropertyDefault': 'default', 'getPropertyState': 'state', 'getPropertyStates': 'state',
                        'setPropertyToDefault': 'reset', 'setPropertiesToDefault': 'reset'}
             if name in aliases:
                 if len(args) != 1: raise ValueError('Property access requires one name or name list')
-                if aliases[name] != 'reset':
-                    result = self.rpc({'op': aliases[name], 'target': target, 'name': args[0]})
-                    return [result[n] for n in args[0]] if name == 'getPropertyStates' else result
-                names = args[0] if name == 'setPropertiesToDefault' else [args[0]]
-                if not isinstance(names, list): raise ValueError('reset requires a property-name list')
-                return self.rpc({'op': 'reset', 'target': target, 'names': names})
+                plural = name in ('getPropertyStates', 'getPropertyDefaults', 'setPropertiesToDefault')
+                names = args[0] if plural else [args[0]]
+                if not isinstance(names, list): raise ValueError('Property access requires a property-name list')
+                result = self.rpc({'op': aliases[name], 'target': target, 'names': names, 'name': names})
+                if aliases[name] == 'reset': return result
+                return [result[n] for n in names] if plural else result[names[0]]
             if not READ_METHOD.match(name): self.mutate()
             result = uno.invoke(obj, name, tuple(decode(a, self.refs) for a in args))
             if not READ_METHOD.match(name): self.changes.append({'target': self.targets.get(target, target), 'method': name})
@@ -346,7 +354,7 @@ def freeze_checks(broker):
     remember('document:root', broker.doc)
     remember('body:root', broker.doc.Text)
     for family in ('paragraph', 'table', 'footnote', 'endnote', 'frame', 'bookmark',
-                   *STYLE_FAMILIES, 'drawing', 'field', 'section', 'index', 'control'):
+                   *STYLE_FAMILIES, *PAGE_STORIES, 'drawing', 'field', 'section', 'index', 'control'):
         if not pending: break
         for name, obj in collection(broker.doc, family):
             target = family + ':' + quote(name, safe='')
@@ -354,10 +362,6 @@ def freeze_checks(broker):
             if family == 'table':
                 for cell in obj.getCellNames():
                     remember('cell:' + quote(name, safe='') + '/' + quote(cell, safe=''), obj.getCellByName(cell))
-            if family == 'page-style':
-                for kind in ('Header', 'Footer'):
-                    if getattr(obj, kind + 'IsOn'):
-                        remember(kind.lower() + ':' + quote(name, safe=''), getattr(obj, kind + 'Text'))
             if not pending: break
     if pending: raise ValueError('Postcondition object was removed or has no persistent document address')
     accepted, raw = [], []
@@ -365,7 +369,7 @@ def freeze_checks(broker):
         if obj not in broker.find_scopes:
             # Formatting/explicit expectations describe the actual redline view.
             # Only a tracked String setter can require an accepted-view check.
-            if broker.doc.RecordChanges and 'String' in values and read_property(obj, 'String') != values['String']:
+            if broker.doc.RecordChanges and 'String' in values and properties(obj, ['String'])['String'] != values['String']:
                 accepted.append((addresses[obj], None, None, {'String': values['String']}, ()))
                 values = {name: value for name, value in values.items() if name != 'String'}
             if values: raw.append((addresses[obj], None, None, values, tuple(broker.resets.get(obj, ()))))
@@ -407,10 +411,9 @@ def transact(source, output, request, binary, interact):
     if not readonly and not fresh: raise ValueError('Choose a new candidate path')
     before_parts, protected, original_paragraphs = package(source)
     author = 'Beaver ' + os.urandom(5).hex()
-    proof = tempfile.TemporaryDirectory(prefix='beaver-proof-')
-    baseline, control, rejected = [Path(proof.name, name+'.docx') for name in ('baseline','control','rejected')]
     try:
-        with writer(binary, author) as (desktop, version):
+        with tempfile.TemporaryDirectory(prefix='beaver-proof-') as proof, writer(binary, author) as (desktop, version):
+            baseline, control, rejected = [Path(proof, name+'.docx') for name in ('baseline','control','rejected')]
             doc = load(desktop, source)
             broker = Broker(doc, readonly)
             try:
@@ -468,8 +471,6 @@ def transact(source, output, request, binary, interact):
     except BaseException:
         if fresh: output.unlink(missing_ok=True)
         raise
-    finally:
-        proof.cleanup()
 
 
 def serve(source, output, request, binary):

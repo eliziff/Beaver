@@ -14,10 +14,10 @@ Styles expose ParentStyle and getParentStyle/setParentStyle; create derived styl
 object.items(offset=0,limit=20,properties=[]) returns {items:[{name,value,properties?}],next_offset,total}. Request property names to read the whole page in one call; value remains a usable handle.
 object.describe(filter='',offset=0,limit=50) discovers native signatures. writable describes the native property, not permission to mutate an inspect program.
 word.target(address|[addresses]) resolves one object or up to 1000 in input order, scanning paragraphs once. Retain handles before structural edits; reinspect indexes afterward.
-word.inspect({family:'paragraph',limit:20,properties:['ParaStyleName'],include_text:false}) omits prose.
+word.inspect({family:'paragraph',limit:20,properties:['ParaStyleName'],include_text:false}) omits prose. header/footer select default/right stories; -left/-first families list only enabled independent variants. Page-style HeaderIsShared, FooterIsShared and FirstIsShared control sharing.
 word.create(service), word.constant(name), word.enum(type,value), word.struct(type,fields), word.any(type,value) supply native factories and typed arguments.
 word.mm(n)/word.pt(n) convert geometry to hundredths of a millimetre; font heights already use points.
-textObject.find(literal) returns one exact range in a paragraph/cell/note/header; missing or ambiguous text fails.
+textObject.find(literal) returns one exact range in a paragraph/cell/note/header/footer; missing or ambiguous text fails.
 Example: word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'});
 For tables use getCellRangeByName and getDataArray/setDataArray, not one call per cell.
 object.expect(values) checks now and after export/reopen. Checks follow retained objects through insertions; selected ranges and attached notes are supported. Removed/unaddressable objects fail.
@@ -41,6 +41,7 @@ export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToo
       action: { type: "string", enum: ["help", "inspect", "describe", "preview", "apply"] },
       file_path: { type: "string", pattern: DOCUMENT_RESOURCE_PATTERN },
       family: { type: "string", enum: ["document", "paragraph", "table", "footnote", "endnote", "frame", "bookmark",
+        "body", "header", "header-left", "header-first", "footer", "footer-left", "footer-first",
         "field", "section", "drawing", "index", "control", "revision", "page-style", "paragraph-style", "character-style", "numbering-style"] },
       target: { type: "string", maxLength: 500 }, filter: { type: "string", maxLength: 80 },
       snapshot: { type: "string", pattern: "^[a-f0-9]{64}$" },
