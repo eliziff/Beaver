@@ -81,33 +81,63 @@ function authIsolatedEnv(model: string, bridge: McpToolBridge | null) {
   if (model.includes("sonnet") && !env.CLAUDE_CODE_MAX_OUTPUT_TOKENS) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   }
+  // Beaver owns progressive activation. A second native loader can hide the
+  // static MCP schemas even after load_tools has successfully activated them.
+  env.ENABLE_TOOL_SEARCH = "false";
   if (bridge) env[MCP_TOKEN_ENV] = bridge.token;
   return env;
 }
 
+type NativeUsage = Partial<Record<"input_tokens" | "output_tokens" |
+  "cache_read_input_tokens" | "cache_creation_input_tokens", number>>;
+
+const tokenCount = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+
+function inputTokens(usage?: NativeUsage): number | null {
+  const counts = [usage?.input_tokens, usage?.cache_read_input_tokens ?? 0,
+    usage?.cache_creation_input_tokens ?? 0].map(tokenCount);
+  return counts.every((count): count is number => count !== null)
+    ? counts.reduce((sum, count) => sum + count, 0) : null;
+}
+
 type ResultEnvelope = {
   type?: string; is_error?: boolean; result?: string; session_id?: string;
-  usage?: Record<string, number | undefined>;
+  usage?: NativeUsage;
+  modelUsage?: Record<string, { contextWindow?: number }>;
 };
 
 type RunState = {
   result: ResultEnvelope | null; fullText: string;
-  compactions: number; contentOpen: boolean;
+  compactions: number; contentOpen: boolean; reasoningOpen: boolean;
+  usage?: NativeUsage; model?: string; contextWindow: number | null;
+  reportedContext?: string;
   mcpReady: boolean; mcpError: string;
 };
 
+function closeBlocks(state: RunState, callbacks: StreamCallbacks) {
+  if (state.contentOpen) callbacks.onContentBlockEnd?.();
+  if (state.reasoningOpen) callbacks.onReasoningBlockEnd?.();
+  state.contentOpen = state.reasoningOpen = false;
+}
+
 function handleStreamLine(line: string, state: RunState, callbacks: StreamCallbacks) {
   let message: ResultEnvelope & {
-    subtype?: string;
+    subtype?: string; parent_tool_use_id?: string | null;
+    message?: { model?: string; usage?: NativeUsage };
     mcp_servers?: Array<{ name?: string }>;
     mcp_server_errors?: Array<{ name?: string; message?: string }>;
-    event?: { type?: string; delta?: { type?: string; text?: string } };
+    event?: { type?: string; message?: { model?: string; usage?: NativeUsage };
+      usage?: NativeUsage; delta?: { type?: string; text?: string; thinking?: string } };
   };
   try {
     message = JSON.parse(line) as typeof message;
   } catch {
     return false;
   }
+  if (!message || typeof message !== "object") return false;
+  // Native subagents do not own the main conversation's text or context meter.
+  if (message.parent_tool_use_id) return true;
   if (message.type === "result") state.result = message;
   if (message.type === "system" && message.subtype === "init") {
     state.mcpReady = message.mcp_servers?.some(({ name }) => name === "beaver") ?? false;
@@ -122,15 +152,40 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
   }
 
   const event = message.type === "stream_event" ? message.event : undefined;
+  const step = event?.type === "message_start" ? event.message
+    : message.type === "assistant" ? message.message : undefined;
+  let contextChanged = Boolean(step);
+  if (step) {
+    state.usage = step.usage;
+    state.model = step.model;
+  } else if (event?.type === "message_delta" && state.usage && event.usage) {
+    // Stream usage is cumulative within this request, not an increment.
+    state.usage = { ...state.usage, ...event.usage };
+    contextChanged = true;
+  }
+  if (message.type === "result" && state.model) {
+    const window = tokenCount(message.modelUsage?.[state.model]?.contextWindow);
+    if (window) { state.contextWindow = window; contextChanged = true; }
+  }
+  if (contextChanged) {
+    const usedTokens = inputTokens(state.usage);
+    const contextKey = `${usedTokens}/${state.contextWindow}`;
+    if (usedTokens !== null && state.contextWindow && contextKey !== state.reportedContext) {
+      callbacks.onContextUsage?.({ usedTokens, contextWindowTokens: state.contextWindow });
+      state.reportedContext = contextKey;
+    }
+  }
   if (event?.type === "content_block_delta") {
     if (event.delta?.type === "text_delta" && event.delta.text) {
       state.contentOpen = true;
       state.fullText += event.delta.text;
       callbacks.onContentDelta?.(event.delta.text);
+    } else if (event.delta?.type === "thinking_delta" && event.delta.thinking) {
+      state.reasoningOpen = true;
+      callbacks.onReasoningDelta?.(event.delta.thinking);
     }
-  } else if (event?.type === "content_block_stop") {
-    if (state.contentOpen) callbacks.onContentBlockEnd?.();
-    state.contentOpen = false;
+  } else if (event?.type === "content_block_stop" || event?.type === "message_stop") {
+    closeBlocks(state, callbacks);
   }
   return ["assistant", "stream_event", "result"].includes(message.type ?? "") ||
     (message.type === "system" &&
@@ -140,6 +195,7 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
 type RunParams = StreamChatParams & {
   model: string; prompt: string; bridge: McpToolBridge | null;
   callbacks: StreamCallbacks;
+  activity: { seen: boolean; at: number };
 };
 
 async function runClaudeP(params: RunParams) {
@@ -180,6 +236,7 @@ async function runClaudeP(params: RunParams) {
     args.push("--max-turns", String(Math.max(1, Math.trunc(params.maxIterations))));
 
   try {
+    throwIfAborted(params.abortSignal);
     return await new Promise<RunState>((resolve, reject) => {
       const child = spawn(file, args, {
         shell,
@@ -188,12 +245,11 @@ async function runClaudeP(params: RunParams) {
         windowsHide: true,
       });
       const state: RunState = { result: null, fullText: "", compactions: 0,
-        mcpReady: false, mcpError: "", contentOpen: false };
+        mcpReady: false, mcpError: "", contentOpen: false, reasoningOpen: false,
+        contextWindow: modelContextWindow(`claude-p:${params.model}`) };
       let buffer = "";
       let stderr = "";
       let settled = false;
-      let sawActivity = false;
-      let lastActivity = Date.now();
       const started = Date.now();
       const inactivityMs = params.reasoningEffort === "max"
         ? FIRST_MODEL_EVENT_GRACE_MS : INACTIVITY_LIMIT_MS;
@@ -205,19 +261,14 @@ async function runClaudeP(params: RunParams) {
         if (settled) return;
         settled = true;
         cleanup();
+        closeBlocks(state, params.callbacks);
         child.kill();
         reject(error);
       };
       const onAbort = () => fail(abortError());
-      const closeBlocks = () => {
-        if (state.contentOpen) params.callbacks.onContentBlockEnd?.();
-        state.contentOpen = false;
-      };
       const processLine = (line: string) => {
-        if (handleStreamLine(line.trim(), state, params.callbacks)) {
-          sawActivity = true;
-          lastActivity = Date.now();
-        }
+        if (settled || params.abortSignal?.aborted) return;
+        if (handleStreamLine(line.trim(), state, params.callbacks)) params.callbacks.onActivity?.();
         if (state.result) child.stdin.end();
         if (state.compactions >= MAX_PROVIDER_COMPACTIONS) {
           fail(new ClaudePFatalError(
@@ -226,8 +277,8 @@ async function runClaudeP(params: RunParams) {
       };
       const watchdog = setInterval(() => {
         const now = Date.now();
-        const limit = sawActivity ? inactivityMs : FIRST_MODEL_EVENT_GRACE_MS;
-        if (now - lastActivity > limit) {
+        const limit = params.activity.seen ? inactivityMs : FIRST_MODEL_EVENT_GRACE_MS;
+        if (now - params.activity.at > limit) {
           fail(new Error(`claude -p silent for ${limit / 1000}s — killed`));
         } else if (now - started > HARD_LIMIT_MS) {
           fail(new Error("claude -p exceeded hard time limit — killed"));
@@ -235,8 +286,10 @@ async function runClaudeP(params: RunParams) {
       }, 5_000);
 
       params.abortSignal?.addEventListener("abort", onAbort, { once: true });
-      child.stdout.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString("utf8");
+      child.stdout.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => {
+        if (settled) return;
+        buffer += chunk;
         let newline = buffer.indexOf("\n");
         while (newline !== -1) {
           processLine(buffer.slice(0, newline));
@@ -246,14 +299,14 @@ async function runClaudeP(params: RunParams) {
       });
       child.stderr.on("data", (chunk: Buffer) => {
         stderr = (stderr + chunk.toString("utf8")).slice(-4_000);
-        lastActivity = Date.now();
+        params.activity.at = Date.now();
       });
       child.on("error", fail);
       child.on("close", (code) => {
         if (settled) return;
         if (buffer.trim()) processLine(buffer);
         if (settled) return;
-        closeBlocks();
+        closeBlocks(state, params.callbacks);
         cleanup();
         if (code !== 0) {
           const hint = stderr.trim() || String(state.result?.result ?? "");
@@ -272,6 +325,7 @@ async function runClaudeP(params: RunParams) {
         }
         resolve(state);
       });
+      if (params.abortSignal?.aborted) { onAbort(); return; }
       child.stdin.write(`${JSON.stringify({ type: "user", message: {
         role: "user", content: [{ type: "text", text: params.prompt }],
       } })}\n`, "utf8", (error) => { if (error) fail(error); });
@@ -290,7 +344,17 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
   if (continuationId && !CLAUDE_SESSION_ID.test(continuationId)) {
     throw new Error("Invalid Claude continuation ID.");
   }
-  const callbacks = params.callbacks ?? {};
+  const activity = { seen: false, at: Date.now() };
+  const callbacks: StreamCallbacks = { ...params.callbacks,
+    ...(params.reasoningSummary === "none" && {
+      onReasoningDelta: undefined, onReasoningBlockEnd: undefined,
+    }),
+    onActivity() {
+      activity.seen = true;
+      activity.at = Date.now();
+      params.callbacks?.onActivity?.();
+    },
+  };
   const initialTools =
     params.staticTools ?? params.resolveTools?.() ?? params.tools ?? [];
   let bridge: McpToolBridge | null = null;
@@ -299,13 +363,14 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
       tools: initialTools,
       runTools: params.runTools,
       callbacks,
+      onActivity: callbacks.onActivity,
       abortSignal: params.abortSignal,
       maxToolCalls: params.maxIterations === undefined
         ? undefined : Math.max(1, Math.trunc(params.maxIterations)),
     });
   }
   try {
-    const state = await runClaudeP({ ...params, model, bridge, callbacks,
+    const state = await runClaudeP({ ...params, model, bridge, callbacks, activity,
       prompt: flattenedPrompt(params.messages) });
     const envelope = state.result!;
     if (bridge && !state.mcpReady) {
@@ -313,15 +378,13 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
     }
     const rawUsage = envelope.usage ?? {};
     const usage: NormalizedLlmUsage = {
-      inputTokens: rawUsage.input_tokens ?? 0,
-      outputTokens: rawUsage.output_tokens ?? 0,
+      inputTokens: inputTokens(rawUsage),
+      outputTokens: tokenCount(rawUsage.output_tokens),
       reasoningTokens: null,
-      cacheReadInputTokens: rawUsage.cache_read_input_tokens ?? 0,
-      cacheWriteInputTokens: rawUsage.cache_creation_input_tokens ?? 0,
+      cacheReadInputTokens: tokenCount(rawUsage.cache_read_input_tokens),
+      cacheWriteInputTokens: tokenCount(rawUsage.cache_creation_input_tokens),
     };
-    const contextWindowTokens = modelContextWindow(params.model);
-    if (contextWindowTokens)
-      callbacks.onContextUsage?.({ usedTokens: usage.inputTokens ?? 0, contextWindowTokens });
+    // Final usage is a whole-turn total, not the latest request's context size.
 
     let fullText = state.fullText;
     const finalText = String(envelope.result ?? "");
