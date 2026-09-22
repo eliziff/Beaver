@@ -47,9 +47,14 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     .sort().join(",");
   useEffect(() => {
     if (!port || !watching) return;
+    let polling = false, disposed = false;
     const poll = async () => {
+      if (polling) return;
+      polling = true;
       const states = new Map((await port.progress(watching.split(",")).catch(() => []))
         .map((state) => [state.id, state]));
+      polling = false;
+      if (disposed) return;
       setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) => {
         const state = item.state === "running" && item.documentId
           ? states.get(item.documentId) : undefined;
@@ -65,7 +70,7 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
       })));
     };
     const timer = setInterval(() => void poll(), 1_200);
-    return () => clearInterval(timer);
+    return () => { disposed = true; clearInterval(timer); };
   }, [port, watching]);
 
   return { tracked: port ? tracked : {}, begin, stop,

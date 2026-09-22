@@ -40,6 +40,7 @@ export interface PdfCanvasProps {
     ariaLabel?: string;
     onUnavailable?: () => void;
     recognizedText?: PdfRecognizedText;
+    loadRecognizedText?: (page: number, signal: AbortSignal) => Promise<PdfRecognizedText["pages"][number] | undefined>;
 }
 
 type RenderedPage = {
@@ -48,6 +49,7 @@ type RenderedPage = {
     textLayer?: Promise<void>;
     cancelTextLayer?: () => void;
     textSource?: PdfRecognizedText["pages"][number];
+    textLoader?: PdfCanvasProps["loadRecognizedText"];
     top: number;
     height: number;
 };
@@ -57,6 +59,9 @@ const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
 const MAX_PDF_IMAGE_PIXELS = 40_000_000;
+// Output-scale limits follow PDF.js PDFPageView; the budget includes the in-flight canvas.
+const MAX_CANVAS_PIXELS = 8_000_000;
+const MAX_RESIDENT_PIXELS = 24_000_000;
 const MAX_PDF_PAGES = 2_000;
 const PDF_VIEWER_ERROR =
     "Unable to open this PDF. The file may be invalid or unsupported.";
@@ -86,12 +91,14 @@ export function PdfCanvas({
     quotes,
     quoteFocusKey,
     recognizedText,
+    loadRecognizedText,
     rounded = true,
     ariaLabel = "PDF document",
     onUnavailable,
 }: PdfCanvasProps) {
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
     const recognizedRef = useRef(recognizedPages); recognizedRef.current = recognizedPages;
+    const textLoaderRef = useRef(loadRecognizedText); textLoaderRef.current = loadRecognizedText;
     const refreshTextRef = useRef<(() => void) | null>(null);
     const disposeLayoutRef = useRef<(() => void) | null>(null);
     const editorRef = useRef(annotationEditor);
@@ -195,8 +202,10 @@ export function PdfCanvas({
             pagesRef.current = pages;
             setLayoutRevision(value => value + 1);
 
+            let geometryVersion = cache.size;
             const updateGeometry = () => {
-                if (generation !== generationRef.current) return;
+                if (generation !== generationRef.current || geometryVersion === cache.size) return;
+                geometryVersion = cache.size;
                 const scroll = scrollRef.current;
                 const offset = (scroll?.scrollTop ?? 0) - container.offsetTop;
                 let anchor = pageAt(pages, offset);
@@ -239,7 +248,7 @@ export function PdfCanvas({
             function releaseTextLayer(index: number) {
                 const entry = pages[index];
                 entry.cancelTextLayer?.(); entry.cancelTextLayer = undefined;
-                entry.textLayer = undefined; entry.hasTextLayer = false; entry.textSource = undefined;
+                entry.textLayer = undefined; entry.hasTextLayer = false; entry.textSource = undefined; entry.textLoader = undefined;
                 textPages.delete(index);
             }
             function ensureTextLayer(index: number): Promise<void> {
@@ -249,11 +258,20 @@ export function PdfCanvas({
             async function renderTextLayer(index: number) {
                 const entry = pages[index];
                 let element: HTMLDivElement | undefined, layer: import("pdfjs-dist").TextLayer | undefined;
-                let cancelled = false;
+                const abort = new AbortController();
                 textPages.add(index);
                 entry.textSource = recognizedRef.current.get(index + 1);
-                entry.cancelTextLayer = () => { cancelled = true; layer?.cancel?.(); element?.remove(); };
-                const current = () => !cancelled && generation === generationRef.current;
+                entry.textLoader = textLoaderRef.current;
+                entry.cancelTextLayer = () => { abort.abort(); layer?.cancel?.(); element?.remove(); };
+                const current = () => !abort.signal.aborted && generation === generationRef.current;
+                const finish = () => {
+                    const end = document.createElement("div"); end.className = "endOfContent";
+                    element!.appendChild(end);
+                    element!.addEventListener("mousedown", () => element!.classList.add("selecting"));
+                    entry.hasTextLayer = true;
+                    const found = pageQuotes.get(index);
+                    if (found) highlightQuote(entry.wrapper, found);
+                };
                 try {
                     const page = await cache.get(index + 1);
                     if (!current()) return;
@@ -266,30 +284,43 @@ export function PdfCanvas({
                         width: `${viewport.width}px`, height: `${viewport.height}px`, zIndex: "1" });
                     element.style.setProperty("--scale-factor", String(scale));
                     entry.wrapper.appendChild(element);
+                    // Native text remains usable while the independent cached OCR request is pending.
+                    const recognized = !entry.textSource ? entry.textLoader?.(index + 1, abort.signal)
+                        .then(page => ({ page }), error => ({ error })) : undefined;
                     if (entry.textSource?.lines.some(line => line.words.length || line.text?.trim())) {
                         renderRecognizedText(element, entry.textSource, viewport.width, viewport.height);
                     } else {
                         layer = new lib.TextLayer({ textContentSource: page.streamTextContent(), container: element, viewport });
-                        await layer.render();
+                        try { await layer.render(); }
+                        catch (cause) {
+                            if (!recognized) throw cause;
+                            layer.cancel?.(); element.replaceChildren();
+                        }
                         if (!current()) return;
                         // Keep PDF.js reading order, EOLs and rotations; sorting by Y interleaves columns.
                         for (const div of layer.textDivs) div.dataset.pdfTextRun = "";
                     }
                     if (!current()) return;
-                    const end = document.createElement("div"); end.className = "endOfContent";
-                    element.appendChild(end);
-                    element.addEventListener("mousedown", () => element!.classList.add("selecting"));
-                    entry.hasTextLayer = true;
-                    const found = pageQuotes.get(index);
-                    if (found) highlightQuote(entry.wrapper, found);
+                    finish();
+                    const result = await recognized;
+                    if (!current() || !result) return;
+                    if ("error" in result) throw result.error;
+                    if (result.page?.lines.some(line => line.words.length || line.text?.trim())) {
+                        layer?.cancel?.();
+                        const replacement = element.cloneNode(false) as HTMLDivElement;
+                        renderRecognizedText(replacement, result.page, viewport.width, viewport.height);
+                        element.replaceWith(replacement); element = replacement;
+                        finish();
+                    }
                 } catch (cause) {
-                    element?.remove();
+                    if (!entry.hasTextLayer) element?.remove();
                     if (current()) console.warn("PDF text selection unavailable", cause);
                 }
             }
             refreshTextRef.current = () => {
-                for (const index of textPages) {
-                    if (pages[index].textSource === recognizedRef.current.get(index + 1)) continue;
+                for (const index of [...textPages]) {
+                    if (pages[index].textSource === recognizedRef.current.get(index + 1) &&
+                        pages[index].textLoader === textLoaderRef.current) continue;
                     releaseTextLayer(index); void ensureTextLayer(index);
                 }
             };
@@ -304,11 +335,15 @@ export function PdfCanvas({
                     await Promise.allSettled(Array.from({ length: Math.min(16, count - start + 1) },
                         (_, index) => cache.get(start + index)));
                     updateGeometry();
+                    // Yield between metadata batches so a large PDF cannot monopolize input/rendering.
+                    await new Promise<void>(resolve => setTimeout(resolve, 0));
                 }
             }
 
             const rendered = new Map<number, HTMLCanvasElement>();
+            let inFlight: HTMLCanvasElement | undefined;
             disposeLayoutRef.current = () => {
+                if (inFlight) { inFlight.width = inFlight.height = 0; inFlight = undefined; }
                 for (const index of textPages) releaseTextLayer(index);
                 for (const canvas of rendered.values()) { canvas.width = canvas.height = 0; canvas.remove(); }
                 rendered.clear();
@@ -328,20 +363,28 @@ export function PdfCanvas({
                 return pages[index].top + pages[index].height >= start - margin * padding &&
                     pages[index].top <= end + margin * padding;
             };
+            const rasterPlan = () => {
+                const { start, end, margin } = range();
+                const indices = new Set<number>();
+                for (let index = pageAt(pages, start - margin);
+                    index < pages.length && pages[index].top <= end + margin; index++)
+                    if (pages[index].top + pages[index].height >= start - margin) indices.add(index);
+                const pixels = Math.floor(Math.min(MAX_CANVAS_PIXELS, MAX_RESIDENT_PIXELS / Math.max(1, indices.size)));
+                for (const [index, canvas] of rendered) {
+                    if (indices.has(index) && canvas.width * canvas.height <= pixels) continue;
+                    canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
+                    if (index !== active) cache.peek(index + 1)?.cleanup?.();
+                }
+                return { indices, pixels };
+            };
             const paint = async () => {
                 if (running || generation !== generationRef.current) return;
                 running = true;
                 try {
                     while (generation === generationRef.current) {
-                        const { start, end, margin } = range();
-                        const candidates: number[] = [];
-                        for (let index = pageAt(pages, start - margin);
-                            index < pages.length && pages[index].top <= end + margin; index++) {
-                            // pageAt includes the preceding page in the gap; it must not become
-                            // a candidate which nearby rejects forever without yielding.
-                            if (pages[index].top + pages[index].height >= start - margin &&
-                                !rendered.has(index) && !failed.has(index) && !loadingPages.has(index)) candidates.push(index);
-                        }
+                        const { start, end } = range(), plan = rasterPlan();
+                        const candidates = [...plan.indices].filter(index =>
+                            !rendered.has(index) && !failed.has(index) && !loadingPages.has(index));
                         const distance = (index: number) => Math.max(start - pages[index].top - pages[index].height,
                             pages[index].top - end, 0);
                         const index = candidates.sort((a, b) => distance(a) - distance(b))[0];
@@ -374,22 +417,27 @@ export function PdfCanvas({
                         if (!nearby(index)) { active = -1; continue; }
                         const viewport = page.getViewport({ scale });
                         const canvas = document.createElement("canvas");
+                        inFlight = canvas;
                         const outputScale = Math.min(window.devicePixelRatio || 1,
-                            Math.sqrt(MAX_PDF_IMAGE_PIXELS / (viewport.width * viewport.height)));
-                        canvas.width = Math.ceil(viewport.width * outputScale);
-                        canvas.height = Math.ceil(viewport.height * outputScale);
+                            Math.sqrt(plan.pixels / (viewport.width * viewport.height)));
+                        canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+                        canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
                         Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
                         const context = canvas.getContext("2d");
-                        if (!context) { failed.add(index); continue; }
-                        const task = page.render({ canvasContext: context, viewport,
-                            transform: [outputScale, 0, 0, outputScale, 0, 0] });
-                        taskRef.current = task;
+                        if (!context) { canvas.width = canvas.height = 0; inFlight = undefined; failed.add(index); active = -1; continue; }
+                        let task: import("pdfjs-dist").RenderTask | undefined;
                         try {
+                            task = page.render({ canvasContext: context, viewport,
+                                transform: [outputScale, 0, 0, outputScale, 0, 0] });
+                            taskRef.current = task;
                             await task.promise;
                             if (generation !== generationRef.current) {
                                 canvas.width = canvas.height = 0; return;
                             }
-                            if (!nearby(index, 2)) { canvas.width = canvas.height = 0; continue; }
+                            const currentPlan = rasterPlan();
+                            if (!currentPlan.indices.has(index) || canvas.width * canvas.height > currentPlan.pixels) {
+                                canvas.width = canvas.height = 0; continue;
+                            }
                             pages[index].wrapper.prepend(canvas);
                             rendered.set(index, canvas);
                             setPreparing(false);
@@ -409,6 +457,8 @@ export function PdfCanvas({
                                 setPreparing(false);
                             }
                         } finally {
+                            if (!rendered.has(index)) canvas.width = canvas.height = 0;
+                            if (inFlight === canvas) inFlight = undefined;
                             if (taskRef.current === task) taskRef.current = null;
                             active = -1;
                         }
@@ -694,7 +744,7 @@ export function PdfCanvas({
         else void renderPdf(quoteList);
     }, [quoteFocusKey, quoteKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => { refreshTextRef.current?.(); }, [recognizedPages]);
+    useEffect(() => { refreshTextRef.current?.(); }, [recognizedPages, loadRecognizedText]);
 
     useEffect(() => setPageInput(String(currentPage)), [currentPage]);
     useEffect(() => {

@@ -53,9 +53,16 @@ export function selectedPdfFragments(pages: Iterable<HTMLElement>, range: Range)
     if (!box.width || !box.height) continue;
     const rects: AnnotationRect[] = [];
     for (const line of textLines(layer, box)) {
-      let selected: AnnotationRect | undefined;
-      for (const run of line.runs) {
+      const first = line.runs[0].element, last = line.runs[line.runs.length - 1].element;
+      const wholeLine = range.comparePoint(first, 0) === 0 && range.comparePoint(last, last.childNodes.length) === 0;
+      let selected: AnnotationRect | undefined = wholeLine ? line.rect : undefined;
+      for (const run of wholeLine ? [] : line.runs) {
         if (!range.intersectsNode(run.element)) continue;
+        if (range.comparePoint(run.element, 0) === 0 &&
+            range.comparePoint(run.element, run.element.childNodes.length) === 0) {
+          selected = selected ? union(selected, run.rect) : run.rect;
+          continue;
+        }
         const walker = document.createTreeWalker(run.element, NodeFilter.SHOW_TEXT);
         let node: Node | null;
         while ((node = walker.nextNode())) {

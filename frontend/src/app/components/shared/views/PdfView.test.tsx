@@ -241,6 +241,53 @@ describe("PdfView", () => {
         expect(container.querySelector(".pdf-text-layer")?.textContent).toContain("Line-only recognition");
     });
 
+    it("loads only resident OCR pages without blocking native text and cancels obsolete reads", async () => {
+        mocks.numPages = 300;
+        const reads: Array<{ page: number; signal: AbortSignal; resolve: (value: undefined) => void }> = [];
+        const load = (page: number, signal: AbortSignal) => new Promise<undefined>(resolve => reads.push({page, signal, resolve}));
+        const bytes = new Uint8Array([1]);
+        const { container, rerender, unmount } = render(<PdfView doc={null} bytes={bytes} loadRecognizedText={load} />);
+        await screen.findByText("Page 1 text"); // The pending OCR request must not hide existing native text.
+        const canvas = container.querySelector("canvas");
+        expect(reads.map(read => read.page)).toContain(1);
+        expect(reads.every(read => read.page < 4)).toBe(true);
+        const prior = [...reads];
+        rerender(<PdfView doc={null} bytes={bytes} loadRecognizedText={async () => ({pageNumber: 1, width: 600, height: 800,
+            lines: [{id: 'ocr', text: 'Refreshed recognition', rect: [20, 30, 220, 45], words: []}]})} />);
+        await screen.findAllByText("Refreshed recognition");
+        expect(prior.every(read => read.signal.aborted)).toBe(true);
+        expect(container.querySelector("canvas")).toBe(canvas);
+        await act(async () => prior.forEach(read => read.resolve(undefined)));
+        expect(container.textContent).toContain("Refreshed recognition");
+        rerender(<PdfView doc={null} bytes={bytes} loadRecognizedText={load} />);
+        await waitFor(() => expect(reads.length).toBeGreaterThan(prior.length));
+        unmount();
+        expect(reads.every(read => read.signal.aborted)).toBe(true);
+        reads.forEach(read => read.resolve(undefined));
+    });
+
+    it("bounds high-DPI raster allocations through zoom and frees in-flight canvases on close", async () => {
+        vi.stubGlobal("devicePixelRatio", 6);
+        const canvases: HTMLCanvasElement[] = [];
+        const create = document.createElement.bind(document);
+        vi.spyOn(document, "createElement").mockImplementation(((name: string, options?: ElementCreationOptions) => {
+            const element = create(name, options);
+            if (name === "canvas") canvases.push(element as HTMLCanvasElement);
+            return element;
+        }) as typeof document.createElement);
+        const pixels = () => canvases.reduce((sum, canvas) => sum + canvas.width * canvas.height, 0);
+        const { container, unmount } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelectorAll("canvas").length).toBeGreaterThan(1));
+        expect(canvases.every(canvas => canvas.width * canvas.height <= 8_000_000)).toBe(true);
+        expect(pixels()).toBeLessThanOrEqual(24_000_000);
+        mocks.renderDelay = 500;
+        fireEvent.click(screen.getByRole("button", {name: "Zoom in"}));
+        await waitFor(() => expect(canvases.some(canvas => !canvas.isConnected && canvas.width > 0)).toBe(true));
+        expect(pixels()).toBeLessThanOrEqual(24_000_000);
+        unmount();
+        expect(pixels()).toBe(0);
+    });
+
     it("allows an ordinary reader selection to resolve to its PDF page", async () => {
         mocks.numPages = 1;
         render(<PdfView doc={null} bytes={new Uint8Array([1])} />);

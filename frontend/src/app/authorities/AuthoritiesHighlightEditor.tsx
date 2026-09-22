@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
@@ -11,7 +11,6 @@ import { decodeAnnotationSet, emptyAnnotationSet,
 import type { AuthoritiesHost } from './host';
 import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
 import type { AuthoritiesAction, AuthoritiesProduct } from './types';
-import type { PdfRecognizedText } from '@/app/lib/api/documents';
 
 /** Text recognition for one scanned source, watched where the source is being used. */
 export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
@@ -81,10 +80,11 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [base] = useState(product);
   const revision = useRef(product.revision);
   const savedMarks = useRef<Record<string, PdfAnnotation[]>>({});
+  const reviewed = useRef(new Set<string>());
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
-  const [pdf, setPdf] = useState<{ role: string; bytes: Uint8Array; recognizedText?: PdfRecognizedText } | null>(null);
+  const [pdf, setPdf] = useState<{ role: string; bytes: Uint8Array } | null>(null);
   const [tool, setTool] = useState<AnnotationTool>('select');
   const [selectedId, setSelectedId] = useState<string|null>(null);
   const [focus, setFocus] = useState<{ id: string; request: number }>();
@@ -105,6 +105,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   });
   const edit = (next: PdfAnnotation[]) => {
     if (disabled || next === marks) return;
+    reviewed.current.add(role);
     changeDocument(document => {
       const history = [...document.history.slice(0,document.position+1),next];
       // Shared immutable annotations keep undo inexpensive; do not clone entire PDFs or mark sets.
@@ -137,6 +138,9 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       let set = saved && !replaced ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
       if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
       let warning = replaced ? 'The PDF changed; highlights start from this version.' : '';
+      savedMarks.current[role] = set.marks;
+      setDocuments(values => ({...values,[role]:{set,history:[set.marks],position:0,warning}}));
+      setLoading(false);
       if ((!saved || replaced) && base.state.settings.passageMarking !== 'none') {
         try {
           if (!host.prepareAnnotations) throw new Error('Automatic marking is unavailable.');
@@ -151,23 +155,24 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         }
       }
       abort.signal.throwIfAborted();
+      // A manual edit followed by undo still counts as review; never replace that history.
+      if (reviewed.current.has(role)) return;
       savedMarks.current[role] = set.marks;
       setDocuments(values => ({...values,[role]:{set,history:[set.marks],position:0,warning}}));
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
   }, [role, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!pdf || pdf.role !== role || !host.readSourceText) return;
-    const abort = new AbortController(), bytes = pdf.bytes;
-    setTextError('');
-    // Also read persisted recognition when reopening: the in-memory progress tracker is not a cache.
-    void host.readSourceText(base, role, abort.signal).then(recognizedText => {
-      if (!abort.signal.aborted) setPdf(value => value?.role === role && value.bytes === bytes
-        ? {...value, recognizedText} : value);
-    }).catch(cause => { if (!abort.signal.aborted) setTextError(`Text selection could not be prepared. ${errorMessage(cause)}`); });
-    return () => abort.abort();
-  }, [role, pdf?.bytes, recognition?.state, recognition?.recognized, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadRecognizedText = useCallback(async (page: number, signal: AbortSignal) => {
+    try {
+      const text = await host.readSourceText?.(base, role, signal, [page]);
+      return text?.pages.find(item => item.pageNumber === page);
+    } catch (cause) {
+      if (!signal.aborted) setTextError(`Text selection could not be prepared. ${errorMessage(cause)}`);
+      return undefined;
+    }
+  }, [role, recognition?.state, recognition?.recognized, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setTextError(''), [loadRecognizedText]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if(selectedId) cardRefs.current.get(selectedId)?.scrollIntoView({block:'nearest'}); },[selectedId]);
   useEffect(() => {
@@ -235,7 +240,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {pdf?.role === role ? <PdfView key={role} doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
-              recognizedText={pdf.recognizedText}
+              loadRecognizedText={host.readSourceText ? loadRecognizedText : undefined}
               annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit([...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
