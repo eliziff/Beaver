@@ -1,0 +1,55 @@
+name: Authorities OCR delivery correction
+on:
+  push:
+    branches: [fix/authorities-ocr-delivery-and-memory]
+    paths: [.github/workflows/authorities-ocr-candidate.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply the exact tested source changes
+        run: |
+          python scripts/authorities-ocr-candidate.py
+          git submodule update --init legal-pdf-parser legal-structure
+          git diff --check
+      - uses: actions/download-artifact@v4
+        with:
+          name: authorities-native-page-reader
+          run-id: 35683905994
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/authorities-native
+      - name: Verify the already-compiled exact native boundary
+        run: |
+          cmp native/legal-structure-node/src/lib.rs "$RUNNER_TEMP/authorities-native/lib.rs"
+          echo 'a9203df153aaf0e9c85ad407e8b06ee5bd75adcc9046beef0e0e976d676e9bf7  '"$RUNNER_TEMP/authorities-native/liblegal_structure_node.so" | sha256sum -c -
+          echo "LEGAL_STRUCTURE_NATIVE=$RUNNER_TEMP/authorities-native/liblegal_structure_node.so" >> "$GITHUB_ENV"
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix backend --ignore-scripts --no-audit --no-fund
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Check types and affected existing backend suites
+        run: |
+          npm run build --prefix backend
+          (cd frontend && npx tsc --noEmit)
+          (cd backend && npx vitest run src/lib/__tests__/relationalRepositories.test.ts src/lib/__tests__/documentProjectionService.test.ts src/lib/authoritiesWorkspaceApplication.test.ts src/routes/authoritiesRuntime.test.ts)
+      - name: Check lazy OCR, raster bounds and Authorities UI contracts
+        working-directory: frontend
+        run: npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/QuotationFinding.test.tsx src/app/authorities/standaloneHost.test.tsx 'src/app/(pages)/table-of-authorities/page.test.tsx'
+      - name: Check application boundaries and publish production changes only
+        run: |
+          npm run check:source-boundaries
+          git diff --check
+          git add backend/src/lib/__tests__/relationalRepositories.test.ts backend/src/lib/authoritiesWorkspaceApplication.ts backend/src/lib/documentProjectionService.ts backend/src/lib/documentStore.ts backend/src/lib/pdfJobs.ts backend/src/lib/relationalDocumentRepository.ts backend/src/lib/structureNative.ts backend/src/routes/authoritiesRuntime.ts backend/src/routes/documentRoutes.ts docs/current/authorities.md docs/current/performance.md frontend/src/app/authorities/AuthoritiesHighlightEditor.tsx frontend/src/app/authorities/beaverHost.ts frontend/src/app/authorities/host.ts frontend/src/app/authorities/sourceOcr.ts frontend/src/app/components/shared/views/PdfCanvas.tsx frontend/src/app/components/shared/views/PdfView.test.tsx frontend/src/app/lib/api/documents.ts native/legal-structure-node/src/lib.rs
+          git rm scripts/authorities-ocr-candidate.py .github/workflows/authorities-ocr-candidate.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: deliver committed Authorities OCR without blocking or unbounded viewer allocations'
+          git push origin HEAD:fix/authorities-ocr-delivery-and-memory
+          git rev-parse HEAD >> "$GITHUB_STEP_SUMMARY"
