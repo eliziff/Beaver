@@ -318,10 +318,6 @@ describe("chat PDF evidence durability", () => {
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       if (params.providerSession) return { fullText: "Reader result." };
       await params.runTools?.([{
-        id: "load-readers", name: "load_tools",
-        input: { names: ["delegate_read"] },
-      }]);
-      await params.runTools?.([{
         id: "round", name: "delegate_read", input: { assignments: [
           { task: "Read note A", scope: "note A", jurisdiction: "CA" },
           { task: "Read note B", scope: "note B", jurisdiction: "CA" },

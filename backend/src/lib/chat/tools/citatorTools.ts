@@ -23,7 +23,6 @@ const NOTE_UP_DESCRIPTION =
 
 export const CITATOR_TOOL: Tool & BeaverToolPolicy = {
   name: NOTE_UP_TOOL_NAME,
-  specialist: true,
   research: true,
   reader: ["CA"],
   annotations: { readOnlyHint: true },

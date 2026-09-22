@@ -105,7 +105,6 @@ const ADVANCED_OPS = [
 
 export const ADVANCED_DOCX_EDIT_TOOL: Tool & BeaverToolPolicy = {
   name: "edit_docx_advanced",
-  specialist: true,
   sequential: true,
   annotations: { readOnlyHint: false, destructiveHint: false },
   description:

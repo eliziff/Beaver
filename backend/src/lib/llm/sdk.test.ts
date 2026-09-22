@@ -46,34 +46,30 @@ function transport(responses: (() => Response)[]) {
 }
 afterEach(() => vi.unstubAllGlobals());
 
-it("Gemini tool discovery expands choices, and a new turn replays real tool results and signatures", async () => {
-  const load: Tool = { name: "load_tools", inputSchema: { type: "object", properties: {}, additionalProperties: false } };
+it("Gemini exposes callable tools and a new turn replays tool results and signatures", async () => {
   const write: Tool = { ...read, name: "Write" };
-  let visible = [load, read];
   const state: ModelState[] = [], tools = vi.fn(async calls => {
-    if (calls[0].name === "load_tools") visible = [load, read, write];
-    return calls.map((call: any) => ({ tool_use_id: call.id, content: call.name === "Read" ? "Secret evidence: 47" : "Loaded Write" }));
+    return calls.map((call: any) => ({ tool_use_id: call.id, content: "Secret evidence: 47" }));
   });
   const { bodies } = transport([
-    () => gemini([{ functionCall: { name: "load_tools", args: {} }, thoughtSignature: "load-signature" }]),
     () => gemini([{ functionCall: { name: "Read", args: { file: "source" } }, thoughtSignature: "read-signature" }]),
     () => gemini([{ text: "It says 47." }]),
     () => gemini([{ text: "Still 47." }]),
   ]);
-  await streamHosted({ ...params, resolveTools: () => visible, runTools: tools,
+  await streamHosted({ ...params, tools: [read, write], runTools: tools,
     enableThinking: true, reasoningEffort: "low", callbacks: { onModelMessages: value => { state.push(value); } } });
   expect(bodies[1].toolConfig?.functionCallingConfig?.mode).not.toBe("ANY");
-  expect(bodies[1].tools[0].functionDeclarations.map((tool: any) => tool.name)).toContain("Read");
+  expect(bodies[0].tools[0].functionDeclarations.map((tool: any) => tool.name)).toEqual(["Read", "Write"]);
   expect(bodies[0].generationConfig.thinkingConfig.thinkingLevel).toBe("low");
   await streamHosted({ ...params, messages: [params.messages[0], ...state.map(modelState => ({
     role: "assistant" as const, content: "", modelState,
   })), { role: "user", content: "And now?" }] });
-  const replay = JSON.stringify(bodies[3].contents);
+  const replay = JSON.stringify(bodies[2].contents);
   expect(replay).toContain("Secret evidence: 47");
   expect(replay).toContain("read-signature");
   expect(replay).toContain("functionCall");
   expect(replay).toContain("functionResponse");
-  expect(tools).toHaveBeenCalledTimes(2);
+  expect(tools).toHaveBeenCalledTimes(1);
 });
 
 it("Claude enables caching, honors effort, and counts cached tokens as context", async () => {
@@ -277,7 +273,7 @@ it("keeps validation and targeted invalid-input handling at the ordered dispatch
     () => gemini([{ functionCall: { name: "Read", args: { file: "source" } }, thoughtSignature: "valid-signature" }]),
   ]);
   const saved: ModelState[] = [];
-  await streamHosted({ ...params, resolveTools: () => registry.visible(),
+  await streamHosted({ ...params, resolveTools: () => registry.all(),
     runTools: calls => registry.run(calls, {}), callbacks: { onModelMessages: state => { saved.push(state); } } });
   expect(deferred).toHaveBeenCalledOnce();
   expect(execute).toHaveBeenCalledOnce();

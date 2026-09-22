@@ -51,6 +51,37 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+it("exposes the callable Word schema on first, follow-up and switched-model turns", async () => {
+  const { createChatToolRunner } = await import("./chatToolRunner");
+  stream.mockImplementation(async (params) => {
+    const tools = params.resolveTools();
+    const word = tools.find(({ name }: { name: string }) => name === "word_uno");
+    expect(word?.inputSchema.properties).toMatchObject({
+      action: { enum: ["help", "inspect", "describe", "preview", "apply"] },
+      file_path: { type: "string" }, program: { type: "string" },
+    });
+    expect(tools.map(({ name }: { name: string }) => name)).not.toContain("load_tools");
+    const [result] = await params.runTools([{ id: "word-help", name: "word_uno", input: { action: "help" } }]);
+    expect(result.status).toBe("ok");
+    expect(result.content).toContain("word.target(");
+    params.callbacks.onContentDelta("Word console available.");
+    return { fullText: "Word console available." };
+  });
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = [
+    { role: "user", content: "Use the Word console." },
+  ];
+  for (const model of ["gemini-3-flash-preview", "gemini-3-flash-preview", "claude-sonnet-4-6"]) {
+    const runner = createChatToolRunner({ userId: "test", documents: {} as never,
+      library: {} as never, projects: {} as never, sources: {} as never,
+      includeResearchTools: true, onMutationCommitted() {} });
+    await runChatTurn({ model, systemPrompt: "", messages, createTools: runner.createTools,
+      grounded: false, subagents: false, emit() {} });
+    messages.push({ role: "assistant", content: "Word console available." },
+      { role: "user", content: "Continue using word_uno." });
+  }
+  expect(stream).toHaveBeenCalledTimes(3);
+});
+
 it("starts from saved receipts and restores only cited sources for final pinpoints", async () => {
   const text = "The appeal is allowed.", native = await structureNative().deriveDocumentStructure({
     kind: "provider_text", input: { provider: "a2aj", citation: "2024 SCC 1",
@@ -173,9 +204,6 @@ it("does not advertise resume when a reader never started", async () => {
       throw new Error("Codex app-server thread/start request timed out.");
     }
     await params.runTools([{
-      id: "load-readers", name: "load_tools", input: { names: ["delegate_read"] },
-    }]);
-    await params.runTools([{
       id: "round", name: "delegate_read", input: { assignments: [
         { task: "Read note A", scope: "note A", jurisdiction: "CA" },
         { task: "Read note B", scope: "note B", jurisdiction: "CA" },
@@ -222,10 +250,6 @@ it("keeps failed reader checkpoints resumable in the same turn", async () => {
     }
     expect(params.staticTools.map(({ name }: { name: string }) => name))
       .toEqual(expect.arrayContaining(["delegate_read", "resume_read"]));
-    await params.runTools([{
-      id: "load-readers", name: "load_tools",
-      input: { names: ["delegate_read", "resume_read"] },
-    }]);
     const delegated = await params.runTools([{
       id: "round", name: "delegate_read", input: { assignments: [
         { task: "Read note A", scope: "note A", jurisdiction: "CA" },
@@ -528,7 +552,6 @@ it.each([false, true])("shares all subagent reads and searches when failed=%s", 
       } }]);
       return { fullText: "" };
     }
-    await params.runTools([{ id: "load", name: "load_tools", input: { names: ["delegate_read"] } }]);
     await params.runTools([{ id: "readers", name: "delegate_read", input: { assignments: [
       { task: "Read the decision", scope: "Note A", jurisdiction: "CA" },
       { task: "Read the decision", scope: "Note B", jurisdiction: "CA" },
@@ -592,7 +615,6 @@ it("resumes child source scopes, queries and coverage with the actual reading mo
       await params.runTools([{ id: `${resource}:${offset}`, name: "Read", input: { file_path: resource, offset, limit: 1 } }]);
       throw new Error("Reader connection stopped");
     }
-    await params.runTools([{ id: "load", name: "load_tools", input: { names: ["delegate_read", "resume_read"] } }]);
     await params.runTools([{ id: "scopes", name: "delegate_read", input: { assignments: resources.map((resource, index) => ({
       task: "Read both source sentences", scope: `Note ${index}`, jurisdiction: "CA", resources: [resource],
     })) } }]);
