@@ -112,7 +112,9 @@ preparation time.
 ## PDF rendering and transport
 
 The shared PDF.js renderer loads page-one fit geometry and the requested page
-before resolving all remaining page geometry in bounded batches. Visible-page work
+before resolving all remaining page geometry in bounded, yielding batches.
+Resolved-page revisions avoid repeating document-wide geometry passes during
+ordinary repaint and selection work. Visible-page work
 need not wait for an unrelated page. Unknown geometry stays hidden; viewport
 anchoring handles mixed sizes, and annotation navigation awaits exact geometry.
 Per-open page reuse survives zoom/resize. Quote search uses normalized text, not
@@ -123,7 +125,20 @@ page cleanup releases PDF.js render resources, and zoom/close zero old canvases.
 Quote matches survive eviction as data and are reapplied when their page returns.
 Annotation overlays are indexed by mark and exist only on marked/drawn pages;
 selection and autosave do not rebuild every page's SVG. Mouse drags resolve nearby
-text runs without reordering native text or reading every glyph's layout per move.
+text runs without reordering native text. Full selection lines/runs reuse cached
+geometry; only partial character endpoints need fresh DOM range measurements.
+
+Raster output is capped at 8 million pixels per canvas and 24 million across the
+working set, including its in-flight render. Zoom/close/cancellation release
+backing stores. These caps do not cover source image decoding, GPU copies or
+process memory. The visible page and its neighbors determine the raster budget.
+
+Authorities fetches OCR for resident pages rather than retaining a document-wide
+JavaScript sidecar. A 1–16 page request restores only the cache artifacts owning
+those pages and filters in Rust before serialization. The existing eight-entry
+weak projection cache shares pending restorations. A restored Rust artifact is
+still whole-document data: this is not random-access native storage. Unfiltered
+internal annotation preparation remains available and never starts another OCR pass.
 
 PDF.js import overlaps acquisition. Supplied bytes do not trigger an unused
 download. The complete-file cache retains at most eight files/64 MiB with LRU
