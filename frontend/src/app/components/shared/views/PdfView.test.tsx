@@ -286,6 +286,12 @@ describe("PdfView", () => {
         expect(pages[0].querySelectorAll(".pdf-text-layer")).toHaveLength(1);
         expect(pages[200].querySelector(".pdf-text-layer")).toBeNull();
         expect(mocks.textLayers.length).toBeLessThan(10);
+        // The lower preload boundary falls inside a page gap. The preceding, now
+        // evicted page must not be selected and synchronously rejected forever.
+        scroller.scrollTop = heights.slice(0, 201).reduce((sum, height) => sum + parseFloat(height) + 8, 0) - 6 + 800;
+        fireEvent.scroll(scroller);
+        await waitFor(() => expect(pages[201].querySelector("canvas")).not.toBeNull());
+        expect(container.querySelectorAll("canvas").length).toBeLessThan(6);
     });
 
     it("renders provided bytes in the full viewer without detaching the artifact", async () => {

@@ -337,7 +337,10 @@ export function PdfCanvas({
                         const candidates: number[] = [];
                         for (let index = pageAt(pages, start - margin);
                             index < pages.length && pages[index].top <= end + margin; index++) {
-                            if (!rendered.has(index) && !failed.has(index) && !loadingPages.has(index)) candidates.push(index);
+                            // pageAt includes the preceding page in the gap; it must not become
+                            // a candidate which nearby rejects forever without yielding.
+                            if (pages[index].top + pages[index].height >= start - margin &&
+                                !rendered.has(index) && !failed.has(index) && !loadingPages.has(index)) candidates.push(index);
                         }
                         const distance = (index: number) => Math.max(start - pages[index].top - pages[index].height,
                             pages[index].top - end, 0);

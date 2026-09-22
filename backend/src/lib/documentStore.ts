@@ -14,6 +14,8 @@ export type PdfProfileSelection = {
   cacheKey: string;
   profile: LegalPdfProfile;
   status: "ready" | "degraded";
+  /** One-based pages mapped to immutable prepared OCR artifacts; the root profile stays whole-document. */
+  textLayerPages?: Record<string, string>;
 };
 export function decodePdfProfileSelection(value: unknown): PdfProfileSelection | undefined {
   const record = value && typeof value === "object" && !Array.isArray(value)
@@ -28,14 +30,19 @@ export function decodePdfProfileSelection(value: unknown): PdfProfileSelection |
     return typeof entry.provider === "string" && providers.includes(entry.provider) &&
       !!entry.settings && typeof entry.settings === "object" && !Array.isArray(entry.settings);
   };
-  return record && profile && typeof record.cacheKey === "string" &&
+  const layers = record?.textLayerPages;
+  const validLayers = layers === undefined || !!layers && typeof layers === "object" &&
+    !Array.isArray(layers) && Object.keys(layers).length <= 5_000 &&
+    Object.entries(layers).every(([page, key]) => /^[1-9]\d*$/u.test(page) &&
+      Number(page) <= 5_000 && typeof key === "string" && /^[a-f0-9]{64}$/u.test(key));
+  return validLayers && record && profile && typeof record.cacheKey === "string" &&
     /^[a-f0-9]{64}$/u.test(record.cacheKey) &&
     (record.status === "ready" || record.status === "degraded") &&
     Object.keys(profile).every((key) => key === "ocr" || key === "layout") &&
     setting(profile.ocr, ["tesseract", "kraken-lite"]) &&
     setting(profile.layout, "ppdoc")
     ? { cacheKey: record.cacheKey, profile: profile as LegalPdfProfile,
-      status: record.status }
+      status: record.status, ...(layers ? { textLayerPages: { ...layers as Record<string, string> } } : {}) }
     : undefined;
 }
 export type DocumentParseState = {
@@ -154,7 +161,7 @@ export type DocumentStore = {
   readParts(scope: DocumentScope, id: string, versionId: string | null,
     names: string[]): Promise<DocumentPartContent[] | null>;
   recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
-    sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;
+    sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection; textOnly?: boolean }): Promise<boolean>;
   projectionSource(scope: DocumentScope, id: string, versionId: string | null):
     Promise<DocumentProjectionSource | null>;
   spreadsheet(scope: DocumentScope, id: string, versionId: string | null):

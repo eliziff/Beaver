@@ -121,10 +121,11 @@ export function createDocumentsRouter(
     const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");
     if (source.fileType !== "pdf") reject(400, "Text layers require a PDF");
+    const abort = new AbortController(); res.once("close", () => abort.abort());
     const pages = await documentProjectionService.pdfTextLayer(source.readBytes, {
       documentId: source.documentId, versionId: source.versionId, sourceSha256: source.sourceSha256,
       ...(source.pdfProfile ? { cacheKey: source.pdfProfile.cacheKey } : {}),
-    }, { pdfProfile: source.pdfProfile });
+    }, { pdfProfile: source.pdfProfile, signal: abort.signal });
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ pages });
   }));

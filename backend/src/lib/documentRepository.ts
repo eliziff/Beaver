@@ -70,7 +70,7 @@ export type DocumentRepository = {
     resolveEdits?: { ids: string[]; status: StoredAssistantEdit["status"] } }):
     Promise<"updated" | Write>;
   recordPdfPreparation(scope: DocumentScope, id: string, input: { versionId: string;
-    sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection }): Promise<boolean>;
+    sourceSha256: string; pageCount: number; pdfProfile: PdfProfileSelection; textOnly?: boolean }): Promise<boolean>;
   deleteVersion(scope: DocumentScope, id: string, input: { versionId: string;
     expectedCurrentVersionId: string; nextCurrentVersionId: string;
     expectedBlobKey: string; expectedPdfBlobKey: string | null;
