@@ -6,6 +6,9 @@ on:
 permissions:
   contents: write
   actions: read
+defaults:
+  run:
+    shell: bash
 jobs:
   candidate:
     runs-on: ubuntu-latest
@@ -23,7 +26,7 @@ jobs:
           export HIGHLIGHT_RECEIPTS="$RUNNER_TEMP/authorities-performance"
           echo "HIGHLIGHT_RECEIPTS=$HIGHLIGHT_RECEIPTS" >> "$GITHUB_ENV"
           echo "MIKE_LOCAL_DATA_DIR=$RUNNER_TEMP/authorities-performance-data" >> "$GITHUB_ENV"
-          git show c3e00836e811cea2f19d26a5964213aeed33b24d:frontend/src/app/components/shared/views/pdfSelectionGeometry.ts > frontend/src/app/components/shared/views/pdfSelectionGeometry.benchmark-baseline.ts
+          git show HEAD:frontend/src/app/components/shared/views/pdfSelectionGeometry.ts > frontend/src/app/components/shared/views/pdfSelectionGeometry.benchmark-baseline.ts
           python .github/authorities-perf-candidate.py
           git submodule update --init legal-pdf-parser legal-structure
           git diff --check
