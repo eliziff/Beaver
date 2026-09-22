@@ -86,8 +86,8 @@ describe("Codex app-server adapter", () => {
     expect(turn.input).toEqual([{ type: "text", text: "Reply.", text_elements: [] }]);
   });
 
-  it("makes every advertised native tool callable without loading", async () => {
-    const registry = new TurnToolRegistry([{ name: "inspect",
+  it("keeps the native catalog stable while loading authorizes specialists", async () => {
+    const registry = new TurnToolRegistry([{ name: "inspect", specialist: true,
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       async execute() { return { result: toolText("inspected") }; },
     }]);
@@ -106,7 +106,9 @@ describe("Codex app-server adapter", () => {
         }));
         try {
           const catalog = (await client.listTools()).tools;
-          expect(catalog.map(({ name }) => name)).toEqual(["inspect"]);
+          expect(catalog.map(({ name }) => name)).toEqual(["load_tools", "inspect"]);
+          expect((await client.callTool({ name: "inspect", arguments: {} })).isError).toBe(true);
+          await client.callTool({ name: "load_tools", arguments: { names: ["inspect"] } });
           expect((await client.listTools()).tools).toEqual(catalog);
           expect((await client.callTool({ name: "inspect", arguments: {} })).content)
             .toEqual([{ type: "text", text: "inspected" }]);
@@ -117,8 +119,8 @@ describe("Codex app-server adapter", () => {
       return {};
     });
     await streamCodex({ model: "codex:gpt-5.6-luna", systemPrompt: "", messages: [],
-      tools: registry.all(), staticTools: registry.all(),
-      resolveTools: () => registry.all(), runTools: calls => registry.run(calls, {}),
+      tools: registry.visible(), staticTools: registry.all(),
+      resolveTools: () => registry.visible(), runTools: calls => registry.run(calls, {}),
     });
   });
 

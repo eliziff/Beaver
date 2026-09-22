@@ -6,6 +6,7 @@ import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 
 export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {
   name: "compare_versions",
+  specialist: true,
   sequential: (input) => input.save_redline === true,
   description:
     "Compare two Library DOCX versions in memory (default: current against the prior version). Returns bounded changes and typed abstentions. Set save_redline only when the user asked for a durable Word redline.",

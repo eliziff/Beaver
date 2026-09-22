@@ -13,6 +13,7 @@ import type { LegalEvidenceReceipt, PendingLegalResearchQueryReceipt,
   RegisteredEvidence } from "./legalEvidence";
 import type { ReadSubagentRegion } from "./readSubagents";
 
+export const LOAD_TOOLS_NAME = "load_tools";
 const MAX_PARALLEL_TOOL_CALLS = 4;
 export const MAX_MODEL_TOOL_RESULT_CHARS = 64_000;
 
@@ -29,6 +30,7 @@ export type BeaverOutcome = {
   terminal?: boolean;
 };
 export type BeaverToolPolicy = {
+  specialist?: boolean;
   research?: boolean;
   reader?: readonly ReadSubagentRegion[];
   sequential?: boolean | ((input: Record<string, unknown>) => boolean);
@@ -65,6 +67,14 @@ export const objectSchema = (properties: Record<string, object>,
   ...(required.length ? { required } : {}),
   additionalProperties: false,
 });
+const loader = (names: string[]): Tool => ({
+  name: LOAD_TOOLS_NAME,
+  description: "Load specialist tools by exact name. Returns their callable definitions and parameter schemas.",
+  inputSchema: objectSchema({ names: {
+    type: "array", minItems: 1, maxItems: names.length, uniqueItems: true,
+    items: names.length ? { type: "string", enum: names } : { type: "string" },
+  } }, ["names"]),
+});
 
 export const toolText = (value: unknown, isError = false): CallToolResult => ({
   content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
@@ -79,9 +89,10 @@ export const withoutUrls = (value: unknown): unknown => Array.isArray(value)
         .flatMap(([key, item]) => /(?:^|_)(?:url|uri|href)$/iu.test(key)
           ? [] : [[key, withoutUrls(item)]]))
     : value;
-const visibleText = (result: CallToolResult) => {
+const visibleText = (result: CallToolResult, definitions = false) => {
   const text = result.content.map((block) => {
     if (block.type !== "text") return JSON.stringify(block);
+    if (definitions) return block.text;
     try { return JSON.stringify(withoutUrls(JSON.parse(block.text))); }
     catch { return block.text; }
   }).join("\n");
@@ -94,8 +105,9 @@ const visibleText = (result: CallToolResult) => {
     truncated: true,
   };
 };
-const normalize = (id: string, outcome: BeaverOutcome): NormalizedToolResult => {
-  const visible = visibleText(outcome.result);
+const normalize = (call: NormalizedToolCall, outcome: BeaverOutcome): NormalizedToolResult => {
+  const id = call.id;
+  const visible = visibleText(outcome.result, call.name === LOAD_TOOLS_NAME);
   // A failed tool result is otherwise invisible outside the model's context; name it in the server log.
   if (outcome.result.isError) console.warn("[assistant-tool] failed", { id, detail: visible.text.slice(0, 600) });
   return {
@@ -116,6 +128,7 @@ type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
 export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
   readonly #byName = new Map<string, Compiled<Context>>();
+  readonly #active = new Set<string>();
   #mutated = false;
 
   constructor(tools: BeaverTool<Context>[]) {
@@ -124,10 +137,11 @@ export class TurnToolRegistry<Context> {
       if (!parsed.success) throw new Error(
         `Invalid tool ${candidate.name || "<empty>"}: ${parsed.error.message}`);
       const name = candidate.name.trim();
-      if (!name) {
-        throw new Error(`Empty tool name: ${name || "<empty>"}`);
+      if (!name || name === LOAD_TOOLS_NAME) {
+        throw new Error(`Reserved or empty tool name: ${name || "<empty>"}`);
       }
       if (this.#byName.has(name)) throw new Error(`Duplicate tool: ${name}`);
+      if (typeof candidate.execute !== "function") throw new Error(`Tool ${name} has no executor`);
       const compiled: Compiled<Context> = {
         tool: { ...candidate, name },
         input: validator.getValidator(candidate.inputSchema),
@@ -136,13 +150,27 @@ export class TurnToolRegistry<Context> {
         }),
       };
       this.#byName.set(name, compiled);
+      if (!candidate.specialist) this.#active.add(name);
       return compiled;
     });
   }
 
-  /** The complete scoped callable catalog; tools never need model-driven activation. */
+  specialists() {
+    return this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [] : [tool.name]);
+  }
+  visible() {
+    const specialists = this.specialists();
+    return [
+      ...(specialists.length ? [loader(specialists)] : []),
+      ...this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [schema(tool)] : []),
+    ];
+  }
   all() {
-    return this.#tools.map(({ tool }) => schema(tool));
+    const specialists = this.specialists();
+    return [
+      ...(specialists.length ? [loader(specialists)] : []),
+      ...this.#tools.map(({ tool }) => schema(tool)),
+    ];
   }
   activity(call: NormalizedToolCall) {
     // Reaching for a tool is machinery, not an act the reader follows, and a call whose
@@ -164,6 +192,7 @@ export class TurnToolRegistry<Context> {
     if (new Set(calls.map(call => call.id)).size !== calls.length)
       throw new Error("Duplicate tool call IDs");
     const serial = calls.some((call) => {
+      if (call.name === LOAD_TOOLS_NAME) return true;
       const setting = this.#byName.get(call.name)?.tool.sequential;
       return typeof setting === "function" ? setting(call.input) : setting === true;
     });
@@ -171,7 +200,7 @@ export class TurnToolRegistry<Context> {
       ? await this.#serial(calls, context, signal, onResult)
       : await this.#parallel(calls, context, signal, onResult);
     const terminal = executions.length > 0 && executions.every(({ outcome }) => outcome.terminal);
-    return executions.map(({ call, outcome }) => normalize(call.id, { ...outcome, terminal }));
+    return executions.map(({ call, outcome }) => normalize(call, { ...outcome, terminal }));
   }
 
   async #parallel(
@@ -224,10 +253,19 @@ export class TurnToolRegistry<Context> {
     context: Context,
     signal: AbortSignal,
   ): Promise<Execution> {
+    if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
+    if (call.name === LOAD_TOOLS_NAME) {
+      const checked = validator.getValidator(
+        loader([...this.#byName.keys()]).inputSchema)(call.input);
+      return { call, outcome: checked.valid
+        ? { result: this.#load(call.input.names as string[]) }
+        : failedOutcome("invalid_arguments", checked.errorMessage) };
+    }
     const compiled = this.#byName.get(call.name);
-    if (!compiled) return {
+    if (!compiled || !this.#active.has(call.name)) return {
       call,
-      outcome: failedOutcome("unknown_tool", `Unknown tool: ${call.name}`),
+      outcome: failedOutcome(compiled ? "tool_not_loaded" : "unknown_tool",
+        compiled ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
     };
     const checked = compiled.input(call.input);
     if (!checked.valid) {
@@ -257,5 +295,16 @@ export class TurnToolRegistry<Context> {
         metadata: { status: "error" },
       } };
     }
+  }
+
+  #load(names: string[]) {
+    const added = names.filter((name) => !this.#active.has(name));
+    const tools = names.map(name => schema(this.#byName.get(name)!.tool));
+    const result = toolText({ ok: true, loaded: added, tools });
+    // Never acknowledge a partial/truncated definition as a successful load.
+    if (visibleText(result, true).truncated) return toolText({ ok: false, error: "tool_definitions_too_large",
+      detail: "Load fewer tools in one call." }, true);
+    added.forEach((name) => this.#active.add(name));
+    return result;
   }
 }

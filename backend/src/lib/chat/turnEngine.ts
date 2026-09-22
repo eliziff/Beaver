@@ -186,7 +186,8 @@ export async function runChatTurn(options: {
     READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME]);
   const mainTools = options.createTools(evidence, options.readerAssignment ?? "main", context)
     .filter((tool) => !internalNames.has(tool.name) && (!options.readerAssignment ||
-      tool.reader?.includes(options.readerAssignment.jurisdiction)));
+      tool.reader?.includes(options.readerAssignment.jurisdiction)))
+    .map((tool) => options.readerAssignment ? { ...tool, specialist: false } : tool);
   let readerSelection = { enabled: subagents, model: options.subagentModel, effort: options.subagentEffort };
   const resumableReaders = new Map(options.resumableSubagents);
   const request = [...options.messages].reverse()
@@ -414,6 +415,8 @@ export async function runChatTurn(options: {
   const readerSchemas = [READ_SUBAGENT_TOOL, RESUME_SUBAGENT_TOOL];
   const readerTools: BeaverTool<ChatToolContext>[] = readerSchemas.map((schema) => ({
     ...schema,
+    // Delegation is an ordinary chat tool, not a load_tools specialist.
+    specialist: false,
     activity: (input) => schema.name === READ_SUBAGENT_TOOL_NAME
       ? readSubagentActivityLabel(input) : "Resuming reading agents",
     async execute(_input, _context, _signal, call) {
@@ -429,7 +432,7 @@ export async function runChatTurn(options: {
   ]);
   const systemPrompt = [options.systemPrompt,
     researchReadContextPrompt(context.research)].filter(Boolean).join("\n\n");
-  const resolveTools = () => registry.all().filter(tool => readerSelection.enabled ||
+  const resolveTools = () => registry.visible().filter(tool => readerSelection.enabled ||
     ![READ_SUBAGENT_TOOL_NAME, RESUME_SUBAGENT_TOOL_NAME].includes(tool.name));
   const runTools = async (calls: NormalizedToolCall[], onActivity?: () => void) => {
     throwIfAborted(signal);
