@@ -65,6 +65,9 @@ manual text selection/area drawing. Card selection navigates to exact geometry;
 selecting a mark identifies its card, including cycling overlapping marks.
 Edits have per-source undo/redo and revision-checked, serialized autosave; editing
 continues while a save is in flight. A failed save remains dirty and can be retried.
+Each source owns its saved snapshot and review state alongside its undo history.
+A save acknowledges only its submitted snapshot, not edits made during the request.
+Abandoned automatic preparation resumes on revisit unless that source was reviewed.
 Only the active source retains PDF bytes; switching sources preserves mark history.
 OCR geometry is retained by the parser and read independently of annotation state,
 including when reopening a draft. Word boxes are used when available; line-only

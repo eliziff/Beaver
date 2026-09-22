@@ -266,6 +266,43 @@ describe("PdfView", () => {
         reads.forEach(read => read.resolve(undefined));
     });
 
+    it("keeps native quote navigation and selection usable during OCR refresh", async () => {
+        // JSDOM owns ranges/selection but does not implement range layout.
+        const createRange = document.createRange.bind(document);
+        vi.spyOn(document, 'createRange').mockImplementation(() => {
+            const range = createRange(); range.getClientRects = () => [] as unknown as DOMRectList; return range;
+        });
+        mocks.numPages = 1;
+        type OcrPage = NonNullable<Parameters<typeof PdfView>[0]['recognizedText']>['pages'][number];
+        const pending: Array<{signal: AbortSignal; resolve: (page: OcrPage | undefined) => void}> = [];
+        const load = (_page: number, signal: AbortSignal) => new Promise<OcrPage | undefined>(resolve => pending.push({signal, resolve}));
+        const bytes = new Uint8Array([1]), quotes = [{quote: "Page 1", page: 1}];
+        const {container, rerender, unmount} = render(<PdfView doc={null} bytes={bytes} quotes={quotes} loadRecognizedText={load} />);
+        await waitFor(() => expect(container.querySelector(".pdf-text-highlight")?.textContent?.trim()).toBe("Page 1"));
+        const layer = container.querySelector(".pdf-text-layer")!;
+        const text = container.querySelector(".pdf-text-highlight")!.firstChild!;
+        const selection = document.getSelection()!, range = document.createRange();
+        range.setStart(text, 0); range.setEnd(text, 6); selection.removeAllRanges(); selection.addRange(range);
+        const extractionCount = mocks.textLayers.length;
+        rerender(<PdfView doc={null} bytes={bytes} quotes={quotes} loadRecognizedText={(page, signal) => load(page, signal)} />);
+        await waitFor(() => expect(pending).toHaveLength(2));
+        expect(pending[0].signal.aborted).toBe(true);
+        expect(container.querySelector(".pdf-text-layer")).toBe(layer);
+        expect(selection.toString()).toBe("Page 1");
+        expect(mocks.textLayers.length).toBe(extractionCount);
+        await act(async () => pending[1].resolve({pageNumber:1,width:600,height:800,
+            lines:[{id:'ocr',text:'Page 1 text recognized',rect:[20,30,220,45],words:[]}]}));
+        expect(container.querySelector(".pdf-text-layer")).toBe(layer);
+        expect(selection.toString()).toBe("Page 1");
+        selection.removeAllRanges(); fireEvent(document, new Event('selectionchange'));
+        await waitFor(() => expect(container.querySelector(".pdf-text-layer")?.textContent).toContain('recognized'));
+        expect(container.querySelectorAll(".pdf-text-layer")).toHaveLength(1);
+        unmount();
+        expect(pending.every(read => read.signal.aborted)).toBe(true);
+        await act(async () => pending.forEach(read => read.resolve(undefined)));
+        expect(container.querySelector(".pdf-text-layer")).toBeNull();
+    });
+
     it("bounds high-DPI raster allocations through zoom and frees in-flight canvases on close", async () => {
         vi.stubGlobal("devicePixelRatio", 6);
         const canvases: HTMLCanvasElement[] = [];

@@ -123,6 +123,12 @@ and crop alignment retain the existing annotation coordinate contract. Distant t
 layers are cancelled/evicted with the bitmap buffer, except during a live selection;
 page cleanup releases PDF.js render resources, and zoom/close zero old canvases.
 Quote matches survive eviction as data and are reapplied when their page returns.
+One layout owns its navigation, rendering and resident text resources; replacement
+and teardown dispose that owner together. Each resident page owns one text-layer
+lifetime. Native readiness never waits for optional OCR; refreshing OCR does not
+re-extract native text or remove the usable layer while the request is pending.
+An OCR replacement waits for an active selection to clear, and disposal removes
+its listener and aborts its request. Late results cannot reinstall disposed layers.
 Annotation overlays are indexed by mark and exist only on marked/drawn pages;
 selection and autosave do not rebuild every page's SVG. Mouse drags resolve nearby
 text runs without reordering native text. Full selection lines/runs reuse cached

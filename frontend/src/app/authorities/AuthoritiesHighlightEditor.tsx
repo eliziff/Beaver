@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
@@ -44,6 +44,7 @@ type Entry = Extract<AuthoritiesAction, { type: 'set-annotations' }>['entries'][
 type Choice = { authorityId: string; bindingRole: string; sourceSha256: string; title: string };
 type OpenPdf = {
   set: PdfAnnotationSet; history: PdfAnnotation[][]; position: number; warning: string;
+  saved: PdfAnnotation[]; review: 'preparing' | 'ready' | 'edited';
 };
 const choicesFor = (product: AuthoritiesProduct, tabs: ReadonlyMap<string,string>): Choice[] =>
   product.state.authorityOrder.flatMap(id => {
@@ -79,8 +80,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   // A review edits one known revision; a concurrent write must not be silently overwritten.
   const [base] = useState(product);
   const revision = useRef(product.revision);
-  const savedMarks = useRef<Record<string, PdfAnnotation[]>>({});
-  const reviewed = useRef(new Set<string>());
+  const saveRequest = useRef<Promise<void> | null>(null);
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
@@ -90,39 +90,37 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [focus, setFocus] = useState<{ id: string; request: number }>();
   const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
   const [error, setError] = useState(''), [textError, setTextError] = useState('');
-  const request = useRef<AbortController|null>(null);
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
   const recognition = ocr.tracked[role];
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
   const current = documents[role], marks = current?.history[current.position] ?? [];
-  const dirty = Object.entries(documents).some(([key, document]) =>
-    savedMarks.current[key] !== document.history[document.position]);
+  const dirty = Object.values(documents).some(document => document.saved !== document.history[document.position]);
   const disabled = loading || !current;
   const changeDocument = (update: (document: OpenPdf) => OpenPdf) => setDocuments(values => {
     const document = values[role]; return document ? { ...values, [role]: update(document) } : values;
   });
-  const edit = (next: PdfAnnotation[]) => {
-    if (disabled || next === marks) return;
-    reviewed.current.add(role);
+  const edit = (update: (marks: PdfAnnotation[]) => PdfAnnotation[]) => {
+    if (disabled) return;
     changeDocument(document => {
+      const next = update(document.history[document.position]);
       const history = [...document.history.slice(0,document.position+1),next];
       // Shared immutable annotations keep undo inexpensive; do not clone entire PDFs or mark sets.
-      return { ...document, history, position: history.length-1 };
+      return { ...document, history, position: history.length-1, review: 'edited' };
     });
   };
   const undo = () => { if (!disabled) changeDocument(document => ({...document,position:Math.max(0,document.position-1)})); };
   const redo = () => { if (!disabled) changeDocument(document => ({...document,position:Math.min(document.history.length-1,document.position+1)})); };
-  const remove = (id: string) => { edit(marks.filter(mark => mark.id !== id)); if (selectedId===id) setSelectedId(null); };
+  const remove = (id: string) => { edit(marks => marks.filter(mark => mark.id !== id)); if (selectedId===id) setSelectedId(null); };
   const close = () => { if (!saving && !dirty) onClose(); };
 
+  const readDocument = useEffectEvent((key: string) => documents[key]);
   useEffect(() => {
     setSelectedId(null); setFocus(undefined); setError(''); setTextError('');
-    const loaded = documents[role];
     // Only the active PDF owns bytes. Mark histories survive source switches independently.
     setPdf(null);
-    const abort = new AbortController(); request.current?.abort(); request.current=abort; setLoading(true);
+    const abort = new AbortController(); setLoading(true);
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
       const blob = await host.readSource(base, source.bindingRole, abort.signal);
@@ -132,16 +130,19 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       abort.signal.throwIfAborted();
       if (hash !== source.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
       setPdf({role, bytes});
-      if (loaded) return;
+      const loaded = readDocument(role);
+      setLoading(false);
+      if (loaded && loaded.review !== 'preparing') return;
       const saved = base.state.authorities[source.authorityId].annotations?.[role];
       const replaced = !!saved && saved.sourceSha256 !== hash;
       let set = saved && !replaced ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
       if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
       let warning = replaced ? 'The PDF changed; highlights start from this version.' : '';
-      savedMarks.current[role] = set.marks;
-      setDocuments(values => ({...values,[role]:{set,history:[set.marks],position:0,warning}}));
-      setLoading(false);
-      if ((!saved || replaced) && base.state.settings.passageMarking !== 'none') {
+      const automatic = (!saved || replaced) && base.state.settings.passageMarking !== 'none';
+      const initial: OpenPdf = {set,history:[set.marks],position:0,warning,
+        saved:set.marks,review:automatic?'preparing':'ready'};
+      if (!loaded) setDocuments(values => ({...values,[role]:values[role] ?? initial}));
+      if (automatic) {
         try {
           if (!host.prepareAnnotations) throw new Error('Automatic marking is unavailable.');
           const prepared = await host.prepareAnnotations(base,source.authorityId,role,blob,abort.signal);
@@ -155,14 +156,13 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         }
       }
       abort.signal.throwIfAborted();
-      // A manual edit followed by undo still counts as review; never replace that history.
-      if (reviewed.current.has(role)) return;
-      savedMarks.current[role] = set.marks;
-      setDocuments(values => ({...values,[role]:{set,history:[set.marks],position:0,warning}}));
+      // Decide against the current state, not a ref checked before React applies this update.
+      setDocuments(values => values[role]?.review !== 'preparing' ? values : {...values,
+        [role]:{set,history:[set.marks],position:0,warning,saved:set.marks,review:'ready'}});
     })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [role, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [role, source, base, host]);
   const loadRecognizedText = useCallback(async (page: number, signal: AbortSignal) => {
     try {
       const text = await host.readSourceText?.(base, role, signal, [page]);
@@ -173,7 +173,6 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     }
   }, [role, recognition?.state, recognition?.recognized, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setTextError(''), [loadRecognizedText]);
-  useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if(selectedId) cardRefs.current.get(selectedId)?.scrollIntoView({block:'nearest'}); },[selectedId]);
   useEffect(() => {
     if(!dirty) return;
@@ -183,21 +182,31 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   useEffect(() => { if (dirty && !saving && !loading && !error) void save(); }, [documents, saving, loading, error]);
 
   async function save() {
-    if(saving || loading) return;
+    if(saveRequest.current || loading) return;
     const entries:Entry[]=choices.flatMap(choice=>{
       const document=documents[choice.bindingRole];
-      const unchanged = document && savedMarks.current[choice.bindingRole] === document.history[document.position];
+      const unchanged = document && document.saved === document.history[document.position];
       return document && !unchanged ? [{authorityId:choice.authorityId,bindingRole:choice.bindingRole,
         annotations:{...document.set,marks:document.history[document.position]}}] : [];
     });
     if(!entries.length) return;
     setSaving(true);setError('');
-    try {
-      const next=await host.act(base.id,revision.current,{type:'set-annotations',entries});
-      revision.current = next.revision;
-      for (const entry of entries) savedMarks.current[entry.bindingRole] = entry.annotations.marks;
-      onSaved(next);
-    } catch(cause) { setError(errorMessage(cause)); } finally { setSaving(false); }
+    // One write owns one immutable snapshot; acknowledging it cannot acknowledge later edits.
+    saveRequest.current = (async () => {
+      try {
+        const next=await host.act(base.id,revision.current,{type:'set-annotations',entries});
+        revision.current = next.revision;
+        setDocuments(values => {
+          const updated = {...values};
+          for (const entry of entries) updated[entry.bindingRole] = {
+            ...values[entry.bindingRole], saved:entry.annotations.marks };
+          return updated;
+        });
+        onSaved(next);
+      } catch(cause) { setError(errorMessage(cause)); }
+    })();
+    try { await saveRequest.current; }
+    finally { saveRequest.current = null; setSaving(false); }
   }
   return <>
     <Modal open onClose={close} breadcrumbs={['Highlights']} size="2xl"
@@ -243,7 +252,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
               loadRecognizedText={host.readSourceText ? loadRecognizedText : undefined}
               annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
-                  const id=crypto.randomUUID();edit([...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
+                  const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
                 }}} />
               : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
           </div>
