@@ -121,11 +121,18 @@ export function createDocumentsRouter(
     const source = await documents.projectionSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");
     if (source.fileType !== "pdf") reject(400, "Text layers require a PDF");
+    const requested = req.query.pages;
+    if (requested !== undefined && (typeof requested !== "string" || !/^[1-9]\d*(,[1-9]\d*){0,15}$/u.test(requested)))
+      reject(400, "pages must contain 1 to 16 one-based page numbers");
+    const requestedPages = typeof requested === "string" ? requested.split(",").map(Number) : undefined;
+    if (requestedPages?.some(page => !Number.isSafeInteger(page) || page > 5_000)) reject(400, "Invalid PDF page");
+    if (req.query.source_sha256 !== undefined && req.query.source_sha256 !== source.sourceSha256)
+      reject(409, "This PDF changed. Relink the source before editing highlights.");
     const abort = new AbortController(); res.once("close", () => abort.abort());
     const pages = await documentProjectionService.pdfTextLayer(source.readBytes, {
       documentId: source.documentId, versionId: source.versionId, sourceSha256: source.sourceSha256,
       ...(source.pdfProfile ? { cacheKey: source.pdfProfile.cacheKey } : {}),
-    }, { pdfProfile: source.pdfProfile, signal: abort.signal });
+    }, { pdfProfile: source.pdfProfile, pages: requestedPages, signal: abort.signal });
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ pages });
   }));

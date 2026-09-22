@@ -22,12 +22,14 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
       pageCount: 3, projectionPageCount: input.pages?.length ?? 3,
       pagesNeedingOcr: [0, 1, 2].filter(page => !pages.includes(page + 1)), ocrRoutedPages: pages.map(page => page - 1) };
   });
+  const restore = vi.fn(async (input: { cache_key: string; expected_source_sha256: string }) => {
+    const artifact = artifacts.get(input.cache_key);
+    return artifact?.sha256 === input.expected_source_sha256 ? artifact : null;
+  });
   vi.doMock('../structureNative', () => ({ structureNative: () => ({ preparePdfDocument: prepare,
-    restorePdfDocument: async (input: { cache_key: string; expected_source_sha256: string }) => {
-      const artifact = artifacts.get(input.cache_key);
-      return artifact?.sha256 === input.expected_source_sha256 ? artifact : null;
-    },
-    pdfRecognizedText: (artifact: { pages: NativePdfTextPage[] }) => artifact.pages,
+    restorePdfDocument: restore,
+    pdfRecognizedText: (artifact: { pages: NativePdfTextPage[] }, pages?: number[]) =>
+      artifact.pages.filter(page => !pages || pages.includes(page.pageNumber)),
   }) }));
   const [{ createDocumentApplication }, { documentRepository }, { filesystemDocumentObjects },
     queue, { pdfJobHandlers }, db, { createDocumentsRouter }] = await Promise.all([
@@ -66,13 +68,25 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     const api = express(); api.use(createDocumentsRouter({} as never, reader));
     const readsBefore = prepare.mock.calls.length;
     const read = () => request(api).get(`/${file.id}/pdf-text-layer?version_id=${file.current_version_id}`);
+    const url = `/${file.id}/pdf-text-layer?version_id=${file.current_version_id}`;
+    restore.mockClear();
+    const selected = await Promise.all([request(api).get(`${url}&pages=2`).expect(200),
+      request(api).get(`${url}&pages=2`).expect(200)]);
+    expect(selected.map(response => response.body.pages.map((page: NativePdfTextPage) => page.pageNumber))).toEqual([[2], [2]]);
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(restore.mock.calls[0][0].cache_key).toBe(source.pdfProfile!.textLayerPages!['2']);
+    await request(api).get(`${url}&pages=0`).expect(400);
+    await request(api).get(`${url}&pages=2&source_sha256=${'0'.repeat(64)}`).expect(409);
     const response = await read().expect(200);
     expect(response.body.pages.map((page: NativePdfTextPage) => page.pageNumber)).toEqual([1, 2]);
     expect(response.body.pages[1].lines[0].words[0].text).toBe('Recognized page 2');
     expect(prepare).toHaveBeenCalledTimes(readsBefore);
     // Missing cached recognition is an error, not permission to launch OCR in a reader.
-    artifacts.delete(source.pdfProfile!.textLayerPages!['2']);
-    await read().expect(500);
+    await documents.recordPdfPreparation(scope, file.id, { versionId: file.current_version_id,
+      sourceSha256: file.source_sha256, pageCount: 3, textOnly: true,
+      pdfProfile: { ...original, textLayerPages: { '2': 'f'.repeat(64) } } });
+    await request(api).get(`${url}&pages=1`).expect(200); // An unrelated missing slice cannot block this page.
+    await read().expect(409);
     expect(prepare).toHaveBeenCalledTimes(readsBefore);
     await request(api).get(`/missing/pdf-text-layer`).expect(404);
   } finally {

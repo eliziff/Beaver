@@ -110,10 +110,15 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     if (!response.ok) throw new Error(`This source is unavailable (${response.status}).`);
     return response.blob();
   },
-  async readSourceText(draft, role, signal) {
-    const resolved = await sourceVersion(draft, role);
-    signal?.throwIfAborted();
-    return getDocumentPdfTextLayer(resolved.documentId, resolved.versionId, signal);
+  async readSourceText(draft, role, signal, pages) {
+    const binding = draft.state.bindings[role];
+    if (binding?.kind !== "document") throw new Error("This source is unavailable.");
+    const source = Object.values(draft.state.authorities).flatMap(authority => authority.source.kind === "attached"
+      ? authority.source.sources : []).find(source => source.bindingRole === role);
+    if (!source) throw new Error("This source is unavailable.");
+    // The text endpoint resolves latest + verifies the displayed hash in the same request.
+    return getDocumentPdfTextLayer(binding.documentId,
+      binding.version === "latest" ? undefined : binding.version.versionId, signal, pages, source.sourceSha256);
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),

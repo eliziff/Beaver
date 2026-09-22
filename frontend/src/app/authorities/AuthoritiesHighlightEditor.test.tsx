@@ -8,8 +8,20 @@ import type { AuthoritiesProduct } from './types';
 import { emptyAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
 import { createAuthoritiesDraft, validateAuthoritiesDraft } from '../../../../backend/src/lib/authoritiesDomain';
 
-vi.mock('@/app/components/shared/views/PdfView', () => ({ PdfView: (props: PdfCanvasProps) =>
-  <section aria-label={props.ariaLabel}>{props.recognizedText?.pages[0]?.lines[0]?.words[0]?.text}</section> }));
+vi.mock('@/app/components/shared/views/PdfView', async () => {
+  const { useState, useEffect } = await import('react');
+  return { PdfView: (props: PdfCanvasProps) => {
+    const [text, setText] = useState('');
+    useEffect(() => {
+      const abort = new AbortController();
+      void props.loadRecognizedText?.(1, abort.signal).then(page => {
+        if (!abort.signal.aborted) setText(page?.lines[0]?.words[0]?.text ?? '');
+      });
+      return () => abort.abort();
+    }, [props.loadRecognizedText]);
+    return <section aria-label={props.ariaLabel}>{text}</section>;
+  } };
+});
 
 it('opens a readable scan before automatic marks, reads paused OCR and cancels abandoned preparation', async () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
@@ -42,6 +54,7 @@ it('opens a readable scan before automatic marks, reads paused OCR and cancels a
     await waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('region', { name: 'Authority PDF editor' })).toBeVisible();
     expect(await screen.findByText('Retained OCR')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Highlight text', exact: true })).toBeEnabled();
     const signal = prepare.mock.calls[0][4] as AbortSignal;
     fireEvent.change(screen.getByRole('combobox', { name: 'Authority PDF' }), { target: { value: 'two' } });
     await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));

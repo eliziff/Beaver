@@ -1,3 +1,4 @@
+import { ApplicationError } from "./applicationError";
 import type { NativePdfTextPage } from "./structureNative";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -688,22 +689,34 @@ async function pdfTextLayer(
   options: PdfSourceOptions = {},
 ) {
   options.signal?.throwIfAborted();
+  const requested = options.pages;
+  if (requested && (!requested.length || requested.length > 16 ||
+      requested.some(page => !Number.isSafeInteger(page) || page < 1)))
+    throw new ApplicationError(400, "Request between 1 and 16 PDF text pages");
   const profile = options.pdfProfile;
   if (!profile) return [];
   const owners = profile.textLayerPages ?? {};
-  const keys = new Set([...(profile.profile.ocr ? [profile.cacheKey] : []), ...Object.values(owners)]);
+  const owner = (page: number) => owners[page] ?? (profile.profile.ocr ? profile.cacheKey : undefined);
+  const keys = new Set(requested ? requested.map(owner).filter((key): key is string => !!key)
+    : [...(profile.profile.ocr ? [profile.cacheKey] : []), ...Object.values(owners)]);
   if (!keys.size) return [];
   const native = structureNative(), result = new Map<number, NativePdfTextPage>();
+  const unavailable = () => new ApplicationError(409,
+    "Recognized text is no longer cached. Run Recognize text again for this PDF.");
   for (const key of keys) {
     options.signal?.throwIfAborted();
-    const document = await native.restorePdfDocument(pdfCacheRequest(reference, key));
-    if (!document) throw new Error("Recognized text is no longer cached. Run Recognize text again for this PDF.");
+    // Reuse the existing weak working set and single-flight restore, not a second OCR cache.
+    const document = await waitForProjection(projectionFor(projectionKey({ ...reference, cacheKey: key }), async () => {
+      const document = await native.restorePdfDocument(pdfCacheRequest(reference, key));
+      if (!document) throw unavailable();
+      return document;
+    }), options.signal);
     options.signal?.throwIfAborted();
-    for (const page of native.pdfRecognizedText(document)) {
-      if ((owners[page.pageNumber] ?? profile.cacheKey) === key) result.set(page.pageNumber, page);
-    }
+    const geometry = native.pdfRecognizedText(document, requested?.filter(page => owner(page) === key));
+    if (geometry === null) throw unavailable();
+    for (const page of geometry) if (owner(page.pageNumber) === key) result.set(page.pageNumber, page);
   }
-  // A viewer read never starts recognition or changes evidence artifacts.
+  // Unfiltered reads are for automatic marking; the viewport only restores/copies its requested pages.
   return [...result.values()].sort((a, b) => a.pageNumber - b.pageNumber);
 }
 
