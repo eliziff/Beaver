@@ -148,8 +148,10 @@ export function createLibraryStore(
       if (!current) return null;
       const filename = normalizeDocumentFilename(update.filename, current.filename);
       if (!filename) throw new ApplicationError(400, "filename is required");
-      const renamed = await documents.renameVersion(scope, id, current.current_version_id,
-        filename, current.current_working_revision);
+      const renamed = filename === current.filename
+        ? { working_revision: current.current_working_revision }
+        : await documents.renameVersion(scope, id, current.current_version_id,
+          filename, current.current_working_revision);
       if (!renamed) return null;
       if (update.metadata === undefined && update.notes === undefined) return isLibraryDocument(
         scope, { ...current, filename, current_working_revision: renamed.working_revision });
