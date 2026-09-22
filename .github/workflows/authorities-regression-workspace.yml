@@ -8,22 +8,13 @@ permissions:
 jobs:
   workspace:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Snapshot tracked application sources
-        shell: python
-        run: |
-          import subprocess,gzip,pathlib
-          paths='AGENTS.md CONTRIBUTING.md LICENSE package.json package-lock.json frontend/src frontend/scripts frontend/vendor frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vite.config.ts frontend/vitest.config.mts frontend/vitest.setup.ts backend/src backend/scripts backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.ts shared native/legal-structure-node packages scripts docs subrepos.lock.json .gitmodules'.split()
-          paths=[p for p in paths if pathlib.Path(p).exists()]
-          source=subprocess.check_output(['git','archive','HEAD',*paths])
-          assert len(source)>10000
-          pathlib.Path('/tmp/source.tar.gz').write_bytes(gzip.compress(source))
       - uses: actions/upload-artifact@v4
         with:
-          name: authorities-current-source
-          path: /tmp/source.tar.gz
+          name: authorities-schema
+          path: backend/schema.sql
           retention-days: 1
