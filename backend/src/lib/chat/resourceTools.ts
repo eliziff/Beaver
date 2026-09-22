@@ -3,7 +3,6 @@ import type { DocIndex } from "./types";
 import { objectSchema } from "./toolRegistry";
 import {
   DOCUMENT_OR_DRAFT_PATTERN,
-  DOCUMENT_RESOURCE_PATTERN,
   READABLE_RESOURCE_PATTERN,
   RESOURCE_LOCATOR_KINDS,
 } from "../resourceReferences";
@@ -21,7 +20,7 @@ const tool = (
   inputSchema: objectSchema(properties, required),
 });
 
-const resource = "A version-pinned document resource returned by Glob.";
+const resource = "A version-pinned document resource or current-turn draft handle.";
 
 export const RESOURCE_TOOLS = [
   tool(
@@ -44,7 +43,7 @@ export const RESOURCE_TOOLS = [
       pattern: { type: "string", maxLength: 256, description: "Regular expression to search." },
       path: {
         type: "string",
-        pattern: DOCUMENT_RESOURCE_PATTERN,
+        pattern: DOCUMENT_OR_DRAFT_PATTERN,
         description: resource,
       },
       glob: { type: "string", maxLength: 256, description: 'Filename glob such as "*.docx".' },
@@ -120,7 +119,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Edit",
-    "Replace exact text in the current version-pinned DOCX as tracked changes. old_string must be unique unless replace_all is true; load edit_docx_advanced for structural or formatting operations.",
+    "Replace exact text in the current DOCX using the user's tracked/direct editing setting. old_string must be unique unless replace_all is true. Load edit_docx_advanced for mechanical text operations or inserting blocks; load word_uno for styles, formatting, tables, and sections.",
     {
       file_path: {
         type: "string",

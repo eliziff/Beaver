@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
+import { Paragraph } from "docx";
 import { createLibreOfficeApplication } from "../../src/lib/libreOfficeApplication";
 import type { DocumentStore } from "../../src/lib/documentStore";
 
@@ -90,4 +91,81 @@ test("cancellation before execution does not create or publish a document", asyn
   const f = fixture(); const abort = new AbortController(); abort.abort();
   await assert.rejects(f.run({ action: "inspect", file_path }, abort.signal));
   assert.equal(f.state.creates, 0); assert.equal(f.state.saves, 0);
+});
+
+test("real chat tools share artifacts, native edits and durable document versions", async () => {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const os = await import("node:os"), path = await import("node:path");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "beaver-uno-chat-"));
+  const previous = { auth: process.env.AUTH_MODE, data: process.env.MIKE_LOCAL_DATA_DIR };
+  process.env.AUTH_MODE = "local"; process.env.MIKE_LOCAL_DATA_DIR = directory;
+  const { closeRelationalDatabase } = await import("../../src/lib/relationalDatabase");
+  try {
+    const { createChatToolRunner } = await import("../../src/lib/chat/chatToolRunner");
+    const { TurnToolRegistry } = await import("../../src/lib/chat/toolRegistry");
+    const { createLegalEvidenceTurnState } = await import("../../src/lib/chat/legalEvidence");
+    const { createSourceWorkspaceApplication } = await import("../../src/lib/sourceWorkspaceApplication");
+    const { localDocuments: documents, localLibraryStore: library, localProjects: projects,
+      createLocalDocument } = await import("../../src/lib/__tests__/support/localDocumentFixtures");
+    const { docxBytes, docxXml } = await import("../../src/lib/__tests__/support/docxFixtures");
+    const source = await createLocalDocument({ userId: "local-user", kind: "file", filename: "native.docx",
+      bytes: await docxBytes([new Paragraph("Original provision.")]) });
+    const allowedDocumentIds = new Set([source.id]);
+    const scope = { userId: "local-user" }, evidence = createLegalEvidenceTurnState();
+    const context = { evidence, operation: { executor: "assistant" as const }, emit() {}, addEvent() {} };
+    const runner = createChatToolRunner({ ...scope, documents, library, projects, allowedDocumentIds,
+      includeResearchTools: false, editMode: "auto", onMutationCommitted() {},
+      sources: createSourceWorkspaceApplication(documents, { chats: {} as never, tables: {} as never,
+        tabular: async () => { throw new Error("No table in this document fixture"); } }) });
+    const registry = new TurnToolRegistry(runner.createTools(evidence, "main", context));
+    let id = 0;
+    const call = async (name: string, input: Record<string, unknown>) => {
+      const [result] = await registry.run([{ id: String(++id), name, input }], context);
+      assert.equal(result.status, "ok", `${name}: ${result.content}`);
+      return JSON.parse(result.content);
+    };
+    await call("load_tools", { names: ["word_uno", "edit_docx_advanced", "document_operation", "compare_versions"] });
+    const edited = await call("Edit", { file_path: `document://${source.id}/version/${source.current_version_id}`,
+      old_string: "Original", new_string: "Surgical" });
+    const original = await documents.read(scope, source.id, null, false);
+    assert.ok(edited.resource.includes(source.id));
+    await call("document_operation", { action: "metadata", kind: "file", document_id: edited.artifact, notes: "Reviewed" });
+    assert.equal((await documents.metadata(scope, source.id))!.current_working_revision, original!.version.working_revision);
+    const inspected = await call("word_uno", { action: "inspect", file_path: edited.artifact });
+    const preview = await call("word_uno", { action: "preview", file_path: edited.artifact, snapshot: inspected.snapshot,
+      program: "const p=word.target('paragraph:0'); p.set({String:'Intermediate clause.',CharHeight:14}); p.set({CharHeight:14,String:'Native clause.'}); return p.get(['String','CharHeight']);" });
+    assert.deepEqual(preview.result, { String: "Native clause.", CharHeight: 14 });
+    assert.equal(preview.reopened, true);
+    assert.deepEqual((await documents.read(scope, source.id, null, false))!.bytes, original!.bytes);
+    const checked = await call("word_uno", { action: "inspect", file_path: preview.artifact,
+      program: "return word.target('paragraph:0').get(['String','CharHeight']);" });
+    assert.deepEqual(checked.result, preview.result);
+    const applied = await call("word_uno", { action: "apply", file_path: edited.artifact, preview_resource: preview.artifact });
+    const candidate = await documents.read(scope, preview.resource.split('/')[2], null, false);
+    assert.deepEqual((await documents.read(scope, source.id, null, false))!.bytes, candidate!.bytes);
+    await call("Edit", { file_path: edited.artifact, old_string: "Native", new_string: "Final" });
+    await call("edit_docx_advanced", { file_path: edited.artifact,
+      ops: [{ op: "replace_text", find: "clause", replace: "provision", scope: { kind: "whole_document" } }] });
+    const comparison = await call("compare_versions", { document_id: edited.artifact, baseline: edited.resource });
+    assert.ok(comparison.changes_total > 0);
+    const final = await documents.read(scope, source.id, null, false);
+    const xml = await docxXml(final!.bytes);
+    assert.match(xml, /Final/); assert.match(xml, /provision/); assert.match(xml, /w:sz w:val="28"/);
+    assert.equal((await call("word_uno", { action: "apply", file_path: edited.resource,
+      preview_resource: preview.resource })).already_applied, true);
+    assert.equal((await documents.read(scope, source.id, null, false))!.version.id, final!.version.id);
+    // Stale snapshots and revoked scope still fail through the production registry.
+    const [stale] = await registry.run([{ id: String(++id), name: "word_uno", input: { action: "preview",
+      file_path: edited.artifact, snapshot: inspected.snapshot, program: "return true;" } }], context);
+    assert.equal(stale.status, "error"); assert.match(stale.content, /current snapshot/);
+    allowedDocumentIds.clear();
+    const [revoked] = await registry.run([{ id: String(++id), name: "word_uno",
+      input: { action: "inspect", file_path: applied.resource } }], context);
+    assert.equal(revoked.status, "error"); assert.match(revoked.content, /selected scope/);
+  } finally {
+    await closeRelationalDatabase();
+    for (const [key, value] of [["AUTH_MODE", previous.auth], ["MIKE_LOCAL_DATA_DIR", previous.data]] as const)
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    await rm(directory, { recursive: true, force: true });
+  }
 });

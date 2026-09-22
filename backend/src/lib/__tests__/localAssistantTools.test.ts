@@ -211,7 +211,17 @@ describe("local assistant tools", () => {
     }]);
     expect(JSON.parse(edited.result.content[0].type === "text"
       ? edited.result.content[0].text
-      : "{}")).toMatchObject({ artifact: "draft-1" });
+      : "{}")).toMatchObject({ artifact: "draft-1", resource: expect.stringContaining(`document://${document.id}/version/`) });
+    const { TurnToolRegistry } = await import("../chat/toolRegistry");
+    const registry = new TurnToolRegistry(entries);
+    const run = async (name: string, input: Record<string, unknown>) => {
+      const [result] = await registry.run([{ id: name, name, input }],
+        { evidence, operation: { executor: "assistant" }, emit: vi.fn(), addEvent: vi.fn() });
+      expect(result.status, result.content).toBe("ok");
+      return result.content;
+    };
+    await run("load_tools", { names: ["document_operation", "lint_document", "compare_versions"] });
+    await run("document_operation", { action: "metadata", kind: "file", document_id: "draft-1", notes: "Reviewed" });
     const followUp = {
       id: "artifact-edit",
       name: "Edit",
@@ -237,6 +247,10 @@ describe("local assistant tools", () => {
     expect(await extractDocxBodyText(savedBytes)).toContain("Revised clause.");
     expect(await extractTrackedChangeIds(savedBytes)).toHaveLength(revisionCount * 2);
     expect(committed).toHaveBeenCalledOnce();
+    expect(await run("Grep", { path: "draft-1", pattern: "Revised clause", output_mode: "content" })).toContain("Revised clause");
+    expect(JSON.parse(await run("lint_document", { document_id: "draft-1" }))).toMatchObject({ ok: true });
+    expect(JSON.parse(await run("compare_versions", { document_id: "draft-1",
+      baseline: resourceReference.document(document.id, document.current_version_id) })).changes_total).toBeGreaterThan(0);
   }, 30_000);
 
   it("creates a DOCX directly even when other Library documents are unread", async () => {
