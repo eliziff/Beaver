@@ -1,7 +1,7 @@
 import { compareDocxVersions } from "../../docxCompareVersions";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { Tool } from "../../llm";
-import { DOCUMENT_RESOURCE_PATTERN } from "../../resourceReferences";
+import { DOCUMENT_OR_DRAFT_PATTERN } from "../../resourceReferences";
 import { objectSchema, type BeaverToolPolicy } from "../toolRegistry";
 
 export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {
@@ -13,13 +13,13 @@ export const COMPARE_VERSIONS_TOOL: Tool & BeaverToolPolicy = {
   inputSchema: objectSchema({
     document_id: {
       type: "string",
-      pattern: DOCUMENT_RESOURCE_PATTERN,
-      description: "Version-pinned document resource to compare.",
+      pattern: DOCUMENT_OR_DRAFT_PATTERN,
+      description: "Version-pinned document resource or current-turn draft handle to compare.",
     },
     baseline: {
       type: "string",
-      pattern: DOCUMENT_RESOURCE_PATTERN,
-      description: "Earlier version-pinned resource of the same document; defaults to the prior version.",
+      pattern: DOCUMENT_OR_DRAFT_PATTERN,
+      description: "Earlier resource of the same document (or its current-turn draft handle); defaults to the prior version.",
     },
     save_redline: {
       type: "boolean",
