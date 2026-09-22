@@ -65,13 +65,13 @@ jobs:
           (cd frontend && npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/AuthoritiesHighlightEditor.test.tsx src/app/authorities/standaloneHost.test.tsx src/app/authorities/QuotationFinding.test.tsx)
           (cd backend && npx vitest run src/lib/__tests__/pdfOcrHandoff.test.ts src/lib/authoritiesWorkspaceApplication.test.ts src/lib/__tests__/documentProjectionService.test.ts)
           npm run check:source-boundaries
-      - name: Prepare controlled scan and browser runtime
+      - name: Prepare controlled scan and actual browser stylesheet entry
         run: |
           command -v tesseract || (sudo apt-get update -qq && sudo apt-get install -y tesseract-ocr)
           python -m pip install --quiet pillow playwright
           python -m playwright install --with-deps chromium
           mkdir -p "$HIGHLIGHT_RECEIPTS" frontend/.regression
-          cp .github/authorities-browser-main.tsx frontend/.regression/main.tsx
+          sed 's@/base.css@/globals.css@' .github/authorities-browser-main.tsx > frontend/.regression/main.tsx
           printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="/.regression/main.tsx"></script></body></html>' > frontend/.regression/index.html
           python - <<'PY'
           from PIL import Image,ImageDraw,ImageFont
