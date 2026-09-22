@@ -72,6 +72,20 @@ recognition retains its text and line box rather than inventing word coordinates
 Completed recognition updates the selectable
 layer in place without replacing marks, history, scroll position or PDF canvases.
 A manual-only source is not opted into OCR by opening the editor.
+The durable worker records page-limited OCR artifact references on the exact
+source version without replacing its whole-document evidence profile. Separate
+passes accumulate; full recognition replaces the slice references. Text-layer
+reads use these retained artifacts only and never launch OCR. A missing artifact
+requires an explicit Recognize text request; older page-limited passes that did
+not retain their references need that request once after updating.
+
+The embedded editor resolves only its selected source and mounts the PDF before
+automatic marks finish. Annotation preparation reads the version-bound source
+and retained recognition, not the standalone PDF-upload/OCR path. Switching
+sources cancels abandoned reads and mark preparation. The render scheduler excludes
+pages wholly before the preload window, including the preceding page when its
+boundary falls in an inter-page gap.
+
 
 Live text selection and newly saved highlights use the same continuous band per
 selected line, retaining precise character endpoints and native copy/keyboard

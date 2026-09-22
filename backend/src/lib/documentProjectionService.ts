@@ -1,3 +1,4 @@
+import type { NativePdfTextPage } from "./structureNative";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { sha256 } from "./hash";
@@ -682,27 +683,28 @@ async function pdfPassageGeometry(
 }
 
 async function pdfTextLayer(
-  readBytes: () => Buffer | Promise<Buffer>,
+  _readBytes: () => Buffer | Promise<Buffer>,
   reference: ProjectionReference,
   options: PdfSourceOptions = {},
 ) {
+  options.signal?.throwIfAborted();
   const profile = options.pdfProfile;
-  // Opening the editor never opts a manual-only source into recognition.
-  if (!profile?.profile.ocr) return [];
-  const native = structureNative();
-  const cached = await native.restorePdfDocument(pdfCacheRequest(reference, profile.cacheKey));
-  const geometry = cached ? native.pdfRecognizedText(cached) : [];
-  if (geometry.length) return geometry;
-  const summary = cached ? native.pdfDocumentSummary(cached) : undefined;
-  if (summary && !summary.ocrRoutedPages.length) return [];
-  if (!summary && profile.status !== "ready")
-    throw new Error("Recognized text is no longer cached. Resume text recognition for this PDF.");
-  // A compact cache written before geometry was retained can recover only the previously
-  // recognized pages. Never turn a cited-page pass into an implicit whole-document pass.
-  const pages = summary?.pagesNeedingOcr.length ? summary.ocrRoutedPages.map(page => page + 1) : undefined;
-  const document = await openPdf({ ...reference, bytes: await readBytes(), pages,
-    pdfProfile: profile, signal: options.signal });
-  return native.pdfRecognizedText(document);
+  if (!profile) return [];
+  const owners = profile.textLayerPages ?? {};
+  const keys = new Set([...(profile.profile.ocr ? [profile.cacheKey] : []), ...Object.values(owners)]);
+  if (!keys.size) return [];
+  const native = structureNative(), result = new Map<number, NativePdfTextPage>();
+  for (const key of keys) {
+    options.signal?.throwIfAborted();
+    const document = await native.restorePdfDocument(pdfCacheRequest(reference, key));
+    if (!document) throw new Error("Recognized text is no longer cached. Run Recognize text again for this PDF.");
+    options.signal?.throwIfAborted();
+    for (const page of native.pdfRecognizedText(document)) {
+      if ((owners[page.pageNumber] ?? profile.cacheKey) === key) result.set(page.pageNumber, page);
+    }
+  }
+  // A viewer read never starts recognition or changes evidence artifacts.
+  return [...result.values()].sort((a, b) => a.pageNumber - b.pageNumber);
 }
 
 async function preparedForEvidence(
