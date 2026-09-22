@@ -41,6 +41,26 @@ This is Beaver's only current tool-runtime contract. The displaced registry,
 parallel policy tables, and artifact-generation tools are not compatibility
 surfaces.
 
+## Deferred discovery and execution
+
+Specialists stay deferred. `load_tools` activates exact registered names and
+returns their canonical descriptions and argument schemas, including `word_uno`'s
+real help/inspect/describe/preview/apply entry points. An absent executor is a
+registration failure, not a successful load. Repeat discovery returns the same
+schemas; oversized results refuse before changing the active set.
+
+On hosted providers, the next request contains the selected functions, not the
+whole specialist catalog. A response may batch `load_tools` and the function it
+loads. The SDK validates against the earlier request catalog; Beaver resolves
+that specific known-but-deferred case through its existing ordered registry and
+persists exactly its actual result. Unknown names and unloaded or invalid calls
+are still errors. No new dispatcher or generic invocation tool is introduced.
+
+Native MCP clients retain a static scoped discovery catalog; the registry still
+gates execution. Claude's native `ToolSearch` builtin is available with native
+deferral enabled, rather than disabling search while relying on its deferred
+schemas. Other native execution builtins remain disabled.
+
 ## Reader and turn lifecycle (September 2026)
 
 Provider adapters remove Beaver's picker prefix before sending model IDs. OpenCode
@@ -75,11 +95,11 @@ Beaver will have:
 - one compact executable definition per tool;
 - one `Write` tool for DOCX, XLSX, and PPTX creation;
 - one small resident `Edit` tool for exact DOCX text replacement;
-- one directly callable advanced DOCX editor for deterministic structural and
+- one exact-loaded advanced DOCX editor for deterministic structural and
   formatting operations;
 - one `compare_versions` tool that is in-memory by default and persists a
   redline only when `save_redline: true` was requested by the user;
-- one scoped callable catalogue shared by every provider; and
+- a small resident catalogue with specialists loaded only when needed; and
 - at least 2,000 fewer authored production lines.
 
 The implementation is not complete if it adds a new layer around the existing
@@ -147,6 +167,7 @@ does not own:
 
 ```ts
 type BeaverTool<Context> = Tool & {
+  specialist?: true; // otherwise resident
   reader?: true;     // otherwise main turn only
   sequential?: boolean | ((input: Record<string, unknown>) => boolean);
   execute(
@@ -173,10 +194,10 @@ generic operation bus.
 
 The registry:
 
-1. rejects empty or duplicate names at construction;
+1. rejects empty, reserved, or duplicate names at construction;
 2. compiles every input and declared output schema once with the SDK validator;
 3. validates every call literally before domain code runs, without coercion;
-4. exposes the complete scoped callable catalog from the first request;
+4. loads specialists only by exact registered name, without a cumulative cap;
 5. executes a batch in parallel unless any selected call is sequential;
 6. returns results in assistant call order;
 7. passes one `AbortSignal` to every executor;
@@ -190,7 +211,7 @@ Dynamic `sequential` exists only for a real current need:
 
 ## Tool surface
 
-### Callable tools
+### Resident tools
 
 | Tool | Purpose |
 | --- | --- |
@@ -202,18 +223,16 @@ Dynamic `sequential` exists only for a real current need:
 | `Write` | Create DOCX, XLSX, or PPTX from Beaver semantic markup. |
 | `search_sources` | Discover candidates in installed legal corpora. |
 | `submit_grounded_answer` | Finish a research answer from evidence IDs. |
-| `word_uno` | Inspect, program, preview and publish native Word edits; `help` describes the console API. |
+| `load_tools` | Load the specialist tools needed for the task by exact name. |
 
-`note_up`, `quote_check`, `document_operation`, `lint_document`,
-`edit_docx_advanced`, `compare_versions` and the enabled reader tools are directly
-callable too. Tool inclusion still follows the current chat/reader scope and user
-settings. There is no `load_tools` activation step: the function name, description
-and input schema travel together in the provider's tool catalog. Native MCP
-transports publish the complete scoped catalog without relying on list-change
-notifications. User-enabled MCP tools remain directly available only when enabled.
+`note_up`, `quote_check`, `delegate_read` and `resume_read` are specialists.
+The Codex MCP bridge exposes the current catalogue and sends tool-list changes
+after loading, matching the other providers' dynamic tool discovery.
+User-enabled MCP tools are
+reported separately and remain directly available when the user enabled them.
 
 In a bound Authorities or Court Record view, `update_work_product` has only
-the applicable fields and uses the current draft identity. The callable
+the applicable fields and uses the current draft identity. The deferred
 `manage_work_products` tool supplies general workspace operations through the
 same handlers and scope checks. Targeted Authorities unit/occurrence reads
 return the requested detail and relevant authority; an unqualified read
@@ -285,8 +304,8 @@ the SDK's `parametersJsonSchema` field directly.
 
 `Edit` remains separate, matching Pi and Oh My Pi's useful read/write/edit
 division. Its resident schema covers the common exact-text replacement case.
-The existing deterministic DOCX operation kernel is exposed once as a
-directly callable tool rather than recursively invoked through a hidden tool
+The existing deterministic DOCX operation kernel is exposed once as an
+exact-loaded specialist rather than recursively invoked through a hidden tool
 name. Both definitions call the same low-level version-pinned commit path
 directly. Neither claims XLSX or PPTX editing; support for another format is
 added only with a real round-trip editor and fidelity tests.
@@ -456,7 +475,7 @@ exact-name registry, legal-source plane, and document fidelity kernels.
    expose only turn-local artifact handles to the model. Unify main/subagent
    tool activity updates on one typed contract.
 9. Remove dead tests and add contract tests for duplicates, validation,
-   provider projection, scheduling/order, catalog visibility, cancellation, result
+   provider projection, scheduling/order, loading, cancellation, result
    normalization, `Write` grammars, comparison persistence, and legal evidence
    receipts.
 10. Recount production/test lines, schemas, and bytes; run the release checks.
@@ -472,7 +491,7 @@ fallback dispatchers, or transition registries.
 - Every provider sees an equivalent canonical schema after transport-only
   normalization.
 - Writes and interactions are absent from reader catalogs.
-- Every scoped function is callable without loading; unregistered functions cannot execute.
+- Unloaded specialists cannot execute.
 - Cancellation reaches every executor.
 - Mixed sequential batches and all returned results preserve source order.
 - `Write` creates faithful DOCX/XLSX/PPTX artifacts through existing renderers.
@@ -481,7 +500,7 @@ fallback dispatchers, or transition registries.
 - `save_redline: true` creates exactly one canonical artifact outcome.
 - Legal read/research outputs retain exact locators, evidence IDs, hashes, and
   bounded continuation.
-- Callable catalogue counts/bytes are reported honestly.
+- Resident and loaded catalogue counts/bytes are reported honestly.
 - Authored production is at least 2,000 lines smaller.
 - Account-free local mode and cloud/Supabase composition both pass.
 

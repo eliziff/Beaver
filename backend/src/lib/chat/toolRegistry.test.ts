@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { NormalizedToolCall } from "../llm";
 import { createTnaEvidence } from "./legalEvidence";
 import {
+  LOAD_TOOLS_NAME,
   MAX_MODEL_TOOL_RESULT_CHARS,
   TurnToolRegistry,
   toolText,
@@ -36,9 +37,11 @@ const tool = (
 const payload = (content: string) => JSON.parse(content);
 
 describe("TurnToolRegistry", () => {
-  it("rejects invalid and duplicate definitions", () => {
+  it("rejects invalid, reserved, and duplicate definitions", () => {
     expect(() => new TurnToolRegistry([tool("")])).toThrow(/Invalid tool|empty/u);
+    expect(() => new TurnToolRegistry([tool(LOAD_TOOLS_NAME)])).toThrow(/Reserved/u);
     expect(() => new TurnToolRegistry([tool("same"), tool("same")])).toThrow(/Duplicate/u);
+    expect(() => new TurnToolRegistry([tool("word_uno", { execute: undefined })])).toThrow(/no executor/u);
   });
 
   it("validates literally without scalar coercion", async () => {
@@ -59,18 +62,46 @@ describe("TurnToolRegistry", () => {
     expect(registry.activity(call("2", "read", { count: "3" }))).toBeNull();
   });
 
-  it("exposes every registered function immediately without activation state", async () => {
-    const entries = [tool("resident"), tool("word_uno"), tool("edit_docx_advanced")];
-    for (let turn = 0; turn < 2; turn++) {
-      const registry = new TurnToolRegistry(entries);
-      const catalog = registry.all();
-      expect(catalog.map(({ name }) => name)).toEqual(entries.map(({ name }) => name));
-      const results = await registry.run(entries.map(({ name }) => call(name, name)), { order: [] });
-      expect(results.map(({ status }) => status)).toEqual(["ok", "ok", "ok"]);
-      expect(registry.all()).toEqual(catalog);
-      const [unknown] = await registry.run([call("missing", "unregistered")], { order: [] });
-      expect(payload(unknown.content).error).toBe("unknown_tool");
+  it("loads exact specialist names across rounds and keeps every capability reachable", async () => {
+    const registry = new TurnToolRegistry([
+      tool("resident"),
+      tool("one", { specialist: true }),
+      tool("two", { specialist: true }),
+      tool("three", { specialist: true }),
+      tool("four", { specialist: true }),
+    ]);
+    expect(registry.visible().map(({ name }) => name)).toEqual([
+      LOAD_TOOLS_NAME,
+      "resident",
+    ]);
+    expect(payload((await registry.run(
+      [call("0", "one")], { order: [] },
+    ))[0].content).error).toBe("tool_not_loaded");
+    for (const names of [["one", 0], ["one", "missing"]]) {
+      const invalid = await registry.run([
+        call("bad", LOAD_TOOLS_NAME, { names }),
+      ], { order: [] });
+      expect(payload(invalid[0].content).error).toBe("invalid_arguments");
     }
+    expect(payload((await registry.run(
+      [call("still-unloaded", "one")], { order: [] },
+    ))[0].content).error).toBe("tool_not_loaded");
+    const loaded = await registry.run([
+      call("1", LOAD_TOOLS_NAME, { names: ["one", "two", "three"] }),
+      call("2", "one"),
+    ], { order: [] });
+    expect(payload(loaded[0].content).loaded).toEqual(["one", "two", "three"]);
+    expect(payload(loaded[0].content).tools.map((tool: { name: string }) => tool.name))
+      .toEqual(["one", "two", "three"]);
+    expect(payload(loaded[1].content).ok).toBe(true);
+    const final = await registry.run([
+      call("3", LOAD_TOOLS_NAME, { names: ["four"] }),
+      call("4", "four"),
+    ], { order: [] });
+    expect(payload(final[1].content).ok).toBe(true);
+    expect(registry.visible().map(({ name }) => name)).toEqual([
+      "resident", "one", "two", "three", "four",
+    ]);
   });
 
   it("runs parallel by default while preserving source result order", async () => {
@@ -329,4 +360,27 @@ it("preserves explicit tool errors without applying the success output schema", 
   expect(await registry.run([call("read", "read")], { order: [] })).toEqual([
     { tool_use_id: "read", content: "Source version changed; select the new version.", status: "error" },
   ]);
+});
+
+it("returns complete schemas on reload, preserving URL-named input properties", async () => {
+  const definition = tool("fetch", { specialist: true, inputSchema: { type: "object",
+    properties: { url: { type: "string", format: "uri" } }, required: ["url"] } });
+  const registry = new TurnToolRegistry([definition]);
+  for (const loaded of [["fetch"], []]) {
+    const [result] = await registry.run([call("load", LOAD_TOOLS_NAME, { names: ["fetch"] })], { order: [] });
+    expect(payload(result.content)).toEqual({ ok: true, loaded, tools: [{ name: "fetch", inputSchema: definition.inputSchema }] });
+  }
+});
+
+it("does not activate tools when their definitions cannot be returned intact or loading is cancelled", async () => {
+  const registry = new TurnToolRegistry([tool("large", { specialist: true,
+    description: "x".repeat(MAX_MODEL_TOOL_RESULT_CHARS) })]);
+  const [result] = await registry.run([call("load", LOAD_TOOLS_NAME, { names: ["large"] })], { order: [] });
+  expect(payload(result.content).error).toBe("tool_definitions_too_large");
+  expect(result.status).toBe("error");
+  expect(registry.visible().map(tool => tool.name)).toEqual([LOAD_TOOLS_NAME]);
+  const controller = new AbortController(); controller.abort(new Error("cancelled"));
+  await expect(registry.run([call("load", LOAD_TOOLS_NAME, { names: ["large"] })], { order: [] }, controller.signal))
+    .rejects.toThrow("cancelled");
+  expect(registry.visible().map(tool => tool.name)).toEqual([LOAD_TOOLS_NAME]);
 });

@@ -30,7 +30,7 @@ Preview receipts contain operation summaries and revision counts, not text diffs
 export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToolContext> {
   const run = createLibreOfficeApplication(options);
   return {
-    name: "word_uno", sequential: true,
+    name: "word_uno", specialist: true, sequential: true,
     annotations: { readOnlyHint: false, destructiveHint: true },
     activity: input => input.action === "apply" ? "Publishing reviewed Word candidate" : "Inspecting or editing Word structures",
     description: "Rich Word document access without Microsoft Word. Use Read/Edit/Write for ordinary content. " +

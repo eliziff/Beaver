@@ -178,6 +178,7 @@ export function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuo
 }
 const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
   name: "document_operation",
+  specialist: true,
   sequential: true,
   activity: (input) => ({
     metadata: "Updating Library metadata",
@@ -234,6 +235,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
 });
 const LINT_DOCUMENT_TOOL: Tool & BeaverToolPolicy = {
   name: "lint_document",
+  specialist: true,
   reader: ["CA", "US", "UK"],
   activity: () => "Checking document structure",
   description:
@@ -298,6 +300,7 @@ const AUTHORITIES_ACTION = objectSchema({
 const workProductTool = (authoritiesEnabled: boolean, bound = false,
   name = "update_work_product"): Tool & BeaverToolPolicy => ({
   name,
+  specialist: !bound,
   sequential: true,
   activity: (input) => WORK_PRODUCT_ACTIVITY[String(input.action)] ?? "Updating draft",
   description: (bound ? "Read, review, update, refresh, or build the active Authorities draft. "
@@ -2787,7 +2790,7 @@ export function assistantTools<Context extends {
   const [glob, grep, read, edit] = RESOURCE_TOOLS;
 
   const tools: BeaverTool<Context>[] = [
-    definition({ name: "quote_check", sequential: true, description: "Mechanically compare document quotations with cited sources. Returns quote IDs, citation candidates and source passages; follow next_offset. Resolve ambiguous attribution with links. Read surrounding sources to assess proposition support and misconstruction. For a requested workbook, set export_workbook; optional per-quote analysis appears in a separate AI column. The complete workbook is saved beside the input.",
+    definition({ name: "quote_check", specialist: true, sequential: true, description: "Mechanically compare document quotations with cited sources. Returns quote IDs, citation candidates and source passages; follow next_offset. Resolve ambiguous attribution with links. Read surrounding sources to assess proposition support and misconstruction. For a requested workbook, set export_workbook; optional per-quote analysis appears in a separate AI column. The complete workbook is saved beside the input.",
       inputSchema: objectSchema({ document_id: { type: "string" },
         offset: { type: "integer", minimum: 0 },
         export_workbook: { type: "boolean" },
@@ -2856,18 +2859,18 @@ export function assistantTools<Context extends {
     }),
     definition(WRITE_TOOL, write),
     definition(SEARCH_SOURCES_TOOL, sourceSearch),
-    definition(CITATOR_TOOL, runCitator),
+    definition(CITATOR_TOOL, runCitator, { specialist: true }),
     ...(turnScope !== "main" ? [] : [
       definition(pageTool, (call, input, signal) =>
-        pageTool.execute(input, {} as Context, signal, call)),
+        pageTool.execute(input, {} as Context, signal, call), { specialist: false }),
       ...(activeCourtTool ? [definition(activeCourtTool, (call, input, signal) =>
-        activeCourtTool.execute(input, {} as Context, signal, call))]
+        activeCourtTool.execute(input, {} as Context, signal, call), { specialist: false })]
         : authoritiesId ? [definition(workProductTool(true, true), (call, input, signal) =>
           updateWorkProduct(call, { ...input, kind: "authorities", draft_id: authoritiesId }, signal))] : []),
       definition(workProductTool(productFeatures?.authorities !== false, false,
         activeCourtTool || authoritiesId ? "manage_work_products" : "update_work_product"), updateWorkProduct),
     ]),
-    definition(documentOperationTool(includeResearchTools), documentOperation),
+    definition(documentOperationTool(includeResearchTools), documentOperation, { specialist: !researchContext?.workspace }),
     definition(LINT_DOCUMENT_TOOL, (call, input, signal) =>
       runWorkflow(call, { ...input, action: "lint_structure" }, signal)),
     definition(ADVANCED_DOCX_EDIT_TOOL, codingWithArtifacts),

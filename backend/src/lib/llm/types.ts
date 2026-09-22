@@ -114,7 +114,16 @@ export type StreamChatParams = {
   tools?: Tool[];
   /** Full catalog for provider transports that snapshot MCP tools once. */
   staticTools?: Tool[];
-  /** Re-read the scoped catalog between steps, including current reader settings. */
+  /**
+   * Re-read the tool list before every iteration of the tool loop, so a
+   * caller can REVEAL tools mid-conversation — progressive disclosure, where
+   * a discovery call opens a domain and its tools become callable on the
+   * next turn.
+   *
+   * Without this the list is snapshotted once and a revealed tool can never
+   * be called, which forces a caller to duplicate the provider loop. Purely
+   * additive: when absent, `tools` behaves exactly as before.
+   */
   resolveTools?: () => Tool[];
   /** Optional provider-call cap. Interactive loops otherwise stop after 32 rounds. */
   maxIterations?: number;
