@@ -461,8 +461,14 @@ export function createAuthoritiesWorkspaceApplication(
           const reference = { userId: scope.userId, documentId: resolved.documentId,
             versionId: resolved.versionId, sourceSha256: resolved.sourceSha256 };
           if (cancel) return { role: source.bindingRole, cancelled: await cancelPdfJobs(reference) };
-          if (!pages && resolved.pdfProfile?.profile.ocr) return {
-            role: source.bindingRole, documentId: resolved.documentId, done: true };
+          if (!pages && resolved.pdfProfile?.profile.ocr && resolved.pdfProfile.status === "ready" &&
+              !resolved.pdfProfile.pages) {
+            try {
+              await documentProjectionService.pdfTextLayer(resolved.readBytes, reference,
+                { pdfProfile: resolved.pdfProfile, pages: [1] });
+              return { role: source.bindingRole, documentId: resolved.documentId, done: true };
+            } catch { /* Explicit Resume repairs a missing/old cache in the durable job, not a GET. */ }
+          }
           const prepared = await documentProjectionService.preparePdf({ ...reference,
             bytes: await resolved.readBytes(), ocrProvider: null });
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,

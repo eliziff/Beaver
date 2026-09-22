@@ -28,6 +28,8 @@ export type PdfByteSource = (signal: AbortSignal, onError: (error: Error) => voi
     { data: Uint8Array } | { range: import("pdfjs-dist").PDFDataRangeTransport;
         rangeChunkSize: number; disableStream: true; disableAutoFetch: true }>;
 
+export type PdfTextSource = (pages: number[], signal: AbortSignal) => Promise<PdfRecognizedText>;
+
 export interface PdfCanvasProps {
     source?: PdfByteSource;
     annotationEditor?: PdfAnnotationEditorPort;
@@ -40,6 +42,8 @@ export interface PdfCanvasProps {
     ariaLabel?: string;
     onUnavailable?: () => void;
     recognizedText?: PdfRecognizedText;
+    recognizedTextSource?: PdfTextSource;
+    onTextError?: (message: string) => void;
 }
 
 type RenderedPage = {
@@ -48,6 +52,7 @@ type RenderedPage = {
     textLayer?: Promise<void>;
     cancelTextLayer?: () => void;
     textSource?: PdfRecognizedText["pages"][number];
+    textLoader?: PdfTextSource;
     top: number;
     height: number;
 };
@@ -57,6 +62,9 @@ const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.25;
 const MAX_PDF_IMAGE_PIXELS = 40_000_000;
+// Backing stores, not CSS size: 24M RGBA pixels total, including the in-flight page.
+const MAX_CANVAS_PIXELS = 8_000_000;
+const MAX_RESIDENT_PIXELS = 24_000_000;
 const MAX_PDF_PAGES = 2_000;
 const PDF_VIEWER_ERROR =
     "Unable to open this PDF. The file may be invalid or unsupported.";
@@ -86,12 +94,16 @@ export function PdfCanvas({
     quotes,
     quoteFocusKey,
     recognizedText,
+    recognizedTextSource,
+    onTextError,
     rounded = true,
     ariaLabel = "PDF document",
     onUnavailable,
 }: PdfCanvasProps) {
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
     const recognizedRef = useRef(recognizedPages); recognizedRef.current = recognizedPages;
+    const textLoaderRef = useRef(recognizedTextSource); textLoaderRef.current = recognizedTextSource;
+    const textErrorRef = useRef(onTextError); textErrorRef.current = onTextError;
     const refreshTextRef = useRef<(() => void) | null>(null);
     const disposeLayoutRef = useRef<(() => void) | null>(null);
     const editorRef = useRef(annotationEditor);
@@ -239,7 +251,7 @@ export function PdfCanvas({
             function releaseTextLayer(index: number) {
                 const entry = pages[index];
                 entry.cancelTextLayer?.(); entry.cancelTextLayer = undefined;
-                entry.textLayer = undefined; entry.hasTextLayer = false; entry.textSource = undefined;
+                entry.textLayer = undefined; entry.hasTextLayer = false; entry.textSource = undefined; entry.textLoader = undefined;
                 textPages.delete(index);
             }
             function ensureTextLayer(index: number): Promise<void> {
@@ -252,13 +264,24 @@ export function PdfCanvas({
                 let cancelled = false;
                 textPages.add(index);
                 entry.textSource = recognizedRef.current.get(index + 1);
-                entry.cancelTextLayer = () => { cancelled = true; layer?.cancel?.(); element?.remove(); };
+                entry.textLoader = textLoaderRef.current;
+                const abort = new AbortController();
+                entry.cancelTextLayer = () => { cancelled = true; abort.abort(); layer?.cancel?.(); element?.remove(); };
                 const current = () => !cancelled && generation === generationRef.current;
                 try {
                     const page = await cache.get(index + 1);
                     if (!current()) return;
                     updateGeometry();
                     const viewport = page.getViewport({ scale });
+                    let recognized = entry.textSource;
+                    if (entry.textLoader) {
+                        try { recognized = (await entry.textLoader([index + 1], abort.signal)).pages
+                            .find(value => value.pageNumber === index + 1) ?? recognized; }
+                        catch (cause) {
+                            if (current()) textErrorRef.current?.(cause instanceof Error ? cause.message : "Recognized text could not be loaded.");
+                        }
+                        if (!current()) return;
+                    }
                     element = document.createElement("div");
                     element.className = "pdf-text-layer";
                     element.dataset.legalText = String(index + 1);
@@ -266,8 +289,8 @@ export function PdfCanvas({
                         width: `${viewport.width}px`, height: `${viewport.height}px`, zIndex: "1" });
                     element.style.setProperty("--scale-factor", String(scale));
                     entry.wrapper.appendChild(element);
-                    if (entry.textSource?.lines.some(line => line.words.length || line.text?.trim())) {
-                        renderRecognizedText(element, entry.textSource, viewport.width, viewport.height);
+                    if (recognized?.lines.some(line => line.words.length || line.text?.trim())) {
+                        renderRecognizedText(element, recognized, viewport.width, viewport.height);
                     } else {
                         layer = new lib.TextLayer({ textContentSource: page.streamTextContent(), container: element, viewport });
                         await layer.render();
@@ -288,8 +311,9 @@ export function PdfCanvas({
                 }
             }
             refreshTextRef.current = () => {
-                for (const index of textPages) {
-                    if (pages[index].textSource === recognizedRef.current.get(index + 1)) continue;
+                for (const index of [...textPages]) {
+                    if (pages[index].textSource === recognizedRef.current.get(index + 1) &&
+                        pages[index].textLoader === textLoaderRef.current) continue;
                     releaseTextLayer(index); void ensureTextLayer(index);
                 }
             };
@@ -328,17 +352,27 @@ export function PdfCanvas({
                 return pages[index].top + pages[index].height >= start - margin * padding &&
                     pages[index].top <= end + margin * padding;
             };
+            const rasterPlan = () => {
+                const { start, end, margin } = range();
+                const indices = new Set<number>();
+                for (let index = pageAt(pages, start - margin);
+                    index < pages.length && pages[index].top <= end + margin; index++) indices.add(index);
+                const pixels = Math.floor(Math.min(MAX_CANVAS_PIXELS, MAX_RESIDENT_PIXELS / Math.max(1, indices.size)));
+                for (const [index, canvas] of rendered) {
+                    if (indices.has(index) && canvas.width * canvas.height <= pixels) continue;
+                    canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
+                    if (index !== active) cache.peek(index + 1)?.cleanup?.();
+                }
+                return { indices, pixels };
+            };
             const paint = async () => {
                 if (running || generation !== generationRef.current) return;
                 running = true;
                 try {
                     while (generation === generationRef.current) {
-                        const { start, end, margin } = range();
-                        const candidates: number[] = [];
-                        for (let index = pageAt(pages, start - margin);
-                            index < pages.length && pages[index].top <= end + margin; index++) {
-                            if (!rendered.has(index) && !failed.has(index) && !loadingPages.has(index)) candidates.push(index);
-                        }
+                        const { start, end } = range(), plan = rasterPlan();
+                        const candidates = [...plan.indices].filter(index =>
+                            !rendered.has(index) && !failed.has(index) && !loadingPages.has(index));
                         const distance = (index: number) => Math.max(start - pages[index].top - pages[index].height,
                             pages[index].top - end, 0);
                         const index = candidates.sort((a, b) => distance(a) - distance(b))[0];
@@ -372,21 +406,25 @@ export function PdfCanvas({
                         const viewport = page.getViewport({ scale });
                         const canvas = document.createElement("canvas");
                         const outputScale = Math.min(window.devicePixelRatio || 1,
-                            Math.sqrt(MAX_PDF_IMAGE_PIXELS / (viewport.width * viewport.height)));
-                        canvas.width = Math.ceil(viewport.width * outputScale);
-                        canvas.height = Math.ceil(viewport.height * outputScale);
+                            Math.sqrt(plan.pixels / (viewport.width * viewport.height)));
+                        canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+                        canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
                         Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
                         const context = canvas.getContext("2d");
-                        if (!context) { failed.add(index); continue; }
-                        const task = page.render({ canvasContext: context, viewport,
-                            transform: [outputScale, 0, 0, outputScale, 0, 0] });
-                        taskRef.current = task;
+                        if (!context) { canvas.width = canvas.height = 0; failed.add(index); active = -1; continue; }
+                        let task: import("pdfjs-dist").RenderTask | undefined;
                         try {
+                            task = page.render({ canvasContext: context, viewport,
+                                transform: [outputScale, 0, 0, outputScale, 0, 0] });
+                            taskRef.current = task;
                             await task.promise;
                             if (generation !== generationRef.current) {
                                 canvas.width = canvas.height = 0; return;
                             }
-                            if (!nearby(index, 2)) { canvas.width = canvas.height = 0; continue; }
+                            const currentPlan = rasterPlan();
+                            if (!currentPlan.indices.has(index) || canvas.width * canvas.height > currentPlan.pixels) {
+                                canvas.width = canvas.height = 0; continue;
+                            }
                             pages[index].wrapper.prepend(canvas);
                             rendered.set(index, canvas);
                             setPreparing(false);
@@ -421,11 +459,7 @@ export function PdfCanvas({
                         if (selection.getRangeAt(i).intersectsNode(pages[index].wrapper)) return true;
                     return false;
                 };
-                for (const [index, canvas] of rendered) {
-                    if (nearby(index, 2)) continue;
-                    canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
-                    if (index !== active) cache.peek(index + 1)?.cleanup?.();
-                }
+                rasterPlan();
                 for (const index of textPages) {
                     if (nearby(index, 2) || selected(index)) continue;
                     releaseTextLayer(index);
@@ -691,7 +725,7 @@ export function PdfCanvas({
         else void renderPdf(quoteList);
     }, [quoteFocusKey, quoteKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useEffect(() => { refreshTextRef.current?.(); }, [recognizedPages]);
+    useEffect(() => { refreshTextRef.current?.(); }, [recognizedPages, recognizedTextSource]);
 
     useEffect(() => setPageInput(String(currentPage)), [currentPage]);
     useEffect(() => {

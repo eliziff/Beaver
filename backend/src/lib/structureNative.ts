@@ -157,7 +157,7 @@ type StructureAddon = {
   preparePdfDocument(bytes: Buffer, request: unknown): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
-  pdfRecognizedText(document: NativeDocument): NativePdfTextPage[];
+  pdfRecognizedText(document: NativeDocument, pages: number[]): NativePdfTextPage[] | null;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   pdfPassageGeometryPages(document: NativeDocument, bytes: Buffer,
     targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;

@@ -71,7 +71,7 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
   if (result.status === "ready" || result.status === "degraded") {
     return { status: result.status, ...completed };
   }
-  // A page-limited run records no profile of its own; the stored one still describes the PDF.
+  // Old terminal records may predate the version-bound preparation receipt.
   return stored ? { status: stored.status, ...completed } : null;
 };
 const storedDocument = (row: Row): StoredDocument => ({

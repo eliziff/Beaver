@@ -76,6 +76,21 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
         content.version.source_sha256 !== input.sourceSha256) {
       return { skipped: "source-unavailable" } as Record<string, string>;
     }
+    const prior = content.pdfProfile;
+    // A queued attachment inspection must not erase a later explicit recognition result.
+    if (job.kind === "pdf.prepare" && !input.ocrProvider && prior?.profile.ocr)
+      return { skipped: "already-recognized" };
+    if (input.pages?.length && prior?.profile.ocr && prior.profile.ocr.provider === input.ocrProvider) {
+      if (prior.pages) input.pages = [...new Set([...prior.pages, ...input.pages])].sort((a, b) => a - b);
+      else if (prior.status === "ready") {
+        try {
+          await documentProjectionService.pdfTextLayer(() => content.bytes,
+            { documentId, versionId: documentVersionId, sourceSha256: input.sourceSha256 },
+            { pdfProfile: prior, pages: [input.pages[0]], signal: context.signal });
+          return { status: "ready", pageCount: content.version.page_count ?? 0 } as Record<string, string | number>;
+        } catch { context.signal.throwIfAborted(); }
+      }
+    }
     const summary = await preparePdf({
       documentId,
       versionId: documentVersionId,
@@ -85,15 +100,14 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       progress: (value: PdfPreparationProgress) => context.progress(
         input.ocrProvider ? { ...value, phase: "ocr" } : value),
     });
-    // A page-limited run recognizes a slice for the workspace cache; the document
-    // profile must keep describing the whole PDF.
-    if (input.pages?.length) return { recognized: input.pages.length } as Record<string, number>;
+    // The projection still describes every page. Publish its exact OCR scope/cache even when
+    // only cited pages were recognized, so the viewer can read that completed work immediately.
     if (!await documents.recordPdfPreparation({ userId: job.userId }, documentId, {
       versionId: documentVersionId,
       sourceSha256: summary.sourceSha256,
       pageCount: summary.pageCount,
       pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
-        status: summary.status },
+        status: summary.status, ...(input.pages?.length ? { pages: input.pages } : {}) },
     })) return { skipped: "source-unavailable" };
     return { status: summary.status, pageCount: summary.pageCount,
       pagesNeedingOcr: summary.pagesNeedingOcr,

@@ -55,6 +55,16 @@ async function prepareSourcePdfs(draft: Parameters<AuthoritiesHost["build"]>[0],
     }
 }
 
+async function boundSource(draft: Parameters<NonNullable<AuthoritiesHost["readSource"]>>[0], role: string) {
+  const binding = draft.state.bindings[role];
+  if (binding?.kind === "document") return { documentId: binding.documentId,
+    versionId: binding.version === "latest" ? null : binding.version.versionId };
+  const input = (await getWorkProductResolution(draft.id)).inputs[role];
+  const resolved = input?.status === "ready" ? input.resolved : input?.status === "changed" ? input.current : null;
+  if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
+  return resolved;
+}
+
 export const beaverAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations,
   mode: "beaver",
@@ -84,19 +94,18 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     return attachAuthoritiesLibraryPdf(id, revision, document.id,
       document.current_version_id, target);
   },
-  async readSource(draft, role) {
-    const input = (await getWorkProductResolution(draft.id)).inputs[role];
-    const resolved = input?.status === "ready" ? input.resolved
-      : input?.status === "changed" ? input.current : null;
-    if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
-    return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
+  async readSource(draft, role, signal) {
+    const source = await boundSource(draft, role);
+    signal?.throwIfAborted();
+    return downloadDocument(source.documentId, source.versionId, signal).then(({ blob }) => blob);
   },
-  async readSourceText(draft, role, signal) {
-    const input = (await getWorkProductResolution(draft.id)).inputs[role];
-    const resolved = input?.status === "ready" ? input.resolved
-      : input?.status === "changed" ? input.current : null;
-    if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
-    return getDocumentPdfTextLayer(resolved.documentId, resolved.versionId, signal);
+  async readSourceText(draft, role, signal, pages) {
+    const source = await boundSource(draft, role);
+    signal?.throwIfAborted();
+    const expected = Object.values(draft.state.authorities).flatMap(authority =>
+      authority.source.kind === "attached" ? authority.source.sources : [])
+      .find(source => source.bindingRole === role)?.sourceSha256;
+    return getDocumentPdfTextLayer(source.documentId, source.versionId, signal, pages, expected);
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),

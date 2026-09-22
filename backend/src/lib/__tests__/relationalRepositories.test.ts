@@ -198,6 +198,17 @@ describe("SQLite relational repository contract", () => {
               pages: [1, 2, 3], page_count: 3 }, page_count: 3 },
           ]));
       }, { timeout: 3_000, interval: 10 });
+      const { enqueuePdfReprocess } = await import("../pdfJobs");
+      await enqueuePdfReprocess({ userId: owner.userId, documentId: selective.id,
+        versionId: selective.current_version_id, sourceSha256: selective.source_sha256,
+        ocrProvider: "tesseract", pages: [2] });
+      await vi.waitFor(async () => expect((await documents.projectionSource(owner, selective.id, null))?.pdfProfile)
+        .toMatchObject({ profile: { ocr: { provider: "tesseract" } }, pages: [2] }), {timeout: 3_000, interval: 10});
+      await enqueuePdfReprocess({ userId: owner.userId, documentId: selective.id,
+        versionId: selective.current_version_id, sourceSha256: selective.source_sha256,
+        ocrProvider: "tesseract", pages: [4] });
+      await vi.waitFor(async () => expect((await documents.read(owner, selective.id, null, false))?.pdfProfile?.pages)
+        .toEqual([2, 4]), {timeout: 3_000, interval: 10});
     } finally { await worker.stop(); }
   });
 });

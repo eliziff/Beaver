@@ -241,6 +241,54 @@ describe("PdfView", () => {
         expect(container.querySelector(".pdf-text-layer")?.textContent).toContain("Line-only recognition");
     });
 
+    it("loads OCR for resident pages, refreshes in place and aborts evicted reads", async () => {
+        mocks.numPages = 300; mocks.nativeText = false;
+        const pending = new Map<number, AbortSignal>();
+        const read = vi.fn(async (pages: number[], signal: AbortSignal) => {
+            expect(pages).toHaveLength(1);
+            if (pages[0] === 201) {
+                pending.set(201, signal);
+                await new Promise<void>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+            }
+            return { pages: [] };
+        });
+        const bytes = new Uint8Array([1]);
+        const { container, rerender, unmount } = render(<PdfView doc={null} bytes={bytes} recognizedTextSource={read} />);
+        await waitFor(() => expect(read).toHaveBeenCalled());
+        expect(read.mock.calls.every(([pages]) => pages[0] < 4)).toBe(true);
+        const canvas = container.querySelector("canvas");
+        const recognized = vi.fn(async () => ({ pages: [{ pageNumber: 1, width: 600, height: 800,
+            lines: [{id: "one", text: "Recognized through the page loader", rect: [20,30,300,45] as [number,number,number,number], words: []}] }] }));
+        rerender(<PdfView doc={null} bytes={bytes} recognizedTextSource={recognized} />);
+        await screen.findByText("Recognized through the page loader");
+        expect(container.querySelector("canvas")).toBe(canvas);
+        rerender(<PdfView doc={null} bytes={bytes} recognizedTextSource={read} />);
+        const scroller = container.querySelector<HTMLElement>(".overflow-auto")!;
+        await waitFor(() => expect(container.querySelector('[data-page-number="300"]')).toHaveAttribute("data-geometry-ready", "true"));
+        scroller.scrollTop = 181600; fireEvent.scroll(scroller);
+        await waitFor(() => expect(pending.has(201)).toBe(true));
+        scroller.scrollTop = 0; fireEvent.scroll(scroller);
+        await waitFor(() => expect(pending.get(201)?.aborted).toBe(true));
+        unmount();
+    });
+
+    it("bounds high-DPI raster backing stores and releases them on close", async () => {
+        mocks.clientWidth = 3020;
+        vi.stubGlobal("devicePixelRatio", 4);
+        const { container, unmount } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelector("canvas")).not.toBeNull());
+        for (let step = 0; step < 4; step++) {
+            fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+            await waitFor(() => expect(container.querySelector("canvas")).not.toBeNull());
+            const canvases = [...container.querySelectorAll("canvas")];
+            expect(canvases.every(canvas => canvas.width * canvas.height <= 8_000_000)).toBe(true);
+            expect(canvases.reduce((sum, canvas) => sum + canvas.width * canvas.height, 0)).toBeLessThanOrEqual(24_000_000);
+        }
+        const canvases = [...container.querySelectorAll("canvas")];
+        unmount();
+        expect(canvases.every(canvas => canvas.width === 0 && canvas.height === 0)).toBe(true);
+    });
+
     it("allows an ordinary reader selection to resolve to its PDF page", async () => {
         mocks.numPages = 1;
         render(<PdfView doc={null} bytes={new Uint8Array([1])} />);

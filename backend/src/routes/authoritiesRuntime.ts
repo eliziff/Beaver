@@ -145,7 +145,7 @@ export function createAuthoritiesRuntimeRouter(
     // Manual editing never forces OCR or depends on a successful automatic match.
     const text = state.settings.passageMarking !== "none" && targets.length
       ? await authorityPdfText({ bytes, signal: abort.signal, passageTargets: targets,
-          scannedPdfPolicy: state.settings.scannedPdfPolicy }) : {};
+          scannedPdfPolicy: "page-margin" }) : {};
     res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
   router.post("/create", asyncRoute(async (req, res) => {

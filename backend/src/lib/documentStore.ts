@@ -14,6 +14,8 @@ export type PdfProfileSelection = {
   cacheKey: string;
   profile: LegalPdfProfile;
   status: "ready" | "degraded";
+  /** One-based OCR scope. Omitted for a whole-document pass. */
+  pages?: number[];
 };
 export function decodePdfProfileSelection(value: unknown): PdfProfileSelection | undefined {
   const record = value && typeof value === "object" && !Array.isArray(value)
@@ -33,9 +35,11 @@ export function decodePdfProfileSelection(value: unknown): PdfProfileSelection |
     (record.status === "ready" || record.status === "degraded") &&
     Object.keys(profile).every((key) => key === "ocr" || key === "layout") &&
     setting(profile.ocr, ["tesseract", "kraken-lite"]) &&
-    setting(profile.layout, "ppdoc")
+    setting(profile.layout, "ppdoc") &&
+    (record.pages === undefined || Array.isArray(record.pages) && record.pages.length > 0 &&
+      record.pages.length <= 5_000 && record.pages.every(page => Number.isSafeInteger(page) && Number(page) > 0))
     ? { cacheKey: record.cacheKey, profile: profile as LegalPdfProfile,
-      status: record.status }
+      status: record.status, ...(record.pages ? { pages: record.pages as number[] } : {}) }
     : undefined;
 }
 export type DocumentParseState = {

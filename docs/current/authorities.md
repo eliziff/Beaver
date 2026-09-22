@@ -69,9 +69,19 @@ Only the active source retains PDF bytes; switching sources preserves mark histo
 OCR geometry is retained by the parser and read independently of annotation state,
 including when reopening a draft. Word boxes are used when available; line-only
 recognition retains its text and line box rather than inventing word coordinates.
-Completed recognition updates the selectable
-layer in place without replacing marks, history, scroll position or PDF canvases.
-A manual-only source is not opted into OCR by opening the editor.
+Completed recognition updates resident selectable layers without replacing marks,
+history, scroll position or PDF canvases. Cited-page jobs persist their exact OCR
+profile, cache key and one-based page scope on the document version; a later
+explicit pass retains already recognized pages. The viewer fetches nearby pages
+from that cache, not a whole-document text response or another recognition pass.
+Missing caches return an actionable error and require explicit recognition; GET
+requests do not run OCR. A manual-only source is not opted into OCR by opening it.
+
+The PDF and manual tools appear before optional automatic marks are prepared.
+Late automatic results cannot replace any manually reviewed history. The marking
+preview does not run OCR even when full recognition was selected in Sources.
+Document-bound reads use the exact binding and source hash without resolving the
+entire draft twice. Download/text requests are cancelled when their reader leaves.
 
 Live text selection and newly saved highlights use the same continuous band per
 selected line, retaining precise character endpoints and native copy/keyboard

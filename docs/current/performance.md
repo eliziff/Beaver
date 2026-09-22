@@ -125,6 +125,15 @@ Annotation overlays are indexed by mark and exist only on marked/drawn pages;
 selection and autosave do not rebuild every page's SVG. Mouse drags resolve nearby
 text runs without reordering native text or reading every glyph's layout per move.
 
+PDF canvas backing stores share a 24-million-pixel working-set budget, with at
+most 8 million pixels per canvas; zoom changes CSS size without unbounded high-DPI
+raster allocation. Obsolete, cancelled and failed canvases release their stores.
+This bounds those RGBA stores, not all PDF.js decoder, GPU or process memory.
+Authorities requests OCR geometry page-by-page through the existing authorized
+endpoint (at most 16 pages per request). Native filtering precedes JS serialization;
+concurrent requests share restoration of the same exact prepared document. The
+Rust prepared document is still restored as a whole, not random-access page storage.
+
 PDF.js import overlaps acquisition. Supplied bytes do not trigger an unused
 download. The complete-file cache retains at most eight files/64 MiB with LRU
 eviction; oversized files remain usable by their reader but are not retained.
