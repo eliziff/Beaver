@@ -187,7 +187,7 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
   } else if (event?.type === "content_block_stop" || event?.type === "message_stop") {
     closeBlocks(state, callbacks);
   }
-  return ["assistant", "stream_event", "result"].includes(message.type ?? "") ||
+  return ["assistant", "stream_event"].includes(message.type ?? "") ||
     (message.type === "system" &&
       ["compact_boundary", "api_retry"].includes(message.subtype ?? ""));
 }

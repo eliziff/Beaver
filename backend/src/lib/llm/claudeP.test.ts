@@ -138,3 +138,10 @@ it("closes visible reasoning on cancellation and ignores buffered late output", 
   expect(run.callbacks.onContentDelta).not.toHaveBeenCalled();
   expect(run.child.kill).toHaveBeenCalledOnce();
 });
+
+it("does not mark an error-only session failure as model activity", async () => {
+  const run = await begin();
+  run.finish({ is_error: true, result: "Session not found" });
+  await expect(run.result).rejects.toThrow("Session not found");
+  expect(run.callbacks.onActivity).not.toHaveBeenCalled();
+});
