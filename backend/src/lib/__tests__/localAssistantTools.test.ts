@@ -1858,9 +1858,8 @@ describe("local assistant tools", () => {
       })) } as never };
     const tools = await import("./support/localAssistantTools");
     const registry = tools.localAssistantToolRegistry("local-user", options);
-    expect(registry.visible().map(({ name }) => name)).toContain("update_work_product");
-    expect(registry.specialists()).not.toContain("update_work_product");
-    expect(registry.specialists()).toContain("manage_work_products");
+    expect(registry.all().map(({ name }) => name)).toContain("update_work_product");
+    expect(registry.all().map(({ name }) => name)).toContain("manage_work_products");
 
     const responses = await tools.runLocalAssistantTools("local-user", [
       { id: "read-focus", name: "update_work_product",

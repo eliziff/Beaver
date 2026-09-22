@@ -37,12 +37,15 @@ tool errors are not validated against success-only schemas. Stream/tool activity
 reaches heartbeat callbacks; failed native compaction leaves no running status.
 
 Claude caching is enabled explicitly and cache reads/writes count toward context.
-Effort and summary visibility are separate provider options. Hosted discovery
-expands the tool list without forcing a newly discovered tool to execute. Native
-MCP transports advertise the complete scoped turn catalog (`staticTools`) once;
-`load_tools` activates specialists in `TurnToolRegistry`, not in the client's tool
-catalog. This avoids depending on list-change notifications over stateless HTTP.
-Unloaded tools remain blocked by the registry, and failures retain MCP `isError`.
+Effort and summary visibility are separate provider options. Every provider gets
+actual callable definitions for the complete scoped tool catalog, including
+`word_uno`, on the first request and on follow-up turns. There is no `load_tools`
+activation phase or hidden specialist set. Hosted steps still re-read the catalog
+for changed reader settings; native MCP clients receive their catalog once.
+Claude Code's isolated process sets `ENABLE_TOOL_SEARCH=false` so it cannot
+hide those schemas behind a second loader. Input validation, document scope,
+user-enabled connector selection, review policy and mutation fences still apply.
+Failures retain MCP `isError`.
 The bridge preserves MCP annotations; a write is not advertised as read-only.
 Codex's `default_tools_approval_mode: "approve"` applies only to the authenticated
 `mike_runtime` bridge. Claude Code uses its existing `--allowedTools` allowlist.

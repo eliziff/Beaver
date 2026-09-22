@@ -62,12 +62,6 @@ export function assistantToolActivityLabel(
   sourceName?: string,
 ): string | null | undefined {
   sourceName = trimmedText(sourceName) || undefined;
-  if (name === "load_tools") {
-    const names = Array.isArray(args.names)
-      ? args.names.filter((value): value is string => typeof value === "string").slice(0, 3)
-      : [];
-    return names.length ? `Loading ${names.join(", ")}` : "Loading requested tools";
-  }
   if (name === "Glob") return null;
   if (name === "Grep") {
     const query = activityText(args.pattern, 80);

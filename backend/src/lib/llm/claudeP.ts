@@ -81,6 +81,8 @@ function authIsolatedEnv(model: string, bridge: McpToolBridge | null) {
   if (model.includes("sonnet") && !env.CLAUDE_CODE_MAX_OUTPUT_TOKENS) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   }
+  // Beaver supplies the callable catalog; do not defer it behind a second loader.
+  env.ENABLE_TOOL_SEARCH = "false";
   if (bridge) env[MCP_TOKEN_ENV] = bridge.token;
   return env;
 }

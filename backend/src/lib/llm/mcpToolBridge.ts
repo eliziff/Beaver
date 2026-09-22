@@ -23,7 +23,7 @@ type BridgeState = {
 };
 
 export type McpToolBridgeParams = {
-  /** Complete turn catalog; Beaver's registry owns specialist activation and authorization. */
+  /** Complete scoped callable catalog; Beaver's executors retain authorization. */
   tools: Tool[];
   runTools: ToolDispatcher;
   onActivity?: () => void;
@@ -136,7 +136,7 @@ function protocolError(response: ServerResponse, error: unknown, fallback: strin
 export async function startMcpToolBridge(params: McpToolBridgeParams): Promise<McpToolBridge> {
   const token = params.token?.trim() || randomBytes(32).toString("hex");
   // Stateless transports cannot reliably update a client's cached tool catalog.
-  // Publish the complete turn catalog once; load_tools only changes registry execution state.
+  // Publish the complete scoped catalog once; every advertised tool is callable.
   const tools = catalog(params.tools);
   const state: BridgeState = { toolCallCount: 0, toolArgumentBytes: 0, toolResultBytes: 0,
     terminalResult: false, dispatchTail: Promise.resolve(), closed: false };
