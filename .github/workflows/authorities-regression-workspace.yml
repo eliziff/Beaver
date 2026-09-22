@@ -19,14 +19,12 @@ jobs:
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install exact dependencies and record baseline frontend diagnostics
+      - name: Install exact application dependencies
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm ci --prefix backend --ignore-scripts --no-audit --no-fund
           npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
-          npm run build --prefix backend
-          (cd frontend && npx tsc --noEmit > /tmp/authorities-baseline-types.log 2>&1) || test "$?" = 2
-      - name: Apply reviewed changes and validate corrected domain fixtures
+      - name: Apply reviewed changes and validate domain fixtures
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -44,6 +42,8 @@ jobs:
           assert hashlib.sha256(p.read_bytes()).hexdigest()=='7b8e8f133b0a8656cf46adb740331743714ef1c568ad8ca721e06864334f3223'
           p=Path('.github/authorities-live-check.cjs');s=p.read_text()
           s=s.replace("passageMarking='highlight'","passageMarking='text'").replace("origin:'uploaded'","origin:'manual'")
+          assert '/api/documents' in s
+          s=s.replace('/api/documents','/api/single-documents')
           p.write_text(s)
           PY
           git diff --check
@@ -51,21 +51,16 @@ jobs:
           echo "LEGAL_STRUCTURE_NATIVE=$PWD/native/legal-structure-node/target/debug/liblegal_structure_node.so" >> "$GITHUB_ENV"
           echo "MIKE_LOCAL_DATA_DIR=$RUNNER_TEMP/authorities-regression-data" >> "$GITHUB_ENV"
           echo "HIGHLIGHT_RECEIPTS=$RUNNER_TEMP/authorities-regression-receipt" >> "$GITHUB_ENV"
-      - name: Link the unchanged native producer for the real lifecycle gate
+      - name: Link the unchanged native producer
         run: cargo build --manifest-path native/legal-structure-node/Cargo.toml --lib --locked
-      - name: Typecheck and run focused tests
+      - name: Application typechecks and focused regression tests
         run: |
           npm run build --prefix backend
-          (cd frontend && npx tsc --noEmit > /tmp/authorities-candidate-types.log 2>&1) || test "$?" = 2
-          diff -u /tmp/authorities-baseline-types.log /tmp/authorities-candidate-types.log
-          if test -s /tmp/authorities-candidate-types.log; then
-            echo '::warning::Frontend has unchanged baseline diagnostics; no additional candidate diagnostics'
-            cat /tmp/authorities-candidate-types.log
-          fi
+          (cd frontend && npx tsc --noEmit)
           (cd frontend && npx vitest run src/app/components/shared/views/PdfView.test.tsx src/app/authorities/AuthoritiesHighlightEditor.test.tsx src/app/authorities/standaloneHost.test.tsx src/app/authorities/QuotationFinding.test.tsx)
           (cd backend && npx vitest run src/lib/__tests__/pdfOcrHandoff.test.ts src/lib/authoritiesWorkspaceApplication.test.ts src/lib/__tests__/documentProjectionService.test.ts)
           npm run check:source-boundaries
-      - name: Prepare controlled scan and actual browser stylesheet entry
+      - name: Prepare controlled scan and actual browser entry
         run: |
           command -v tesseract || (sudo apt-get update -qq && sudo apt-get install -y tesseract-ocr)
           python -m pip install --quiet pillow playwright
@@ -73,6 +68,8 @@ jobs:
           mkdir -p "$HIGHLIGHT_RECEIPTS" frontend/.regression
           sed 's@/base.css@/globals.css@' .github/authorities-browser-main.tsx > frontend/.regression/main.tsx
           printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="/.regression/main.tsx"></script></body></html>' > frontend/.regression/index.html
+          cp .github/authorities-live-check.cjs .github/authorities-browser-check.py "$HIGHLIGHT_RECEIPTS/"
+          cp frontend/.regression/main.tsx "$HIGHLIGHT_RECEIPTS/browser-main.tsx"
           python - <<'PY'
           from PIL import Image,ImageDraw,ImageFont
           from pathlib import Path
@@ -83,7 +80,7 @@ jobs:
               draw.text((120,160+100*i),text,fill='black',font=font)
           image.save(Path(os.environ['HIGHLIGHT_RECEIPTS'])/'scan.png')
           PY
-      - name: Real worker to persisted descriptor to HTTP to embedded Authorities selection
+      - name: Real worker to persisted metadata to HTTP to embedded Authorities selection
         run: |
           node .github/authorities-live-check.cjs > "$HIGHLIGHT_RECEIPTS/native.log" 2>&1 & native=$!
           (cd frontend && BEAVER_API_ORIGIN=http://127.0.0.1:3037 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 3036) > "$HIGHLIGHT_RECEIPTS/vite.log" 2>&1 & vite=$!
@@ -109,8 +106,5 @@ jobs:
         if: always()
         with:
           name: authorities-ocr-crash-regression-receipt
-          path: |
-            ${{ runner.temp }}/authorities-regression-receipt/
-            /tmp/authorities-baseline-types.log
-            /tmp/authorities-candidate-types.log
+          path: ${{ runner.temp }}/authorities-regression-receipt/
           retention-days: 3
