@@ -8,35 +8,22 @@ permissions:
 jobs:
   workspace:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Snapshot inspected source and pinned native producer
+      - name: Snapshot tracked application sources
+        shell: python
         run: |
-          mkdir /tmp/authorities-regression
-          git archive HEAD AGENTS.md CONTRIBUTING.md LICENSE package.json package-lock.json frontend/src frontend/scripts frontend/vendor frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vite.config.ts frontend/vitest.config.mts frontend/vitest.setup.ts backend/src backend/scripts backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.ts shared native/legal-structure-node packages scripts docs subrepos.lock.json .gitmodules | gzip > /tmp/authorities-regression/source.tar.gz
-          git submodule update --init legal-pdf-parser legal-structure
-          git -C legal-pdf-parser archive HEAD | gzip > /tmp/authorities-regression/parser.tar.gz
-          git -C legal-structure archive HEAD | gzip > /tmp/authorities-regression/structure.tar.gz
-          git rev-parse HEAD > /tmp/authorities-regression/revision.txt
-          git submodule status legal-pdf-parser legal-structure >> /tmp/authorities-regression/revision.txt
+          import subprocess,gzip,pathlib
+          paths='AGENTS.md CONTRIBUTING.md LICENSE package.json package-lock.json frontend/src frontend/scripts frontend/vendor frontend/package.json frontend/package-lock.json frontend/tsconfig.json frontend/vite.config.ts frontend/vitest.config.mts frontend/vitest.setup.ts backend/src backend/scripts backend/package.json backend/package-lock.json backend/tsconfig.json backend/vitest.config.ts shared native/legal-structure-node packages scripts docs subrepos.lock.json .gitmodules'.split()
+          paths=[p for p in paths if pathlib.Path(p).exists()]
+          source=subprocess.check_output(['git','archive','HEAD',*paths])
+          assert len(source)>10000
+          pathlib.Path('/tmp/source.tar.gz').write_bytes(gzip.compress(source))
       - uses: actions/upload-artifact@v4
         with:
-          name: authorities-regression-source
-          path: /tmp/authorities-regression/
-          retention-days: 1
-      - name: Install locked application dependencies
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm ci --prefix backend --ignore-scripts --no-audit --no-fund
-          tar -czf /tmp/authorities-regression/backend-dependencies.tar.gz node_modules backend/node_modules
-      - uses: actions/upload-artifact@v4
-        with:
-          name: authorities-regression-dependencies
-          path: /tmp/authorities-regression/backend-dependencies.tar.gz
+          name: authorities-current-source
+          path: /tmp/source.tar.gz
           retention-days: 1
