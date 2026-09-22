@@ -61,6 +61,7 @@ export const COURT_RECORD_TOOL_PROPERTIES = {
 
 const schema: Tool & BeaverToolPolicy = {
   name: "update_work_product",
+  specialist: true,
   sequential: true,
   activity: (input) => input.action === "read" ? "Reading Court Record" : "Updating Court Record",
   description: "Read or update the active Court Record. Read returns its current preset, visible " +

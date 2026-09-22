@@ -81,9 +81,10 @@ function authIsolatedEnv(model: string, bridge: McpToolBridge | null) {
   if (model.includes("sonnet") && !env.CLAUDE_CODE_MAX_OUTPUT_TOKENS) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = "64000";
   }
-  // Beaver supplies the callable catalog; do not defer it behind a second loader.
-  env.ENABLE_TOOL_SEARCH = "false";
-  if (bridge) env[MCP_TOKEN_ENV] = bridge.token;
+  if (bridge) {
+    env[MCP_TOKEN_ENV] = bridge.token;
+    env.ENABLE_TOOL_SEARCH = "true";
+  }
   return env;
 }
 
@@ -164,7 +165,7 @@ async function runClaudeP(params: RunParams) {
     "--output-format", "stream-json",
     "--verbose",
     "--include-partial-messages",
-    "--tools", "",
+    "--tools", params.bridge ? "ToolSearch" : "",
     "--mcp-config", mcpFile,
     "--strict-mcp-config",
     "--disable-slash-commands",
@@ -172,7 +173,7 @@ async function runClaudeP(params: RunParams) {
     "--no-chrome",
     "--system-prompt-file", systemFile,
   ];
-  if (params.bridge) args.push("--allowedTools", "mcp__beaver");
+  if (params.bridge) args.push("--allowedTools", "mcp__beaver", "ToolSearch");
   if (!params.providerSession?.persist) args.push("--no-session-persistence");
   if (params.providerSession?.continuationId) {
     args.push("--resume", params.providerSession.continuationId);

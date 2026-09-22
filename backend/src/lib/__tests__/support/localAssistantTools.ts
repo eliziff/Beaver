@@ -6,6 +6,7 @@ import { assistantTools } from "../../chat/assistantTools";
 import { createArtifactRegistry } from "../../chat/chatToolRunner";
 import { createSourceWorkspaceApplication } from "../../sourceWorkspaceApplication";
 import {
+  LOAD_TOOLS_NAME,
   TurnToolRegistry,
   type BeaverOutcome,
 } from "../../chat/toolRegistry";
@@ -49,6 +50,15 @@ export const runLocalAssistantTools = async (
   options: LocalOptions = {},
 ) => {
   const registry = localAssistantToolRegistry(userId, options);
+  const specialists = calls.map(({ name }) => name)
+    .filter((name) => registry.specialists().includes(name));
+  if (specialists.length) {
+    await registry.run([{
+      id: "load-test-tools",
+      name: LOAD_TOOLS_NAME,
+      input: { names: [...new Set(specialists)] },
+    }], {});
+  }
   const outcomes = new Map<string, BeaverOutcome>();
   const results = await registry.run(calls, {}, undefined,
     (call, outcome) => { outcomes.set(call.id, outcome); });

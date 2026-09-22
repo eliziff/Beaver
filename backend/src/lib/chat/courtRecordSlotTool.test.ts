@@ -65,8 +65,8 @@ describe("scoped work-product assistant operation", () => {
   it("reads the exact party and slot vocabulary rendered by the builder", async () => {
     const { entries } = tools();
     const registry = new TurnToolRegistry(entries);
-    expect(registry.all().map(({ name }) => name)).toContain("update_work_product");
-    expect(registry.all().map(({ name }) => name)).toContain("manage_work_products");
+    expect(registry.visible().map(({ name }) => name)).toContain("update_work_product");
+    expect(registry.specialists()).toContain("manage_work_products");
     const output = await execute(entries.find(({ name }) => name === "update_work_product")!,
       { action: "read" });
     const result = JSON.parse((output.result.content[0] as { text: string }).text);

@@ -85,7 +85,7 @@ export class IncompleteGenerationError extends Error {
 
 /** SDK owns streaming, retries, schemas and wire state. Beaver owns ordered tool effects and stopping. */
 export async function streamHosted(params: StreamChatParams, configured?: HostedModel): Promise<StreamChatResult> {
-  const { streamText, jsonSchema, Output, pruneMessages } = await sdk;
+  const { streamText, jsonSchema, Output, pruneMessages, NoSuchToolError } = await sdk;
   const config = configured ?? await hostedModel(params), callbacks = params.callbacks ?? {};
   const controller = new AbortController(), signal = params.abortSignal
     ? AbortSignal.any([params.abortSignal, controller.signal]) : controller.signal;
@@ -96,6 +96,7 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
   let total: NormalizedLlmUsage | undefined, serviceTier: string | undefined;
   const maxIterations = params.maxIterations ?? 32, window = modelContextWindow(params.model);
   const images = modelSupportsImageInput(params.model);
+  const registered = new Set(params.staticTools?.map(tool => tool.name));
   if (!Number.isSafeInteger(maxIterations) || maxIterations < 1)
     throw new Error("maxIterations must be a positive integer");
   const validate = params.outputSchema && new AjvJsonSchemaValidator().getValidator(params.outputSchema);
@@ -137,6 +138,7 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
         onLanguageModelCallStart() { round.requestAttempts++; }, onError() {},
       });
       const calls: NormalizedToolCall[] = [], invalid = new Map<string, NormalizedToolResult>();
+      const deferred = new Set<string>();
       const compactions = new Set<string>();
       for await (const part of generated.fullStream) {
         throwIfAborted(signal);
@@ -160,7 +162,11 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
             throw new Error("Provider tool calls exceeded the input limit");
           const input = jsonRecord(part.input), call = { id: part.toolCallId, name: part.toolName, input: input ?? {} };
           calls.push(call); callbacks.onToolCallStart?.(call);
-          if (part.invalid || !input) invalid.set(call.id, { tool_use_id: call.id,
+          // A known specialist may follow its loader in this same batch. The SDK
+          // only saw the pre-load catalog; the registry still owns activation and validation.
+          if (input && part.invalid && NoSuchToolError.isInstance(part.error) &&
+              registered.has(call.name)) deferred.add(call.id);
+          else if (part.invalid || !input) invalid.set(call.id, { tool_use_id: call.id,
             content: "Invalid tool arguments; correct them against the tool schema.", status: "error" });
         }
       }
@@ -180,9 +186,14 @@ export async function streamHosted(params: StreamChatParams, configured?: Hosted
           calls.some(call => !resultIds.has(call.id)))
         throw new Error("Tool results must pair exactly with the requested batch");
       // The SDK supplies error results for invalid calls; do not answer those calls twice.
-      const answered = new Set(response.messages.flatMap(message => message.role === "tool"
+      const responseMessages = response.messages.flatMap<ModelMessage>(message => {
+        if (message.role !== "tool") return [message];
+        const content = message.content.filter(part => part.type !== "tool-result" || !deferred.has(part.toolCallId));
+        return content.length ? [{ ...message, content }] : [];
+      });
+      const answered = new Set(responseMessages.flatMap(message => message.role === "tool"
         ? message.content.flatMap(part => part.type === "tool-result" ? [part.toolCallId] : []) : []));
-      const step = [...response.messages, ...resultMessage(calls.filter(call => !answered.has(call.id)), results, images)];
+      const step = [...responseMessages, ...resultMessage(calls.filter(call => !answered.has(call.id)), results, images)];
       const compacted = compactedMessages(step);
       messages = compacted ?? [...messages, ...step];
       // A completed pair is saved even if a tool paused/cancelled the turn. Never persist an orphan tool call.

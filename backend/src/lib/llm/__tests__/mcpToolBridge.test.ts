@@ -25,11 +25,11 @@ async function clientFor(bridge: McpToolBridge) {
 }
 
 describe("MCP tool bridge", () => {
-  it("executes advertised tools without activation or a catalog refresh", async () => {
+  it("executes loaded specialists without refreshing the client's catalog", async () => {
     const names = ["edit_docx_advanced", "document_operation", "lint_document"];
     const executed: string[] = [];
     const registry = new TurnToolRegistry<null>(names.map((name) => ({
-      ...tool(name),
+      ...tool(name), specialist: true,
       async execute() { executed.push(name); return toolOutcome(name); },
     })));
     const bridge = await startMcpToolBridge({
@@ -39,7 +39,14 @@ describe("MCP tool bridge", () => {
     bridges.push(bridge);
     const { client, transport } = await clientFor(bridge);
     const cachedTools = (await client.listTools()).tools;
-    expect(cachedTools.map(({ name }) => name)).toEqual(names);
+    expect(cachedTools.map(({ name }) => name)).toEqual(["load_tools", ...names]);
+
+    const blocked = await client.callTool({ name: names[0], arguments: {} });
+    expect(blocked.isError).toBe(true);
+    expect(JSON.stringify(blocked.content)).toContain("tool_not_loaded");
+    expect(executed).toEqual([]);
+    expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
+      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: names, tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
 
     // No second tools/list request or list-changed notification before these calls.
     for (const name of names) {
@@ -50,8 +57,10 @@ describe("MCP tool bridge", () => {
     expect(executed).toEqual(names);
     expect((await client.callTool({ name: "missing_tool", arguments: {} })).isError).toBe(true);
     expect(executed).toEqual(names);
+    expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
+      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: [], tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
     expect((await client.listTools()).tools).toEqual(cachedTools);
-    expect(bridge.stats().toolCallCount).toBe(names.length);
+    expect(bridge.stats().toolCallCount).toBe(6);
     await transport.close();
   });
 
