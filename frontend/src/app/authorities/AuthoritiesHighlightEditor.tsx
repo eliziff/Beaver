@@ -32,7 +32,7 @@ export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; oc
             .recognized} of ${total} pages read`}</span>
       <span className="ms-auto flex shrink-0 gap-1">
         {status.state === 'running' && action('Pause', () => ocr.stop([status.role], true))}
-        {['paused', 'failed', 'cancelled'].includes(status.state) && action('Resume', () => void ocr.begin([status]))}
+        {['paused', 'failed', 'cancelled'].includes(status.state) && action('Resume', () => void ocr.begin([status], status.pages?.length ? status.pages : undefined))}
         {pending && action('Cancel', () => void ocr.stop([status.role], false))}
       </span>
     </div>
@@ -124,7 +124,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     const abort = new AbortController(); request.current?.abort(); request.current=abort; setLoading(true);
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
-      const blob = await host.readSource(base, source.bindingRole);
+      const blob = await host.readSource(base, source.bindingRole, abort.signal);
       const bytes = new Uint8Array(await blob.arrayBuffer()); abort.signal.throwIfAborted();
       const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.buffer))]
         .map(value => value.toString(16).padStart(2,'0')).join('');
@@ -158,8 +158,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     return () => abort.abort();
   }, [role, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!pdf || pdf.role !== role || !host.readSourceText ||
-        recognition && recognition.state !== 'done') return;
+    if (!pdf || pdf.role !== role || !host.readSourceText) return;
     const abort = new AbortController(), bytes = pdf.bytes;
     setTextError('');
     // Also read persisted recognition when reopening: the in-memory progress tracker is not a cache.
@@ -168,7 +167,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         ? {...value, recognizedText} : value);
     }).catch(cause => { if (!abort.signal.aborted) setTextError(`Text selection could not be prepared. ${errorMessage(cause)}`); });
     return () => abort.abort();
-  }, [role, pdf?.bytes, recognition?.state, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [role, pdf?.bytes, recognition?.state, recognition?.recognized, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => { if(selectedId) cardRefs.current.get(selectedId)?.scrollIntoView({block:'nearest'}); },[selectedId]);
   useEffect(() => {
@@ -204,7 +203,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       <div className="flex min-h-0 flex-1 flex-col" onKeyDown={event=>{
         const input=event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true]');
         const arrow=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:0;
-        if(input || arrow && (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) || (arrow ? saving||loading||choices.length<2 : disabled)) return;
+        if(input || arrow && (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) || (arrow ? saving||choices.length<2 : disabled)) return;
         if(arrow) {event.preventDefault();go(arrow);}
         else if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z') {
           event.preventDefault();event.stopPropagation();if(event.shiftKey)redo();else undo();
@@ -214,11 +213,11 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       }}>
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-300 bg-gray-50 p-2">
           <div className="flex min-w-48 flex-1 items-center gap-1">
-            <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||loading||choices.length<2} onClick={()=>go(-1)} title={`Previous: ${neighbour(-1).title}`} aria-label={`Previous authority: ${neighbour(-1).title}`}><ChevronLeft /></Button>
-            <select aria-label="Authority PDF" value={role} disabled={saving||loading} onChange={event=>setRole(event.target.value)}
+            <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(-1)} title={`Previous: ${neighbour(-1).title}`} aria-label={`Previous authority: ${neighbour(-1).title}`}><ChevronLeft /></Button>
+            <select aria-label="Authority PDF" value={role} disabled={saving} onChange={event=>setRole(event.target.value)}
               className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm">
               {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}</select>
-            <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||loading||choices.length<2} onClick={()=>go(1)} title={`Next: ${neighbour(1).title}`} aria-label={`Next authority: ${neighbour(1).title}`}><ChevronRight /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(1)} title={`Next: ${neighbour(1).title}`} aria-label={`Next authority: ${neighbour(1).title}`}><ChevronRight /></Button>
           </div>
           <div role="group" aria-label="Highlight tool" className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
             {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
@@ -235,7 +234,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <SourceOcrProgress status={recognition} ocr={ocr} /></div>}
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
-            {current && pdf?.role === role ? <PdfView key={role} doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
+            {pdf?.role === role ? <PdfView key={role} doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
               recognizedText={pdf.recognizedText}
               annotationEditor={{marks,tool,selectedId,focus,disabled,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
