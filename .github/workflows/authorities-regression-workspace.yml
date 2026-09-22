@@ -26,16 +26,26 @@ jobs:
           npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
           npm run build --prefix backend
           (cd frontend && npx tsc --noEmit > /tmp/authorities-baseline-types.log 2>&1) || test "$?" = 2
-      - name: Apply exact reviewed production and focused regression changes
+      - name: Apply reviewed changes and validate corrected domain fixtures
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('.github/authorities-candidate.py')
-          s=p.read_text()
-          s=s.replace('d1a23ee41435f10691a61d37cfb09f156274b4aefcbfc57fcd933ba24d47cbb','b82407e1ebd13f2280a9dbf4fe74848c67a6ce9fc54cd56bc5eacbe6d0e67f01')
+          import hashlib
+          s=Path('.github/authorities-candidate.py').read_text().replace('d1a23ee41435f10691a61d37cfb09f156274b4aefcbfc57fcd933ba24d47cbb','b82407e1ebd13f2280a9dbf4fe74848c67a6ce9fc54cd56bc5eacbe6d0e67f01')
+          exec(compile(s,'.github/authorities-candidate.py','exec'))
+          p=Path('frontend/src/app/authorities/AuthoritiesHighlightEditor.test.tsx');s=p.read_text()
+          s=s.replace('import { createAuthoritiesDraft }','import { createAuthoritiesDraft, validateAuthoritiesDraft }')
+          s=s.replace("passageMarking = 'highlight'","passageMarking = 'text'").replace("origin: 'uploaded'","origin: 'manual'")
+          s=s.replace('  const product: AuthoritiesProduct =', '''  for (const id of draft.authorityOrder) draft.bindings[id] = { kind: 'document', documentId: id,
+              version: { versionId: `version-${id}`, sha256: hash } };
+            expect(validateAuthoritiesDraft(draft)).toEqual([]);
+            const product: AuthoritiesProduct =''')
+          p.write_text(s)
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='7b8e8f133b0a8656cf46adb740331743714ef1c568ad8ca721e06864334f3223'
+          p=Path('.github/authorities-live-check.cjs');s=p.read_text()
+          s=s.replace("passageMarking='highlight'","passageMarking='text'").replace("origin:'uploaded'","origin:'manual'")
           p.write_text(s)
           PY
-          python .github/authorities-candidate.py
           git diff --check
           git submodule update --init legal-pdf-parser legal-structure
           echo "LEGAL_STRUCTURE_NATIVE=$PWD/native/legal-structure-node/target/debug/liblegal_structure_node.so" >> "$GITHUB_ENV"
@@ -62,7 +72,7 @@ jobs:
           python -m playwright install --with-deps chromium
           mkdir -p "$HIGHLIGHT_RECEIPTS" frontend/.regression
           cp .github/authorities-browser-main.tsx frontend/.regression/main.tsx
-          printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>' | sed 's@src="/main.tsx"@src="/.regression/main.tsx"@' > frontend/.regression/index.html
+          printf '%s\n' '<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module" src="/.regression/main.tsx"></script></body></html>' > frontend/.regression/index.html
           python - <<'PY'
           from PIL import Image,ImageDraw,ImageFont
           from pathlib import Path
@@ -91,7 +101,7 @@ jobs:
         run: |
           git diff --check
           while IFS= read -r path || test -n "$path"; do git add -- "$path"; done < /tmp/authorities-changed-files.txt
-          git rm .github/authorities-candidate.py .github/authorities-live-check.cjs .github/authorities-browser-main.tsx .github/authorities-browser-check.py .github/workflows/authorities-regression-workspace.yml
+          git rm -f .github/authorities-candidate.py .github/authorities-live-check.cjs .github/authorities-browser-main.tsx .github/authorities-browser-check.py .github/workflows/authorities-regression-workspace.yml
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: retain Authorities OCR handoffs and eliminate PDF gap freezes'
           git push origin HEAD:fix/authorities-ocr-loading-crash
           git rev-parse HEAD | tee "$HIGHLIGHT_RECEIPTS/candidate-sha.txt"
