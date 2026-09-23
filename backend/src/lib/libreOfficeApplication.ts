@@ -23,10 +23,11 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
   const scope = { userId: options.userId, userEmail: options.userEmail };
   const created = new Set<string>(), published = new Map<string, UnoApplicationResult>();
   const mode = options.editMode === "auto" ? "direct" : "tracked";
-  // A mistyped id reads as out of scope; name the attached resources so the model can correct it.
-  const outside = (where: string) => new Error([`Document is outside the ${where}`,
+  // Mistyped ids are common; name the attached resources so the model can retry exactly.
+  const outside = (where: string) => new Error([`file_path names no document in the ${where}`,
     ...Object.values(options.docIndex ?? {}).flatMap(d => d.version_id
-      ? [`${d.filename ?? "attached"} is ${resourceReference.document(d.document_id, d.version_id)}`] : [])].join("; "));
+      ? [`${d.filename ?? "attached"} is ${resourceReference.document(d.document_id, d.version_id)}`] : [])].join("; ") +
+    ". Retry with the exact resource.");
   const loaded = async (reference: string): Promise<{ reference: string; meta: DocumentRecord; file: DocumentContent }> => {
     const parsed = parseResourceReference(reference);
     if (parsed?.kind !== "document")
