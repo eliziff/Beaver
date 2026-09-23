@@ -25,7 +25,7 @@ async function clientFor(bridge: McpToolBridge) {
 }
 
 describe("MCP tool bridge", () => {
-  it("executes loaded specialists without refreshing the client's catalog", async () => {
+  it("executes specialists without refreshing the client's catalog", async () => {
     const names = ["edit_docx_advanced", "document_operation", "lint_document"];
     const executed: string[] = [];
     const registry = new TurnToolRegistry<null>(names.map((name) => ({
@@ -41,10 +41,6 @@ describe("MCP tool bridge", () => {
     const cachedTools = (await client.listTools()).tools;
     expect(cachedTools.map(({ name }) => name)).toEqual(["load_tools", ...names]);
 
-    const blocked = await client.callTool({ name: names[0], arguments: {} });
-    expect(blocked.isError).toBe(true);
-    expect(JSON.stringify(blocked.content)).toContain("tool_not_loaded");
-    expect(executed).toEqual([]);
     expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
       .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: names, tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
 
@@ -60,7 +56,7 @@ describe("MCP tool bridge", () => {
     expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
       .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: [], tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
     expect((await client.listTools()).tools).toEqual(cachedTools);
-    expect(bridge.stats().toolCallCount).toBe(6);
+    expect(bridge.stats().toolCallCount).toBe(5);
     await transport.close();
   });
 

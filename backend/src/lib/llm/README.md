@@ -55,15 +55,15 @@ cache-write tokens, updated during the stream. Aggregate result usage remains
 accounting only; it cannot overwrite the meter. Missing usage stays unknown and
 leaves the existing host estimate intact. The native reported context window is
 used when available for the same model, without borrowing a subagent's usage.
-Unloaded tools remain blocked by the registry, and failures retain MCP `isError`.
+A valid call to an in-scope specialist activates it, so clients that already
+hold the schema need no loader round; failures retain MCP `isError`.
 The loader returns the selected canonical definitions, including their parameter
 schemas; repeat loads return those definitions again. Names without an executor
 cannot be registered, and oversized discovery results refuse before activation.
 Hosted adapters still send only `resolveTools()` definitions. If the model emits
 loading and a known deferred call in one batch, the SDK's pre-load `NoSuchToolError`
 is resolved by the ordered registry, not persisted instead of the real result.
-Unknown names, malformed arguments, unloaded calls and incomplete generations
-remain rejected. The full scoped catalog is not sent to hosted models.
+Unknown names, malformed arguments and incomplete generations remain rejected. The full scoped catalog is not sent to hosted models.
 The bridge preserves MCP annotations; a write is not advertised as read-only.
 Codex's `default_tools_approval_mode: "approve"` applies only to the authenticated
 `mike_runtime` bridge. Claude Code enables only its native `ToolSearch` discovery

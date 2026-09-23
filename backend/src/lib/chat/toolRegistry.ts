@@ -262,11 +262,7 @@ export class TurnToolRegistry<Context> {
         : failedOutcome("invalid_arguments", checked.errorMessage) };
     }
     const compiled = this.#byName.get(call.name);
-    if (!compiled || !this.#active.has(call.name)) return {
-      call,
-      outcome: failedOutcome(compiled ? "tool_not_loaded" : "unknown_tool",
-        compiled ? `Load ${call.name} before calling it.` : `Unknown tool: ${call.name}`),
-    };
+    if (!compiled) return { call, outcome: failedOutcome("unknown_tool", `Unknown tool: ${call.name}`) };
     const checked = compiled.input(call.input);
     if (!checked.valid) {
       if (compiled.tool.onInvalidInput) return { call,
@@ -276,6 +272,9 @@ export class TurnToolRegistry<Context> {
         { tool: call.name, detail: checked.errorMessage?.slice(0, 500) });
       return { call, outcome: failedOutcome("invalid_arguments", checked.errorMessage) };
     }
+    // A valid call to an in-scope specialist is its own load: clients that already
+    // hold the schema (native tool search, MCP catalogs) need no separate loader round.
+    this.#active.add(call.name);
     try {
       if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
       const outcome = await compiled.tool.execute(call.input, context, signal, call);
