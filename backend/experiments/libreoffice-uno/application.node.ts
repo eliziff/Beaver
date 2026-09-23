@@ -26,7 +26,7 @@ function fixture(editMode: "manual" | "auto" = "auto") {
       assert.equal(input.bytes, candidate);
       return { id: "preview", current_version_id: "p1", active_version_number: 1, filename: "preview.docx" };
     },
-    async readParts() { return [{ bytes: state.part }]; },
+    async readParts(_scope: unknown, id: string) { return id === "preview" && state.part.length ? [{ bytes: state.part }] : []; },
     async addVersion(_scope: unknown, id: string, input: { bytes: Buffer; expectedCurrentVersionId: string;
       expectedCurrentWorkingRevision: number; expectedCurrentSha256: string }) {
       assert.equal(id, "source"); assert.equal(input.bytes, candidate);
@@ -46,16 +46,18 @@ function fixture(editMode: "manual" | "auto" = "auto") {
       candidate_sha256: hash(candidate), mode: mode + "-candidate", review_verified: mode === "tracked" } };
   });
   const preview = () => run({ action: "preview", file_path, snapshot: hash(bytes), program: "return true;", mode: "direct" }, signal);
-  const apply = () => run({ action: "apply", file_path, preview_resource: "document://preview/version/p1" }, signal);
+  const apply = () => run({ action: "apply", file_path: "document://preview/version/p1" }, signal);
   return { state, options, run, preview, apply };
 }
 
 test("preview preserves source; apply publishes the exact candidate once", async () => {
   const f = fixture();
   await assert.rejects(f.run({ action: "preview", file_path, snapshot: hash(bytes) }, signal), /program/);
+  await assert.rejects(f.run({ action: "apply", file_path }, signal), /pass the preview's artifact/);
   const preview = await f.preview();
   assert.equal(f.state.head, "v1"); assert.equal(f.state.saves, 0);
   assert.equal(preview.report.original_unchanged, true);
+  await assert.rejects(f.run({ action: "preview", file_path, snapshot: "0".repeat(64), program: "return 1;" }, signal), /changed since/);
   const applied = await f.apply();
   assert.equal(applied.report.mode, "direct"); assert.equal(f.state.saves, 1);
   assert.equal(f.state.published, "v2");
@@ -140,8 +142,12 @@ test("real chat tools share artifacts, native edits and durable document version
     const checked = await call("word_uno", { action: "inspect", file_path: preview.artifact,
       program: "return word.target('paragraph:0').get(['String','CharHeight']);" });
     assert.deepEqual(checked.result, preview.result);
-    const applied = await call("word_uno", { action: "apply", file_path: edited.artifact, preview_resource: preview.artifact });
-    const candidate = await documents.read(scope, preview.resource.split('/')[2], null, false);
+    // A preview of the candidate still revises the original; apply needs only that candidate.
+    const refined = await call("word_uno", { action: "preview", file_path: preview.artifact,
+      program: "word.target('paragraph:0').CharWeight = 150; return word.target('paragraph:0').CharWeight;" });
+    assert.equal(refined.result, 150); assert.equal(refined.source, preview.source);
+    const applied = await call("word_uno", { action: "apply", file_path: refined.artifact });
+    const candidate = await documents.read(scope, refined.resource.split('/')[2], null, false);
     assert.deepEqual((await documents.read(scope, source.id, null, false))!.bytes, candidate!.bytes);
     await call("Edit", { file_path: edited.artifact, old_string: "Native", new_string: "Final" });
     await call("edit_docx_advanced", { file_path: edited.artifact,
@@ -151,13 +157,12 @@ test("real chat tools share artifacts, native edits and durable document version
     const final = await documents.read(scope, source.id, null, false);
     const xml = await docxXml(final!.bytes);
     assert.match(xml, /Final/); assert.match(xml, /provision/); assert.match(xml, /w:sz w:val="28"/);
-    assert.equal((await call("word_uno", { action: "apply", file_path: edited.resource,
-      preview_resource: preview.resource })).already_applied, true);
+    assert.equal((await call("word_uno", { action: "apply", file_path: refined.resource })).already_applied, true);
     assert.equal((await documents.read(scope, source.id, null, false))!.version.id, final!.version.id);
     // Stale snapshots and revoked scope still fail through the production registry.
     const [stale] = await registry.run([{ id: String(++id), name: "word_uno", input: { action: "preview",
       file_path: edited.artifact, snapshot: inspected.snapshot, program: "return true;" } }], context);
-    assert.equal(stale.status, "error"); assert.match(stale.content, /current snapshot/);
+    assert.equal(stale.status, "error"); assert.match(stale.content, /changed since/);
     allowedDocumentIds.clear();
     const [revoked] = await registry.run([{ id: String(++id), name: "word_uno",
       input: { action: "inspect", file_path: applied.resource } }], context);
