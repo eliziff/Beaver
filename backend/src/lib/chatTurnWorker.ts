@@ -7,6 +7,7 @@ import type { ChatScope, ChatStore } from "./chatStore";
 import { createJobEventWriter, finishJobCommand, watchJob,
   pendingJobCommands, PermanentJobError, type ApplicationJob,
   jsonValue, type JobHandler } from "./jobQueue";
+import { providerErrorCode } from "./safeError";
 import { jsonRecord } from "./value";
 
 export const CHAT_TURN_JOB = "chat.turn";
@@ -176,6 +177,9 @@ export function chatTurnJobHandler(
         }
         throw new PermanentJobError(error.code ?? error.message);
       }
+      // Rejected credentials, configuration or requests fail the same way on every attempt.
+      const code = providerErrorCode(error);
+      if (code && !["provider_limit", "provider_unavailable"].includes(code)) throw new PermanentJobError(code);
       throw error;
     } finally {
       acceptingEvents = false;

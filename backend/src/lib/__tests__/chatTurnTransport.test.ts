@@ -77,3 +77,16 @@ it("reattaches a retried send to the job identified by its turn id", async () =>
   const retry = await durableChatTurns.enqueue(scope, input);
   expect(retry).toMatchObject({ created: true, job: { id: first.job.id } });
 });
+
+it.each([[401, true], [400, true], [429, false], [503, false]])(
+  "retries a provider %i failure only when another attempt can succeed", async (statusCode, permanent) => {
+    const { enqueueJob, PermanentJobError } = await import("../jobQueue");
+    const { chatTurnJobHandler } = await import("../chatTurnWorker");
+    const input = { expected_version: 0, current_turn: { kind: "message", content: "hello" } };
+    const job = await enqueueJob({ kind: "chat.turn", dedupeKey: `provider-${statusCode}`, userId: "owner", payload: { input } });
+    const failure = Object.assign(new Error("Upstream request failed"), { statusCode });
+    const handler = chatTurnJobHandler({ turn: async () => { throw failure; } } as never, {} as never);
+    const outcome = handler(job, { signal: new AbortController().signal,
+      progress: async () => undefined, checkpoint: async () => undefined });
+    await expect(outcome).rejects.toSatisfy((error) => (error instanceof PermanentJobError) === permanent);
+  });
