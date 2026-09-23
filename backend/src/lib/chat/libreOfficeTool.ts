@@ -23,7 +23,7 @@ Example: word.target('footnote:0').find('paragraph 12').set({String:'paragraph 1
 Tables: create, initialize(rows,cols), then doc.getText().insertTextContent(nextParagraph.getStart(), table, false) places it before that paragraph (inserting at a paragraph's end splits it, leaving an empty paragraph). Only then fill cells with getCellRangeByName('A1:C4').setDataArray(rows), not one call per cell.
 Paragraphs form one list only when they share a NumberingStyleName (e.g. 'Numbering 123') or one NumberingRules object.
 Word sections are the page styles in use; inspect family 'page-style' lists them with in_use and word_margins (Word's top/bottom margins include an enabled header/footer).
-Set margins as Word shows them with word.margins(pageStyle,{top,bottom,left,right}); it keeps an enabled header/footer's edge distance, whereas TopMargin/BottomMargin move the header/footer.
+Set margins as Word shows them with word.margins(pageStyle,{top:word.mm(25.4),bottom,left,right}) in hundredths of a mm; it keeps an enabled header/footer's edge distance, whereas TopMargin/BottomMargin move the header/footer.
 word.section(paragraph,values) starts a Word section on a new page at that paragraph with a copy of the current layout, header and footer, applies values and returns its page style, e.g. word.section('paragraph:15',{IsLandscape:true}) (orientation swaps the page size).
 Previews that change page layout report word_sections as Word will show them; check them against the request.
 object.expect(values) checks now and after export/reopen. Checks follow retained objects through insertions; selected ranges and attached notes are supported. Removed/unaddressable objects fail.
