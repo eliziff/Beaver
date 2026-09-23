@@ -46,7 +46,7 @@ describe("MCP tool bridge", () => {
     expect(JSON.stringify(blocked.content)).toContain("tool_not_loaded");
     expect(executed).toEqual([]);
     expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
-      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: names }) }]);
+      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: names, tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
 
     // No second tools/list request or list-changed notification before these calls.
     for (const name of names) {
@@ -58,7 +58,7 @@ describe("MCP tool bridge", () => {
     expect((await client.callTool({ name: "missing_tool", arguments: {} })).isError).toBe(true);
     expect(executed).toEqual(names);
     expect((await client.callTool({ name: "load_tools", arguments: { names } })).content)
-      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: [] }) }]);
+      .toEqual([{ type: "text", text: JSON.stringify({ ok: true, loaded: [], tools: cachedTools.filter(tool => names.includes(tool.name)) }) }]);
     expect((await client.listTools()).tools).toEqual(cachedTools);
     expect(bridge.stats().toolCallCount).toBe(6);
     await transport.close();
