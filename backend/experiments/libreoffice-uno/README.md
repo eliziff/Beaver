@@ -23,12 +23,15 @@ to models. Native local execution is not an OS sandbox against engine exploits.
 ## Editing
 
 Use a versioned document resource or a current-turn `draft-N` artifact as
-`file_path`; `preview_resource` accepts either form too. Published artifacts include
-a canonical `resource` for later turns. Inspect the current file for its snapshot.
+`file_path`. Published artifacts include a canonical `resource` for later turns.
 `inspect` programs are read-only;
-`preview` runs synchronous JavaScript on that snapshot; `apply` publishes the
-exact frozen `preview_resource`, never a rerun. QuickJS is separately terminable
-and bounded by memory, stack, time, calls and output, without host APIs.
+`preview` runs synchronous JavaScript on the current version (an optional inspected
+`snapshot` refuses a changed document); `apply` with the candidate as `file_path`
+publishes its exact frozen bytes to the original named by its receipt, never a rerun.
+A preview of a candidate still revises that original. QuickJS is separately terminable
+and bounded by memory, stack, time, calls and output, without host APIs. Handles also
+take native UNO member syntax (UpperCamel properties, lowerCamel methods) through the
+same checked broker operations; errors name the member and program line.
 
 ```js
 const [a, b] = word.target(['paragraph:1', 'paragraph:2']);
@@ -47,6 +50,10 @@ separate calls when order matters. A combined `String` and formatting assignment
 replaces text before resolving the formatting range, irrespective of key order.
 Styles expose `ParentStyle`; `reset` removes
 direct formatting. Native default/state methods share the same text-cursor path.
+Word keeps sections and lists, not LibreOffice style names: checks on unused page
+styles are reported as not saved, used page styles are checked through a paragraph
+they lay out, applied `PageDescName` by page layout, and list styles by list labels.
+Inspected paragraph text is the accepted reading, with `{-deleted-}{+inserted+}` marks.
 
 ## Verification
 
