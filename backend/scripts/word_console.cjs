@@ -61,6 +61,7 @@ async function main() {
         });
         return new Proxy(handle, {
           get: (target, name) => name in target || typeof name !== 'string' || name === 'then' ? target[name]
+            : name in word ? () => { throw new Error(name + ' is word.' + name + '(...), not a document object method'); }
             : /^[A-Z]/.test(name) ? invoke({op:'get',target:ref,name})
             : (...args) => invoke({op:'call',target:ref,name,args}),
           set: (target, name, value) => {
