@@ -54,8 +54,10 @@ Word keeps sections and lists, not LibreOffice style names: checks on unused pag
 styles are reported as not saved, used page styles are checked through a paragraph
 they lay out, applied `PageDescName` by page layout, and list styles by list labels.
 Word's top/bottom margins include an enabled header/footer, so page-style inspection
-reports `word_margins`, and previews that change page layout report `word_sections`
-read back from the exported DOCX. Inspected paragraph text is the accepted reading, with `{-deleted-}{+inserted+}` marks.
+reports `word_margins`, `word.margins` sets margins in Word's model, and previews that
+change page layout report `word_sections` read back from the exported DOCX.
+`word.section` starts a Word-like section: a copy of the current page style whose
+header/footer content Writer copies through its own clipboard format. Inspected paragraph text is the accepted reading, with `{-deleted-}{+inserted+}` marks.
 
 ## Verification
 
