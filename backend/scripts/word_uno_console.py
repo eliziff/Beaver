@@ -2,6 +2,7 @@
 from __future__ import annotations
 from collections import Counter
 from hashlib import sha256
+from itertools import zip_longest
 import json
 import os
 from pathlib import Path
@@ -85,6 +86,16 @@ def word_sections(path):
                 'margins_in': {name: inches(margins, name) for name in ('top', 'bottom', 'left', 'right', 'header', 'footer')},
                 'header': story(sect, 'header'), 'footer': story(sect, 'footer')})
         return sections
+
+
+def equivalent(expected, actual):
+    """Writer accepts and reports some enum properties as their ordinal (ParaAdjust, CharPosture)."""
+    if expected == actual: return True
+    enum, number = (expected, actual) if isinstance(expected, dict) else (actual, expected)
+    if not (isinstance(enum, dict) and set(enum) == {'enum', 'value'} and type(number) is int): return False
+    types = uno.getComponentContext().getValueByName('/singletons/com.sun.star.reflection.theTypeDescriptionManager')
+    description = types.getByHierarchicalName(enum['enum'])
+    return dict(zip(description.getEnumNames(), description.getEnumValues())).get(enum['value']) == number
 
 
 def page_text(story):
@@ -282,9 +293,8 @@ class Broker:
             if op == 'set':
                 expected = {name: encode(value) for name, value in requested.items()}
                 if 'String' in expected and self.doc.RecordChanges: after['String'] = expected['String']
-                if after != expected:
-                    lost = {name: {'requested': expected[name], 'actual': after.get(name)} for name in expected if after.get(name) != expected[name]}
-                    raise ValueError('Writer did not retain ' + json.dumps(lost)[:400])
+                lost = {name: {'requested': expected[name], 'actual': after.get(name)} for name in expected if not equivalent(expected[name], after.get(name))}
+                if lost: raise ValueError('Writer did not retain ' + json.dumps(lost)[:400])
                 self.resets.get(obj, set()).difference_update(values)
                 if target in self.targets or obj in self.find_scopes:
                     self.checks.setdefault(obj, {}).update({name: value for name, value in after.items()
@@ -342,10 +352,9 @@ class Broker:
             values = command.get('values')
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('expect requires 1-100 properties')
             actual = {name: encode(value) for name, value in properties(obj, values).items()}
-            if actual != values:
-                failed = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if actual.get(name) != values[name]}
-                raise ValueError('Postcondition failed: ' + json.dumps(failed)[:400])
-            self.checks.setdefault(obj, {}).update(values)
+            failed = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if not equivalent(values[name], actual.get(name))}
+            if failed: raise ValueError('Postcondition failed: ' + json.dumps(failed)[:400])
+            self.checks.setdefault(obj, {}).update(actual)
             return True
         if op == 'section':
             return self.section(target, obj, command.get('values', {}))
@@ -497,9 +506,8 @@ def verify_properties(doc, checks):
         if prefix is not None: obj = unique_range(doc, obj, text, prefix)
         actual = {name: encode(value) for name, value in properties(obj, values).items()}
         if target.startswith('page-style:'): actual.update({name: value for name, value in body_margins(obj).items() if name in values})
-        if actual != values:
-            lost = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if actual.get(name) != values[name]}
-            raise ValueError('Export/reopen lost properties at ' + target + ': ' + json.dumps(lost)[:400])
+        lost = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if not equivalent(values[name], actual.get(name))}
+        if lost: raise ValueError('Export/reopen lost properties at ' + target + ': ' + json.dumps(lost)[:400])
         if any(state.value != 'DEFAULT_VALUE' for state in properties(obj, defaults, operation='state').values()):
             raise ValueError('Export/reopen restored direct formatting at ' + target)
 
@@ -551,8 +559,12 @@ def transact(source, output, request, binary, interact):
             try:
                 state = native_state(reopened)
                 if state != expected:
-                    changed = [key for key in expected if state[key] != expected[key]]
-                    raise ValueError('Export/reopen changed ' + ', '.join(changed) + ': ' + str([(state[k], expected[k]) for k in changed])[:600])
+                    # Name only the entries that differ (expected, then reopened), not whole lists.
+                    def differing(before, after):
+                        if isinstance(before, dict): before, after = sorted(before.items()), sorted(after.items())
+                        return [(i, b, a) for i, (b, a) in enumerate(zip_longest(before, after)) if b != a][:3]
+                    changed = {key: differing(expected[key], state[key]) for key in expected if state[key] != expected[key]}
+                    raise ValueError('Export/reopen changed ' + str(changed)[:800])
                 new_indices = [i for i, (who, _, _) in enumerate(expected['revisions']) if who == author]
                 verify_properties(reopened, raw_checks)
                 if mode == 'tracked' and new_indices and checks:
