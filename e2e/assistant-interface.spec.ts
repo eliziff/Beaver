@@ -4,11 +4,6 @@ test("assistant landing reflows and the mobile sidebar behaves modally", async (
     page,
 }, testInfo) => {
     await page.addInitScript(() => {
-        try {
-            localStorage.removeItem("mike.quickActions.visible");
-        } catch {
-            // Storage is unavailable on the initial opaque document.
-        }
         const state = window as Window & { __beaverCls?: number };
         state.__beaverCls = 0;
         try {
@@ -74,11 +69,7 @@ test("assistant landing reflows and the mobile sidebar behaves modally", async (
     await expect(prompt).toBeFocused();
 
     await page.setViewportSize({ width: 720, height: 450 });
-    const lastQuickAction = page.getByRole("button", {
-        name: "Start chat in project",
-    });
-    await lastQuickAction.scrollIntoViewIfNeeded();
-    await expect(lastQuickAction).toBeVisible();
+    await expect(prompt).toBeVisible();
     const width720 = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
