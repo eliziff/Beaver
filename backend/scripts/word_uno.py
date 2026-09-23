@@ -488,6 +488,9 @@ def page(entries, request):
 
 def revision_range(revision):
     start = revision.RedlineStart
+    # A table tracked in this session is one redline anchored at the table, not text.
+    if not hasattr(start, 'getText'):
+        raise ValueError('Review mode cannot verify a tracked table insertion or deletion; it needs direct (Auto) editing')
     cursor = start.getText().createTextCursorByRange(start)
     cursor.gotoRange(revision.RedlineEnd, True)
     return cursor
