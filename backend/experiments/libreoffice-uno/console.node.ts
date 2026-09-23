@@ -143,6 +143,33 @@ test("text and note edits are native revisions and can be rejected without erasi
   assert.match(await xml(rejected, "word/footnotes.xml"), /paragraph 12/);
   assert.doesNotMatch(await xml(rejected, "word/footnotes.xml"), /paragraph 15/);
   assert.match(await xml(rejected, "word/document.xml"), /retained insertion[\s\S]*retained deletion/);
+  const { report: read } = await runLibreOffice(candidate, { action: "inspect", family: "paragraph", limit: 6 }, signal);
+  const rows = read.items as { text: string; tracked?: string }[];
+  assert.deepEqual([rows[1].text, rows[1].tracked], ["Opening paragraph stays revised.", "Opening paragraph stays {+revised+}{-unchanged-}."]);
+  assert.equal(rows[3].text, "Editorial history: retained insertion");
+});
+
+test("native UNO-shaped programs build tables, page layout and one list that Word keeps", async () => {
+  const { candidate, report } = await preview(await source, `
+    const table=doc.createInstance('com.sun.star.text.TextTable'); table.initialize(2,3);
+    doc.getText().insertTextContent(word.target('paragraph:1').getEnd(), table, false);
+    table.getCellRangeByName('A1:C2').setDataArray([['Milestone','Due','Amount'],['Kick-off','March','$10']]);
+    table.getCellRangeByName('A1:C1').setPropertyValue('CharWeight', 150);
+    const styles=word.inspect({family:'page-style',limit:100,include_text:false}).items.map(row=>row.target);
+    for (const style of word.target(styles)) style.LeftMargin=word.mm(38.1);
+    const [a,b,last]=word.target(['paragraph:1','paragraph:2','paragraph:6']);
+    a.NumberingStyleName='Numbering 123'; b.NumberingStyleName='Numbering 123';
+    last.PageDescName='Landscape';
+    return [a.ListLabelString,b.ListLabelString];
+  `);
+  assert.ok(candidate); assert.deepEqual(report.result, ["1.", "2."]);
+  assert.ok((report.unused_page_styles_not_saved as string[]).includes("page-style:First%20Page"));
+  const body = await xml(candidate, "word/document.xml");
+  assert.match(body, /Kick-off/); assert.match(body, /w:orient="landscape"/);
+  const margins = [...body.matchAll(/<w:pgMar [^>]*w:left="(\d+)"/g)].map(m => m[1]);
+  assert.ok(margins.length === 2 && margins.every(left => left === "2160"), String(margins));
+  const lists = [...body.matchAll(/<w:numId w:val="(\d+)"/g)].map(m => m[1]);
+  assert.equal(lists.length, 2); assert.equal(lists[0], lists[1]);
 });
 
 test("untrackable mixed changes fail rather than bypass Review mode", async () => {
@@ -174,8 +201,12 @@ test("creation, readonly policy, unsafe native access, and failed programs use t
   const unsafe = await JSZip.loadAsync(bytes); unsafe.file('word/vbaProject.bin', 'never execute');
   await assert.rejects(preview(await unsafe.generateAsync({type:'nodebuffer'}), 'return null;'), /Macros and embedded/);
   await assert.rejects(runLibreOffice(bytes, {action:'inspect',snapshot:hash(bytes),program:"word.target('paragraph:1').set({String:'forbidden'});"}, signal), /read-only/);
-  for (const program of ["doc.get(['Text','BasicLibraries']);", "doc.get('Parent');", "doc.call('createInstance','com.sun.star.text.Footnote');", "doc.call('printPages',[]);", "doc.call('getPropertyDefault','BasicLibraries');", "doc.get('TextTables').items(100000,1,['BasicLibraries']);"])
-    await assert.rejects(preview(bytes, program), /document-only/);
+  for (const program of ["doc.get(['Text','BasicLibraries']);", "doc.Parent;", "doc.createInstance('com.sun.star.frame.Desktop');", "doc.printPages([]);", "doc.call('getPropertyDefault','BasicLibraries');", "doc.get('TextTables').items(100000,1,['BasicLibraries']);"])
+    await assert.rejects(preview(bytes, program), /document-(only|local)/);
+  await assert.rejects(preview(bytes, "const p=word.target('paragraph:1');\np.frobnicate();"), /no native method frobnicate.*program line 2/);
+  await assert.rejects(preview(bytes, "const x={};\n\nx.y.z;"), /program line 3/);
+  await assert.rejects(preview(bytes, "const t=doc.createInstance('com.sun.star.text.TextTable'); t.initialize(2,2);\nt.getCellRangeByName('A1:B1');"),
+    /getCellRangeByName: .*insertTextContent.*program line 2/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({HyperLinkURL:'file:///etc/passwd'});"), /HTTP|document/);
   await assert.rejects(preview(bytes, "word.target('paragraph:1').set({String:'temporary'}); throw new Error('discard me');"), /discard me/);
   await assert.rejects(runLibreOffice(bytes, {action:'inspect',program:"word.target('paragraph:1').reset(['CharWeight']);"}, signal), /read-only/);

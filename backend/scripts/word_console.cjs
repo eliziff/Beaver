@@ -4,9 +4,9 @@ const { parentPort, workerData } = require('node:worker_threads');
 const { newAsyncContext } = require('quickjs-emscripten');
 const pending = new Map();
 let sequence = 0;
-parentPort.on('message', ({ id, value }) => {
-  const resolve = pending.get(id);
-  if (resolve) { pending.delete(id); resolve(value); }
+parentPort.on('message', message => {
+  const resolve = pending.get(message.id);
+  if (resolve) { pending.delete(message.id); resolve(message); }
 });
 async function main() {
   const vm = await newAsyncContext();
@@ -22,17 +22,23 @@ async function main() {
       if (!command || typeof command !== 'object' || Array.isArray(command)) throw new Error('Invalid native request');
       const id = ++sequence;
       if (id > 4000) throw new Error('Native operation budget exhausted');
-      const result = await new Promise(resolve => {
+      const reply = await new Promise(resolve => {
         pending.set(id, resolve); parentPort.postMessage({ type: 'rpc', id, command });
       });
-      const encoded = JSON.stringify(result ?? null);
+      const encoded = JSON.stringify(typeof reply.error === 'string' ? { error: reply.error } : { value: reply.value ?? null });
       if (Buffer.byteLength(encoded) > 262144) throw new Error('Native response exceeds limit');
       return vm.newString(encoded);
     });
     vm.setProp(vm.global, '__rpc', fn); fn.dispose();
     // These are guest functions, never host objects or functions/prototypes.
-    const bootstrap = `
-      const invoke = c => unpack(JSON.parse(__rpc(JSON.stringify(c))));
+    // Other members follow UNO naming: UpperCamel reads/assigns a property and
+    // lowerCamel calls a native method, both through the same checked broker ops.
+    const prefix = `
+      const invoke = c => {
+        const reply = JSON.parse(__rpc(JSON.stringify(c)));
+        if ('error' in reply) throw new Error(reply.error);
+        return unpack(reply.value);
+      };
       function unpack(v) {
         if (Array.isArray(v)) return v.map(unpack);
         if (v && typeof v === 'object') {
@@ -42,7 +48,7 @@ async function main() {
         return v;
       }
       function object(ref) {
-        return Object.freeze({
+        const handle = Object.freeze({
           toJSON: () => ({ref}),
           get: name => invoke({op:'get',target:ref,name}),
           set: values => invoke({op:'set',target:ref,values}),
@@ -52,6 +58,15 @@ async function main() {
           call: (name,...args) => invoke({op:'call',target:ref,name,args}),
           describe: (filter='',offset=0,limit=50) => invoke({op:'describe',target:ref,filter,offset,limit}),
           expect: values => invoke({op:'expect',target:ref,values})
+        });
+        return new Proxy(handle, {
+          get: (target, name) => name in target || typeof name !== 'string' || name === 'then' ? target[name]
+            : /^[A-Z]/.test(name) ? invoke({op:'get',target:ref,name})
+            : (...args) => invoke({op:'call',target:ref,name,args}),
+          set: (target, name, value) => {
+            if (typeof name !== 'string' || !/^[A-Z]/.test(name)) throw new Error('Cannot assign ' + String(name) + '; native properties are UpperCamel, e.g. String');
+            invoke({op:'set',target:ref,values:{[name]:value}}); return true;
+          }
         });
       }
       const doc = object('doc');
@@ -68,14 +83,20 @@ async function main() {
         pt: value => Math.round(value*2540/72),
         assert: (test,message='Document assertion failed') => { if (!test) throw new Error(message); }
       });
-      const returned = (function(){'use strict';\n${workerData.program}\n})();
+      const returned = (function(){'use strict';
+`;
+    const evaluated = await vm.evalCodeAsync(prefix + workerData.program + `
+})();
       if (returned && typeof returned.then === 'function') throw new Error('Use synchronous JavaScript; native calls already suspend');
-      JSON.stringify(returned ?? null);
-    `;
-    const evaluated = await vm.evalCodeAsync(bootstrap, 'word-program.js');
+      JSON.stringify(returned ?? null);`, 'word-program.js');
     if (evaluated.error) {
       const error = vm.dump(evaluated.error); evaluated.error.dispose();
-      throw new Error(typeof error?.message === 'string' ? error.message : 'Word program failed');
+      // Report the model's own line: the innermost stack frame inside its program.
+      const offset = prefix.split('\n').length - 1, lines = workerData.program.split('\n').length;
+      const line = [...String(error?.stack ?? '').matchAll(/word-program\.js:(\d+)/g)]
+        .map(match => Number(match[1]) - offset).find(n => n >= 1 && n <= lines);
+      throw new Error((typeof error?.message === 'string' ? error.message : 'Word program failed') +
+        (line ? ` (program line ${line})` : ''));
     }
     const result = vm.getString(evaluated.value); evaluated.value.dispose();
     if (Buffer.byteLength(result) > 64000) throw new Error('Console result exceeds 64000 bytes; return a summary');
