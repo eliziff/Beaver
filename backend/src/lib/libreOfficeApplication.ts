@@ -6,7 +6,7 @@ import type { DocumentContent, DocumentRecord, DocumentStore } from "./documentS
 const RECEIPT = "uno-preview.json";
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 type Options = { documents: DocumentStore; userId: string; userEmail?: string;
-  matterId?: string | null; docIndex?: Record<string, { document_id: string; version_id?: string | null }>;
+  matterId?: string | null; docIndex?: Record<string, { document_id: string; filename?: string; version_id?: string | null }>;
   allowedDocumentIds?: Set<string>; editMode?: "manual" | "auto"; turnId?: string;
   onMutationCommitted(): void;
   onPublished(documentId: string, versionId: string, workingRevision: number, sourceVersion: string): void;
@@ -23,21 +23,25 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
   const scope = { userId: options.userId, userEmail: options.userEmail };
   const created = new Set<string>(), published = new Map<string, UnoApplicationResult>();
   const mode = options.editMode === "auto" ? "direct" : "tracked";
+  // A mistyped id reads as out of scope; name the attached resources so the model can correct it.
+  const outside = (where: string) => new Error([`Document is outside the ${where}`,
+    ...Object.values(options.docIndex ?? {}).flatMap(d => d.version_id
+      ? [`${d.filename ?? "attached"} is ${resourceReference.document(d.document_id, d.version_id)}`] : [])].join("; "));
   const loaded = async (reference: string): Promise<{ reference: string; meta: DocumentRecord; file: DocumentContent }> => {
     const parsed = parseResourceReference(reference);
     if (parsed?.kind !== "document")
       throw new Error("file_path must be a version-pinned document resource or a current-turn draft handle");
     if (options.allowedDocumentIds && !options.allowedDocumentIds.has(parsed.documentId) && !created.has(parsed.documentId))
-      throw new Error("Document is outside the selected scope");
+      throw outside("selected scope");
     const meta = await options.documents.metadata(scope, parsed.documentId);
     const indexed = Object.values(options.docIndex ?? {}).some(d =>
       d.document_id === parsed.documentId && d.version_id === parsed.versionId);
     if (!meta || !(indexed || created.has(meta.id) || (options.matterId
       ? meta.project_id === options.matterId : meta.project_id === null && meta.library_kind === "file")))
-      throw new Error("Document is outside the current workspace");
+      throw outside("current workspace");
     const file = await options.documents.read(scope, meta.id, parsed.versionId, false);
     if (!file || file.fileType !== "docx" || file.version.id !== parsed.versionId)
-      throw new Error("DOCX version is unavailable");
+      throw new Error("DOCX version is unavailable; the current version is " + resourceReference.document(meta.id, meta.current_version_id));
     return { reference, meta, file };
   };
   const artifact = (id: string, version: string, number: number, filename: string,

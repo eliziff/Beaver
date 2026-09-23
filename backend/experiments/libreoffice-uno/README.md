@@ -53,7 +53,9 @@ direct formatting. Native default/state methods share the same text-cursor path.
 Word keeps sections and lists, not LibreOffice style names: checks on unused page
 styles are reported as not saved, used page styles are checked through a paragraph
 they lay out, applied `PageDescName` by page layout, and list styles by list labels.
-Inspected paragraph text is the accepted reading, with `{-deleted-}{+inserted+}` marks.
+Word's top/bottom margins include an enabled header/footer, so page-style inspection
+reports `word_margins`, and previews that change page layout report `word_sections`
+read back from the exported DOCX. Inspected paragraph text is the accepted reading, with `{-deleted-}{+inserted+}` marks.
 
 ## Verification
 
