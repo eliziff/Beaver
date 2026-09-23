@@ -90,9 +90,9 @@ test("tampered candidate, revoked scope and restricted selections are refused", 
   await assert.rejects(f.apply(), /receipt does not match/); assert.equal(f.state.saves, 0);
   // A mistyped id names the attached resources so the model can correct it.
   await assert.rejects(f.run({ action: "inspect", file_path: "document://sourse/version/v1" }, signal),
-    /outside the selected scope; test\.docx is document:\/\/source\/version\/v1/);
+    /no document in the selected scope; test\.docx is document:\/\/source\/version\/v1/);
   f.options.allowedDocumentIds.clear();
-  await assert.rejects(f.preview(), /outside the selected scope/);
+  await assert.rejects(f.preview(), /no document in the selected scope/);
   await assert.rejects(f.run({ action: "inspect", file_path }, signal, true), /restricted research/);
 });
 
