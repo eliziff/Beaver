@@ -261,7 +261,9 @@ class Broker:
             if op == 'set':
                 expected = {name: encode(value) for name, value in requested.items()}
                 if 'String' in expected and self.doc.RecordChanges: after['String'] = expected['String']
-                if after != expected: raise ValueError('Writer did not retain requested properties')
+                if after != expected:
+                    lost = {name: {'requested': expected[name], 'actual': after.get(name)} for name in expected if after.get(name) != expected[name]}
+                    raise ValueError('Writer did not retain ' + json.dumps(lost)[:400])
                 self.resets.get(obj, set()).difference_update(values)
                 if target in self.targets or obj in self.find_scopes:
                     self.checks.setdefault(obj, {}).update({name: value for name, value in after.items()
@@ -552,7 +554,7 @@ def serve(source, output, request, binary):
                 member = command.get('name') if isinstance(command.get('name'), str) else command.get('op')
                 # Writer's message for a descriptor that was never inserted or was since removed.
                 reason = ('the object is not in the document; insert new content with insertTextContent before using it'
-                          if 'Lost connection to core objects' in str(error) else str(error))
+                          if 'Lost connection to core objects' in str(error) else str(error) or type(error).__name__)
                 emit({'rpc': 'result', 'id': command.get('id'), 'error': (str(member) + ': ' + reason)[:1000]})
                 raise
     return transact(source, output, request, binary, interact)
