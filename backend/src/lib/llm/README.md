@@ -43,9 +43,20 @@ MCP transports advertise the complete scoped turn catalog (`staticTools`) once;
 `load_tools` activates specialists in `TurnToolRegistry`, not in the client's tool
 catalog. This avoids depending on list-change notifications over stateless HTTP.
 Unloaded tools remain blocked by the registry, and failures retain MCP `isError`.
+The loader returns the selected canonical definitions, including their parameter
+schemas; repeat loads return those definitions again. Names without an executor
+cannot be registered, and oversized discovery results refuse before activation.
+Hosted adapters still send only `resolveTools()` definitions. If the model emits
+loading and a known deferred call in one batch, the SDK's pre-load `NoSuchToolError`
+is resolved by the ordered registry, not persisted instead of the real result.
+Unknown names, malformed arguments, unloaded calls and incomplete generations
+remain rejected. The full scoped catalog is not sent to hosted models.
 The bridge preserves MCP annotations; a write is not advertised as read-only.
 Codex's `default_tools_approval_mode: "approve"` applies only to the authenticated
-`mike_runtime` bridge. Claude Code uses its existing `--allowedTools` allowlist.
+`mike_runtime` bridge. Claude Code enables only its native `ToolSearch` discovery
+builtin alongside the Beaver MCP allowlist; native schema deferral stays enabled.
+This lets its client retrieve deferred MCP definitions without enabling native
+shell, filesystem, agent or other execution tools.
 Neither changes Beaver's execution authorization or grants native shell/file
 permissions. Native dispatch also requires exactly one matching result per call.
 

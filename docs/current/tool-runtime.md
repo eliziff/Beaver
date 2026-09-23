@@ -41,6 +41,26 @@ This is Beaver's only current tool-runtime contract. The displaced registry,
 parallel policy tables, and artifact-generation tools are not compatibility
 surfaces.
 
+## Deferred discovery and execution
+
+Specialists stay deferred. `load_tools` activates exact registered names and
+returns their canonical descriptions and argument schemas, including `word_uno`'s
+real help/inspect/describe/preview/apply entry points. An absent executor is a
+registration failure, not a successful load. Repeat discovery returns the same
+schemas; oversized results refuse before changing the active set.
+
+On hosted providers, the next request contains the selected functions, not the
+whole specialist catalog. A response may batch `load_tools` and the function it
+loads. The SDK validates against the earlier request catalog; Beaver resolves
+that specific known-but-deferred case through its existing ordered registry and
+persists exactly its actual result. Unknown names and unloaded or invalid calls
+are still errors. No new dispatcher or generic invocation tool is introduced.
+
+Native MCP clients retain a static scoped discovery catalog; the registry still
+gates execution. Claude's native `ToolSearch` builtin is available with native
+deferral enabled, rather than disabling search while relying on its deferred
+schemas. Other native execution builtins remain disabled.
+
 ## Reader and turn lifecycle (September 2026)
 
 Provider adapters remove Beaver's picker prefix before sending model IDs. OpenCode
