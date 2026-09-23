@@ -293,7 +293,8 @@ def native_collection(doc, family):
     names = {'table': 'TextTables', 'frame': 'TextFrames', 'footnote': 'Footnotes', 'endnote': 'Endnotes',
              'bookmark': 'Bookmarks', 'field': 'TextFields', 'section': 'TextSections', 'drawing': 'DrawPage',
              'index': 'DocumentIndexes', 'revision': 'Redlines', 'control': 'ContentControls'}
-    if family not in names: raise ValueError('Unknown target family')
+    if family not in names:
+        raise ValueError('Unknown target family ' + family + '; use one of paragraph, cell, ' + ', '.join([*STYLE_FAMILIES, *names, *PAGE_STORIES]))
     if not hasattr(doc, names[family]): raise ValueError('This LibreOffice version does not expose ' + family)
     return getattr(doc, names[family])
 
@@ -439,6 +440,8 @@ def properties(node, names, *, operation="get", values=None):
         check_name(name)
         subject = node
         if name.startswith('Char') and paragraph or not hasattr(node, name):
+            # Only text ranges defer character properties to a cursor over their text.
+            if not hasattr(node, 'Start'): raise ValueError('No property ' + name + ' here; describe(filter) lists the members')
             if cursor is None:
                 owner = node.getText() if paragraph else node
                 cursor = owner.createTextCursorByRange(node.Start); cursor.gotoRange(node.End, True)
