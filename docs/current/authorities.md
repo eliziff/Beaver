@@ -65,13 +65,35 @@ manual text selection/area drawing. Card selection navigates to exact geometry;
 selecting a mark identifies its card, including cycling overlapping marks.
 Edits have per-source undo/redo and revision-checked, serialized autosave; editing
 continues while a save is in flight. A failed save remains dirty and can be retried.
+Each source owns its saved snapshot and review state alongside its undo history.
+A save acknowledges only its submitted snapshot, not edits made during the request.
+Abandoned automatic preparation resumes on revisit unless that source was reviewed.
 Only the active source retains PDF bytes; switching sources preserves mark history.
 OCR geometry is retained by the parser and read independently of annotation state,
 including when reopening a draft. Word boxes are used when available; line-only
 recognition retains its text and line box rather than inventing word coordinates.
-Completed recognition updates the selectable
-layer in place without replacing marks, history, scroll position or PDF canvases.
+Completed recognition updates resident selectable layers without replacing marks,
+history, scroll position or PDF canvases. The viewport requests individual pages;
+unrelated OCR artifacts are not restored, and native filtering precedes copying
+geometry into JavaScript. Native text stays usable while a cached OCR read is pending.
 A manual-only source is not opted into OCR by opening the editor.
+The durable worker records page-limited OCR artifact references on the exact
+source version without replacing its whole-document evidence profile. Separate
+passes accumulate; full recognition replaces the slice references. Text-layer
+reads use these retained artifacts only and never launch OCR. A missing artifact
+requires an explicit Recognize text request; older page-limited passes that did
+not retain their references need that request once after updating.
+
+The embedded editor resolves only its selected source and mounts the PDF before
+automatic marks finish. Manual tools are enabled after source validation and saved
+mark initialization; a late automatic result cannot replace a manually reviewed
+history, including edit followed by undo. Annotation preparation reads the version-bound source
+and retained recognition, not the standalone PDF-upload/OCR path. Switching
+sources cancels abandoned reads and mark preparation. The render scheduler excludes
+pages wholly before the preload window, including the preceding page when its
+boundary falls in an inter-page gap. Abandoned text reads are cancelled and OCR
+progress polls never overlap. Text reads verify the displayed source hash without
+a separate metadata request per page.
 
 Live text selection and newly saved highlights use the same continuous band per
 selected line, retaining precise character endpoints and native copy/keyboard

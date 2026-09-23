@@ -24,7 +24,7 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     if (!port || !draftId || !files.length) return;
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
       [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.recognized ?? 0,
-        state: "running" as const, error: undefined }])) }));
+        state: "running" as const, pages: pages ?? [], error: undefined }])) }));
     await (pending.current = pending.current.then(() => port.start(draftId, files.map(({ role }) => role), pages))
       .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
@@ -47,23 +47,30 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     .sort().join(",");
   useEffect(() => {
     if (!port || !watching) return;
+    let polling = false, disposed = false;
     const poll = async () => {
+      if (polling) return;
+      polling = true;
       const states = new Map((await port.progress(watching.split(",")).catch(() => []))
         .map((state) => [state.id, state]));
+      polling = false;
+      if (disposed) return;
       setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) => {
         const state = item.state === "running" && item.documentId
           ? states.get(item.documentId) : undefined;
         // A pass is opaque while it runs, so pages count as recognized only once it ends:
         // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
         return [role, state ? { ...item, pages: state.pages ?? [], error: state.error,
-          recognized: state.done ? item.textlessPages.length
+          recognized: state.done ? state.pages?.length
+            ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
+            : item.textlessPages.length
             : state.pages?.length ? item.recognized
               : Math.max(item.recognized, item.pages?.length ?? 0),
           state: state.done ? "done" : state.error ? "failed" : "running" } : item];
       })));
     };
     const timer = setInterval(() => void poll(), 1_200);
-    return () => clearInterval(timer);
+    return () => { disposed = true; clearInterval(timer); };
   }, [port, watching]);
 
   return { tracked: port ? tracked : {}, begin, stop,
@@ -80,7 +87,7 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
       signal.throwIfAborted();
       if (source.origin === "reconstructed" || !host.readSource) continue;
       report(`Checking pages in ${authorityName(authority)}`);
-      const blob = await host.readSource(draft, source.bindingRole);
+      const blob = await host.readSource(draft, source.bindingRole, signal);
       const inspected = await inspectPdf(new File([blob], source.filename,
         { type: "application/pdf" }), undefined, signal);
       if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);

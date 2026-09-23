@@ -1,3 +1,5 @@
+import { ApplicationError } from "./applicationError";
+import type { NativePdfTextPage } from "./structureNative";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { sha256 } from "./hash";
@@ -682,27 +684,40 @@ async function pdfPassageGeometry(
 }
 
 async function pdfTextLayer(
-  readBytes: () => Buffer | Promise<Buffer>,
+  _readBytes: () => Buffer | Promise<Buffer>,
   reference: ProjectionReference,
   options: PdfSourceOptions = {},
 ) {
+  options.signal?.throwIfAborted();
+  const requested = options.pages;
+  if (requested && (!requested.length || requested.length > 16 ||
+      requested.some(page => !Number.isSafeInteger(page) || page < 1)))
+    throw new ApplicationError(400, "Request between 1 and 16 PDF text pages");
   const profile = options.pdfProfile;
-  // Opening the editor never opts a manual-only source into recognition.
-  if (!profile?.profile.ocr) return [];
-  const native = structureNative();
-  const cached = await native.restorePdfDocument(pdfCacheRequest(reference, profile.cacheKey));
-  const geometry = cached ? native.pdfRecognizedText(cached) : [];
-  if (geometry.length) return geometry;
-  const summary = cached ? native.pdfDocumentSummary(cached) : undefined;
-  if (summary && !summary.ocrRoutedPages.length) return [];
-  if (!summary && profile.status !== "ready")
-    throw new Error("Recognized text is no longer cached. Resume text recognition for this PDF.");
-  // A compact cache written before geometry was retained can recover only the previously
-  // recognized pages. Never turn a cited-page pass into an implicit whole-document pass.
-  const pages = summary?.pagesNeedingOcr.length ? summary.ocrRoutedPages.map(page => page + 1) : undefined;
-  const document = await openPdf({ ...reference, bytes: await readBytes(), pages,
-    pdfProfile: profile, signal: options.signal });
-  return native.pdfRecognizedText(document);
+  if (!profile) return [];
+  const owners = profile.textLayerPages ?? {};
+  const owner = (page: number) => owners[page] ?? (profile.profile.ocr ? profile.cacheKey : undefined);
+  const keys = new Set(requested ? requested.map(owner).filter((key): key is string => !!key)
+    : [...(profile.profile.ocr ? [profile.cacheKey] : []), ...Object.values(owners)]);
+  if (!keys.size) return [];
+  const native = structureNative(), result = new Map<number, NativePdfTextPage>();
+  const unavailable = () => new ApplicationError(409,
+    "Recognized text is no longer cached. Run Recognize text again for this PDF.");
+  for (const key of keys) {
+    options.signal?.throwIfAborted();
+    // Reuse the existing weak working set and single-flight restore, not a second OCR cache.
+    const document = await waitForProjection(projectionFor(projectionKey({ ...reference, cacheKey: key }), async () => {
+      const document = await native.restorePdfDocument(pdfCacheRequest(reference, key));
+      if (!document) throw unavailable();
+      return document;
+    }), options.signal);
+    options.signal?.throwIfAborted();
+    const geometry = native.pdfRecognizedText(document, requested?.filter(page => owner(page) === key));
+    if (geometry === null) throw unavailable();
+    for (const page of geometry) if (owner(page.pageNumber) === key) result.set(page.pageNumber, page);
+  }
+  // Unfiltered reads are for automatic marking; the viewport only restores/copies its requested pages.
+  return [...result.values()].sort((a, b) => a.pageNumber - b.pageNumber);
 }
 
 async function preparedForEvidence(

@@ -536,11 +536,23 @@ mod legalpdf_exports {
     pub fn pdf_recognized_text_node(
         env: Env,
         document: &External<NativeDocument>,
+        pages: Option<Vec<u32>>,
     ) -> napi::Result<Unknown<'static>> {
         let NativeProduct::Pdf(document) = &document.product else {
             return Err(Error::from_reason("PDF text geometry requires a PDF document"));
         };
-        js_value(env, &document.recognized_pages())
+        if let Some(pages) = &pages {
+            if pages.is_empty() || pages.len() > 16 || pages.contains(&0) {
+                return Err(Error::from_reason("Request between 1 and 16 PDF text pages"));
+            }
+        }
+        // Filter before serializing: a viewport read must not copy the whole scan into JS.
+        let selected = document.has_recognized_geometry().then(|| {
+            document.recognized_pages().iter()
+                .filter(|page| pages.as_ref().is_none_or(|pages| pages.contains(&page.page_number)))
+                .collect::<Vec<_>>()
+        });
+        js_value(env, &selected)
     }
 
     #[napi(js_name = "pdfAuthorityTextUnits")]

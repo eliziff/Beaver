@@ -133,6 +133,12 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
         file: uploadedDocument(file),
       }));
     }));
+  router.post("/:id/annotations", asyncRoute(async (req, res) => {
+    const body = object(req.body), abort = new AbortController(); res.once("close", () => abort.abort());
+    res.json(await application.annotations(applicationScope(res), text(req.params.id), {
+      authorityId: text(body.authorityId), bindingRole: text(body.bindingRole), sourceSha256: digest(body.sourceSha256),
+    }, abort.signal));
+  }));
   router.post("/:id/source-ocr", asyncRoute(async (req, res) => {
     const body = object(req.body), roles: unknown = body.roles;
     if (!Array.isArray(roles) || !roles.length || roles.length > 200)

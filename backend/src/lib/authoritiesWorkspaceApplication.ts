@@ -1,10 +1,11 @@
+import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   attachAuthorityPdf as attachSource, attachAuthoritiesBookPdf as attachBookSource,
   checkCanliiPdf, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
-import { authorityPassageTargets, buildAuthorities, citedSourcePages,
+import { authorityPassageTargets, buildAuthorities, citedSourcePages, prepareAuthorityAnnotations,
   type AuthoritiesBuildInput, type AuthoritiesBuildResult } from "./authoritiesBuild";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction,
@@ -447,6 +448,49 @@ export function createAuthoritiesWorkspaceApplication(
           : attachBookSource(draft, input.target, binding, version.filename,
             version.source_sha256) });
     },
+    async annotations(scope: ApplicationScope, id: string, input: {
+      authorityId: string; bindingRole: string; sourceSha256: string;
+    }, signal?: AbortSignal) {
+      const { draft } = await open(scope, id), authority = attachableAuthority(draft, input.authorityId);
+      const attached = attachedAuthoritySources(authority.source).find(source => source.bindingRole === input.bindingRole);
+      const binding = libraryBinding(draft, input.bindingRole);
+      const source = await documents.projectionSource(scope, binding.documentId,
+        binding.version === "latest" ? null : binding.version.versionId);
+      if (!attached || !source || source.fileType !== "pdf" ||
+          attached.sourceSha256 !== input.sourceSha256 || source.sourceSha256 !== input.sourceSha256)
+        throw new ApplicationError(409, "This PDF changed. Relink it before editing highlights.");
+      signal?.throwIfAborted();
+      const bytes = await source.readBytes(), readBytes = () => bytes;
+      const reference = { documentId: source.documentId, versionId: source.versionId, sourceSha256: source.sourceSha256 };
+      const pdf = await import("pdf-lib"), document = await pdf.PDFDocument.load(bytes, { updateMetadata: false });
+      if (!document.getPageCount() || document.getPageCount() > 2_000)
+        throw new ApplicationError(400, "Unsupported PDF page count");
+      const targets = authorityPassageTargets(draft, authority.id), pageTextByPage: string[] = [];
+      let passageGeometry: NativePdfPassageGeometry | undefined;
+      if (draft.settings.passageMarking !== "none" && targets.length) {
+        // Annotation review is a reader, not a second OCR job. Reuse native structure
+        // and overlay only the recognition already retained by the version's worker.
+        const prepared = source.pdfProfile && !source.pdfProfile.profile.ocr ? source.pdfProfile
+          : await documentProjectionService.preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal });
+        const pdfProfile = { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status };
+        const projection = await documentProjectionService.read({ ...source, readBytes, pdfProfile }, { signal });
+        const native = structureNative(), text = native.documentText(projection);
+        for (const anchor of native.documentAnchors(projection, text.length)) {
+          if (anchor.kind === "page") pageTextByPage[Number(anchor.label.replace(/^page/iu, "")) - 1] = text.slice(anchor.start, anchor.end);
+        }
+        for (const page of await documentProjectionService.pdfTextLayer(readBytes, reference,
+          { pdfProfile: source.pdfProfile, signal }))
+          pageTextByPage[page.pageNumber - 1] = page.lines.map(line => line.text || line.words.map(word => word.text).join(" ")).join("\n");
+        for (let start = 0; start < targets.length; start += 100) {
+          signal?.throwIfAborted();
+          const next = await documentProjectionService.pdfPassageGeometry(readBytes, targets.slice(start, start + 100),
+            reference, { pdfProfile, signal });
+          passageGeometry = passageGeometry ? { ...next, targets: [...passageGeometry.targets, ...next.targets] } : next;
+        }
+      }
+      signal?.throwIfAborted();
+      return prepareAuthorityAnnotations(pdf, document, draft, authority, attached, { pageTextByPage, passageGeometry }, true);
+    },
     /** Recognition runs in the durable queue so the workspace can watch, pause, and stop it. */
     async sourceOcr(scope: ApplicationScope, id: string, roles: string[], cancel: boolean, pages?: number[]) {
       const { draft } = await open(scope, id);
@@ -461,8 +505,8 @@ export function createAuthoritiesWorkspaceApplication(
           const reference = { userId: scope.userId, documentId: resolved.documentId,
             versionId: resolved.versionId, sourceSha256: resolved.sourceSha256 };
           if (cancel) return { role: source.bindingRole, cancelled: await cancelPdfJobs(reference) };
-          if (!pages && resolved.pdfProfile?.profile.ocr) return {
-            role: source.bindingRole, documentId: resolved.documentId, done: true };
+          // An explicit recognition request also repairs missing retained artifacts;
+          // an OCR profile alone is not proof that its selectable text still exists.
           const prepared = await documentProjectionService.preparePdf({ ...reference,
             bytes: await resolved.readBytes(), ocrProvider: null });
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
