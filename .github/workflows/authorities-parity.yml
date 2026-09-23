@@ -39,8 +39,8 @@ jobs:
           git fetch --depth=1 origin "$GITHUB_SHA"
           git checkout --detach FETCH_HEAD
           # OpenLegalData is intentionally a local bundle, not a URL submodule.
-          # Initialize only the two native modules required by Authorities.
-          for module in legal-structure legal-pdf-parser; do
+          # Initialize only the modules Authorities builds and tests.
+          for module in legal-structure legal-pdf-parser AuthoritiesHelper; do
             url=$(git config -f .gitmodules submodule.$module.url)
             sha=$(git ls-tree HEAD "$module" | awk '{print $3}')
             git init "$module"
