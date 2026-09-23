@@ -30,6 +30,7 @@ METHODS = {
 }
 READ_METHOD = re.compile(r'^(?:get|has|is|supports|createTextCursor|createSearchDescriptor|createEnumeration|nextElement|find|goto|goLeft|goRight|collapse|compareRegion)')
 DOCUMENT_SERVICES = re.compile(r'^com\.sun\.star\.(?:text|style|drawing)\.')
+PAGE_LAYOUT = ('Width', 'Height', 'IsLandscape', 'LeftMargin', 'RightMargin')
 ACTIVE_SERVICES = re.compile(r'OLE|Applet|Plugin|MediaShape|Script|Macro|Database|DDE|DataSource', re.I)
 
 
@@ -59,6 +60,12 @@ def semantic_package(path):
                 for n in z.namelist() if not n.endswith('/') and not n.startswith('docProps/thumbnail.')}
 
 
+def body_margins(style):
+    """Word's top/bottom margins reach the body text; LibreOffice's stop at an enabled header/footer."""
+    return {'TopMargin': style.TopMargin + (style.HeaderHeight if style.HeaderIsOn else 0),
+            'BottomMargin': style.BottomMargin + (style.FooterHeight if style.FooterIsOn else 0)}
+
+
 def page_text(story):
     # Pagination displays are calculated; retain field identity, not cached digits.
     paragraphs = []
@@ -76,15 +83,21 @@ def page_text(story):
 
 def native_state(doc):
     """Ordered text/story and structural readback; not a complete OOXML validator."""
+    # Page styles in use become Word sections and may be renamed on reopen.
+    used = dict.fromkeys(node.PageStyleName for _, node in collection(doc, 'paragraph'))
+    styles = doc.StyleFamilies.getByName('PageStyles')
     return {
-        'body': [('table', node.Name) if node.supportsService('com.sun.star.text.TextTable') else ('paragraph', node.String)
+        # Word tables have no names; LibreOffice renumbers them on reopen.
+        'body': [('table', node.Rows.Count) if node.supportsService('com.sun.star.text.TextTable') else ('paragraph', node.String)
                  for _, node in enumerate_values(doc.Text)],
         'stories': {**{family: [(key, node.String) for key, node in collection(doc, family)]
                        for family in ('footnote', 'endnote', 'frame')},
-                    **{family + ':' + key: page_text(story) for key, style in collection(doc, 'page-style')
-                       for family in PAGE_STORIES if (story := page_story(style, family, include_shared=True)) is not None}},
-        'tables': [(name, tuple((cell, table.getCellByName(cell).String) for cell in table.getCellNames()), table.Rows.Count)
-                   for name, table in collection(doc, 'table')],
+                    # An empty header equals none: Word sections otherwise inherit the previous one.
+                    **{family + ':' + str(order): text for order, name in enumerate(used) for family in PAGE_STORIES
+                       if (story := page_story(styles.getByName(name), family, include_shared=True)) is not None
+                       and any(text := page_text(story))}},
+        'tables': sorted((tuple((cell, table.getCellByName(cell).String) for cell in table.getCellNames()), table.Rows.Count)
+                         for _, table in collection(doc, 'table')),
         'bookmarks': [(name, bookmark.Anchor.String) for name, bookmark in collection(doc, 'bookmark')],
         'drawings': [(name, shape.ShapeType, encode(shape.Position), encode(shape.Size)) for name, shape in collection(doc, 'drawing')],
         'revisions': [(r.RedlineAuthor, r.RedlineType, revision_range(r).String) for _, r in collection(doc, 'revision')],
@@ -147,6 +160,7 @@ class Broker:
         self.scratch = set()
         self.metadata = {}
         self.removed_review = Counter()
+        self.unsaved = []
         self.calls = 0
         ctx = uno.getComponentContext()
         self.introspection = ctx.ServiceManager.createInstanceWithContext('com.sun.star.beans.Introspection', ctx)
@@ -196,9 +210,10 @@ class Broker:
         if op == 'describe':
             offset, limit = command.get('offset', 0), command.get('limit', 50)
             if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 100: raise ValueError('Invalid metadata page')
-            info = self.info(obj); pattern = command.get('filter', '').lower()
-            members = [('property', p) for p in info.getProperties(-1) if pattern in p.Name.lower()] + [
-                ('method', m) for m in info.getMethods(-1) if pattern in m.Name.lower() and self.method_allowed(obj, m.Name, m)]
+            info = self.info(obj); patterns = str(command.get('filter', '')).lower().split('|')
+            matches = lambda name: any(p in name.lower() for p in patterns)
+            members = [('property', p) for p in info.getProperties(-1) if matches(p.Name)] + [
+                ('method', m) for m in info.getMethods(-1) if matches(m.Name) and self.method_allowed(obj, m.Name, m)]
             rows = []
             # Signatures and values are expensive remote objects: expand only this page.
             for kind, member in members[offset:offset + limit]:
@@ -270,21 +285,30 @@ class Broker:
             return self.save(self.doc.createInstance(service))
         if op == 'call':
             name, args = command.get('name'), command.get('args', [])
-            if not self.method_allowed(obj, name): raise ValueError('Method is not a document-only capability: ' + str(name))
             if not isinstance(args, list) or len(args) > 20: raise ValueError('Too many native arguments')
-            if name == 'setParentStyle':
-                if len(args) != 1: raise ValueError('setParentStyle requires one style name')
-                return self.rpc({'op': 'set', 'target': target, 'values': {'ParentStyle': args[0]}})
-            aliases = {'getPropertyDefaults': 'default', 'getPropertyDefault': 'default', 'getPropertyState': 'state', 'getPropertyStates': 'state',
-                       'setPropertyToDefault': 'reset', 'setPropertiesToDefault': 'reset'}
+            # Native property/factory interfaces share the checked property and create paths.
+            if name == 'createInstance' and len(args) == 1:
+                return self.rpc({'op': 'create', 'service': args[0]})
+            if name in ('setPropertyValue', 'setPropertyValues', 'setParentStyle'):
+                values = ({'ParentStyle': args[0]} if name == 'setParentStyle' and len(args) == 1 else
+                          {args[0]: args[1]} if name == 'setPropertyValue' and len(args) == 2 else
+                          dict(zip(args[0], args[1])) if len(args) == 2 and all(isinstance(a, list) for a in args) and len(args[0]) == len(args[1]) else None)
+                if values is None: raise ValueError(name + ' has the wrong arguments')
+                return self.rpc({'op': 'set', 'target': target, 'values': values})
+            aliases = {'getPropertyValue': 'get', 'getPropertyValues': 'get', 'getPropertyDefaults': 'default', 'getPropertyDefault': 'default',
+                       'getPropertyState': 'state', 'getPropertyStates': 'state', 'setPropertyToDefault': 'reset', 'setPropertiesToDefault': 'reset'}
             if name in aliases:
                 if len(args) != 1: raise ValueError('Property access requires one name or name list')
-                plural = name in ('getPropertyStates', 'getPropertyDefaults', 'setPropertiesToDefault')
+                plural = name in ('getPropertyValues', 'getPropertyStates', 'getPropertyDefaults', 'setPropertiesToDefault')
                 names = args[0] if plural else [args[0]]
                 if not isinstance(names, list): raise ValueError('Property access requires a property-name list')
                 result = self.rpc({'op': aliases[name], 'target': target, 'names': names, 'name': names})
                 if aliases[name] == 'reset': return result
                 return [result[n] for n in names] if plural else result[names[0]]
+            if not self.method_allowed(obj, name):
+                try: self.info(obj).getMethod(str(name), -1)
+                except Exception: raise ValueError('This object has no native method ' + str(name) + '; describe(filter) lists its members') from None
+                raise ValueError('Method is not a document-only capability: ' + str(name))
             if not READ_METHOD.match(name): self.mutate()
             result = uno.invoke(obj, name, tuple(decode(a, self.refs) for a in args))
             if not READ_METHOD.match(name): self.changes.append({'target': self.targets.get(target, target), 'method': name})
@@ -364,7 +388,27 @@ def freeze_checks(broker):
                     remember('cell:' + quote(name, safe='') + '/' + quote(cell, safe=''), obj.getCellByName(cell))
             if not pending: break
     if pending: raise ValueError('Postcondition object was removed or has no persistent document address')
-    accepted, raw = [], []
+    accepted, raw, pages = [], [], {}
+    def portable(obj, address, values, defaults):
+        """Word keeps sections and lists, not LibreOffice page/list style names.
+
+        Unused page styles are not saved. Used ones are checked through a paragraph
+        they lay out; applied page styles by their layout; list names by labels.
+        """
+        values, checks = dict(values), []
+        if values.get('NumberingStyleName') or 'NumberingRules' in values:
+            values.pop('NumberingStyleName', None); values.pop('NumberingRules', None)
+            if hasattr(obj, 'ListLabelString'): values['ListLabelString'] = obj.ListLabelString
+        if not pages:
+            for index, node in collection(broker.doc, 'paragraph'): pages.setdefault(node.PageStyleName, 'paragraph:' + index)
+        if address.startswith('page-style:'):
+            if not obj.isInUse(): broker.unsaved.append(address); return []
+            if obj.Name in pages: address = 'page-style:' + pages[obj.Name]
+            values.update({name: value for name, value in body_margins(obj).items() if name in values})
+        if values.get('PageDescName') and address.startswith('paragraph:'):
+            style = broker.doc.StyleFamilies.getByName('PageStyles').getByName(values.pop('PageDescName'))
+            checks.append(('page-style:' + address, None, None, {**{name: getattr(style, name) for name in PAGE_LAYOUT}, **body_margins(style)}, ()))
+        return checks + ([(address, None, None, values, defaults)] if values or defaults else [])
     for obj, values in broker.checks.items():
         if obj not in broker.find_scopes:
             # Formatting/explicit expectations describe the actual redline view.
@@ -372,7 +416,7 @@ def freeze_checks(broker):
             if broker.doc.RecordChanges and 'String' in values and properties(obj, ['String'])['String'] != values['String']:
                 accepted.append((addresses[obj], None, None, {'String': values['String']}, ()))
                 values = {name: value for name, value in values.items() if name != 'String'}
-            if values: raw.append((addresses[obj], None, None, values, tuple(broker.resets.get(obj, ()))))
+            raw.extend(portable(obj, addresses[obj], values, tuple(broker.resets.get(obj, ()))))
             continue
         scope, text = broker.find_scopes[obj], obj.String
         if not text: raise ValueError('An empty selection has no persistent formatting to verify')
@@ -388,7 +432,10 @@ def verify_properties(doc, checks):
         obj = scopes[target]
         if prefix is not None: obj = unique_range(doc, obj, text, prefix)
         actual = {name: encode(value) for name, value in properties(obj, values).items()}
-        if actual != values: raise ValueError('Export/reopen lost properties at ' + target)
+        if target.startswith('page-style:'): actual.update({name: value for name, value in body_margins(obj).items() if name in values})
+        if actual != values:
+            lost = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if actual.get(name) != values[name]}
+            raise ValueError('Export/reopen lost properties at ' + target + ': ' + json.dumps(lost)[:400])
         if any(state.value != 'DEFAULT_VALUE' for state in properties(obj, defaults, operation='state').values()):
             raise ValueError('Export/reopen restored direct formatting at ' + target)
 
@@ -438,7 +485,10 @@ def transact(source, output, request, binary, interact):
             if preserved - after_protected: raise ValueError('Export lost existing review content, bindings or opaque assets')
             reopened = load(desktop, output)
             try:
-                if native_state(reopened) != expected: raise ValueError('Export/reopen changed text, ordering or structural objects')
+                state = native_state(reopened)
+                if state != expected:
+                    changed = [key for key in expected if state[key] != expected[key]]
+                    raise ValueError('Export/reopen changed ' + ', '.join(changed) + ': ' + str([(state[k], expected[k]) for k in changed])[:600])
                 new_indices = [i for i, (who, _, _) in enumerate(expected['revisions']) if who == author]
                 verify_properties(reopened, raw_checks)
                 if mode == 'tracked' and new_indices and checks:
@@ -465,6 +515,7 @@ def transact(source, output, request, binary, interact):
                 'review_verified': mode == 'tracked',
                 'changes': broker.changes[:20], 'change_count': len(broker.changes),
                 'changes_truncated': len(broker.changes)>20, 'native_calls': broker.calls,
+                **({'unused_page_styles_not_saved': broker.unsaved} if broker.unsaved else {}),
                 'revision_count': len(expected['revisions']), 'new_revision_count': len(new_indices), 'author': author,
                 'changed_parts': [n for n in sorted(set(before_parts)|set(after_parts)) if before_parts.get(n)!=after_parts.get(n)],
                 'warning': 'LibreOffice compatibility and tested native postconditions, not universal Word-identical fidelity.'}
@@ -478,8 +529,16 @@ def serve(source, output, request, binary):
     if action not in ('console', 'inspect', 'describe'): raise ValueError('Unknown action')
     if action != 'console': request = {**request, 'read_only': True}
     def interact(broker, source_hash, version):
-        if action != 'console':
-            return broker.rpc({**request, 'op': 'describe', 'values': True}) if action == 'describe' else inspect(broker.doc, request)
+        if action == 'describe':
+            # Without a target, describe the family's first object.
+            target = request.get('target')
+            if not target:
+                family = request.get('family', 'document')
+                first = next(collection(broker.doc, family), None)
+                if first is None: raise ValueError('No ' + family + ' object to describe')
+                target = family + ':' + quote(first[0], safe='')
+            return {'target': target, **broker.rpc({**request, 'target': target, 'op': 'describe', 'values': True})}
+        if action != 'console': return inspect(broker.doc, request)
         emit({'rpc': 'ready', 'snapshot': source_hash, 'engine_version': version})
         while True:
             line = sys.stdin.readline(262145)
@@ -490,6 +549,10 @@ def serve(source, output, request, binary):
             if command.get('op') == 'finish': return
             try: emit({'rpc': 'result', 'id': command.get('id'), 'value': broker.rpc(command)})
             except Exception as error:
-                emit({'rpc': 'result', 'id': command.get('id'), 'error': str(error)[:1000]})
+                member = command.get('name') if isinstance(command.get('name'), str) else command.get('op')
+                # Writer's message for a descriptor that was never inserted or was since removed.
+                reason = ('the object is not in the document; insert new content with insertTextContent before using it'
+                          if 'Lost connection to core objects' in str(error) else str(error))
+                emit({'rpc': 'result', 'id': command.get('id'), 'error': (str(member) + ': ' + reason)[:1000]})
                 raise
     return transact(source, output, request, binary, interact)

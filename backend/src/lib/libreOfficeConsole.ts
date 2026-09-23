@@ -12,25 +12,31 @@ export function executeWordProgram(program: string,
     const worker = new Worker(path.resolve(__dirname, "../../scripts/word_console.cjs"), {
       workerData: { program }, resourceLimits: { maxOldGenerationSizeMb: 96, stackSizeMb: 4 },
     });
-    let settled = false, calls = 0;
+    // A failed native call ends the session. It is thrown inside the guest only so
+    // the reported error can name the program line that made the call.
+    let settled = false, calls = 0, failed: Error | undefined;
     const finish = (error?: Error, value?: unknown) => {
       if (settled) return;
       settled = true; clearTimeout(timer); signal.removeEventListener("abort", abort);
       void worker.terminate().then(() => error ? reject(error) : resolve(value));
     };
-    const abort = () => finish(new Error("Word program cancelled"));
+    const abort = () => finish(failed ?? new Error("Word program cancelled"));
     const timer = setTimeout(() => finish(new Error("Word program timed out")), 90_000);
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) abort();
     worker.on("message", async (message) => {
       if (settled) return;
-      if (message.type === "result") return finish(undefined, message.value);
+      if (message.type === "result") return finish(failed, message.value);
       if (message.type === "error") return finish(new Error(String(message.error).slice(0, 1000)));
+      if (failed) return finish(failed);
       if (message.type !== "rpc" || ++calls > 4000) return finish(new Error("Invalid or excessive console calls"));
       try {
         const value = await rpc(message.command);
         if (!settled) worker.postMessage({ id: message.id, value });
-      } catch (error) { finish(error instanceof Error ? error : new Error("Native call failed")); }
+      } catch (error) {
+        failed = error instanceof Error ? error : new Error("Native call failed");
+        if (!settled) worker.postMessage({ id: message.id, error: failed.message });
+      }
     });
     worker.on("error", error => finish(error));
     worker.on("exit", () => { if (!settled) finish(new Error("Word program exited without a result")); });
