@@ -324,6 +324,9 @@ def resolve(doc, target):
     if family == 'cell':
         table, _, cell = name.partition('/')
         return doc.TextTables.getByName(unquote(table)).getCellByName(unquote(cell))
+    if family == 'page-style' and name.startswith('paragraph:'):
+        # The page style laying out that paragraph (a Word section after export).
+        return doc.StyleFamilies.getByName('PageStyles').getByName(resolve(doc, name).PageStyleName)
     if family in PAGE_STORIES:
         story = page_story(doc.StyleFamilies.getByName('PageStyles').getByName(unquote(name)), family)
         if story is None: raise ValueError('Header/footer is disabled or shared; inspect its page style')
@@ -490,6 +493,23 @@ def revision_range(revision):
     return cursor
 
 
+def reading(node, deleting=False):
+    """Accepted paragraph text, and the same text with {-deleted-}{+inserted+} marks.
+
+    String interleaves deleted and inserted text; inspection shows what the paragraph reads.
+    """
+    plain, marked = [], []
+    for _, portion in enumerate_values(node):
+        if portion.TextPortionType == 'Redline':
+            if portion.RedlineType == 'Delete':
+                deleting = portion.IsStart; marked.append('{-' if deleting else '-}')
+            elif portion.RedlineType == 'Insert': marked.append('{+' if portion.IsStart else '+}')
+            continue
+        marked.append(portion.String)
+        if not deleting: plain.append(portion.String)
+    return ''.join(plain), ''.join(marked), deleting
+
+
 def inspect(doc, request):
     offset, limit = bounded(request, 'offset', 0, 100000), bounded(request, 'limit', 20, 100)
     if not limit: raise ValueError('limit must be positive')
@@ -498,12 +518,16 @@ def inspect(doc, request):
     for name in names: check_name(name)
     def selected(node):
         return {'properties': {name: encode(value) for name, value in properties(node, names).items()}} if names else {}
+    tracked = doc.Redlines.Count > 0
     target = request.get('target')
     if target:
         node = resolve(doc, target)
         result = {'target': target, **selected(node)}
         if request.get('include_text', True):
             text = getattr(node, 'String', '')
+            if tracked and target.startswith('paragraph:'):
+                text, marked, _ = reading(node)
+                if marked != text: result['tracked'] = marked[:limit * 100]
             result.update(text=text[offset:offset + limit * 100], total_chars=len(text),
                           next_offset=offset + limit * 100 if offset + limit * 100 < len(text) else None)
         if target.startswith('table:'):
@@ -514,14 +538,19 @@ def inspect(doc, request):
         return result
     family = request.get('family', 'paragraph')
     entries, pagination = page(lambda start: collection(doc, family, start), request)
-    rows = []
+    rows, deleting = [], False
     for key, node in entries:
         row = {'target': family + ':' + quote(key, safe=''), **selected(node)}
         if family == 'revision':
             row.update(author=node.RedlineAuthor, type=node.RedlineType)
             if request.get('include_text', True):
                 row['text'] = revision_range(node).String[:1000]
+        elif family == 'paragraph' and tracked and request.get('include_text', True):
+            text, marked, deleting = reading(node, deleting)
+            row['text'] = text[:300]
+            if marked != text: row['tracked'] = marked[:600]
         elif request.get('include_text', True): row['text'] = getattr(node, 'String', '')[:300]
+        if family == 'page-style': row['in_use'] = node.isInUse()
         rows.append(row)
     return {'family': family, 'items': rows, **pagination}
 
