@@ -1,4 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { TurnToolRegistry } from "../chat/toolRegistry";
+import { createLibreOfficeTool } from "../chat/libreOfficeTool";
+import type { ChatToolContext } from "../chat/turnEngine";
 import { streamHosted, modelMessages, IncompleteGenerationError } from "./sdk";
 import type { ModelState, StreamChatParams, Tool } from "./types";
 
@@ -318,3 +321,49 @@ it.each([
     expect(new Headers(init.headers).get("x-opencode-session")).toBe("conversation-1");
   }
 });
+
+// Test the real specialist, not a transport double with the same name.
+it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
+  "dispatches %s deferred Word calls without inventing availability or duplicating results", async scenario => {
+    const word = createLibreOfficeTool({ userId: "fixture", documents: {} as never,
+      artifactFor: () => "unused", onMutationCommitted() {}, onPublished() {} });
+    const registry = new TurnToolRegistry([word]);
+    const load = { functionCall: { name: "load_tools", args: { names: ["word_uno"] } }, thoughtSignature: "load-signature" };
+    const help = { functionCall: { name: scenario === "unknown" ? "missing_uno" : "word_uno",
+      args: { action: scenario === "invalid" ? "invented_action" : "help" } }, thoughtSignature: "word-signature" };
+    const separate = scenario === "separate";
+    const { bodies } = transport([
+      () => gemini(scenario === "unloaded" || scenario === "unknown" ? [help]
+        : scenario === "reversed" ? [help, load] : separate ? [load] : [load, help]),
+      ...(separate ? [() => gemini([help])] : []),
+      () => gemini([{ text: "Done" }]),
+    ]);
+    const states: ModelState[] = [];
+    const dispatch = vi.fn(calls => registry.run(calls, {} as ChatToolContext));
+    await streamHosted({ ...params, staticTools: registry.all(), resolveTools: () => registry.visible(),
+      runTools: dispatch, callbacks: { onModelMessages: state => { states.push(state); } } });
+    expect(bodies[0].tools[0].functionDeclarations.map((tool: any) => tool.name)).toEqual(["load_tools"]);
+    const results = states.flatMap(state => state.messages.flatMap(message => message.role === "tool"
+      ? message.content : []));
+    expect(new Set(results.map(result => result.toolCallId)).size).toBe(results.length);
+    const wordResult = results.find(result => result.toolName.endsWith("uno"))!;
+    if (scenario === "unknown") {
+      expect(wordResult.output).toMatchObject({ type: "error-text", value: expect.stringContaining("unavailable tool") });
+      expect(dispatch).not.toHaveBeenCalled();
+    } else if (["unloaded", "reversed", "invalid"].includes(scenario)) {
+      expect(wordResult.output).toMatchObject({ type: "error-text" });
+      expect(JSON.parse(String((wordResult.output as { value: string }).value)).error)
+        .toBe(scenario === "invalid" ? "invalid_arguments" : "tool_not_loaded");
+    } else {
+      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("word.target(") });
+      expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
+      const published = bodies[1].tools[0].functionDeclarations.find((tool: any) => tool.name === "word_uno");
+      expect(published.parameters.properties.action.enum).toEqual(["help", "inspect", "describe", "preview", "apply"]);
+      expect(published.parameters.properties.program.type).toBe("string");
+      const loaded = results.find(result => result.toolName === "load_tools")!;
+      const receipt = JSON.parse(String((loaded.output as { value: string }).value));
+      expect(receipt.tools[0].inputSchema).toEqual(word.inputSchema);
+      expect(dispatch.mock.calls.flatMap(([calls]) => calls).map(call => call.name))
+        .toEqual(["load_tools", "word_uno"]);
+    }
+  });
