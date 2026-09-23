@@ -62,7 +62,7 @@ describe("TurnToolRegistry", () => {
     expect(registry.activity(call("2", "read", { count: "3" }))).toBeNull();
   });
 
-  it("loads exact specialist names across rounds and keeps every capability reachable", async () => {
+  it("loads specialists by name or by a valid direct call and keeps every capability reachable", async () => {
     const registry = new TurnToolRegistry([
       tool("resident"),
       tool("one", { specialist: true }),
@@ -75,17 +75,15 @@ describe("TurnToolRegistry", () => {
       "resident",
     ]);
     expect(payload((await registry.run(
-      [call("0", "one")], { order: [] },
-    ))[0].content).error).toBe("tool_not_loaded");
+      [call("0", "one", { count: "x" })], { order: [] },
+    ))[0].content).error).toBe("invalid_arguments");
     for (const names of [["one", 0], ["one", "missing"]]) {
       const invalid = await registry.run([
         call("bad", LOAD_TOOLS_NAME, { names }),
       ], { order: [] });
       expect(payload(invalid[0].content).error).toBe("invalid_arguments");
     }
-    expect(payload((await registry.run(
-      [call("still-unloaded", "one")], { order: [] },
-    ))[0].content).error).toBe("tool_not_loaded");
+    expect(registry.visible().map(({ name }) => name)).toEqual([LOAD_TOOLS_NAME, "resident"]);
     const loaded = await registry.run([
       call("1", LOAD_TOOLS_NAME, { names: ["one", "two", "three"] }),
       call("2", "one"),
@@ -94,11 +92,11 @@ describe("TurnToolRegistry", () => {
     expect(payload(loaded[0].content).tools.map((tool: { name: string }) => tool.name))
       .toEqual(["one", "two", "three"]);
     expect(payload(loaded[1].content).ok).toBe(true);
-    const final = await registry.run([
-      call("3", LOAD_TOOLS_NAME, { names: ["four"] }),
-      call("4", "four"),
-    ], { order: [] });
-    expect(payload(final[1].content).ok).toBe(true);
+    // A valid direct call to a known specialist loads it without a loader round.
+    const [direct] = await registry.run([call("4", "four", { count: 1 })], { order: [] });
+    expect(payload(direct.content)).toEqual({ ok: true, input: { count: 1 } });
+    expect(payload((await registry.run([call("5", "missing")], { order: [] }))[0].content).error)
+      .toBe("unknown_tool");
     expect(registry.visible().map(({ name }) => name)).toEqual([
       "resident", "one", "two", "three", "four",
     ]);

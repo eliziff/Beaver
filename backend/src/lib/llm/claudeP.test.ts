@@ -61,13 +61,14 @@ it("activates both reported specialists in the same native invocation with one a
     run.send({ type: "system", subtype: "init", mcp_servers: [{ name: "beaver", status: "connected" }] });
     const catalog = (await client.listTools()).tools;
     expect(catalog.map(tool => tool.name)).toEqual(["load_tools", ...names]);
-    expect((await client.callTool({ name: names[0], arguments: {} })).isError).toBe(true);
-    expect(executed).toEqual([]);
+    // Native tool search already holds the schema, so a valid direct call runs.
+    expect((await client.callTool({ name: names[0], arguments: {} })).isError).not.toBe(true);
+    expect(executed).toEqual([names[0]]);
     for (const name of ["load_tools", ...names]) {
       run.event({ type: "content_block_start", content_block: { type: "tool_use", name: `mcp__beaver__${name}` } });
       expect((await client.callTool({ name, arguments: name === "load_tools" ? { names } : {} })).isError).not.toBe(true);
     }
-    expect(executed).toEqual(names);
+    expect(executed).toEqual([names[0], ...names]);
     expect(run.callbacks.onToolCallStart.mock.calls.map(([call]) => call.name))
       .toEqual([names[0], "load_tools", ...names]);
     expect(run.callbacks.onActivity).toHaveBeenCalled();

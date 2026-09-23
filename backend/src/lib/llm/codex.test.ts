@@ -107,7 +107,7 @@ describe("Codex app-server adapter", () => {
         try {
           const catalog = (await client.listTools()).tools;
           expect(catalog.map(({ name }) => name)).toEqual(["load_tools", "inspect"]);
-          expect((await client.callTool({ name: "inspect", arguments: {} })).isError).toBe(true);
+          expect((await client.callTool({ name: "inspect", arguments: {} })).isError).not.toBe(true);
           await client.callTool({ name: "load_tools", arguments: { names: ["inspect"] } });
           expect((await client.listTools()).tools).toEqual(catalog);
           expect((await client.callTool({ name: "inspect", arguments: {} })).content)
