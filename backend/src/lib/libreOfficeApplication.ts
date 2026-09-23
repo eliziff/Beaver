@@ -115,6 +115,8 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     const result = await execute(source.file.bytes, { ...request, mode,
       ...(input.program !== undefined ? { snapshot: sourceSha256 } : {}) }, signal);
     if (!result.candidate) return { report: result.report };
+    // A program that changed nothing leaves nothing to apply; do not file a copy.
+    if (result.report.change_count === 0) return { report: { ...result.report, no_changes: true } };
     if (result.report.reopened !== true || result.report.mode !== mode + "-candidate" ||
         mode === "tracked" && result.report.review_verified !== true)
       throw new Error("The engine did not verify the requested review mode");
