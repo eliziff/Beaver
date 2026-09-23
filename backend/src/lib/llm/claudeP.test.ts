@@ -145,3 +145,28 @@ it("does not mark an error-only session failure as model activity", async () => 
   await expect(run.result).rejects.toThrow("Session not found");
   expect(run.callbacks.onActivity).not.toHaveBeenCalled();
 });
+
+it.each(["mid-turn", "next-turn"] as const)("delivers steering into the running invocation (%s)", async delivery => {
+  const id = "0f8e2a4c-5b6d-4e7f-8a9b-0c1d2e3f4a5b";
+  const queued = [{ id, text: "Also add a heading." }];
+  const run = await begin({ takeSteering: () => queued.splice(0) });
+  const input: string[] = [];
+  run.child.stdin.on("data", (chunk: Buffer) => input.push(...chunk.toString("utf8").trim().split("\n")));
+  run.event({ type: "message_start", message: { model } });
+  await vi.waitFor(() => expect(input.map(line => JSON.parse(line).uuid)).toEqual([undefined, id]));
+  expect(JSON.parse(input[1]).message.content[0].text).toBe("Also add a heading.");
+  const replay = () => run.send({ type: "user", isReplay: true, uuid: id, message: { role: "user", content: "Also add a heading." } });
+  if (delivery === "mid-turn") replay();
+  run.send({ type: "result", result: "First" });
+  await new Promise(resolve => setImmediate(resolve));
+  // A steer the CLI has not yet taken up runs as its next turn, so stdin must stay open for it.
+  expect(run.child.stdin.writableEnded).toBe(delivery === "mid-turn");
+  if (delivery === "next-turn") {
+    replay();
+    run.send({ type: "result", result: "Second" });
+    await new Promise(resolve => setImmediate(resolve));
+    expect(run.child.stdin.writableEnded).toBe(true);
+  }
+  run.child.emit("close", 0);
+  await expect(run.result).resolves.toBeDefined();
+});

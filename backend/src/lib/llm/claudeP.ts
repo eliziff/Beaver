@@ -113,6 +113,8 @@ type RunState = {
   usage?: NativeUsage; model?: string; contextWindow: number | null;
   reportedContext?: string;
   mcpReady: boolean; mcpError: string;
+  /** Steering written to stdin that the CLI has not yet echoed as taken up. */
+  steers: Set<string>;
 };
 
 function closeBlocks(state: RunState, callbacks: StreamCallbacks) {
@@ -123,7 +125,7 @@ function closeBlocks(state: RunState, callbacks: StreamCallbacks) {
 
 function handleStreamLine(line: string, state: RunState, callbacks: StreamCallbacks) {
   let message: ResultEnvelope & {
-    subtype?: string; parent_tool_use_id?: string | null;
+    subtype?: string; parent_tool_use_id?: string | null; isReplay?: boolean; uuid?: string;
     message?: { model?: string; usage?: NativeUsage };
     mcp_servers?: Array<{ name?: string }>;
     mcp_server_errors?: Array<{ name?: string; message?: string }>;
@@ -139,6 +141,7 @@ function handleStreamLine(line: string, state: RunState, callbacks: StreamCallba
   // Native subagents do not own the main conversation's text or context meter.
   if (message.parent_tool_use_id) return true;
   if (message.type === "result") state.result = message;
+  if (message.type === "user" && message.isReplay && message.uuid) state.steers.delete(message.uuid);
   if (message.type === "system" && message.subtype === "init") {
     state.mcpReady = message.mcp_servers?.some(({ name }) => name === "beaver") ?? false;
     state.mcpError = message.mcp_server_errors
@@ -218,6 +221,7 @@ async function runClaudeP(params: RunParams) {
     "--output-format", "stream-json",
     "--verbose",
     "--include-partial-messages",
+    "--replay-user-messages",
     "--tools", params.bridge ? "ToolSearch" : "",
     "--mcp-config", mcpFile,
     "--strict-mcp-config",
@@ -245,7 +249,7 @@ async function runClaudeP(params: RunParams) {
         windowsHide: true,
       });
       const state: RunState = { result: null, fullText: "", compactions: 0,
-        mcpReady: false, mcpError: "", contentOpen: false, reasoningOpen: false,
+        mcpReady: false, mcpError: "", contentOpen: false, reasoningOpen: false, steers: new Set(),
         contextWindow: modelContextWindow(`claude-p:${params.model}`) };
       let buffer = "";
       let stderr = "";
@@ -266,16 +270,26 @@ async function runClaudeP(params: RunParams) {
         reject(error);
       };
       const onAbort = () => fail(abortError());
+      const send = (text: string, uuid?: string) => child.stdin.write(`${JSON.stringify({
+        type: "user", ...(uuid && { uuid }), message: { role: "user", content: [{ type: "text", text }] },
+      })}\n`, "utf8", (error) => { if (error) fail(error); });
+      // Claude Code takes up queued input at its next step, or as a further turn.
+      const steer = () => {
+        if (settled || child.stdin.writableEnded) return;
+        for (const { id, text } of params.takeSteering?.() ?? []) { state.steers.add(id); send(text, id); }
+      };
       const processLine = (line: string) => {
         if (settled || params.abortSignal?.aborted) return;
+        steer();
         if (handleStreamLine(line.trim(), state, params.callbacks)) params.callbacks.onActivity?.();
-        if (state.result) child.stdin.end();
+        if (state.result && !state.steers.size) child.stdin.end();
         if (state.compactions >= MAX_PROVIDER_COMPACTIONS) {
           fail(new ClaudePFatalError(
             `claude -p provider compaction limit: ${state.compactions}`, "compaction_limit"));
         }
       };
       const watchdog = setInterval(() => {
+        steer();
         const now = Date.now();
         const limit = params.activity.seen ? inactivityMs : FIRST_MODEL_EVENT_GRACE_MS;
         if (now - params.activity.at > limit) {
@@ -326,9 +340,7 @@ async function runClaudeP(params: RunParams) {
         resolve(state);
       });
       if (params.abortSignal?.aborted) { onAbort(); return; }
-      child.stdin.write(`${JSON.stringify({ type: "user", message: {
-        role: "user", content: [{ type: "text", text: params.prompt }],
-      } })}\n`, "utf8", (error) => { if (error) fail(error); });
+      send(params.prompt);
     });
   } finally {
     await rm(directory, { recursive: true, force: true });
