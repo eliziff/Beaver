@@ -1,4 +1,4 @@
-import type { DocumentStore } from "./documentStore";
+import type { DocumentStore, PdfProfileSelection } from "./documentStore";
 import {
   enqueueJob,
   interruptJobs,
@@ -85,16 +85,26 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
       progress: (value: PdfPreparationProgress) => context.progress(
         input.ocrProvider ? { ...value, phase: "ocr" } : value),
     });
-    // A page-limited run recognizes a slice for the workspace cache; the document
-    // profile must keep describing the whole PDF.
-    if (input.pages?.length) return { recognized: input.pages.length } as Record<string, number>;
+    const selection = { cacheKey: summary.cacheKey, profile: summary.profile, status: summary.status };
+    // A slice must not replace the whole-document evidence profile, but its text must
+    // remain reachable after the worker exits. Use the existing version metadata.
+    let pdfProfile: PdfProfileSelection = selection;
+    if (input.pages?.length) {
+      const whole = content.pdfProfile ?? await preparePdf({ documentId, versionId: documentVersionId,
+        bytes: content.bytes, sourceSha256: input.sourceSha256, ocrProvider: null, layout: false,
+        signal: context.signal });
+      pdfProfile = { cacheKey: whole.cacheKey, profile: whole.profile, status: whole.status,
+        textLayerPages: Object.fromEntries(input.pages.map(page => [page, summary.cacheKey])) };
+    }
+    context.signal.throwIfAborted();
     if (!await documents.recordPdfPreparation({ userId: job.userId }, documentId, {
       versionId: documentVersionId,
       sourceSha256: summary.sourceSha256,
       pageCount: summary.pageCount,
-      pdfProfile: { cacheKey: summary.cacheKey, profile: summary.profile,
-        status: summary.status },
+      pdfProfile, textOnly: !!input.pages?.length,
     })) return { skipped: "source-unavailable" };
+    if (input.pages?.length) return { recognized: summary.ocrRoutedPages.length,
+      ocrRoutedPages: summary.ocrRoutedPages, pageCount: summary.pageCount } as Record<string, number | number[]>;
     return { status: summary.status, pageCount: summary.pageCount,
       pagesNeedingOcr: summary.pagesNeedingOcr,
       ocrRoutedPages: summary.ocrRoutedPages };

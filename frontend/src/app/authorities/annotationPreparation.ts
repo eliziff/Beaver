@@ -2,7 +2,7 @@ import { apiResponse } from '@/app/lib/api/client';
 import { decodeAnnotationSet, type AnnotationPreparation } from '../../../../shared/pdf-annotations.mjs';
 export type { AnnotationPreparation } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesProduct } from './types';
-/** The same stateless runtime operation serves the local and integrated hosts. */
+/** The standalone host supplies local bytes; embedded review uses its bound-document operation. */
 export async function prepareAnnotations(product: AuthoritiesProduct, authorityId: string,
   bindingRole: string, file: Blob, signal?: AbortSignal): Promise<AnnotationPreparation> {
   const form = new FormData();

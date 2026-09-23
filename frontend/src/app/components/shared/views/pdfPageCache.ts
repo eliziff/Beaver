@@ -19,6 +19,7 @@ export function createPdfPageCache(pdf: PDFDocumentProxy) {
     };
     return {
         get,
+        get size() { return resolved.size; },
         peek: (number: number) => resolved.get(number),
         normalizedText(number: number) {
             const hit = text.get(number);
