@@ -11,7 +11,7 @@ const hash = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 const signal = new AbortController().signal;
 function fixture(editMode: "manual" | "auto" = "auto") {
   const state = { head: "v1", working: 0, part: Buffer.alloc(0), creates: 0, saves: 0,
-    published: "", bytes: candidate, race: false };
+    published: "", bytes: candidate, race: false, changes: 1 };
   const documents = {
     async metadata(_scope: unknown, id: string) {
       return { id, current_version_id: id === "source" ? state.head : "p1", current_working_revision: state.working,
@@ -44,7 +44,7 @@ function fixture(editMode: "manual" | "auto" = "auto") {
     const mode = editMode === "manual" ? "tracked" : "direct";
     assert.equal(request.mode, mode, "The application setting, not model input, determines mode");
     return { candidate, report: { ok: true, reopened: true, snapshot: hash(bytes),
-      candidate_sha256: hash(candidate), mode: mode + "-candidate", review_verified: mode === "tracked" } };
+      candidate_sha256: hash(candidate), mode: mode + "-candidate", review_verified: mode === "tracked", change_count: state.changes } };
   });
   const preview = () => run({ action: "preview", file_path, snapshot: hash(bytes), program: "return true;", mode: "direct" }, signal);
   const apply = () => run({ action: "apply", file_path: "document://preview/version/p1" }, signal);
@@ -55,6 +55,9 @@ test("preview preserves source; apply publishes the exact candidate once", async
   const f = fixture();
   await assert.rejects(f.run({ action: "preview", file_path, snapshot: hash(bytes) }, signal), /program/);
   await assert.rejects(f.run({ action: "apply", file_path }, signal), /pass the preview's artifact/);
+  f.state.changes = 0;
+  assert.equal((await f.preview()).report.no_changes, true); assert.equal(f.state.creates, 0);
+  f.state.changes = 1;
   const preview = await f.preview();
   assert.equal(f.state.head, "v1"); assert.equal(f.state.saves, 0);
   assert.equal(preview.report.original_unchanged, true);

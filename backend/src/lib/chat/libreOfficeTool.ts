@@ -22,8 +22,9 @@ textObject.find(literal) returns one exact range in a paragraph/cell/note/header
 Example: word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'});
 Tables: create, initialize(rows,cols), then doc.getText().insertTextContent(nextParagraph.getStart(), table, false) places it before that paragraph (inserting at a paragraph's end splits it, leaving an empty paragraph). Only then fill cells with getCellRangeByName('A1:C4').setDataArray(rows), not one call per cell.
 Paragraphs form one list only when they share a NumberingStyleName (e.g. 'Numbering 123') or one NumberingRules object.
-Word keeps only page styles in use; page-style inspect shows in_use and word_margins. Word's top/bottom margins include an enabled header/footer: TopMargin+HeaderHeight, BottomMargin+FooterHeight.
-A paragraph's PageDescName starts a Word section with that page style's own size, margins, header and footer. Previews that change page layout report word_sections as Word will show them.
+Word sections are the page styles in use; inspect family 'page-style' lists them with in_use and word_margins. Word's top/bottom margins include an enabled header/footer: TopMargin+HeaderHeight, BottomMargin+FooterHeight.
+A paragraph's PageDescName starts a section on a new page with that page style's own size, margins, header and footer, e.g. word.target('paragraph:15').PageDescName = 'Landscape'.
+Previews that change page layout report word_sections as Word will show them; check them against the request.
 object.expect(values) checks now and after export/reopen. Checks follow retained objects through insertions; selected ranges and attached notes are supported. Removed/unaddressable objects fail.
 Inspected paragraph text is the accepted reading; tracked shows {-deleted-}{+inserted+}. The String property includes deletions.
 word.review(target|[targets],'accept'|'reject') reviews named revisions in a separate program from new edits.
@@ -39,7 +40,7 @@ export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToo
     activity: input => input.action === "apply" ? "Publishing reviewed Word candidate" : "Inspecting or editing Word structures",
     description: "Rich Word document access without Microsoft Word. Use Read/Edit/Write for ordinary content. " +
       "help returns the programmable console API. inspect/describe provide native objects and properties; " +
-      "inspect with program is read-only; preview runs JavaScript on the current document and saves a verified candidate without changing it. " +
+      "inspect with program runs read-only JavaScript for exploration; preview runs an editing program on the current document and saves a verified candidate without changing it. " +
       "apply with file_path set to that candidate publishes its exact bytes to the original. " +
       "Tracked/direct mode follows the user's setting; untrackable Review edits fail.",
     inputSchema: objectSchema({
