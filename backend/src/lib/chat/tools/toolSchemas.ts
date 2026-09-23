@@ -109,7 +109,7 @@ export const ADVANCED_DOCX_EDIT_TOOL: Tool & BeaverToolPolicy = {
   sequential: true,
   annotations: { readOnlyHint: false, destructiveHint: false },
   description:
-    "Apply deterministic structural or mechanical DOCX operations as tracked changes. Load only when ordinary exact-text Edit is insufficient.",
+    "Apply deterministic mechanical text operations or insert blocks in a DOCX, using the user's tracked/direct editing setting. Use word_uno for styles, formatting, tables, and sections; use ordinary Edit for exact-text replacements.",
   inputSchema: object({
     file_path: {
       type: "string",

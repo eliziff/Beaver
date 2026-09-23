@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { sha256 } from "../hash";
 import { SYSTEM_ASSISTANT_WORKFLOWS } from "../systemWorkflows";
 import {
-  DOCUMENT_RESOURCE_PATTERN,
+  DOCUMENT_OR_DRAFT_PATTERN,
   parseResourceReference,
   resourceReference,
 } from "../resourceReferences";
@@ -153,8 +153,8 @@ import { COURT_RECORD_TOOL_PROPERTIES, courtRecordPageTool, courtRecordResult,
 
 const DOCUMENT_ID_PROPERTY = {
   type: "string",
-  pattern: DOCUMENT_RESOURCE_PATTERN,
-  description: "Version-pinned document resource returned by this tool or Glob. Reuse the latest returned resource after every write.",
+  pattern: DOCUMENT_OR_DRAFT_PATTERN,
+  description: "Version-pinned document resource or current-turn draft handle. Reuse the latest returned resource after every write.",
 };
 export function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuotes>>, offset: number) {
   return { mode: report.mode, total: report.total, counts: report.counts,
@@ -1726,9 +1726,9 @@ export function assistantTools<Context extends {
     ) => Promise<AssistantOutcome>,
   ): AssistantToolRun => async (call, input, signal) => {
     const reference = trimmed(input.document_id);
-    const resource = reference ? parseResourceReference(reference) : null;
+    const resource = reference ? parseResourceReference(resolveArtifact(reference) ?? reference) : null;
     if (reference && resource?.kind !== "document")
-      return fail("document_id must be a document resource returned by Glob");
+      return fail("document_id must be a version-pinned document resource or a current-turn draft handle");
     const resolved = resource?.kind === "document"
       ? { ...input, document_id: resource.documentId, version_id: resource.versionId }
       : input;
@@ -1898,7 +1898,7 @@ export function assistantTools<Context extends {
 
   const compare = documentTool(async (_call, args, documentId) => {
     const rawBaseline = trimmed(args.baseline);
-    const baseline = rawBaseline ? parseResourceReference(rawBaseline) : null;
+    const baseline = rawBaseline ? parseResourceReference(resolveArtifact(rawBaseline) ?? rawBaseline) : null;
     if (rawBaseline && (
       baseline?.kind !== "document" || baseline.documentId !== documentId
     )) return fail("baseline must be a version of the compared document");
@@ -2717,9 +2717,10 @@ export function assistantTools<Context extends {
     }
   };
   const codingWithArtifacts: AssistantToolRun = (call, input, signal, progress) => {
-    const filePath = trimmed(input.file_path);
-    const resolved = filePath ? resolveArtifact(filePath) : undefined;
-    const args = resolved ? { ...input, file_path: resolved } : input;
+    const key = call.name === "Grep" ? "path" : "file_path";
+    const reference = trimmed(input[key]);
+    const resolved = reference ? resolveArtifact(reference) : undefined;
+    const args = resolved ? { ...input, [key]: resolved } : input;
     return coding({ ...call, input: args }, args, signal, progress);
   };
   const documentName = (value: unknown) => {
@@ -2744,6 +2745,7 @@ export function assistantTools<Context extends {
       const { artifact, ...rest } = output;
       rendered = { ...rest, result: toolText({ ok: true,
         artifact: artifactFor(artifact.document_id, artifact.version_id),
+        resource: resourceReference.document(artifact.document_id, artifact.version_id),
         filename: artifact.filename }), events: [artifact, ...(rest.events ?? [])] };
     } else rendered = output;
     const { events = [], ...rest } = rendered;

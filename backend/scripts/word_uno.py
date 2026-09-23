@@ -424,6 +424,12 @@ def properties(node, names, *, operation="get", values=None):
     Attribute writes remain separate; only actual beans properties use sorted
     XMultiPropertySet calls. Unknown names must not be silently ignored by UNO.
     """
+    # Replacing text invalidates a previously selected character cursor. Apply it
+    # before resolving formatting ranges, regardless of the object's key order.
+    if operation == 'set' and 'String' in names and len(names) > 1:
+        properties(node, ['String'], operation='set', values=values)
+        properties(node, [name for name in names if name != 'String'], operation='set', values=values)
+        return properties(node, names)
     groups, result, cursor = {}, {}, None
     paragraph = bool(names) and hasattr(node, 'supportsService') and node.supportsService('com.sun.star.text.Paragraph')
     for name in names:
