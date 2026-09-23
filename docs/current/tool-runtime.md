@@ -52,12 +52,13 @@ schemas; oversized results refuse before changing the active set.
 On hosted providers, the next request contains the selected functions, not the
 whole specialist catalog. A response may batch `load_tools` and the function it
 loads. The SDK validates against the earlier request catalog; Beaver resolves
-that specific known-but-deferred case through its existing ordered registry and
-persists exactly its actual result. Unknown names and unloaded or invalid calls
-are still errors. No new dispatcher or generic invocation tool is introduced.
+a known-but-deferred call through its existing ordered registry and persists
+exactly its actual result. A call whose arguments pass the specialist's schema
+activates it without a separate loader round; unknown names and invalid
+arguments are still errors. No new dispatcher or generic invocation tool is introduced.
 
 Native MCP clients retain a static scoped discovery catalog; the registry still
-gates execution. Claude's native `ToolSearch` builtin is available with native
+validates every call against the turn's scope and schemas. Claude's native `ToolSearch` builtin is available with native
 deferral enabled, rather than disabling search while relying on its deferred
 schemas. Other native execution builtins remain disabled.
 
@@ -491,7 +492,7 @@ fallback dispatchers, or transition registries.
 - Every provider sees an equivalent canonical schema after transport-only
   normalization.
 - Writes and interactions are absent from reader catalogs.
-- Unloaded specialists cannot execute.
+- Specialists outside the turn's scope cannot execute.
 - Cancellation reaches every executor.
 - Mixed sequential batches and all returned results preserve source order.
 - `Write` creates faithful DOCX/XLSX/PPTX artifacts through existing renderers.

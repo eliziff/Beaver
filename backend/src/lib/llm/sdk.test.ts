@@ -350,10 +350,13 @@ it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
     if (scenario === "unknown") {
       expect(wordResult.output).toMatchObject({ type: "error-text", value: expect.stringContaining("unavailable tool") });
       expect(dispatch).not.toHaveBeenCalled();
-    } else if (["unloaded", "reversed", "invalid"].includes(scenario)) {
+    } else if (scenario === "invalid") {
       expect(wordResult.output).toMatchObject({ type: "error-text" });
-      expect(JSON.parse(String((wordResult.output as { value: string }).value)).error)
-        .toBe(scenario === "invalid" ? "invalid_arguments" : "tool_not_loaded");
+      expect(JSON.parse(String((wordResult.output as { value: string }).value)).error).toBe("invalid_arguments");
+    } else if (scenario !== "separate" && scenario !== "batched") {
+      // A valid call to a known specialist runs even without its loader; the real result replaces the SDK's verdict.
+      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("word.target(") });
+      expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
     } else {
       expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("word.target(") });
       expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
