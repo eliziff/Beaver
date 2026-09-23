@@ -164,6 +164,9 @@ test("native UNO-shaped programs build tables, page layout and one list that Wor
   `);
   assert.ok(candidate); assert.deepEqual(report.result, ["1.", "2."]);
   assert.ok((report.unused_page_styles_not_saved as string[]).includes("page-style:First%20Page"));
+  // The receipt reports the page setup Word will show, section by section.
+  const sections = report.word_sections as { orientation: string; margins_in: { left: number } }[];
+  assert.deepEqual(sections.map(s => [s.orientation, s.margins_in.left]), [["portrait", 1.5], ["landscape", 1.5]]);
   const body = await xml(candidate, "word/document.xml");
   assert.match(body, /Kick-off/); assert.match(body, /w:orient="landscape"/);
   const margins = [...body.matchAll(/<w:pgMar [^>]*w:left="(\d+)"/g)].map(m => m[1]);

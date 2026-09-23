@@ -38,6 +38,7 @@ function fixture(editMode: "manual" | "auto" = "auto") {
     },
   } as unknown as DocumentStore;
   const options = { documents, userId: "user", editMode, allowedDocumentIds: new Set(["source"]),
+    docIndex: { "doc-0": { document_id: "source", filename: "test.docx", version_id: "v1" } },
     onMutationCommitted() {}, onPublished(_id: string, version: string) { state.published = version; } };
   const run = createLibreOfficeApplication(options, async (_bytes, request) => {
     const mode = editMode === "manual" ? "tracked" : "direct";
@@ -84,6 +85,9 @@ test("stale head and a commit-time race both preserve the original", async () =>
 test("tampered candidate, revoked scope and restricted selections are refused", async () => {
   const f = fixture(); await f.preview(); f.state.bytes = Buffer.from("tampered");
   await assert.rejects(f.apply(), /receipt does not match/); assert.equal(f.state.saves, 0);
+  // A mistyped id names the attached resources so the model can correct it.
+  await assert.rejects(f.run({ action: "inspect", file_path: "document://sourse/version/v1" }, signal),
+    /outside the selected scope; test\.docx is document:\/\/source\/version\/v1/);
   f.options.allowedDocumentIds.clear();
   await assert.rejects(f.preview(), /outside the selected scope/);
   await assert.rejects(f.run({ action: "inspect", file_path }, signal, true), /restricted research/);

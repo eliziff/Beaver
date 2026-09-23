@@ -20,10 +20,10 @@ word.create(service), word.constant(name), word.enum(type,value), word.struct(ty
 word.mm(n)/word.pt(n) convert geometry to hundredths of a millimetre; font heights already use points.
 textObject.find(literal) returns one exact range in a paragraph/cell/note/header/footer; missing or ambiguous text fails.
 Example: word.target('footnote:0').find('paragraph 12').set({String:'paragraph 15'});
-Tables: create, initialize(rows,cols), then doc.getText().insertTextContent(nextParagraph.getStart(), table, false) places it before that paragraph; only then fill with getCellRangeByName('A1:C4').setDataArray(rows), not one call per cell.
+Tables: create, initialize(rows,cols), then doc.getText().insertTextContent(nextParagraph.getStart(), table, false) places it before that paragraph (inserting at a paragraph's end splits it, leaving an empty paragraph). Only then fill cells with getCellRangeByName('A1:C4').setDataArray(rows), not one call per cell.
 Paragraphs form one list only when they share a NumberingStyleName (e.g. 'Numbering 123') or one NumberingRules object.
-Word keeps only page styles in use (page-style inspect in_use). A paragraph's PageDescName starts a Word section with that page style's own size, margins, header and footer.
-With a header/footer on, Word's top/bottom margin is TopMargin+HeaderHeight / BottomMargin+FooterHeight.
+Word keeps only page styles in use; page-style inspect shows in_use and word_margins. Word's top/bottom margins include an enabled header/footer: TopMargin+HeaderHeight, BottomMargin+FooterHeight.
+A paragraph's PageDescName starts a Word section with that page style's own size, margins, header and footer. Previews that change page layout report word_sections as Word will show them.
 object.expect(values) checks now and after export/reopen. Checks follow retained objects through insertions; selected ranges and attached notes are supported. Removed/unaddressable objects fail.
 Inspected paragraph text is the accepted reading; tracked shows {-deleted-}{+inserted+}. The String property includes deletions.
 word.review(target|[targets],'accept'|'reject') reviews named revisions in a separate program from new edits.
