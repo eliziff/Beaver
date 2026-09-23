@@ -56,3 +56,9 @@ export const buildAuthorities = (id: string, revision: number, signal?: AbortSig
   apiRequest<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(
     `/authorities/${segment(id)}/build`, { ...mutationInit("POST", { revision }), signal },
   );
+
+export const prepareAuthoritiesAnnotations = (id: string, authorityId: string, bindingRole: string,
+  sourceSha256: string, signal?: AbortSignal) =>
+  apiRequest<import("@/app/authorities/annotationPreparation").AnnotationPreparation>(
+    `/authorities/${segment(id)}/annotations`,
+    { ...mutationInit("POST", { authorityId, bindingRole, sourceSha256 }), signal });

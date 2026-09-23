@@ -71,7 +71,7 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
   if (result.status === "ready" || result.status === "degraded") {
     return { status: result.status, ...completed };
   }
-  // A page-limited run records no profile of its own; the stored one still describes the PDF.
+  // A completed slice retains its text reference, not a whole-document evidence profile.
   return stored ? { status: stored.status, ...completed } : null;
 };
 const storedDocument = (row: Row): StoredDocument => ({
@@ -525,12 +525,18 @@ export const documentRepository: DocumentRepository = {
     });
   },
   async recordPdfPreparation(scope, id, input) {
-    return await changes(sql`UPDATE document_versions SET page_count=${input.pageCount},
-      pdf_profile=${encode(input.pdfProfile)}
-      WHERE id=${input.versionId}
-        AND document_id=${id} AND source_sha256=${input.sourceSha256} AND file_type='pdf'
-        AND EXISTS(SELECT 1 FROM documents d WHERE d.id=document_versions.document_id
-          AND d.current_version_id=document_versions.id AND ${documentAccess(scope)})`) > 0;
+    return (await relationalDatabase()).transaction(async tx => {
+      const current = await head(tx, scope, id, false, true), version = current?.versions[0];
+      if (!version || version.id !== input.versionId || version.sourceSha256 !== input.sourceSha256 ||
+          version.fileType !== "pdf") return false;
+      const prior = version.pdfProfile;
+      const profile = input.textOnly ? { ...(prior ?? input.pdfProfile),
+        textLayerPages: { ...prior?.textLayerPages, ...input.pdfProfile.textLayerPages } }
+        : { ...input.pdfProfile, ...(!input.pdfProfile.profile.ocr && prior?.textLayerPages
+          ? { textLayerPages: prior.textLayerPages } : {}) };
+      return await changes(sql`UPDATE document_versions SET page_count=${input.pageCount},
+        pdf_profile=${encode(profile)} WHERE id=${input.versionId} AND document_id=${id}`, tx) > 0;
+    });
   },
   async deleteVersion(scope, id, input) {
     const db = await relationalDatabase();

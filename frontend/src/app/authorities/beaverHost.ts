@@ -7,6 +7,7 @@ import {
   createAuthorities,
   refreshAuthorities,
   prepareAuthoritiesSources,
+  prepareAuthoritiesAnnotations,
   authoritiesSourceOcr,
   refreshAuthoritiesInput,
   reviewAuthorities,
@@ -23,11 +24,11 @@ import {
   listWorkProducts,
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
-import { directoryResource, downloadDocument, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
+import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
-import { prepareAnnotations } from "./annotationPreparation";
+import { decodeAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
 
 const drafts: WorkProductStore = {
   list: listWorkProducts, get: getWorkProduct, create: createWorkProduct,
@@ -55,8 +56,26 @@ async function prepareSourcePdfs(draft: Parameters<AuthoritiesHost["build"]>[0],
     }
 }
 
+async function sourceVersion(draft: Parameters<NonNullable<AuthoritiesHost["readSource"]>>[0], role: string) {
+  const binding = draft.state.bindings[role];
+  if (binding?.kind !== "document") throw new Error("This source is unavailable.");
+  if (binding.version !== "latest") return { documentId: binding.documentId, versionId: binding.version.versionId };
+  const metadata = await getDocument(binding.documentId);
+  const source = Object.values(draft.state.authorities).flatMap(authority => authority.source.kind === "attached"
+    ? authority.source.sources : []).find(source => source.bindingRole === role);
+  if (!metadata.current_version_id || source && metadata.source_sha256 !== source.sourceSha256)
+    throw new Error("This PDF changed. Relink the source before editing highlights.");
+  return { documentId: binding.documentId, versionId: metadata.current_version_id };
+}
+
 export const beaverAuthoritiesHost: AuthoritiesHost = {
-  prepareAnnotations,
+  async prepareAnnotations(draft, authorityId, role, _file, signal) {
+    const authority = draft.state.authorities[authorityId];
+    const source = authority?.source.kind === "attached" ? authority.source.sources.find(source => source.bindingRole === role) : null;
+    if (!source) throw new Error("This source is unavailable.");
+    const prepared = await prepareAuthoritiesAnnotations(draft.id, authorityId, role, source.sourceSha256, signal);
+    return { ...prepared, annotations: decodeAnnotationSet(prepared.annotations) };
+  },
   mode: "beaver",
   drafts,
   async create({ source, title, projectId, settings }) {
@@ -84,19 +103,22 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     return attachAuthoritiesLibraryPdf(id, revision, document.id,
       document.current_version_id, target);
   },
-  async readSource(draft, role) {
-    const input = (await getWorkProductResolution(draft.id)).inputs[role];
-    const resolved = input?.status === "ready" ? input.resolved
-      : input?.status === "changed" ? input.current : null;
-    if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
-    return downloadDocument(resolved.documentId, resolved.versionId).then(({ blob }) => blob);
+  async readSource(draft, role, signal) {
+    const resolved = await sourceVersion(draft, role);
+    signal?.throwIfAborted();
+    const response = await readDocumentFile(resolved.documentId, resolved.versionId, true, signal);
+    if (!response.ok) throw new Error(`This source is unavailable (${response.status}).`);
+    return response.blob();
   },
-  async readSourceText(draft, role, signal) {
-    const input = (await getWorkProductResolution(draft.id)).inputs[role];
-    const resolved = input?.status === "ready" ? input.resolved
-      : input?.status === "changed" ? input.current : null;
-    if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
-    return getDocumentPdfTextLayer(resolved.documentId, resolved.versionId, signal);
+  async readSourceText(draft, role, signal, pages) {
+    const binding = draft.state.bindings[role];
+    if (binding?.kind !== "document") throw new Error("This source is unavailable.");
+    const source = Object.values(draft.state.authorities).flatMap(authority => authority.source.kind === "attached"
+      ? authority.source.sources : []).find(source => source.bindingRole === role);
+    if (!source) throw new Error("This source is unavailable.");
+    // The text endpoint resolves latest + verifies the displayed hash in the same request.
+    return getDocumentPdfTextLayer(binding.documentId,
+      binding.version === "latest" ? undefined : binding.version.versionId, signal, pages, source.sourceSha256);
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),
