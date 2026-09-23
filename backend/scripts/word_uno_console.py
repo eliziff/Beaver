@@ -5,6 +5,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import posixpath
 import re
 import sys
 import tempfile
@@ -13,7 +14,7 @@ import zipfile
 from urllib.parse import quote
 
 from word_uno import (W, collection, resolve, resolve_many, encode, decode, check_name, check_value,
-                      package, props, writer, load, inspect, properties, page, enumerate_values, STYLE_FAMILIES, PAGE_STORIES, page_story, revision_range)
+                      package, props, writer, load, inspect, properties, page, enumerate_values, STYLE_FAMILIES, PAGE_STORIES, page_story, revision_range, body_margins)
 import uno
 
 # Discover document interfaces rather than maintaining a formatting catalogue.
@@ -60,10 +61,30 @@ def semantic_package(path):
                 for n in z.namelist() if not n.endswith('/') and not n.startswith('docProps/thumbnail.')}
 
 
-def body_margins(style):
-    """Word's top/bottom margins reach the body text; LibreOffice's stop at an enabled header/footer."""
-    return {'TopMargin': style.TopMargin + (style.HeaderHeight if style.HeaderIsOn else 0),
-            'BottomMargin': style.BottomMargin + (style.FooterHeight if style.FooterIsOn else 0)}
+def word_sections(path):
+    """Word's page setup per section as the DOCX stores it: inches, and whether its
+    header/footer shows text (None when Word repeats the previous section's)."""
+    R = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+    with zipfile.ZipFile(path) as z:
+        rels = {r.get('Id'): r.get('Target') for r in ET.fromstring(z.read('word/_rels/document.xml.rels'))}
+        def story(sect, kind):
+            ref = next((n.get(R + 'id') for n in sect.iter(W + kind + 'Reference') if n.get(W + 'type') == 'default'), None)
+            if ref is None: return None
+            root = ET.fromstring(z.read(posixpath.normpath(posixpath.join('word', rels[ref]))))
+            return any((n.text or '').strip() for n in root.iter() if n.tag in (W + 't', W + 'instrText'))
+        sections, paragraphs = [], 0
+        for node in ET.fromstring(z.read('word/document.xml')).find(W + 'body'):
+            sect = node if node.tag == W + 'sectPr' else node.find(f'{W}pPr/{W}sectPr')
+            paragraphs += node.tag == W + 'p'
+            if sect is None: continue
+            size, margins = sect.find(W + 'pgSz'), sect.find(W + 'pgMar')
+            inches = lambda element, name: round(int(element.get(W + name, 0)) / 1440, 2) if element is not None else None
+            sections.append({**({'ends_at': 'paragraph:' + str(paragraphs - 1)} if node.tag == W + 'p' else {}),
+                'orientation': size.get(W + 'orient', 'portrait') if size is not None else None,
+                'page_in': [inches(size, 'w'), inches(size, 'h')],
+                'margins_in': {name: inches(margins, name) for name in ('top', 'bottom', 'left', 'right', 'header', 'footer')},
+                'header': story(sect, 'header'), 'footer': story(sect, 'footer')})
+        return sections
 
 
 def page_text(story):
@@ -321,7 +342,9 @@ class Broker:
             values = command.get('values')
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('expect requires 1-100 properties')
             actual = {name: encode(value) for name, value in properties(obj, values).items()}
-            if actual != values: raise ValueError('Postcondition failed: ' + str(target))
+            if actual != values:
+                failed = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if actual.get(name) != values[name]}
+                raise ValueError('Postcondition failed: ' + json.dumps(failed)[:400])
             self.checks.setdefault(obj, {}).update(values)
             return True
         if op == 'review':
@@ -518,6 +541,8 @@ def transact(source, output, request, binary, interact):
                 'changes': broker.changes[:20], 'change_count': len(broker.changes),
                 'changes_truncated': len(broker.changes)>20, 'native_calls': broker.calls,
                 **({'unused_page_styles_not_saved': broker.unsaved} if broker.unsaved else {}),
+                # What Word will show when page layout changed: its margins include an enabled header/footer.
+                **({'word_sections': sections} if (sections := word_sections(output)) != word_sections(source) else {}),
                 'revision_count': len(expected['revisions']), 'new_revision_count': len(new_indices), 'author': author,
                 'changed_parts': [n for n in sorted(set(before_parts)|set(after_parts)) if before_parts.get(n)!=after_parts.get(n)],
                 'warning': 'LibreOffice compatibility and tested native postconditions, not universal Word-identical fidelity.'}
@@ -553,8 +578,11 @@ def serve(source, output, request, binary):
             except Exception as error:
                 member = command.get('name') if isinstance(command.get('name'), str) else command.get('op')
                 # Writer's message for a descriptor that was never inserted or was since removed.
+                native = isinstance(error, uno.getClass('com.sun.star.uno.Exception'))
                 reason = ('the object is not in the document; insert new content with insertTextContent before using it'
-                          if 'Lost connection to core objects' in str(error) else str(error) or type(error).__name__)
+                          if 'Lost connection to core objects' in str(error) else
+                          ': '.join(filter(None, (type(error).__name__, str(error)))) if native else
+                          'no native member ' + str(error) + '; describe(filter) lists members' if isinstance(error, AttributeError) else str(error))
                 emit({'rpc': 'result', 'id': command.get('id'), 'error': (str(member) + ': ' + reason)[:1000]})
                 raise
     return transact(source, output, request, binary, interact)

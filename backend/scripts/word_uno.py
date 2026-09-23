@@ -471,7 +471,7 @@ def properties(node, names, *, operation="get", values=None):
 
 def bounded(request, key, default, maximum):
     value = request.get(key, default)
-    if type(value) is not int or not 0 <= value <= maximum: raise ValueError(key + ' is outside the supported range')
+    if type(value) is not int or not 0 <= value <= maximum: raise ValueError(f'{key} must be an integer from 0 to {maximum}')
     return value
 
 
@@ -494,6 +494,12 @@ def revision_range(revision):
     cursor = start.getText().createTextCursorByRange(start)
     cursor.gotoRange(revision.RedlineEnd, True)
     return cursor
+
+
+def body_margins(style):
+    """Word's top/bottom margins reach the body text; LibreOffice's stop at an enabled header/footer."""
+    return {'TopMargin': style.TopMargin + (style.HeaderHeight if style.HeaderIsOn else 0),
+            'BottomMargin': style.BottomMargin + (style.FooterHeight if style.FooterIsOn else 0)}
 
 
 def reading(node, deleting=False):
@@ -553,7 +559,7 @@ def inspect(doc, request):
             row['text'] = text[:300]
             if marked != text: row['tracked'] = marked[:600]
         elif request.get('include_text', True): row['text'] = getattr(node, 'String', '')[:300]
-        if family == 'page-style': row['in_use'] = node.isInUse()
+        if family == 'page-style': row.update(in_use=node.isInUse(), word_margins=body_margins(node))
         rows.append(row)
     return {'family': family, 'items': rows, **pagination}
 
