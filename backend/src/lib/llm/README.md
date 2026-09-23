@@ -42,9 +42,9 @@ expands the tool list without forcing a newly discovered tool to execute. Native
 MCP transports advertise the complete scoped turn catalog (`staticTools`) once;
 `load_tools` activates specialists in `TurnToolRegistry`, not in the client's tool
 catalog. This avoids depending on list-change notifications over stateless HTTP.
-Claude Code also runs with `ENABLE_TOOL_SEARCH=false`: its independent native
-loader must not defer schemas that Beaver already advertised. Native built-ins
-remain disabled. `load_tools` changes execution availability within the same turn;
+Claude Code keeps native schema deferral (`ENABLE_TOOL_SEARCH=true`) and exposes
+only its `ToolSearch` built-in to retrieve deferred definitions; other native
+built-ins remain disabled. `load_tools` changes execution availability within the same turn;
 it does not require another user message or a second client-side discovery step.
 Claude's partial stream forwards public thinking deltas and block boundaries,
 never signatures/redacted content or child-agent text. Summary visibility is
