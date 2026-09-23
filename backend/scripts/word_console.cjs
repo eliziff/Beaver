@@ -75,6 +75,19 @@ async function main() {
         inspect: (query={}) => invoke({op:'inspect',query}),
         create: service => invoke({op:'create',service}),
         review: (targets,decision) => invoke({op:'review',targets:Array.isArray(targets)?targets:[targets],decision}),
+        section: (paragraph,values={}) => invoke({op:'section',target:typeof paragraph==='string'?paragraph:paragraph.toJSON().ref,values}),
+        // Word measures top/bottom margins to the body; an enabled header/footer keeps its edge distance.
+        margins: (style,m) => {
+          const s = style.get(['TopMargin','BottomMargin','HeaderIsOn','FooterIsOn']), v = {};
+          if (m.left !== undefined) v.LeftMargin = m.left;
+          if (m.right !== undefined) v.RightMargin = m.right;
+          for (const [side,edge,story] of [['top','TopMargin','Header'],['bottom','BottomMargin','Footer']]) {
+            if (m[side] === undefined) continue;
+            v[edge] = s[story+'IsOn'] ? Math.min(s[edge], Math.round(m[side]/2)) : m[side];
+            if (s[story+'IsOn']) v[story+'Height'] = m[side] - v[edge];
+          }
+          style.set(v); return v;
+        },
         constant: name => invoke({op:'constant',name}),
         any: (type,value) => ({any:type,value}),
         enum: (type,value) => ({enum:type,value}),

@@ -175,6 +175,16 @@ test("native UNO-shaped programs build tables, page layout and one list that Wor
   assert.equal(lists.length, 2); assert.equal(lists[0], lists[1]);
 });
 
+test("Word sections copy the running header/footer and margins follow Word's model", async () => {
+  const { report } = await preview(await source, `
+    word.margins(word.target('page-style:paragraph:0'), {top:word.mm(25.4), bottom:word.mm(25.4), left:word.mm(25.4), right:word.mm(25.4)});
+    return word.section('paragraph:4', {IsLandscape:true}).get(['IsLandscape','HeaderIsOn','FooterIsOn']);`);
+  assert.deepEqual(report.result, { FooterIsOn: true, HeaderIsOn: true, IsLandscape: true });
+  const [first, added] = report.word_sections as { orientation: string; margins_in: Record<string, number>; header: boolean; footer: boolean }[];
+  assert.deepEqual([first.orientation, first.margins_in.top, first.margins_in.bottom, first.margins_in.left], ["portrait", 1, 1, 1]);
+  assert.deepEqual([added.orientation, added.margins_in.top, added.margins_in.left, added.header, added.footer], ["landscape", 1, 1, true, true]);
+});
+
 test("untrackable mixed changes fail rather than bypass Review mode", async () => {
   await assert.rejects(preview(await source, `
     word.target('paragraph:1').find('unchanged').set({String:'revised'});

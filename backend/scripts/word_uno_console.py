@@ -347,6 +347,8 @@ class Broker:
                 raise ValueError('Postcondition failed: ' + json.dumps(failed)[:400])
             self.checks.setdefault(obj, {}).update(values)
             return True
+        if op == 'section':
+            return self.section(target, obj, command.get('values', {}))
         if op == 'review':
             self.mutate()
             targets = command.get('targets', [target])
@@ -360,6 +362,43 @@ class Broker:
             self.changes.append({'review': command.get('decision'), 'count': len(removed)})
             return True
         raise ValueError('Unknown document console operation')
+
+    def section(self, target, paragraph, values):
+        """A Word section break: the paragraph starts a new page with a copy of its current
+        page style, header/footer content included, then `values` (IsLandscape swaps the size)."""
+        self.mutate()
+        if not isinstance(values, dict) or not hasattr(paragraph, 'supportsService') or not paragraph.supportsService('com.sun.star.text.Paragraph'):
+            raise ValueError('word.section(paragraph, values) starts a section at a body paragraph')
+        styles = self.doc.StyleFamilies.getByName('PageStyles')
+        current = styles.getByName(paragraph.PageStyleName)
+        name = next(n for i in range(2, 10000) if not styles.hasByName(n := 'Section ' + str(i)))
+        styles.insertByName(name, self.doc.createInstance('com.sun.star.style.PageStyle'))
+        style = styles.getByName(name)
+        # Copy the layout; the new style follows itself, not the previous section's style.
+        layout = sorted(p.Name for p in current.getPropertySetInfo().getProperties() if not p.Attributes & 16 and p.Name != 'FollowStyle')
+        for prop, value in zip(layout, current.getPropertyValues(tuple(layout))):
+            try: style.setPropertyValue(prop, value)
+            except Exception: pass  # Unset optional values (e.g. absent border colours).
+        key = target if target in self.refs else self.save(paragraph, target)['ref']
+        self.rpc({'op': 'set', 'target': key, 'values': {'PageDescName': name}})
+        self.checks.setdefault(paragraph, {})['PageDescName'] = name
+        # Stories are copied through Writer's own clipboard format, keeping fields and formatting.
+        controller = self.doc.CurrentController
+        for family, (prop, _, _) in PAGE_STORIES.items():
+            if page_story(current, family) is None: continue
+            source, copy = getattr(current, prop).createTextCursor(), getattr(style, prop).createTextCursor()
+            source.gotoEnd(True); copy.gotoEnd(True)
+            controller.select(source); transferable = controller.getTransferable()
+            controller.select(copy); controller.insertTransferable(transferable)
+        # Content can resize dynamic header/footer areas; restore the copied Word margins.
+        style.setPropertyValues(('FooterHeight', 'HeaderHeight'), (current.FooterHeight, current.HeaderHeight))
+        if 'IsLandscape' in values and values['IsLandscape'] != current.IsLandscape and not {'Width', 'Height'} & set(values):
+            values = {**values, 'Width': current.Height, 'Height': current.Width}
+        address = 'page-style:' + quote(name, safe='')
+        handle = self.save(style, address)
+        if values: self.rpc({'op': 'set', 'target': handle['ref'], 'values': values})
+        self.changes.append({'section': address, 'starts_at': self.targets.get(key, target)})
+        return handle
 
 
 def freeze_checks(broker):
