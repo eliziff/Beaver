@@ -22,7 +22,10 @@ to models. Native local execution is not an OS sandbox against engine exploits.
 
 ## Editing
 
-Inspect a versioned `file_path` for its snapshot. `inspect` programs are read-only;
+Use a versioned document resource or a current-turn `draft-N` artifact as
+`file_path`; `preview_resource` accepts either form too. Published artifacts include
+a canonical `resource` for later turns. Inspect the current file for its snapshot.
+`inspect` programs are read-only;
 `preview` runs synchronous JavaScript on that snapshot; `apply` publishes the
 exact frozen `preview_resource`, never a rerun. QuickJS is separately terminable
 and bounded by memory, stack, time, calls and output, without host APIs.
@@ -40,7 +43,9 @@ can project properties alongside editable handles. Follow `next_offset`; unknown
 counts remain null rather than scanning unseen content. Handles live only within
 a program, not as legal evidence IDs; retain them before edits and reinspect
 indexes afterward. `set` specifies final state in native property groups; use
-separate calls when order matters. Styles expose `ParentStyle`; `reset` removes
+separate calls when order matters. A combined `String` and formatting assignment
+replaces text before resolving the formatting range, irrespective of key order.
+Styles expose `ParentStyle`; `reset` removes
 direct formatting. Native default/state methods share the same text-cursor path.
 
 ## Verification
@@ -73,7 +78,10 @@ WORD_UNO_CONTAINER_IMAGE=beaver-uno:test npx tsx --test experiments/libreoffice-
 ```
 
 CI runs actual Windows x64, macOS ARM64, Linux x64 and isolated-container paths;
-missing runtimes fail. Application tests use an injected store, not a real database.
-Wider document fidelity, joined native/persistence/browser coverage, other CPU/OS
+missing runtimes fail. The application suite exercises the production chat registry,
+SQLite/filesystem document store and native Writer through inspect, preview, apply,
+ordinary/advanced edits and version comparison. Injected edge cases cover
+publication races and review-policy refusal.
+Wider document fidelity, full browser coverage, other CPU/OS
 packaging and live-model task measurements remain qualification work. Exact-head
 results and reproducible performance evidence belong in the PR.

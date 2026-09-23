@@ -159,7 +159,7 @@ describe("claude -p native MCP transport", () => {
     const args = vi.mocked(spawn).mock.calls[0][1] as string[];
     expect(option(args, "--input-format")).toBe("stream-json");
     expect(option(args, "--output-format")).toBe("stream-json");
-    expect(option(args, "--tools")).toBe("");
+    expect(option(args, "--tools")).toBe("ToolSearch");
     expect(option(args, "--allowedTools")).toBe("mcp__beaver");
     expect(option(args, "--max-turns")).toBe("5");
     expect(args).toContain("--strict-mcp-config");
@@ -185,7 +185,7 @@ describe("claude -p native MCP transport", () => {
     expect(result).toMatchObject({
       fullText: "Found it.",
       usage: {
-        inputTokens: 7,
+        inputTokens: 10,
         outputTokens: 2,
         cacheReadInputTokens: 3,
       },

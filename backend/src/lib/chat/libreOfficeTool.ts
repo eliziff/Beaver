@@ -1,10 +1,10 @@
 import { createLibreOfficeApplication } from "../libreOfficeApplication";
-import { DOCUMENT_RESOURCE_PATTERN } from "../resourceReferences";
+import { DOCUMENT_OR_DRAFT_PATTERN } from "../resourceReferences";
 import type { AssistantToolsDependencies } from "./assistantTools";
 import type { ChatToolContext } from "./turnEngine";
 import { objectSchema, toolText, type BeaverTool } from "./toolRegistry";
 
-type Dependencies = Parameters<typeof createLibreOfficeApplication>[0] & Pick<AssistantToolsDependencies, "artifactFor">;
+type Dependencies = Parameters<typeof createLibreOfficeApplication>[0] & Pick<AssistantToolsDependencies, "artifactFor" | "resolveArtifact">;
 
 const CONSOLE_HELP = `Write a synchronous JavaScript function body. Native calls suspend automatically; return a small result.
 doc is the current Writer document; guest code has no Node, filesystem, network, imports or Python eval.
@@ -39,7 +39,7 @@ export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToo
       "Tracked/direct mode follows the user's setting; untrackable Review edits fail. Inspect the candidate before apply publishes its exact bytes.",
     inputSchema: objectSchema({
       action: { type: "string", enum: ["help", "inspect", "describe", "preview", "apply"] },
-      file_path: { type: "string", pattern: DOCUMENT_RESOURCE_PATTERN },
+      file_path: { type: "string", pattern: DOCUMENT_OR_DRAFT_PATTERN },
       family: { type: "string", enum: ["document", "paragraph", "table", "footnote", "endnote", "frame", "bookmark",
         "body", "header", "header-left", "header-first", "footer", "footer-left", "footer-first",
         "field", "section", "drawing", "index", "control", "revision", "page-style", "paragraph-style", "character-style", "numbering-style"] },
@@ -49,13 +49,17 @@ export function createLibreOfficeTool(options: Dependencies): BeaverTool<ChatToo
       program: { type: "string", minLength: 1, maxLength: 100000 },
       properties: { type: "array", maxItems: 32, uniqueItems: true, items: { type: "string", maxLength: 100 } },
       include_text: { type: "boolean", description: "False for property-only inspection." },
-      preview_resource: { type: "string", pattern: DOCUMENT_RESOURCE_PATTERN },
+      preview_resource: { type: "string", pattern: DOCUMENT_OR_DRAFT_PATTERN },
     }, ["action"]),
     async execute(input, context, signal) {
       try {
         if (input.action === "help") return { result: toolText(CONSOLE_HELP) };
         if (!input.file_path) throw new Error("file_path is required for document operations");
-        const { report, publication } = await run(input, signal, !!context.research?.restricted);
+        const args = { ...input };
+        for (const key of ["file_path", "preview_resource"] as const) {
+          if (typeof args[key] === "string") args[key] = options.resolveArtifact(args[key]) ?? args[key];
+        }
+        const { report, publication } = await run(args, signal, !!context.research?.restricted);
         if (!publication) return { result: toolText(report) };
         const { id, version, number, filename, action } = publication;
         return { result: toolText({ ...report, artifact: options.artifactFor(id, version) }), mutated: true,
