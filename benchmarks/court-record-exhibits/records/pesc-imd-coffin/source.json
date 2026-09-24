@@ -1,0 +1,20 @@
+{
+ "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/proposal/island-milk-distributors-ltd/affidavit-of-ian-coffin.pdf",
+ "landing_url": "https://mnpdebt.ca/en/corporate/corporate-engagements/island-milk-distributors-ltd",
+ "court": "Supreme Court of Prince Edward Island (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "PE",
+ "court_file": "S1-BK-4145 / Estate No. 51-3153484",
+ "document_title": "Affidavit of Ian Coffin, Island Milk Distributors Ltd. NOI (stay extension, DIP loan)",
+ "retrieved": "2026-09-23",
+ "record_id": "pesc-imd-coffin",
+ "source_file": "pe-affidavit-of-ian-coffin.pdf",
+ "page_range": [
+  1,
+  63
+ ],
+ "source_sha256": "d11552e7dee09e420196d89281a478ab50e311b695154d06b75fbd1893824ee2",
+ "source_pages": 63,
+ "affidavit_ocr": true,
+ "covers": "A=6,B=9,B1=45,C=54"
+}

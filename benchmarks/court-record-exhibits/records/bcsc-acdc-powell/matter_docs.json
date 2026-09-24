@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/bcsc-acdc-powell/fee-approval-order-2026-07-27.pdf",
+  "url": "https://cfcanada.fticonsulting.com/acdc/docs/322718633_v(1)_Entered Order Made After Application (Fee Approval) made July 27, 2026.pdf",
+  "title": "Order Made After Application (Fee Approval) made July 27, 2026",
+  "kind": "court_order",
+  "relation": "the order granted on the fee application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/bcsc-acdc-powell/second-monitor-report-2026-07-13.pdf",
+  "url": "https://cfcanada.fticonsulting.com/acdc/docs/322452328_v(1)_Filed Second Monitor's Report - July 13, 2026.pdf",
+  "title": "Second Report of the Monitor, July 13, 2026",
+  "kind": "report",
+  "relation": "the Monitor's report covering the period of the invoices"
+ }
+]

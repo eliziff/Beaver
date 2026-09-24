@@ -23,6 +23,19 @@ directory keeps the scripts and a copy of each record's three JSON files under
 `records/<id>/`. `split.py` is deterministic per record id, so
 `source.json` (url, sha256, page range) rebuilds the PDFs exactly.
 
+`python rebuild.py [--text-backup DIR] [id ...]` restores the data directory
+from the committed JSON. It re-downloads each source, checks its sha256, cuts
+the affidavit and exhibits from `split.json`'s page lists and re-fetches the
+same-matter documents. OCR text comes from the backup when one is given.
+Sources that have vanished or changed are reported, never guessed. The
+Competition Tribunal site puts up a captcha after heavy use, so its eight
+records rebuild only once it clears.
+
+`python ledger.py` writes `sources-ledger.jsonl`, one row per source used
+(record source or same-matter document) and per source rejected
+(`rejected-sources.jsonl`). It then prints counts by jurisdiction, court
+level, subject, court and site, so gaps in breadth stay visible.
+
 ## Recipe
 
 1. **Find a sworn affidavit with at least three exhibits** whose exhibit
@@ -91,6 +104,12 @@ now added.
 exhibits mixed with:
 - real same-matter documents that are not exhibits (`matter_docs.json`);
 - exhibits of other records;
+- siblings: the affidavit and exhibits of other benchmark records from the
+  same proceeding (an earlier or later application), linked by a `family`
+  slug in their gold or by the court file number. A sibling is the target
+  of its own record and a hard distractor in every other member's folder.
+  Chronology rows citing it are neutral, since they are real events in the
+  same matter;
 - unrelated legal PDFs from the 1,500-file corpus;
 - synthetic DMS documents: emails (.eml or PDF), letters, memos, minutes,
   invoices and texts among the same people and companies, in the same

@@ -101,7 +101,8 @@ def haystack_exhibits(preds):
 
 def haystack_chronology(preds, with_affidavit):
     """Rows cite haystack file names. Rows citing only other-matter, corpus or synthetic
-    files are false positives; rows citing only same-matter documents are neutral."""
+    files are false positives; rows citing only same-matter or sibling documents
+    (same proceeding, another application) are neutral."""
     mapped, distractor_rows, neutral_rows = {}, 0, 0
     for rid, rows in preds.items():
         files = {e["file"]: e for e in manifest(rid)}
@@ -111,7 +112,7 @@ def haystack_chronology(preds, with_affidavit):
             if roles and roles <= {"other_matter", "corpus", "synthetic"}:
                 distractor_rows += 1
                 keep.append({**row, "files": [], "description": "\x00distractor"})  # cannot match gold
-            elif roles == {"same_matter"}:
+            elif roles and roles <= {"same_matter", "sibling"}:
                 neutral_rows += 1
             else:
                 keep.append({**row, "files": [files[f]["record_file"] for f in row.get("files", []) if files.get(f, {}).get("role") == "exhibit"]})

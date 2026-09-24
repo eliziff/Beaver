@@ -10,70 +10,320 @@
  "deponent_role": "Legal administrative assistant, Blake, Cassels & Graydon LLP, counsel for the Petitioners",
  "sworn_date": "2026-04-29",
  "exhibits": [
-  {"label": "A", "file": "doc-ade2gr.pdf", "kind": "chart", "date": "2024-12-31", "author": "Burgundy Diamond Mines Limited group", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-ade2gr.pdf",
+   "kind": "chart",
+   "date": "2024-12-31",
+   "author": "Burgundy Diamond Mines Limited group",
+   "recipients": [],
    "description": "Organizational chart titled Corporate Structure as of December 31, 2024",
-   "references": [{"quote": "is a copy of an organizational chart titled"}],
-   "content_check": "One-page chart 'Corporate Structure As of December 31, 2024' showing Burgundy Diamond Mines Limited (Australia) over Arctic Canadian Diamond Company Ltd. and Arctic Canadian Diamond Marketing N.V. (Belgium)"},
-  {"label": "B", "file": "doc-a39de7.pdf", "kind": "public_record", "date": "2025-07-31", "author": "Burgundy Diamond Mines Limited", "recipients": ["Australian Stock Exchange"],
+   "references": [
+    {
+     "quote": "is a copy of an organizational chart titled"
+    }
+   ],
+   "content_check": "One-page chart 'Corporate Structure As of December 31, 2024' showing Burgundy Diamond Mines Limited (Australia) over Arctic Canadian Diamond Company Ltd. and Arctic Canadian Diamond Marketing N.V. (Belgium)"
+  },
+  {
+   "label": "B",
+   "file": "doc-a39de7.pdf",
+   "kind": "public_record",
+   "date": "2025-07-31",
+   "author": "Burgundy Diamond Mines Limited",
+   "recipients": [
+    "Australian Stock Exchange"
+   ],
    "description": "Australian Stock Exchange announcement dated July 31, 2025 from Burgundy titled Life of Mine Plan Update",
-   "references": [{"quote": "is a copy of an Australian Stock"}],
-   "content_check": "ASX announcement of 31 July 2025 giving an updated Life of Mine plan for the Ekati Diamond Mine for 2025 onward; 59 pages"},
-  {"label": "C", "file": "doc-66cf44.pdf", "kind": "webpage", "date": "2025-12-18", "author": "Department of Finance Canada", "recipients": [],
+   "references": [
+    {
+     "quote": "is a copy of an Australian Stock"
+    }
+   ],
+   "content_check": "ASX announcement of 31 July 2025 giving an updated Life of Mine plan for the Ekati Diamond Mine for 2025 onward; 59 pages"
+  },
+  {
+   "label": "C",
+   "file": "doc-66cf44.pdf",
+   "kind": "webpage",
+   "date": "2025-12-18",
+   "author": "Department of Finance Canada",
+   "recipients": [],
    "description": "Government of Canada December 18, 2025 news release on crucial support to the Ekati Diamond Mine amid trade uncertainty",
-   "references": [{"quote": "is a copy of a Government of Canada"}],
-   "content_check": "Canada.ca Department of Finance news release 'Government provides crucial support to the Ekati Diamond Mine amid trade uncertainty, protects Northern workers and local communities in the Northwest Territories', 5 pages"},
-  {"label": "D", "file": "doc-vdd6yy.pdf", "kind": "webpage", "date": "2025-04-04", "author": "CBC News (Luke Carroll)", "recipients": [],
+   "references": [
+    {
+     "quote": "is a copy of a Government of Canada"
+    }
+   ],
+   "content_check": "Canada.ca Department of Finance news release 'Government provides crucial support to the Ekati Diamond Mine amid trade uncertainty, protects Northern workers and local communities in the Northwest Territories', 5 pages"
+  },
+  {
+   "label": "D",
+   "file": "doc-vdd6yy.pdf",
+   "kind": "webpage",
+   "date": "2025-04-04",
+   "author": "CBC News (Luke Carroll)",
+   "recipients": [],
    "description": "April 4, 2025 CBC article titled Low diamond prices raise risk of early closure of N.W.T. mines, experts say",
-   "references": [{"paragraph": 5, "quote": "is a copy of an April 4, 2025 CBC article"}],
-   "content_check": "CBC North article by Luke Carroll posted Apr 04, 2025, 'Low diamond prices raise risk of early closure of N.W.T. mines, experts say', 6 pages"},
-  {"label": "E", "file": "doc-zxqxty.pdf", "kind": "webpage", "date": "2025-04-04", "author": "Reuters", "recipients": [],
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "is a copy of an April 4, 2025 CBC article"
+    }
+   ],
+   "content_check": "CBC North article by Luke Carroll posted Apr 04, 2025, 'Low diamond prices raise risk of early closure of N.W.T. mines, experts say', 6 pages"
+  },
+  {
+   "label": "E",
+   "file": "doc-zxqxty.pdf",
+   "kind": "webpage",
+   "date": "2025-04-04",
+   "author": "Reuters",
+   "recipients": [],
    "description": "April 4, 2025 Reuters article titled US tariffs set to cripple India's diamond industry, hurting jobs, exports",
-   "references": [{"paragraph": 6, "quote": "is a copy of an April 4, 2025 Reuters"}],
-   "content_check": "Reuters article datelined SURAT, India, April 4, on anxiety in India's diamond industry over US tariffs, 6 pages"},
-  {"label": "F", "file": "doc-dt9jwx.pdf", "kind": "letter", "date": "2024-09-24", "author": "Burgundy Diamond Mines Limited", "recipients": ["The Honourable R.J. Simpson, Premier of the Northwest Territories"],
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is a copy of an April 4, 2025 Reuters"
+    }
+   ],
+   "content_check": "Reuters article datelined SURAT, India, April 4, on anxiety in India's diamond industry over US tariffs, 6 pages"
+  },
+  {
+   "label": "F",
+   "file": "doc-dt9jwx.pdf",
+   "kind": "letter",
+   "date": "2024-09-24",
+   "author": "Burgundy Diamond Mines Limited",
+   "recipients": [
+    "The Honourable R.J. Simpson, Premier of the Northwest Territories"
+   ],
    "description": "Correspondence from Burgundy to the Honourable R. J. Simpson dated September 24, 2024",
-   "references": [{"paragraph": 7, "quote": "is a copy of correspondence from"}],
-   "content_check": "Burgundy Diamond Mines letter dated September 24, 2024 to Premier R.J Simpson, 'RE: BURGUNDY DIAMOND MINES REQUEST FOR URGENT REVIEW AND SUPPORT', 5 pages"},
-  {"label": "G", "file": "doc-hvuqa7.pdf", "kind": "webpage", "date": "2025-07-18", "author": "CBC News", "recipients": [],
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "is a copy of correspondence from"
+    }
+   ],
+   "content_check": "Burgundy Diamond Mines letter dated September 24, 2024 to Premier R.J Simpson, 'RE: BURGUNDY DIAMOND MINES REQUEST FOR URGENT REVIEW AND SUPPORT', 5 pages"
+  },
+  {
+   "label": "G",
+   "file": "doc-hvuqa7.pdf",
+   "kind": "webpage",
+   "date": "2025-07-18",
+   "author": "CBC News",
+   "recipients": [],
    "description": "July 18, 2025 CBC news article titled 'Surprised and disappointed': Ekati layoffs reverberate across N.W.T.",
-   "references": [{"paragraph": 8, "quote": "is a copy of a July 18, 2025 CBC news"}],
-   "content_check": "CBC North article \"'Surprised and disappointed': Ekati layoffs reverberate across N.W.T.\" on Burgundy suspending open pit operations and laying off several hundred employees, 6 pages; its cover stamp is OCR-scrambled"},
-  {"label": "H", "file": "doc-9pwheu.pdf", "kind": "financial_statement", "date": "2023-12-31", "author": "Burgundy Diamond Mines Limited", "recipients": [],
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "is a copy of a July 18, 2025 CBC news"
+    }
+   ],
+   "content_check": "CBC North article \"'Surprised and disappointed': Ekati layoffs reverberate across N.W.T.\" on Burgundy suspending open pit operations and laying off several hundred employees, 6 pages; its cover stamp is OCR-scrambled"
+  },
+  {
+   "label": "H",
+   "file": "doc-9pwheu.pdf",
+   "kind": "financial_statement",
+   "date": "2023-12-31",
+   "author": "Burgundy Diamond Mines Limited",
+   "recipients": [],
    "description": "Burgundy's 2023 Annual Report for the Period Ended 31 December 2023",
-   "references": [{"quote": "2023 Annual"}],
-   "content_check": "Burgundy Annual Report for the period ended 31 December 2023, 87 pages"},
-  {"label": "I", "file": "doc-sgnu3q.pdf", "kind": "financial_statement", "date": "2024-12-31", "author": "Burgundy Diamond Mines Limited", "recipients": [],
+   "references": [
+    {
+     "quote": "2023 Annual"
+    }
+   ],
+   "content_check": "Burgundy Annual Report for the period ended 31 December 2023, 87 pages"
+  },
+  {
+   "label": "I",
+   "file": "doc-sgnu3q.pdf",
+   "kind": "financial_statement",
+   "date": "2024-12-31",
+   "author": "Burgundy Diamond Mines Limited",
+   "recipients": [],
    "description": "Burgundy's 2024 Annual Report for the Period Ended 31 December 2024",
-   "references": [{"quote": "2024 Annual"}],
-   "content_check": "Burgundy Annual Report for the year ended 31 December 2024, 89 pages"},
-  {"label": "J", "file": "doc-w4rzg7.pdf", "kind": "financial_statement", "date": "2025-06-30", "author": "Burgundy Diamond Mines Limited", "recipients": [],
+   "references": [
+    {
+     "quote": "2024 Annual"
+    }
+   ],
+   "content_check": "Burgundy Annual Report for the year ended 31 December 2024, 89 pages"
+  },
+  {
+   "label": "J",
+   "file": "doc-w4rzg7.pdf",
+   "kind": "financial_statement",
+   "date": "2025-06-30",
+   "author": "Burgundy Diamond Mines Limited",
+   "recipients": [],
    "description": "Burgundy's Half-Year Financial Report dated June 30, 2025",
-   "references": [{"paragraph": 11, "quote": "Half-Year"}],
-   "content_check": "Burgundy Diamond Mines Limited Half-Year Financial Report 30 June 2025 with Appendix 4D, 28 pages"},
-  {"label": "K", "file": "doc-qr85qm.pdf", "kind": "financial_statement", "date": "2025-12-31", "author": "Burgundy Diamond Mines Limited", "recipients": [],
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Half-Year"
+    }
+   ],
+   "content_check": "Burgundy Diamond Mines Limited Half-Year Financial Report 30 June 2025 with Appendix 4D, 28 pages"
+  },
+  {
+   "label": "K",
+   "file": "doc-qr85qm.pdf",
+   "kind": "financial_statement",
+   "date": "2025-12-31",
+   "author": "Burgundy Diamond Mines Limited",
+   "recipients": [],
    "description": "Burgundy's Appendix 4E for the Year Ended 31 December 2025",
-   "references": [{"quote": "Appendix 4E for"}],
-   "content_check": "Appendix 4E preliminary unaudited financial report for the year ended 31 December 2025, 52 pages"},
-  {"label": "L", "file": "doc-u4vjau.pdf", "kind": "spreadsheet", "date": "2026-04", "author": "FTI Consulting Canada Inc.", "recipients": [],
+   "references": [
+    {
+     "quote": "Appendix 4E for"
+    }
+   ],
+   "content_check": "Appendix 4E preliminary unaudited financial report for the year ended 31 December 2025, 52 pages"
+  },
+  {
+   "label": "L",
+   "file": "doc-u4vjau.pdf",
+   "kind": "spreadsheet",
+   "date": "2026-04",
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [],
    "description": "Cash-flow projections for the 10-week period ending July 10, 2026 prepared by FTI",
-   "references": [{"quote": "Attached as Exhibit “L” to this Affidavit is a copy of the cash-flow projections for the 10-week"}],
-   "content_check": "One-page Cash Flow Statement of Arctic Canadian Diamond Company Ltd. and Burgundy Diamonds (Canada) Limited for the 10-week period ending July 10, 2026, weeks ending 8-May-26 onward"},
-  {"label": "M", "file": "doc-xbfbx3.pdf", "kind": "court_filing", "date": "2026-04-28", "author": "FTI Consulting Canada Inc. (Tom Powell)", "recipients": [],
+   "references": [
+    {
+     "quote": "Attached as Exhibit “L” to this Affidavit is a copy of the cash-flow projections for the 10-week"
+    }
+   ],
+   "content_check": "One-page Cash Flow Statement of Arctic Canadian Diamond Company Ltd. and Burgundy Diamonds (Canada) Limited for the 10-week period ending July 10, 2026, weeks ending 8-May-26 onward"
+  },
+  {
+   "label": "M",
+   "file": "doc-xbfbx3.pdf",
+   "kind": "court_filing",
+   "date": "2026-04-28",
+   "author": "FTI Consulting Canada Inc. (Tom Powell)",
+   "recipients": [],
    "description": "The signed Consent to Act from FTI",
-   "references": [{"quote": "is a copy of the signed Consent to Act"}],
-   "content_check": "Image-only Consent to Act in which FTI Consulting Canada Inc. consents to act as court-appointed monitor, dated April 28, 2026, signed by Tom Powell"}
+   "references": [
+    {
+     "quote": "is a copy of the signed Consent to Act"
+    }
+   ],
+   "content_check": "Image-only Consent to Act in which FTI Consulting Canada Inc. consents to act as court-appointed monitor, dated April 28, 2026, signed by Tom Powell"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2023-12-31", "precision": "day", "description": "End of Burgundy's 2023 reporting period", "quote": "Report for the Period Ended 31 December 2023", "exhibits": ["H"]},
-  {"id": "e2", "date": "2024-09-24", "precision": "day", "description": "Burgundy wrote to Premier R.J. Simpson", "paragraphs": [7], "quote": "Burgundy to the Honourable R. J. Simpson dated September 24, 2024", "exhibits": ["F"]},
-  {"id": "e3", "date": "2024-12-31", "precision": "day", "description": "Date of the corporate structure chart and end of Burgundy's 2024 reporting year", "quote": "Corporate Structure as of December 31, 2024", "exhibits": ["A", "I"]},
-  {"id": "e4", "date": "2025-04-04", "precision": "day", "description": "CBC and Reuters published articles on low diamond prices and US tariffs", "paragraphs": [5, 6], "quote": "April 4, 2025 CBC article", "exhibits": ["D", "E"]},
-  {"id": "e5", "date": "2025-06-30", "precision": "day", "description": "Burgundy's half-year financial report", "paragraphs": [11], "quote": "Financial Report dated June 30, 2025", "exhibits": ["J"]},
-  {"id": "e6", "date": "2025-07-18", "precision": "day", "description": "CBC reported Ekati layoffs", "paragraphs": [8], "quote": "July 18, 2025 CBC news", "exhibits": ["G"]},
-  {"id": "e7", "date": "2025-07-31", "precision": "day", "description": "Burgundy's ASX Life of Mine Plan Update announcement", "quote": "Exchange announcement dated July 31, 2025", "exhibits": ["B"]},
-  {"id": "e8", "date": "2025-12-18", "precision": "day", "description": "Government of Canada announced support for the Ekati Diamond Mine", "quote": "December 18, 2025 news release", "exhibits": ["C"]},
-  {"id": "e9", "date": "2026-05", "end_date": "2026-07-10", "precision": "range", "description": "FTI's 10-week cash-flow projection period ending July 10, 2026", "quote": "period ending July 10, 2026 prepared by FTI Consulting Canada Inc.", "exhibits": ["L"]}
+  {
+   "id": "e1",
+   "date": "2023-12-31",
+   "precision": "day",
+   "description": "End of Burgundy's 2023 reporting period",
+   "quote": "Report for the Period Ended 31 December 2023",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2024-09-24",
+   "precision": "day",
+   "description": "Burgundy wrote to Premier R.J. Simpson",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Burgundy to the Honourable R. J. Simpson dated September 24, 2024",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2024-12-31",
+   "precision": "day",
+   "description": "Date of the corporate structure chart and end of Burgundy's 2024 reporting year",
+   "quote": "Corporate Structure as of December 31, 2024",
+   "exhibits": [
+    "A",
+    "I"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2025-04-04",
+   "precision": "day",
+   "description": "CBC and Reuters published articles on low diamond prices and US tariffs",
+   "paragraphs": [
+    5,
+    6
+   ],
+   "quote": "April 4, 2025 CBC article",
+   "exhibits": [
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2025-06-30",
+   "precision": "day",
+   "description": "Burgundy's half-year financial report",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Financial Report dated June 30, 2025",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2025-07-18",
+   "precision": "day",
+   "description": "CBC reported Ekati layoffs",
+   "paragraphs": [
+    8
+   ],
+   "quote": "July 18, 2025 CBC news",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2025-07-31",
+   "precision": "day",
+   "description": "Burgundy's ASX Life of Mine Plan Update announcement",
+   "quote": "Exchange announcement dated July 31, 2025",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2025-12-18",
+   "precision": "day",
+   "description": "Government of Canada announced support for the Ekati Diamond Mine",
+   "quote": "December 18, 2025 news release",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2026-05",
+   "end_date": "2026-07-10",
+   "precision": "range",
+   "description": "FTI's 10-week cash-flow projection period ending July 10, 2026",
+   "quote": "period ending July 10, 2026 prepared by FTI Consulting Canada Inc.",
+   "exhibits": [
+    "L"
+   ]
+  }
  ],
  "referenced_not_attached": [],
- "notes": "A bare exhibit-listing affidavit (instructions to counsel's assistant); events are the dated documents it names. OCR numbered most paragraphs as '1-', '9-', '10' or left them unnumbered, so only paragraphs 5-8 and 11 carry paragraph numbers. Exhibit L's paragraph has no number. Same CCAA/receivership family as bcsc-acdc-hiebert."
+ "notes": "A bare exhibit-listing affidavit (instructions to counsel's assistant); events are the dated documents it names. OCR numbered most paragraphs as '1-', '9-', '10' or left them unnumbered, so only paragraphs 5-8 and 11 carry paragraph numbers. Exhibit L's paragraph has no number. Same CCAA/receivership family as bcsc-acdc-hiebert.",
+ "family": "acdc-diamonds"
 }

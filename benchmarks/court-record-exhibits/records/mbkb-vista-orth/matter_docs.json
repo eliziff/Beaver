@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/mbkb-vista-orth/notice-of-application.pdf",
+  "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/vista-medical-ltd/notice-of-application.pdf",
+  "title": "Notice of Application (RBC v Vista Medical)",
+  "kind": "court_filing",
+  "relation": "originating process for the same application"
+ },
+ {
+  "file": "raw/matter/mbkb-vista-orth/first-report-receiver.pdf",
+  "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/vista-medical-ltd/first-report-of-the-receiver-final---august-18-2026.pdf",
+  "title": "First Report of the Receiver (MNP), August 18, 2026",
+  "kind": "report",
+  "relation": "receiver's report in the same proceeding"
+ }
+]

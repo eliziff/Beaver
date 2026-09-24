@@ -1,0 +1,111 @@
+{
+ "record_id": "pesc-imd-coffin",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [
+  5,
+  8
+ ],
+ "scanned_pages": [
+  5,
+  8,
+  44,
+  53
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-qv9xxf.pdf",
+   "source_pages": [
+    7
+   ],
+   "cover_page": 6,
+   "stamp_page": null,
+   "text_chars": 2449
+  },
+  {
+   "label": "B",
+   "file": "doc-gw2y5v.pdf",
+   "source_pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 57776
+  },
+  {
+   "label": "B1",
+   "file": "doc-q2yhjd.pdf",
+   "source_pages": [
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53
+   ],
+   "cover_page": 45,
+   "stamp_page": null,
+   "text_chars": 5872
+  },
+  {
+   "label": "C",
+   "file": "doc-cndy2x.pdf",
+   "source_pages": [
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63
+   ],
+   "cover_page": 54,
+   "stamp_page": null,
+   "text_chars": 17314
+  }
+ ],
+ "leak_audit": []
+}

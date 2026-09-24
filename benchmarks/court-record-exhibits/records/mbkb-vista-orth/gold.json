@@ -1,11 +1,12 @@
 {
  "record_id": "mbkb-vista-orth",
- "court": "Court of King's Bench of Manitoba",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
  "court_level": "superior_trial",
  "jurisdiction": "MB",
  "court_file": "CI 24-01-48861",
- "proceeding": "Royal Bank of Canada v. Vista Medical Ltd. (application to appoint a receiver under BIA s. 243)",
- "document": "Affidavit of Kerry Orth in support of RBC's application to appoint MNP Ltd. as receiver of Vista Medical Ltd.",
+ "subject": "insolvency",
+ "proceeding": "Royal Bank of Canada v. Vista Medical Ltd.: application to appoint a receiver (BIA s. 243; Court of King's Bench Act s. 55)",
+ "document": "Affidavit of Kerry Orth affirmed September 2024 (filed October 2, 2024)",
  "deponent": "Kerry Orth",
  "deponent_role": "Senior Manager, Special Loans and Advisory Services, Royal Bank of Canada",
  "sworn_date": "2024-09",
@@ -13,18 +14,18 @@
   {
    "label": "A",
    "file": "doc-xysdcf.pdf",
-   "kind": "public_record",
+   "kind": "corporate_record",
    "date": "2024-09-12",
    "author": "Manitoba Companies Office",
    "recipients": [],
-   "description": "Corporate search of Vista Medical Ltd.",
+   "description": "Corporate search of Vista",
    "references": [
     {
      "paragraph": 2,
-     "quote": "is a corporate search of Vista"
+     "quote": "Attached hereto as Exhibit \"A\" is a corporate search of Vista."
     }
    ],
-   "content_check": "Manitoba Companies Office file summary for Vista Medical Ltd. (registry no. 5611998) as of 12-Sep-2024, listing directors Andrew Frank, Robert Golden and Peter Salgo"
+   "content_check": "2 pages: Manitoba Companies Office file summary for Vista Medical Ltd., registry no. 5611998, as of 12-Sep-2024"
   },
   {
    "label": "B",
@@ -35,14 +36,14 @@
    "recipients": [
     "Vista Medical Ltd."
    ],
-   "description": "The Loan Agreement: RBC's Credit Facilities Agreement with Vista dated October 20, 2021",
+   "description": "Credit Facilities Agreement (the Loan Agreement)",
    "references": [
     {
      "paragraph": 4,
-     "quote": "A copy of the Loan Agreement is"
+     "quote": "A copy of the Loan Agreement is attached hereto as Exhibit \"B\"."
     }
    ],
-   "content_check": "RBC credit facilities letter agreement dated October 20, 2021 addressed to Vista Medical Ltd., with terms and conditions and schedules (23 pages)"
+   "content_check": "23 pages: RBC credit facilities letter to Vista Medical Ltd. dated October 20, 2021"
   },
   {
    "label": "C",
@@ -53,14 +54,14 @@
    "recipients": [
     "Royal Bank of Canada"
    ],
-   "description": "The GSA: general security agreement dated March 28, 2008 over all of Vista's present and after-acquired personal property",
+   "description": "General security agreement over Vista's personal property",
    "references": [
     {
      "paragraph": 6,
-     "quote": "property (the \"GSA\"), a copy of which is attached hereto as Exhibit"
+     "quote": "a general security agreement dated March 28, 2008"
     }
    ],
-   "content_check": "RBC General Security Agreement E-Form 924 (11/2007), 9 pages with Schedules A and B; the execution date is not legible in the text layer"
+   "content_check": "9 pages: RBC General Security Agreement e-form 924"
   },
   {
    "label": "D",
@@ -69,32 +70,32 @@
    "date": "2024-08-16",
    "author": "Manitoba Personal Property Registry",
    "recipients": [],
-   "description": "PPR search result for Vista dated August 16, 2024",
+   "description": "PPR search result for Vista",
    "references": [
     {
      "paragraph": 8,
-     "quote": "is the PPR search result for Vista"
+     "quote": "is the PPR search result for Vista dated August 16, 2024"
     }
    ],
-   "content_check": "Business debtor search dated 2024-08-16 showing RBC's 2008 registration and Xpedite Leasing Inc.'s registration 202016943900 of 2020-10-13"
+   "content_check": "2 pages: Business Debtor Search dated 2024-08-16, 2 exact matches"
   },
   {
    "label": "E",
    "file": "doc-9a3pxg.pdf",
    "kind": "letter",
    "date": "2023-01-03",
-   "author": "Royal Bank of Canada (Kerry Orth and Juergen Manski)",
+   "author": "Royal Bank of Canada",
    "recipients": [
     "Vista Medical Ltd. (Robert Golden)"
    ],
-   "description": "The Demarket Letter of January 3, 2023 giving Vista until February 28, 2023 to find a new lender",
+   "description": "Demarket Letter giving Vista to February 28, 2023 to refinance",
    "references": [
     {
      "paragraph": 14,
-     "quote": "Demarket Letter is attached hereto as Exhibit"
+     "quote": "Demarket Letter is attached hereto as Exhibit \"E\""
     }
    ],
-   "content_check": "RBC letter dated January 3, 2023 to Robert Golden re application for renewal of credit facilities, setting a February 28, 2023 deadline to move the banking"
+   "content_check": "1 page: RBC letter by registered mail and email, January 3, 2023, to Robert Golden, President"
   },
   {
    "label": "F",
@@ -103,14 +104,14 @@
    "date": "2023-06-13",
    "author": "Royal Bank of Canada, Vista Medical Ltd. and Patientech LLC",
    "recipients": [],
-   "description": "The executed Forbearance Agreement among RBC, Vista and Patientech dated June 13, 2023",
+   "description": "Executed Forbearance Agreement",
    "references": [
     {
      "paragraph": 16,
      "quote": "A copy of the executed Forbearance Agreement is"
     }
    ],
-   "content_check": "Forbearance Agreement made effective 13 June 2023 between Royal Bank of Canada, Vista Medical Ltd. and Patientech LLC (guarantor), 16 pages"
+   "content_check": "16 pages: Forbearance Agreement effective 13 June 2023 between RBC and Vista"
   },
   {
    "label": "G",
@@ -118,119 +119,114 @@
    "kind": "email_chain",
    "date": "2024-06-03",
    "author": "Kerry Orth / Andrew Frank",
-   "recipients": [
-    "Andrew Frank",
-    "Robert Golden",
-    "Kerry Orth"
-   ],
-   "description": "Email chain in which Frank sent the 2023 Balance Sheet and business plans on June 3, 2024 and Orth replied the same day with the Bank's concerns",
+   "recipients": [],
+   "description": "Email chain with the 2023 Balance Sheet and RBC's concerns",
    "references": [
     {
      "paragraph": 21,
-     "quote": "A copy of the email chain is attached hereto as Exhibit"
+     "quote": "A copy of the email chain is attached hereto as Exhibit \"G\"."
     }
    ],
-   "content_check": "Email chain May 30 - June 3, 2024 between Kerry Orth and Andrew Frank (cc Robert Golden); Orth's June 3 reply says the statements are in-house, not accountant prepared, and flags the receivables discrepancy"
+   "content_check": "3 pages: archived emails, Orth to Andrew Frank, June 3, 2024"
   },
   {
    "label": "H",
    "file": "doc-5syehr.pdf",
    "kind": "letter",
    "date": "2024-06-05",
-   "author": "Fillmore Riley LLP (Kalev A. Anniko), counsel for RBC",
+   "author": "Fillmore Riley LLP (Kalev Anniko) for RBC",
    "recipients": [
-    "Vista Medical Ltd. (Andrew Frank)",
-    "Patientech LLC (Robert Golden)"
+    "Vista Medical Ltd."
    ],
-   "description": "Termination letter by which RBC gave notice through counsel on June 5, 2024 terminating the Forbearance Agreement effective June 8, 2024",
+   "description": "Termination letter ending the Forbearance Agreement effective June 8, 2024",
    "references": [
     {
      "paragraph": 22,
      "quote": "A copy of the termination letter is"
     }
    ],
-   "content_check": "Fillmore Riley letter dated June 5, 2024 to Vista Medical Ltd. and Patientech LLC re the Forbearance Agreement dated June 13, 2023"
+   "content_check": "1 page: Fillmore Riley letter to Vista Medical Ltd., June 5, 2024"
   },
   {
    "label": "I",
    "file": "doc-ch6vbk.pdf",
    "kind": "email_chain",
    "date": "2024-08-20",
-   "author": "Kerry Orth / Robert Golden / Andrew Frank",
+   "author": "Kerry Orth / Andrew Frank / Robert Golden",
    "recipients": [],
-   "description": "Orth's emails with Frank and Golden about RBC's requirement for an informal monitor, which Vista refused",
+   "description": "Emails in which Vista refuses an informal monitor",
    "references": [
     {
      "paragraph": 24,
-     "quote": "Copies of my emails with Frank and Golden"
+     "quote": "Copies of my emails with Frank and Golden on this matter are attached hereto as Exhibit \"I\"."
     }
    ],
-   "content_check": "Email chain July 9 - August 20, 2024 between Orth, Robert Golden and Andrew Frank re 'Proposed Forbearance Modification'; Orth writes that a monitor is needed to understand how the company is operating"
+   "content_check": "7 pages: archived emails, latest sent August 20, 2024"
   },
   {
    "label": "J",
    "file": "doc-tkzz6v.pdf",
    "kind": "letter",
    "date": "2024-08-19",
-   "author": "Fillmore Riley LLP (Kalev A. Anniko), counsel for RBC",
+   "author": "Fillmore Riley LLP (Kalev Anniko) for RBC",
    "recipients": [
     "Vista Medical Ltd. (Andrew Frank, Robert Golden)"
    ],
-   "description": "RBC's formal demand letter of August 19, 2024 enclosing a Notice of Intention to Enforce Security under the BIA",
+   "description": "Formal demand with Notice of Intention to Enforce Security",
    "references": [
     {
      "paragraph": 26,
-     "quote": "and enclosure is attached hereto as Exhibit"
+     "quote": "RBC made formal demand on Vista by letter dated August"
     }
    ],
-   "content_check": "Fillmore Riley demand letter dated August 19, 2024 to Vista Medical Ltd. with an enclosed BIA s. 244 notice of intention to enforce security (3 pages)"
+   "content_check": "3 pages: Fillmore Riley demand letter August 19, 2024 with BIA s.244 notice"
   }
  ],
  "events": [
   {
    "id": "e1",
+   "description": "Vista grants RBC a general security agreement",
    "date": "2008-03-28",
    "precision": "day",
-   "description": "Vista granted RBC a general security agreement over all its present and after-acquired personal property",
    "paragraphs": [
     6
    ],
-   "quote": "general security agreement dated",
+   "quote": "a general security agreement dated March 28, 2008",
    "exhibits": [
     "C"
    ]
   },
   {
    "id": "e2",
+   "description": "RBC registers its security against Vista in the PPR",
    "date": "2008-02-29",
    "precision": "day",
-   "description": "RBC registered its security against Vista in the Personal Property Registry",
    "paragraphs": [
     8
    ],
-   "quote": "20083751705",
+   "quote": "Royal Bank of",
    "exhibits": [
     "D"
    ]
   },
   {
    "id": "e3",
+   "description": "Xpedite Leasing registers over a leased padding mangle",
    "date": "2020-10-13",
    "precision": "day",
-   "description": "Xpedite Leasing Inc. registered against leased padding mangle equipment",
    "paragraphs": [
     8
    ],
-   "quote": "202016943900 October",
+   "quote": "Xpedite Leasing",
    "exhibits": [
     "D"
    ]
   },
   {
    "id": "e4",
+   "description": "Credit Facilities Agreement between RBC and Vista",
    "date": "2021-10-20",
    "precision": "day",
-   "description": "RBC and Vista entered into the Loan Agreement (Credit Facilities Agreement)",
    "paragraphs": [
     4
    ],
@@ -241,21 +237,21 @@
   },
   {
    "id": "e5",
+   "description": "Vista delivers its 2021 financial statements late, raising RBC's concerns",
    "date": "2022-10",
    "precision": "month",
-   "description": "Vista delivered its 2021 financial statements late, revealing related-party receivables and receivables discrepancies of concern to RBC",
    "paragraphs": [
     11,
     12
    ],
-   "quote": "until October 2022",
+   "quote": "until October 2022.",
    "exhibits": []
   },
   {
    "id": "e6",
+   "description": "RBC issues the Demarket Letter",
    "date": "2023-01-03",
    "precision": "day",
-   "description": "RBC issued the Demarket Letter giving Vista until February 28, 2023 to find a new lender",
    "paragraphs": [
     14
    ],
@@ -266,9 +262,9 @@
   },
   {
    "id": "e7",
+   "description": "Golden emails that a US transaction will fund payments",
    "date": "2023-01",
    "precision": "approximate",
-   "description": "Golden emailed Orth that Vista and Patientech were entering a transaction with a large American company and could pay down the indebtedness",
    "paragraphs": [
     15
    ],
@@ -277,23 +273,23 @@
   },
   {
    "id": "e8",
+   "description": "RBC, Vista and Patientech enter the Forbearance Agreement",
    "date": "2023-06-13",
    "precision": "day",
-   "description": "RBC, Vista and Patientech entered into the Forbearance Agreement",
    "paragraphs": [
     16,
     17
    ],
-   "quote": "Vista and Patientech, dated June 13, 2023",
+   "quote": "Ultimately, RBC agreed to enter into a forbearance agreement with",
    "exhibits": [
     "F"
    ]
   },
   {
    "id": "e9",
+   "description": "Initial Payment made; monthly payments begin (first halved)",
    "date": "2023-07",
    "precision": "approximate",
-   "description": "The Initial Payment was made and Monthly Payments began, with RBC accepting a halved first payment of $12,500",
    "paragraphs": [
     18
    ],
@@ -302,9 +298,9 @@
   },
   {
    "id": "e10",
+   "description": "RBC receives Vista's 2022 review engagement statements",
    "date": "2023-12",
    "precision": "month",
-   "description": "RBC received Vista's 2022 review engagement financial statements showing further related-party receivables and declining revenue",
    "paragraphs": [
     19
    ],
@@ -313,9 +309,9 @@
   },
   {
    "id": "e11",
+   "description": "Vista misses the May 1, 2024 monthly payment and pays nothing further",
    "date": "2024-05-01",
    "precision": "day",
-   "description": "Vista failed to make the May 1, 2024 Monthly Payment and has paid nothing since",
    "paragraphs": [
     20
    ],
@@ -324,48 +320,35 @@
   },
   {
    "id": "e12",
-   "date": "2024-05",
-   "precision": "month",
-   "description": "Orth emailed Vista asking for its plan to remedy the arrears",
+   "description": "Frank emails the 2023 Balance Sheet; Orth replies with concerns",
+   "date": "2024-06-03",
+   "precision": "day",
    "paragraphs": [
     21
    ],
-   "quote": "In late May 2024, I emailed Vista asking for their plan",
+   "quote": "on June 3, 2024,",
    "exhibits": [
     "G"
    ]
   },
   {
    "id": "e13",
-   "date": "2024-06-03",
-   "precision": "day",
-   "description": "Frank emailed the 2023 Balance Sheet and business plans; Orth replied the same day with RBC's concerns",
-   "paragraphs": [
-    21
-   ],
-   "quote": "on June 3, 2024, Andrew Frank",
-   "exhibits": [
-    "G"
-   ]
-  },
-  {
-   "id": "e14",
+   "description": "RBC gives notice terminating the Forbearance Agreement effective June 8",
    "date": "2024-06-05",
    "precision": "day",
-   "description": "RBC gave notice through counsel terminating the Forbearance Agreement effective June 8, 2024",
    "paragraphs": [
     22
    ],
-   "quote": "on June 5, 2024 RBC gave notice through counsel of the termination of the Forbearance",
+   "quote": "on June 5, 2024 RBC",
    "exhibits": [
     "H"
    ]
   },
   {
-   "id": "e15",
+   "id": "e14",
+   "description": "Vista proposes best-efforts payments for 2024",
    "date": "2024-07-09",
    "precision": "day",
-   "description": "Vista proposed resuming Monthly Payments on a best-efforts basis and paying in earnest by January 31, 2025",
    "paragraphs": [
     23
    ],
@@ -373,24 +356,23 @@
    "exhibits": []
   },
   {
-   "id": "e16",
-   "date": "2024-07",
-   "end_date": "2024-08",
-   "precision": "range",
-   "description": "RBC required an accounting professional as informal monitor; Vista refused after back-and-forth emails",
+   "id": "e15",
+   "description": "Vista refuses an informal monitor",
+   "date": "2024-08",
+   "precision": "approximate",
    "paragraphs": [
     24
    ],
-   "quote": "Vista ultimately refused to consent to an informal monitor",
+   "quote": "Vista ultimately",
    "exhibits": [
     "I"
    ]
   },
   {
-   "id": "e17",
+   "id": "e16",
+   "description": "Vista's internal reporting shows receivables fall to $474,315",
    "date": "2024-06-30",
    "precision": "day",
-   "description": "Vista's internal reporting to June 30, 2024 showed receivables reduced to $474,315, attributed to a cancelled contract",
    "paragraphs": [
     25
    ],
@@ -398,10 +380,10 @@
    "exhibits": []
   },
   {
-   "id": "e18",
+   "id": "e17",
+   "description": "RBC makes formal demand with a Notice of Intention to Enforce Security",
    "date": "2024-08-19",
    "precision": "day",
-   "description": "RBC made formal demand on Vista enclosing a BIA Notice of Intention to Enforce Security",
    "paragraphs": [
     26
    ],
@@ -411,31 +393,20 @@
    ]
   },
   {
-   "id": "e19",
+   "id": "e18",
+   "description": "MNP Ltd. consents to act as receiver",
+   "date": null,
    "precision": "undated",
-   "description": "MNP Ltd. consented to act as receiver",
    "paragraphs": [
     28
    ],
    "quote": "MNP Ltd. has consented to acting as receiver in this matter",
    "exhibits": []
-  },
-  {
-   "id": "e1b",
-   "date": "2024-08-15",
-   "precision": "day",
-   "description": "Vista's direct indebtedness to RBC as at August 15, 2024 totalled $1,014,857.51 across a demand facility and CAD and USD credit cards",
-   "paragraphs": [
-    5
-   ],
-   "quote": "direct indebtedness to RBC is as follows (as at August 15, 2024)",
-   "exhibits": []
   }
  ],
  "referenced_not_attached": [
-  "Unlimited guarantee from Patientech LLC",
+  "Unlimited guarantee of Patientech LLC",
   "Vista 2021 and 2022 financial statements",
-  "2023 Balance Sheet (discussed in Exhibit G chain)"
- ],
- "notes": "The text layer carries both an OCR layer and the original text, so each affidavit page reads twice. The affirmation day is handwritten and illegible in text, so sworn_date is the month. Every page carries a Manitoba 'Original Court Copy' e-filing stamp."
+  "2023 Balance Sheet (attached to Exhibit G emails)"
+ ]
 }

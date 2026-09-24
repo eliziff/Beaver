@@ -1,6 +1,6 @@
 """Build the harder "pointed at a file system" variant of a record.
 
-Usage: python haystack.py <record_id> [--seed N] [--other 6] [--corpus 4] [--synthetic specs.json]
+Usage: python haystack.py <record_id> [--seed N] [--other 6] [--corpus 4] [--sibling 8] [--synthetic specs.json]
 
 Output: %LOCALAPPDATA%/OpenLegalData/benchmarks/court-record-exhibits/haystack/<record_id>/
   files/<name>           every document, with names that give nothing away
@@ -12,6 +12,8 @@ Roles:
                  (from records/<id>/matter_docs.json); chronology rows citing it are neutral
   other_matter   a stripped exhibit of a different benchmark record
   corpus         an unrelated real legal PDF from experiments/legal_pdf_corpus
+  sibling        the affidavit or an exhibit of another benchmark record from the same
+                 proceeding (an earlier or later application); neutral for chronology
   synthetic      a generated DMS document: same people, companies and period, but
                  business irrelevant to the affidavit's matters (spec in --synthetic)
 
@@ -123,6 +125,11 @@ def render(d, path):
     text_pdf(path, [b for b in blocks if b[0]])
 
 
+def family(gold):
+    """Proceeding key: an explicit "family" in the gold, else the court file number's letters and digits."""
+    return gold.get("family") or re.sub(r"[^A-Z0-9]", "", (gold.get("court_file") or "").upper().split("(")[0])
+
+
 def main():
     args = sys.argv[1:]
     rid = args[0]
@@ -158,6 +165,17 @@ def main():
         if os.path.exists(src):
             place(src, os.path.splitext(src)[1], {"role": "same_matter", "provenance": m})
     others = [d for d in sorted(os.listdir(os.path.join(BENCH, "records"))) if d != rid and os.path.exists(os.path.join(BENCH, "records", d, "gold.json"))]
+    # Siblings: other benchmark records from the same proceeding (an earlier or later
+    # application). Their affidavit and exhibits are the hardest distractors here and
+    # each is itself the target of its own record.
+    fam = family(gold)
+    siblings = [d for d in others if fam and family(json.load(open(os.path.join(BENCH, "records", d, "gold.json"), encoding="utf-8"))) == fam]
+    for d in siblings:
+        sg = json.load(open(os.path.join(BENCH, "records", d, "gold.json"), encoding="utf-8"))
+        place(os.path.join(BENCH, "records", d, "affidavit.pdf"), ".pdf", {"role": "sibling", "provenance": {"record": d, "label": "affidavit"}})
+        for e in rng.sample(sg["exhibits"], min(int(opt("--sibling", 8)), len(sg["exhibits"]))):
+            place(os.path.join(BENCH, "records", d, "files", e["file"]), ".pdf", {"role": "sibling", "provenance": {"record": d, "label": e["label"]}})
+    others = [d for d in others if d not in siblings]
     small = lambda path, mb: os.path.getsize(path) < mb * 1_000_000  # keep haystacks light on disk
     pool = [(d, e) for d in others for e in json.load(open(os.path.join(BENCH, "records", d, "gold.json"), encoding="utf-8"))["exhibits"]
             if small(os.path.join(BENCH, "records", d, "files", e["file"]), 10)]

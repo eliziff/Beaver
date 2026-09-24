@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/nlsc-ppdi-inkpen/inkpen-2026-04-28.pdf",
+  "url": "https://srstack.ca/wp-content/uploads/2026/04/Inkpen-Affidavit-EXECUTED-28-Apr-26.pdf",
+  "title": "Affidavit of Lisa Inkpen executed April 28, 2026 (later motion, no exhibits)",
+  "kind": "affidavit",
+  "relation": "later affidavit in the same NOI"
+ },
+ {
+  "file": "raw/matter/nlsc-ppdi-inkpen/okeefe-2026-06-08.pdf",
+  "url": "https://srstack.ca/wp-content/uploads/2026/06/51-3353089-Affidavit-of-Darren-OKeefe-08-June-2026.pdf",
+  "title": "Affidavit of Darren O'Keefe, June 8, 2026 (proposal trustee)",
+  "kind": "affidavit",
+  "relation": "trustee affidavit in the same NOI"
+ }
+]

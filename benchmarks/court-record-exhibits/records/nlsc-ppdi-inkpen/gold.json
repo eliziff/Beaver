@@ -1,0 +1,449 @@
+{
+ "record_id": "nlsc-ppdi-inkpen",
+ "court": "Supreme Court of Newfoundland and Labrador (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NL",
+ "court_file": "2026 01G / Court No. 51-3353089",
+ "subject": "insolvency",
+ "proceeding": "In the matter of the Notice of Intention to make a proposal (BIA) of Pitter Patter Daycare Inc.; motion for stay extension, DIP financing, administration charge and a refinancing and investment solicitation process",
+ "document": "Affidavit of Lisa Inkpen sworn April 1, 2026",
+ "deponent": "Lisa Inkpen",
+ "deponent_role": "Co-owner and director of Pitter Patter Daycare Inc.",
+ "sworn_date": "2026-04-01",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pdrm8q.pdf",
+   "kind": "corporate_record",
+   "date": "2026-03-13",
+   "author": "Newfoundland and Labrador Companies and Deeds Online",
+   "recipients": [],
+   "description": "Companies and Deeds Online registry search for PPDI",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the Companies and Deeds Online Registry search is attached hereto as Exhibit \"A\""
+    }
+   ],
+   "content_check": "1 page: CADO Detailed Company Information for Pitter Patter Daycare Inc., printed 3/13/26"
+  },
+  {
+   "label": "B",
+   "file": "doc-76w2nj.pdf",
+   "kind": "financial_statement",
+   "date": "2025",
+   "author": "DH Accounting Inc.",
+   "recipients": [],
+   "description": "PPDI financial statements for fiscal years 2024-2025",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of Financial Statements (\"FS\") for PPDl's financial years ended 2024-2025 are attached as Exhibit \"B\""
+    }
+   ],
+   "content_check": "22 pages: Pitter Patter Daycare Inc. financial statements (unaudited, notice to reader), incl. July 31, 2024"
+  },
+  {
+   "label": "C",
+   "file": "doc-hstvjs.pdf",
+   "kind": "spreadsheet",
+   "date": "2026-03-27",
+   "author": "Pitter Patter Daycare Inc.",
+   "recipients": [],
+   "description": "List of PPDI's creditors as of March 27, 2026",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "The list of PPDl's creditors as of 27 March 2026 is attached hereto as Exhibit \"C\""
+    }
+   ],
+   "content_check": "1 page: creditor list with names and addresses (American Express, Audi Finance, ...)"
+  },
+  {
+   "label": "D",
+   "file": "doc-5vvvpq.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Registry of Deeds (NL)",
+   "recipients": [],
+   "description": "Deeds registry search showing RBC mortgages on the Holyrood and CBS properties",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "A copy of the Deeds Registry Search is attached hereto as Exhibit \"D\""
+    }
+   ],
+   "content_check": "3 pages: Registry of Deeds selected search results"
+  },
+  {
+   "label": "E",
+   "file": "doc-jsekuh.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Newfoundland and Labrador Personal Property Registry",
+   "recipients": [],
+   "description": "PPRS search results listing secured creditors over PPDI's personal property",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "The PPRS search results are attached hereto as Exhibit \"E\""
+    }
+   ],
+   "content_check": "7 pages: Newfoundland and Labrador PPRS Search Result Report"
+  },
+  {
+   "label": "F",
+   "file": "doc-hywnqt.pdf",
+   "kind": "financial_statement",
+   "date": "2026-01-20",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Pitter Patter Daycare Inc."
+   ],
+   "description": "CRA statements of account for source deduction arrears",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Copies of the CRA statements of account are attached hereto as Exhibit \"F\""
+    }
+   ],
+   "content_check": "6 pages: CRA statement of account for current source deductions, account 85473 6857 RP0001, issued Jan 20, 2026"
+  },
+  {
+   "label": "G",
+   "file": "doc-5aa5k9.pdf",
+   "kind": "email",
+   "date": "2026-03-24",
+   "author": "Kirsty Collins (Government of NL)",
+   "recipients": [
+    "Lisa Inkpen",
+    "Jamie Baker"
+   ],
+   "description": "Email from the Department of Education confirming the Holyrood expansion",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Email confirmation from a representative from the Department of Education is attached hereto as Exhibit \"G\""
+    }
+   ],
+   "content_check": "2 pages: email from Kirsty Collins, March 24, 2026, re Pitter Patter 5 SA room following the March 23 meeting"
+  },
+  {
+   "label": "H",
+   "file": "doc-tjdbxy.pdf",
+   "kind": "letter",
+   "date": "2026-03-20",
+   "author": "McInnes Cooper (Geoffrey Spencer KC) for RBC",
+   "recipients": [
+    "Pitter Patter Daycare Inc."
+   ],
+   "description": "RBC's section 244 demands",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "The demands are attached hereto as Exhibit \"H\""
+    }
+   ],
+   "content_check": "4 pages: McInnes Cooper demand letter dated March 20, 2026 for $2,532,123.48 with BIA s.244 notice"
+  },
+  {
+   "label": "I",
+   "file": "doc-8wjj8y.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "Royal Bank of Canada",
+   "recipients": [
+    "Pitter Patter Daycare Inc."
+   ],
+   "description": "Draft Forbearance Agreement proposed by RBC, never executed",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "A copy of the Forbearance Agreement is attached hereto as Exhibit \" I\""
+    }
+   ],
+   "content_check": "10 pages: Forbearance Agreement between Royal Bank of Canada and Pitter Patter Daycare Inc. (unsigned draft)"
+  },
+  {
+   "label": "J",
+   "file": "doc-cuh2fa.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Newfoundland and Labrador",
+   "recipients": [],
+   "description": "Government Education website listing of childcare centres",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "According to the public information listed on"
+    }
+   ],
+   "content_check": "3 pages: NL Early Learning and Child Care directory, child care centres by name"
+  },
+  {
+   "label": "K",
+   "file": "doc-83h3n2.pdf",
+   "kind": "agreement",
+   "date": "2026-03-31",
+   "author": "Libra Finance Company Inc.",
+   "recipients": [
+    "Pitter Patter Daycare Inc."
+   ],
+   "description": "DIP term sheet with Libra",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "The DIP Term Sheet is attached hereto as Exhibit \"K\""
+    }
+   ],
+   "content_check": "10 pages: Docusign debtor-in-possession financing term sheet dated 31st March 2026"
+  },
+  {
+   "label": "L",
+   "file": "doc-am5dye.pdf",
+   "kind": "financial_statement",
+   "date": "2026-03-31",
+   "author": "Pitter Patter Daycare Inc. / Proposal Trustee",
+   "recipients": [],
+   "description": "Monthly cash flow forecast",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "A monthly cashflow forecast is attached as Exhibit \"L\""
+    }
+   ],
+   "content_check": "2 pages: Form 30 Report on Cash-flow Statement by the person making the proposal, dated March 31, 2026, signed by Jamie Baker"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "PPDI incorporated in Newfoundland and Labrador",
+   "date": "2009-04",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "PPDI was incorporated in April 2009",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "PPDI acquires the Holyrood Property, which then needs undisclosed repairs",
+   "date": "2024-12",
+   "precision": "month",
+   "paragraphs": [
+    26
+   ],
+   "quote": "In December 2024, PPDI acquired the Holyrood Property.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Department of Education says the Holyrood expansion will not be approved",
+   "date": "2025-06",
+   "precision": "month",
+   "paragraphs": [
+    28
+   ],
+   "quote": "In June 2025, after meeting with the Department of Education and Government Service Centre representatives",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Payments of about $26,678.52 received on CRA arrears",
+   "date": "2025-10",
+   "precision": "month",
+   "paragraphs": [
+    23
+   ],
+   "quote": "$26,678.52 received in October 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "CRA statement shows source deduction arrears of $642,362.29",
+   "date": "2026-01-20",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "The CRA's statement of account dated January 20, 2026 shows a current arrears balance of $642,362.29.",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Account manager advises PPDI its accounts moved to RBC Special Loans Group",
+   "date": "2026-03-02",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "On or about 02 March 2026, PPDI was advised by its account manager that its accounts had been transferred to RBC's Special Loans Group.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "PPDI raises cash flow concerns with the Department of Education",
+   "date": "2026-03",
+   "precision": "month",
+   "paragraphs": [
+    29
+   ],
+   "quote": "In the first week of March 2026, we raised cash flow concerns with the Department of Education",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Joel Robbins of RBC emails asking for a call with ownership; unanswered",
+   "date": "2026-03-03",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "On 03 March and 09 March 2026, Joel Robbins, Senior Manager, Special Loans and Advisory Services, sent emails to PPDI requesting a call with ownership.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "RBC writes that it will exit the relationship and issue demands",
+   "date": "2026-03-10",
+   "precision": "day",
+   "paragraphs": [
+    36,
+    41
+   ],
+   "quote": "On 10 March 2026, Mr. Robbins wrote to PPDI advising that",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "RBC issues section 244 demands for $2,532,123.48 with forbearance to April 30",
+   "date": "2026-03-20",
+   "precision": "day",
+   "paragraphs": [
+    33,
+    35,
+    36
+   ],
+   "quote": "On 20 March 2026, RBC issued demands pursuant to section 244 of the BIA in respect of PPDl's loaned facilities.",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Department of Education agrees to license 30 additional Holyrood spaces (not OGP-funded)",
+   "date": "2026-03-23",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On 23 March 2026, the Department of Education agreed to license the 30 additional Holyrood spaces.",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Company counsel requests a tolling agreement from RBC",
+   "date": "2026-03-23",
+   "precision": "day",
+   "paragraphs": [
+    37,
+    40
+   ],
+   "quote": "On 23 March 2026, Company counsel requested a tolling agreement",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "RBC (Spencer) confirms willingness to enter forbearance but not suspend the demand period",
+   "date": "2026-03-24",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On 24 March 2026, Mr. Spencer confirmed that RBC remained willing to enter into the proposed Forbearance Agreement",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "RBC's final position: forbear to April 30 but no suspension of the demand period",
+   "date": "2026-03-27",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On 27 March 2026, Mr. Spencer confirmed RBC's final position",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "PPDI files its NOI and obtains a stay to April 26, 2026",
+   "date": "2026-03-27",
+   "precision": "day",
+   "paragraphs": [
+    39,
+    43
+   ],
+   "quote": "On 27 March 2026, PPDI filed a NOi and was granted a stay of proceedings up to 26 April 2026.",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "PPDI enters DIP term sheet with Libra Finance",
+   "date": "2026-03-31",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "the Company has negotiated and entered into terms with Libra Finance Company Inc.",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Cash flow forecast prepared by the Company and Proposal Trustee",
+   "date": "2026-03-31",
+   "precision": "day",
+   "paragraphs": [
+    53
+   ],
+   "quote": "The Cashflow Forecast was prepared by the Company and the Proposal Trustee.",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Payroll due that the DIP loan must fund",
+   "date": "2026-04-03",
+   "precision": "day",
+   "paragraphs": [
+    52
+   ],
+   "quote": "The DIP loan is urgently required to fund payroll obligations due on 03 April 2026",
+   "exhibits": [
+    "K",
+    "L"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Notice of Motion and draft orders",
+  "RBC emails of March 3 and 9, 2026 and letter of March 10, 2026",
+  "RISP Procedures"
+ ]
+}

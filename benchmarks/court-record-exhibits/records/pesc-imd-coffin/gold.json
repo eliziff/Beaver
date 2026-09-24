@@ -1,0 +1,169 @@
+{
+ "record_id": "pesc-imd-coffin",
+ "court": "Supreme Court of Prince Edward Island (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "PE",
+ "court_file": "S1-BK-4145 / Estate No. 51-3153484",
+ "subject": "insolvency",
+ "proceeding": "In the matter of a Notice of Intention to make a proposal (BIA s. 50.4) filed by Island Milk Distributors Ltd.; application for stay extension, administration charge and DIP charge",
+ "document": "Affidavit of Ian Coffin sworn December 5, 2024",
+ "deponent": "Ian Coffin",
+ "deponent_role": "Sole director and officer of Island Milk Distributors Ltd.",
+ "sworn_date": "2024-12-05",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-qv9xxf.pdf",
+   "kind": "public_record",
+   "date": "2024-12-02",
+   "author": "Office of the Superintendent of Bankruptcy",
+   "recipients": [],
+   "description": "The Notice of Intention to Make a Proposal filed November 14, 2024",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "a true copy of which is attached hereto as Exhibit \"A\""
+    }
+   ],
+   "content_check": "1 page: OSB BIA records search result for Island Milk Distributors Ltd., estate 51-3153484, notice of intention filed 2024-11-14 (a search printout, not the NOI form itself)"
+  },
+  {
+   "label": "B",
+   "file": "doc-gw2y5v.pdf",
+   "kind": "public_record",
+   "date": "2024-12-02",
+   "author": "Prince Edward Island Personal Property Registry",
+   "recipients": [],
+   "description": "PPSA registrations against the Company showing its liabilities",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached hereto as Exhibit \"B\" and Exhibit \"Bl\" is a true copy of the registration against the Company"
+    }
+   ],
+   "content_check": "35 pages: PEI PPRS Search Result Report 26424211, searched 2024-12-02"
+  },
+  {
+   "label": "B1",
+   "file": "doc-q2yhjd.pdf",
+   "kind": "public_record",
+   "date": "2024-12-03",
+   "author": "PEI Department of Finance, Taxation and Property Records Division",
+   "recipients": [],
+   "description": "Property Assessment Information showing a mortgage on parcel 689190",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Property Assessment Information demonstrating a mortgage registered against parcel no. 689190 owned by the Company"
+    }
+   ],
+   "content_check": "8 pages: PEI Property Assessment Information Listing for parcel 689190, 2024-12-03"
+  },
+  {
+   "label": "C",
+   "file": "doc-cndy2x.pdf",
+   "kind": "agreement",
+   "date": "2024-12",
+   "author": "Provincial Credit Union Limited",
+   "recipients": [
+    "Island Milk Distributors Ltd."
+   ],
+   "description": "DIP Agreement with Provincial Credit Union",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "a true copy of which is attached hereto as Exhibit \"C\""
+    }
+   ],
+   "content_check": "9 pages: Debtor-in-possession financing term sheet, Provincial Credit Union to Island Milk Distributors, up to $100,000, closing on or before December __ 2024"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Company incorporated in Prince Edward Island",
+   "date": "2003-06-23",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "incorporated on June 23, 2003",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Company expands into long-haul trucking and becomes highly leveraged",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    7
+   ],
+   "quote": "In 2019, the Company had an opportunity to expand its business operations into long-haul trucking",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "CRA credit bulletin shows about $1.2M payroll arrears; Provincial reduces and freezes the line of credit",
+   "date": "2024-11-07",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On or about November 7, 2024, CRA issued a credit bulletin",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Company files its Notice of Intention to Make a Proposal",
+   "date": "2024-11-14",
+   "precision": "day",
+   "paragraphs": [
+    4,
+    19
+   ],
+   "quote": "On November 14, 2024, the Company filed a Notice of Intention to Make a Proposal",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Company negotiates DIP loan from Provincial",
+   "date": "2024-12",
+   "precision": "approximate",
+   "paragraphs": [
+    19,
+    32
+   ],
+   "quote": "Negotiated debtor-in-possession financing agreement (the \"DIP Loan\") to be provided by Provincial",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Initial 13-week cash flow forecast filed with the OSB",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    23
+   ],
+   "quote": "has compiled an initial 13-week cash flow forecast",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Initial 30-day stay expires",
+   "date": "2024-12-14",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "expires on December 14, 2024",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Cash Flow Forecast"
+ ]
+}

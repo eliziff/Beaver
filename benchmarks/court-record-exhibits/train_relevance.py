@@ -20,6 +20,7 @@ from chrono_fast import file_text
 from haystack import CORPUS
 
 torch.set_num_threads(2)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"  # the GPU experiment box when available
 args = sys.argv[1:]
 opt = lambda n, d: args[args.index(n) + 1] if n in args else d
 out = args[0]
@@ -43,7 +44,7 @@ for rid in train_ids:
     pairs += [(q, h, 0.0) for h in rng.sample(corpus_heads, 4)]
 print(f"training on {len(train_ids)} records, {len(pairs)} pairs ({sum(p[2] for p in pairs):.0f} positive)", flush=True)
 tok = AutoTokenizer.from_pretrained(BASE)
-model = AutoModelForSequenceClassification.from_pretrained(BASE)
+model = AutoModelForSequenceClassification.from_pretrained(BASE).to(DEVICE)
 optim = torch.optim.AdamW(model.parameters(), lr=3e-5, weight_decay=0.01)
 lossf = torch.nn.BCEWithLogitsLoss()
 t0 = time.time()
@@ -52,8 +53,8 @@ for epoch in range(EPOCHS):
     rng.shuffle(pairs)
     for i in range(0, len(pairs), 16):
         b = pairs[i:i + 16]
-        enc = tok([p[0] for p in b], [p[1] for p in b], truncation="longest_first", max_length=256, padding=True, return_tensors="pt")
-        loss = lossf(model(**enc).logits.view(-1), torch.tensor([p[2] for p in b]))
+        enc = tok([p[0] for p in b], [p[1] for p in b], truncation="longest_first", max_length=256, padding=True, return_tensors="pt").to(DEVICE)
+        loss = lossf(model(**enc).logits.view(-1), torch.tensor([p[2] for p in b], device=DEVICE))
         loss.backward(); optim.step(); optim.zero_grad()
     print(f"epoch {epoch} done {time.time() - t0:.0f}s", flush=True)
 model.eval()
@@ -65,17 +66,19 @@ with torch.no_grad():
         hs = [head(os.path.join(HS, rid, "files", e["file"])) for e in man]
         s = []
         for i in range(0, len(hs), 16):
-            enc = tok([q] * len(hs[i:i + 16]), hs[i:i + 16], truncation="longest_first", max_length=256, padding=True, return_tensors="pt")
-            s += model(**enc).logits.view(-1).tolist()
+            enc = tok([q] * len(hs[i:i + 16]), hs[i:i + 16], truncation="longest_first", max_length=256, padding=True, return_tensors="pt").to(DEVICE)
+            s += model(**enc).logits.view(-1).cpu().tolist()
         scores[rid] = {e["file"]: {"role": e["role"], "score": v} for e, v in zip(man, s)}
 json.dump(scores, open(os.path.join(out, "doc_scores.json"), "w"), indent=0)
 print("scored", len(scores), "haystacks", flush=True)
 if "--export" in args:
     mdir = os.path.join(out, "model"); os.makedirs(mdir, exist_ok=True)
+    model = model.cpu()
+    model.save_pretrained(os.path.join(out, "torch-model"))  # weights survive a failed export
     enc = tok(["q"], ["d"], return_tensors="pt")
     names = [n for n in ("input_ids", "attention_mask", "token_type_ids") if n in enc]
     torch.onnx.export(model, tuple(enc[n] for n in names), os.path.join(mdir, "model_fp32.onnx"), input_names=names, output_names=["logits"],
-                      dynamic_axes={n: {0: "b", 1: "s"} for n in names}, opset_version=17)
+                      dynamic_axes={n: {0: "b", 1: "s"} for n in names}, opset_version=17, dynamo=False)
     from onnxruntime.quantization import quantize_dynamic, QuantType
     quantize_dynamic(os.path.join(mdir, "model_fp32.onnx"), os.path.join(mdir, "model.onnx"), weight_type=QuantType.QInt8)
     os.remove(os.path.join(mdir, "model_fp32.onnx")); tok.save_pretrained(mdir)

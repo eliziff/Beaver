@@ -1,0 +1,65 @@
+{
+ "record_id": "bcsc-acdc-powell",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  29
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-srzkqh.pdf",
+   "source_pages": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+   ],
+   "cover_page": 5,
+   "stamp_page": null,
+   "text_chars": 16423
+  },
+  {
+   "label": "B",
+   "file": "doc-gjcqpm.pdf",
+   "source_pages": [
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 17134
+  },
+  {
+   "label": "C",
+   "file": "doc-asgw87.pdf",
+   "source_pages": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "cover_page": 23,
+   "stamp_page": null,
+   "text_chars": 7800
+  }
+ ],
+ "leak_audit": []
+}

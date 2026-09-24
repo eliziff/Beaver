@@ -17,6 +17,7 @@ import score, chrono_fast
 from baseline import ROOT
 
 torch.set_num_threads(2)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"  # the GPU experiment box when available
 args = sys.argv[1:]
 opt = lambda n, d: args[args.index(n) + 1] if n in args else d
 out = args[0]
@@ -51,17 +52,17 @@ tok = AutoTokenizer.from_pretrained(BASE)
 
 def train(rids, seed):
     random.seed(seed); torch.manual_seed(seed)
-    model = AutoModelForSequenceClassification.from_pretrained(BASE, num_labels=1)
+    model = AutoModelForSequenceClassification.from_pretrained(BASE, num_labels=1).to(DEVICE)
     opt_ = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.01)
     ex = [(t, y) for rid in rids for t, y in zip(data[rid][1], data[rid][2])]
-    pos = sum(y for _, y in ex); lossf = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor((len(ex) - pos) / max(pos, 1)))
+    pos = sum(y for _, y in ex); lossf = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor((len(ex) - pos) / max(pos, 1), device=DEVICE))
     model.train()
     for _ in range(EPOCHS):
         random.shuffle(ex)
         for i in range(0, len(ex), 16):
             b = ex[i:i + 16]
-            enc = tok([t for t, _ in b], truncation=True, max_length=128, padding=True, return_tensors="pt")
-            loss = lossf(model(**enc).logits.view(-1), torch.tensor([float(y) for _, y in b]))
+            enc = tok([t for t, _ in b], truncation=True, max_length=128, padding=True, return_tensors="pt").to(DEVICE)
+            loss = lossf(model(**enc).logits.view(-1), torch.tensor([float(y) for _, y in b], device=DEVICE))
             loss.backward(); opt_.step(); opt_.zero_grad()
     model.eval()
     return model
@@ -71,20 +72,23 @@ def train(rids, seed):
 def predict(model, texts):
     ps = []
     for i in range(0, len(texts), 32):
-        enc = tok(texts[i:i + 32], truncation=True, max_length=128, padding=True, return_tensors="pt")
-        ps += torch.sigmoid(model(**enc).logits.view(-1)).tolist()
+        enc = tok(texts[i:i + 32], truncation=True, max_length=128, padding=True, return_tensors="pt").to(DEVICE)
+        ps += torch.sigmoid(model(**enc).logits.view(-1)).cpu().tolist()
     return ps
 
 
 rids = sorted(data)
-fold = {rid: k % FOLDS for k, rid in enumerate(rids)}
+if "--export-only" in args:
+    FOLDS = 0  # skip cross-validation; train on every record and export
+fold = {rid: k % max(FOLDS, 1) for k, rid in enumerate(rids)}
 scored, t0 = {}, time.time()
 for k in range(FOLDS):
     model = train([r for r in rids if fold[r] != k], seed=k)
     for rid in [r for r in rids if fold[r] == k]:
         scored[rid] = [{**r, "p": p} for r, p in zip(data[rid][0], predict(model, data[rid][1]))]
     print(f"fold {k} done {time.time() - t0:.0f}s", flush=True)
-json.dump(scored, open(os.path.join(out, "scored.json"), "w", encoding="utf-8"))
+if FOLDS:
+    json.dump(scored, open(os.path.join(out, "scored.json"), "w", encoding="utf-8"))
 
 
 def run(rows_by):
@@ -95,18 +99,20 @@ def run(rows_by):
 
 
 print(f"{len(data)} records, {sum(len(v[0]) for v in data.values())} rows, {sum(sum(v[2]) for v in data.values())} match gold; base {BASE}")
-for t in [0.0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
+for t in ([0.0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] if FOLDS else []):
     kept = {k: [r for r in v if r["p"] >= t] for k, v in scored.items()}
     p, r, f = run(kept)
     print(f"  keep p>={t:<4} rows {sum(len(v) for v in kept.values()):5}  precision {p:.3f} recall {r:.3f} F1 {f:.3f}", flush=True)
-if "--export" in args:
+if "--export" in args or "--export-only" in args:
     model = train(rids, seed=99)
     mdir = os.path.join(out, "model")
     os.makedirs(mdir, exist_ok=True)
+    model = model.cpu()
+    model.save_pretrained(os.path.join(out, "torch-model"))  # weights survive a failed export
     enc = tok(["x"], return_tensors="pt")
     names = [n for n in ("input_ids", "attention_mask", "token_type_ids") if n in enc]
     torch.onnx.export(model, tuple(enc[n] for n in names), os.path.join(mdir, "model_fp32.onnx"), input_names=names, output_names=["logits"],
-                      dynamic_axes={n: {0: "b", 1: "s"} for n in names}, opset_version=17)
+                      dynamic_axes={n: {0: "b", 1: "s"} for n in names}, opset_version=17, dynamo=False)
     from onnxruntime.quantization import quantize_dynamic, QuantType
     quantize_dynamic(os.path.join(mdir, "model_fp32.onnx"), os.path.join(mdir, "model.onnx"), weight_type=QuantType.QInt8)
     os.remove(os.path.join(mdir, "model_fp32.onnx"))

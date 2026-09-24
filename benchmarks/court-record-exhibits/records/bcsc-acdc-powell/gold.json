@@ -1,0 +1,157 @@
+{
+ "record_id": "bcsc-acdc-powell",
+ "family": "acdc-diamonds",
+ "court": "Supreme Court of British Columbia (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-263255 (Vancouver Registry)",
+ "proceeding": "In the matter of the receivership of Arctic Canadian Diamond Company Ltd. and Burgundy Diamonds (Canada) Limited (following CCAA proceedings)",
+ "document": "Affidavit #1 of Thomas Powell in support of FTI's application for approval of the Monitor's and Fasken's fees and disbursements",
+ "deponent": "Thomas Powell",
+ "deponent_role": "Senior Managing Director, FTI Consulting Canada Inc., former Monitor",
+ "sworn_date": "2026-07-20",
+ "notes": "Companion to Affidavit #1 of Lisa Hiebert (bcsc-acdc-hiebert) on the same fee application: Hiebert exhibits Fasken's invoices, Powell exhibits FTI's own. Exhibits are referenced only through the invoice table in paragraph 5; quotes come from that table.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-srzkqh.pdf",
+   "kind": "invoice",
+   "date": "2026-06-04",
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [
+    "Arctic Canadian Diamond Company Ltd"
+   ],
+   "description": "FTI invoice #102900003748 dated June 4, 2026 for $249,153.98 (fees $237,289.50, GST $11,864.48)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "102900003748"
+    }
+   ],
+   "content_check": "FTI Invoice Summary No. 102900003748 dated June 04, 2026 to Arctic Canadian Diamond Company Ltd, charges posted through May 31, 2026, total due $249,153.98"
+  },
+  {
+   "label": "B",
+   "file": "doc-gjcqpm.pdf",
+   "kind": "invoice",
+   "date": "2026-07-03",
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [
+    "Arctic Canadian Diamond Company Ltd"
+   ],
+   "description": "FTI invoice #102900003849 dated July 3, 2026 for $197,808.98 (fees $188,389.50, GST $9,419.48)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "102900003849"
+    }
+   ],
+   "content_check": "FTI Invoice Summary No. 102900003849 dated July 03, 2026 to Arctic Canadian Diamond Company Ltd"
+  },
+  {
+   "label": "C",
+   "file": "doc-asgw87.pdf",
+   "kind": "invoice",
+   "date": "2026-07-13",
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [
+    "Arctic Canadian Diamond Company Ltd"
+   ],
+   "description": "FTI invoice #102900003911 dated July 13, 2026 for $82,770.47 (fees $77,360.50, expenses $1,468.52, GST $3,941.45)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "102900003911"
+    }
+   ],
+   "content_check": "FTI Invoice Summary No. 102900003911 dated July 13, 2026, charges posted through July 12, 2026, delivery and courier expenses $1,468.52, total due $82,770.47"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2026-04-24",
+   "end_date": "2026-07-12",
+   "precision": "range",
+   "description": "FTI as Monitor invoiced fees of $503,039.50 plus disbursements and taxes, $529,733.43 in total",
+   "paragraphs": [
+    6
+   ],
+   "quote": "from April 24, 2026 to July 12, 2026, FTI invoiced",
+   "exhibits": [
+    "A",
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2026-06-04",
+   "precision": "day",
+   "description": "FTI issued invoice #102900003748",
+   "paragraphs": [
+    5
+   ],
+   "quote": "102900003748",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2026-07-03",
+   "precision": "day",
+   "description": "FTI issued invoice #102900003849",
+   "paragraphs": [
+    5
+   ],
+   "quote": "102900003849",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2026-07-13",
+   "precision": "day",
+   "description": "FTI issued its most recent invoice, #102900003911, for services through July 12, 2026",
+   "paragraphs": [
+    5,
+    11
+   ],
+   "quote": "Since the most recent Monitor's Invoice issued on July 13, 2026",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2026-07-31",
+   "precision": "day",
+   "description": "FTI estimates further fees of $25,000 to $50,000 through July 31, 2026, covered by its $50,000 retainer",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "through July 31, 2026, will total approximately $25,000 to $50,000",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2026-04-28",
+   "end_date": "2026-07-15",
+   "precision": "range",
+   "description": "Fasken, engaged by the Monitor, issued invoices for the period reviewed by the deponent",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Fasken's invoices that were issued for the period from April 28,2026, to July 15,2026",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Notice of Application for the Fee Approval Order",
+  "Receivership Order",
+  "Fasken's Invoices"
+ ]
+}

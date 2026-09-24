@@ -1,0 +1,325 @@
+{
+ "record_id": "onsc-cp-treaty9-verdicchio",
+ "court": "Ontario Superior Court of Justice (class proceeding)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00029205-00CP",
+ "subject": "indigenous_rights",
+ "family": "treaty9-gauthier",
+ "proceeding": "Missanabie Cree First Nation and Chief Jason Gauthier v. His Majesty the King in right of Canada and Ontario (proposed Treaty 9 class action); Ontario's response to the certification motion",
+ "document": "Affidavit of Gabriela Verdicchio affirmed March 31, 2025 (Responding Motion Record of Ontario)",
+ "deponent": "Gabriela Verdicchio",
+ "deponent_role": "Articling student, Ministry of the Attorney General, Crown Law Office - Civil, assisting counsel for Ontario",
+ "sworn_date": "2025-03-31",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pjqn2k.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Brunswick House First Nation",
+   "recipients": [],
+   "description": "Statement of Claim in Brunswick House First Nation v Ontario et al (CV-24-00721169-0000)",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto and marked as Exhibit “A” is the Statement of Claim in that proceeding."
+    }
+   ],
+   "content_check": "17 pages: Statement of Claim, Brunswick House First Nation v. His Majesty the King in right of Ontario and AG Canada"
+  },
+  {
+   "label": "B",
+   "file": "doc-z3hhvt.pdf",
+   "kind": "court_filing",
+   "date": "2022-01-11",
+   "author": "Chief Russell Wesley et al. (Cat Lake First Nation)",
+   "recipients": [],
+   "description": "Statement of Claim in Chief Russell Wesley et al v Ontario et al (CV-22-00000004-0000), seeking Aboriginal title",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Attached hereto and marked as Exhibit “B” is the Statement of Claim in that"
+    }
+   ],
+   "content_check": "57 image-only pages: opens with Peter T. Hollinger's January 11, 2022 letter to AG Canada and Ontario re Cat Lake First Nation v. Canada and Ontario (Aboriginal title claim), followed by the claim"
+  },
+  {
+   "label": "C",
+   "file": "doc-edq3tw.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Constance Lake First Nation",
+   "recipients": [],
+   "description": "Statement of Claim in Constance Lake First Nation v Ontario et al (CV-19-589335)",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached hereto and marked as Exhibit “C” is the"
+    }
+   ],
+   "content_check": "20 image-only pages: Statement of Claim, Constance Lake First Nation v. AG Canada and Ontario, court file CV-19-589335 handwritten"
+  },
+  {
+   "label": "D",
+   "file": "doc-qxskqs.pdf",
+   "kind": "court_filing",
+   "date": "2025-02-11",
+   "author": "Ginoogaming First Nation",
+   "recipients": [],
+   "description": "Amended Amended Statement of Claim in Ginoogaming First Nation v Ontario et al (CV-20-00646347-0000)",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached hereto and marked"
+    },
+    {
+     "paragraph": 14,
+     "quote": "as Exhibit “D” is the Amended Amended Statement of Claim in that proceeding."
+    }
+   ],
+   "content_check": "19 image-only pages: Amended Amended Statement of Claim, Ginoogaming First Nation v. Ontario and Director of Exploration, amendment stamp dated 11-FEB-2025"
+  },
+  {
+   "label": "E",
+   "file": "doc-pxrtuf.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Grand Chief Matthew Coon Come et al.",
+   "recipients": [],
+   "description": "Second Amended Statement of Claim in Grand Chief Matthew Coon Come et al v Ontario et al (CV-16-552834)",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached hereto and marked as"
+    },
+    {
+     "paragraph": 16,
+     "quote": "Exhibit “E” is the Second Amended Statement of Claim in that proceeding."
+    }
+   ],
+   "content_check": "27 pages (OCR layer): amended claim CV-16-552834 with Rule 26.02 amendment stamp"
+  },
+  {
+   "label": "F",
+   "file": "doc-nhrazd.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "His Majesty the King in right of Ontario",
+   "recipients": [],
+   "description": "Ontario's Statement of Defence and Crossclaim in the Coon Come proceeding",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached hereto and marked as Exhibit “F” is the"
+    }
+   ],
+   "content_check": "37 pages: Statement of Defence and Crossclaim, CV-16-552834, Grand Chief Matthew Coon Come et al."
+  },
+  {
+   "label": "G",
+   "file": "doc-dtypst.pdf",
+   "kind": "court_filing",
+   "date": "2023-06-26",
+   "author": "Attawapiskat First Nation et al.",
+   "recipients": [],
+   "description": "Statement of Claim in Attawapiskat First Nation et al v Ontario et al (CV-23-00701700-0000)",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached hereto and marked as"
+    },
+    {
+     "paragraph": 19,
+     "quote": "Exhibit “G” is the Statement of Claim in that proceeding."
+    }
+   ],
+   "content_check": "52 pages: Statement of Claim electronically issued 26-Jun-2023, Toronto, CV-23-00701700-0000"
+  },
+  {
+   "label": "H",
+   "file": "doc-t2yvwn.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Chapleau Cree First Nation, Missanabie Cree First Nation and Brunswick House First Nation",
+   "recipients": [],
+   "description": "Amended Statement of Claim in Chapleau Cree First Nation et al v Ontario (CV-22-00688037-0000)",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached hereto and marked as Exhibit “H” is the"
+    }
+   ],
+   "content_check": "18 pages: Amended Statement of Claim CV-22-00688037-0000, Chapleau Cree FN, Missanabie Cree FN and Brunswick House FN v. Ontario"
+  },
+  {
+   "label": "I",
+   "file": "doc-dmequ6.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Taykwa Tagamou Nation",
+   "recipients": [],
+   "description": "Notice of Application to the Divisional Court for Judicial Review, Taykwa Tagamou Nation v Ontario et al (DC-23-00002195-00JR)",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Attached hereto and marked as Exhibit “I” is the"
+    }
+   ],
+   "content_check": "8 pages: Notice of Application to Divisional Court for Judicial Review, Taykwa Tagamou Nation v. Ontario (Director of Exploration) and Goldcorp Canada Ltd."
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Plaintiffs' Notice of Motion for certification",
+   "date": "2024-07-29",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the Notice of Motion of the Plaintiffs (Motion for Certification)",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Amended Fresh as Amended Statement of Claim in this action",
+   "date": "2024-10-31",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I have reviewed the Amended Fresh as Amended Statement of Claim dated October",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Historic making and implementation of Treaty 9 (subject of the claim)",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "The Plaintiffs' allegations relate to historic events concerning the making and implementation of Treaty 9.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Brunswick House First Nation sues Ontario over Treaty 9 fiduciary duties; claim inactive while settlement is negotiated",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "the Statement of Claim contains allegations of breaches of the Crown's fiduciary duty",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Chief Russell Wesley et al. claim Aboriginal title; not beyond pleadings",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "the Statement of Claim seeks Aboriginal Title.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Constance Lake First Nation claim on Treaty 9 negotiation and implementation; inactive, settlement talks",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    12,
+    13
+   ],
+   "quote": "In the matter of Constance Lake First Nation v Her Majesty the Queen in right of",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Ginoogaming First Nation claim incl. duty to consult on mineral authorizations; no defence yet",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    14,
+    15
+   ],
+   "quote": "The Claim seeks a declaration that there was a breach of the duty to consult",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Coon Come et al. claim Aboriginal title within Treaty 9 territory; Ontario defends and crossclaims; actively litigated",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    16,
+    17,
+    18
+   ],
+   "quote": "Statement of Claim seeks a declaration of Aboriginal title and existing Aboriginal",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Attawapiskat First Nation et al. claim breach of Crown duties under Treaty 9; actively litigated",
+   "date": "2023-06-26",
+   "precision": "day",
+   "paragraphs": [
+    19,
+    20
+   ],
+   "quote": "In the matter of Attawapiskat First Nation et al v His Majesty the King in right of",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Chapleau Cree First Nation et al. amended claim on Treaty 9 duties; actively litigated",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    21,
+    22
+   ],
+   "quote": "In the matter of Chapleau Cree First Nation et al v His Majesty the King in right of",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Taykwa Tagamou Nation applies for judicial review to the Divisional Court; actively litigated",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    23,
+    24
+   ],
+   "quote": "the Notice of Application to the Divisional Court for Judicial Review contains allegations",
+   "exhibits": [
+    "I"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Amended Fresh as Amended Statement of Claim dated October 31, 2024",
+  "Plaintiffs' Notice of Motion for certification dated July 29, 2024"
+ ]
+}
