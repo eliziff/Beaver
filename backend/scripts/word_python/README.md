@@ -36,8 +36,12 @@ beforehand and records the difference as native revisions: removed content retur
 as `w:del` at its old position, new content becomes `w:ins` (paragraph marks and
 table rows included), moves become delete+insert, plain-text paragraphs are
 re-diffed word by word, and changed paragraph/run/table/row/cell/section properties
-gain `w:*PrChange`. Style-definition edits, existing list definitions and removed
-table cells cannot be tracked, so they fail rather than silently becoming direct.
+gain `w:*PrChange`. Existing revisions compose as in Word: an edit inside Beaver's own
+pending insertion just changes (or withdraws) it, deleting another author's inserted
+text nests a `w:del` inside their `w:ins`, and new text splits their insertion, so
+authorship stays true. Accepting every revision must give exactly the program's text.
+Style-definition edits, existing list definitions and removed table cells cannot be
+tracked, so they fail rather than silently becoming direct.
 
 ## Verification
 
