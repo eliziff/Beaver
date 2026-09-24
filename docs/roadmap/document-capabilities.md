@@ -1,7 +1,7 @@
 # Document capabilities, legal workflows, and portable features
 
 Status/order/shared gates: [master plan](master-plan.md). Retain concise Markdown
-composition and surgical DOCX edits; use LibreOffice/UNO for rich document work.
+composition and surgical DOCX edits; use `word_python` for rich document work.
 All paths use existing jobs/evidence/stores. Microsoft Word is not a cloud dependency.
 The detailed operation inventory remains [deterministic Word actions](../decisions/document-actions.md).
 
@@ -65,56 +65,59 @@ remains a user-requested operation.
 `Write` composes semantic Markdown with profiles, notes, fields and evidence;
 `Read` provides compact content; `Edit` and `edit_docx_advanced` retain surgical
 tracked text changes. The optional live Word add-in stays intact. A phrase edit
-must not require a whole-document office round trip or the entire UNO reference.
+must not require a whole-document office round trip or a full programming reference.
 
-`word_uno` supplies depth on Windows, macOS and Linux: bounded object/property
-inspection, a QuickJS JavaScript console over discoverable document-local UNO
-methods/factories, native tracked/direct edits, selective revision review, and
-version-safe publication. Variables, loops and functions compose heterogeneous
-changes in one program. No second Word model, bespoke programming language,
-browser office suite or general engine-routing framework is maintained.
-[Runtime, reproduction and measured limits](../../backend/experiments/libreoffice-uno/README.md)
-live beside the focused integration checks.
+`word_python` supplies depth on Windows, macOS and Linux: the model writes Python
+against python-docx with lxml access to any OOXML element, plus helpers for what
+python-docx lacks (run isolation, one-list numbering, sections, fields, notes,
+content controls). Edits change the XML in place, so untouched content round-trips
+unchanged. Variables, loops and functions compose heterogeneous changes in one
+program. No second Word model, bespoke language, browser office suite or engine
+routing is maintained. [Contract, runtime and isolation](../../backend/scripts/word_python/README.md)
+live beside the Python worker.
 
-- Inspection addresses belong to an exact source hash/version. Retain resolved
-  native handles while editing; reinspect after structural changes or reopening.
-  Native indexes and handles are not durable legal evidence coordinates.
+It replaced LibreOffice UNO as the editor on 2026-09-23. UNO imports a document
+into Writer's model and re-exports it, so ordinary Word documents did not round-trip
+losslessly: in the Word-tool benchmark (codex gpt-6-luna) it refused 11 of 20
+structural tasks and scored 2 of 19, while word_python scored 12 of 18 with no
+changes on 171 no-edit round trips. LibreOffice headless remains the renderer and
+open check.
+
+- Inspection addresses belong to an exact source hash/version; reinspect after
+  structural changes. Paragraph/table indexes are not durable legal evidence
+  coordinates.
 - Preview operates on a disposable copy and saves a separate DOCX with a bound
-  receipt. Export/reopen checks include ordered body/story structure and selected
-  native postconditions. Failures discard the candidate, never repair it by
-  copying XML parts back from the source.
-- User edit mode, not a model-supplied argument, owns tracked/direct policy.
-  Native body/footnote revisions and selective accept/reject are implemented.
-  Tracked candidates must prove that rejecting the new revisions restores the
-  no-edit control. Untrackable formatting/section changes fail in Review mode.
+  receipt. A separate verifier re-screens and reopens the package and LibreOffice
+  must open it. Failures discard the candidate, never repair it by copying XML
+  parts back from the source.
+- User edit mode, not a model-supplied argument, owns tracked/direct policy. In
+  Review mode ordinary edits are recorded as native revisions, and rejecting every
+  revision must reproduce the source. Untrackable style/list-definition changes
+  fail in Review mode.
 - Apply publishes the exact frozen bytes through the existing version store's
   compare-and-swap, rechecking hashes/working revision. No program rerun, parallel
   store, second agent loop or unrelated document access is introduced.
-- QuickJS WASM runs on a terminable thread; only validated document-local RPC
-  crosses to Python. No model Python execution, host objects, public UNO listener,
-  application/storage services or macro execution. A networkless, read-only-root
-  OCI worker path provides native-process isolation in the cloud. Local native
-  execution does not claim OS sandboxing against LibreOffice vulnerabilities.
+- Model Python runs in its own process with only the document's directory, an
+  empty environment, a Job Object or rlimits and an audit-hook guard; that is not an
+  OS sandbox. A networkless, read-only-root container runs every step in the cloud.
 
-UNO introspection supplies types and methods on demand. Beaver owns operation
-policy, persistence and legal semantics, not another full native API catalogue.
-Named constants and typed arguments avoid model-guessed native numeric values.
-The supported feature set remains limited by actual Writer/DOCX interoperability,
-not by a fixed short formatting menu. A successful setter without export/reopen
-confirmation is not reported as a completed edit.
+Beaver owns operation policy, persistence and legal semantics, not another API
+catalogue: python-docx and the OOXML schema are the reference. The supported
+feature set is the file format, not a fixed short formatting menu. An edit that
+does not survive verification is not reported as completed.
 
 ## Benchmarks and external references
 
 Reuse the existing [DOCX edit corpus](../../benchmarks/docx_edit/README.md) and
-its accepted-text checks. The focused UNO suite adds only missing compound-engine
+its accepted-text checks. The focused word_python suite adds only missing compound-engine
 and application-outcome coverage. No live models or full sweeps belong in ordinary
 CI. Pin the tested engine/runtime in deployments and record actual versions.
 
-[LibreOffice UNO](https://api.libreoffice.org/docs/idl/ref/servicecom_1_1sun_1_1star_1_1text_1_1TextDocument.html)
-is the independent rich runtime. The existing PDF path stays separate from editing
-and shares executable discovery. SuperDoc adoption is not proceeding: its V2
+[python-docx](https://python-docx.readthedocs.io/) with lxml is the rich editing
+runtime; LibreOffice headless renders PDFs and checks that candidates open, sharing
+executable discovery with the PDF path. SuperDoc adoption is not proceeding: its V2
 engine's separate proprietary terms blocked the proposed evaluation. WordUp/native
-Word is not a customer-runtime fallback. No Aspose/UNO/SuperDoc routing system.
+Word is not a customer-runtime fallback. No Aspose/SuperDoc/engine routing system.
 
 [DocOps](https://github.com/icip-cas/DocOps) and
 [llm-docx-editing](https://github.com/nberk/llm-docx-editing) remain external task/
@@ -126,9 +129,9 @@ Keep four lanes separate:
 
 | Lane | Required proof |
 | --- | --- |
-| A: document mechanics | Compound notes/fields/hyperlinks/bookmarks/revisions/comments/controls/tables/drawings/custom-XML/unknown parts. Exact postconditions, source conservation, relationships/schema, export/reopen and layout-sensitive renders. Current UNO witnesses are conservative and incomplete, not a full schema/layout oracle. |
+| A: document mechanics | Compound notes/fields/hyperlinks/bookmarks/revisions/comments/controls/tables/drawings/custom-XML/unknown parts. Exact postconditions, source conservation, relationships/schema, export/reopen and layout-sensitive renders. Current word_python witnesses are conservative and incomplete, not a full schema/layout oracle. |
 | B: agent/application contract | Scope, tracked/direct policy, cancellation, stale rejection, exact candidate publication and retries. Real database/browser gates remain distinct from injected-store tests. Measure successful-task tokens including help and retries, not just prompt size. |
-| C: runtime/host | Real gateway/console/Writer runs on Windows x64, macOS ARM64 and Linux x64; repeat the suite inside the isolated cloud image. Missing runtimes fail. Keep the optional live Word add-in's independent host checks; none is a required headless runtime. |
+| C: runtime/host | Real Python/LibreOffice runs on Windows x64, macOS ARM64 and Linux x64; repeat the suite inside the isolated cloud image. Missing runtimes fail. Keep the optional live Word add-in's independent host checks; none is a required headless runtime. |
 | D: accepted legal gold | Exact occurrence/style/core/short-form/pinpoint/kind spans; canonical identity/resolver snapshot; hyperlink spans/destinations; quotation/source match; proposition/support; unresolved/ambiguous/no-quote/no-support cases. Profiles on/off, within/outside pinpoint, editorial/repeated matches, actual source fragments, fallbacks and paired rescue outcomes. |
 
 Provisional DOCX/ToA rows are not a denominator. Annotate exact identities/spans/

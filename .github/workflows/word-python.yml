@@ -1,0 +1,68 @@
+name: word_python integration
+on:
+  pull_request:
+    paths:
+      - 'backend/scripts/word_python/**'
+      - 'backend/src/lib/wordPython.ts'
+      - 'backend/src/lib/wordEditApplication.ts'
+      - 'backend/src/lib/chat/wordPythonTool.ts'
+      - 'backend/src/lib/chat/chatToolRunner.ts'
+      - 'backend/src/lib/convert.ts'
+      - 'backend/src/lib/__tests__/wordPython.test.ts'
+      - 'backend/package*.json'
+      - 'backend/word-python.Dockerfile'
+      - '.github/workflows/word-python.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          # Unrelated historical docs contain Windows-invalid angle-bracket paths.
+          sparse-checkout: |
+            backend
+            shared
+            packages
+            scripts
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install LibreOffice (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-liberation
+      - name: Install LibreOffice (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install libreoffice-fresh --yes --no-progress
+      - name: Install LibreOffice (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask libreoffice
+      - name: Pinned Python requirements (the probe fails when they are missing)
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/word-python" || python -m venv "$RUNNER_TEMP/word-python"
+          bin="$RUNNER_TEMP/word-python/bin"; [ -d "$bin" ] || bin="$RUNNER_TEMP/word-python/Scripts"
+          "$bin/python" -m pip install -r backend/scripts/word_python/requirements.txt
+          "$bin/python" -I backend/scripts/word_python/probe.py
+          echo "BEAVER_WORD_PYTHON=$bin/python" >> "$GITHUB_ENV"
+      - run: npm ci --prefix backend --ignore-scripts
+      - name: Programs, Review mode, publication and sandbox refusals on the real runtime
+        working-directory: backend
+        run: npx vitest run src/lib/__tests__/wordPython.test.ts src/lib/__tests__/wordEditApplication.test.ts
+      - name: The same tests in the network-isolated container
+        if: runner.os == 'Linux'
+        working-directory: backend
+        run: |
+          docker build -f word-python.Dockerfile -t beaver-word-python:test .
+          WORD_PYTHON_CONTAINER_IMAGE=beaver-word-python:test npx vitest run src/lib/__tests__/wordPython.test.ts

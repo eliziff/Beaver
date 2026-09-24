@@ -41,7 +41,7 @@ async function begin(options: Partial<StreamChatParams> = {}) {
 }
 
 it("activates both reported specialists in the same native invocation with one activity per dispatch", async () => {
-  const executed: string[] = [], names = ["word_uno", "edit_docx_advanced"];
+  const executed: string[] = [], names = ["word_python", "edit_docx_advanced"];
   const registry = new TurnToolRegistry<null>(names.map(name => ({ name, specialist: true,
     inputSchema: { type: "object" as const, properties: {} },
     execute: async () => { executed.push(name); return toolOutcome(name); },

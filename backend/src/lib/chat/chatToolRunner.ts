@@ -6,7 +6,7 @@ import { resourceReference } from "../resourceReferences";
 import type { ReadSubagentAssignment } from "./assistantEvents";
 import type { ResearchFile } from "../researchFile";
 import { createResearchTableTool } from "./researchTableTool";
-import { createLibreOfficeTool } from "./libreOfficeTool";
+import { createWordPythonTool } from "./wordPythonTool";
 
 function state() {
   return {
@@ -48,7 +48,7 @@ export function createChatToolRunner(options: Omit<AssistantToolsDependencies, T
     mutationCommitted = true;
     options.onMutationCommitted();
   };
-  const word = createLibreOfficeTool({ ...options, ...artifacts,
+  const word = createWordPythonTool({ ...options, ...artifacts,
     onMutationCommitted: commitMutation,
     onPublished(documentId, versionId, workingRevision, sourceVersion) {
       main.edits.set(documentId, { versionId, workingRevision, turnVersionId: versionId,

@@ -44,8 +44,8 @@ surfaces.
 ## Deferred discovery and execution
 
 Specialists stay deferred. `load_tools` activates exact registered names and
-returns their canonical descriptions and argument schemas, including `word_uno`'s
-real help/inspect/describe/preview/apply entry points. An absent executor is a
+returns their canonical descriptions and argument schemas, including `word_python`'s
+real help/inspect/preview/apply entry points. An absent executor is a
 registration failure, not a successful load. Repeat discovery returns the same
 schemas; oversized results refuse before changing the active set.
 
