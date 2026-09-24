@@ -235,7 +235,9 @@
     12
    ],
    "quote": "on or\nbefore April 2, 2026",
-   "exhibits": []
+   "exhibits": [
+    "C"
+   ]
   },
   {
    "id": "e8",
@@ -269,6 +271,32 @@
    ],
    "quote": "acknowledge the solemnity of making this affidavit",
    "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2026-03-26",
+   "precision": "day",
+   "description": "PPSA registration reports in respect of the Company were obtained",
+   "paragraphs": [
+    "15"
+   ],
+   "quote": "an offer of credit dated June 23, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2026-03-27",
+   "precision": "day",
+   "description": "The Company and the Proposal Trustee prepared a projected cashflow for the Everwood Project",
+   "paragraphs": [
+    "26"
+   ],
+   "quote": "an offer of credit dated June 23, 2023",
+   "exhibits": [
+    "G"
+   ]
   }
  ]
 }

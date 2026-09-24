@@ -127,7 +127,9 @@ def events(preds, embed_dir=None, threshold=None):
         emb, cache = Embedder(embed_dir, pooling="cls", max_len=96), {}
         vec = lambda t: cache[t] if t in cache else cache.setdefault(t, emb.embed(t))
         sim = lambda a, b: float(vec(a) @ vec(b))
-    threshold = threshold if threshold is not None else (0.75 if embed_dir else 0.25)
+    # Calibrated on an independent reviewer's descriptions of the same events (2026-09-24): at 0.70 every
+    # same-event pair passes and 8% of different-event pairs from the same record do; lexical 0.25 keeps all and passes 6%.
+    threshold = threshold if threshold is not None else (0.70 if embed_dir else 0.25)
     tp = rows_n = gold_n = dated = covered = 0
     sims = []
     for rid, rows in preds.items():

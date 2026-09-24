@@ -44,6 +44,9 @@ def check(record):
     if gold.get("sworn_date") and not ISO.match(gold["sworn_date"]):
         errors.append("sworn_date is not ISO")
     split_labels = {e["label"]: e["file"] for e in split["exhibits"]}
+    files_dir = os.path.join(record, "files")
+    for orphan in sorted(set(f for f in os.listdir(files_dir) if f.endswith(".pdf")) - set(split_labels.values())) if os.path.isdir(files_dir) else []:
+        errors.append(f"orphan file {orphan} is not an exhibit in split.json")
     gold_labels = {}
     for ex in gold.get("exhibits", []):
         lab = ex.get("label")

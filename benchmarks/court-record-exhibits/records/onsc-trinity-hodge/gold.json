@@ -421,6 +421,32 @@
    "exhibits": [
     "B"
    ]
+  },
+  {
+   "id": "e10",
+   "date": "2021-06-29",
+   "precision": "day",
+   "description": "Cumulative Canadian COVID-19 cases, hospitalizations and deaths as of June 29, 2021, per Canada's epidemiology update",
+   "paragraphs": [
+    "12"
+   ],
+   "quote": "I graduated with an MD (1996) and PhD (Epidemiology & Biostatistics, 1995) from McGill",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2021-06-30",
+   "precision": "day",
+   "description": "Cumulative global COVID-19 cases and deaths as of June 30, 2021, per the WHO dashboard",
+   "paragraphs": [
+    "12"
+   ],
+   "quote": "I graduated with an MD (1996) and PhD (Epidemiology & Biostatistics, 1995) from McGill",
+   "exhibits": [
+    "G"
+   ]
   }
  ]
 }

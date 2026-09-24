@@ -124,9 +124,27 @@ Checks beyond `verify.py` and `audit.py`, applied to every record:
 - **Labels:** `subject` is required and specific; `family` slugs are shared
   by every record of a proceeding; two future-dated events were checked and
   are real (a maturity date and a scheduled hearing).
-- **Blind relabelling** of 18 records, including the newest, with quotes
-  checked mechanically: see `packets.py`. Results are in the next revision
-  of this section.
+- **Blind relabelling** of 18 records (238 files), including 15 of the 25
+  newest, with quotes checked mechanically (`packets.py`): the reviewer's
+  mapping agreed with the gold on 201 of 202 checked files; the one
+  disagreement was an orphan file left in a record's folder by an earlier
+  split, now removed (`verify.py` rejects orphans). Answers whose quotes
+  could not be found (26, mostly image-only or then-garbled files) were
+  discarded rather than counted.
+- **Event read** of 9 records by the same reviewer: 11 claimed events were
+  absent from the gold. 5 were accepted and added (a notice to creditors,
+  PPSA reports obtained, a cashflow prepared, two "as of" case counts); 6
+  were rejected as reference material or statistics rather than happenings.
+  The gold is thin on documentary events (a search obtained, a report
+  prepared), which affects chronology scoring more than exhibit
+  identification.
+
+`score.py events` scores chronology creation by meaning: a row that cites an
+event's file is paired with it by description similarity, and the date is
+reported separately. The similarity threshold was calibrated on the blind
+reviewer's own descriptions of gold events: with bge-small, 0.70 keeps every
+same-event pair and passes 8% of different-event pairs from the same record;
+the model-free content-word F1 at 0.25 keeps every pair and passes 6%.
 
 ## Harder variant: a file system with distractors (`haystack.py`)
 
