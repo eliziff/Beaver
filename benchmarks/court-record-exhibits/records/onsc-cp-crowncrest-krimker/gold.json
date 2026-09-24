@@ -1,0 +1,389 @@
+{
+ "record_id": "onsc-cp-crowncrest-krimker",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-21-00665193-00CP",
+ "subject": "class_action",
+ "proceeding": "Bonnick and Donev v. Krimker, Crown Crest and Simply Green (proposed consumer class action over home comfort equipment leases and NOSI registrations under the Consumer Protection Act): responding record of the individual defendant on certification",
+ "document": "Affidavit of Lawrence Krimker sworn September 17, 2023",
+ "deponent": "Lawrence Krimker",
+ "deponent_role": "Chief Executive Officer of the Simply Green group; individual defendant",
+ "sworn_date": "2023-09-17",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-xn6f46.pdf",
+   "kind": "other",
+   "date": "2017-03-31",
+   "author": "Reliance Home Comfort",
+   "recipients": [],
+   "description": "Reliance Home Comfort news release on its acquisition by the CK group in 2017 (the affidavit dates it May 31, 2017)",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of a May 31, 2017 Reliance Home Comfort news release"
+    }
+   ],
+   "content_check": "2 pages: 'RELIANCE TO BE ACQUIRED BY CHEUNG KONG PROPERTY HOLDINGS LIMITED Toronto, March 31, 2017'; dated March 31, not May 31 as the affidavit says"
+  },
+  {
+   "label": "B",
+   "file": "doc-aeh333.pdf",
+   "kind": "other",
+   "date": "2018-10-16",
+   "author": "Enercare Inc.",
+   "recipients": [],
+   "description": "Enercare news release on its acquisition by Brookfield Infrastructure",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of an October 16, 2018 Enercare news release is attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: Enercare web press release 'Brookfield Infrastructure completes C$4.3 billion acquisition of Enercare Inc. - Oct 16, 2018' (broken font encoding, OCR'd)"
+  },
+  {
+   "label": "C",
+   "file": "doc-zedtqc.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Canadian SME National Business Awards",
+   "recipients": [],
+   "description": "Excerpts from the Canadian SME National Business Awards website naming Simply Green Ricoh Small Business of the Year 2020",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A copy of the relevant excerpts from"
+    }
+   ],
+   "content_check": "3 pages: Canadian SME National Business Awards web page (broken font encoding, OCR'd)"
+  },
+  {
+   "label": "D",
+   "file": "doc-jd5ujz.pdf",
+   "kind": "webpage",
+   "date": "2020-12-20",
+   "author": "Loans Canada (Caitlin Wood)",
+   "recipients": [],
+   "description": "December 20, 2020 news release on the Canadian Lenders Association awards (Consumer Lender of the Year, Executive of the Year)",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A copy of a December 20, 2020 news release is attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: Loans Canada web article 'Canadian Lenders Association 2021 Leaders in Lending', last updated December 20, 2020 (broken font encoding, OCR'd)"
+  },
+  {
+   "label": "E",
+   "file": "doc-dxnvs8.pdf",
+   "kind": "other",
+   "date": "2021-07-20",
+   "author": "Financial Post",
+   "recipients": [],
+   "description": "Financial Post article on the EY Entrepreneur of the Year 2021 Ontario award",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "A copy of a Financial Post article dated"
+    }
+   ],
+   "content_check": "5 pages: Financial Post article, EY Entrepreneur Of The Year 2021 Ontario winners (broken font encoding, OCR'd)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Krimker founds Sparkle Window Cleaning",
+   "date": "2004",
+   "precision": "approximate",
+   "paragraphs": [
+    10
+   ],
+   "quote": "In approximately 2004, I founded Sparkle Window Cleaning",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Krimker completes his Bachelor's degree at Schulich",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "2008, I completed my Bachelor",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Krimker takes a summer job at Superior Energy, his introduction to home comfort equipment",
+   "date": "2008",
+   "precision": "approximate",
+   "paragraphs": [
+    12
+   ],
+   "quote": "I was first introduced to the world of home comfort equipment in approximately 2008",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Krimker becomes CEO of Paystack",
+   "date": "2012",
+   "precision": "approximate",
+   "paragraphs": [
+    10
+   ],
+   "quote": "In approximately 2012, I became the Chief Executive Officer of Paystack",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Paystack admitted to Y-Combinator; Krimker relocates to San Francisco",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    10
+   ],
+   "quote": "In 2013, Paystack won admission",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Krimker founds Simply Green Home Services Inc.",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    14
+   ],
+   "quote": "In 2013, I founded Simply Green Home Services Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Krimker participates in the Covenant House Sleep Out",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    11
+   ],
+   "quote": "in 2014, I participated in the",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Simply Green shifts from lease origination to comprehensive HVAC provider",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    25
+   ],
+   "quote": "in 2015, Simply Green",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Crown Crest Capital II Trust acquires the Sandpiper lease portfolio from Oakville Hydro",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    31,
+    56
+   ],
+   "quote": "In 2016, Crown Crest Capital II Trust acquired a portfolio of leases from Sandpiper",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Reliance acquired by the CK group for $2.8 billion",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Reliance was most recently acquired by the CK group of companies in 2017",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Simply Green acquires lease portfolios from Green Planet, Ontario Consumer Home Services and Simply Comfort",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "In 2017, Simply Green acquired consumer home equipment lease portfolios",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Simply Green ceases its own door-to-door lease originations",
+   "date": "2017",
+   "precision": "approximate",
+   "paragraphs": [
+    34
+   ],
+   "quote": "Until approximately late 2017, this included some door-to-door",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Ontario bans unsolicited door-to-door sales of HVAC equipment",
+   "date": "2018-03-01",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "effective March 1, 2018,",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Enercare acquired by Brookfield Infrastructure for $4.3 billion",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Enercare was acquired and made private by Brookfield Infrastructure",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Simply Green named Ricoh Small Business of the Year",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    39
+   ],
+   "quote": "In 2020, Simply Green was named the Ricoh Small Business of the Year",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "SGHSI renamed Simply Green Home Services Corp. and ceases lease origination",
+   "date": "2020-10",
+   "precision": "month",
+   "paragraphs": [
+    35
+   ],
+   "quote": "In October 2020, due to a corporate restructuring",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Krimker named Executive of the Year; Simply Green named Consumer Lender of the Year (2022)",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    39
+   ],
+   "quote": "Simply Green was named Consumer Lender of the Year by the Canadian Lenders",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Simply Green ranked on the Best Workplaces for Women list",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    39
+   ],
+   "quote": "In 2021, Simply Green was ranked on the Best Workplaces for Women list",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Simply Green named Small Business of the Year by Canadian SME",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    39
+   ],
+   "quote": "In 2021, Simply Green was named Small Business of the Year",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Krimker recognized as EY Entrepreneur of the Year 2021 Ontario winner",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    40
+   ],
+   "quote": "in 2021, I was recognized as a winner of the EY Entrepreneur of the Year",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Bonnick affidavit sworn in support of certification",
+   "date": "2021-08-31",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "affidavit of Alga Adina Bonnick sworn August 31, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Donev affidavit sworn in support of certification",
+   "date": "2022-11-30",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "Goran Soilov Donev sworn November 30, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Simply Green Home Services Inc. begins winding down origination operations",
+   "date": "2023-06",
+   "precision": "month",
+   "paragraphs": [
+    35
+   ],
+   "quote": "wound down commencing in June 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Consumer Protection Act charges against Krimker mostly withdrawn",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    53
+   ],
+   "quote": "all but the two most recently laid charges have been withdrawn by the Crown",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "All pre-October 2020 leases consolidated into Crown Crest Capital Trust",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    57
+   ],
+   "quote": "were consolidated into Crown Crest Capital Trust",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Amended Fresh as Amended Statement of Claim",
+  "Plaintiffs' Notice of Motion for certification",
+  "Affidavit of Alga Adina Bonnick sworn August 31, 2021",
+  "Affidavit of Goran Stoilov Donev sworn November 30, 2022"
+ ]
+}

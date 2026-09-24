@@ -1,0 +1,270 @@
+{
+ "record_id": "cer-sunrise-bowie",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2024 (File 3965593)",
+ "subject": "municipal",
+ "family": null,
+ "proceeding": "Westcoast Energy Inc. application for the Sunrise Expansion Program (Hearing Order GH-001-2024): the City of Abbotsford's intervenor evidence on pipeline loop CS-09 crossing City roads, water mains and the Sumas flood mitigation area",
+ "document": "Affidavit of Tyler Bowie affirmed February 26, 2025 (REGDOCS C33534-2)",
+ "deponent": "Tyler Bowie",
+ "deponent_role": "Deputy General Manager, Engineering and Regional Utilities, City of Abbotsford (intervenor)",
+ "sworn_date": "2025-02-26",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-74d655.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Map showing the City's municipal boundaries",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “A” to this my affidavit is a true copy of a"
+    }
+   ],
+   "content_check": "1 page map; text layer is rotated OCR noise ('pucysjoqqy' = Abbotsford upside down)"
+  },
+  {
+   "label": "B",
+   "file": "doc-de4t8g.pdf",
+   "kind": "map",
+   "date": "2025-02-24",
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Drawing of the asbestos cement water main at Vye Road and Loop CS-09, with Westcoast's right-of-way",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “B” to this my affidavit is a true copy of a drawing"
+    }
+   ],
+   "content_check": "1 page plan 'Scale 1:500 ... ABBOTSFORD Plot Date 24-Feb-2025'"
+  },
+  {
+   "label": "C",
+   "file": "doc-f9yv5c.pdf",
+   "kind": "map",
+   "date": "2025-02-24",
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Drawing of the PVC water main at Lamson Road and Loop CS-09",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "and marked as Exhibit “C” to this my affidavit is a true copy of a drawing of the PVC"
+    }
+   ],
+   "content_check": "1 page plan '150mm Watermain ... Plot Date 24-Feb-2025'"
+  },
+  {
+   "label": "D",
+   "file": "doc-bk2np9.pdf",
+   "kind": "map",
+   "date": "2016",
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Map 5 of the Official Community Plan designating Vye Road a collector road",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "“D” to this my affidavit is a true copy of Map 5 to the OCP"
+    }
+   ],
+   "content_check": "1 page: 'Bylaw 2600-2016, being \"Official Community Plan Bylaw, 2016\" Schedule \"A\" ... Map 5 - Rural Road Classification'"
+  },
+  {
+   "label": "E",
+   "file": "doc-k2qygm.pdf",
+   "kind": "public_record",
+   "date": "2021",
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Street and Traffic Bylaw No. 3066, 2021 (truck routes)",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “E” to this my affidavit is a true copy"
+    }
+   ],
+   "content_check": "35 pages: 'Street and Traffic Bylaw, 2021 Bylaw No. 3066-2021 [Consolidated ...]'"
+  },
+  {
+   "label": "F",
+   "file": "doc-xr942t.pdf",
+   "kind": "public_record",
+   "date": "2006",
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Fees and Charges Bylaw No. 1532, 2006 (consolidated)",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "marked as Exhibit “F” to this my affidavit is a true copy of the City’s Fees and Charges"
+    }
+   ],
+   "content_check": "42 pages: 'CITY OF ABBOTSFORD FEES AND CHARGES BYLAW, 2006 (CONSOLIDATED) Bylaw No. 1532-2006'"
+  },
+  {
+   "label": "G",
+   "file": "doc-cshyjc.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "Map of the City's floodplain boundaries",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “G” to this my affidavit is a true copy of the City’s"
+    }
+   ],
+   "content_check": "1 page map 'City of Abbotsford Floodplains'"
+  },
+  {
+   "label": "H",
+   "file": "doc-ncs7mx.pdf",
+   "kind": "report",
+   "date": "2018-06",
+   "author": "City of Abbotsford",
+   "recipients": [],
+   "description": "City of Abbotsford Drainage Master Plan 2018",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “H” to this my affidavit is a true copy of the City’s"
+    }
+   ],
+   "content_check": "128 pages: 'Drainage Master Plan Final Report June 2018'"
+  },
+  {
+   "label": "I",
+   "file": "doc-bkray3.pdf",
+   "kind": "agreement",
+   "date": "2023",
+   "author": "Sumas First Nation, Province of British Columbia, City of Abbotsford et al.",
+   "recipients": [],
+   "description": "Sumas River Watershed Flood Mitigation Collaborative Framework",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “I” to this my affidavit is a true copy of the Sumas"
+    }
+   ],
+   "content_check": "12 pages: 'Sumas River Watershed Flood Mitigation Collaborative Framework ... Between Sumas First Nation (\"Sema:th\") His Majesty the King in Right of the Province of British Columbia, as ... Leq'a:mel'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Bowie has been employed by the City of Abbotsford for 18 years",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [],
+   "quote": "I have been employed with the City for 18 years.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "City adopts the Official Community Plan Bylaw classifying Vye Road a collector road",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [],
+   "quote": "Community Plan Bylaw No. 2600, 2016",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "City enacts the Street and Traffic Bylaw designating the Vye Road truck route",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [],
+   "quote": "Street and Traffic Bylaw No. 3066, 2021",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "City adopts its Fees and Charges Bylaw",
+   "date": "2006",
+   "precision": "year",
+   "paragraphs": [],
+   "quote": "Fees and Charges Bylaw No. 1532, 2006",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "City adopts the Drainage Master Plan",
+   "date": "2018-06",
+   "precision": "year",
+   "paragraphs": [],
+   "quote": "subject to the City’s Drainage Master Plan 2018",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Atmospheric river floods put Westcoast's right-of-way under up to 2m of water",
+   "date": "2021-11",
+   "precision": "month",
+   "paragraphs": [],
+   "quote": "During the November 2021 atmospheric river floods in the area in which Loop CS-09 is",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Governments develop the Sumas River Flood Mitigation Collaborative Framework after the flood",
+   "date": "2023",
+   "precision": "approximate",
+   "paragraphs": [],
+   "quote": "River Flood Mitigation Collaborative Framework, developed after the atmospheric river",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Westcoast has not provided the City its traffic or access control management plans for Loop CS-09",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [],
+   "quote": "Westcoast has not provided the City with a copy of its traffic management or access control",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Westcoast has not provided studies showing its buoyancy controls will work in the flood mitigation area",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [],
+   "quote": "Westcoast has not provided the City with detailed studies or designs of Loop CS-09 that",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "City plots the water main drawings for Vye Road and Lamson Road",
+   "date": "2025-02-24",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "of the AC water main in relation to Vye Road and Loop CS-09",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Westcoast application filings A8Y4R5 and A9G9X0"
+ ],
+ "leak_waivers": [],
+ "notes": "The affidavit's text layer lists paragraph numbers 1)-29) in a column apart from the paragraph text, so references and events carry no paragraph numbers. Whole-page covers are OCR text with garbled labels ('Fi'), so --covers by page. Jurat day reads '3.6' in the body; cover I reads 26."
+}

@@ -1,0 +1,18 @@
+{
+ "url": "https://s3.documentcloud.org/documents/25183815/20240723-hannan-v-scouts-canada-application-record.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/25183815-20240723-hannan-v-scouts-canada-application-record/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-24-00095566",
+ "document_title": "Application Record of the Applicant Wayne Hannan, July 26, 2024 (posted by CBC News)",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-hannan-scouts-hannan1",
+ "source_file": "e7-20240723-hannan-v-scouts-canada-application-record.pdf",
+ "page_range": [
+  54,
+  190
+ ],
+ "source_sha256": "937287a73fb31adb416e38dc2c18cfe351e4e6e4ed35ee67ca5625e793dceae0",
+ "source_pages": 411
+}

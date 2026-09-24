@@ -1,0 +1,144 @@
+{
+ "record_id": "nssc-chesterbasin-santimaw",
+ "court": "Supreme Court of Nova Scotia (in Bankruptcy and Insolvency, Halifax)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "Hfx No. 530600",
+ "subject": "insolvency",
+ "family": "chester-basin-seafood",
+ "proceeding": "4519497 Nova Scotia Limited v. Grant Thornton Limited, as trustee in bankruptcy of Chester Basin Seafood Group Inc. (receivership)",
+ "document": "Affidavit of Joshua J. Santimaw sworn July 5, 2024",
+ "deponent": "Joshua J. Santimaw",
+ "deponent_role": "Lawyer for the respondent trustee in bankruptcy (Grant Thornton Limited)",
+ "sworn_date": "2024-07-05",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-3dz8kt.pdf",
+   "kind": "public_record",
+   "date": "2024-06-27",
+   "author": "Nova Scotia Personal Property Registry",
+   "recipients": [],
+   "description": "PPSA search result for Chester Basin",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached hereto as Exhibit \"A\" is a true copy of the Personal Property Security Act result"
+    }
+   ],
+   "content_check": "33 pages: 'Nova Scotia PPRS Search Result Report 25801986'"
+  },
+  {
+   "label": "B",
+   "file": "doc-z6zqwx.pdf",
+   "kind": "public_record",
+   "date": "2024-07-02",
+   "author": "Transport Canada",
+   "recipients": [],
+   "description": "Certified transcript of registry for the Seaman's Toy I",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached hereto as Exhibit \"B\" is a true copy of the Transport Canada Certified Copy"
+    }
+   ],
+   "content_check": "4 pages: Transport Canada ship registration transcript, date 2024-07-02"
+  },
+  {
+   "label": "C",
+   "file": "doc-fsfuxr.pdf",
+   "kind": "public_record",
+   "date": "2024-07-02",
+   "author": "Transport Canada",
+   "recipients": [],
+   "description": "Certified transcript of registry for the Fortune Pride",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto as Exhibit \"C\" is a true copy of the Transport Canada Certified Copy"
+    }
+   ],
+   "content_check": "4 pages: Transport Canada ship registration transcript, date 2024-07-02"
+  },
+  {
+   "label": "D",
+   "file": "doc-mze9sb.pdf",
+   "kind": "public_record",
+   "date": "2024-07-02",
+   "author": "Transport Canada",
+   "recipients": [],
+   "description": "Certified transcript of registry for the Atlantic Sea Clipper",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto as Exhibit \"D\" is a true copy of the Transport Canada Certified Copy"
+    }
+   ],
+   "content_check": "4 pages: Transport Canada ship registration transcript, date 2024-07-02"
+  },
+  {
+   "label": "E",
+   "file": "doc-4yrma9.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Property Online (Nova Scotia)",
+   "recipients": [],
+   "description": "Property Online printout showing Chester Basin owns no real property",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto as Exhibit \"E\" is a true copy of a Property On-Line printout"
+    }
+   ],
+   "content_check": "One page: 'DisplayResult - Property Online' showing 0 entries; browser print header 7/9/24"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "PPSA search for Chester Basin run",
+   "date": "2024-06-27",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "for Chester Basin Seafood Group Inc. dated June 27, 2024",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Certified ship registry transcripts obtained for the three vessels",
+   "date": "2024-07-02",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    6,
+    7
+   ],
+   "quote": "Transcript of Registry for the Seaman's Toy I dated July 2, 2024",
+   "exhibits": [
+    "B",
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Property Online search shows no real property",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "demonstrating Chester Basin does not own any real property",
+   "exhibits": [
+    "E"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibit E's browser header reads 7/9/24, four days after the jurat; the posted copy may carry a later reprint.",
+ "referenced_not_attached": []
+}

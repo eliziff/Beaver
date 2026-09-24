@@ -1,0 +1,18 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/3716296",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Search?txthl=Miriam%20Bird",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "MH-052-2018 (OF-Fac-Oil-T260-2013-03 59)",
+ "document_title": "Affidavit of Miriam Bird sworn November 27, 2018 (Tsleil-Waututh Nation supplemental filing, Application for Review, A96156-2)",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-tmx-bird",
+ "source_file": "dcer-3716296.pdf",
+ "page_range": [
+  1,
+  172
+ ],
+ "source_sha256": "3f23ea6208ee2e1e0d24ac3cf4208c5eeaf61c5df5d571a377f6b150e2cf612d",
+ "source_pages": 172
+}

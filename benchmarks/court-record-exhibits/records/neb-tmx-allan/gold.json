@@ -1,0 +1,187 @@
+{
+ "record_id": "neb-tmx-allan",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "MH-081-2017 (OF-Fac-Oil-T260-2013-03-03)",
+ "subject": "municipal",
+ "family": null,
+ "proceeding": "Trans Mountain's Notice of Motion and Notice of Constitutional Question (Hearing Order MH-081-2017) for relief from City of Burnaby permitting for Burnaby Terminal and Westridge Marine Terminal work; the City's responding evidence on Project delay and pipeline capacity",
+ "document": "Affidavit of Robyn Allan affirmed November 16, 2017 (REGDOCS A87925-4)",
+ "deponent": "Robyn Allan",
+ "deponent_role": "Independent economist; evidence filed for the City of Burnaby",
+ "sworn_date": "2017-11-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-8rvfzk.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Robyn Allan",
+   "recipients": [],
+   "description": "Allan's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 1,
+     "quote": "A copy of my Curriculum Vitae is"
+    }
+   ],
+   "content_check": "2 pages: 'Summary of Experience: Robyn Allan Curriculum Vitae'"
+  },
+  {
+   "label": "B",
+   "file": "doc-cs6qm2.pdf",
+   "kind": "transcript",
+   "date": "2017-10-18",
+   "author": "Kinder Morgan",
+   "recipients": [],
+   "description": "Transcript of Kinder Morgan's Q3 2017 earnings conference call discussing the Project delay",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "the written transcript attached as Exhibit “B” [p. 11; minute 28:30]"
+    },
+    {
+     "paragraph": 16,
+     "quote": "[Exhibit “B” p. 29; minute 1:10:00]"
+    }
+   ],
+   "content_check": "32 pages: 'Kinder Morgan Q3 2017 Earnings Conference Call Transcript (KMI) ... Oct. 18, 2017, 4:30 p.m. ET'"
+  },
+  {
+   "label": "C",
+   "file": "doc-pbrmh7.pdf",
+   "kind": "email",
+   "date": "2016-10-03",
+   "author": "Darcy Johnson (NEB)",
+   "recipients": [
+    "Robyn Allan"
+   ],
+   "description": "NEB email to Allan on the relationship between heavy oil share and pipeline capacity",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Email from D. Johnson, NEB to R. Allan, October 3, 2016 [Exhibit “C”]"
+    }
+   ],
+   "content_check": "1 page: 'From: Darcy Johnson ... Subject: RE: Transportation Report Date: October 3, 2016 at 9:34 AM To: Robyn Allan'"
+  },
+  {
+   "label": "D",
+   "file": "doc-kt4cam.pdf",
+   "kind": "chart",
+   "date": "2017",
+   "author": "Robyn Allan",
+   "recipients": [],
+   "description": "Allan's table of Trans Mountain's 2017 monthly throughput and operating capacity",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "I have created Exhibit “D” based on data from Trans Mountain’s NEB Guide BB.2"
+    },
+    {
+     "paragraph": 50,
+     "quote": "Exhibit “D” demonstrates the only month with excess operating throughput was"
+    }
+   ],
+   "content_check": "5 pages: 'Trans Mountain Throughput and Operating Capacity 2017 Month 2017 Throughput Bpd ... January 301,190'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "NEB emails Allan on heavy oil share and Trans Mountain capacity",
+   "date": "2016-10-03",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Email from D. Johnson, NEB to R. Allan, October 3, 2016",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Trans Mountain's Condition 62 filing states a December 2019 in-service date",
+   "date": "2017-05-15",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "with Trans Mountain’s May 15, 2017, Condition 62 filing with the NEB",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Kinder Morgan announces a nine-month delay to September 2020 and discusses it on its earnings call",
+   "date": "2017-10-18",
+   "precision": "day",
+   "paragraphs": [
+    3,
+    13,
+    14
+   ],
+   "quote": "On October 18, 2017, Kinder Morgan also held a conference call with analysts.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Trans Mountain files the Davies Affidavit with its Notice of Motion and NCQ",
+   "date": "2017-10-26",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On October 26, 2017, Trans Mountain filed an affidavit sworn by Michael Davies",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Trans Mountain's November 1, 2017 filing gives a September 30, 2020 in-service date",
+   "date": "2017-11-01",
+   "precision": "day",
+   "paragraphs": [
+    9,
+    10
+   ],
+   "quote": "Trans Mountain advised the Board in its covering letter dated November 1, 2017,",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "In 2016 Trans Mountain averages 316,000 bpd with excess capacity",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    22
+   ],
+   "quote": "For the year 2016, throughput on Trans Mountain averaged 316,000 bpd",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "In the first nine months of 2017 the pipeline exceeds operating capacity only in February",
+   "date": "2017-02",
+   "precision": "month",
+   "paragraphs": [
+    49,
+    50
+   ],
+   "quote": "except during February when it exceeded operating capacity by approximately 7 per cent",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Davies Affidavit [A87282-3] and Trans Mountain's Notice of Motion and NCQ [A87282-13]",
+  "Kinder Morgan press release of October 18, 2017",
+  "NEB 2014 and 2016 pipeline reports; Trans Mountain 2010 toll application; Guide BB.2 filings",
+  "Trans Mountain Condition 62 filings of May 15 and November 1, 2017"
+ ],
+ "leak_waivers": [],
+ "notes": "Economic evidence; many registry filings are cited by ID rather than attached."
+}

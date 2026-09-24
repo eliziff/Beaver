@@ -1,0 +1,276 @@
+{
+ "record_id": "mbkb-bokhari-sandhu",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI24-01-46753",
+ "subject": "construction",
+ "proceeding": "Donald R. Knight, K.C. v. Bokhari Development Inc.: application under The Builders' Liens Act to pay lien holdback funds into court (Tahir Residences, Portage la Prairie); general contractor 6332189 Manitoba Ltd. claims the holdback",
+ "document": "Affidavit of Karampaul Sandhu affirmed July 3, 2024",
+ "deponent": "Karampaul Sandhu",
+ "deponent_role": "President and director of 6332189 Manitoba Ltd. (general contractor claiming holdback funds)",
+ "sworn_date": "2024-07-03",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-2j8ujq.pdf",
+   "kind": "contract",
+   "date": "2021-07-12",
+   "author": "6332189 Manitoba Ltd. and Bokhari Development Inc.",
+   "recipients": [],
+   "description": "CCDC 2 stipulated price contract for construction of the Tahir Residences",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the Contract is attached as Exhibit \"A\" to this \nAffidavit"
+    }
+   ],
+   "content_check": "33 pages: 'CCDC 2 stipulated price contract 2008 [TAHIR RESIDENCES]' with table of contents and general conditions"
+  },
+  {
+   "label": "B",
+   "file": "doc-dmzq2x.pdf",
+   "kind": "letter",
+   "date": "2021-10-26",
+   "author": "Knight Law Office",
+   "recipients": [],
+   "description": "Knight Law Office letter enclosing payment of an invoice less lien holdback",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "A copy of the letter from \nKnight Law Office dated October 26, 2021 is attached as Exhibit"
+    }
+   ],
+   "content_check": "One page: Knight Law Office letter October 26, 2021 to 6332189 Manitoba Ltd. o/a Gateway Projects enclosing a trust cheque for $667,432.13 on invoice 0002POR21"
+  },
+  {
+   "label": "C",
+   "file": "doc-meb3nc.pdf",
+   "kind": "letter",
+   "date": "2021-11-22",
+   "author": "Knight Law Office",
+   "recipients": [],
+   "description": "Knight Law Office letter enclosing payment of an invoice less lien holdback",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Knight Law Office dated November 22, 2021 is attached as \nExhibit"
+    }
+   ],
+   "content_check": "One page: Knight Law Office letter November 22, 2021 enclosing a trust cheque for $1,208,001.90"
+  },
+  {
+   "label": "D",
+   "file": "doc-nzd9wn.pdf",
+   "kind": "letter",
+   "date": "2021-12-16",
+   "author": "Knight Law Office",
+   "recipients": [],
+   "description": "Knight Law Office letter enclosing payment of the fourth draw less lien holdback",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Knight Law Office dated December 16, 2021 is attached as \nExhibit"
+    }
+   ],
+   "content_check": "One page: Knight Law Office letter December 16, 2021; '4th draw has been advanced by People's Trust Company'"
+  },
+  {
+   "label": "E",
+   "file": "doc-hsfv4w.pdf",
+   "kind": "spreadsheet",
+   "date": "2023-01-23",
+   "author": "6332189 Manitoba Ltd.",
+   "recipients": [],
+   "description": "633's collection report of payments received as of January 23, 2023",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of 633's collection report as of January 23, 2023 is \nattached as Exhibit"
+    }
+   ],
+   "content_check": "One page 'COLLECTION' list of dated amounts from 24/09/2021 onward"
+  },
+  {
+   "label": "F",
+   "file": "doc-5vbhk2.pdf",
+   "kind": "financial_statement",
+   "date": "2023",
+   "author": "Assiniboine Credit Union",
+   "recipients": [],
+   "description": "633's monthly bank statements showing the 2023 deposits from BDI",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A copy of 633's monthly banking statements \nshowing the aforementioned deposits is attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: Assiniboine Credit Union statements for 6332189 Manitoba Ltd., from 'January 1, 2023 to January 31, 2023'"
+  },
+  {
+   "label": "G",
+   "file": "doc-g5e6tk.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office corporate file summary for 633",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the Companies Office \ncorporate file summary for 633 is attached as Exhibit"
+    }
+   ],
+   "content_check": "Companies Office file summary for 6332189 Manitoba Ltd., incorporated 02-Aug-2011, nature of business construction"
+  },
+  {
+   "label": "H",
+   "file": "doc-xy34hs.pdf",
+   "kind": "corporate_record",
+   "date": null,
+   "author": "6332189 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Shareholder register of 633",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A \ncopy of the Shareholder Registry for 633 is attached as Exhibit"
+    }
+   ],
+   "content_check": "One scanned page: 6332189 Manitoba Limited shareholder register, Karampaul Sandhu holding 10 common shares, signed by him as president"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "633 and BDI enter the CCDC stipulated price contract for the Tahir Residences",
+   "date": "2021-07-12",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "on July 12th, 2021 (the \n\"Contract\")",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "633 commences construction",
+   "date": "2021-08-15",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "633 commenced construction on August 15, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Knight Law Office pays an invoice less lien holdback",
+   "date": "2021-10-26",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "October 26, 2021, payment of invoice for $1 ,099,878.15",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Knight Law Office pays an invoice less lien holdback",
+   "date": "2021-11-22",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "November 22, 2021 , payment of invoice for $1 ,305,948.00",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Knight Law Office pays an invoice less lien holdback",
+   "date": "2021-12-16",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "December 16, 2021 , payment of invoice for $1,759,143.75",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "633 has received $13,932,424.24 as of the collection report",
+   "date": "2023-01-23",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "As of January 23, 2023, 633 \nhad received payments of $13,932,424.24",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "BDI pays $994,505.35",
+   "date": "2023-01-23",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "$994,505.35 on January 23, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "BDI pays $309,560.43",
+   "date": "2023-03-08",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "$309,560.43 on March 8, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "BDI pays $167,502.28",
+   "date": "2023-05-11",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "$167,502.28 on May 11, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "BDI delays progress payments; 633 walks off the project at about 60% completion",
+   "date": "2023-06",
+   "precision": "month",
+   "paragraphs": [
+    7
+   ],
+   "quote": "633 walked \noff the project in or around June 2023",
+   "exhibits": []
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "633's invoices to BDI"
+ ],
+ "notes": "Exhibit H's cover reads '11H\"' in the text layer, so covers were given by page (--covers). Exhibit B's letter shows a $667,432.13 cheque on the invoice the affidavit gives as $1,099,878.15 less holdback."
+}

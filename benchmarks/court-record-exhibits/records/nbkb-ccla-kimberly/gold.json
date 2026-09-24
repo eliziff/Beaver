@@ -1,0 +1,195 @@
+{
+ "record_id": "nbkb-ccla-kimberly",
+ "court": "Court of King's Bench of New Brunswick (Trial Division)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "FM-76-2023 (Fredericton)",
+ "subject": "charter",
+ "family": "ccla-nb-policy713",
+ "proceeding": "Canadian Civil Liberties Association v. Province of New Brunswick (judicial review of revised Policy 713 on sexual orientation and gender identity in schools), motion of Gender Dysphoria Alliance and Our Duty Canada for leave to intervene",
+ "document": "Affidavit of Aaron Kimberly sworn November 28, 2023 (Tab 2 of the proposed intervenors' motion record)",
+ "deponent": "Aaron Kimberly",
+ "deponent_role": "Executive Director and founding member of Gender Dysphoria Alliance (proposed intervenor); registered nurse",
+ "sworn_date": "2023-11-28",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-xhwzv8.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "List of GDA's leadership board and advisory board",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto to this my Affidavit as Exhibit “A” is a list of the \nindividuals on our leadership board and our advisory board"
+    }
+   ],
+   "content_check": "3 pages: GDA website 'Leadership Board' and 'Advisory Board' with photos and bios (broken font encoding; OCR'd)"
+  },
+  {
+   "label": "B",
+   "file": "doc-xtq5jr.pdf",
+   "kind": "public_record",
+   "date": "2023-09-05",
+   "author": "OrgBook BC (BC Corporate Registry)",
+   "recipients": [],
+   "description": "GDA's registration information",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached \nhereto to as Exhibit “B”, is GDA’s registration info"
+    }
+   ],
+   "content_check": "3 pages: OrgBook BC printout 2023-09-05 for GD ALLIANCE CANADA, sole proprietorship registered Feb 26, 2021"
+  },
+  {
+   "label": "C",
+   "file": "doc-wc6dnd.pdf",
+   "kind": "report",
+   "date": "2023-10",
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "GDA's submissions to the Saskatchewan Human Rights Commission on the Saskatchewan pronoun policy",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto to \nas Exhibit “C”, is GDA’s submissions to the Saskatchewan Human Rights Commission"
+    }
+   ],
+   "content_check": "34 pages: 'Submissions to the Saskatchewan Human Rights Commission Regarding: Ministry of Education Use of Preferred First Name and Pronouns by Students'"
+  },
+  {
+   "label": "D",
+   "file": "doc-nqf996.pdf",
+   "kind": "public_record",
+   "date": "2023-09-13",
+   "author": "College of Registered Nurses of Manitoba",
+   "recipients": [],
+   "description": "Verification of Kimberly's status as a registered nurse",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached hereto to this my Affidavit as Exhibit “D” is verification of my status \nas a registered nurse"
+    }
+   ],
+   "content_check": "One page: CRNM 'Nurse Check' search result, Aaron Kimberly, Registered Nurse, obtained 2023-09-13"
+  },
+  {
+   "label": "E",
+   "file": "doc-3mf8mc.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "Stories of three gender dysphoric individuals from GDA's website",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit E to this affidavit are the stories of three \ngender dysphoric individuals from GDA’s website"
+    }
+   ],
+   "content_check": "9 pages: GDA web articles beginning 'Meet Aaron Terrell' (Aug 18, 2021, updated Dec 18, 2021) (broken font encoding; OCR'd)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Kimberly born",
+   "date": "1973",
+   "precision": "year",
+   "paragraphs": [
+    21
+   ],
+   "quote": "I was born \nas a biological female in 1973",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Surgery at age 19 reveals an ovotesticular disorder of sex development",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    22
+   ],
+   "quote": "At age 19, I had surgery to remove a grapefruit-sized cyst",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Kimberly changes name to Aaron at age 22",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    23
+   ],
+   "quote": "I changed my name to Aaron when I was 22",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Kimberly moves to Vancouver",
+   "date": "2000",
+   "precision": "approximate",
+   "paragraphs": [
+    25
+   ],
+   "quote": "In the early 2000s, I moved to Vancouver",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Kimberly sees a documentary on trans kids and decides to transition",
+   "date": "2007",
+   "precision": "approximate",
+   "paragraphs": [
+    25
+   ],
+   "quote": "around \n2007, I saw a documentary on TV about trans kids",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "GDA registered",
+   "date": "2021-02",
+   "precision": "month",
+   "paragraphs": [
+    3
+   ],
+   "quote": "GDA was registered in February 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "GDA granted intervenor status in UR Pride v Saskatchewan",
+   "date": "2023-10",
+   "precision": "month",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In October 2023, we were granted intervenor status",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "GDA makes submissions to the Saskatchewan Human Rights Commission",
+   "date": "2023-10",
+   "precision": "month",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Also in October 2023, GDA was invited to provide submissions",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "CCLA's application materials reviewed by the deponent"
+ ],
+ "notes": "PDF pages 14-82 of the proposed intervenors' motion record (source of nbkb-ccla-ab). Exhibit covers are image-only pages, given by page (--covers). A and E have broken font encodings and were OCR'd. The deponent is also the deponent of skkb-urpride-kimberly (a different proceeding)."
+}

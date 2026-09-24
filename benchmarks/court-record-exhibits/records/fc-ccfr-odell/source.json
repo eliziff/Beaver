@@ -1,0 +1,19 @@
+{
+ "url": "https://firearmrights.ca/wp-content/uploads/2020/09/Affidavit-of-Philip-ODell-00047573xD5450.pdf",
+ "landing_url": "https://firearmrights.ca/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-577-20",
+ "document_title": "Affidavit of Philip O'Dell (applicants' evidence, CCFR et al. v. Attorney General of Canada, May 2020 firearms Order in Council)",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-ccfr-odell",
+ "source_file": "d3-affidavit-of-philip-odell-00047573xd5450.pdf",
+ "page_range": [
+  1,
+  102
+ ],
+ "source_sha256": "120af66e43bf1ce555bf4698e82790b792cf2845ac11ee9174249db89447300f",
+ "source_pages": 102,
+ "affidavit_ocr": true
+}

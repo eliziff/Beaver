@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/mbkb-bokhari-sandhu/noa-2024-06-12.pdf",
+  "url": "https://kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/bokhari-canada-inc/notice-of-application-dated-june-12-2024.pdf.coredownload.inline.pdf",
+  "title": "Notice of Application dated June 12, 2024 (Knight interpleader)",
+  "kind": "court_filing",
+  "relation": "originating application in the same proceeding"
+ },
+ {
+  "file": "raw/matter/mbkb-bokhari-sandhu/brief-2024-07-03.pdf",
+  "url": "https://kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/bokhari-canada-inc/motion-brief-dated-july-3-2024.pdf.coredownload.inline.pdf",
+  "title": "Motion brief dated July 3, 2024",
+  "kind": "court_filing",
+  "relation": "brief filed with the affidavit"
+ },
+ {
+  "file": "raw/matter/mbkb-bokhari-sandhu/nom-2024-06-28.pdf",
+  "url": "https://kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/bokhari-canada-inc/notice-of-motion-dated-june-28-2024.pdf.coredownload.inline.pdf",
+  "title": "Notice of Motion dated June 28, 2024",
+  "kind": "court_filing",
+  "relation": "motion the affidavit supports"
+ }
+]

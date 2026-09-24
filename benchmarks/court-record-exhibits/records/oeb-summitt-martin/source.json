@@ -1,0 +1,19 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/331194/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record/331194",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2011-0316",
+ "document_title": "Affidavit of Jeremy Martin sworn March 12, 2012 (Summitt Energy Management Inc., notice of intention to make a compliance order and administrative penalty)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-summitt-martin",
+ "source_file": "doeb-331194.pdf",
+ "page_range": [
+  1,
+  149
+ ],
+ "source_sha256": "c372e7f71a807cccc4d689cf3819cf0955efdc84806a7fbdccc03ce1e341d557",
+ "source_pages": 149,
+ "covers": "A=6,B=14,C=16,D=19,E=25,F=27,G=30,H=34,I=38,J=41,K=45,L=47,M=50,N=54,O=71,P=81"
+}

@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/mbkb-5684961-pacheco/receivership-order.pdf",
+  "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/5684961-manitoba-ltd-485-furby/receivership-order.pdf",
+  "title": "Receivership Order",
+  "kind": "court_order",
+  "relation": "later order in the same proceeding"
+ },
+ {
+  "file": "raw/matter/mbkb-5684961-pacheco/first-report.pdf",
+  "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/5684961-manitoba-ltd-485-furby/first-report-of-the-receiver.pdf",
+  "title": "First Report of the Receiver",
+  "kind": "report",
+  "relation": "later receiver report in the same proceeding"
+ },
+ {
+  "file": "raw/matter/mbkb-5684961-pacheco/filed-application.pdf",
+  "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/5684961-manitoba-ltd-485-furby/filed-application.pdf",
+  "title": "Filed application for the appointment of a receiver",
+  "kind": "court_filing",
+  "relation": "originating application the affidavit supports"
+ }
+]

@@ -1,0 +1,237 @@
+{
+ "record_id": "nssc-chesterbasin-breau",
+ "court": "Supreme Court of Nova Scotia (in Bankruptcy and Insolvency, Halifax)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "Court No. 528154, Estate No. 51-3007018",
+ "subject": "insolvency",
+ "family": "chester-basin-seafood",
+ "proceeding": "In the matter of the Notice of Intention to Make a Proposal of Chester Basin Seafood Group Inc.: motion to extend the time to file a proposal to March 6, 2024",
+ "document": "Affidavit of Herbert Breau sworn January 15, 2024",
+ "deponent": "Herbert Breau",
+ "deponent_role": "Director and Chairperson of Chester Basin Seafood Group Inc. (the debtor); former federal Minister of Fisheries and Oceans",
+ "sworn_date": "2024-01-15",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ejw5rp.pdf",
+   "kind": "affidavit",
+   "date": "2023-11-20",
+   "author": "Jose Teixeira",
+   "recipients": [],
+   "description": "Teixeira's Initial Affidavit sworn November 20, 2023, without exhibits",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto and marked as Exhibit “A” is a copy of Mr. Teixeira’s Initial Affidavit"
+    }
+   ],
+   "content_check": "16 pages: NSSC in bankruptcy caption, NOI of Chester Basin; the affidavit's own text cites its exhibits (Certificate of Filing as its Exhibit A)"
+  },
+  {
+   "label": "B",
+   "file": "doc-q7rhzp.pdf",
+   "kind": "court_order",
+   "date": "2023-11-24",
+   "author": "Registrar Balmanoukian, NSSC",
+   "recipients": [],
+   "description": "Order of Registrar Balmanoukian dated November 24, 2023 approving the DIP Facility and charge",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Attached hereto and marked as Exhibit “B” is a copy of the Order of Registrar"
+    }
+   ],
+   "content_check": "6 pages: stamped order, Court No. 528154, Estate 51-3007018"
+  },
+  {
+   "label": "C",
+   "file": "doc-a3gcwe.pdf",
+   "kind": "court_order",
+   "date": "2023-12-01",
+   "author": "Registrar, NSSC",
+   "recipients": [],
+   "description": "Amended order of December 1, 2023 (the First Stay Extension Order)",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "The Order was amended on December 1, 2023, copy of which is appended hereto and \nmarked as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: order in Court No. 528154"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Breau appointed Minister of Fisheries and Oceans",
+   "date": "1984",
+   "precision": "year",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Minister of Fisheries and Oceans \nfor a brief period in 1984",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Breau and Chabot acquire a majority interest in CBSG (the Transaction)",
+   "date": "2022-06",
+   "precision": "month",
+   "paragraphs": [
+    13
+   ],
+   "quote": "As a result of an acquisition in June 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Vessels out of commission during 2022 and 2023",
+   "date": "2022",
+   "precision": "range",
+   "paragraphs": [
+    30
+   ],
+   "quote": "a disastrous set of circumstances in 2022 and 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "TD commences receivership of Meridien Atlantic Fishing",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    52
+   ],
+   "quote": "In March 2023, TD commenced a receivership over another Nova Scotian silver hake \nharvester",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Meridien sale process approved",
+   "date": "2023-04",
+   "precision": "month",
+   "paragraphs": [
+    53
+   ],
+   "quote": "A sale process for Meridien’s assets was approved in April 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "CBSG files its NOI; Grant Thornton proposal trustee",
+   "date": "2023-11-07",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On November 7, 2023, CBSG filed a Notice of Intention to Make a Proposal",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "European investors visit CBSG's premises; talks later ended",
+   "date": "2023-11",
+   "precision": "approximate",
+   "paragraphs": [
+    59
+   ],
+   "quote": "The investors visited CBSG’s premises in and around November 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Court approves sale of Meridien's licences and quotas",
+   "date": "2023-11-17",
+   "precision": "day",
+   "paragraphs": [
+    54
+   ],
+   "quote": "approved by this Court \non November 17, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Teixeira swears the Initial Affidavit",
+   "date": "2023-11-20",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "the affidavit of Jose Teixeira sworn \nNovember 20, 2023 (the “Initial Affidavit”)",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Court approves the $1.1 million DIP Facility and charge",
+   "date": "2023-11-24",
+   "precision": "day",
+   "paragraphs": [
+    33,
+    34
+   ],
+   "quote": "On November 24, 2023, this Court approved an interim financing facility",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Order amended (First Stay Extension Order)",
+   "date": "2023-12-01",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "The Order was amended on December 1, 2023",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Board restructured to Chabot, Teixeira and Breau",
+   "date": "2023-12",
+   "precision": "approximate",
+   "paragraphs": [
+    43,
+    44
+   ],
+   "quote": "Toward the end of 2023, interactions between certain board members became challenging",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "13-week cash flow projections provided to Breau",
+   "date": "2024-01-10",
+   "precision": "day",
+   "paragraphs": [
+    83
+   ],
+   "quote": "provided to me on January 10, \n2024",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Stay under s. 50.4(9) BIA due to expire",
+   "date": "2024-01-21",
+   "precision": "day",
+   "paragraphs": [
+    78
+   ],
+   "quote": "expires on January 21, 2024",
+   "exhibits": []
+  }
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "referenced_not_attached": [
+  "Exhibits to Teixeira's Initial Affidavit",
+  "Preliminary framework of the potential proposal shared with the Proposal Trustee, TD, Pluto and shareholders",
+  "13-week cash flow projections"
+ ],
+ "notes": "Earlier NOI proceeding of the same debtor as the receivership records (family chester-basin-seafood). Exhibit A is a nested affidavit whose own text mentions its exhibits (leak waived). Exhibits B and C are the same Registrar's orders attached as B and E to nssc-chesterbasin-teixeira."
+}

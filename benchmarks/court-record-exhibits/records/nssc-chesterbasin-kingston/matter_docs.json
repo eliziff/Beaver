@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/nssc-chesterbasin-kingston/notice-of-application.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./Receivership/Notices%20of%20Application%20and%20Notices%20of%20Motion/003-Notice%20of%20Application%20in%20Chambers%20dated%20February%2012%2C%202024.pdf",
+  "title": "Notice of Application in Chambers dated February 12, 2024",
+  "kind": "court_filing",
+  "relation": "application the affidavit supports"
+ },
+ {
+  "file": "raw/matter/nssc-chesterbasin-kingston/prefiling-report.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./Receivership/Court%20Reports/001-Pre-filing%20report%20of%20Proposed%20Receiver%27s%20Report%20dated%20February%2013%2C%202024.pdf",
+  "title": "Pre-filing report of the proposed receiver dated February 13, 2024",
+  "kind": "report",
+  "relation": "report filed on the same application"
+ },
+ {
+  "file": "raw/matter/nssc-chesterbasin-kingston/receivership-order.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./Receivership/Court%20Orders/001-Receivership%20Order%20dated%20February%2015%2C%202024.pdf",
+  "title": "Receivership Order dated February 15, 2024",
+  "kind": "court_order",
+  "relation": "order made on the application"
+ }
+]

@@ -1,0 +1,178 @@
+{
+ "record_id": "nbkb-ccla-leung",
+ "court": "Court of King's Bench of New Brunswick (Trial Division)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "FM-76-2023 (Fredericton)",
+ "subject": "charter",
+ "family": "ccla-nb-policy713",
+ "proceeding": "Canadian Civil Liberties Association v. Province of New Brunswick (judicial review of revised Policy 713 on sexual orientation and gender identity in schools), motion of Gender Dysphoria Alliance and Our Duty Canada for leave to intervene",
+ "document": "Affidavit of Darren Leung sworn March 20, 2024 (Tab 4 of the proposed intervenors' motion record)",
+ "deponent": "Darren Leung",
+ "deponent_role": "Lawyer with Charter Advocates Canada (counsel's office for the proposed intervenors)",
+ "sworn_date": "2024-03-20",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-snuku7.pdf",
+   "kind": "other",
+   "date": "2024-03",
+   "author": "Kenneth J. Zucker",
+   "recipients": [],
+   "description": "Curriculum vitae of Dr. Kenneth J. Zucker",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of Dr. \nZucker’s Curriculum Vitae is attached hereto to this my Affidavit as Exhibit"
+    }
+   ],
+   "content_check": "53 pages: 'CURRICULUM VITAE KENNETH J. ZUCKER', dated March 2024"
+  },
+  {
+   "label": "B",
+   "file": "doc-zebz8z.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Kenneth J. Zucker",
+   "recipients": [],
+   "description": "Excerpts of Dr. Zucker's website kenzuckerphd.com",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "See excerpts of https://www.kenzuckerphd.com/ attached hereto to this my Affidavit as \nExhibit"
+    }
+   ],
+   "content_check": "9 pages of web printouts (broken font encoding; OCR'd)"
+  },
+  {
+   "label": "C",
+   "file": "doc-ym68g4.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Kenneth J. Zucker",
+   "recipients": [],
+   "description": "Will-Say of Dr. Zucker outlining his expert opinion on the self-identification provisions of Policy 713",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Charter Advocates Canada is in receipt of the Will-Say of Dr. Kenneth Zucker"
+    }
+   ],
+   "content_check": "One page: 'Will-Say of Kenneth J. Zucker, Ph.D., C.Psych. (Reg. No. 1712) Comment on self-identification provisions of Policy 713'"
+  },
+  {
+   "label": "D",
+   "file": "doc-4vdmgr.pdf",
+   "kind": "affidavit",
+   "date": "2024-03-18",
+   "author": "A.B. (anonymized New Brunswick mother)",
+   "recipients": [],
+   "description": "Redacted affidavit of a New Brunswick mother, with its own exhibits",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "A redacted copy of her affidavit is attached to this Affidavit as Exhibit"
+    }
+   ],
+   "content_check": "59 pages: NB King's Bench affidavit with the deponent's name blacked out, sworn 18th day of March, 2024, followed by its Exhibits A-D (letters, Policy 713, articles)"
+  },
+  {
+   "label": "E",
+   "file": "doc-y23vdj.pdf",
+   "kind": "affidavit",
+   "date": null,
+   "author": "A.A. (anonymized young woman)",
+   "recipients": [],
+   "description": "Redacted draft affidavit of a young neurodiverse woman socially transitioned at school",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A \nredacted copy of her drafted affidavit is attached to this Affidavit as Exhibit"
+    }
+   ],
+   "content_check": "211 pages: FM-76-2023 caption 'AFFIDAVIT OF [redacted] (Hereinafter, A.A.)', of Alberta, its text pages come first; the ~200 pages of its own exhibits that follow are image-only with only folio numbers (ocr_exhibits skips the file because its first pages carry text)"
+  },
+  {
+   "label": "F",
+   "file": "doc-6fjhx5.pdf",
+   "kind": "affidavit",
+   "date": null,
+   "author": "P.T. (anonymized father)",
+   "recipients": [],
+   "description": "Redacted draft affidavit of the young woman's father",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A redacted copy of his drafted affidavit is attached to this Affidavit as \nExhibit"
+    }
+   ],
+   "content_check": "25 pages: FM-76-2023 caption 'AFFIDAVIT OF [redacted] (Hereinafter, P.T.)', unsworn April 2024 jurat, with an earlier 2018 affidavit of P.T. as its Exhibit 1"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CCLA files its Notice of Application",
+   "date": "2023-09-06",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "filed September 6, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "GDA and ODC retain Dr. Zucker as an expert; will-say received",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    2,
+    7
+   ],
+   "quote": "they have retained Kenneth, J. \nZucker",
+   "exhibits": [
+    "A",
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "New Brunswick mother swears her redacted affidavit",
+   "date": "2024-03-18",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "A redacted copy of her affidavit is attached to this Affidavit as Exhibit",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Young woman and her father expected to swear their draft affidavits",
+   "date": "2024-04",
+   "precision": "month",
+   "paragraphs": [
+    9,
+    10
+   ],
+   "quote": "will be able to swear the attached draft affidavit in April",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  }
+ ],
+ "leak_waivers": [
+  "D",
+  "F"
+ ],
+ "referenced_not_attached": [
+  "Policy 713",
+  "Notice of Application of the CCLA filed September 6, 2023",
+  "Expert research referred to in paragraphs 25 and 80 of the Notice of Application (not yet filed)"
+ ],
+ "notes": "PDF pages 106-479 of the proposed intervenors' motion record. Covers are image-only pages, given by page. D, E and F are nested affidavits whose own exhibit covers survive inside them (D and F leaks waived); D is the same affidavit split as its own record in nbkb-ccla-ab (family ccla-nb-policy713). E's own exhibits (about 200 pages) are image-only and not OCR'd; B had a broken font and was OCR'd."
+}

@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/nssc-chesterbasin-santimaw/receiver-motion.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./Receivership/Notices%20of%20Application%20and%20Notices%20of%20Motion/011-Receiver%27s%20Notice%20of%20Motion%20dated%20July%205%2C%202024.PDF",
+  "title": "Receiver's Notice of Motion dated July 5, 2024",
+  "kind": "court_filing",
+  "relation": "motion the affidavit supports"
+ },
+ {
+  "file": "raw/matter/nssc-chesterbasin-santimaw/first-report.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./Receivership/Court%20Reports/002-First%20Report%20of%20the%20Receiver%20with%20Appendices%20dated%20June%2026%2C%202024.pdf",
+  "title": "First Report of the Receiver dated June 26, 2024",
+  "kind": "report",
+  "relation": "receiver report on the same motion"
+ },
+ {
+  "file": "raw/matter/nssc-chesterbasin-santimaw/savo.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./Receivership/Court%20Orders/003-Sale%20Approval%20and%20Vesting%20Order%20dated%20September%2013%2C%202024.pdf",
+  "title": "Sale Approval and Vesting Order dated September 13, 2024",
+  "kind": "court_order",
+  "relation": "later order in the same proceeding"
+ }
+]

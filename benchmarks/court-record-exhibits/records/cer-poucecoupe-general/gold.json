@@ -1,0 +1,452 @@
+{
+ "record_id": "cer-poucecoupe-general",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2024",
+ "subject": "indigenous_rights",
+ "family": null,
+ "proceeding": "Pouce Coupé Pipe Line Ltd. Taylor to Gordondale Pipeline Project (Hearing Order OH-001-2024): Duncan's First Nation's written evidence as intervenor on Treaty 8 rights and cumulative effects",
+ "document": "Affidavit of Matthew General affirmed February 28, 2025 (REGDOCS C33586-1, part 1 of 2)",
+ "deponent": "Matthew General",
+ "deponent_role": "Consultant retained by Duncan's First Nation for traditional land use and Treaty rights evidence",
+ "sworn_date": "2025-02-28",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-a2ahdm.pdf",
+   "kind": "report",
+   "date": "2025-02-27",
+   "author": "Matthew General (for Duncan's First Nation)",
+   "recipients": [
+    "CER Commission"
+   ],
+   "description": "Summary of the documents Duncan's First Nation relies on as evidence (its written submissions)",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "to my affidavit is a summary prepared by me on behalf"
+    }
+   ],
+   "content_check": "9 pages: 'Duncan's First Nation Written Submissions in Respect to Pouce Coupé Pipe Line Ltd. Taylor to Gordondale Pipeline Project Hearing Order OH-001-2024 February 27, 2025' (title's 'Exhibit A' redacted)"
+  },
+  {
+   "label": "B",
+   "file": "doc-bjvc4r.pdf",
+   "kind": "report",
+   "date": "2012",
+   "author": "D. Kennedy and R. Bouchard",
+   "recipients": [
+    "Duncan's First Nation"
+   ],
+   "description": "Duncan's First Nation Ethno-Historical Review (2012)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "D. Kennedy and R. Bouchard, (2012), Duncan's First Nation"
+    }
+   ],
+   "content_check": "143 pages: 'Land Use History Project Duncan's First Nation DFN: ETHNOHISTORICAL REVIEW ... Bouchard and Kennedy Research Consultants'"
+  },
+  {
+   "label": "C",
+   "file": "doc-nps5xx.pdf",
+   "kind": "report",
+   "date": "2019",
+   "author": "Matthew General",
+   "recipients": [
+    "Duncan's First Nation"
+   ],
+   "description": "2019 Clear Hills-Chinchaga Refuge Indigenous Knowledge Survey (NGTL North Central Corridor projects)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "M. General, (2019), Duncan's First Nation 2019 Clear Hills"
+    }
+   ],
+   "content_check": "139 pages: 'Duncan's First Nation 2019 Clear Hills - Chinchaga Refuge Indigenous Knowledge Survey Conducted in Relation to the Nova Gas Transmission Ltd. ...'"
+  },
+  {
+   "label": "D",
+   "file": "doc-rvfk3e.pdf",
+   "kind": "report",
+   "date": "2019",
+   "author": "Matthew General",
+   "recipients": [
+    "Duncan's First Nation"
+   ],
+   "description": "Community observations on NGTL project impacts on the Treaty right to hunt large game",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Hunt Large Game and Associated Cultural Practices"
+    }
+   ],
+   "content_check": "91 pages: 'Duncan's First Nation Community Observations and Perspective on the Potential Impacts of the Nova Gas Transmission Ltd. North Corridor Expansion Project ...'"
+  },
+  {
+   "label": "E",
+   "file": "doc-wpyhjv.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Duncan's First Nation",
+   "recipients": [],
+   "description": "Supporting map appendices #1-#6",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Supporting Map Appendices #1 - #6"
+    }
+   ],
+   "content_check": "25 pages: 'Appendix 1 2009/2011: DFN Sustenance / Big Game Hunting Areas', Map1 DFN Traditional Territory ... Map6"
+  },
+  {
+   "label": "F",
+   "file": "doc-5ug5qc.pdf",
+   "kind": "letter",
+   "date": "2022-05-17",
+   "author": "Duncan's First Nation",
+   "recipients": [
+    "Premier Jason Kenney",
+    "Minister Rick Wilson",
+    "Todd Loewen"
+   ],
+   "description": "DFN letter to Premier Kenney demanding urgent protection of its Treaty rights",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "DFN Letter to Alberta Premier J. Kenney (May 2022)"
+    }
+   ],
+   "content_check": "7 image pages, read by eye: letterhead, May 17, 2022, 'Re: The Urgent Protection of Duncan's First Nation's Treaty Rights'"
+  },
+  {
+   "label": "G",
+   "file": "doc-appdj5.pdf",
+   "kind": "court_filing",
+   "date": "2022-07-18",
+   "author": "JFK Law LLP for Duncan's First Nation",
+   "recipients": [],
+   "description": "DFN's cumulative-impacts Statement of Claim against Alberta",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "DFN Cumulative lmpacts Statement of Claim (July 2022)"
+    }
+   ],
+   "content_check": "17 pages: Court of Queen's Bench of Alberta Statement of Claim, Gladue and Duncan's First Nation v. Alberta, filed Jul 18, 2022 (2203 10939)"
+  },
+  {
+   "label": "H",
+   "file": "doc-7dvvzh.pdf",
+   "kind": "letter",
+   "date": "2024-09-13",
+   "author": "Duncan's First Nation",
+   "recipients": [
+    "Minister Rick Wilson"
+   ],
+   "description": "DFN letter to Alberta's Minister of Indigenous Relations seeking urgent protection of its Treaty rights",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "DFN Letter to Alberta Minister R. Wilson (September 2024)"
+    }
+   ],
+   "content_check": "3 pages: September 13, 2024 letter 'Re: Urgent Protection of Duncan's First Nation's Treaty Rights'"
+  },
+  {
+   "label": "I",
+   "file": "doc-wjkv5n.pdf",
+   "kind": "letter",
+   "date": "2023-07-21",
+   "author": "Duncan's First Nation",
+   "recipients": [
+    "Minister Steven Guilbeault"
+   ],
+   "description": "DFN request to the Minister of Environment and Climate Change for a regional assessment of the Montney",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "DFN Letter to Minister of Environment and Climate Change"
+    }
+   ],
+   "content_check": "13 image pages, read by eye: July 21, 2023 'Re: Request for a Regional Assessment - Montney Formation and Adjoining Hydro-Carbon Basins in Northeastern Alberta'"
+  },
+  {
+   "label": "J",
+   "file": "doc-mjbv7w.pdf",
+   "kind": "letter",
+   "date": "2023-11-14",
+   "author": "Duncan's First Nation",
+   "recipients": [
+    "Jacinthe Belec, Impact Assessment Agency of Canada"
+   ],
+   "description": "DFN letter to the Impact Assessment Agency on its regional assessment request",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "(November 2023)"
+    }
+   ],
+   "content_check": "3 pages: November 14, 2023 'RE: Duncan's First Nation's Regional Assessment Request'"
+  },
+  {
+   "label": "K",
+   "file": "doc-3t4vkw.pdf",
+   "kind": "letter",
+   "date": "2024-04-01",
+   "author": "Duncan's First Nation",
+   "recipients": [
+    "Impact Assessment Agency of Canada"
+   ],
+   "description": "DFN letter to the Impact Assessment Agency (April 2024) on its regional assessment request",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "DFN Letter to lmpact Assessment Agency of Canada (April"
+    }
+   ],
+   "content_check": "3 pages: April 1, 2024 letter; text layer uses a broken font encoding"
+  },
+  {
+   "label": "L",
+   "file": "doc-4ffrue.pdf",
+   "kind": "letter",
+   "date": "2025-02-25",
+   "author": "Duncan's First Nation",
+   "recipients": [
+    "Minister Steven Guilbeault",
+    "Impact Assessment Agency of Canada"
+   ],
+   "description": "DFN letter renewing its request for a regional assessment of the Montney (February 2025)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "(February 2025)"
+    }
+   ],
+   "content_check": "13 pages: February 25, 2025 letter 'Re: Request for a Regional Assessment - Montney Fo...'"
+  },
+  {
+   "label": "M",
+   "file": "doc-euczzu.pdf",
+   "kind": "agreement",
+   "date": "2023-01-18",
+   "author": "Province of British Columbia; Blueberry River First Nations",
+   "recipients": [],
+   "description": "Blueberry River First Nations Implementation Agreement",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Blueberry River First Nation Implementation Agreement"
+    }
+   ],
+   "content_check": "167 pages: 'BLUEBERRY RIVER FIRST NATIONS IMPLEMENTATION AGREEMENT Dated: 18th day of January, 2023'"
+  },
+  {
+   "label": "N",
+   "file": "doc-vdszme.pdf",
+   "kind": "report",
+   "date": "2025-02-11",
+   "author": "NorthRiver Midstream",
+   "recipients": [],
+   "description": "NEBC Connector Project final offset plan",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "North River NEBC Connector Project Final Offset Plan"
+    }
+   ],
+   "content_check": "6 pages: 'NEBC CONNECTOR PROJECT REVISED FINAL OFFSET PLAN February 11, 2025'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Duncan's First Nation retains General to plan and report on its traditional land use and Treaty rights (except 2013-2016)",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "Since 2009, with the exception of a period between 2013 and 2016, Duncan's",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Kennedy and Bouchard prepare the DFN Ethno-Historical Review",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "D. Kennedy and R. Bouchard, (2012)",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "General conducts the 2019 Clear Hills-Chinchaga Refuge Indigenous Knowledge Survey",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "M. General, (2019), Duncan's First Nation 2019 Clear Hills",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "General reports DFN community observations on NGTL project impacts on the right to hunt",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "M. General, (2019), Duncan's First Nation Community",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "DFN writes to Premier Kenney about the erosion of its Treaty rights",
+   "date": "2022-05",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "DFN Letter to Alberta Premier J. Kenney (May 2022)",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "DFN files its cumulative-impacts Statement of Claim against Alberta",
+   "date": "2022-07",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "DFN Cumulative lmpacts Statement of Claim (July 2022)",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "BC and Blueberry River First Nations sign the Implementation Agreement",
+   "date": "2023-01",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Blueberry River First Nation Implementation Agreement",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "DFN asks the federal Environment Minister for a regional assessment",
+   "date": "2023-07",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "DFN Letter to Minister of Environment and Climate Change",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "DFN writes to the Impact Assessment Agency",
+   "date": "2023-11",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "(November 2023)",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "DFN writes again to the Impact Assessment Agency",
+   "date": "2024-04",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "DFN Letter to lmpact Assessment Agency of Canada (April",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "DFN writes to Alberta's Minister Wilson",
+   "date": "2024-09",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "DFN Letter to Alberta Minister R. Wilson (September 2024)",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "DFN writes to the Impact Assessment Agency (February 2025)",
+   "date": "2025-02",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "(February 2025)",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "NorthRiver's NEBC Connector final offset plan",
+   "date": "2025-02",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "North River NEBC Connector Project Final Offset Plan",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "DFN's written evidence to be filed in the hearing",
+   "date": "2025-02-28",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "on February 28,2025, for use in the Hearing.",
+   "exhibits": [
+    "A"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Part 2 of the filing (C33586-2) continues the same exhibits"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Exhibit A's own title reads 'Exhibit A - Written Evidence Table of Contents'; that string is redacted (redact_text). F and I are image-only letters, K has a broken font encoding."
+}

@@ -1,0 +1,695 @@
+{
+ "record_id": "onsc-cp-sino-wright-horsley",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-11-431153-00CP (with CCAA file CV-12-9667-00CL)",
+ "subject": "securities",
+ "family": "sino-forest-securities",
+ "proceeding": "Labourers' Pension Fund v. Sino-Forest Corporation et al. (securities misrepresentation class action, carried on alongside Sino-Forest's CCAA plan): motion to approve the settlement with former CFO David J. Horsley",
+ "document": "Affidavit of Charles M. Wright sworn (affirmed) July 4, 2014",
+ "deponent": "Charles M. Wright",
+ "deponent_role": "Partner, Siskinds LLP, class counsel",
+ "sworn_date": "2014-07-04",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pqd2vy.pdf",
+   "kind": "agreement",
+   "date": "2014-05",
+   "author": "Ontario Plaintiffs, David J. Horsley, SFC Litigation Trust and others",
+   "recipients": [],
+   "description": "Minutes of Settlement with Horsley (the Horsley Settlement), with the draft Settlement Order as Schedule C",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "The Horsley Settlement is marked"
+    }
+   ],
+   "content_check": "30 pages: Minutes of Settlement 'IN THE MATTER OF SINO-FOREST CORPORATION', Labourers' Pension Fund et al., with schedules"
+  },
+  {
+   "label": "B",
+   "file": "doc-x66mqh.pdf",
+   "kind": "court_filing",
+   "date": "2012-04-18",
+   "author": "Class Plaintiffs",
+   "recipients": [],
+   "description": "Fresh as Amended Statement of Claim filed April 18, 2012",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "a copy of which is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "128 pages: Fresh as Amended Statement of Claim, CV-11-431153-00CP"
+  },
+  {
+   "label": "C",
+   "file": "doc-hz26ta.pdf",
+   "kind": "court_filing",
+   "date": "2014-03",
+   "author": "Class Plaintiffs",
+   "recipients": [],
+   "description": "Proposed Second Fresh as Amended Statement of Claim",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Attached and marked as Exhibit"
+    }
+   ],
+   "content_check": "138 pages: proposed second fresh as amended statement of claim, CV-11-431153-00CP"
+  },
+  {
+   "label": "D",
+   "file": "doc-nq8hdc.pdf",
+   "kind": "letter",
+   "date": "2013-01-21",
+   "author": "Jennifer Stam (Gowlings, counsel to the Monitor)",
+   "recipients": [
+    "Service list"
+   ],
+   "description": "Letter advising that Horsley had become a Named Third Party Defendant",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "is a letter dated January 21, 2013, from Jennifer Stam"
+    }
+   ],
+   "content_check": "3 pages: Gowlings letter of January 21, 2013 'SENT TO EMAIL THE SERVICE LIST', Re: Sino-Forest"
+  },
+  {
+   "label": "E",
+   "file": "doc-gzvuxt.pdf",
+   "kind": "email_chain",
+   "date": "2014-05-21",
+   "author": "Derrick Tay",
+   "recipients": [
+    "Rob Staley"
+   ],
+   "description": "Email chain with Derrick Tay's May 21, 2014 email that the Monitor consents to the Horsley Settlement as a Named Third Party Defendant Settlement",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "is an email"
+    }
+   ],
+   "content_check": "2 pages: Rob Staley forwarding 'Fw: Horsley Settlement' on May 21, 2014 to Charles M. Wright, Lascaris, Kalloghlian, Wardle"
+  },
+  {
+   "label": "F",
+   "file": "doc-pfp4n9.pdf",
+   "kind": "public_record",
+   "date": "2012-05-22",
+   "author": "Ontario Securities Commission",
+   "recipients": [],
+   "description": "OSC Statement of Allegations against Sino-Forest and senior executives including Horsley",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "are the OSC Statement of Allegations"
+    }
+   ],
+   "content_check": "38 pages: OSC 'IN THE MATTER OF THE SECURITIES ACT' statement of allegations"
+  },
+  {
+   "label": "G",
+   "file": "doc-v8y8jk.pdf",
+   "kind": "court_filing",
+   "date": "2013-07",
+   "author": "Cosima Borrelli, trustee of the SFC Litigation Trust",
+   "recipients": [],
+   "description": "Litigation Trust statement of claim against Horsley and other senior executives",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "The Litigation Trust claim against Horsley is attached"
+    }
+   ],
+   "content_check": "36 pages: Court File No. CV-13-481761, Borrelli (SFC Litigation Trust) v. George Ho, Albert Ip, David J. Horsley et al."
+  },
+  {
+   "label": "H",
+   "file": "doc-rkbmtw.pdf",
+   "kind": "court_order",
+   "date": "2012-07-30",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Order of Justice Morawetz dated July 30, 2012 whose Schedule A lists the data-room documents",
+   "references": [
+    {
+     "paragraph": 88,
+     "quote": "which is marked and attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: Commercial List Order of Mr. Justice Morawetz, Monday the 30th day of July, 2012"
+  },
+  {
+   "label": "I",
+   "file": "doc-3ecxzq.pdf",
+   "kind": "letter",
+   "date": "2014-07-03",
+   "author": "Mary Margaret Fox (counsel to Chubb and ACE)",
+   "recipients": [
+    "Garth Myers (Koskie Minsky)",
+    "Serge Kalloghlian"
+   ],
+   "description": "Letter on the remaining insurance under the Chubb policy and the rationale for paragraphs 18-30 of the Settlement Order",
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "Attached and marked as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: letter of July 3, 2014 'BY E-MAIL' to Garth Myers, Koskie & Minsky LLP, Re: Insured: ACE Policy / Chubb Policy"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Robert Wong first becomes a Sino shareholder",
+   "date": "2002",
+   "precision": "year",
+   "paragraphs": [
+    74
+   ],
+   "quote": "from 2002 (when he first became a",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Horsley becomes Sino's CFO",
+   "date": "2005-10",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Horsley was Sino",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Muddy Waters publishes its report alleging fraud at Sino; shares fall",
+   "date": "2011-06-02",
+   "precision": "day",
+   "paragraphs": [
+    26,
+    27
+   ],
+   "quote": "On June 2, 2011, Muddy Waters Research",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Class Counsel retain the Dacheng law firm to investigate",
+   "date": "2011-06-03",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "Dacheng was retained on the day after the Muddy Waters report",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Quebec Action commenced by Siskinds Desmeules",
+   "date": "2011-06-09",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On June 9, 2011, Siskinds Desmeules",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Ontario Action commenced",
+   "date": "2011-07-20",
+   "precision": "day",
+   "paragraphs": [
+    24,
+    33
+   ],
+   "quote": "The Ontario Action was commenced on July 20, 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "OSC issues temporary cease-trade order on Sino securities",
+   "date": "2011-08-26",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "On August 26, 2011, the Ontario Securities Commission",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Carriage motion among the Ontario actions",
+   "date": "2011-12",
+   "precision": "month",
+   "paragraphs": [
+    36
+   ],
+   "quote": "In December 2011, there was a motion to determine which of the three actions",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Justice Perell grants carriage to Siskinds and Koskie Minsky",
+   "date": "2012-01-06",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "By Order dated January 6, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Sino says its historical financial statements should not be relied on",
+   "date": "2012-01-10",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On January 10, 2012, Sino issued a press release",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "US Action commenced by Cohen Milstein",
+   "date": "2012-01-27",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On January 27, 2012, the Washington, DC-based law firm",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Settlement discussions with Poyry (Beijing) begin",
+   "date": "2012-01",
+   "precision": "month",
+   "paragraphs": [
+    48
+   ],
+   "quote": "starting in January",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Settlement with Poyry (Beijing) reached",
+   "date": "2012-03",
+   "precision": "month",
+   "paragraphs": [
+    48
+   ],
+   "quote": "the Ontario Plaintiffs entered into a settlement with",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "US Action transferred to the Southern District of New York",
+   "date": "2012-03",
+   "precision": "month",
+   "paragraphs": [
+    37
+   ],
+   "quote": "The US Action was transferred from the New York",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Certification and leave motions brought",
+   "date": "2012-03",
+   "precision": "range",
+   "paragraphs": [
+    41
+   ],
+   "quote": "In March and April 2012, the Class Plaintiffs brought",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Sino files under the CCAA and obtains a stay",
+   "date": "2012-03-30",
+   "precision": "day",
+   "paragraphs": [
+    31,
+    44
+   ],
+   "quote": "On March 30, 2012, Sino filed for protection from its creditors under the CCAA",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Ernst & Young resigns as Sino's auditors",
+   "date": "2012-04-04",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Ernst & Young resigned as Sino",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Horsley resigns as CFO",
+   "date": "2012-04",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "until his",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Fresh as Amended Statement of Claim filed",
+   "date": "2012-04-18",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "On April 18, 2012, the Class Plaintiffs filed a Fresh as Amended Statement of Claim",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Stay extended to all other defendants including Horsley",
+   "date": "2012-05-08",
+   "precision": "day",
+   "paragraphs": [
+    44
+   ],
+   "quote": "Pursuant to an order on May 8, 2012, the stay of proceedings was extended",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "CDS auction prices Sino notes at 29% of face; shares delisted from TSX",
+   "date": "2012-05-09",
+   "precision": "day",
+   "paragraphs": [
+    28,
+    32
+   ],
+   "quote": "On May 9, 2012 an",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "OSC issues Statement of Allegations against Sino and executives including Horsley",
+   "date": "2012-05-22",
+   "precision": "day",
+   "paragraphs": [
+    62
+   ],
+   "quote": "On May 22, 2012, the OSC issued a Statement of Allegations",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Court orders the CCAA constituencies to mediation",
+   "date": "2012-07-25",
+   "precision": "day",
+   "paragraphs": [
+    50
+   ],
+   "quote": "On July 25, 2012, this Court ordered the various constituencies",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Justice Morawetz orders document production and a data room",
+   "date": "2012-07-30",
+   "precision": "day",
+   "paragraphs": [
+    47,
+    88
+   ],
+   "quote": "July 30, 2012 Order of Justice Morawetz",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "D&O insurance about $52 million",
+   "date": "2012-08-23",
+   "precision": "day",
+   "paragraphs": [
+    107
+   ],
+   "quote": "August 23, 2012 – approximately $52 million",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "All-parties mediation before Justice Newbould, no settlement",
+   "date": "2012-09-04",
+   "precision": "range",
+   "paragraphs": [
+    50
+   ],
+   "quote": "On September 4 and 5, 2012, the Ontario Plaintiffs attended an all-parties",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Class certified against Poyry (Beijing) and settlement approved",
+   "date": "2012-09-25",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "On September 25, 2012, the Ontario Action was certified",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Certification and leave motions scheduled but not heard",
+   "date": "2012-11-21",
+   "precision": "range",
+   "paragraphs": [
+    43
+   ],
+   "quote": "The certification and leave motions were scheduled for November 21 to 30, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Mediation with Ernst & Young leads to the E&Y Settlement",
+   "date": "2012-11",
+   "precision": "month",
+   "paragraphs": [
+    53
+   ],
+   "quote": "In November 2012, the Ontario Plaintiffs engaged in a further mediation with Ernst",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Motion to sanction the Plan",
+   "date": "2012-12-07",
+   "precision": "day",
+   "paragraphs": [
+    47
+   ],
+   "quote": "December 7, 2012 – Attending and participating in the motion to sanction",
+   "exhibits": []
+  },
+  {
+   "id": "e31",
+   "description": "SDNY appoints lead plaintiffs and Cohen Milstein as lead counsel",
+   "date": "2013-01-04",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "January 4, 2013, David Leapard",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "Monitor's counsel advises Horsley became a Named Third Party Defendant",
+   "date": "2013-01-21",
+   "precision": "day",
+   "paragraphs": [
+    59
+   ],
+   "quote": "is a letter dated January 21, 2013, from Jennifer Stam",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "D&O insurance about $47.5 million",
+   "date": "2013-03-04",
+   "precision": "day",
+   "paragraphs": [
+    107
+   ],
+   "quote": "March 4, 2013 – approximately $47.5 million",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "description": "Ernst & Young Settlement approved",
+   "date": "2013-03-20",
+   "precision": "day",
+   "paragraphs": [
+    55
+   ],
+   "quote": "was approved by this Court on March 20, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e35",
+   "description": "Litigation Trust sues Horsley and other executives",
+   "date": "2013-07",
+   "precision": "month",
+   "paragraphs": [
+    67
+   ],
+   "quote": "In July 2013, the Litigation Trust issued a statement of claim",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "D&O insurance about $45 million",
+   "date": "2013-09-04",
+   "precision": "day",
+   "paragraphs": [
+    107
+   ],
+   "quote": "September 4, 2013 – approximately $45 million",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "description": "E&Y distribution and claims procedure approved",
+   "date": "2013-12-27",
+   "precision": "day",
+   "paragraphs": [
+    55
+   ],
+   "quote": "The motion was granted on December 27, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "description": "Agreement in principle with Horsley",
+   "date": "2014-01",
+   "precision": "month",
+   "paragraphs": [
+    72
+   ],
+   "quote": "An agreement in principle was",
+   "exhibits": []
+  },
+  {
+   "id": "e39",
+   "description": "D&O insurance about $42 million",
+   "date": "2014-02-13",
+   "precision": "day",
+   "paragraphs": [
+    107
+   ],
+   "quote": "February 13, 2014 – approximately $42 million",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "Proposed Second Fresh as Amended Statement of Claim served",
+   "date": "2014-03",
+   "precision": "month",
+   "paragraphs": [
+    40
+   ],
+   "quote": "In March 2014, the Class Plaintiffs served on",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e41",
+   "description": "Monitor consents to the Horsley Settlement as a Named Third Party Defendant Settlement",
+   "date": "2014-05-21",
+   "precision": "day",
+   "paragraphs": [
+    60
+   ],
+   "quote": "email dated May 21, 2014 from Derrick Tay to Rob Staley",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "Minutes of Settlement with Horsley entered",
+   "date": "2014-05",
+   "precision": "month",
+   "paragraphs": [
+    73
+   ],
+   "quote": "finally entering",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e43",
+   "description": "Chubb/ACE counsel reports remaining policy limits",
+   "date": "2014-07-03",
+   "precision": "day",
+   "paragraphs": [
+    108
+   ],
+   "quote": "is a letter dated July 3, 2014 from Mary Margaret",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e44",
+   "description": "OSC hearing against Horsley scheduled to begin",
+   "date": "2014-09",
+   "precision": "month",
+   "paragraphs": [
+    110
+   ],
+   "quote": "presently scheduled to",
+   "exhibits": []
+  },
+  {
+   "id": "e45",
+   "description": "Certification and leave motions rescheduled",
+   "date": "2015-01",
+   "precision": "month",
+   "paragraphs": [
+    110
+   ],
+   "quote": "(scheduled for January 2015)",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Plan of compromise and arrangement (Articles 4.11, 11.1, 11.2)",
+  "Motion records on certification and leave (affidavits of Chandler, Mak, Deng, Tjon-Pian-Gi)",
+  "Torchio damages reports",
+  "Horsley statutory declaration of net worth",
+  "Sino D&O insurance policies",
+  "Mediation briefs (September 2012)"
+ ]
+}

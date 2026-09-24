@@ -1,0 +1,19 @@
+{
+ "url": "https://firearmrights.ca/wp-content/uploads/2020/07/Executed-Affidavit-of-Gary-Mauser-02389414-00046838-2xD5450.pdf",
+ "landing_url": "https://firearmrights.ca/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-577-20",
+ "document_title": "Affidavit of Gary Mauser sworn 2020 (applicants' evidence, CCFR et al. v. Attorney General of Canada)",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-ccfr-mauser",
+ "source_file": "d3-executed-affidavit-of-gary-mauser-02389414-00046838-2xd5450.pdf",
+ "page_range": [
+  1,
+  537
+ ],
+ "source_sha256": "230e87f182fb84d6ca27cdb19fc49a9960eef192d1bcb51c969b25d39dc8c150",
+ "source_pages": 537,
+ "covers": "A=12,B=21,C=42,D=45,E=48,F=71,G=120,H=126,I=180,J=186,K=220,L=228,M=240,N=258,O=262,P=314,Q=320,R=402,S=410,T=486"
+}

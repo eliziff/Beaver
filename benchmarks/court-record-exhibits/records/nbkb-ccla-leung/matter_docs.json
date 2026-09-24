@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/nbkb-ccla-leung/notice-of-motion-leave-to-intervene.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2024/05/April-15-2024-CCLA-v-NB-GDA-and-ODC-Motion-Record.pdf#page=6",
+  "title": "Notice of Motion of Gender Dysphoria Alliance and Our Duty Canada for leave to intervene, FM-76-2023 (Tab 1, extracted)",
+  "kind": "court_filing",
+  "relation": "the intervention motion in whose record this affidavit was filed"
+ },
+ {
+  "file": "raw/matter/nbkb-ccla-leung/affidavit-of-karin-litzcke.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2024/05/April-15-2024-CCLA-v-NB-GDA-and-ODC-Motion-Record.pdf#page=84",
+  "title": "Affidavit of Karin Litzcke sworn November 28, 2023 with its one exhibit (Tab 3, PDF pages 84-105, extracted)",
+  "kind": "affidavit",
+  "relation": "sibling affidavit in the same motion record (one exhibit only, not a benchmark record)"
+ }
+]

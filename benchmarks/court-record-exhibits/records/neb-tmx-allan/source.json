@@ -1,0 +1,18 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/3385658",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Search?txthl=Robyn%20Allan%20affidavit",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "MH-081-2017 (OF-Fac-Oil-T260-2013-03-03)",
+ "document_title": "Affidavit of Robyn Allan affirmed November 16, 2017 (City of Burnaby evidence on Trans Mountain's motion regarding Burnaby permits, A87925-4)",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-tmx-allan",
+ "source_file": "dcer-3385658.pdf",
+ "page_range": [
+  1,
+  65
+ ],
+ "source_sha256": "feee97f619dfad85422311bb446a2be23ae7ccd830d4cd1aa0b36248e86af0de",
+ "source_pages": 65
+}

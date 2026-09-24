@@ -1,0 +1,18 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2021/11/Affidavit-of-David-Branch-sworn-Nov-1-2021-DEF.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "document_title": "Affidavit of David Branch sworn November 1, 2021",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-chl-branch",
+ "source_file": "e4-affidavit-of-david-branch-sworn-nov-1-2021-def.pdf",
+ "page_range": [
+  1,
+  70
+ ],
+ "source_sha256": "fda4e1b849e116c29bc7b60d5e7019d001b7951fe7eceffb35653523a15b899c",
+ "source_pages": 71
+}

@@ -1,0 +1,677 @@
+{
+ "record_id": "onsc-hannan-scouts-hannan1",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-24-00095566",
+ "subject": "voluntary_association",
+ "family": "hannan-scouts-canada",
+ "proceeding": "Hannan v. Scouts Canada (application under Rule 14.05 to set aside the non-renewal of an 86-year-old volunteer Scouter's membership for want of procedural fairness)",
+ "document": "Affidavit of Wayne Hannan affirmed May 16, 2024",
+ "deponent": "Wayne Hannan",
+ "deponent_role": "Applicant; volunteer Scouter with the 115th Ottawa Sea Scout Troop",
+ "sworn_date": "2024-05-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-g2k8fr.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "Scouting organizations",
+   "recipients": [
+    "Wayne Hannan"
+   ],
+   "description": "Copies and photos of some of Hannan's awards and badges",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Copies and photos of some of my awards and badges are attached as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: award photos, pages 1-3 image-only; '115th Sea Scouts Certificate of Appreciation Presented to Scouter Wayne Hannan For support of Sea Scouting 65 years'"
+  },
+  {
+   "label": "B",
+   "file": "doc-8agtkd.pdf",
+   "kind": "other",
+   "date": "2024",
+   "author": "115th Ottawa Sea Scouts",
+   "recipients": [],
+   "description": "The 115th Troop's calendar of events",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "calendar of events is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page: '115th Ottawa Sea Scouts What's Up? Upcoming Events: Monday, April 29th: Games night ... Monday, May 13th: First day on water'"
+  },
+  {
+   "label": "C",
+   "file": "doc-v49zdg.pdf",
+   "kind": "corporate_record",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Relevant Scouts Canada by-laws (Article II: non-youth members must be registered volunteers)",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "relevant by-laws are attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: 'BYLAW: ARTICLE I - GENERAL a. Name - The name of the corporation is Scouts Canada'"
+  },
+  {
+   "label": "D",
+   "file": "doc-8cqjyv.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada policies, standards and procedures on volunteer membership, registration and screening",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "(attached as Exhibit"
+    }
+   ],
+   "content_check": "19 pages: 'APPOINTMENT OF SCOUTERS STANDARDS Introduction The selection and appointment of Scouters is an essential element of the Scout Method'"
+  },
+  {
+   "label": "E",
+   "file": "doc-x3mfrv.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada Code of Conduct",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Code of Conduct"
+    }
+   ],
+   "content_check": "3 pages: 'SCOUTS CANADA CODE OF CONDU[CT] STANDARDS Introduction This Code of Conduct applies to all members of Scouts Canada who are 18 years of age or older'"
+  },
+  {
+   "label": "F",
+   "file": "doc-ugqkwe.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada policies, standards and procedures on Scouter discipline",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "regarding Scouter discipline (attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: 'TEMPORARY SUSPENSION AND TERMINATION PROCEDURE Introduction This procedure describes how and when a Scouts Canada member may be suspended and/or terminated'"
+  },
+  {
+   "label": "G",
+   "file": "doc-kmagcm.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada Discipline and Performance Management Procedure",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Discipline and Performance Management Procedure"
+    }
+   ],
+   "content_check": "2 pages: 'DISCIPLINE AND PERFORMANCE MANAGEMENT PROCEDURE Introduction This procedure describes the Performance Management and Discipline Management process'"
+  },
+  {
+   "label": "H",
+   "file": "doc-2h3qqt.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada Progressive Discipline Guideline",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Progressive Discipline Guideline"
+    }
+   ],
+   "content_check": "6 pages: 'PROGRESSIVE DISCIPLINE GUIDEL[INE] This guide details the steps of progressive discipline for Scouts Canada volunteers'"
+  },
+  {
+   "label": "I",
+   "file": "doc-5wurtn.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada policies and procedures on Scouter performance management",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "regarding Scouter performance"
+    }
+   ],
+   "content_check": "14 pages: begins 'INCIDENT REPORTED Incident Management Procedure Flowchart BULLYING OR HARASSMENT ... CLOSE SCOUTSAFE FILE'"
+  },
+  {
+   "label": "J",
+   "file": "doc-stb3k5.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada policies on Scouter transfers",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "regarding Scouter transfers"
+    }
+   ],
+   "content_check": "4 pages: 'TRANSFER A ROVER SCOUT OR SCOUTER PROCEDURE Introduction Volunteer Scouters and Rover Scouts sometimes transfer to an alternate Group'"
+  },
+  {
+   "label": "K",
+   "file": "doc-8v4jyy.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada Volunteering brochure",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Volunteering brochure (attached as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: 'UNLOCK A KID'S TRUE POTENTIAL BY REALIZING YOUR OWN. Volunteer with Scouts Canada'"
+  },
+  {
+   "label": "L",
+   "file": "doc-cat5ty.pdf",
+   "kind": "other",
+   "date": "2024-03-11",
+   "author": "Toronto Star",
+   "recipients": [],
+   "description": "Toronto Star article of March 11, 2024 on Scouts Canada and its CEO Liam Burns",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "The Toronto Star article dated"
+    }
+   ],
+   "content_check": "5 pages: thestar.com '‘Awful lot of baggage.’ Scouts Canada CEO looks to lead century-old ...'"
+  },
+  {
+   "label": "M",
+   "file": "doc-x66yj8.pdf",
+   "kind": "other",
+   "date": "2017-07-01",
+   "author": "115th Troop",
+   "recipients": [],
+   "description": "Explanation of the 115th Troop's volunteer screening process as of July 2017",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "An explanation of the volunteer screening process"
+    }
+   ],
+   "content_check": "5 pages: '115TH Volunteer Screening Process - 2017-07-01 ... VOLUNTEER REQUIREMENTS'"
+  },
+  {
+   "label": "N",
+   "file": "doc-h4jc7w.pdf",
+   "kind": "letter",
+   "date": "2023-04-13",
+   "author": "Scouts Canada (Scouting Service Centre, Ottawa)",
+   "recipients": [
+    "Wayne Hannan"
+   ],
+   "description": "Hannan's completed police records check and the Scouts Canada PRC Request Letter dated April 13, 2023",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "PRC Request Letter dated April 13, 2023 are attached as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: Scouting Service Centre (Ottawa) letter, 1345 Baseline Rd., with PRC"
+  },
+  {
+   "label": "O",
+   "file": "doc-kqwe7b.pdf",
+   "kind": "email_chain",
+   "date": "2023-05-04",
+   "author": "Henry Starzynski / Candice Armstrong / Scouts Canada central registration",
+   "recipients": [],
+   "description": "Email thread on Hannan's PRC process in April and May 2023",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "An email thread between Mr."
+    }
+   ],
+   "content_check": "5 pages: email 'Ottawa PRC - Wayne George Hannan' from Ladka Stodola (Support), May 4, 2023, cc Henry Starzynski"
+  },
+  {
+   "label": "P",
+   "file": "doc-7hcg9q.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Hannan's Volunteer Readiness Report for 2022-2023",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "A copy of my Volunteer Readiness"
+    }
+   ],
+   "content_check": "2 pages: table 'Organization Member Number First Name Last Name Role Status All Screening In Compliance ... PRC ... Code of Cond[uct]'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-8y75h8.pdf",
+   "kind": "letter",
+   "date": "2023-11-08",
+   "author": "Candice Armstrong, Group Commissioner",
+   "recipients": [
+    "Wayne Hannan"
+   ],
+   "description": "Decision Letter of November 8, 2023 not renewing Hannan as Scouter",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "The Decision Letter is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page, image-only (OCR'd): Scouts Canada letter not renewing Hannan's membership"
+  },
+  {
+   "label": "R",
+   "file": "doc-dugu2t.pdf",
+   "kind": "email",
+   "date": "2023-11-30",
+   "author": "David Olsen",
+   "recipients": [
+    "Brittiny Catalano",
+    "Candice Armstrong",
+    "Patrick Campbell"
+   ],
+   "description": "Olsen's email of November 30, 2023 requesting particulars of the allegations",
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "A copy of Mr. Olsen"
+    }
+   ],
+   "content_check": "2 pages: email from David Olsen, Thu Nov 30, 2023, 'Re: Scouter Wayne G. Hannan Troop Scouter 115 Sea Scout Troop', to Brittiny Catalano"
+  },
+  {
+   "label": "S",
+   "file": "doc-8vrgmr.pdf",
+   "kind": "letter",
+   "date": "2023-12-06",
+   "author": "David Olsen",
+   "recipients": [
+    "Scouts Canada"
+   ],
+   "description": "Olsen's letter of December 6, 2023 setting out Hannan's concerns",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "is attached as Exhibit"
+    }
+   ],
+   "content_check": "3 pages, image-only (OCR'd): letter on Hannan's behalf"
+  },
+  {
+   "label": "T",
+   "file": "doc-v87rne.pdf",
+   "kind": "email",
+   "date": "2023-12-08",
+   "author": "Patrick Campbell (Head of Safe Scouting)",
+   "recipients": [
+    "David Olsen"
+   ],
+   "description": "Campbell's email of December 8, 2023 saying the discipline policies do not apply to a non-renewal",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "The email from Mr. Campbell dated December 8, 2023 is attached as Exhibit"
+    }
+   ],
+   "content_check": "2 pages, image-only (OCR'd): email from Patrick Campbell"
+  },
+  {
+   "label": "U",
+   "file": "doc-xnmugg.pdf",
+   "kind": "email_chain",
+   "date": "2023-12-15",
+   "author": "David Olsen / Scouts Canada Legal and Records",
+   "recipients": [],
+   "description": "Olsen's email of December 14, 2023 to Scouts Canada's legal department attaching the judicial review application",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "email of December 14, 2023 is attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: 'From: Legal and Records To: David Olsen Subject: Re: Wayne G. Hannan Sea Scout Troop Scouter 115th Ottawa Date: December 15, 2023' quoting Olsen's December 14 email"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Hannan born in Ottawa",
+   "date": "1937",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I was born in Ottawa in 1937",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Hannan joins the 26th Ottawa Sea Scout Troop as a youth",
+   "date": "1950",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "I first joined the 26th Ottawa Sea Scout Troop",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Hannan is a Scout with the 26th Troop",
+   "date": "1950",
+   "precision": "range",
+   "paragraphs": [
+    10
+   ],
+   "quote": "between 1950 and 1955",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Hannan volunteers as a Scouter with the 26th Troop",
+   "date": "1955",
+   "precision": "range",
+   "paragraphs": [
+    11
+   ],
+   "quote": "From 1955 until 2001, I was an adult volunteer",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Appreciation Award from Ontario Provincial Scout Headquarters",
+   "date": "1976",
+   "precision": "year",
+   "paragraphs": [
+    16
+   ],
+   "quote": "in 1976, I received an Appreciation",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Hannan receives the Sea Scouting Medallion",
+   "date": "1991",
+   "precision": "year",
+   "paragraphs": [
+    17
+   ],
+   "quote": "In 1991, my peers on the Committee for Ontario Sea Scouting presented me",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "26th Troop discontinued; Hannan joins the 115th Troop",
+   "date": "2001",
+   "precision": "year",
+   "paragraphs": [
+    18
+   ],
+   "quote": "The 26th Troop was discontinued in 2001",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "115th Troop volunteer screening process documented",
+   "date": "2017-07",
+   "precision": "month",
+   "paragraphs": [
+    36
+   ],
+   "quote": "screening process for the 115th Troop as of July 2017",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Hannan's wife dies",
+   "date": "2021-02",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "My wife passed away in February 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Group Committee meeting announces non-renewal of Group Commissioner Jean Peart",
+   "date": "2022-11-30",
+   "precision": "day",
+   "paragraphs": [
+    46
+   ],
+   "quote": "I attended a Hog",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Three Scouters including Skipper J.P. Fiset resign in protest; James Terris becomes Skipper",
+   "date": "2022-12",
+   "precision": "approximate",
+   "paragraphs": [
+    48
+   ],
+   "quote": "resigned in protest over Scouts Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Hannan obtains an updated police records check",
+   "date": "2023-04",
+   "precision": "approximate",
+   "paragraphs": [
+    42
+   ],
+   "quote": "in or around April 2023, I had to obtain an updated Criminal Record",
+   "exhibits": [
+    "N",
+    "O"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Scouts Canada PRC Request Letter",
+   "date": "2023-04-13",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "PRC Request Letter dated April 13, 2023",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Scouts Canada decides not to renew Hannan (Decision Letter dated)",
+   "date": "2023-11-08",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    49
+   ],
+   "quote": "letter dated November 8, 2023 advising me",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Hannan receives the Decision Letter",
+   "date": "2023-11-13",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "On November 13, 2023, I received a letter",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Olsen requests particulars of the allegations",
+   "date": "2023-11-30",
+   "precision": "day",
+   "paragraphs": [
+    55
+   ],
+   "quote": "On November 30, 2023, Mr. Olsen emailed Ms. Armstrong",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Olsen's follow-up letter setting out Hannan's concerns",
+   "date": "2023-12-06",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "On December 6, 2023, Mr. Olsen sent a follow up email",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Campbell replies that the discipline policies do not apply",
+   "date": "2023-12-08",
+   "precision": "day",
+   "paragraphs": [
+    57
+   ],
+   "quote": "On December 8, 2023, Mr. Campbell replied to Mr. Olsen",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Federal Court judicial review application issued",
+   "date": "2023-12-12",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "issued on December",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Olsen emails Scouts Canada legal attaching the judicial review application",
+   "date": "2023-12-14",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "On December 14, 2023, Mr. Olsen emailed Scouts Canada",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Olsen obtains Hannan's Volunteer Readiness Report",
+   "date": "2024-01",
+   "precision": "month",
+   "paragraphs": [
+    44
+   ],
+   "quote": "that in January 2024",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Hannan retains litigation counsel",
+   "date": "2024-01-05",
+   "precision": "day",
+   "paragraphs": [
+    59
+   ],
+   "quote": "I retained my current",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Toronto Star article on Scouts Canada",
+   "date": "2024-03-11",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "March 11, 2024 is attached as Exhibit",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Hannan discontinues the judicial review and starts this application",
+   "date": "2024-04-26",
+   "precision": "day",
+   "paragraphs": [
+    60
+   ],
+   "quote": "On April 26, 2024, after my litigation counsel was unable to reach a resolution",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "First canoe outing of the season",
+   "date": "2024-05-13",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "This year, the first canoe outing of the season took place on May 13, 2024",
+   "exhibits": [
+    "B"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Scouts Canada Act, S.C. 2007, c. 38",
+  "Notice of Application for Judicial Review in the Federal Court issued December 12, 2023"
+ ]
+}

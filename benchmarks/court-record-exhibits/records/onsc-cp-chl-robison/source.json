@@ -1,0 +1,18 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2021/11/Affidavit-of-Ron-Robison-sworn-Oct-29-2021-DEF.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "document_title": "Affidavit of Ron Robison sworn October 29, 2021",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-chl-robison",
+ "source_file": "e4-affidavit-of-ron-robison-sworn-oct-29-2021-def.pdf",
+ "page_range": [
+  1,
+  62
+ ],
+ "source_sha256": "c222a8c258fe7dda0e2ed256967268939a5c07c5ce76d1571262e9b110259a70",
+ "source_pages": 63
+}

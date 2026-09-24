@@ -1,0 +1,272 @@
+{
+ "record_id": "abqb-amla-smolishunt2",
+ "court": "Court of Queen's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "1903-20251 (Edmonton)",
+ "subject": "charter",
+ "family": "amla-edmonton-bridge",
+ "proceeding": "Alberta March for Life Association and Jerry Pasternak v. City of Edmonton: judicial review and Charter challenge of the City's refusal to light the High Level Bridge for the 2019 March for Life",
+ "document": "Supplemental Affidavit of Mary Smolis-Hunt sworn February 2020 (filed February 25, 2020)",
+ "deponent": "Mary Smolis-Hunt",
+ "deponent_role": "Chairwoman of the Alberta March for Life Association (applicant)",
+ "sworn_date": "2020-02",
+ "exhibits": [
+  {
+   "label": "F",
+   "file": "doc-u9mxmj.pdf",
+   "kind": "webpage",
+   "date": "2018-11-10",
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "City of Edmonton tweet announcing the bridge lighting for the 100th Anniversary of Polish Independence",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is a November I 0, 2018 tweet"
+    }
+   ],
+   "content_check": "Twitter search printout (printed 1/21/2020): 'lit in white & red for the 100th Anniversary of Polish Independence'"
+  },
+  {
+   "label": "G",
+   "file": "doc-cruhtg.pdf",
+   "kind": "webpage",
+   "date": "2019-05-28",
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "City tweet announcing the lighting for the 101th anniversary of the Azerbaijan Democratic Republic",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "is a May 28, 2019 tweet from"
+    }
+   ],
+   "content_check": "Twitter search printout: 'blue, red & green for the 101th anniversary of Azerbaijan Democratic Republic'"
+  },
+  {
+   "label": "H",
+   "file": "doc-z5qjzu.pdf",
+   "kind": "webpage",
+   "date": "2019-09-22",
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "City tweet announcing the lighting for Chilean Independence Day",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "is a September 22, 2019 tweet"
+    }
+   ],
+   "content_check": "one-page tweet printout: 'The bridge will be lit in red, blue & white for Chilean Independence Day'"
+  },
+  {
+   "label": "I",
+   "file": "doc-5up4sp.pdf",
+   "kind": "webpage",
+   "date": "2017-08-07",
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "City Facebook post announcing the lighting for Colombian Independence Day",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "is an August 7, 2017 \"post\" by"
+    }
+   ],
+   "content_check": "Facebook printout: 'City of Edmonton August 7, 2017 ... Aug 7, yellow, blue & red, Colombian Independence Day'"
+  },
+  {
+   "label": "J",
+   "file": "doc-3x8a53.pdf",
+   "kind": "webpage",
+   "date": "2018-11-12",
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "City Facebook post announcing the lighting for the 100th Anniversary of Latvian Independence",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "is a November 12, 2018 \"post\""
+    }
+   ],
+   "content_check": "Facebook search printout: 'burgundy & white for the 100th Anniversary of Latvian Independence'"
+  },
+  {
+   "label": "K",
+   "file": "doc-hq4jjf.pdf",
+   "kind": "webpage",
+   "date": "2016-08-22",
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "City Facebook post announcing the lighting for the 25th anniversary of Ukrainian independence",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "is an August 22, 2016 \"post\" by"
+    }
+   ],
+   "content_check": "Facebook search printout: '25th anniversary of celebration of Independence of Ukraine'"
+  },
+  {
+   "label": "L",
+   "file": "doc-5vjb2n.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "City of Edmonton",
+   "recipients": [],
+   "description": "Three City announcements (Facebook and Twitter) of the lighting for Pregnancy and Infant Loss Awareness",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are three announcements by the"
+    }
+   ],
+   "content_check": "6 pages of Facebook/Twitter printouts: 'International Pregnancy & Infant Loss Awareness Day'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Applicants file a Notice to Obtain Record of Proceedings",
+   "date": "2019-10-07",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "A Notice to Obtain Record of Proceedings was filed by the Applicants in the within matter",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "City files the Certified Record of Proceedings",
+   "date": "2019-12-19",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "A Certified Record of Proceedings (the \"Record\") was filed by the Respondent on December",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "City tweets that the bridge is lit for the 100th Anniversary of Polish Independence",
+   "date": "2018-11-10",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "is a November I 0, 2018 tweet",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "City tweets that the bridge is lit for the anniversary of the Azerbaijan Democratic Republic",
+   "date": "2019-05-28",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "is a May 28, 2019 tweet from",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "City tweets that the bridge is lit for Chilean Independence Day",
+   "date": "2019-09-22",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "is a September 22, 2019 tweet",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Bridge lit for Colombian Independence Day, announced on the City's Facebook page",
+   "date": "2017-08-07",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "the City on its Facebook page announcing the lighting of the Bridge on August 7, 2017",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "City posts on Facebook that the bridge will be lit for the 100th Anniversary of Latvian Independence",
+   "date": "2018-11-12",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "is a November 12, 2018 \"post\"",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Bridge lit for the 100th Anniversary of Latvian Independence",
+   "date": "2018-11-18",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "the City on its Facebook page announcing the lighting of the Bridge on November 18,",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "City posts on Facebook about lighting the bridge for the 25th anniversary of Ukrainian independence",
+   "date": "2016-08-22",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "is an August 22, 2016 \"post\" by",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Bridge lit for the 25th anniversary of Ukrainian independence",
+   "date": "2016-08-28",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "the City on its Facebook page announcing the lighting of the Bridge on August",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "City announces the lighting of the bridge for Pregnancy and Infant Loss Awareness",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "are three announcements by the",
+   "exhibits": [
+    "L"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Certified Record of Proceedings (TAB 8 cited)",
+  "Notice to Obtain Record of Proceedings",
+  "Exhibits A-E are attached to the deponent's first affidavit (record abqb-amla-smolishunt)"
+ ],
+ "leak_waivers": [],
+ "notes": "Continues the lettering of the first Smolis-Hunt affidavit (A-E). Jurat day illegible in the scan-OCR'd text layer; filed February 25, 2020."
+}

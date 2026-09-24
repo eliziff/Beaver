@@ -1,0 +1,413 @@
+{
+ "record_id": "fc-ccfr-odell",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-577-20",
+ "subject": "administrative",
+ "family": "ccfr-firearms-oic",
+ "proceeding": "Canadian Coalition for Firearm Rights et al. v. Attorney General of Canada and RCMP: judicial review of the May 1, 2020 Order in Council SOR/2020-96 prohibiting firearms and of RCMP re-classifications in the Firearms Reference Table",
+ "document": "Affidavit of Philip O'Dell affirmed September 11, 2020",
+ "deponent": "Philip O'Dell",
+ "deponent_role": "President of O'Dell Engineering Ltd. (firearms engineer and importer; applicant in T-905-20)",
+ "sworn_date": "2020-09-11",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-evkjbe.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Philip O'Dell",
+   "recipients": [],
+   "description": "O'Dell's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "My curriculum vitae is attached as Exhibit “A” to my Affidavit"
+    }
+   ],
+   "content_check": "5 pages: 'Curriculum Vitae Philip C. O'Dell, P.Eng., M.A.Sc.'"
+  },
+  {
+   "label": "B",
+   "file": "doc-swg5v7.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Images illustrating the rifling inside the bore of a rifle",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Attached at Exhibit “B” to my Affidavit are images illustrating the"
+    }
+   ],
+   "content_check": "2 pages 'PCO Affidavit Images V1': 'Inside of a rifle showing the spiraling (rifling)', lands and grooves illustration"
+  },
+  {
+   "label": "C",
+   "file": "doc-37zx9v.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Said to be an image of a shotgun measuring a bore diameter under 20mm (17.52mm)",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Attached as Exhibit “C” to my Affidavit is an image of shotgun which measures with a"
+    }
+   ],
+   "content_check": "1 page, but the posted page is the dial bore gauge image (identical to Exhibit E), not the 17.52mm shotgun the affidavit describes: a source error",
+   "same_text_as": [
+    "E"
+   ]
+  },
+  {
+   "label": "D",
+   "file": "doc-cvqees.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Image of the same shotgun with the choke removed measuring over 20mm (22.00mm)",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "as can be seen at Exhibit “D” to"
+    }
+   ],
+   "content_check": "1 page: 'Image of the same shotgun ... with a different choke thereby making it in excess of 20mm. Image showing bore diameter of .795\" (22.00 mm)'"
+  },
+  {
+   "label": "E",
+   "file": "doc-43ubg5.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Image of a bore gauge",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached as Exhibit “E” to my Affidavit is an image ofa bore gauge."
+    }
+   ],
+   "content_check": "1 page: 'A dial bore gauge suitable for measuring the bore within 3\" of the muzzle', photo of gauge set",
+   "same_text_as": [
+    "C"
+   ]
+  },
+  {
+   "label": "F",
+   "file": "doc-c6mk42.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Images of proof marks etched on proof-tested firearms",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "Attached as Exhibit “F” to my"
+    }
+   ],
+   "content_check": "2 pages: 'Image of a firearm with a proof mark stamped on it ... British Proof House Mark \"BNP\"'"
+  },
+  {
+   "label": "G",
+   "file": "doc-mb9ka9.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Examples of firearms under 10,000 joules with one barrel and over with another",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "Attached as Exhibit “G” to my Affidavit are examples of firearms which produce less"
+    }
+   ],
+   "content_check": "2 pages: 'A bolt action rifle which would be non-restricted: ... Mauser-action rifle in .30-06 ... with an after market barrel'"
+  },
+  {
+   "label": "H",
+   "file": "doc-v536hn.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "A rifle fitted with chambers producing under and over 10,000 joules",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "Exhibit “H” to my Affidavit is an example of"
+    }
+   ],
+   "content_check": "1 page: 'A Ruger No.1 Rifle, Chambered in .30-06 Government ... The same rifle magnum length action with a chamber'"
+  },
+  {
+   "label": "I",
+   "file": "doc-nvphzv.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "List of firearms re-designated as prohibited by the RCMP SFSS in the FRT though not named in the Regulation",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "Attached as Exhibit “I” is a list of firearms which I understand have been re-"
+    }
+   ],
+   "content_check": "24 pages: 'Table: Firearms in the public Firearms Reference Table that cite amendments made in SOR/2020-96 as a legal authority for being Prohibited but are not explicitly named'"
+  },
+  {
+   "label": "J",
+   "file": "doc-fvs753.pdf",
+   "kind": "public_record",
+   "date": "2020-08-31",
+   "author": "RCMP",
+   "recipients": [],
+   "description": "FRT entry for the Derya MK10 (FRN 141381) as of August 31, 2020",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "Attached at Exhibit “J” is the FRT entry"
+    }
+   ],
+   "content_check": "2 pages: 'Firearm Reference Number (FRN): 141381 Make: Derya Arms Model: MK10'"
+  },
+  {
+   "label": "K",
+   "file": "doc-buhpnn.pdf",
+   "kind": "public_record",
+   "date": "2020-05-14",
+   "author": "RCMP",
+   "recipients": [],
+   "description": "FRT entry for the MK12 (FRN 141379) on May 14, 2020, classified non-restricted",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "Attached at Exhibit “K”"
+    }
+   ],
+   "content_check": "9 pages: FRT summary for Derya Arms MK12"
+  },
+  {
+   "label": "L",
+   "file": "doc-m2e2w6.pdf",
+   "kind": "public_record",
+   "date": "2020-06-16",
+   "author": "RCMP",
+   "recipients": [],
+   "description": "FRT entry for the MK12 as of June 16, 2020, re-classified",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "Attached at Exhibit “L” is the FRT entry for the MK12"
+    }
+   ],
+   "content_check": "9 pages: FRT summary for Derya Arms MK12 (later version)"
+  },
+  {
+   "label": "M",
+   "file": "doc-vb5yb8.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Images of the Defender/Carina, Hunter/Lion, MK10 and MK12 showing the design lineage",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "Attached at Exhibit “M” is a series of images of the Defender / Carina, the Hunter /"
+    }
+   ],
+   "content_check": "4 pages: 'Side views of: (1) Defender/Carina (2) Hunter/Lion (3) MK10 (4) MK12'"
+  },
+  {
+   "label": "N",
+   "file": "doc-qanu9w.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "O'Dell Engineering Ltd.",
+   "recipients": [],
+   "description": "Comparative view of the AR15 and the Defender/Carina",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "Attached at Exhibit “N” is a comparative view ofthe AR15 and the Defender / Carina."
+    }
+   ],
+   "content_check": "2 pages: 'Comparative view of AR-15 bolt, barrel extension, and barrel (top) with Defender/Carina bolt'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "O'Dell obtains his engineering bachelor's degree at Waterloo; master's follows in 1990",
+   "date": "1985",
+   "precision": "year",
+   "paragraphs": [],
+   "quote": "I obtained my Honours Bachelor of Applied Science, Mechanical Engineering, in 1985 at",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "O'Dell works as an engineer at Diemaco (now Colt Canada)",
+   "date": "1985",
+   "precision": "range",
+   "paragraphs": [
+    4
+   ],
+   "quote": "From 1985 until 1995 | was an engineer at Diemaco (1984) Inc",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "O'Dell co-founds Phantom Forge; founds O'Dell Engineering in 1995",
+   "date": "1983",
+   "precision": "year",
+   "paragraphs": [],
+   "quote": "In 1983, I co-founded Phantom Forge",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "O'Dell serves on the Department of Justice Firearms Technical Committee (2000 and 2014)",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Department of Justice Firearms Technical Committee in 2000 and 2014",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "O'Dell sits on the Department of Justice Import and Export Committee",
+   "date": "2001",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Department of Justice Import and Export Committee",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Order in Council SOR/2020-96 makes the Regulation prohibiting listed firearms",
+   "date": "2020-05-01",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "2020 Order in Council SOR/2020-96",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Since the Regulation, the RCMP SFSS re-designates over 300 unlisted firearms as prohibited in the FRT",
+   "date": "2020-05-01",
+   "precision": "approximate",
+   "paragraphs": [
+    47
+   ],
+   "quote": "Since the Regulation was made on May 1, 2020, the RCMP SFSS has been re-classifying",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "FRT lists the MK12 as non-restricted",
+   "date": "2020-05-14",
+   "precision": "day",
+   "paragraphs": [
+    57
+   ],
+   "quote": "(FRT 141379) on May 14, 2020 wherein the MK12 is",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "RCMP SFSS re-designates the MK12 as prohibited",
+   "date": "2020-06-16",
+   "precision": "approximate",
+   "paragraphs": [
+    48,
+    57
+   ],
+   "quote": "designated by the RCMP SFSS on or about June 16, 2020 as prohibited",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "FRT entry for the MK10 still shows it non-restricted",
+   "date": "2020-08-31",
+   "precision": "day",
+   "paragraphs": [
+    52
+   ],
+   "quote": "for the MK10 (FRT 141381) as ofAugust 31, 2020",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "O'Dell Engineering begins an exclusive import arrangement with Derya Arms, first importing the Defender",
+   "date": "2015",
+   "precision": "approximate",
+   "paragraphs": [
+    49
+   ],
+   "quote": "O’Dell Engineering has had an exclusive import arrangement with Derya Arms ofTurkey",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "RCMP independently classifies the MK12 as a unique, non-restricted design before import",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    55
+   ],
+   "quote": "The RCMP determined, independently, that the MK12 was",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "MK12 reclassification cuts about 23% of O'Dell Engineering's revenue (C$1.38 million)",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    64
+   ],
+   "quote": "approximately C$1.38 million in lost annual revenue",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Application in T-577-20 and O'Dell Engineering's application in T-905-20",
+  "Order Declaring an Amnesty Period (2020), SOR/2020-97",
+  "Armalytics.ca analysis of re-designated firearms"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit body is a scan: --ocr-affidavit (OCR renders some paragraph numbers wrongly, e.g. 3 as '5.', 5 as '2 i', so a few refs carry no paragraph). The source posts the bore-gauge image as both Exhibit C and Exhibit E; C's described shotgun photo is not in the PDF, so C and E are same_text_as."
+}

@@ -1,0 +1,392 @@
+{
+ "record_id": "onsc-cp-chl-robison",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al. (proposed class action for hazing and abuse of major junior players): defendants' responding evidence on certification",
+ "document": "Affidavit of Ron Robison sworn October 29, 2021",
+ "deponent": "Ron Robison",
+ "deponent_role": "Commissioner of the Western Hockey League; Vice-President of the CHL",
+ "sworn_date": "2021-10-29",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pd367s.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's current Regulations",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached as Exhibit A to this affidavit is a copy of the"
+    }
+   ],
+   "content_check": "4 pages: 'WHL REGULATIONS AND POLICIES 1.0 PERSONAL CONDUCT POLICY'"
+  },
+  {
+   "label": "B",
+   "file": "doc-72kt7b.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's current Players First Support Services Program Overview",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached as Exhibit B to this affidavit is a copy"
+    }
+   ],
+   "content_check": "3 pages: 'WHL Players First Support Services Mandatory League Programs - Respect in Hockey'"
+  },
+  {
+   "label": "C",
+   "file": "doc-8st9ky.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's current Security Network and Club Liaison Officer Program overview",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Exhibit C to this affidavit is a copy of the WHL"
+    }
+   ],
+   "content_check": "1 page: 'WHL Security Network - The WHL established a league-wide WHL Security Network in 2015. Former Calgary Police Superintendent Kevan Stuart'"
+  },
+  {
+   "label": "D",
+   "file": "doc-sacw3w.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canadian Mental Health Association",
+   "recipients": [],
+   "description": "WHL's current Talk Today Program Manual",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached as Exhibit D to this"
+    }
+   ],
+   "content_check": "14 pages: Talk Today materials beginning 'Team Up: preventing suicide in athletes - A new virtual presentation for players and teams participating in the Talk Today program'"
+  },
+  {
+   "label": "E",
+   "file": "doc-htg3gs.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's current Respect in Hockey Program overview",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit E to this affidavit is a copy"
+    }
+   ],
+   "content_check": "2 pages: '1. WHL Respect in Sport Online Seminar ...'"
+  },
+  {
+   "label": "F",
+   "file": "doc-67hey2.pdf",
+   "kind": "other",
+   "date": "2019-07",
+   "author": "Respect Group Inc.",
+   "recipients": [],
+   "description": "WHL's current Respect in Sport for Activity Leaders Curriculum",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached as Exhibit F to this"
+    }
+   ],
+   "content_check": "8 pages: 'Respect in Sport - Activity Leader Program Curriculum - July 2019'"
+  },
+  {
+   "label": "G",
+   "file": "doc-ttrng5.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's Player Impact Program overview",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Attached as Exhibit G to this affidavit is a copy of the WHL"
+    }
+   ],
+   "content_check": "9 pages: 'WHL Player Impact Program The Western Hockey League Player Impact Program is a comprehensive training and education program'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Western Canada Junior Hockey League formed (WHL founded)",
+   "date": "1966",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The WHL was founded in 1966",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "League renamed Western Canada Hockey League",
+   "date": "1968",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In 1968, it was renamed the Western Canada Hockey",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Portland becomes the first US-based team",
+   "date": "1976",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "after Portland became the first",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "League renamed Western Hockey League",
+   "date": "1978",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In 1978, it was renamed the Western Hockey League",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Robison holds senior positions with the CAHA and Hockey Canada",
+   "date": "1981",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "between 1981 and 1997",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Howery plays for the Winnipeg Warriors (alleged abuse)",
+   "date": "1983",
+   "precision": "range",
+   "paragraphs": [
+    36
+   ],
+   "quote": "during the 1983-1984 season",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Winnipeg Warriors transfer to Moose Jaw",
+   "date": "1985",
+   "precision": "year",
+   "paragraphs": [
+    36
+   ],
+   "quote": "transferred to Moose Jaw in 1985",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Robison serves as President of Hockey Canada",
+   "date": "1992",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "including as President of Hockey Canada between 1992",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Regulation on racial/derogatory comments added",
+   "date": "1990",
+   "precision": "approximate",
+   "paragraphs": [
+    25
+   ],
+   "quote": "was added",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Abuse, Bullying, Harassment and Hazing Policy implemented",
+   "date": "1998",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The Abuse, Bullying, Harassment and Hazing Policy was",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Respect in Hockey Program implemented in its earliest form",
+   "date": "1998",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "implemented in its earliest form in 1998",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Robison becomes WHL Commissioner and CHL Vice-President",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have held these positions since 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "WHL reaches 22 teams",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "since the 2010/2011 season",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Respect in Sport for Activity Leaders Program implemented",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    32
+   ],
+   "quote": "The Respect in Sport for Activity Leaders Program was implemented in 2011",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Social Media and Networking Policy implemented",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "The Social Media and Networking Policy was implemented in 2012",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Personal Conduct Policy implemented",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    23
+   ],
+   "quote": "The Personal Conduct Policy was implemented in 2013",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "WHL Security Network established",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    28
+   ],
+   "quote": "wide Security Network in 2015",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Player Impact Program first implemented",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    34
+   ],
+   "quote": "first implemented in 2015",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Talk Today Program implemented",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    30
+   ],
+   "quote": "Program was implemented in 2016",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Red Cross Respect Education Program discontinued",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "up to 2018 when the Respect Education Program was",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Respect Champions Teams introduced",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    33
+   ],
+   "quote": "were introduced in the 2020-2021 season",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Howery reports concerns about his billet to the Warriors' GM",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    37
+   ],
+   "quote": "he reported his concerns about Mr. Oliverio to the Warrior",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Robison affidavit in the Berg class action",
+  "Affidavit of Mark Howery (plaintiffs' certification record)"
+ ]
+}

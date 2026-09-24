@@ -1,0 +1,19 @@
+{
+ "url": "https://kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/bokhari-canada-inc/supplementary-affidavit-dated-january-16-2025.pdf.coredownload.inline.pdf",
+ "landing_url": "https://kpmg.com/ca/en/services/advisory/deal-advisory/creditorlinks/bokhari-canada-inc.html",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI23-01-42328",
+ "document_title": "Supplementary Affidavit of Robert Peltonen affirmed January 16, 2025 (Peoples Trust Company v. Bokhari Development Inc., receivership)",
+ "retrieved": "2026-09-24",
+ "record_id": "mbkb-bokhari-peltonen",
+ "source_file": "f-bok-supplementary-affidavit-dated-january-16-2025-coredownload-i.pdf",
+ "page_range": [
+  1,
+  10
+ ],
+ "source_sha256": "d00004927d6d8ba6b64b656e215c25fc57114c3ab2d2dbf3baac14e111892b5f",
+ "source_pages": 10,
+ "covers": "A=5,B=7,C=9"
+}

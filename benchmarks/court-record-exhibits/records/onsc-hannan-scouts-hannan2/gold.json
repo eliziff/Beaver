@@ -1,0 +1,238 @@
+{
+ "record_id": "onsc-hannan-scouts-hannan2",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-24-00095566",
+ "subject": "voluntary_association",
+ "family": "hannan-scouts-canada",
+ "proceeding": "Hannan v. Scouts Canada (application under Rule 14.05 to set aside the non-renewal of a volunteer Scouter's membership): applicant's reply evidence",
+ "document": "Reply Affidavit of Wayne Hannan affirmed June 25, 2024",
+ "deponent": "Wayne Hannan",
+ "deponent_role": "Applicant; volunteer Scouter with the 115th Ottawa Sea Scout Troop",
+ "sworn_date": "2024-06-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-2cy68k.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada policies on Adventure Application Forms",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "on Adventure Application Forms are attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: Scouts Canada web printout of 6/25/24 'Adventure Standards' on adventure planning and application forms (broken font encoding, OCR'd)"
+  },
+  {
+   "label": "B",
+   "file": "doc-m8d36b.pdf",
+   "kind": "other",
+   "date": "2024-06",
+   "author": "115th Sea Venturers and supporters",
+   "recipients": [
+    "Scouts Canada"
+   ],
+   "description": "Petition of June 21, 2024 supporting Hannan's reinstatement",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the petition as of June 21, 2024 is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page (poor OCR text layer): 'June 2024 Dear Scouts Canada: Re: Request for Wayne Hannan's reinstatement with the 115th Sea Scouts'"
+  },
+  {
+   "label": "C",
+   "file": "doc-8f45cy.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Scouts Canada",
+   "recipients": [],
+   "description": "Scouts Canada Appointment of Scouters Standards",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "A copy of the Appointment of Scouters Standards is attached at Exhibit"
+    }
+   ],
+   "content_check": "2 pages: web printout of 6/25/24 'Appointment of Scouters Standards' (broken font encoding, OCR'd); same standards as Exhibit D of the first affidavit"
+  },
+  {
+   "label": "D",
+   "file": "doc-4j4ua2.pdf",
+   "kind": "letter",
+   "date": "2024-06-18",
+   "author": "Jack Lenton, Scouter in Charge, 115th Sea Crew",
+   "recipients": [
+    "Wayne Hannan"
+   ],
+   "description": "Lenton's letter inviting Hannan to volunteer with the 115th Crew",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "A copy of the letter from Mr. Lenton is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page: letter of June 18, 2024 to Wayne Hannan, 'Re: Invitation to apply as Scouter with the 115th Ottawa Sea Crew (Rover Scouts)'"
+  },
+  {
+   "label": "E",
+   "file": "doc-9rtn2h.pdf",
+   "kind": "email_chain",
+   "date": "2024-06-24",
+   "author": "Craig Stehr (counsel for Scouts Canada)",
+   "recipients": [
+    "Sean Grassie"
+   ],
+   "description": "Correspondence in which Scouts Canada's counsel refuses the 115th Crew role",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "A copy of this correspondence is attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: email from Stehr, Craig to Sean Grassie, 'RE: Hannan v Scouts Canada - Alternative Role', June 24, 2024"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Hannan involved with Scouts Canada since 1950",
+   "date": "1950",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "have been involved with Scouts Canada since",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Armstrong becomes Group Commissioner; Terris becomes Skipper",
+   "date": "2022",
+   "precision": "approximate",
+   "paragraphs": [
+    10
+   ],
+   "quote": "since Ms. Armstrong became Group Commissioner in late 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Report received alleging Hannan berated a youth",
+   "date": "2023-06-21",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "report received on June 21, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Decision letter received",
+   "date": "2023-11-08",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "prior to the Decision letter I received on November 8, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Without-prejudice call between counsel on Scouts Canada's concerns",
+   "date": "2024-03-28",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Craig Stehr, on March 28, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Hannan's first affidavit",
+   "date": "2024-05-16",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Affidavit affirmed on May 16, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Adair affidavit for Scouts Canada",
+   "date": "2024-06-14",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "the Affidavit of Stacy Adair, affirmed June 14, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Lenton invites Hannan to volunteer with the 115th Crew",
+   "date": "2024-06-18",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "on June 18, 2024, I received a letter from Jack Lenton",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Hannan's counsel asks Scouts Canada to facilitate the 115th Crew role",
+   "date": "2024-06-19",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On June 19, 2024, my counsel wrote to Scouts Canada",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Hannan receives petition supporting his reinstatement",
+   "date": "2024-06-21",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "on June 21,",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Scouts Canada's counsel refuses the 115th Crew role",
+   "date": "2024-06-24",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On June 24, 2024, Scouts Canada",
+   "exhibits": [
+    "E"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Stacy Adair affirmed June 14, 2024",
+  "Hannan's First Affidavit affirmed May 16, 2024 and its Exhibits F, G, H and I",
+  "June 19, 2024 letter from Hannan's counsel to Scouts Canada's counsel (as a separate document)"
+ ]
+}

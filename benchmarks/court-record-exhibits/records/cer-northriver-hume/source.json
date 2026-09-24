@@ -1,0 +1,18 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4490313",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Search?txthl=NorthRiver%20Hume",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OF-Fac-Oil-N747-2020-01 02",
+ "document_title": "Affidavit of Emma Hume affirmed September 24, 2024 (NorthRiver CER hearing, C31473-1)",
+ "retrieved": "2026-09-24",
+ "record_id": "cer-northriver-hume",
+ "source_file": "dcer-4490313.pdf",
+ "page_range": [
+  1,
+  25
+ ],
+ "source_sha256": "cf2e259a941a76903a27f8c670a745b6fc6f4c3018b98c58a76c450a32608098",
+ "source_pages": 25
+}

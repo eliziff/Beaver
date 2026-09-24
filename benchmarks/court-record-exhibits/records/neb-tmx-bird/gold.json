@@ -1,0 +1,217 @@
+{
+ "record_id": "neb-tmx-bird",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "MH-052-2018 (OF-Fac-Oil-T260-2013-03 59)",
+ "subject": "environmental",
+ "family": null,
+ "proceeding": "NEB Reconsideration of the Trans Mountain Expansion Project (Order in Council P.C. 2018-1177): Tsleil-Waututh Nation's Application for Review of the hearing's geographic scope (marine shipping, southern resident killer whale habitat beyond the territorial sea)",
+ "document": "Affidavit of Miriam Bird sworn November 27, 2018 (REGDOCS A96156-2)",
+ "deponent": "Miriam Bird",
+ "deponent_role": "Legal assistant, Gowling WLG (counsel to Tsleil-Waututh Nation)",
+ "sworn_date": "2018-11-27",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-8gkzkm.pdf",
+   "kind": "report",
+   "date": "2018-08",
+   "author": "Fisheries and Oceans Canada",
+   "recipients": [],
+   "description": "Updated proposed Recovery Strategy for the Northern and Southern Resident Killer Whales",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "The Recovery Strategy is attached as Exhibit “A”."
+    }
+   ],
+   "content_check": "94 pages: 'Recovery Strategy for the Northern and Southern Resident Killer Whales (Orcinus orca) in Canada ... Proposed ... 2nd amendment 2018'"
+  },
+  {
+   "label": "B",
+   "file": "doc-yqwekd.pdf",
+   "kind": "report",
+   "date": "2012-05",
+   "author": "Husky Oil Operations Limited",
+   "recipients": [],
+   "description": "Excerpt of the regulatory project description for SeaRose activities, showing their location in the EEZ",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "200-nautical mile exclusive economic zone"
+    }
+   ],
+   "content_check": "63 pages: 'White Rose Extension Project Project Description May 2012', Husky on behalf of Suncor and Nalcor"
+  },
+  {
+   "label": "C",
+   "file": "doc-8xddvn.pdf",
+   "kind": "other",
+   "date": "2018-11-20",
+   "author": "Financial Post",
+   "recipients": [],
+   "description": "Financial Post article reporting the SeaRose spill can no longer be cleaned up",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "The Financial Post article is attached as"
+    }
+   ],
+   "content_check": "3 pages: 'ST. JOHN'S, N.L. - It's now impossible to clean up Newfoundland's largest-ever oil spill ... Husky Energy's SeaRose'"
+  },
+  {
+   "label": "D",
+   "file": "doc-6h6jfe.pdf",
+   "kind": "webpage",
+   "date": "2018-11-23",
+   "author": "Canada-Newfoundland and Labrador Offshore Petroleum Board",
+   "recipients": [],
+   "description": "CNLOPB incident disclosure posting on the SeaRose spill",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "The CNOPB incident disclosure posting is"
+    }
+   ],
+   "content_check": "3 pages; text layer is garbled glyph codes (broken font), OCR'd"
+  },
+  {
+   "label": "E",
+   "file": "doc-v54tq5.pdf",
+   "kind": "map",
+   "date": "2018-11-23",
+   "author": "Geoff Senichenko (Wilderness Committee)",
+   "recipients": [],
+   "description": "Senichenko's map of the SeaRose location relative to Canada's EEZ",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Mr. Senichenko’s map is attached as Exhibit “E”."
+    }
+   ],
+   "content_check": "1 page map: 'Husky Energy SeaRose Offshore Platform Terminal Location - As of Nov 23, 2018 Canada's Exclusive Economic Zone'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Board directs TWN's supplemental filing on its Application for Review",
+   "date": "2018-11-21",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "as directed by the Board on November 21, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "TWN files its Application for Review",
+   "date": "2018-11-16",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "AND IN THE MATTER OF the Application for Review of Tsleil-Waututh Nation",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Bird downloads DFO's updated killer whale Recovery Strategy",
+   "date": "2018-11-26",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On November 26, 2018, I visited Fisheries and Oceans Canada’s website",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Oil spill at Husky Energy's SeaRose vessel off Newfoundland",
+   "date": "2018-11-16",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "a recent oil spill which occurred at the Husky",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Financial Post reports the spill can no longer be cleaned up",
+   "date": "2018-11-20",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "A Financial Post article from November 20, 2018 reports",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "No oil sheens detected since November 18",
+   "date": "2018-11-18",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "detected since Sunday, November 18",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "CNLOPB posts its incident disclosure",
+   "date": "2018-11-23",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "viewed a November 23,",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Bird views the CNLOPB incident disclosure posting",
+   "date": "2018-11-26",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On November 26, 2018, I accessed the CNOPB website",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Senichenko prepares a map of SeaRose relative to the EEZ",
+   "date": "2018-11-23",
+   "precision": "approximate",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "Mr. Senichenko has prepared a map displaying the location of SeaRose",
+   "exhibits": [
+    "E"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "TWN Application for Review of November 16, 2018",
+  "Order in Council P.C. 2018-1177"
+ ],
+ "leak_waivers": [],
+ "notes": "D's text layer is broken (glyph codes); OCR'd."
+}

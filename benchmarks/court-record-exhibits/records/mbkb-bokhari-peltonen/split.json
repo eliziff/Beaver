@@ -1,0 +1,44 @@
+{
+ "record_id": "mbkb-bokhari-peltonen",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-xjahh5.pdf",
+   "source_pages": [
+    6
+   ],
+   "cover_page": 5,
+   "stamp_page": null,
+   "text_chars": 8456
+  },
+  {
+   "label": "B",
+   "file": "doc-zqhfa4.pdf",
+   "source_pages": [
+    8
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 3508
+  },
+  {
+   "label": "C",
+   "file": "doc-m9fcu6.pdf",
+   "source_pages": [
+    10
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 4284
+  }
+ ],
+ "leak_audit": []
+}

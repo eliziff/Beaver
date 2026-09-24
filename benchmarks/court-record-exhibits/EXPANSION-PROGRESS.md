@@ -151,3 +151,61 @@ Leads left: Barrington first affidavit (Genesus, MB; 465 scanned pages, covers n
 - Sibling gold edits (repo only) verified against the data-dir text copies: all six pass verify.py. Data-dir gold.json for those six still lacks the family slug until synced.
 - harvest.py caveat: files are named from the URL basename, so two engagements posting the same file name collide (the 5684961 Manitoba Pacheco affidavit, 485 Furby, was overwritten by 6525785's; re-download it under another prefix to use it).
 - Unexamined leads: democracywatch Affidavit1.pdf / Affidavit2.pdf (harvest kept, labels ACHM/PCRT garbled; an earlier note rejected 'web-affidavit1/2' for missing covers, not logged); treaty9 amended motion record tabs 5+ (J.R. Miller and later affidavits) unread.
+
+## Lane E (civil and commercial, non-insolvency: 2026-09-24)
+
+Scratchpad laneE/: harvest.py (logs to rejected-lane-E.jsonl), rej.py, crawl.py (link lister), mk.py (compact gold spec s/<id>.py -> g/<id>.json + fin), row.py.
+
+| id | jur | level | subject | source | exhibits | family | notes |
+|---|---|---|---|---|---|---|---|
+| onsc-cp-crowncrest-krimker | ON | superior_trial | class_action (consumer HVAC leases/NOSIs, CPA) | sotosclassactions.com (Krimker responding MR) | 5 | - | --pages 4-53 --ocr-affidavit (jurat page scanned); B-E broken encoding OCR'd; A dated Mar 31 vs affidavit's May 31 |
+| onsc-cp-tdam-wright2 | ON | superior_trial | securities (mutual fund trailer class action: settlement, fees, funding) | siskinds.com (TDAM consolidated MR, via Wayback CDX listing, live URL) | 9 | tdam-westwood | --pages 338-515; A and F pages 1-3 are vector-drawn text (no text layer, no images: ocr_exhibits skips them); E,G,H OCR'd |
+| onsc-cp-tdam-wright1 | ON | superior_trial | securities (first-notice motion) | same TDAM consolidated MR | 3 | tdam-westwood | --pages 518-594 |
+| onsc-cp-sino-wright-horsley | ON | superior_trial | securities (Sino-Forest class action, Horsley settlement approval) | siskinds.com (Sino settlement MR 2014) | 9 | sino-forest-securities | --pages 39-466 |
+| onsc-cp-sino-wright-cdp | ON | superior_trial | securities (Sino-Forest E&Y settlement distribution protocol) | siskinds.com (Sino claims/distribution MR Nov 2013) | 6 | sino-forest-securities | --pages 77-462; OCR text layer lacks para numbers 1-9 (refs paragraph null); D is a backsheet + endorsement, not the order |
+| onsc-cp-sino-wright-ey | ON | superior_trial | securities (Sino-Forest: $117M Ernst & Young settlement approval) | siskinds.com (Sino class action MR Feb 2013) | 35 | sino-forest-securities | --pages 32-842; B-1/B-2, E-1/E-2 labels; V/W same_text_as (filed vs proposed fresh as amended claims); cover '0' is O |
+| onsc-cp-chl-branch | ON | superior_trial | class_action (junior hockey hazing, defendants' certification evidence) | kmlaw.ca (standalone affidavit PDF) | 10 | carcillo-chl-hazing | --pages 1-70 (backsheet off J); C,F,J OCR'd |
+| onsc-cp-chl-courteau | ON | superior_trial | class_action (QMJHL commissioner) | kmlaw.ca | 17 | carcillo-chl-hazing | --pages 1-128 --drop 68,69 --covers (J is a video placeholder page: dropped, referenced_not_attached) |
+| onsc-cp-chl-robison | ON | superior_trial | class_action (WHL commissioner) | kmlaw.ca | 7 | carcillo-chl-hazing | --pages 1-62 |
+| onsc-cp-chl-mackenzie | ON | superior_trial | class_action (CHL president on IRP report) | kmlaw.ca | 6 | carcillo-chl-hazing | --pages 1-82 |
+| onsc-hannan-scouts-hannan1 | ON | superior_trial | voluntary_association (Scouter non-renewal, procedural fairness) | documentcloud.org (CBC News upload of the application record) | 21 | hannan-scouts-canada | --pages 54-190; Q,S,T OCR'd; new source family: DocumentCloud API search (laneE/dc.py, UA=curl) |
+| onsc-hannan-scouts-hannan2 | ON | superior_trial | voluntary_association (reply) | same application record | 5 | hannan-scouts-canada | --pages 208-236; A,C broken encoding OCR'd |
+
+## Lane D (public law: Charter, human rights, admin/JR, Indigenous, environmental, municipal, immigration, privacy, elections, police/prisons)
+
+Helpers in scratchpad laneD/: harvest.py (logs to laneD/harvest.json, rejects to rejected-lane-D.jsonl), rej.py (same file), wpm3.py (WP media search, follows redirects), bs.py (Bing RSS search; operators ignored, near useless). WebSearch budget is exhausted for this session.
+
+| id | jur | level | subject | source | exhibits | family | notes |
+|---|---|---|---|---|---|---|---|
+| abqb-amla-smolishunt2 | AB | superior_trial | charter (municipal bridge-lighting policy) | jccf.ca (supplemental affidavit) | 7 | amla-edmonton-bridge | F-L continue the first affidavit; para 11 unparsed ("11 ."), refs null; family slug added to repo gold of abqb-amla-smolishunt |
+| cer-tmx-hobenshield | federal | administrative_tribunal | regulatory (TMX v Burnaby tree bylaw, CER motion + constitutional question) | apps.cer-rec.gc.ca REGDOCS 4039143 | 4 | - | first CER record; PDF holds the affidavit twice: --pages 14-37 (clean copy) |
+| fc-ccfr-odell | federal | federal_trial | administrative (firearms OIC SOR/2020-96 JR) | firearmrights.ca | 14 | ccfr-firearms-oic | --ocr-affidavit; C posted as the bore-gauge image = E (same_text_as); 3 image exhibits OCR'd |
+| fc-ccfr-mauser | federal | federal_trial | administrative (firearms OIC JR; criminologist expert) | firearmrights.ca | 20 | ccfr-firearms-oic | --covers by page (OCR-garbled '~xhibit' covers; audit's 10 cover findings are those); K/R described differently from the files |
+| cer-sunrise-bowie | federal | administrative_tribunal | municipal (City of Abbotsford intervenor evidence, Westcoast Sunrise GH-001-2024) | REGDOCS 4542950 | 9 | - | paragraph numbers sit in a separate column: refs null; --covers by page; 5 map/scan exhibits OCR'd |
+| cer-northriver-richardson | federal | administrative_tribunal | regulatory (NorthRiver notice of constitutional question; service on AGs) | REGDOCS 4479858 | 5 | cer-northriver-nebc | service affidavit; audit jurat on D is the nested Sturgeon affidavit's own jurat |
+| cer-northriver-hume | federal | administrative_tribunal | indigenous_rights (Blueberry River Implementation Agreement New Disturbance, NorthRiver NEBC) | REGDOCS 4490313 | 6 | cer-northriver-nebc | Ratcliff lawyer's affidavit for BRFN |
+
+## Lane F (geography + court level: QC-English, territories, Atlantic, Prairies, appellate, federal tribunals; sibling affidavits)
+
+Helpers in scratchpad laneF/: harvest.py and rej.py log to rejected-lane-F.jsonl; gb.py (gold builder), mk_<name>.py per record; ddg.py/bsearch.py (DuckDuckGo captcha'd, Bing headless returns junk: no working web search); gtcrawl.py walks the Doane Grant Thornton creditor-updates document tree (docs.doanegrantthornton.ca/document-folder/fetch, POST id/node-id/_token).
+
+| id | jur | level | subject | source | exhibits | family | notes |
+|---|---|---|---|---|---|---|---|
+| mbkb-5684961-pacheco | MB | superior_trial | insolvency (s.243 receivership, fire-damaged apartment, 485 Furby) | mnpdebt.ca | 17 | - | companion of mbkb-6525785-pacheco (same lender/deponent/day, other debtor); L garbled font OCR'd; O photos |
+| mbkb-bokhari-sandhu | MB | superior_trial | construction (Builders' Liens Act holdback interpleader) | kpmg.com creditorlinks (Bokhari) | 8 | - | --covers (H read as 11H); first construction-lien record |
+| mbkb-bokhari-peltonen | MB | superior_trial | insolvency (supplier property claim in receivership) | kpmg.com creditorlinks (Bokhari) | 3 | - | doubled text layer; --covers (body cites another affidavit's Exhibit C); sibling first affidavit (Jan 8 2025) is scanned |
+| nssc-chesterbasin-teixeira | NS | superior_trial | insolvency (receivership application after failed NOI; DIP + assigned TD/Pluto debt, fishing vessels) | grantthornton.ca creditor updates | 28 | chester-basin-seafood | scanned+OCR'd; O,Q,W,Y noisy text; jurat day illegible (sworn_date 2024-02) |
+| nssc-chesterbasin-kingston | NS | superior_trial | insolvency (counsel's registry searches: NS/NB/PE/NL PPR, ship registry) | grantthornton.ca | 9 | chester-basin-seafood | 4 Atlantic PPR reports |
+| nssc-chesterbasin-santimaw | NS | superior_trial | insolvency (trustee counsel's searches) | grantthornton.ca | 5 | chester-basin-seafood | Hfx No. 530600 |
+| nssc-chesterbasin-breau | NS | superior_trial | insolvency (NOI stay extension; board dispute) | grantthornton.ca | 3 | chester-basin-seafood | A = nested affidavit (leak waived); B/C = teixeira B/E |
+
+- Grant Thornton (Doane) document tree: laneF/gtfiles.json (10,236 files, 616 affidavits). Download = view endpoint -> webpal viewer key -> _ajax/download; laneF/gtget.py fetch() does it with curl + cookie jar. source.json url is the stable view endpoint, which returns JSON (not the PDF): **rebuild.py cannot refetch these sources directly** (same class as Deloitte's browser-only fetch); use gtget.fetch. In Git Bash set MSYS_NO_PATHCONV=1 before passing '/CreditorUpdates/...' paths.
+- GT sha256 is stable across fetches (Breau fetched twice = source.json sha), so gtget.fetch rebuilds these sources exactly.
+- Lane F is building the NB CCLA v NB (FM-76-2023) siblings from raw/j-april-15-2024-ccla-v-nb-gda-and-odc-motion-record.pdf (Leung, Kimberly); other lanes please skip. Six Lane D rows that had been appended at the file end (inside this table) were moved to the Lane D table; please insert rows inside your own table rather than appending to the file.
+- Insolvency cap reached for Lane F (6 of 8). Harvested but NOT built (insolvency, all text covers, in raw/gt-*): Canada Fluorspar NL CCAA (Clarke Mar 2022 A-G, May 2023 A-D, Sep 2023 A-C, Jan 2024 A-C; Page Feb 2022 A-C: a 5-record family), 720434 NB Inc. (Ford x3, Molyneaux A-I), 5448124 Manitoba (Minor Sept 2015 A-Z + supp A-C), 5993092 Manitoba (Coonan, 1,049 pp, numeric 1-26+), Mernova NS (Mackay A-AA), Superport NS (BMO Langlois), World Energy GH2 NL (Hugh A-G, posted twice).
+| cer-poucecoupe-general | federal | administrative_tribunal | indigenous_rights (Duncan's First Nation, Treaty 8, OH-001-2024) | REGDOCS 4542970 | 14 | - | A's own title 'Exhibit A - Written Evidence' redacted (redact_text + waiver, rebuilt); F/I image letters, K broken font: OCR'd |
+| neb-tmx-bird | federal | administrative_tribunal | environmental (TWN application for review, TMX reconsideration: orca habitat, SeaRose spill) | REGDOCS 3716296 | 5 | - | first NEB-era record; D broken font OCR'd |
+| neb-tmx-allan | federal | administrative_tribunal | municipal (Burnaby's evidence vs TMX motion/NCQ on city permits, MH-081-2017) | REGDOCS 3385658 | 4 | - | audit 'dated' leads are background paragraphs; Pelletier (Burnaby) affidavit skipped: stamp labels misread |
+| nbkb-ccla-kimberly | NB | superior_trial | charter (Policy 713 JR; GDA intervention) | jccf.ca (GDA/ODC motion record, pp 14-82) | 5 | ccla-nb-policy713 | image-only covers: --covers by page; A,E broken fonts OCR'd; family slug added to repo gold of nbkb-ccla-ab |
+| nbkb-ccla-leung | NB | superior_trial | charter (Policy 713 JR; counsel's affidavit: expert CV, will-say, anonymized affidavits) | same motion record (pp 106-479) | 6 | ccla-nb-policy713 | --covers by page; D/E/F nested affidavits (D = nbkb-ccla-ab's affidavit; D,F leaks waived); E's 200 exhibit pages image-only |
+- Lane F stopped at 9 records (6 insolvency, 3 non-insolvency). Dead ends: SCC case-documents JSON 40800-41900 lists only factums/memoranda; West Coast LEAF, JCCF, democracywatch intervention/appeal PDFs have no text exhibit covers; WP media of Atlantic/Prairie unions, class-action firms and First Nations sites returns nothing; KPMG primewest (SKCA), Bokhari other affidavits and NBCA 720434 Ford (Exhibit A cover only) rejected. Leads: LPC Avocat (lpclex.com) posts Quebec English class-action exhibits R-1.. as separate PDFs (split.py needs a multi-file mode: new flag, not built); Barrick appeal record/compendium (cfmlawyers, raw/f-app-appeal-record-...); GT insolvency set above.

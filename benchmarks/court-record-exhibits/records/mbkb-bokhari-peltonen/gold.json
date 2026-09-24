@@ -1,0 +1,155 @@
+{
+ "record_id": "mbkb-bokhari-peltonen",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI23-01-42328",
+ "subject": "insolvency",
+ "proceeding": "Peoples Trust Company v. Bokhari Development Inc. (s. 243 BIA receivership, KPMG receiver): SLK Contracting Ltd.'s claim that fire alarm materials it supplied to the Tahir Residences site are its property",
+ "document": "Supplementary Affidavit of Robert Peltonen affirmed January 16, 2025",
+ "deponent": "Robert Peltonen",
+ "deponent_role": "Director, officer and shareholder of SLK Contracting Ltd. (subcontractor claimant)",
+ "sworn_date": "2025-01-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-xjahh5.pdf",
+   "kind": "other",
+   "date": "2022-02-24",
+   "author": "Gescan (Sonepar Canada)",
+   "recipients": [],
+   "description": "Gescan Purchase Order no. 1832485 for an SI fire alarm package",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto and marked as Exhibit \"A\" is Gescan \nPurchase Order no. 1832485"
+    }
+   ],
+   "content_check": "One page: Gescan 'PURCHASE ORDER' P.O. No 1832485 to supplier SI Alarms Ltd, ordered date 02/24/2022, ship to SLK Contracting Ltd, Portage la Prairie condos"
+  },
+  {
+   "label": "B",
+   "file": "doc-zqhfa4.pdf",
+   "kind": "invoice",
+   "date": "2022-11-22",
+   "author": "SI Alarms Ltd.",
+   "recipients": [],
+   "description": "SI Alarms Invoice #504062 to Gescan for fire alarm equipment for 13 buildings",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"B\" is SI Alarms Invoice #504062"
+    }
+   ],
+   "content_check": "One page: SI Alarms invoice 504062 dated 2022-11-22 to Gescan, ship to SLK Contracting, total CAD 121,485.00"
+  },
+  {
+   "label": "C",
+   "file": "doc-m9fcu6.pdf",
+   "kind": "email",
+   "date": "2025-01-10",
+   "author": "Robert Turkula (SI Alarms)",
+   "recipients": [],
+   "description": "Turkula's January 10, 2025 email explaining the invoice and purchase order chain, as forwarded by Peltonen",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached hereto and marked as Exhibit \"C\" is a January 10, 2025 \nemail from Robert Turkula"
+    }
+   ],
+   "content_check": "One page: Peltonen's January 16, 2025 forward to counsel of rob@sialarms.com email of January 10, 2025 'PLP - Clarification on Invoice and Purchase Order'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Gescan issues Purchase Order 1832485 to SI Alarms",
+   "date": "2022-02-24",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On or about February 24, 2022, Gescan issued Purchase Order no. \n1832485",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "SI Alarms invoices Gescan for the SLK Materials",
+   "date": "2022-11-22",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On or about November 22, 2022, SI Alarms issued Invoice #504062",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "SLK Materials shipped to the Portage la Prairie job site",
+   "date": "2022-12",
+   "precision": "month",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In or around December 2022, the SLK Materials were shipped to the \njob site",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Packing slips issued for the purchase order",
+   "date": "2022-12-13",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "December 13, 2022 and December 21, 2022 packing slips for Gescan \nPurchase Order no. 1832485",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Gescan invoices SLK for the SLK Materials",
+   "date": "2022-12-21",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Gescan invoiced SLK for the SLK Materials on December 21, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Peltonen's first affidavit affirmed",
+   "date": "2025-01-08",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "This affidavit is supplementary to the affidavit affirmed by me on \nJanuary 8, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Turkula emails Peltonen clarifying the invoices",
+   "date": "2025-01-10",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "a January 10, 2025 \nemail from Robert Turkula of SI Alarms to myself",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "Affidavit of Robert Peltonen affirmed January 8, 2025, including its Exhibit C (December 13 and 21, 2022 packing slips)"
+ ],
+ "notes": "The posted PDF carries a doubled text layer (every page's text appears twice). The affidavit quotes another affidavit's Exhibit C, so covers were given by page."
+}

@@ -1,0 +1,86 @@
+{
+ "record_id": "nssc-chesterbasin-breau",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ejw5rp.pdf",
+   "source_pages": [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+   ],
+   "cover_page": 15,
+   "stamp_page": null,
+   "text_chars": 22124
+  },
+  {
+   "label": "B",
+   "file": "doc-q7rhzp.pdf",
+   "source_pages": [
+    33,
+    34,
+    35,
+    36,
+    37,
+    38
+   ],
+   "cover_page": 32,
+   "stamp_page": null,
+   "text_chars": 10817
+  },
+  {
+   "label": "C",
+   "file": "doc-a3gcwe.pdf",
+   "source_pages": [
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46
+   ],
+   "cover_page": 39,
+   "stamp_page": null,
+   "text_chars": 10986
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "A",
+   "file": "doc-ejw5rp",
+   "text": "ity, the \"Proposal Trustee\"). Attached hereto and marked as Exhibit \"A\" is a true copy of the Certificate of Filing of a Notice of "
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "url": "https://kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/bokhari-canada-inc/affidavit-dated-july-3-2024.pdf.coredownload.inline.pdf",
+ "landing_url": "https://kpmg.com/ca/en/services/advisory/deal-advisory/creditorlinks/bokhari-canada-inc.html",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI24-01-46753",
+ "document_title": "Affidavit of Karampaul Sandhu affirmed July 3, 2024 (Donald R. Knight, K.C. v. Bokhari Development Inc., Builders' Liens Act interpleader application)",
+ "retrieved": "2026-09-24",
+ "record_id": "mbkb-bokhari-sandhu",
+ "source_file": "f-bok-affidavit-dated-july-3-2024-coredownload-inline.pdf",
+ "page_range": [
+  1,
+  61
+ ],
+ "source_sha256": "e99e1f70370675de8d2ea8e569b974b58996e29538ec860ad1b7a06e64deb406",
+ "source_pages": 61,
+ "covers": "A=7,B=41,C=43,D=45,E=47,F=49,G=56,H=60"
+}

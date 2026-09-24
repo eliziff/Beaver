@@ -1,0 +1,594 @@
+{
+ "record_id": "fc-ccfr-mauser",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-577-20",
+ "subject": "administrative",
+ "family": "ccfr-firearms-oic",
+ "proceeding": "Canadian Coalition for Firearm Rights et al. v. Attorney General of Canada and RCMP: judicial review of the May 1, 2020 Order in Council SOR/2020-96 prohibiting firearms",
+ "document": "Affidavit of Gary Mauser sworn July 2020 (executed copy)",
+ "deponent": "Gary Mauser",
+ "deponent_role": "Professor Emeritus, Simon Fraser University; criminologist giving opinion evidence for the applicants",
+ "sworn_date": "2020-07",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-gest2d.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Gary Mauser",
+   "recipients": [],
+   "description": "Mauser's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "I have attached a copy of my CV as Exhibit \"A\"."
+    }
+   ],
+   "content_check": "8 pages: 'Gary A. Mauser Professor Emeritus Institute for Canadian Urban Research Studies', publications list"
+  },
+  {
+   "label": "B",
+   "file": "doc-en4mrd.pdf",
+   "kind": "report",
+   "date": "2019-02-18",
+   "author": "Yvan Clermont, Statistics Canada",
+   "recipients": [
+    "Minister"
+   ],
+   "description": "Statistics Canada presentation 'Firearm-related crime in Canada' to the Minister, February 18, 2019",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Canada presentation to Minister on February 18, 2019, as Exhibit \"B\"."
+    },
+    {
+     "paragraph": 12,
+     "quote": "18 February 2019 is attached as Exhibit \"B\" (see slide 10)."
+    }
+   ],
+   "content_check": "20 slides: 'KEY FINDINGS', 'GUN CRIME IS LESS THAN ONE HALF OF ONE PERCENT OF OVERALL POLICE-REPORTED CRIME IN CANADA', 'GANG HOMICIDES ON THE RISE'"
+  },
+  {
+   "label": "C",
+   "file": "doc-2n9nxb.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "Statistics Canada table: number of homicide victims by method used",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "victims, by method used to commit the homicide, as Exhibit \"C\"."
+    }
+   ],
+   "content_check": "2 pages: 'Number of homicide victims, by method used to commit the homicide ... Table: 35-10-0069-01'"
+  },
+  {
+   "label": "D",
+   "file": "doc-7pks9z.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "Statistics Canada table: homicide victims by type of firearm used (described in the affidavit as 'by method')",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Canada number of homicide victims, by method used to commit the homicide, as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: 'Number and percentage of homicide victims, by type of firearm used to commit the homicide ... Table: 35-10-0072-01'"
+  },
+  {
+   "label": "E",
+   "file": "doc-phj6m8.pdf",
+   "kind": "report",
+   "date": "2018",
+   "author": "RCMP Canadian Firearms Program",
+   "recipients": [],
+   "description": "2018 Commissioner of Firearms Report (licence holders, continuous eligibility screening)",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Please see Table 1 ofExhibit \"E\" attached."
+    }
+   ],
+   "content_check": "22 pages: RCMP 'The 2018 Commissioner of Firearms Report', 'As of December 31, 2018, there were 2,183,827 licensed individuals'"
+  },
+  {
+   "label": "F",
+   "file": "doc-7gdwyk.pdf",
+   "kind": "report",
+   "date": "2001",
+   "author": "GPC Research",
+   "recipients": [
+    "Public Policy Forum"
+   ],
+   "description": "Fall 2001 Estimate of Firearms in Canada, GPC Research report to the Public Policy Forum",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Firearms in Canada, GPC Research submission to the Public Policy Forum as Exhibit \"F\";"
+    }
+   ],
+   "content_check": "48 pages: 'Fall 2001 Estimate of Firearms in Canada Report on Findings Submitted to: The Public Policy Forum ... GPC Research'"
+  },
+  {
+   "label": "G",
+   "file": "doc-49v6gy.pdf",
+   "kind": "other",
+   "date": "2019-09-07",
+   "author": "Gary Mauser",
+   "recipients": [],
+   "description": "Mauser op-ed 'Target sports teach young people to accept personal responsibility' (The Province)",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "September 7, 2019 as Exhibit \"G\""
+    }
+   ],
+   "content_check": "5 pages: The Province opinion page 'GARY MAUSER ... Published: September 7, 2019'"
+  },
+  {
+   "label": "H",
+   "file": "doc-rgnjta.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Lyne Casavant, Library of Parliament",
+   "recipients": [
+    "Garry Breitkreuz, M.P."
+   ],
+   "description": "'The Benefits of Firearms Ownership', Library of Parliament research paper",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Casavant Political and Social Affairs Division, Parliamentary Research Branch as Exhibit"
+    }
+   ],
+   "content_check": "52 pages: Library of Parliament covering letter to Mr. Garry Breitkreuz, M.P. and the research paper"
+  },
+  {
+   "label": "I",
+   "file": "doc-bjknrt.pdf",
+   "kind": "spreadsheet",
+   "date": "2016",
+   "author": "Statistics Canada (special request); Gary Mauser",
+   "recipients": [],
+   "description": "Statistics Canada special-request data and Mauser's calculations of the homicide rate of firearm licence holders",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Exhibit \"I\" for the calculations."
+    },
+    {
+     "paragraph": 11,
+     "quote": "See Exhibit \"I\" for the details of these calculations."
+    }
+   ],
+   "content_check": "5 pages: table 'Accused owner of firearm and held license ... Shooting Stabbing ...' by year"
+  },
+  {
+   "label": "J",
+   "file": "doc-s4gtpn.pdf",
+   "kind": "report",
+   "date": "2015-07-16",
+   "author": "Gary Mauser",
+   "recipients": [],
+   "description": "Mauser paper 'Do Triggers Pull Fingers? A look at the criminal misuse of guns in Canada'",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Mauser, July 16, 2015, attached as Exhibit \"J\""
+    }
+   ],
+   "content_check": "33 pages: 'DO TRIGGERS PULL FINGERS? A LOOK AT THE CRIMINAL MISUSE OF GUNS IN CANADA Dr. Gary Mauser July 16, 2015'"
+  },
+  {
+   "label": "K",
+   "file": "doc-8rg4hm.pdf",
+   "kind": "other",
+   "date": "2018-04",
+   "author": "Gary Mauser",
+   "recipients": [
+    "House of Commons Standing Committee on Public Safety and National Security"
+   ],
+   "description": "Mauser's presentation to the House of Commons public safety committee on Bill C-71",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "during the hearings on Bill C-71 on May 29,2018, attached as Exhibit \"K\"."
+    }
+   ],
+   "content_check": "7 pages: 'Submission to the Federal Parliamentary Standing Committee on Public Safety and National Security on Bill C-71 April 2018 Bill C-71 is a Red Herring'"
+  },
+  {
+   "label": "L",
+   "file": "doc-2mahs9.pdf",
+   "kind": "letter",
+   "date": "2020-03-10",
+   "author": "Toronto Police Service",
+   "recipients": [
+    "Dennis Young"
+   ],
+   "description": "Toronto Police Service response to Dennis Young's access-to-information request on crime guns",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Source: Toronto Police Services, Response to D. Young's ATI Request, attached as"
+    }
+   ],
+   "content_check": "11 pages: TPS letter March 10, 2020 to Dennis Young, Airdrie, re his access request"
+  },
+  {
+   "label": "M",
+   "file": "doc-2jjfym.pdf",
+   "kind": "report",
+   "date": "2018",
+   "author": "Adam Cotter, Statistics Canada (Juristat)",
+   "recipients": [],
+   "description": "Juristat 'Firearms and violent crime in Canada, 2016'",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "100,000 violent crimes where firearms are involved between 2001 to 2015 (Exhibit"
+    }
+   ],
+   "content_check": "17 pages: 'Catalogue no. 85-005-X ... Firearms and violent crime in Canada, 2016 by Adam Cotter'"
+  },
+  {
+   "label": "N",
+   "file": "doc-c73774.pdf",
+   "kind": "spreadsheet",
+   "date": "2012",
+   "author": "Canadian Firearms Registry",
+   "recipients": [],
+   "description": "Firearms Registry data on legal firearms reported stolen (excluding Quebec)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "32,450 legal firearms stolen during this period (excluding Quebec) (Exhibit \"N\""
+    }
+   ],
+   "content_check": "3 pages: 'Source Canada w/o Quebec ... Registry Data: Nov 26 1998 to Apr 21 2012 total stolen'"
+  },
+  {
+   "label": "O",
+   "file": "doc-zx6az9.pdf",
+   "kind": "report",
+   "date": "2012",
+   "author": "Samantha Bricknell, Australian Institute of Criminology",
+   "recipients": [],
+   "description": "'Firearm theft in Australia 2008-09' (AIC report)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "2008-2009 is attached as Exhibit \"0\")."
+    }
+   ],
+   "content_check": "51 pages: 'Australian Government Australian Institute of Criminology ... Firearm theft in Australia 2008-09 Samantha Bricknell'"
+  },
+  {
+   "label": "P",
+   "file": "doc-db4bt3.pdf",
+   "kind": "other",
+   "date": "2020-06-03",
+   "author": "Jesse Snyder, National Post",
+   "recipients": [],
+   "description": "National Post article on the gun ban being quietly expanded",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Regulation has been quietly expanded, potentially putting owners on the wrong side of the"
+    }
+   ],
+   "content_check": "5 pages: 'Liberal gun ban quietly expanded, potentially putting owners unknowingly on wrong side of the law Author of the article: Jesse Snyder'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-xgwcf6.pdf",
+   "kind": "report",
+   "date": "2007-06",
+   "author": "Gary Mauser",
+   "recipients": [],
+   "description": "'Hubris in the North: The Canadian Firearms Registry' (Mauser, 2007)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "June 2007 as Exhibit \"Q\" (see page 32)"
+    }
+   ],
+   "content_check": "81 pages: 'Publication Hubris in the North The Canadian Firearms Registry Gary A. Mauser'"
+  },
+  {
+   "label": "R",
+   "file": "doc-z8u3vj.pdf",
+   "kind": "other",
+   "date": "2018-05-29",
+   "author": "Gary Mauser",
+   "recipients": [],
+   "description": "Mauser's presentation on Bill C-71 (described in the affidavit as to the Senate)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "my presentation to the Senate of Canada"
+    }
+   ],
+   "content_check": "7 pages: 'Bill C-71 is a Red Herring A Presentation to the Standing Committee on Public Safety and National Security Gary Mauser 29 May 2018'"
+  },
+  {
+   "label": "S",
+   "file": "doc-dcfjjz.pdf",
+   "kind": "report",
+   "date": "2012-06-29",
+   "author": "Samantha Bricknell, Australian Institute of Criminology",
+   "recipients": [],
+   "description": "'Firearm trafficking and serious and organised crime gangs' (AIC Research and Public Policy Series 116)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Series 116, Australian Institute of Criminology June 29, 2012 as Exhibit \"S\" (see"
+    }
+   ],
+   "content_check": "74 pages: 'Australian Government Australian Institute of Criminology ... Firearm trafficking and serious and organised crime gangs Samantha Bricknell'"
+  },
+  {
+   "label": "T",
+   "file": "doc-8ztpx3.pdf",
+   "kind": "report",
+   "date": "2020",
+   "author": "Controller and Auditor-General of New Zealand",
+   "recipients": [],
+   "description": "New Zealand Auditor-General's report on the firearms buy-back",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "2020 as Exhibit \"T\" (see page 4)."
+    }
+   ],
+   "content_check": "51 pages: 'CONTROLLER AND AUDITOR-GENERAL Tumuaki o te Mana Arotake B.29[20b] ... Auditor-General's overview'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Order in Council SOR/2020-96 makes the Regulation prohibiting listed firearms",
+   "date": "2020-05-01",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "the May 1, 2020 Order in Council SOR/2020-96",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Statistics Canada presents 'Firearm-related crime in Canada' to the Minister",
+   "date": "2019-02-18",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "Canada presentation to Minister on February 18, 2019",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "CFP reports 2,183,827 licensed firearm owners as of December 31, 2018",
+   "date": "2018-12-31",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On December 31, 2018, the CFP reported that",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "GPC Research produces the Fall 2001 estimate of firearms in Canada",
+   "date": "2001",
+   "precision": "year",
+   "paragraphs": [
+    10
+   ],
+   "quote": "Fall 2001 Estimate of",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Mauser publishes 'Target Sports teach young people to accept personal responsibility'",
+   "date": "2019-09-07",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "September 7, 2019 as Exhibit \"G\"",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Mauser makes a special request to Statistics Canada for firearm licence holders accused of homicide, 2001-2015",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In 2016 I requested the numbers of firearms licence holders who had been accused",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Mauser publishes 'Do Triggers Pull Fingers'",
+   "date": "2015-07-16",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Mauser, July 16, 2015, attached as Exhibit \"J\"",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Mauser presents to the Commons public safety committee on Bill C-71",
+   "date": "2018-05-29",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "during the hearings on Bill C-71 on May 29,2018",
+   "exhibits": [
+    "K",
+    "R"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Toronto Police Service responds to Dennis Young's access-to-information request on crime guns",
+   "date": "2020-03-10",
+   "precision": "approximate",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Toronto Police Services, Response to D. Young's ATI Request",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "National Post reports that the gun ban has been quietly expanded",
+   "date": "2020-06-03",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "See Jesse Snyder, National Post newspaper, June 3, 2020",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Bill C-68 passes; many owners refuse to register or obtain licences",
+   "date": "1996",
+   "precision": "year",
+   "paragraphs": [
+    17
+   ],
+   "quote": "firearms or even to get a firearms license after the passage of Bill C-68 in 1996",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Mauser publishes 'Hubris in the North'",
+   "date": "2007-06",
+   "precision": "month",
+   "paragraphs": [
+    17
+   ],
+   "quote": "June 2007 as Exhibit \"Q\"",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Australian Institute of Criminology publishes the firearms trafficking report",
+   "date": "2012-06-29",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "Australian Institute of Criminology June 29, 2012",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "New Zealand Auditor-General reports on the firearms buy-back (26% surrendered)",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    17
+   ],
+   "quote": "New Zealand Auditor-General's report on the Firearms Buy Back",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Mauser, turning 40, collects the rifle his father gave him and begins studying firearms law",
+   "date": "1982",
+   "precision": "year",
+   "paragraphs": [
+    21
+   ],
+   "quote": "When I turned 40, in 1982, I decided it was time to try to re-connect with my father.",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Mauser and Holmes publish their evaluation of the 1977 Canadian firearms legislation",
+   "date": "1992",
+   "precision": "year",
+   "paragraphs": [
+    30
+   ],
+   "quote": "we submitted our work to Evaluation Review and it was",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Mauser receives the Nora and Ted Sterling Prize in Support of Controversy",
+   "date": "2001",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "In 2001, I was awarded the Nora and Ted Sterling Prize in Support of",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Mauser gives the talk 'Will gun control make us safe? Debunking the myths'",
+   "date": "2002-10-17",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "on October 17, 2002, at the Morris J. Wosk Centre for",
+   "exhibits": [
+    "A"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Application in T-577-20",
+  "Order Declaring an Amnesty Period (2020), SOR/2020-97",
+  "Statistics Canada special request on firearm-related homicides by ownership and registration status (paragraph 13 cites it as Exhibit \"1\", an OCR reading of I)"
+ ],
+ "leak_waivers": [],
+ "notes": "Whole-page covers are text but OCR-garbled ('~xhibit', 'Th~ Exhibit'), so --covers by page. Several exhibits open with a blank or image-only page. The affidavit says Exhibit K is the May 29, 2018 Commons committee presentation and R the Senate presentation; the files are the April 2018 written submission and the May 29, 2018 presentation text respectively. Jurat day illegible (July 2020)."
+}

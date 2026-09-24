@@ -1,0 +1,1223 @@
+{
+ "record_id": "onsc-cp-sino-wright-ey",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-11-431153-00CP (with CCAA file CV-12-9667-00CL)",
+ "subject": "securities",
+ "family": "sino-forest-securities",
+ "proceeding": "Labourers' Pension Fund v. Sino-Forest Corporation et al. (securities misrepresentation class action alongside the Sino-Forest CCAA plan): motion to approve the $117 million settlement with Ernst & Young",
+ "document": "Affidavit of Charles M. Wright affirmed January 10, 2013",
+ "deponent": "Charles M. Wright",
+ "deponent_role": "Partner, Siskinds LLP, class counsel",
+ "sworn_date": "2013-01-10",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4np798.pdf",
+   "kind": "agreement",
+   "date": "2012-11-29",
+   "author": "Ontario Plaintiffs and Ernst & Young LLP",
+   "recipients": [],
+   "description": "Minutes of Settlement with Ernst & Young",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy ofthe Minutes of Settlement is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "8 pages: Minutes of Settlement 'IN THE MATTER OF SINO-FOREST CORPORATION', Labourers' Pension Fund et al. and Ernst & Young"
+  },
+  {
+   "label": "B-1",
+   "file": "doc-e3fecj.pdf",
+   "kind": "court_order",
+   "date": "2013-02-04",
+   "author": "Justice Morawetz (draft)",
+   "recipients": [],
+   "description": "Draft settlement approval order (CCAA file)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Copies of"
+    }
+   ],
+   "content_check": "13 pages: draft Commercial List order of Mr. Justice Morawetz, 'Monday, the 4th day of February, 2013', CV-12-9667-00CL"
+  },
+  {
+   "label": "B-2",
+   "file": "doc-qf2vxs.pdf",
+   "kind": "court_order",
+   "date": "2013-02-04",
+   "author": "Justice Morawetz (draft)",
+   "recipients": [],
+   "description": "Draft settlement approval order (second version)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "the draft settlement approval orders are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "6 pages: shorter draft order of Mr. Justice Morawetz dated Monday, the 4th day of February, 2013"
+  },
+  {
+   "label": "C",
+   "file": "doc-6bfmzw.pdf",
+   "kind": "court_filing",
+   "date": "2012-12-03",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Plan of Compromise and Reorganization under the CCAA dated December 3, 2012",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of"
+    }
+   ],
+   "content_check": "90 pages: Plan of compromise and reorganization of Sino-Forest Corporation, CV-12-9667-00CL"
+  },
+  {
+   "label": "D",
+   "file": "doc-w9q33u.pdf",
+   "kind": "court_order",
+   "date": "2012-12-10",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Sanction Order dated December 10, 2012",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "the order sanctioning the Plan dated"
+    }
+   ],
+   "content_check": "20 pages: order of Mr. Justice Morawetz, Monday, the 10th day of December, 2012"
+  },
+  {
+   "label": "E-1",
+   "file": "doc-u89vgd.pdf",
+   "kind": "court_order",
+   "date": "2012-12-10",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Endorsement of Justice Morawetz sanctioning the Plan",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "The endorsement"
+    }
+   ],
+   "content_check": "8 pages: Sino-Forest Corporation (Re), 2012 ONSC 7041, dated 20121210 (fax header DEC-10-2012)"
+  },
+  {
+   "label": "E-2",
+   "file": "doc-592mqz.pdf",
+   "kind": "court_order",
+   "date": "2012-12-12",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Reasons of Justice Morawetz sanctioning the Plan",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "and reasons of the Honourable Justice Morawetz sanctioning the Plan are attached hereto as"
+    }
+   ],
+   "content_check": "14 pages: Sino-Forest Corporation (Re), 2012 ONSC 7050, dated 20121212"
+  },
+  {
+   "label": "F",
+   "file": "doc-yzrtm4.pdf",
+   "kind": "court_order",
+   "date": "2012-05-17",
+   "author": "Justice Perell",
+   "recipients": [],
+   "description": "Funding order of Justice Perell dated May 17, 2012 (Claims Funding International)",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "dated May 17, 2012, attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: Order of Justice Perell, Thursday the 17th day of May, 2012, CV-11-431153-00CP"
+  },
+  {
+   "label": "G",
+   "file": "doc-u7pdnj.pdf",
+   "kind": "report",
+   "date": "2011-06-02",
+   "author": "Muddy Waters, LLC",
+   "recipients": [],
+   "description": "Muddy Waters research report on Sino-Forest",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy ofthe Muddy Waters report is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "40 pages: Muddy Waters LLC research report (Director of Research Carson C. Block)"
+  },
+  {
+   "label": "H",
+   "file": "doc-qq35y7.pdf",
+   "kind": "other",
+   "date": "2011-06-03",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release 'Sino-Forest Comments on Share Price Decline'",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Sino-Forest Comments on Share Price Decline"
+    }
+   ],
+   "content_check": "2 pages: press release, Toronto, June 3, 2011"
+  },
+  {
+   "label": "I",
+   "file": "doc-xxms23.pdf",
+   "kind": "other",
+   "date": "2011-06-06",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release 'Sino-Forest Releases Supporting Evidence against Allegations from Short Seller'",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: press release, Toronto, June 6, 2011"
+  },
+  {
+   "label": "J",
+   "file": "doc-jnjsau.pdf",
+   "kind": "other",
+   "date": "2011-06-06",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release 'Sino-Forest Independent Committee Appoints PricewaterhouseCoopers'",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Sino-Forest Independent Committee Appoints PricewaterhouseCoopers"
+    }
+   ],
+   "content_check": "1 page: press release, Toronto, June 6, 2011"
+  },
+  {
+   "label": "K",
+   "file": "doc-8z9s68.pdf",
+   "kind": "report",
+   "date": "2011-06-13",
+   "author": "Muddy Waters, LLC",
+   "recipients": [],
+   "description": "Muddy Waters 'Reaction to TRE Q1 Earnings Call'",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Reaction to TRE Q1"
+    }
+   ],
+   "content_check": "3 pages: Muddy Waters, June 13, 2011, 'Reaction to TRE Q1 Earnings Call'"
+  },
+  {
+   "label": "L",
+   "file": "doc-khaz28.pdf",
+   "kind": "other",
+   "date": "2011-06-18",
+   "author": "The Globe and Mail (Mark MacKinnon)",
+   "recipients": [],
+   "description": "Globe and Mail article 'Key partner casts doubt on Sino-Forest claim'",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Key partner casts doubt"
+    }
+   ],
+   "content_check": "4 pages: Globe and Mail, June 18, 2011, printed 1/9/13"
+  },
+  {
+   "label": "M",
+   "file": "doc-j8d7nx.pdf",
+   "kind": "other",
+   "date": "2011-06-19",
+   "author": "The Globe and Mail (Mark MacKinnon)",
+   "recipients": [],
+   "description": "Globe and Mail article 'On the trail of the truth behind Sino-Forest'",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "On the trail of the truth"
+    }
+   ],
+   "content_check": "3 pages: Globe and Mail, June 19, 2011, printed 1/9/13"
+  },
+  {
+   "label": "N",
+   "file": "doc-rjs834.pdf",
+   "kind": "other",
+   "date": "2011-06-20",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release 'Sino-Forest Responds to the Globe and Mail Article'",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Sino-Forest Responds to the Globe and Mail Article"
+    }
+   ],
+   "content_check": "3 pages: press release, Toronto, June 20, 2011"
+  },
+  {
+   "label": "O",
+   "file": "doc-mk34kq.pdf",
+   "kind": "report",
+   "date": "2011-06-20",
+   "author": "Muddy Waters, LLC",
+   "recipients": [],
+   "description": "Muddy Waters 'The Ties that Blind, Part 1: Huaihua Yuda'",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "The Ties that Blind, Part 1"
+    }
+   ],
+   "content_check": "22 pages: Muddy Waters, June 20, 2011, 'The Ties that Blind Part 1: Huaihua Yuda'"
+  },
+  {
+   "label": "P",
+   "file": "doc-ppxaaj.pdf",
+   "kind": "court_order",
+   "date": "2011-08-26",
+   "author": "Ontario Securities Commission",
+   "recipients": [],
+   "description": "OSC temporary cease-trade order on Sino-Forest securities",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: OSC 'TEMPORARY ORDER (Section 127(1) & (5))' re Sino-Forest, Allen Chan, Albert Ip, Alfred C.T. Hung, George Ho and Simon Yeung"
+  },
+  {
+   "label": "Q",
+   "file": "doc-ap8pv8.pdf",
+   "kind": "other",
+   "date": "2012-01-10",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release of January 10, 2012 on note holder default notices and the status of historic financial statements",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: press release, Toronto, January 10, 2012"
+  },
+  {
+   "label": "R",
+   "file": "doc-gzx492.pdf",
+   "kind": "other",
+   "date": "2012-04-05",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release announcing the resignation of Ernst & Young as auditor",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Copies of Sino"
+    }
+   ],
+   "content_check": "2 pages: 'Sino-Forest Announces Resignation of Auditor', April 5, 2012"
+  },
+  {
+   "label": "S",
+   "file": "doc-v2j6bu.pdf",
+   "kind": "other",
+   "date": "2012-04-05",
+   "author": "Sino-Forest Corporation",
+   "recipients": [],
+   "description": "Press release announcing delisting of Sino shares from the TSX",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "2 pages: 'Sino-Forest Common Shares to be Delisted from Toronto Stock Exchange', April 5, 2012"
+  },
+  {
+   "label": "T",
+   "file": "doc-t5ct7a.pdf",
+   "kind": "court_filing",
+   "date": "2011-09-26",
+   "author": "Northwest & Ethical Investments L.P. et al. (Kim Orr LLP)",
+   "recipients": [],
+   "description": "Statement of Claim in the Northwest Action",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "A copy of the Statement of Claim issued in the Northwest Action is attached hereto as"
+    }
+   ],
+   "content_check": "84 pages: statement of claim, Northwest & Ethical Investments L.P. v. Sino-Forest (poor OCR of first page)"
+  },
+  {
+   "label": "U",
+   "file": "doc-97vjzr.pdf",
+   "kind": "court_order",
+   "date": "2012-01-06",
+   "author": "Justice Perell",
+   "recipients": [],
+   "description": "Carriage order of Justice Perell dated January 6, 2012",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: order of Justice Perell, Friday the 6th day of January (2012), Court File 11-CV-431153CP (poor OCR)"
+  },
+  {
+   "label": "V",
+   "file": "doc-9k2jtx.pdf",
+   "kind": "court_filing",
+   "date": "2012-04-18",
+   "author": "Ontario Plaintiffs",
+   "recipients": [],
+   "description": "Fresh as Amended Statement of Claim filed April 18, 2012",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "a copy of"
+    }
+   ],
+   "content_check": "128 pages: fresh as amended statement of claim, CV-11-431153-00CP; text nearly identical to W",
+   "same_text_as": [
+    "W"
+   ]
+  },
+  {
+   "label": "W",
+   "file": "doc-vcqzvq.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Ontario Plaintiffs",
+   "recipients": [],
+   "description": "Proposed Fresh as Amended Statement of Claim served with the Leave Motion record",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "Attached and marked as Exhibit"
+    }
+   ],
+   "content_check": "128 pages: proposed fresh as amended statement of claim, CV-11-431153-00CP; text nearly identical to V",
+   "same_text_as": [
+    "V"
+   ]
+  },
+  {
+   "label": "X",
+   "file": "doc-uunuzd.pdf",
+   "kind": "notice",
+   "date": "2012",
+   "author": "Class Counsel",
+   "recipients": [],
+   "description": "Notice of the tentative settlement with Poyry (Beijing)",
+   "references": [
+    {
+     "paragraph": 50,
+     "quote": "a notice was disseminated in the form marked and attached hereto as"
+    }
+   ],
+   "content_check": "3 pages: 'SINO-FOREST CLASS ACTION ... Notice of Tentative Settlement with Poyry (Beijing) Consulting Company Limited'"
+  },
+  {
+   "label": "Y",
+   "file": "doc-dr3bup.pdf",
+   "kind": "court_order",
+   "date": "2012-09-25",
+   "author": "Justice Perell",
+   "recipients": [],
+   "description": "Certification and settlement approval order for the Poyry settlement",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "A copy ofthe certification and settlement approval order"
+    }
+   ],
+   "content_check": "59 pages: order dated Tuesday the 25th day of September, 2012, CV-11-431153-00CP (poor OCR)"
+  },
+  {
+   "label": "Z",
+   "file": "doc-y6sbmg.pdf",
+   "kind": "notice",
+   "date": "2012",
+   "author": "Class Counsel",
+   "recipients": [],
+   "description": "Notice of certification and of the Poyry settlement",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "A copy of this notice is"
+    }
+   ],
+   "content_check": "5 pages: 'SINO-FOREST CORPORATION CLASS ACTION ... Notice of Settlement with Poyry (Beijing) Consulting Company Limited'"
+  },
+  {
+   "label": "AA",
+   "file": "doc-jjf53z.pdf",
+   "kind": "court_order",
+   "date": "2012-07-25",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Order of July 25, 2012 directing the CCAA constituencies to mediation",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "A copy of that order is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: order of Justice Morawetz, Wednesday the 25th day of July, 2012"
+  },
+  {
+   "label": "BB",
+   "file": "doc-e3wqmf.pdf",
+   "kind": "court_order",
+   "date": "2012-10-18",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Endorsement of October 18, 2012 scheduling the sanction motion",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "is a copy of the Endorsement of the Honourable Justice Morawetz dated"
+    }
+   ],
+   "content_check": "1 page: Commercial List file/direction/order form (handwritten endorsement)"
+  },
+  {
+   "label": "CC",
+   "file": "doc-kppur8.pdf",
+   "kind": "court_order",
+   "date": "2012-11-06",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Endorsement of November 6, 2012 denying the motion to limit the stay",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "is copy of the Endorsement of the Honourable Justice Morawetz dated"
+    }
+   ],
+   "content_check": "4 pages: Sino-Forest Corporation (Re), 2012 ONSC 6275, dated 20121106"
+  },
+  {
+   "label": "DD",
+   "file": "doc-f487az.pdf",
+   "kind": "court_order",
+   "date": "2012-07-30",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Order of July 30, 2012 whose Schedule A lists the data-room documents",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "which is marked and attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: order of Mr. Justice Morawetz, CV-12-9667-00CL"
+  },
+  {
+   "label": "EE",
+   "file": "doc-nysqk8.pdf",
+   "kind": "public_record",
+   "date": "2012-05-22",
+   "author": "Ontario Securities Commission",
+   "recipients": [],
+   "description": "OSC Statement of Allegations against Sino and certain officers and directors",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "by the OSC, dated May 22, 2012, marked and attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "38 pages: OSC statement of allegations 'IN THE MATTER OF THE SECURITIES ACT'"
+  },
+  {
+   "label": "FF",
+   "file": "doc-3dyj3z.pdf",
+   "kind": "public_record",
+   "date": "2012-12-03",
+   "author": "Ontario Securities Commission",
+   "recipients": [],
+   "description": "OSC Statement of Allegations against Ernst & Young relating to Sino",
+   "references": [
+    {
+     "paragraph": 88,
+     "quote": "which is marked and attached"
+    }
+   ],
+   "content_check": "15 pages: 'IN THE MATTER OF ERNST & YOUNG LLP STATEMENT OF ALLEGATIONS'"
+  },
+  {
+   "label": "GG",
+   "file": "doc-enburt.pdf",
+   "kind": "chart",
+   "date": "2012-05",
+   "author": "Audit Analytics",
+   "recipients": [],
+   "description": "Audit Analytics list 'Top 50 Accounting Malpractice Settlements'",
+   "references": [
+    {
+     "paragraph": 119,
+     "quote": "Top 50 Accounting Malpractice Settlements"
+    }
+   ],
+   "content_check": "1 page: 'AUDIT ANALYTICS Top 50 Accounting Malpractice Settlements (as of May 2012)'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Robert Wong first becomes a Sino shareholder",
+   "date": "2002",
+   "precision": "year",
+   "paragraphs": [
+    72
+   ],
+   "quote": "from 2002 (when he first became a",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Muddy Waters releases its report alleging fraud at Sino",
+   "date": "2011-06-02",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On June 2, 2011, Muddy Waters Research",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Sino shares close at $18.21, then fall 71.3%",
+   "date": "2011-06-01",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "common shares closed at $18.21",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Sino press release commenting on share price decline",
+   "date": "2011-06-03",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On June 3, 2011, Sino issued and filed on SEDAR a press release",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Class Counsel retain Dacheng",
+   "date": "2011-06-03",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "This firm retained Dacheng on the day after the Muddy Waters",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Sino press release with supporting evidence; Independent Committee retains Osler",
+   "date": "2011-06-06",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On June 6, 2011, Sino issued and filed on SEDAR a press release",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Independent Committee appoints PricewaterhouseCoopers",
+   "date": "2011-06-06",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "Also on June 6, 2011, Sino issued a press release",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Smith Action commenced",
+   "date": "2011-06-08",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "commenced on June 8, 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Quebec proceeding commenced by Siskinds Desmeules",
+   "date": "2011-06-09",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On June 9, 2011, Siskinds Desmeules",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Muddy Waters issues 'Reaction to TRE Q1 Earnings Call'",
+   "date": "2011-06-13",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On June 13, 2011, Muddy Waters issued a document",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Globe and Mail article 'Key partner casts doubt'",
+   "date": "2011-06-18",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On June 18, 2011, the Globe and Mail published an article",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Globe and Mail article 'On the trail of the truth'",
+   "date": "2011-06-19",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On June 19, 2011, the Globe and Mail published an article",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Sino responds to the Globe and Mail",
+   "date": "2011-06-20",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Responds to the Globe and Mail Article",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Muddy Waters issues 'The Ties that Blind, Part 1'",
+   "date": "2011-06-20",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On June 20, 2011, Muddy Waters issued a document",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Ontario Action commenced",
+   "date": "2011-07-20",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On July 20, 2011, the Ontario Action was commenced",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Independent Committee releases three reports",
+   "date": "2011-08-10",
+   "precision": "range",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On August 10, 2011, November 15, 2011 and January 31, 2012, the Independent",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "OSC temporary cease-trade order",
+   "date": "2011-08-26",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On August 26, 2011, the Ontario Securities Commission",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Northwest Action commenced",
+   "date": "2011-09-26",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "commenced on September 26, 2011",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Carriage motion among three Ontario actions",
+   "date": "2011-12",
+   "precision": "month",
+   "paragraphs": [
+    36
+   ],
+   "quote": "In December 2011, there was a motion to determine which of the three actions",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Justice Perell grants carriage to the Ontario Plaintiffs",
+   "date": "2012-01-06",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "By order dated January 6, 2012",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Sino says its historic financial statements should not be relied on",
+   "date": "2012-01-10",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On January 10, 2012, Sino issued a press release",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "US Action commenced by Cohen Milstein",
+   "date": "2012-01-27",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On January 27, 2012, the Washington, DC-based law firm",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Settlement discussions with Poyry (Beijing) begin",
+   "date": "2012-01",
+   "precision": "month",
+   "paragraphs": [
+    50
+   ],
+   "quote": "starting in January",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Tolling agreement with the defendants",
+   "date": "2012-03-06",
+   "precision": "day",
+   "paragraphs": [
+    44
+   ],
+   "quote": "made as of March 6, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Settlement with Poyry (Beijing) reached",
+   "date": "2012-03",
+   "precision": "month",
+   "paragraphs": [
+    50
+   ],
+   "quote": "Poyry (Beijing) in March 2012",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Certification and leave motions brought",
+   "date": "2012-03",
+   "precision": "range",
+   "paragraphs": [
+    42
+   ],
+   "quote": "In March and April 2012, the Ontario Plaintiffs brought",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Justice Perell sets a schedule",
+   "date": "2012-03-26",
+   "precision": "day",
+   "paragraphs": [
+    44
+   ],
+   "quote": "Justice Perell set a schedule for the proceeding by way of Order dated March 26, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Sino files under the CCAA",
+   "date": "2012-03-30",
+   "precision": "day",
+   "paragraphs": [
+    28,
+    46
+   ],
+   "quote": "on March 30, 2012, Sino filed for protection",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Ernst & Young resigns as auditor",
+   "date": "2012-04-04",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Ernst & Young resigned as Sino",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "Fresh as Amended Statement of Claim filed",
+   "date": "2012-04-18",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "On April 18, 2012, the plaintiffs filed a Fresh as Amended Statement of Claim",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Stay extended to all defendants; second tolling agreement",
+   "date": "2012-05-08",
+   "precision": "day",
+   "paragraphs": [
+    44,
+    46
+   ],
+   "quote": "Pursuant to an order on May 8, 2012, the stay of proceedings was extended",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "CDS auction; Sino shares delisted from TSX",
+   "date": "2012-05-09",
+   "precision": "day",
+   "paragraphs": [
+    16,
+    29
+   ],
+   "quote": "On May 9, 2012, Sino",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Perell J. funding order (Claims Funding International)",
+   "date": "2012-05-17",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "funding order of Justice Perell dated May 17, 2012",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "OSC Statement of Allegations against Sino and officers",
+   "date": "2012-05-22",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "by the OSC, dated May 22, 2012",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "Court orders CCAA constituencies to mediation",
+   "date": "2012-07-25",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "On July 25, 2012, this Court ordered the various constituencies",
+   "exhibits": [
+    "AA"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "Data-room order of Justice Morawetz",
+   "date": "2012-07-30",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "July 30, 2012 Order of Justice Morawetz",
+   "exhibits": [
+    "DD"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "All-parties mediation before Justice Newbould",
+   "date": "2012-09-04",
+   "precision": "range",
+   "paragraphs": [
+    57
+   ],
+   "quote": "On September 4 and 5, 2012, the Ontario Plaintiffs attended an all-parties mediation",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "description": "Class certified against Poyry and settlement approved",
+   "date": "2012-09-25",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "On September 25, 2012, this action was certified",
+   "exhibits": [
+    "Y",
+    "Z"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "Bilateral discussions with Ernst & Young begin",
+   "date": "2012-10",
+   "precision": "month",
+   "paragraphs": [
+    60
+   ],
+   "quote": "In mid-October 2012, the Ontario Plaintiffs began bilateral discussions",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "Morawetz schedules the sanction motion",
+   "date": "2012-10-18",
+   "precision": "day",
+   "paragraphs": [
+    61
+   ],
+   "quote": "On October 18, 2012, the Honourable Justice Morawetz issued an endorsement",
+   "exhibits": [
+    "BB"
+   ]
+  },
+  {
+   "id": "e41",
+   "description": "US lead-plaintiff press release",
+   "date": "2012-10-18",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "On October 18, 2012, US Plaintiffs",
+   "exhibits": []
+  },
+  {
+   "id": "e42",
+   "description": "Morawetz denies motion to limit the stay",
+   "date": "2012-11-06",
+   "precision": "day",
+   "paragraphs": [
+    62
+   ],
+   "quote": "By way of Endorsement dated November 6, 2012",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e43",
+   "description": "Mediation with Ernst & Young before Clifford Lax",
+   "date": "2012-11-27",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "On November 27, 2012, Clifford Lax, Q.C. conducted a mediation",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "description": "Minutes of Settlement with Ernst & Young ($117 million)",
+   "date": "2012-11-29",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    64
+   ],
+   "quote": "On November 29, 2012, the Ontario Plaintiffs entered into Minutes of Settlement",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e45",
+   "description": "Plan dated; OSC Statement of Allegations against Ernst & Young on the creditors' vote day",
+   "date": "2012-12-03",
+   "precision": "day",
+   "paragraphs": [
+    88
+   ],
+   "quote": "On December 3, 2012, after the Ontario Plaintiffs had entered into the Ernst & Young",
+   "exhibits": [
+    "C",
+    "FF"
+   ]
+  },
+  {
+   "id": "e46",
+   "description": "Sanction hearing",
+   "date": "2012-12-07",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "December 7, 2012- Attending and participating in the motion to sanction",
+   "exhibits": []
+  },
+  {
+   "id": "e47",
+   "description": "Plan sanctioned",
+   "date": "2012-12-10",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "the order sanctioning the Plan dated",
+   "exhibits": [
+    "D",
+    "E-1",
+    "E-2"
+   ]
+  },
+  {
+   "id": "e48",
+   "description": "Class Counsel time and disbursements to date",
+   "date": "2012-12-14",
+   "precision": "day",
+   "paragraphs": [
+    83
+   ],
+   "quote": "As of December 14, 2012, Class Counsel, together with Paliare Roland",
+   "exhibits": []
+  },
+  {
+   "id": "e49",
+   "description": "US lead plaintiffs move for appointment",
+   "date": "2012-12-17",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "moved for appointment as lead plaintiffs on December 17, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e50",
+   "description": "SDNY appoints lead plaintiffs and lead counsel",
+   "date": "2013-01-04",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "January 4, 2013, David Leapard",
+   "exhibits": []
+  },
+  {
+   "id": "e51",
+   "description": "Opt-out deadline",
+   "date": "2013-01-15",
+   "precision": "day",
+   "paragraphs": [
+    53
+   ],
+   "quote": "The opt-out deadline is January 15, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e52",
+   "description": "Settlement approval hearing (draft orders dated)",
+   "date": "2013-02-04",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "the draft settlement approval orders are attached",
+   "exhibits": [
+    "B-1",
+    "B-2"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Independent Committee reports of August 10 and November 15, 2011 and January 31, 2012",
+  "Tolling agreements of March 6 and May 8, 2012",
+  "Motion records on certification and leave (Chandler, Mak, Deng, Tjon-Pian-Gi affidavits)",
+  "Mediation briefs",
+  "Ernst & Young auditing expert opinion",
+  "Ernst & Young insurance policies"
+ ]
+}

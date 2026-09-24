@@ -1,0 +1,18 @@
+{
+ "url": "https://www.siskinds.com/cmsfiles/PDF/Securities/Sino/PlaintifMotionRecordClaimDPNov28.pdf",
+ "landing_url": "https://www.siskinds.com/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-11-431153-00CP (with CCAA file CV-12-9667-00CL)",
+ "document_title": "Motion Record of the Plaintiffs (Claims and Distribution Protocol Approval), November 2013",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-sino-wright-cdp",
+ "source_file": "e2-plaintifmotionrecordclaimdpnov28.pdf",
+ "page_range": [
+  77,
+  462
+ ],
+ "source_sha256": "301bb554ccd4e2d3444e4364e02513efe5dc8f7e3245521a9c1e64f86463b5b1",
+ "source_pages": 463
+}

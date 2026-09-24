@@ -1,0 +1,632 @@
+{
+ "record_id": "mbkb-5684961-pacheco",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 23-01-",
+ "subject": "insolvency",
+ "proceeding": "First National Financial GP Corporation v. 5684961 Manitoba Ltd., 6315402 Manitoba Ltd. and K & P Properties Inc.: application to appoint MNP Ltd. as receiver of 485 Furby Street, Winnipeg (s. 243 BIA)",
+ "document": "Affidavit of Sonia Pacheco sworn February 13, 2023",
+ "deponent": "Sonia Pacheco",
+ "deponent_role": "Senior Mortgage Closing Specialist, Montrose Mortgage Corporation (agent for the applicant lender)",
+ "sworn_date": "2023-02-13",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4zx3g2.pdf",
+   "kind": "public_record",
+   "date": "2023-01-06",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office search for 5684961 Manitoba Ltd. (568)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached hereto as Exhibit \"A\" is a true copy of a Companies Office (Manitoba) search for 568 dated January 6, 2023"
+    }
+   ],
+   "content_check": "File summary for 5684961 Manitoba Ltd. as of 06-Jan-2023"
+  },
+  {
+   "label": "B",
+   "file": "doc-2x5mut.pdf",
+   "kind": "public_record",
+   "date": "2023-01-18",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office search for 6315402 Manitoba Ltd. (631)",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "search for 631 dated January 18, 2023"
+    }
+   ],
+   "content_check": "File summary for 6315402 Manitoba Ltd. as of 18-Jan-2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-tr36yc.pdf",
+   "kind": "public_record",
+   "date": "2023-01-18",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office search for K & P Properties Inc.",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "for K&P dated January 18, 2023"
+    }
+   ],
+   "content_check": "File summary for K & P Properties Inc. (registry 5124973) as of 18-Jan-2023"
+  },
+  {
+   "label": "D",
+   "file": "doc-ystb3h.pdf",
+   "kind": "corporate_record",
+   "date": "2011-08-26",
+   "author": "5684961 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Declaration of Trust confirming 568 holds the Furby Property as bare trustee for 631 and K&P",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "a Declaration of Trust dated August 26, 2011 from 568"
+    }
+   ],
+   "content_check": "One page 'DECLARATION OF TRUST' for 485 Furby Street"
+  },
+  {
+   "label": "E",
+   "file": "doc-4cdh39.pdf",
+   "kind": "letter",
+   "date": "2011-08-10",
+   "author": "Montrose Mortgage Corporation",
+   "recipients": [],
+   "description": "Commitment Letter for the Furby Loan, executed August 11, 2011",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "true copy of the Commitment Letter executed August 11, 2011"
+    }
+   ],
+   "content_check": "46 pages: Montrose letter August 10, 2011 to 5684961 Manitoba Ltd., Attention Penner and Thiessen, with loan terms"
+  },
+  {
+   "label": "F",
+   "file": "doc-6paz24.pdf",
+   "kind": "agreement",
+   "date": "2011-08-29",
+   "author": "5684961 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Furby Mortgage with Schedule A, CMHC standard charge terms and amending agreements",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached \nhereto and marked as Exhibit \"F\" are copies of the Furby \nMortgage"
+    }
+   ],
+   "content_check": "33 pages: registered Manitoba mortgage form, standard charge terms and amending agreements"
+  },
+  {
+   "label": "G",
+   "file": "doc-5qtd7q.pdf",
+   "kind": "agreement",
+   "date": "2011-08-29",
+   "author": "5684961 Manitoba Ltd.",
+   "recipients": [],
+   "description": "PPSA Security Agreement over 568's property relating to the Furby Property, with the May 7, 2012 amendment",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "marked as Exhibit \"G\" are copies of the Security \nAgreement and the said amending agreement"
+    }
+   ],
+   "content_check": "16 pages: 'THE PERSONAL PROPERTY SECURITY ACT SECURITY AGREEMENT' to First National granted by 5684961 Manitoba Ltd."
+  },
+  {
+   "label": "H",
+   "file": "doc-dramv9.pdf",
+   "kind": "agreement",
+   "date": "2011-08-29",
+   "author": "5684961 Manitoba Ltd.",
+   "recipients": [],
+   "description": "General Assignment of Rents and Leases relating to the Furby Property",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A General Assignment of Rents and Leases relating to the \nFurby Property dated August 29, 2011"
+    }
+   ],
+   "content_check": "4 pages: 'GENERAL ASSIGNMENT OF RENTS AND LEASES' made August 2011 between 568 and First National"
+  },
+  {
+   "label": "I",
+   "file": "doc-zgwsvr.pdf",
+   "kind": "letter",
+   "date": "2013-09-12",
+   "author": "5684961 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Request to Fix Rate letter with First National's confirmation",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Request to Fix Rate\" letter \nexecuted on behalf of 568 on September 12, 2013"
+    }
+   ],
+   "content_check": "One page 'REQUEST TO FIX RATE CONSTRUCTION TO TERM' to First National Financial LP"
+  },
+  {
+   "label": "J",
+   "file": "doc-mc3vnb.pdf",
+   "kind": "public_record",
+   "date": "2023-01-06",
+   "author": "Manitoba Land Titles Office",
+   "recipients": [],
+   "description": "Status of Title No. 2551809/1 for the Furby Property",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Status of Title No. 2551809/1 obtained from a search of the Land Titles \nOffice"
+    }
+   ],
+   "content_check": "7 pages: Status of Title 2551809/1, 5684961 Manitoba Ltd. registered owner"
+  },
+  {
+   "label": "K",
+   "file": "doc-dczj44.pdf",
+   "kind": "public_record",
+   "date": "2023-01-06",
+   "author": "Manitoba Personal Property Registry",
+   "recipients": [],
+   "description": "PPSR search for 568",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Manitoba Personal Property Security Registry (\"PPSR\") search dated \nJanuary 6, 2023 with respect to 568"
+    }
+   ],
+   "content_check": "3 pages: Manitoba Property Registry search printout"
+  },
+  {
+   "label": "L",
+   "file": "doc-akb5bc.pdf",
+   "kind": "agreement",
+   "date": "2021-03-09",
+   "author": "First National and 5684961 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Forbearance agreement suspending the attornment of rents",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "true copy of the \nforbearance agreement dated March 9, 2021"
+    }
+   ],
+   "content_check": "4 pages; text layer is garbled (broken font), 'March 2021' legible with repayment terms"
+  },
+  {
+   "label": "M",
+   "file": "doc-hsdch9.pdf",
+   "kind": "public_record",
+   "date": "2022-02-15",
+   "author": "City of Winnipeg",
+   "recipients": [],
+   "description": "Caveat No. 5397709/1 attaching the City of Winnipeg Order of September 27, 2021",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Caveat No. 5397709/1, which attaches the City of Winnipeg Order"
+    }
+   ],
+   "content_check": "8 pages: Manitoba Land Titles caveat 5397709/1 registered 2022-02-15 with the City's order attached"
+  },
+  {
+   "label": "N",
+   "file": "doc-zpe6js.pdf",
+   "kind": "notice",
+   "date": "2022-09-28",
+   "author": "Thompson Dorfman Sweatman LLP for First National",
+   "recipients": [],
+   "description": "Notice to the tenants of the Furby Property attorning rents to ASH",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Exhibit \"N\" is a copy of the said Notice to the tenants"
+    }
+   ],
+   "content_check": "2 pages: 'NOTICE FROM: FIRST NATIONAL FINANCIAL GP CORPORATION ... TO: THE TENANTS OF 485 FURBY STREET'"
+  },
+  {
+   "label": "O",
+   "file": "doc-ff989d.pdf",
+   "kind": "photograph",
+   "date": "2022-10-05",
+   "author": "ASH Management Group Inc.",
+   "recipients": [],
+   "description": "Photographs of the boarded-up Furby Property taken by ASH on October 5, 2022",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Copies of photographs of the Furby Property taken by ASH on October 5, \n2022 are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "3 image-only pages of photographs"
+  },
+  {
+   "label": "P",
+   "file": "doc-f4fc8t.pdf",
+   "kind": "notice",
+   "date": "2023-01-16",
+   "author": "Thompson Dorfman Sweatman LLP for First National",
+   "recipients": [],
+   "description": "Notice of Intention to Enforce Security (s. 244 BIA) with covering letter",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "true copy of the NITES dated January 16, 2023 and \nthe covering letter"
+    }
+   ],
+   "content_check": "4 pages: TDS letter January 16, 2023 from Ross A. McFadyen to 568 with the NITES"
+  },
+  {
+   "label": "Q",
+   "file": "doc-fry4xp.pdf",
+   "kind": "other",
+   "date": "2023-01-22",
+   "author": "Patrick Penner",
+   "recipients": [],
+   "description": "Penner's '485 Furby - Planning January 22nd, 2023' proposed plan",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "Attached hereto and marked \nas Exhibit \"Q\" is a true copy of this document"
+    }
+   ],
+   "content_check": "One page '485 Furby - Planning January 22nd, 2023' listing mortgage arrears and insurance money"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Declaration of Trust: 568 holds the Furby Property as bare trustee for 631 and K&P",
+   "date": "2011-08-26",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "a Declaration of Trust dated August 26, 2011 from 568",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "568, 631 and K&P execute the Commitment Letter for the Furby Loan",
+   "date": "2011-08-11",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On August 11, 2011, 568, 631 and K&P all executed a \nCommitment Letter",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Furby Mortgage, Security Agreement and General Assignment of Rents granted",
+   "date": "2011-08-29",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "A Mortgage of the Furby Property dated August 29, 2011",
+   "exhibits": [
+    "F",
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Furby Mortgage amended",
+   "date": "2011-09-23",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "as further amended by way of \nagreements dated September 23, 2011, and March 14, \n2012",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Furby Mortgage amended, principal increased to $2,552,031.25",
+   "date": "2012-03-14",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "principal amount of the Furby Loan and \nMortgage was increased to $2,552,031.25",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Security Agreement amended",
+   "date": "2012-05-07",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "as further amended by way of \nagreement dated May 7, 2012",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "568 fixes the interest rate at 4.22% for 10 years",
+   "date": "2013-09-13",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on September 13, 2013, 568 elected to fix the interest rate \nunder the Furby Loan at 4.22%",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Mortgage and caveat transferred to Computershare",
+   "date": "2013-11",
+   "precision": "month",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Computershare Trust Company of Canada (\"Computershare\") in \nNovember of 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Monthly payment returned NSF; tax arrears known",
+   "date": "2019-02",
+   "precision": "month",
+   "paragraphs": [
+    17
+   ],
+   "quote": "In or about February of 2019, the monthly principal and \ninterest payment was returned for insufficient funds",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "First National retains TDS",
+   "date": "2019-03",
+   "precision": "month",
+   "paragraphs": [
+    17
+   ],
+   "quote": "retained the law firm of Thompson \nDorfman Sweatman LLP (\"TDS\") in March of 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "First National gives notice of default to 568",
+   "date": "2019-03-06",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On or about March 6, 2019, First National gave notice to 568",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "First National pays $82,886.11 in tax and water arrears",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    19
+   ],
+   "quote": "First \nNational proceeded to make payment of same in the amount of \n$82,886.11",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "TDS issues first notice to tenants attorning rents to ASH",
+   "date": "2019-08-22",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On or about August 22 2019, TDS issued, on behalf of First \nNational, a Notice to the tenants",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Forbearance agreement suspends attornment of rents",
+   "date": "2021-03-09",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "On or about March 9, 2021, First National entered into a \nforbearance agreement with 568",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "City of Winnipeg orders 568 to mitigate unsafe conditions",
+   "date": "2021-09-27",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On September 27, 2021, the City of Winnipeg issued an \nOrder directing 568 to mitigate unsafe conditions",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Thiessen, director of 568 and 631, assigns into bankruptcy",
+   "date": "2022-07-22",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "having made an assignment into bankruptcy on July 22, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Inspection of the Furby Property with Penner",
+   "date": "2022-05",
+   "precision": "month",
+   "paragraphs": [
+    28
+   ],
+   "quote": "In or about May of 2022, I, along with Penner, and two other \nrepresentatives of First National attended at the Furby Property",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Fire at the Furby Property; building vacated and boarded up",
+   "date": "2022-07-17",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "a fire that had occurred in the early morning hours",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Payments from 568 stop",
+   "date": "2022-08",
+   "precision": "month",
+   "paragraphs": [
+    29
+   ],
+   "quote": "in or about August of 2022, First National stopped \nreceiving payments of any kind from 568",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "TDS issues second notice to tenants",
+   "date": "2022-09-28",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On September 28, 2022, TDS issued, on behalf of First \nNational, a Notice to the tenants",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "ASH attends, finds the property vacated, and photographs it",
+   "date": "2022-10-05",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "on October 5, 2022, a representative of \nASH attended at the Furby Property",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Insurance cheques issued to 568 and First National",
+   "date": "2022-11",
+   "precision": "range",
+   "paragraphs": [
+    37
+   ],
+   "quote": "The \ncheques were dated from November 22 and 24, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Title, PPSR and Companies Office search for 568 obtained; indebtedness $2,470,012.69",
+   "date": "2023-01-06",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "as of January 6, \n2023, the total amount of indebtedness owing by 568 to First National",
+   "exhibits": [
+    "A",
+    "J",
+    "K"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "ASH re-inspects; fire damage unremedied",
+   "date": "2023-01-09",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "on or about January 9, 2023, ASH \nperformed a further inspection",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "NITES issued to 568",
+   "date": "2023-01-16",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "On January 16, 2023, given the continuing defaults under the \nFurby Mortgage, TDS issued",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Companies Office searches for 631 and K&P obtained",
+   "date": "2023-01-18",
+   "precision": "day",
+   "paragraphs": [
+    6,
+    7
+   ],
+   "quote": "search for 631 dated January 18, 2023",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Penner sends proposed plan and insurance cheque copies",
+   "date": "2023-01-26",
+   "precision": "day",
+   "paragraphs": [
+    37,
+    41
+   ],
+   "quote": "on or about January 26, \n2023, Penner sent an email to TDS",
+   "exhibits": [
+    "Q"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "Scanned copies of four insurance cheques provided by Penner",
+  "Penner's January 26, 2023 email to TDS",
+  "Forced-placed insurance policy (the Furby Policy)"
+ ],
+ "notes": "Companion to mbkb-6525785-pacheco (same lender, deponent and day; different debtor and property). Exhibit L's text layer is garbled; Exhibit O is image-only photographs."
+}

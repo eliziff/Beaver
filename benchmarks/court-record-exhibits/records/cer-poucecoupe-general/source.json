@@ -1,0 +1,18 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4542970",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Search?txthl=Duncan%27s%20First%20Nation%20General",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2024",
+ "document_title": "Affidavit of Matthew General affirmed February 28, 2025 (Duncan's First Nation, intervenor; Pouce Coupe Taylor to Gordondale Pipeline Project, C33586-1, part 1 of 2)",
+ "retrieved": "2026-09-24",
+ "record_id": "cer-poucecoupe-general",
+ "source_file": "dcer-4542970.pdf",
+ "page_range": [
+  1,
+  680
+ ],
+ "source_sha256": "aeddb829b250f255b90253d678d0eb31585ba89b3c52dfb550028e33756c3923",
+ "source_pages": 680
+}

@@ -1,0 +1,503 @@
+{
+ "record_id": "onsc-cp-chl-branch",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al. (proposed class action for hazing and abuse of major junior players): defendants' responding evidence on certification",
+ "document": "Affidavit of David Branch sworn November 1, 2021",
+ "deponent": "David Branch",
+ "deponent_role": "Commissioner of the Ontario Hockey League; former President of the Canadian Hockey League",
+ "sworn_date": "2021-11-01",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-jqd95k.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "Excerpt of the OHL's current Health & Welfare Policies & Procedures",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Attached as"
+    }
+   ],
+   "content_check": "6 pages: 'HEALTH AND WELFARE POLICIES AND PROCEDURES 1. HAZING POLICY Team bonding is an important element...'"
+  },
+  {
+   "label": "B",
+   "file": "doc-sptux5.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "Redacted copy of the OHL's current Hazing Policy Acknowledgment Form",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Exhibit B to this affidavit is a redacted copy of the OHL"
+    }
+   ],
+   "content_check": "1 page: 'HAZING POLICY ... Hazing is a practice which is not tolerated' with player acknowledgment (redacted)"
+  },
+  {
+   "label": "C",
+   "file": "doc-f6ec9d.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current Policy Poster",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached as Exhibit C to this affidavit is a copy"
+    }
+   ],
+   "content_check": "1 page, image-only (OCR'd): OHL policy poster with FACIAL/HEAD/THROAT PROTECTION, HARASSMENT AND ABUSE, MOUTH GUARDS panels"
+  },
+  {
+   "label": "D",
+   "file": "doc-3xaxs8.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current Social Networking Policy (poster)",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Attached as Exhibit D to this affidavit is a copy of the OHL"
+    }
+   ],
+   "content_check": "2 pages: 'SOCIAL NETWORKING POLICY For the purposes for this policy...'"
+  },
+  {
+   "label": "E",
+   "file": "doc-266svd.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current Players First Program presentation",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Exhibit E to this affidavit is a copy of the OHL"
+    }
+   ],
+   "content_check": "18 pages: OHL Players First booklet/presentation ('ON THE COVER NATHAN CHIARLITTI ...', 'The Ontario Hockey League (OHL) is a proud member of the Canadian Hockey League'); first page image-only"
+  },
+  {
+   "label": "F",
+   "file": "doc-ww9zex.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League / CMHA",
+   "recipients": [],
+   "description": "OHL's current Talk Today Program Manual",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit F to this affidavit is a copy of the OHL"
+    }
+   ],
+   "content_check": "9 pages, image-only (OCR'd): Canadian Mental Health Association Talk Today document dated December 4, 2015"
+  },
+  {
+   "label": "G",
+   "file": "doc-dat5me.pdf",
+   "kind": "other",
+   "date": "2015-09",
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current ONSIDE Program",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached as Exhibit G to this affidavit is a copy of"
+    }
+   ],
+   "content_check": "1 page: 'OHL ONSIDE (Adopted September, 2015) OHL in partnership with the Ontario Coalition of Rape Crisis Centres launched OHL ONSIDE in 2015' (the affidavit says 2016)"
+  },
+  {
+   "label": "H",
+   "file": "doc-7gt8g2.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current Performance Development Program",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Attached as Exhibit H to this affidavit is a copy of the OHL"
+    }
+   ],
+   "content_check": "1 page: 'OHL PERFORMANCE DEVELOPMENT PROGRAM The Ontario Hockey League and its Member Teams are committed...'"
+  },
+  {
+   "label": "I",
+   "file": "doc-qajcef.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canadian Hockey League / Respect Group Inc.",
+   "recipients": [],
+   "description": "OHL's current Respect in Sport for Activity Leaders Program",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Attached as Exhibit I to this affidavit is a copy of"
+    }
+   ],
+   "content_check": "1 page: 'Canadian Hockey League Respect in Sport for Activity Leaders URL: https://chl.respectgroupinc.com Program Access Instructions'"
+  },
+  {
+   "label": "J",
+   "file": "doc-yprs3b.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current Gender Expression Course Acknowledgement Form",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "Exhibit J to this affidavit is a copy of the OHL"
+    }
+   ],
+   "content_check": "1 page, image-only (OCR'd): 'OHF Diversity Chats' acknowledgment on respect and freedom from discrimination and harassment"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Branch serves as Secretary-Manager of the OHA",
+   "date": "1974",
+   "precision": "range",
+   "paragraphs": [
+    3
+   ],
+   "quote": "from 1974 to 1976",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Branch serves as Executive Director of CAHA",
+   "date": "1977",
+   "precision": "range",
+   "paragraphs": [
+    4
+   ],
+   "quote": "From 1977 to 1978, I served as the Executive Director",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Branch becomes OHL Commissioner",
+   "date": "1979",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since 1979",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "OHL founded, splitting from the OHA",
+   "date": "1980",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The OHL was founded in 1980",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Earlier iteration of the OHL hazing policy implemented",
+   "date": "1994",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "a previous iteration of the policy, implemented in 1994",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Branch serves as CHL President",
+   "date": "1996",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "for 23 years, from 1996",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "OHL reaches 20 member franchises",
+   "date": "1998",
+   "precision": "year",
+   "paragraphs": [
+    10
+   ],
+   "quote": "Since the 1998/1999 season",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Harassment & Abuse/Diversity Policy implemented",
+   "date": "2003",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The Harassment & Abuse/Diversity Policy was",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Carcillo and Pszenyczny allegedly hazed as Sarnia Sting rookies",
+   "date": "2002",
+   "precision": "range",
+   "paragraphs": [
+    37
+   ],
+   "quote": "as rookies in 2002-2003",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Carcillo suspended several times while playing for Sarnia",
+   "date": "2004",
+   "precision": "year",
+   "paragraphs": [
+    38
+   ],
+   "quote": "after he was suspended several times in 2004",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Branch meets Carcillo around his trade to Mississauga",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    38
+   ],
+   "quote": "I specifically remember",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Hazing Policy and Acknowledgment Form implemented; all players must sign",
+   "date": "2006",
+   "precision": "year",
+   "paragraphs": [
+    18,
+    26
+   ],
+   "quote": "Starting in 2006, all players must sign an acknowledgment",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Social Media Policy implemented",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    28
+   ],
+   "quote": "The Social Media Policy was",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Respect in Sport for Activity Leaders Program implemented",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    34
+   ],
+   "quote": "Leaders Program was implemented in 2012",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Health & Welfare Policies & Procedures implemented",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    23
+   ],
+   "quote": "The Health & Welfare Policies & Procedures were",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Talk Today Program implemented with CMHA",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "The Talk Today Program was implemented in 2014",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Players First Program formalized",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    29
+   ],
+   "quote": "The Players First Program was formalized in 2015",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "ONSIDE Program implemented",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    32
+   ],
+   "quote": "The ONSIDE Program was implemented in 2016",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Performance Development Program implemented",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    33
+   ],
+   "quote": "The Performance Development Program was implemented in 2016",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Branch meets Carcillo at an OHL alumni golf tournament",
+   "date": "2016-06",
+   "precision": "month",
+   "paragraphs": [
+    39
+   ],
+   "quote": "at an OHL alumni golf",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Canadian Press article on Sarnia Sting hazing allegations",
+   "date": "2018-11-28",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "dated November 28, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Gender Expression Program and Acknowledgment Form implemented",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    35
+   ],
+   "quote": "Acknowledgment Form were implemented in 2019",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Branch meets Carcillo on player-experience improvements",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    40
+   ],
+   "quote": "In 2019, I met with Mr. Carcillo at his request",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Branch's term as CHL President ends",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "to 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Rico Phillips appointed Director of Cultural Diversity and Inclusion",
+   "date": "2020-06",
+   "precision": "month",
+   "paragraphs": [
+    25
+   ],
+   "quote": "in June 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "Carcillo posts hazing allegations on Twitter and speaks to media",
+   "date": "2020-06",
+   "precision": "approximate",
+   "paragraphs": [
+    41
+   ],
+   "quote": "began speaking with the media in and around June",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Laundry-cart initiation incident at Sarnia investigated by Branch",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    44
+   ],
+   "quote": "an initiation incident had occurred involving rookies being",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Branch affidavit in the Berg class action",
+  "Plaintiffs' certification record, including the Charles Hatt affidavit and the Canadian Press article of November 28, 2018",
+  "Affidavit of Ryan Munce",
+  "Affidavit of Dave Pszenyczny",
+  "OHL Health & Welfare Policies & Procedures (full document; Exhibit A is an excerpt)"
+ ]
+}

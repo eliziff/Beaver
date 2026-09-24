@@ -1,0 +1,131 @@
+{
+ "record_id": "nbkb-ccla-kimberly",
+ "affidavit_pages": [
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27
+ ],
+ "divider_pages": [
+  14
+ ],
+ "scanned_pages": [
+  27,
+  28,
+  32,
+  36,
+  71,
+  73
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-xhwzv8.pdf",
+   "source_pages": [
+    29,
+    30,
+    31
+   ],
+   "cover_page": 28,
+   "stamp_page": null,
+   "text_chars": 4067
+  },
+  {
+   "label": "B",
+   "file": "doc-xtq5jr.pdf",
+   "source_pages": [
+    33,
+    34,
+    35
+   ],
+   "cover_page": 32,
+   "stamp_page": null,
+   "text_chars": 1661
+  },
+  {
+   "label": "C",
+   "file": "doc-wc6dnd.pdf",
+   "source_pages": [
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70
+   ],
+   "cover_page": 36,
+   "stamp_page": null,
+   "text_chars": 70903
+  },
+  {
+   "label": "D",
+   "file": "doc-nqf996.pdf",
+   "source_pages": [
+    72
+   ],
+   "cover_page": 71,
+   "stamp_page": null,
+   "text_chars": 1049
+  },
+  {
+   "label": "E",
+   "file": "doc-3mf8mc.pdf",
+   "source_pages": [
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82
+   ],
+   "cover_page": 73,
+   "stamp_page": null,
+   "text_chars": 19979
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-3mf8mc.pdf",
+  "doc-xhwzv8.pdf"
+ ]
+}

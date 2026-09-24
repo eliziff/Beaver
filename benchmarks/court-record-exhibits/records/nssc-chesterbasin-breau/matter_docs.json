@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/nssc-chesterbasin-breau/nom-stay.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./NOI/Application%20Materials/005-Notice%20of%20Motion%20for%20Stay%20Extension%20returnable%20January%2019%2C%202024.pdf",
+  "title": "Notice of Motion for Stay Extension returnable January 19, 2024",
+  "kind": "court_filing",
+  "relation": "motion the affidavit supports"
+ },
+ {
+  "file": "raw/matter/nssc-chesterbasin-breau/second-report.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./NOI/Reports/003-Second%20Report%20of%20the%20Proposal%20Trustee%20dated%20January%2016%2C%202024.pdf",
+  "title": "Second Report of the Proposal Trustee dated January 16, 2024",
+  "kind": "report",
+  "relation": "trustee report on the same motion"
+ },
+ {
+  "file": "raw/matter/nssc-chesterbasin-breau/notice-creditors.pdf",
+  "url": "https://docs.doanegrantthornton.ca/document-folder/view/docul8LWsxcWho7J/CreditorUpdates/Chester%20Basin%20Seafood%20Group%20Inc./NOI/Notices/001-Notice%20to%20Creditors%20dated%20November%209%2C%202023.pdf",
+  "title": "Notice to Creditors dated November 9, 2023",
+  "kind": "notice",
+  "relation": "notice in the same proceeding"
+ }
+]

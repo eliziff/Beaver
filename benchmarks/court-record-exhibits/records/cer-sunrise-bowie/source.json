@@ -1,0 +1,19 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4542950",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/View/4542948",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2024 (File 3965593)",
+ "document_title": "Affidavit of Tyler Bowie affirmed February 2025 (City of Abbotsford, intervenor; Westcoast Sunrise Expansion Program, C33534-2)",
+ "retrieved": "2026-09-24",
+ "record_id": "cer-sunrise-bowie",
+ "source_file": "dcer-4542950.pdf",
+ "page_range": [
+  1,
+  235
+ ],
+ "source_sha256": "856f40bbca2c55c32a92ecc47fab1c3936e9167b0df15efd6ee2996ef1392e80",
+ "source_pages": 235,
+ "covers": "A=5,B=7,C=9,D=11,E=13,F=49,G=92,H=94,I=223"
+}

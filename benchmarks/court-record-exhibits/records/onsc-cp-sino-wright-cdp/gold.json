@@ -1,0 +1,235 @@
+{
+ "record_id": "onsc-cp-sino-wright-cdp",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-11-431153-00CP (with CCAA file CV-12-9667-00CL)",
+ "subject": "securities",
+ "family": "sino-forest-securities",
+ "proceeding": "Labourers' Pension Fund v. Sino-Forest Corporation et al. (securities class action): motion to approve the Claims and Distribution Protocol for the $117 million Ernst & Young settlement",
+ "document": "Affidavit of Charles Wright sworn November 4, 2013",
+ "deponent": "Charles Wright",
+ "deponent_role": "Partner, Siskinds LLP, class counsel",
+ "sworn_date": "2013-11-04",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-3983zq.pdf",
+   "kind": "court_filing",
+   "date": "2012-04-18",
+   "author": "Class Plaintiffs",
+   "recipients": [],
+   "description": "Fresh as Amended Statement of Claim in the Ontario Class Action",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "The Fresh As Amended Statement of Claim is attached as Exhibit"
+    }
+   ],
+   "content_check": "128 pages: amended statement of claim stamped 'AMENDED THIS ... PURSUANT TO RULE 26.02', CV-11-431153-00CP (scanned with OCR text layer)"
+  },
+  {
+   "label": "B",
+   "file": "doc-7g9kt5.pdf",
+   "kind": "court_order",
+   "date": "2013-10-23",
+   "author": "Justice Morawetz",
+   "recipients": [],
+   "description": "Settlement approval order for the Ernst & Young Settlement",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "The Settlement approval order is attached as Exhibit"
+    }
+   ],
+   "content_check": "15 pages: Commercial List ORDER of Mr. Justice Morawetz, 'Wednesday, the 23rd day of October, 2013', on the Ad Hoc Committee's motion in both the CCAA and class action files; the affidavit says the settlement was approved March 20, 2013, and the attached order bears the October 23, 2013 date"
+  },
+  {
+   "label": "C",
+   "file": "doc-9agztc.pdf",
+   "kind": "court_order",
+   "date": "2013-10-29",
+   "author": "Justice Jean-Francois Emond (Quebec Superior Court)",
+   "recipients": [],
+   "description": "Order of Justice Emond staying the Quebec action as against E&Y",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "The order of Justice Emond dated October 29, 2013 is attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: Superior Court, District of Quebec, No. 200-06-000132-111, Ernst & Young LLP v. Guining Liu, October 29, 2013"
+  },
+  {
+   "label": "D",
+   "file": "doc-v8fu9z.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Bennett Jones LLP (for Sino-Forest)",
+   "recipients": [],
+   "description": "Claims Procedure Order in the CCAA proceedings",
+   "references": [
+    {
+     "paragraph": 50,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: back sheet of Sino-Forest's motion record for the Claims Procedure Order (returnable May 8, 2012) with handwritten endorsement, and a page of 'Proposed Endorsement Language' on claims under the Claims Procedure Order (poor OCR text layer); not the order itself"
+  },
+  {
+   "label": "E",
+   "file": "doc-3p7uaz.pdf",
+   "kind": "court_order",
+   "date": "2012-05-17",
+   "author": "Justice Perell",
+   "recipients": [],
+   "description": "Order and reasons of Perell J. approving the litigation funding agreement with CFI",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "is the order and reasons of Perell J. approving the funding agreement"
+    }
+   ],
+   "content_check": "9 pages: Order of Justice Perell, Thursday the 17th day of May, 2012, Labourers' Pension Fund v. Sino-Forest, with reasons"
+  },
+  {
+   "label": "F",
+   "file": "doc-fvnzdx.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "Ontario plaintiffs and Claims Funding International",
+   "recipients": [],
+   "description": "Litigation funding agreement with Claims Funding International",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "202 pages: 'LITIGATION FUNDING AGREEMENT BETWEEN: THE TRUSTEES OF THE LABOURERS' PENSION FUND ...' with appendices"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Muddy Waters fraud allegations against Sino-Forest",
+   "date": "2011-06-02",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "following allegations on June 2, 2011 that there was fraud at the company",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Ontario Class Action commenced",
+   "date": "2011-07-20",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "On July 20, 2011, this action was commenced against Sino-Forest",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "OSC cease-trades Sino-Forest securities",
+   "date": "2011-08-26",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "August 26, 2011 was the date that the Ontario Securities Commission cease traded",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Sino-Forest obtains CCAA protection",
+   "date": "2012-03-30",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "On March 30, 2012, Sino-Forest applied for and was granted protection",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Perell J. approves the litigation funding agreement with CFI",
+   "date": "2012-05-17",
+   "precision": "day",
+   "paragraphs": [
+    63
+   ],
+   "quote": "On May 17, 2012, the Court approved a litigation funding agreement",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Settlement reached with Ernst & Young for $117 million",
+   "date": "2012-11",
+   "precision": "month",
+   "paragraphs": [],
+   "quote": "In November 2012, a settlement was reached with E&Y",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Noteholder Distribution Record Date",
+   "date": "2013-01-16",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "Record Distribution Date (January 16, 2013)",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Court approves the E&Y Settlement",
+   "date": "2013-03-20",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "On March 20, 2013, this Court approved the Settlement",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Quebec Superior Court stays the Quebec action as against E&Y",
+   "date": "2013-10-29",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "On October 29, 2013, the Superior Court of Quebec issued an order staying",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "US Chapter 15 recognition motion scheduled",
+   "date": "2013-11-18",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "A motion is scheduled for November 18, 2013 in that",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Claims Procedure Order made in the CCAA",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    50
+   ],
+   "quote": "Attached as Exhibit \"D\" is the Claims",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Proposed Claims and Distribution Protocol (Schedule A to the Notice of Motion)",
+  "Affidavit of Adam Pritchard dated January 9, 2013",
+  "CCAA proofs of claim"
+ ]
+}

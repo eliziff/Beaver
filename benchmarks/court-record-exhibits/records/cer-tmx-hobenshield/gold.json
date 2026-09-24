@@ -1,0 +1,391 @@
+{
+ "record_id": "cer-tmx-hobenshield",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OF-Fac-Oil-T260-2013-03 61",
+ "subject": "regulatory",
+ "family": null,
+ "proceeding": "Trans Mountain Pipeline ULC motion and constitutional question for relief from Certificate OC-065 Condition 2, so that Project tree clearing in Burnaby need not obtain permits under the City of Burnaby Tree Bylaw",
+ "document": "Affidavit of Lexa Hobenshield affirmed January 26, 2021 (REGDOCS C11214-3)",
+ "deponent": "Lexa Hobenshield",
+ "deponent_role": "Lower Mainland and Community Investment Manager, Trans Mountain (moving party)",
+ "sworn_date": "2021-01-26",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-vrefe6.pdf",
+   "kind": "email_chain",
+   "date": "2017-07-28",
+   "author": "Lexa Hobenshield; Ashley Hildebrand (City of Burnaby)",
+   "recipients": [
+    "City of Burnaby Engineering"
+   ],
+   "description": "Emails between Trans Mountain and Burnaby on access to City lands for field studies (June-July 2017) and staff availability to observe them",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Copies of these emails between Trans Mountain and Burnaby are included as Exhibit A."
+    }
+   ],
+   "content_check": "3 pages: 'RE: Request for permission: Access to City of Burnaby Lands', Hildebrand July 26, 2017 on the senior arborist's availability; Hobenshield reply July 28, 2017"
+  },
+  {
+   "label": "B",
+   "file": "doc-96pds8.pdf",
+   "kind": "public_record",
+   "date": "2021",
+   "author": "City of Burnaby",
+   "recipients": [],
+   "description": "Burnaby's 2021 Schedule of Tree Permit Fees",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of the 2021 Schedule of Tree Permit Fees published by Burnaby is attached hereto as Exhibit B."
+    }
+   ],
+   "content_check": "2 pages: '2021 Schedule of Tree Permit Fees', per-tree and base fees by site area"
+  },
+  {
+   "label": "C",
+   "file": "doc-xmhqqp.pdf",
+   "kind": "email",
+   "date": "2020-09-11",
+   "author": "Igor Leonardo de Oliveira (KLTP)",
+   "recipients": [
+    "Keith O'Connor (City of Burnaby)"
+   ],
+   "description": "KLTP email to Burnaby attaching a drawing of the North Road and Government Street access points",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "A copy of the email attaching this drawing is included as Exhibit C."
+    }
+   ],
+   "content_check": "2 pages: email 'Access location' Sept 11, 2020 'here is a drawing showing the location for both accesses' plus the drawing"
+  },
+  {
+   "label": "D",
+   "file": "doc-kmkqjp.pdf",
+   "kind": "email",
+   "date": "2021-01-11",
+   "author": "Keith O'Connor (City of Burnaby)",
+   "recipients": [
+    "Igor Leonardo de Oliveira (KLTP)"
+   ],
+   "description": "Burnaby email saying the access permit applications are on hold pending a Parks review of tree removals",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "A copy of the email dated January 11, 2021, in which Mr. 0' Connor advised that the applications were on hold is included as Exhibit D."
+    }
+   ],
+   "content_check": "1 page: O'Connor email Jan 11, 2021 'Engineering is \"On Hold\" processing the permits pending an update from the Parks Department'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Trans Mountain and Burnaby hold early discussions on the Tree Management Plan",
+   "date": "2017-06",
+   "precision": "range",
+   "paragraphs": [
+    6
+   ],
+   "quote": "Between June and November of 2017, Trans Mountain engaged in early discussions with",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Hobenshield writes to Burnaby requesting access to City lands for field studies",
+   "date": "2017-06-02",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "on June 2, 2017, I wrote to Burnaby requesting access to Burnaby lands",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Burnaby authorizes the field studies on conditions and gives staff availability",
+   "date": "2017-07-26",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On July 26, 2017, Burnaby provided its authorization for these studies",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Burnaby cancels the January 10, 2018 technical working group meeting and withdraws, citing the detailed route hearings",
+   "date": "2018-01",
+   "precision": "approximate",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Burnaby cancelled",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Trans Mountain receives the first Tree Management Plan from Matthew McTavish but does not submit it",
+   "date": "2018-01",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Although it received the first iteration of the Tree Management Plan in January 2018 from",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Board approves the detailed route through Burnaby (MH-033-2017), noting tree removal concerns",
+   "date": "2018-04",
+   "precision": "month",
+   "paragraphs": [
+    12
+   ],
+   "quote": "in the April 2018 decision approving the detailed route and",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Federal Court of Appeal quashes the Project approval in Tsleil-Waututh Nation",
+   "date": "2018-08-30",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On August 30, 2018, the Federal Court of Appeal issued its decision in Tsleil-Waututh",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Burnaby files its second round of Statements of Opposition on the detailed route",
+   "date": "2019-09",
+   "precision": "month",
+   "paragraphs": [
+    13
+   ],
+   "quote": "route on September 2019 [C01670-2]",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Burnaby's counsel tells the CER that Burnaby and Trans Mountain have agreed on route and construction methods",
+   "date": "2019-10",
+   "precision": "month",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In October of 2019, counsel for Burnaby wrote a letter to the CER [C02346-2]",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Trans Mountain emails Burnaby that KLTP is preparing an application for BNSF Lands access points",
+   "date": "2020-07-07",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "Mountain sent an email to Burnaby on July 7, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "KLTP submits permit applications for the North Road and Government Street access points",
+   "date": "2020-07-23",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On July 23, 2020, KLTP submitted permit applications to Burnaby",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Burnaby's O'Connor calls KLTP and says a site visit is required",
+   "date": "2020-09-03",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On September 3, 2020, Keith O'Connor, City of Burnaby Engineering Project",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Trans Mountain submits the Tree Management Plan to Burnaby",
+   "date": "2020-09-08",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Management Plan for the Tree Clearing to Burnaby on September 8, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "O'Connor and de Oliveira discuss the access points by phone",
+   "date": "2020-09-10",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On September 10, 2020, Mr. O'Connor and Mr. de Oliveira further discussed the",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "De Oliveira emails Burnaby a drawing of both access points",
+   "date": "2020-09-11",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "The next day, Mr. de Oliveira sent a drawing showing",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Site visit to the Government Street access point",
+   "date": "2020-09-16",
+   "precision": "approximate",
+   "paragraphs": [
+    21
+   ],
+   "quote": "or around September 16, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "KLTP submits a revised permit application for the Government Street access point",
+   "date": "2020-10-27",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Burnaby for works at the Government Street access point to the BNSF Lands on",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "O'Connor replies with comments requiring Parks permission to remove boulevard trees and a damage deposit",
+   "date": "2020-11-20",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On November 20, 2020, Mr. O'Connor replied to the October 27, 2020 email from",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Burnaby sends its November 16, 2020 letter opposing tree removal at the access points",
+   "date": "2020-11-23",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On November 23, 2020, Burnaby sent a letter dated November 16, 2020 to Trans",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Conference call among KLTP, Trans Mountain and Burnaby on the access points",
+   "date": "2020-11-25",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "including during a November 25, 2020 conference call with representatives of",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Burnaby requests another site visit to view the trees at Government Street; KLTP responds December 3",
+   "date": "2020-12-01",
+   "precision": "day",
+   "paragraphs": [
+    21,
+    23
+   ],
+   "quote": "On December 1, 2020, a representative of Burnaby requested a site visit with",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Trans Mountain submits the Tree Clearing Application to Burnaby",
+   "date": "2020-12-07",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Clearing Application\") on D",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Burnaby confirms it will not process the Tree Clearing Application",
+   "date": "2020-12-09",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Burnaby confirmed that it would not process the Tree Clearing Application on December",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Trans Mountain files the Motion with the Commission",
+   "date": "2020-12-15",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "after the Motion was filed on December 15, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Burnaby puts the access permit applications on hold pending a Parks review",
+   "date": "2021-01-11",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "A copy of the email dated January 11, 2021, in which Mr. 0' Connor advised",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Trans Mountain files responses to Commission Information Requests 1.1 and 1.2",
+   "date": "2021-01-25",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "No. 1.1 and 1.2 [A7Q7R8], filed on January 25, 2021",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Alain Parise affirmed December 15, 2020 and its exhibits (incl. Exhibit 8, O'Connor's November 20, 2020 email)",
+  "Registry filings A91505-1, C01670-2, C02346-2, A7Q7R8",
+  "Burnaby letter of November 16, 2020",
+  "Tree Clearing Application and Tree Management Plan"
+ ],
+ "leak_waivers": [],
+ "notes": "REGDOCS posts the affidavit twice in one PDF (a scanned-looking copy and a clean one, each with exhibits A-D); --pages 14-37 uses the second, cleaner copy. Page 1 is a remote-commissioning certificate of execution."
+}

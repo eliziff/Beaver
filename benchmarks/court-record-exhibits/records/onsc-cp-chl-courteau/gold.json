@@ -1,0 +1,543 @@
+{
+ "record_id": "onsc-cp-chl-courteau",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al. (proposed class action for hazing and abuse of major junior players): defendants' responding evidence on certification",
+ "document": "Affidavit of Gilles Courteau sworn November 1, 2021",
+ "deponent": "Gilles Courteau",
+ "deponent_role": "Commissioner and President of the Quebec Major Junior Hockey League; Vice-President of the CHL",
+ "sworn_date": "2021-11-01",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-skt2ty.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Code of Ethics",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached as Exhibit A to"
+    }
+   ],
+   "content_check": "5 pages: 'CODE OF ETHICS FOR THE PLAYERS OF THE QUEBEC MAJOR JUNIOR HOCKEY LEAGUE'"
+  },
+  {
+   "label": "B",
+   "file": "doc-d95jkv.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Charter for the Prevention of Violence",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page: 'CHARTER FOR THE PREVENTION OF VIOLENCE IN THE QUEBEC MAJOR JUNIOR HOCKEY LEAGUE'"
+  },
+  {
+   "label": "C",
+   "file": "doc-mfw3an.pdf",
+   "kind": "other",
+   "date": "2006-12",
+   "author": "QMJHL Board of Governors",
+   "recipients": [],
+   "description": "QMJHL's current Anti-Discrimination Policy",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Attached as Exhibit C to this"
+    }
+   ],
+   "content_check": "3 pages: 'R-3 ANTI-DISCRIMINATION POLICY Adopted by the Board of Governors in December, 2006'"
+  },
+  {
+   "label": "D",
+   "file": "doc-hgjzrc.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Social Media Policy",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Attached as Exhibit D to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "2 pages: QMJHL letterhead (Boucherville) policy document"
+  },
+  {
+   "label": "E",
+   "file": "doc-w7uv6w.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Billet Family Guide",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Attached as Exhibit E to this"
+    }
+   ],
+   "content_check": "7 pages: 'QUEBEC MAJEUR JUNIOR HOCKEY LEAGUE BILLET FAMILY GUIDE'"
+  },
+  {
+   "label": "F",
+   "file": "doc-m89xh2.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Player Commitment Contract",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached as Exhibit F to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "1 page: 'PLAYER COMMITMENT CONTRACT This season, I am given the opportunity to play for the ___ of the QMJHL'"
+  },
+  {
+   "label": "G",
+   "file": "doc-z83dqh.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Player Support Program overview",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached as Exhibit G to this"
+    }
+   ],
+   "content_check": "5 pages: 'Player Support Program Presentation (PSP) The Player Support Program (PSP) was created to help players manage life's challenges'"
+  },
+  {
+   "label": "H",
+   "file": "doc-6w75ku.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current PSP Directives",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached as Exhibit H to this"
+    }
+   ],
+   "content_check": "2 pages: 'Player Support Program (PSP) QMJHL Directive Responsibilities'"
+  },
+  {
+   "label": "I",
+   "file": "doc-zek2q2.pdf",
+   "kind": "other",
+   "date": "2018-05-01",
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current PSP Presentation",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached as Exhibit I to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "16 pages: slide deck 'Draft 2018 Shawinigan, QC May 1st 2018 Players Support Program'"
+  },
+  {
+   "label": "K",
+   "file": "doc-72uyfx.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current PSP posters",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached as Exhibit K to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "4 pages: French-language PAJ posters 'Le programme d'aide aux joueurs (PAJ) a été conçu...'"
+  },
+  {
+   "label": "L",
+   "file": "doc-y5x3za.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Ad Hoc PSP Lectures list",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit L"
+    }
+   ],
+   "content_check": "1 page: 'Ad hoc Player Support Program Lectures - Drug awareness presentations (since 2008)...'"
+  },
+  {
+   "label": "M",
+   "file": "doc-gmpcw5.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's current Unsafe Sexual Behaviour Presentation",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "21 pages: slide deck 'Unsafe sexual behaviour ... Risk factors'"
+  },
+  {
+   "label": "N",
+   "file": "doc-bpcx35.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "expertsjeunesse.com (speaker for the QMJHL)",
+   "recipients": [],
+   "description": "QMJHL's current Legal Responsibility of Players presentation",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit N to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "3 pages: 'Legal responsibilities of QMJHL players (Reminder) Reserved for players and staff of the QMJHL'"
+  },
+  {
+   "label": "O",
+   "file": "doc-j5g72j.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Respect Group Inc.",
+   "recipients": [],
+   "description": "QMJHL's current Respect in Sport for Activity Leaders Program",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached as Exhibit O to this"
+    }
+   ],
+   "content_check": "2 pages: 'Respect in Sport Coach / Activity Leader Program'"
+  },
+  {
+   "label": "P",
+   "file": "doc-a43wzs.pdf",
+   "kind": "other",
+   "date": "2016-01-20",
+   "author": "Canadian Mental Health Association",
+   "recipients": [],
+   "description": "QMJHL's current Talk Today Program Manual",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Attached as Exhibit P"
+    }
+   ],
+   "content_check": "9 pages: 'TALK TODAY Program Manual January 20, 2016'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-cp7g77.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canadian Mental Health Association / QMJHL",
+   "recipients": [],
+   "description": "QMJHL's current Talk Today Presentation",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Attached as Exhibit Q to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "9 pages: slide deck 'Talk Today/Parlons-en ... Agenda'"
+  },
+  {
+   "label": "R",
+   "file": "doc-yavc5r.pdf",
+   "kind": "webpage",
+   "date": "2021-07-02",
+   "author": "Sport'Aide",
+   "recipients": [],
+   "description": "QMJHL's current SportAide Manual",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Attached as Exhibit R to this affidavit is a copy of the QMJHL"
+    }
+   ],
+   "content_check": "3 pages: web printout 7/2/2021 'Reporting makes the difference | Sport'Aide' (sportaide.ca)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Courteau works as statistician for the Trois-Rivieres Draveurs",
+   "date": "1975",
+   "precision": "range",
+   "paragraphs": [
+    3
+   ],
+   "quote": "1975 to 1977",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "QMJHL founded by merger of QJHL and MMJHL teams",
+   "date": "1969",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The QMJHL was founded in 1969",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Courteau serves as QMJHL general administrator",
+   "date": "1977",
+   "precision": "range",
+   "paragraphs": [
+    3
+   ],
+   "quote": "general administrator for the QMJHL from 1977 to 1980",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Courteau serves as GM of the Quebec Remparts",
+   "date": "1980",
+   "precision": "range",
+   "paragraphs": [
+    4
+   ],
+   "quote": "General Manager of the QMJHL",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Courteau works in public relations for the Quebec Nordiques",
+   "date": "1983",
+   "precision": "range",
+   "paragraphs": [
+    4
+   ],
+   "quote": "public relations agent for the NHL",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Courteau becomes QMJHL President and CHL Vice-President",
+   "date": "1986",
+   "precision": "year",
+   "paragraphs": [
+    1,
+    2
+   ],
+   "quote": "I have also served as President of the QMJHL since 1986",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Player Commitment Contract implemented; players sign to abide by all policies",
+   "date": "1990",
+   "precision": "year",
+   "paragraphs": [
+    16,
+    26
+   ],
+   "quote": "The Player Commitment Contract was implemented in 1990",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "QMJHL expands to Atlantic Canada",
+   "date": "1994",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In 1994, the QMJHL expanded outside of Québec to Atlantic Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Courteau becomes QMJHL Commissioner",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Anti-Discrimination Policy adopted by the Board of Governors",
+   "date": "2006",
+   "precision": "year",
+   "paragraphs": [
+    23
+   ],
+   "quote": "adopted by the QMJHL Board of Governors",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Player Support Program introduced; drug awareness presentations begin",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    27,
+    31
+   ],
+   "quote": "introduced in 2008",
+   "exhibits": [
+    "G",
+    "H",
+    "L"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Charter for the Prevention of Violence implemented",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The Charter for the Prevention of Violence was implemented in 2009",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Respect in Sport for Activity Leaders Program implemented",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    32
+   ],
+   "quote": "The Respect in Sport for Activity Leaders Program was implemented in 2010",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Code of Ethics implemented",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    21
+   ],
+   "quote": "The Code of Ethics was implemented in",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Talk Today Program implemented",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    33
+   ],
+   "quote": "The Talk Today Program was implemented in 2014",
+   "exhibits": [
+    "P",
+    "Q"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "SportAide Program implemented",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    34
+   ],
+   "quote": "The SportAide Program was implemented in 2014",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Unsafe sexual behaviour presentations begin",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "unsafe sexual behaviour presentation (since 2015)",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Social Media Policy implemented",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The Social Media Policy was implemented in 2016",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Billet Family Guide implemented",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    25
+   ],
+   "quote": "The Billet Family Guide was implemented in 2017",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Legal responsibilities of players presentations begin",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    31
+   ],
+   "quote": "legal responsibilities of players presentation (since 2018)",
+   "exhibits": [
+    "N"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit J: QMJHL PSP Video (provided separately in video format; the source posts only a placeholder page, dropped from the files)"
+ ]
+}

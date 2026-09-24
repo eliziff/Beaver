@@ -1,0 +1,20 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2021/11/Affidavit-of-Gilles-Courteau-sworn-Nov-1-2021-DEF.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "document_title": "Affidavit of Gilles Courteau sworn November 1, 2021",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-chl-courteau",
+ "source_file": "e4-affidavit-of-gilles-courteau-sworn-nov-1-2021-def.pdf",
+ "page_range": [
+  1,
+  128
+ ],
+ "source_sha256": "d5deaebcb49fbf184e2bec33fd940253e53f5f7a5baa9300e2d5c84a0a5afe96",
+ "source_pages": 129,
+ "covers": "A=17,B=23,C=25,D=29,E=32,F=40,G=42,H=48,I=51,K=70,L=75,M=77,N=99,O=103,P=106,Q=116,R=126",
+ "drop": "68,69"
+}

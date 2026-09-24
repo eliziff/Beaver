@@ -1,0 +1,284 @@
+{
+ "record_id": "cer-northriver-hume",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CER File 6071165 (NorthRiver NEBC Connector, File 3429412)",
+ "subject": "indigenous_rights",
+ "family": "cer-northriver-nebc",
+ "proceeding": "NorthRiver Midstream NEBC Connector GP Inc. (Certificate OC-067) CER hearing: Blueberry River First Nations' evidence on New Disturbance limits under the Blueberry River First Nations Implementation Agreement",
+ "document": "Affidavit #1 of Emma K. Hume affirmed September 24, 2024 (REGDOCS C31473-1)",
+ "deponent": "Emma K. Hume",
+ "deponent_role": "Lawyer, Ratcliff LLP, counsel to Blueberry River First Nations",
+ "sworn_date": "2024-09-24",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dtbdaa.pdf",
+   "kind": "email",
+   "date": "2024-07-15",
+   "author": "Rebeccah McLean (BC Energy Regulator)",
+   "recipients": [
+    "Emma Hume",
+    "Tyler Struyk",
+    "Kelly deCaux"
+   ],
+   "description": "BCER email confirming NorthRiver's application and uploading materials for BRFN's consideration",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Exhibit “A” is a copy of the email."
+    }
+   ],
+   "content_check": "1 page: McLean email Monday, July 15, 2024 '100118625 - NorthRiver Midstream NEBC Connector ... this application does not currently have allocation'"
+  },
+  {
+   "label": "B",
+   "file": "doc-9avsna.pdf",
+   "kind": "letter",
+   "date": "2024-07-15",
+   "author": "BC Energy Regulator",
+   "recipients": [
+    "Blueberry River First Nations (Kelly deCaux)"
+   ],
+   "description": "BCER referral letter describing the project and its approximate New Disturbance",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Exhibit “B” is a copy of the referral letter."
+    }
+   ],
+   "content_check": "1 page: 'BC ENERGY REGULATOR July 15, 2024 ... Re: Referral Letter - AMS#100118625 - NorthRiver Midstream NEBC Connector'"
+  },
+  {
+   "label": "C",
+   "file": "doc-fy9ubj.pdf",
+   "kind": "email_chain",
+   "date": "2024-08-29",
+   "author": "BCER; Tyler Struyk; Kelly deCaux",
+   "recipients": [],
+   "description": "Email string clarifying there was no official referral until New Disturbance was identified (July-August 2024)",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached hereto and marked as Exhibit \"C\" is"
+    }
+   ],
+   "content_check": "5 pages: chain topped by McLean email Thursday, August 29, 2024 'I am waiting to hear back from the proponent regarding the amount of area'"
+  },
+  {
+   "label": "D",
+   "file": "doc-z8hmx7.pdf",
+   "kind": "email_chain",
+   "date": "2024-09-12",
+   "author": "BCER; Emma Hume",
+   "recipients": [],
+   "description": "September 10-12, 2024 emails on the revised New Disturbance numbers",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Attached hereto and marked as Exhibit \"D\" is a copy of"
+    },
+    {
+     "paragraph": 12,
+     "quote": "This email is included in Exhibit D."
+    }
+   ],
+   "content_check": "4 pages (poor text layer): 'RE: 100118625 ... Please find attached the revised New Disturbance numbers'"
+  },
+  {
+   "label": "E",
+   "file": "doc-bnmwt6.pdf",
+   "kind": "spreadsheet",
+   "date": "2024-09",
+   "author": "BC Energy Regulator",
+   "recipients": [],
+   "description": "BCER table breaking down the project's New Disturbance by Implementation Agreement area",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "marked as Exhibit \"E\"."
+    }
+   ],
+   "content_check": "1 page: 'REV 18: NEBC Connector Project Footprint Overlap with Existing Disturbance and New Disturbance on Crown Land'"
+  },
+  {
+   "label": "F",
+   "file": "doc-mz5kpv.pdf",
+   "kind": "email",
+   "date": "2024-07-26",
+   "author": "Rebeccah McLean (BCER)",
+   "recipients": [
+    "Emma Hume",
+    "Tyler Struyk",
+    "Kelly deCaux"
+   ],
+   "description": "BCER email enclosing the Quarterly New Disturbance Report",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached hereto and marked as Exhibit \"F\" is a copy of a"
+    }
+   ],
+   "content_check": "9 pages: McLean email Friday, July 26, 2024 'RE: Quarterly Disturbance Report' with the disturbance tracking spreadsheet"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Province of BC and BRFN enter into the Implementation Agreement",
+   "date": "2023-01-18",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On January 18, 2023, the Province of British Columbia (the “Province”) and BRFN",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Ratcliff attends referral, Senior Officials Table, planning and Implementation Agreement meetings for BRFN through September 2024",
+   "date": "2024-09",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "This month, for example, on behalf of and in support of BRFN,",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Terms of Reference for remaining HV1/WMB planning agreed",
+   "date": "2024-09-20",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "A Terms of Reference for",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Meeting between BCER and the BRFN Lands Department",
+   "date": "2024-07-10",
+   "precision": "approximate",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Following a meeting between BCER and BRFN Lands Department held on or about July",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "BCER emails BRFN that NorthRiver has filed an application and uploads the referral letter",
+   "date": "2024-07-15",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Department, on July 15, 2024 confirming that NorthRiver Midstream NEBC Connector",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Emails establish there is no official referral until New Disturbance is identified",
+   "date": "2024-07",
+   "precision": "month",
+   "paragraphs": [
+    11
+   ],
+   "quote": "there were numerous emails between",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "BCER sends the Quarterly New Disturbance Report",
+   "date": "2024-07-26",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "July 26, 2024 email from BCER enclosing the Quarterly Disturbance Report",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "BCER confirms updated information from NorthRiver and the New Disturbance calculation are still pending",
+   "date": "2024-08-29",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On August 29, 2024, Ms. McLean of the BCER confirmed",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "BCER advises it has received NorthRiver's revised New Disturbance area",
+   "date": "2024-09-10",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On September 10, 2024, Ms. McLean of the BCER emailed to advise",
+   "exhibits": [
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Hume and the BCER exchange emails clarifying the New Disturbance numbers",
+   "date": "2024-09-11",
+   "precision": "range",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On September 11 and 12th, emails were exchanged between the BCER and myself",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "BCER's Quarterly New Disturbance Report shows the allocated 2024 New Disturbance not yet fully permitted",
+   "date": "2024-07-07",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "as of July 7, 2024 according to the",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "BRFN Lands Department begins reviewing and drafting its report on the application",
+   "date": "2024-09",
+   "precision": "approximate",
+   "paragraphs": [
+    14
+   ],
+   "quote": "The BRFN Lands Department has begun the review and drafting of a report",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Blueberry River First Nations Implementation Agreement",
+  "Gundy HV1C Plan",
+  "Blueberry River First Nations Implementation Agreement Regulation, BC Reg. 146/2023"
+ ],
+ "leak_waivers": [],
+ "notes": "Paragraph 12 says the August 29 email 'is included in Exhibit D' and, in the next sentence, 'on page 3 of Exhibit C'; the file shows it heads Exhibit C. Jurat date from the REGDOCS title (the jurat text is garbled)."
+}

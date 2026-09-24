@@ -1,0 +1,504 @@
+{
+ "record_id": "oeb-summitt-martin",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2011-0316",
+ "subject": "regulatory",
+ "family": null,
+ "proceeding": "Ontario Energy Board enforcement proceeding: Notice of Intention to make a compliance order and impose administrative penalties on Summitt Energy Management Inc. under the Energy Consumer Protection Act, 2010; Summitt's cross-motion over amendment of the Notice",
+ "document": "Affidavit of Jeremy Martin sworn March 12, 2012",
+ "deponent": "Jeremy Martin",
+ "deponent_role": "Student-at-law, Cassels Brock & Blackwell LLP (counsel for Summitt)",
+ "sworn_date": "2012-03-12",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-t3rjn9.pdf",
+   "kind": "notice",
+   "date": "2011-08-25",
+   "author": "Ontario Energy Board",
+   "recipients": [
+    "Summitt Energy Management Inc."
+   ],
+   "description": "The Board's Notice of Intention to make an order for compliance and an administrative penalty",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached as Exhibit \"A\" is a copy of the Notice of"
+    }
+   ],
+   "content_check": "7 pages: OEB EB-2011-0316 'Notice of Intention to Make an Order for Compliance and an Administrative Penalty against Summitt Energy Management Inc.'"
+  },
+  {
+   "label": "B",
+   "file": "doc-2jyj3m.pdf",
+   "kind": "letter",
+   "date": "2011-09-07",
+   "author": "Stephen Selznick (Cassels Brock)",
+   "recipients": [
+    "Ontario Energy Board"
+   ],
+   "description": "Summitt's letter requesting a hearing",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit \"B\" is a copy of that letter."
+    }
+   ],
+   "content_check": "1 page: Cassels Brock letter September 7th, 2011 to the Board Secretary"
+  },
+  {
+   "label": "C",
+   "file": "doc-r2ck7m.pdf",
+   "kind": "transcript",
+   "date": "2011-12-22",
+   "author": "Ontario Energy Board",
+   "recipients": [],
+   "description": "Board Panel's ruling from the transcript of the December 22, 2011 procedural hearing",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit \"C\" is the Board Panel's Ruling"
+    }
+   ],
+   "content_check": "2 pages: 'RULING OF BOARD PANEL EXTRACTED FROM TRANSCRIPT OF PRODECURAL HEARING CONVENED DECEMBER 22ND, 2011'"
+  },
+  {
+   "label": "D",
+   "file": "doc-cuwufw.pdf",
+   "kind": "letter",
+   "date": "2012-01-13",
+   "author": "Justin Safayeni (Stockwoods, Compliance Counsel)",
+   "recipients": [
+    "Stephen Selznick"
+   ],
+   "description": "Compliance Counsel's letter proposing to amend the Notice of Intention, with the draft Amended Notice",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"D\" is a copy of"
+    }
+   ],
+   "content_check": "5 pages: Stockwoods letter January 13, 2012 with draft amended notice"
+  },
+  {
+   "label": "E",
+   "file": "doc-vtc53f.pdf",
+   "kind": "letter",
+   "date": "2012-01-16",
+   "author": "Cassels Brock",
+   "recipients": [
+    "Stockwoods LLP"
+   ],
+   "description": "Cassels Brock letter to Compliance Counsel of January 16, 2012",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit \"E\" is a copy of the correspondence of January 16th"
+    }
+   ],
+   "content_check": "1 page: Cassels Brock letter January 16th, 2012 to Justin Safayeni"
+  },
+  {
+   "label": "F",
+   "file": "doc-ayv983.pdf",
+   "kind": "letter",
+   "date": "2012-01-20",
+   "author": "Cassels Brock",
+   "recipients": [
+    "Stockwoods LLP"
+   ],
+   "description": "Cassels Brock letter to Compliance Counsel of January 20, 2012",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit \"F\" is a copy of correspondence of January 20 th, 2012"
+    }
+   ],
+   "content_check": "2 pages: Cassels Brock letter January 20th, 2012"
+  },
+  {
+   "label": "G",
+   "file": "doc-ctntwj.pdf",
+   "kind": "letter",
+   "date": "2012-01-23",
+   "author": "Stockwoods (Compliance Counsel)",
+   "recipients": [
+    "Stephen Selznick"
+   ],
+   "description": "Compliance Counsel's letter of January 23, 2012",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit \"G\" is a copy of the correspondence of January 23 rd"
+    }
+   ],
+   "content_check": "3 pages: Stockwoods letter January 23, 2012"
+  },
+  {
+   "label": "H",
+   "file": "doc-q7j3yt.pdf",
+   "kind": "letter",
+   "date": "2012-01-25",
+   "author": "Cassels Brock",
+   "recipients": [
+    "Ontario Energy Board"
+   ],
+   "description": "Cassels Brock letter to the Board of January 25, 2012",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit \"H\" is a copy of the correspondence of January 25 th"
+    }
+   ],
+   "content_check": "3 pages: Cassels Brock letter January 25th, 2012 to the Board Secretary"
+  },
+  {
+   "label": "I",
+   "file": "doc-xgrv4m.pdf",
+   "kind": "letter",
+   "date": "2012-02-21",
+   "author": "Cassels Brock",
+   "recipients": [
+    "Ontario Energy Board"
+   ],
+   "description": "Cassels Brock letter to the Board of February 21, 2012",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Attached as Exhibit \"I\" is a copy of the correspondence of February 21 st"
+    }
+   ],
+   "content_check": "2 pages: Cassels Brock letter February 21st, 2012"
+  },
+  {
+   "label": "J",
+   "file": "doc-2pkdzw.pdf",
+   "kind": "court_order",
+   "date": "2012-02-24",
+   "author": "Ontario Energy Board",
+   "recipients": [],
+   "description": "Procedural Order No. 2 in EB-2011-0316",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached as Exhibit \"J\" is a copy of Procedural Order No. 2"
+    }
+   ],
+   "content_check": "3 pages: OEB EB-2011-0316 procedural order"
+  },
+  {
+   "label": "K",
+   "file": "doc-ttt3u4.pdf",
+   "kind": "email",
+   "date": "2012-03-07",
+   "author": "Justin Safayeni",
+   "recipients": [
+    "Stephen Selznick"
+   ],
+   "description": "Compliance Counsel's 9:39 am email of March 7, 2012",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached as Exhibit \"K\" is a copy of an E mail of 9:39 am"
+    }
+   ],
+   "content_check": "1 page: email Wednesday, March 07, 2012 9:39 AM 'OEB re Summitt Energy (EB-2011-0316)'"
+  },
+  {
+   "label": "L",
+   "file": "doc-9absbs.pdf",
+   "kind": "email",
+   "date": "2012-03-07",
+   "author": "Stephen Selznick",
+   "recipients": [
+    "Justin Safayeni"
+   ],
+   "description": "Cassels Brock's 11:43 am email of March 7, 2012",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Attached as Exhibit \"L\" is a copy of an E mail of 11:43 am"
+    }
+   ],
+   "content_check": "2 pages: email Wednesday, March 07, 2012 11:43 AM"
+  },
+  {
+   "label": "M",
+   "file": "doc-krccw9.pdf",
+   "kind": "email",
+   "date": "2012-03-07",
+   "author": "Justin Safayeni",
+   "recipients": [
+    "Stephen Selznick"
+   ],
+   "description": "Compliance Counsel's 11:57 am email of March 7, 2012",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit \"M\" is a copy of an E mail of 11:57 am"
+    }
+   ],
+   "content_check": "3 pages: email Wednesday, March 07, 2012 11:57 AM 'I have your position'"
+  },
+  {
+   "label": "N",
+   "file": "doc-qgtvvw.pdf",
+   "kind": "transcript",
+   "date": "2010",
+   "author": "Legislative Assembly of Ontario",
+   "recipients": [],
+   "description": "Grouped Hansard extracts on Bill 235, the Energy Consumer Protection Act, 2010",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit \"N\" are extracts from the Hansard transcript of:"
+    }
+   ],
+   "content_check": "16 pages: 'Legislative Assembly of Ontario Hansard References Energy Consumer Protection Act, 2010 Reference Points'"
+  },
+  {
+   "label": "O",
+   "file": "doc-msyhq6.pdf",
+   "kind": "letter",
+   "date": "2010-08-12",
+   "author": "Elise Herzig (Ontario Energy Association)",
+   "recipients": [
+    "Alex Killoch, Ministry of Energy and Infrastructure"
+   ],
+   "description": "OEA letter enclosing its March 24, 2010 submission on Bill 235",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "attached as Exhibit \"0\" is a true copy of a letter of August 12 th, 2010"
+    }
+   ],
+   "content_check": "9 pages: letter August 12, 2010 to Mr. Alex Killoch with the OEA submission"
+  },
+  {
+   "label": "P",
+   "file": "doc-jf9365.pdf",
+   "kind": "transcript",
+   "date": "2010-03-22",
+   "author": "Legislative Assembly of Ontario",
+   "recipients": [],
+   "description": "Transcript of the Standing Committee on General Government on Bill 235, March 22, 2010",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "attached as Exhibit \"P\" is"
+    }
+   ],
+   "content_check": "68 pages: 'G001 - Mon 22 Mar 2010 ... STANDING COMMITTEE ON GENERAL GOVERNMENT ... ENERGY CONSUMER PROTECTION ACT, 2010'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Board issues its Notice of Intention against Summitt",
+   "date": "2011-08-25",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On August 25th, 2011, the Board issued a Notice of Intention",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Summitt requests a hearing",
+   "date": "2011-09-07",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On September 7 th, 2011, Summitt requested a Hearing in this proceeding by",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Board convenes a procedural hearing on confidentiality, disclosure and timetable",
+   "date": "2011-12-22",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "the Board convened a procedural hearing",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Compliance Counsel proposes to amend the Notice of Intention",
+   "date": "2012-01-13",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "By letter dated January 13th, 2012, Stockwoods LLP",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Cassels Brock writes to Compliance Counsel",
+   "date": "2012-01-16",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "correspondence of January 16th",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Cassels Brock writes again to Compliance Counsel",
+   "date": "2012-01-20",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "correspondence of January 20 th, 2012",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Compliance Counsel writes to Cassels Brock",
+   "date": "2012-01-23",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "correspondence of January 23 rd",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Cassels Brock writes to the Board",
+   "date": "2012-01-25",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "correspondence of January 25 th",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Cassels Brock writes to the Board again",
+   "date": "2012-02-21",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "correspondence of February 21 st",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Board issues Procedural Order No. 2",
+   "date": "2012-02-24",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "issued by the Board February 24 th , 2012",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Counsel exchange three emails on March 7, 2012 (9:39, 11:43 and 11:57 am)",
+   "date": "2012-03-07",
+   "precision": "day",
+   "paragraphs": [
+    12,
+    13,
+    14
+   ],
+   "quote": "Attached as Exhibit \"K\" is a copy of an E mail of 9:39 am",
+   "exhibits": [
+    "K",
+    "L",
+    "M"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Legislature debates Bill 235 (February 17, April 13 and April 22, 2010)",
+   "date": "2010-02-17",
+   "precision": "range",
+   "paragraphs": [
+    15
+   ],
+   "quote": "The February 17th, April 13th and April 22 nd , 2010 Legislative Assembly",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Standing Committee on General Government considers Bill 235",
+   "date": "2010-03-22",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    18
+   ],
+   "quote": "convened on March 22n d, 2010 to",
+   "exhibits": [
+    "N",
+    "P"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "OEA makes its submission to the Standing Committee on Bill 235",
+   "date": "2010-03-24",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "March 24 th, 2010 OEA Submission to the Standing",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "OEA's president writes to the Ministry of Energy and Infrastructure",
+   "date": "2010-08-12",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "a letter of August 12 th, 2010 from Elise",
+   "exhibits": [
+    "O"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Summitt's Notice of Cross-Motion returnable March 20, 2012"
+ ],
+ "leak_waivers": [],
+ "notes": "Whole-page covers carry a 'Filed ... Page n of 24' header and an EXHIBIT tab, with OCR-noisy jurats: --covers by page."
+}

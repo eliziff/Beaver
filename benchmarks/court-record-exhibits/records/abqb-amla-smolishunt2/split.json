@@ -1,0 +1,88 @@
+{
+ "record_id": "abqb-amla-smolishunt2",
+ "affidavit_pages": [
+  1,
+  2,
+  3
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "F",
+   "file": "doc-u9mxmj.pdf",
+   "source_pages": [
+    5
+   ],
+   "cover_page": 4,
+   "stamp_page": null,
+   "text_chars": 3214
+  },
+  {
+   "label": "G",
+   "file": "doc-cruhtg.pdf",
+   "source_pages": [
+    7
+   ],
+   "cover_page": 6,
+   "stamp_page": null,
+   "text_chars": 2127
+  },
+  {
+   "label": "H",
+   "file": "doc-z5qjzu.pdf",
+   "source_pages": [
+    9
+   ],
+   "cover_page": 8,
+   "stamp_page": null,
+   "text_chars": 388
+  },
+  {
+   "label": "I",
+   "file": "doc-5up4sp.pdf",
+   "source_pages": [
+    11
+   ],
+   "cover_page": 10,
+   "stamp_page": null,
+   "text_chars": 1129
+  },
+  {
+   "label": "J",
+   "file": "doc-3x8a53.pdf",
+   "source_pages": [
+    13
+   ],
+   "cover_page": 12,
+   "stamp_page": null,
+   "text_chars": 2262
+  },
+  {
+   "label": "K",
+   "file": "doc-hq4jjf.pdf",
+   "source_pages": [
+    15
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 2117
+  },
+  {
+   "label": "L",
+   "file": "doc-5vjb2n.pdf",
+   "source_pages": [
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ],
+   "cover_page": 16,
+   "stamp_page": null,
+   "text_chars": 23380
+  }
+ ],
+ "leak_audit": []
+}

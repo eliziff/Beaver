@@ -1,0 +1,231 @@
+{
+ "record_id": "onsc-cp-chl-mackenzie",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al. (proposed class action for hazing and abuse of major junior players): CHL's supplementary evidence on the Independent Review Panel report",
+ "document": "Supplementary Affidavit of Dan MacKenzie sworn March 4, 2022",
+ "deponent": "Dan MacKenzie",
+ "deponent_role": "President of the Canadian Hockey League",
+ "sworn_date": "2022-03-04",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hn4yyk.pdf",
+   "kind": "other",
+   "date": "2021-09",
+   "author": "Ontario Hockey League",
+   "recipients": [],
+   "description": "OHL's current Communication Committee Program, adopted September 2021",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit A to this affidavit is a copy"
+    }
+   ],
+   "content_check": "19 pages: 'ONTARIO HOCKEY LEAGUE - #GameON Communication Committee Proposal'"
+  },
+  {
+   "label": "B",
+   "file": "doc-76b5bf.pdf",
+   "kind": "other",
+   "date": "2021-09",
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's updated Player Support Program Presentation",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit B and"
+    }
+   ],
+   "content_check": "7 pages: 'Player Support Program Presentation (PSP) The Player Support Program (PSP) was created to educate players...'"
+  },
+  {
+   "label": "C",
+   "file": "doc-qc7vhw.pdf",
+   "kind": "other",
+   "date": "2021-09",
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL's Policy for the Prevention and Treatment of Harassment and Violence",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Exhibit C to this affidavit are copies of the QMJHL"
+    }
+   ],
+   "content_check": "14 pages: 'QUEBEC MAJOR JUNIOR HOCKEY LEAGUE Policy for the Prevention and the Treatment of Harassment and Violence'"
+  },
+  {
+   "label": "D",
+   "file": "doc-8x7jgd.pdf",
+   "kind": "other",
+   "date": "2021-09",
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's Diversity and Inclusion Policy",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached as Exhibit D, Exhibit"
+    }
+   ],
+   "content_check": "2 pages: 'WHL DIVERSITY AND INCLUSION POLICY The WHL is a diverse and inclusive organization'"
+  },
+  {
+   "label": "E",
+   "file": "doc-7j9h72.pdf",
+   "kind": "other",
+   "date": "2021-09",
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's Player Advisory Council / Independent Complaint Mechanism",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "E, and Exhibit F to this affidavit are copies of the WHL"
+    }
+   ],
+   "content_check": "2 pages: 'WHL Independent Complaint Mechanism 1. Background - WHL Respect in Hockey Program'"
+  },
+  {
+   "label": "F",
+   "file": "doc-n4q6xz.pdf",
+   "kind": "other",
+   "date": "2021-10-27",
+   "author": "Western Hockey League",
+   "recipients": [],
+   "description": "WHL's updated Players First Support Program Presentation",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Players First Support Program Presentation"
+    }
+   ],
+   "content_check": "24 pages: 'Western Hockey League WHL Player First Support Services October 27, 2021'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CHL appoints the Independent Review Panel",
+   "date": "2020-07",
+   "precision": "month",
+   "paragraphs": [
+    2
+   ],
+   "quote": "In July 2020, after the commencement of this action, the CHL appointed an Independent",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "IRP Report dated",
+   "date": "2020-10-31",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "The IRP provided its report, dated October 31, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "IRP Report provided to the CHL",
+   "date": "2020-12",
+   "precision": "month",
+   "paragraphs": [
+    3
+   ],
+   "quote": "to the CHL in December 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Member Leagues adopt new policies and programs",
+   "date": "2021-09",
+   "precision": "month",
+   "paragraphs": [
+    13,
+    14,
+    15,
+    16
+   ],
+   "quote": "adopted by the OHL in September 2021",
+   "exhibits": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "WHL adopts updated Players First Support Program Presentation",
+   "date": "2021-10",
+   "precision": "month",
+   "paragraphs": [
+    16
+   ],
+   "quote": "adopted by the WHL in October 2021",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "CHL engages Rachel Turnpenney to review the IRP findings",
+   "date": "2021-11",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The CHL engaged her in November 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "CHL formally signs Turnpenney's engagement letter",
+   "date": "2021-12",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Though Turnpenny says she was retained in December 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Turnpenney Report provided to the CHL",
+   "date": "2022-01-14",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "which was provided to the CHL on January 14, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "MacDonald affidavit with Update on Player Wellbeing",
+   "date": "2022-01-27",
+   "precision": "day",
+   "paragraphs": [
+    3,
+    10
+   ],
+   "quote": "affidavit of Catherine MacDonald, sworn January 27, 2022",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "IRP Report dated October 31, 2020",
+  "Turnpenney Report of January 14, 2022",
+  "Affidavit of Catherine MacDonald sworn January 27, 2022 (Update on Player Wellbeing)",
+  "Affidavits of David Branch, Gilles Courteau and Ron Robison"
+ ]
+}

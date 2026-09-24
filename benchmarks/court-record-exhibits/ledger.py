@@ -11,7 +11,7 @@ rejected-sources.jsonl, one JSON object per line:
 and are merged in. The summary counts records by court, jurisdiction, level,
 subject and site, so the gaps in breadth are visible.
 """
-import collections, json, os, re, sys
+import collections, glob, json, os, re, sys
 from urllib.parse import urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,11 +38,12 @@ def rows():
         for m in json.load(open(md, encoding="utf-8")) if os.path.exists(md) else []:
             out.append({**base, "use": "matter_doc", "url": m.get("url", ""), "site": site(m.get("url", "")), "title": m.get("title", "")[:200],
                         "kind": m.get("kind", ""), "relation": m.get("relation", "")})
-    rej = os.path.join(HERE, "rejected-sources.jsonl")
-    for line in open(rej, encoding="utf-8") if os.path.exists(rej) else []:
-        if line.strip():
-            r = json.loads(line)
-            out.append({"use": "rejected", "site": site(r.get("url", "")), **r})
+    # rejected-sources.jsonl plus one rejected-lane-X.jsonl per concurrent harvesting lane
+    for rej in sorted(glob.glob(os.path.join(HERE, "rejected-*.jsonl"))):
+        for line in open(rej, encoding="utf-8"):
+            if line.strip():
+                r = json.loads(line)
+                out.append({"use": "rejected", "site": site(r.get("url", "")), **r})
     return out
 
 

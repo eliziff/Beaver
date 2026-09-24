@@ -1,0 +1,189 @@
+{
+ "record_id": "cer-northriver-richardson",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OF-Fac-Oil-N747-2020-01 02 (OH-001-2022)",
+ "subject": "regulatory",
+ "family": "cer-northriver-nebc",
+ "proceeding": "NorthRiver Midstream NEBC Connector GP Inc. (Certificate OC-067): Notice of Motion and Constitutional Question before the CER Commission; proof of service on the Attorneys General",
+ "document": "Affidavit #1 of Rachel Richardson sworn August 21, 2024 (REGDOCS C31144-2)",
+ "deponent": "Rachel Richardson",
+ "deponent_role": "Legal assistant, Fasken Martineau DuMoulin LLP (counsel to NorthRiver)",
+ "sworn_date": "2024-08-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-kunkwm.pdf",
+   "kind": "letter",
+   "date": "2024-08-12",
+   "author": "Rob Lonergan (Fasken)",
+   "recipients": [
+    "federal, provincial and territorial Attorneys General"
+   ],
+   "description": "Service letters sent by courier to the Attorneys General",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit “A” are copies of the service"
+    }
+   ],
+   "content_check": "26 pages: Fasken letters dated August 12, 2024 'Via Courier and Canada Post Attorney General of Alberta ...'"
+  },
+  {
+   "label": "B",
+   "file": "doc-3wm55n.pdf",
+   "kind": "other",
+   "date": "2024-08-20",
+   "author": "FedEx",
+   "recipients": [
+    "Fasken"
+   ],
+   "description": "Courier proofs of delivery",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit “B” are copies of the proof of"
+    }
+   ],
+   "content_check": "13 pages: FedEx proof-of-delivery letters dated August 20, 2024 (e.g. delivered Edmonton Aug 14, 2024)"
+  },
+  {
+   "label": "C",
+   "file": "doc-uzurgz.pdf",
+   "kind": "letter",
+   "date": "2024-08-15",
+   "author": "Rob Lonergan (Fasken)",
+   "recipients": [
+    "Attorneys General of Newfoundland and Labrador, Northwest Territories, Canada and Yukon"
+   ],
+   "description": "Service letters sent to Attorneys General by email",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit “C” are copies of the service letters sent to the"
+    }
+   ],
+   "content_check": "8 pages: Fasken letters dated August 15, 2024 'Via Email Attorney General of Newfoundland and Labrador'"
+  },
+  {
+   "label": "D",
+   "file": "doc-x2junv.pdf",
+   "kind": "affidavit",
+   "date": "2024-08-20",
+   "author": "Bradley M. Sturgeon",
+   "recipients": [],
+   "description": "Affidavit of service of Bradley Sturgeon (without exhibits) confirming service on the Attorney General of British Columbia",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached and marked as Exhibit “D” is a copy of the affidavit of Bradley Sturgeon, without"
+    }
+   ],
+   "content_check": "1 page: 'AFFIDAVIT OF SERVICE I, BRADLEY M STURGEON, Process Server of ... Victoria'"
+  },
+  {
+   "label": "E",
+   "file": "doc-haf6x6.pdf",
+   "kind": "email_chain",
+   "date": "2024-08",
+   "author": "Attorneys General's offices",
+   "recipients": [
+    "Rob Lonergan (Fasken)"
+   ],
+   "description": "Acknowledgements of service from the Attorneys General of AB, BC, MB, NB, NL, NS, ON, SK and Yukon",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached at Exhibit “E” are copies of acknowledgement of service received from the AGs"
+    }
+   ],
+   "content_check": "22 pages: emails, e.g. August 15, 2024 'On behalf of the Attorney ...' acknowledging service"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "NorthRiver files its Notice of Motion and Constitutional Question and supporting affidavits on the CER registry",
+   "date": "2024-07-24",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On July 24, 2024, NorthRiver Midstream Inc. filed a Notice of Motion and Constitutional",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Richardson serves the Notice on the Attorneys General (except BC) by courier",
+   "date": "2024-08-13",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On August 13, 2024, I served the Notice and supporting affidavits on the federal,",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Notice served by email on the Attorneys General of NL, NWT, Canada and Yukon",
+   "date": "2024-08-15",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On August 15,2024 and August 21,2024,1 also served the Notice and supporting affidavits",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Further email service on the same Attorneys General",
+   "date": "2024-08-21",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On August 15,2024 and August 21,2024,1 also served",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Bradley Sturgeon swears his affidavit of service on the Attorney General of British Columbia",
+   "date": "2024-08-20",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "sworn August 20, 2024",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Attorneys General of nine jurisdictions acknowledge service",
+   "date": "2024-08",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "copies of acknowledgement of service received from the AGs",
+   "exhibits": [
+    "E"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "NorthRiver Notice of Motion and Constitutional Question and supporting affidavits",
+  "Exhibits to the Sturgeon affidavit"
+ ],
+ "leak_waivers": [],
+ "notes": "Service affidavit. REGDOCS posts the same affidavit a second time as C31088-2 (4479624); only this copy is used."
+}

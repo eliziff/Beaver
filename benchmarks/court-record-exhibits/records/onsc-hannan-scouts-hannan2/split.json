@@ -1,0 +1,84 @@
+{
+ "record_id": "onsc-hannan-scouts-hannan2",
+ "affidavit_pages": [
+  208,
+  209,
+  210,
+  211,
+  212,
+  213,
+  214,
+  215
+ ],
+ "divider_pages": [
+  234
+ ],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-2cy68k.pdf",
+   "source_pages": [
+    217,
+    218,
+    219,
+    220,
+    221,
+    222
+   ],
+   "cover_page": 216,
+   "stamp_page": null,
+   "text_chars": 14226
+  },
+  {
+   "label": "B",
+   "file": "doc-m8d36b.pdf",
+   "source_pages": [
+    224
+   ],
+   "cover_page": 223,
+   "stamp_page": null,
+   "text_chars": 1346
+  },
+  {
+   "label": "C",
+   "file": "doc-8f45cy.pdf",
+   "source_pages": [
+    226,
+    227
+   ],
+   "cover_page": 225,
+   "stamp_page": null,
+   "text_chars": 2968
+  },
+  {
+   "label": "D",
+   "file": "doc-4j4ua2.pdf",
+   "source_pages": [
+    229
+   ],
+   "cover_page": 228,
+   "stamp_page": null,
+   "text_chars": 855
+  },
+  {
+   "label": "E",
+   "file": "doc-9rtn2h.pdf",
+   "source_pages": [
+    231,
+    232,
+    233,
+    235,
+    236
+   ],
+   "cover_page": 230,
+   "stamp_page": null,
+   "text_chars": 5609
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-2cy68k.pdf",
+  "doc-8f45cy.pdf"
+ ]
+}

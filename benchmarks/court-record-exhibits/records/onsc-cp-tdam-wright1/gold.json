@@ -1,0 +1,415 @@
+{
+ "record_id": "onsc-cp-tdam-wright1",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-595380-00CP",
+ "subject": "securities",
+ "family": "tdam-westwood",
+ "proceeding": "Westwood v. TD Asset Management Inc. (class proceeding over trailing commissions paid to discount brokers on TD Mutual Funds): motion to amend the class definition and approve First Notice, supplemental opt-outs and objections",
+ "document": "Affidavit of Charles M. Wright affirmed September 16, 2024",
+ "deponent": "Charles M. Wright",
+ "deponent_role": "Partner, Siskinds LLP, class counsel",
+ "sworn_date": "2024-09-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-5rfgsj.pdf",
+   "kind": "court_filing",
+   "date": "2021-02-17",
+   "author": "Plaintiff",
+   "recipients": [],
+   "description": "Third Fresh as Amended Statement of Claim filed February 17, 2021",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "43 pages: statement of claim, Westwood v TD Asset Management ('CLAIM CURRENCY AND DEFINITIONS'); first pages image-only"
+  },
+  {
+   "label": "B",
+   "file": "doc-x83gca.pdf",
+   "kind": "court_order",
+   "date": "2020-02-27",
+   "author": "Justice Edward P. Belobaba",
+   "recipients": [],
+   "description": "Certification Order dated February 27, 2020",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: Order of Justice Belobaba, Thursday the 27th day of February, 2020, Gary Stenzler v TD Asset Management Inc."
+  },
+  {
+   "label": "C",
+   "file": "doc-jxxajt.pdf",
+   "kind": "court_order",
+   "date": "2021-12-14",
+   "author": "Justice Edward P. Belobaba",
+   "recipients": [],
+   "description": "Order dated December 14, 2021 on notice of certification and the opt-out process",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "11 pages: Order of Justice Belobaba, Tuesday the 14th day of December 2021, Peter Westwood v TD Asset Management Inc."
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Action initiated by Statement of Claim",
+   "date": "2018-04-06",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On April 6, 2018, this Action was initiated by Statement of Claim",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Mr. Stenzler delivers notice of motion for certification",
+   "date": "2018-09-06",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On September 6, 2018, the original Plaintiff, Gary Stenzler, delivered his notice of motion",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Court approves the litigation Funding Agreement",
+   "date": "2019-06-20",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The Court approved the Funding Agreement by Order dated June 20, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Plaintiff delivers reply materials including the Pascutto affidavit",
+   "date": "2019-07-26",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On July 26, 2019, the Plaintiff delivered further materials in reply",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Funder posts C$75,000 security",
+   "date": "2019-07",
+   "precision": "month",
+   "paragraphs": [
+    22
+   ],
+   "quote": "C$75,000 in July 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Certification motion heard",
+   "date": "2020-01-10",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "The certification motion was heard on January 10, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Action certified by Justice Belobaba",
+   "date": "2020-02-27",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "By Order dated February 27, 2020, the Honourable Justice Belobaba certified the action",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Defendant moves for leave to appeal certification",
+   "date": "2020-03-13",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On March 13, 2020, the Defendant delivered a notice of motion for leave to appeal",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Frayce Action filed against discount brokers",
+   "date": "2020-03-27",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "On March 27, 2020, a related proposed class action was filed",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Divisional Court dismisses motion for leave to appeal",
+   "date": "2020-10-02",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On October 2, 2020, the Divisional Court dismissed the Defendant",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Funder posts additional C$325,000 security",
+   "date": "2020-10",
+   "precision": "month",
+   "paragraphs": [
+    22
+   ],
+   "quote": "an additional C$325,000 in October 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Parties begin negotiating a Discovery Plan",
+   "date": "2020",
+   "precision": "approximate",
+   "paragraphs": [
+    23
+   ],
+   "quote": "In the fall of 2020, the parties commenced the negotiation of a Discovery Plan",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Westwood substituted as representative plaintiff",
+   "date": "2021-02-05",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On February 5, 2021, by Order of Justice Belobaba, Peter Westwood was added",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Third Fresh as Amended Statement of Claim filed",
+   "date": "2021-02-17",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "Third Fresh as Amended Statement of Claim filed",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Order on notice of certification and opt-out process",
+   "date": "2021-12-14",
+   "precision": "day",
+   "paragraphs": [
+    20,
+    54
+   ],
+   "quote": "In accordance with an Order of Justice Belobaba dated December 14, 2021",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Defendant produces trailing commission data in tranches",
+   "date": "2022-01",
+   "precision": "range",
+   "paragraphs": [
+    33
+   ],
+   "quote": "We received trailing commission data from the Defendant in",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Opt-out period expires",
+   "date": "2022-04-08",
+   "precision": "day",
+   "paragraphs": [
+    20,
+    54
+   ],
+   "quote": "expired as of April 8, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "First mediation, unsuccessful",
+   "date": "2022-11-07",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "The Plaintiff and TDAM held the first mediation on November 7, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Aggarwal Action filed",
+   "date": "2022-12-07",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "The Aggarwal Action was filed on December 7, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Certification denied in the Frayce Action",
+   "date": "2023-01-20",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On January 20, 2023, Justice Belobaba dismissed the plaintiffs",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Mediation sessions with Mr. Wiesenfeld",
+   "date": "2023-05-03",
+   "precision": "range",
+   "paragraphs": [
+    38
+   ],
+   "quote": "May 3, 2023, May 30, 2023, and September 14, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Discovery plan finalized",
+   "date": "2023-05-18",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "A discovery",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Justice Akbarali stays the Aggarwal Action",
+   "date": "2023-08-01",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "By Order dated August 1, 2023, Justice Akbarali granted the temporary stay",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Defendant produces 567 documents",
+   "date": "2024-01-08",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "567 documents were produced by the Defendant on",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Divisional Court dismisses the Frayce appeal",
+   "date": "2024-01-24",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On January 24, 2024, the Divisional Court dismissed the plaintiffs",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "Justice Akbarali sets a revised discovery schedule",
+   "date": "2024-05-23",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Pursuant to the endorsement of Justice Akbarali dated May 23, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Defendant produces a further 2,161 documents",
+   "date": "2024-07-01",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "a further 2,161 documents were produced by the",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Settlement Agreement for C$70,250,000",
+   "date": "2024-09-11",
+   "precision": "day",
+   "paragraphs": [
+    4,
+    42
+   ],
+   "quote": "Defendant dated September 11, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Objection deadline",
+   "date": "2024-11-18",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "which is November 18, 2024 based on the scheduled",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Settlement approval hearing scheduled",
+   "date": "2024-12-09",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "hearing date for the settlement approval motion of December 9, 2024",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Settlement Agreement dated September 11, 2024 (Schedule 1 to the First Order)",
+  "First Notice and Plan of Notice (Exhibits 2-5 to the First Order)",
+  "Affidavits of Gary Stenzler, Huck Oon and Ermanno Pascutto on certification",
+  "Funding Agreement",
+  "Endorsement of Justice Akbarali dated May 23, 2024",
+  "Order of August 1, 2023 staying the Aggarwal Action"
+ ]
+}
