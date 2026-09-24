@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Paragraph, TextRun } from "docx";
+import { DeletedTextRun, InsertedTextRun, Paragraph, TextRun } from "docx";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { resolveSofficeBinary } from "../convert";
 import { runWordPython, wordPython } from "../wordPython";
@@ -24,6 +24,7 @@ const paragraphs = (xml: string) => [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/gu
 /** Independent oracle: drop insertions, keep deletions, drop inserted paragraph marks. */
 const rejected = (xml: string) => paragraphs(xml.replace(/<w:ins w:id[^>]*>[\s\S]*?<\/w:ins>/gu, "")
   .replace(/<w:p>(?:(?!<\/w:p>)[\s\S])*?<w:rPr><w:ins [^>]*\/>(?:(?!<\/w:p>)[\s\S])*?<\/w:p>/gu, "")).filter(Boolean);
+const accepted = (xml: string) => paragraphs(xml.replace(/<w:del w:id[^>]*[^/]>[\s\S]*?<\/w:del>/gu, "")).filter(Boolean);
 
 describe.skipIf(!available())("word_python", () => {
   let home: string;
@@ -138,6 +139,20 @@ describe.skipIf(!available())("word_python", () => {
     expect(rejected(xml)).toEqual(clauses);
     const applied = await call("word_python", { action: "apply", file_path: preview.artifact });
     expect(applied).toMatchObject({ mode: "tracked", review_verified: true });
+    // A follow-up edit inside a pending insertion just changes it; one beside earlier revisions adds only its own.
+    const followUp = await call("word_python", { action: "preview", file_path: applied.resource, program: [
+      "replace_text(find('payable in CAD')[0], 'CAD', 'CAD or USD')",
+      "replace_text(find('45 days')[0], 'within', 'no later than')"].join("\n") });
+    expect(followUp).toMatchObject({ review_verified: true, new_revisions: { del: 1, ins: 1 } });
+    const revised = await docxXml(await read(followUp.resource.split("/")[2]));
+    expect(revised).not.toMatch(/<w:ins [^>]*[^/]>(?:(?!<\/w:ins>).)*<w:(?:ins|del) /u);
+    expect(rejected(revised)).toEqual(clauses);
+    expect(revised).toMatch(/CAD or USD/u); expect(revised).toMatch(/no later than/u);
+    // Deleting that pending paragraph withdraws it rather than recording a deletion of it.
+    const withdrawn = await call("word_python", { action: "preview", file_path: followUp.artifact, program: "delete(find('payable in')[0])" });
+    expect(withdrawn.review_verified).toBe(true); expect(withdrawn.new_revisions).toBeUndefined();
+    const remaining = await docxXml(await read(withdrawn.resource.split("/")[2]));
+    expect(remaining).not.toMatch(/payable in/u); expect(rejected(remaining)).toEqual(clauses);
     // A style-definition edit is untrackable, and bypassing the recorder is caught by the separate verifier.
     const style = await raw("word_python", { action: "preview", file_path: applied.resource,
       program: "next(s for s in doc.styles if s.type == WD_STYLE_TYPE.PARAGRAPH).font.size = Pt(15)" });
@@ -146,6 +161,25 @@ describe.skipIf(!available())("word_python", () => {
       program: "import sys\nsys.modules['tracking'].Recorder.record = lambda self: []\nfind('Alberta')[0].text = 'Governed by Ontario law.'" });
     expect(bypass.status).toBe("error"); expect(bypass.content).toMatch(/not a tracked revision/u);
   }, 240_000);
+
+  it("keeps another author's pending revisions attributed when a Review-mode edit touches them", async () => {
+    const john = { author: "John", date: "2026-01-01T00:00:00Z" };
+    const source = await docxBytes([
+      new Paragraph({ children: [new TextRun("Notices "), new InsertedTextRun({ text: "may be sent by courier or ", id: 1, ...john }),
+        new TextRun("must be in writing.")] }),
+      new Paragraph({ children: [new TextRun("Pay within "), new DeletedTextRun({ text: "30", id: 2, ...john }),
+        new InsertedTextRun({ text: "45", id: 3, ...john }), new TextRun(" days.")] })]);
+    const { report, candidate } = await runWordPython(source, { action: "preview", mode: "tracked", program: [
+      "replace_text(find('by courier')[0], 'courier', 'registered mail')",
+      "replace_text(find('Pay within')[0], 'within', 'no later than')"].join("\n") }, signal);
+    expect(report.review_verified).toBe(true);
+    const xml = await docxXml(candidate!);
+    // Deleting John's inserted word nests Beaver's deletion inside John's insertion; the new words are Beaver's.
+    expect(xml).toMatch(/<w:ins [^>]*w:author="John"[^>]*>(?:(?!<\/w:ins>).)*<w:del [^>]*w:author="Beaver"[^>]*>(?:(?!<\/w:del>).)*courier/u);
+    expect(xml).toMatch(/<w:ins [^>]*w:author="Beaver"[^>]*><w:r>(?:(?!<\/w:r>).)*registered mail/u);
+    expect(rejected(xml)).toEqual(rejected(await docxXml(source)));
+    expect(accepted(xml)).toEqual(["Notices may be sent by registered mail or must be in writing.", "Pay no later than 45 days."]);
+  }, 120_000);
 
   it("refuses network, processes and files outside the program's directory", async () => {
     const bytes = await docxBytes([new Paragraph("Clause.")]);
