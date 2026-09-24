@@ -88,4 +88,18 @@ describe("tracked DOCX run emission", () => {
     const rejected = await resolveTrackedChange(edited.bytes, ids, "reject");
     await expect(extractDocxBodyText(rejected.bytes)).resolves.toBe(original);
   });
+
+  it("refuses to rewrite across another pending revision instead of silently accepting it", async () => {
+    const bytes = await packageWith('<w:r><w:t>ab</w:t></w:r><w:ins w:id="90" w:author="John"><w:r><w:t>cd</w:t></w:r></w:ins>' +
+      '<w:del w:id="91" w:author="John"><w:r><w:delText>x</w:delText></w:r></w:del><w:r><w:t>ef</w:t></w:r>');
+    for (const [find, replace] of [["cd", "CD"], ["cd", ""], ["bcde", "BcdE"]]) {
+      const edited = await applyTrackedEdits(bytes, [{ find, replace }]);
+      expect(edited.changes, `${find} -> ${replace}`).toEqual([]);
+      expect(edited.errors[0].reason).toMatch(/pending tracked changes/u);
+    }
+    const beside = await applyTrackedEdits(bytes, [{ find: "ab", replace: "AB" }]);
+    await expect(extractDocxBodyText(beside.bytes)).resolves.toBe("ABcdef");
+    expect((await (await openDocxSession(beside.bytes)).revisions()).changes)
+      .toEqual(expect.arrayContaining([{ kind: "ins", w_id: "90" }, { kind: "del", w_id: "91" }]));
+  });
 });
