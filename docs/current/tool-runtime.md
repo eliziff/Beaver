@@ -527,3 +527,37 @@ recorded provider contracts run first; live calls require separate approval.
 - No semantic tool router, opaque mega-dispatch tool, or provider-specific
   canonical schema.
 - No legal-ingestion or corpus-structure refactor in this work.
+
+## Reader handoffs and resumable research
+
+Readers return whole findings plus only their cited exact passages. Shared evidence
+IDs are rendered once across a reader round. Larger findings pages have a `Read`
+continuation (`file_path: "readers"`, `section: reader_id`); oversized supporting
+passages remain available through their existing evidence IDs. Original receipts
+and all observed reads remain durable, independently of what was shown to the
+parent. Model-facing read results omit integrity digests and audit-only fields;
+source text, actionable version IDs, scopes and continuation cursors are preserved.
+Oversized JSON is never middle-sliced and labelled successful.
+
+Search/read history uses the existing query receipts. It is not a prompt diary:
+`Read(file_path: "queries", pattern?, section?, offset?, limit?)` filters the saved
+log by query text and reader ID or source resource; `Read(file_path: query_id)`
+inspects one receipt. Zero-hit source scans retain their source revision, searched
+range, literal-match count, headnote count and truncation status. A repeated,
+completed zero-match literal scan is reused only against the same source revisions
+and range. An unavailable provider is not cached as zero hits. These receipts stay
+associated with their sources when chat research is saved/copied, and table rows
+can inspect their own source's history without preloading query terms.
+
+For exhaustive work over a selected research set, use the existing workspace query
+operation and its `coverage.next_after` continuation. It owns the bounded worklist
+and source-version checks; this change adds no scheduler or second persistence
+store. Corpus `search_sources` remains bounded candidate discovery, not exhaustive
+enumeration. Completing a literal search does not prove semantic absence, and an
+unread or failed source is not a negative finding.
+
+The patterns are conventional: [Anthropic's scoped research agents and artifact
+handoffs](https://www.anthropic.com/engineering/multi-agent-research-system),
+[LangChain's on-demand context offloading](https://www.langchain.com/blog/context-management-for-deepagents),
+and [Scrapy's resumable worklist and duplicate filtering](https://docs.scrapy.org/en/latest/topics/jobs.html).
+These are design precedents, not new runtime dependencies.

@@ -445,7 +445,7 @@ export function createTabularApplication(
     const prior = workspace && fileId ? await (async () => {
       const [saved, queries] = await Promise.all([
         workspace.items(scope, fileId, { kind: "passages", sourceId: item.sourceId, offset: 0, limit: 40 }),
-        workspace.items(scope, fileId, { kind: "queries", offset: 0, limit: 50 })]);
+        workspace.items(scope, fileId, { kind: "queries", sourceId: item.sourceId, offset: 0, limit: 10_000 })]);
       const scoped = item.evidence && new Set(item.evidence.map(({ evidence_id }) => evidence_id));
       return { passages: saved.items.flatMap((entry) => entry.kind === "passage" &&
           (!scoped || scoped.has(entry.value.receipt.evidence_id)) ? [entry.value] : []),

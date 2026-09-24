@@ -150,6 +150,12 @@ export type LegalEvidenceReceipt = {
   resolver_version: "a2aj-inline-v1" | `${Exclude<DirectSourceProvider, "a2aj">}-span-v1` |
     "citator-analysis-v1" | "citator-noteup-v1" | "public-journal-v1" | "library-read-v1";
 };
+export const researchScanSchema = z.object({
+  sources: z.array(z.object({ resource: z.string().min(1).max(4_000),
+    source_sha256: z.string().regex(/^(?:sha256:)?[a-f0-9]{64}$/u) }).strict()).min(1).max(100),
+  total_matches: z.number().int().nonnegative(), headnote_matches: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+}).strict();
 export type LegalResearchQueryReceipt = {
   query_id: string;
   call_id: string;
@@ -157,6 +163,9 @@ export type LegalResearchQueryReceipt = {
   executed_at: string;
   model: string;
   executor_version: "legal-source-search-v1" | "legal-source-pattern-v1";
+  reader_id?: string;
+  unavailable?: string[];
+  scan?: z.infer<typeof researchScanSchema>;
   input: Record<string, unknown>;
   results: Array<
     | { rank: number; resource: string }

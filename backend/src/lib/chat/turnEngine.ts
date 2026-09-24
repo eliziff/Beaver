@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readerHandoff } from "./readerHandoff";
 import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "./assistantWire";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderTurnControl,
@@ -26,7 +27,6 @@ import {
   legalEvidenceReceiptEvent,
   legalEvidenceCitationEntries,
   legalEvidenceRequested,
-  modelEvidencePassage,
   registerLegalEvidence,
   registerLegalResearchQueries,
   registerPriorLegalEvidence,
@@ -71,6 +71,7 @@ export type ChatToolContext = {
   evidence: LegalEvidenceTurnState;
   research?: ResearchReadContext;
   operation: ResearchOperationContext;
+  queryHistory?: () => Iterable<LegalResearchQueryReceipt>;
   addEvent: (event: AssistantEvent) => void;
   updateActivity?(id: string, label: string): void;
   onActivity?: () => void;
@@ -112,6 +113,7 @@ export async function runChatTurn(options: {
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   priorEvidence?: PriorLegalEvidence[];
   priorQueries?: LegalResearchQueryReceipt[];
+  queryHistory?: () => Iterable<LegalResearchQueryReceipt>;
   evidenceState?: LegalEvidenceTurnState;
   /** Structuring calls restate already-verified material as JSON; they are not answers to ground. */
   grounded?: false;
@@ -169,6 +171,8 @@ export async function runChatTurn(options: {
   };
   const context: ChatToolContext = {
     evidence,
+    queryHistory: () => new Map([...(options.queryHistory?.() ?? []), ...evidence.queries.values()]
+      .map(query => [query.query_id, query])).values(),
     research: options.researchContext,
     operation: { ...options.operation, executor: "assistant", model: options.model },
     addEvent,
@@ -268,7 +272,7 @@ export async function runChatTurn(options: {
     const childEvidence = createLegalEvidenceTurnState("citation_structure");
     const inheritReads = (grounding: LegalEvidenceReceiptEvent) => {
       for (const receipt of grounding.evidence) registerLegalEvidence(evidence, receipt,
-        childEvidence.evidence.get(receipt.evidence_id));
+        childEvidence.evidence.get(receipt.evidence_id), false);
       for (const query of grounding.queries) registerLegalResearchQueries(evidence, [query], query.model);
     };
     // Native continuations belong to their original model; evidence is portable.
@@ -300,7 +304,7 @@ export async function runChatTurn(options: {
       context.onActivity?.();
       emit(publicAssistantEvent(visible));
       options.onSubagentEvent?.(event);
-      if (event.status !== "running") addEvent(event);
+      if (event.status !== "running") { evidence.readerResults.set(event.id, event); addEvent(event); }
     };
     const running = (activity?: ToolActivity) => {
       if (!activity || activity.status !== "running") resumeState = checkpoint();
@@ -335,6 +339,7 @@ export async function runChatTurn(options: {
         evidenceState: childEvidence,
         priorEvidence,
         priorQueries: resume?.queries,
+        queryHistory: context.queryHistory,
         researchContext: research,
         operation: { ...context.operation, subagentId: id },
         onResearchObserved(grounding, operation) {
@@ -379,8 +384,7 @@ export async function runChatTurn(options: {
       return {
         tool_use_id: call.id,
         status: "ok",
-        content: JSON.stringify({ ok: true, findings: grounding.claims,
-          evidence: grounding.evidence.map(modelEvidencePassage) }),
+        content: JSON.stringify(readerHandoff(evidence.readerResults.get(id)!, evidence, 0, 64, 14_000)),
       };
     } catch (error) {
       const observed = legalEvidenceReceiptEvent({ ...childEvidence, answer: null, attempted: false, failure: null });
@@ -443,6 +447,8 @@ export async function runChatTurn(options: {
         registerLegalEvidence(evidence, receipt, outcome.evidenceSources?.get(receipt.evidence_id));
         return receipt.span_text ? [evidence.evidence.get(receipt.evidence_id)!] : [];
       }) ?? [];
+      if (context.operation.subagentId) for (const query of outcome.queryReceipts ?? [])
+        query.reader_id ??= context.operation.subagentId;
       registerLegalResearchQueries(evidence, outcome.queryReceipts ?? [], options.model);
       const receipt = options.onResearchObserved && researchReadReceipt(outcome, options.model);
       if (receipt) void observe(receipt, { ...context.operation, callId: call.id });

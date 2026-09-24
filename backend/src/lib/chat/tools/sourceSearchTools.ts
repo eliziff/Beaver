@@ -13,7 +13,7 @@ export const SEARCH_SOURCES_TOOL: Tool & BeaverToolPolicy = {
   reader: ["CA", "US"],
   annotations: { readOnlyHint: true },
   description:
-    "Discover legal authorities in installed corpora: one hit per source with a snippet, never a passage. Search once per question, then Read the plausible hits; to locate a passage inside a source you already hold, Read it with pattern rather than searching again. A source the results omit is not installed. Snippets identify candidates; use retrieved passages for conclusions.",
+    "Discover candidates in installed corpora: bounded results with snippets, not exhaustive coverage. For exhaustive work, partition the scope and track searches; an omitted source or zero returned results is not proof of absence. Inspect prior queries on demand when resuming. Read known sources with pattern to locate passages rather than rediscovering them. Use exact passages for conclusions.",
   inputSchema: objectSchema({
     query: {
       type: "string",
@@ -199,7 +199,7 @@ export async function searchSources(
     results,
     ...(unavailable.length ? { unavailable } : {}),
   };
-  searchCache.set(cacheKey, { expires: Date.now() + SEARCH_CACHE_MS, value });
+  if (!unavailable.length) searchCache.set(cacheKey, { expires: Date.now() + SEARCH_CACHE_MS, value });
   if (searchCache.size > MAX_SEARCH_CACHE) {
     searchCache.delete(searchCache.keys().next().value!);
   }

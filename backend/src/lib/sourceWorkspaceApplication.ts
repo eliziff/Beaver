@@ -127,7 +127,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     sourceId?: string; offset: number; limit: number }) {
     const { file, contentRevision } = await revision(scope, id, input);
     const page = await pageResearchItems(documents, scope, file, input.kind, input.offset, input.limit,
-      input.sourceId && (input.kind === "passages" || input.kind === "evidence") ? [input.sourceId] : undefined);
+      input.sourceId && input.kind !== "history" ? [input.sourceId] : undefined);
     if (input.kind !== "history") return { ...page, contentRevision };
     return { ...page, contentRevision, items: await Promise.all(page.items.map(async (item) => {
       if (item.kind !== "change" || !item.value.organization) return item;

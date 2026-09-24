@@ -359,7 +359,8 @@ describe("TabularApplication", () => {
         }) });
     await app.runAgent(scope, { reviewId: "review", documentId: "document" });
 
-    expect(prompt).toContain("Saved passages and previous reads for this source");
+    expect(prompt).toContain('Read(file_path="queries"');
+    expect(prompt).not.toContain('"query_id"');
     expect(prompt).toContain(saved.evidence_id);
     expect(cells[0]).toMatchObject({ status: "done", content: { summary: "Monthly",
       evidence: [{ evidence_id: saved.evidence_id }] } });

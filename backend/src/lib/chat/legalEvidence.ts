@@ -14,11 +14,12 @@ import { normalizeWhitespace } from "../text";
 import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
-import type { LegalEvidenceReceiptEvent } from "./assistantEvents";
+import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
 import { groundedSentenceCount, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
 import { objectSchema } from "./toolRegistry";
 
+import { researchScanSchema } from "../researchContract";
 import type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
   LegalResearchQueryReceipt } from "../researchContract";
 export type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
@@ -86,6 +87,7 @@ export type LegalEvidenceTurnState = {
   priorQueryIds: Set<string>;
   documentEvidenceIds: Set<string>;
   queries: Map<string, LegalResearchQueryReceipt>;
+  readerResults: Map<string, ReadSubagentEvent>;
   reviewDocumentIds?: Set<string>;
   /** Citation text the work product bound to this chat carries, as its own tool returned it. */
   reportedCitations?: Set<string>;
@@ -108,6 +110,7 @@ export function createLegalEvidenceTurnState(
     priorQueryIds: new Set(),
     documentEvidenceIds: new Set(),
     queries: new Map(),
+    readerResults: new Map(),
     answer: null,
     attempted: false,
     failure: null,
@@ -469,13 +472,14 @@ export function registerLegalEvidence(
   state: LegalEvidenceTurnState,
   receipt: LegalEvidenceReceipt | undefined,
   source: Omit<RegisteredEvidence, "receipt"> = {},
+  presented = true,
 ) {
   if (!receipt) return;
   const previous = state.evidence.get(receipt.evidence_id);
   state.evidence.set(receipt.evidence_id, {
     ...(previous?.receipt.source_sha256 === receipt.source_sha256 ? previous : {}), receipt, ...source,
   });
-  state.presentedEvidenceIds.add(receipt.evidence_id);
+  if (presented) state.presentedEvidenceIds.add(receipt.evidence_id);
 }
 
 export function registerDocumentLegalEvidence(
@@ -515,7 +519,11 @@ export function storedLegalResearchQueryReceipt(value: unknown): LegalResearchQu
       typeof row.model !== "string" || !row.model ||
       (row.executor_version !== "legal-source-search-v1" &&
         row.executor_version !== "legal-source-pattern-v1") ||
-      !object(row.input) || !Array.isArray(row.results) || row.results.length > 100) return null;
+      !object(row.input) || !Array.isArray(row.results) || row.results.length > 100 ||
+      row.reader_id !== undefined && (typeof row.reader_id !== "string" || row.reader_id.length > 200) ||
+      row.scan !== undefined && !researchScanSchema.safeParse(row.scan).success ||
+      row.unavailable !== undefined && (!Array.isArray(row.unavailable) || row.unavailable.length > 100 ||
+        row.unavailable.some(value => typeof value !== "string" || value.length > 4_000))) return null;
   const valid = row.results.every((value, index) => {
     const result = object(value);
     return result && result.rank === index + 1 &&
@@ -694,10 +702,6 @@ export function modelEvidencePreview({ evidence_id, citation, name, locator, spa
     locator, preview: span_text?.slice(0, 160) };
 }
 
-export function modelResearchQueryPreview({ query_id, tool, input, results }: LegalResearchQueryReceipt) {
-  return { query_id, tool, query: String(input.pattern ?? input.query ?? "").slice(0, 160), results: results.length };
-}
-
 function recentInventory<T, U>(values: readonly T[], format: (value: T) => U, budget: number) {
   const selected: U[] = [];
   for (let index = values.length - 1; index >= 0; index--) {
@@ -714,7 +718,7 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
   return ["PRIOR RESEARCH:",
     `${receipts.length} saved passages; ${queries.length} previous searches. Recent inventory follows.`,
     "Read(file_path=evidence_id) returns the saved exact passage; Read(file_path=query_id) returns the previous search. Read(file_path='evidence' or 'queries', offset, limit) lists older entries. Use saved evidence IDs for grounding; previews are not complete passages.",
-    ...recentInventory(queries, modelResearchQueryPreview, 1_400).map((value) => JSON.stringify(value)),
+    "Search history is available on demand: Read(file_path='queries', pattern, section). Filter by term and optionally a source resource or reader ID when checking prior work or coverage.",
     ...recentInventory(receipts, modelEvidencePreview, 6_000).map((value) => JSON.stringify(value)),
   ].join("\n");
 }
@@ -962,11 +966,6 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   }).join("");
 }
 
-export function modelResearchQuery({ call_id: _call, model: _model, executor_version: _executor,
-  sourceFingerprints: _fingerprints, ...query }: LegalResearchQueryReceipt & { sourceFingerprints?: unknown }) {
-  return query;
-}
-
 type CitationEntry = RegisteredEvidence & { ref: number };
 export type LegalEvidenceCitationGroup = {
   ref: number;
@@ -1045,7 +1044,7 @@ export function legalEvidenceReceiptEvent(
   const ids = new Set([
     ...claims.flatMap((claim) => claim.evidence_ids),
     ...state.documentEvidenceIds,
-    ...[...state.presentedEvidenceIds].filter((id) => !state.priorEvidenceIds.has(id)),
+    ...[...state.evidence.keys()].filter((id) => !state.priorEvidenceIds.has(id)),
   ]);
   const queries = [...state.queries.values()].filter(({ query_id }) =>
     !state.priorQueryIds.has(query_id));

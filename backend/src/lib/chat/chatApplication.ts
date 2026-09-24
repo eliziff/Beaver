@@ -649,7 +649,7 @@ export function createChatApplication(deps: Dependencies) {
         workflow: canonicalWorkflow,
       });
       const researchQueries = research ? await deps.sources.items(auth, research.document.id,
-          { kind: "queries", offset: 0, limit: 50 }) : null,
+          { kind: "queries", offset: 0, limit: 10_000 }) : null,
         workspaceContext = research ? await deps.sources.context(auth, research.document.id,
           researchSelection ?? undefined) : undefined;
       const researchContext = workspaceContext && tabularDetail && input.research_selection === undefined &&
@@ -669,6 +669,8 @@ export function createChatApplication(deps: Dependencies) {
           ...(researchQueries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [])]
           .map((receipt) => [receipt.query_id, receipt])).values()],
         evidenceState = createLegalEvidenceTurnState();
+      for (const event of priorEvents) if (event.type === "subagent_run" && event.status !== "running")
+        evidenceState.readerResults.set(event.id, event);
       if (canonicalWorkflow?.id === "quote-checking") {
         evidenceState.mode = "citation_structure";
         evidenceState.reviewDocumentIds = new Set(turnFiles.map(({ document_id }) => document_id));

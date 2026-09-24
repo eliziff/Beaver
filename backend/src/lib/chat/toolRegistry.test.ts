@@ -382,3 +382,25 @@ it("does not activate tools when their definitions cannot be returned intact or 
     .rejects.toThrow("cancelled");
   expect(registry.visible().map(tool => tool.name)).toEqual([LOAD_TOOLS_NAME]);
 });
+
+it("removes host audit metadata without altering source text, version handles or stored receipts", async () => {
+  const source = { text: `The SHA-256 value is ${"f".repeat(64)}.`, source_sha256: "a".repeat(64),
+    evidence: [{ text_sha256: "b".repeat(64), exact_passage: "must not", evidence_status: "not_run" }],
+    expected_version: "version-1", resource: "document://doc/version/version-1", next_offset: 2 },
+    before = structuredClone(source), registry = new TurnToolRegistry([tool("Read", {
+      execute: async () => ({ result: toolText(source) }),
+    })]);
+  const [read] = await registry.run([call("read", "Read")], { order: [] });
+  expect(payload(read.content)).toEqual({ text: source.text, evidence: [{ exact_passage: "must not" }],
+    expected_version: "version-1", resource: source.resource, next_offset: 2 });
+  expect(source).toEqual(before);
+});
+
+it("does not disguise an oversized JSON result as successful or return a broken middle-sliced object", async () => {
+  const registry = new TurnToolRegistry([tool("Read", { execute: async () => ({
+    result: toolText({ findings: ["first", "x".repeat(80_000), "last"] }), metadata: { status: "ok" },
+  }) })]);
+  const [read] = await registry.run([call("read", "Read")], { order: [] });
+  expect(read.status).toBe("truncated");
+  expect(payload(read.content)).toMatchObject({ ok: false, error: "tool_result_too_large", truncated: true });
+});
