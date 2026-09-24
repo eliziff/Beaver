@@ -135,3 +135,29 @@ it.each(["not_found", "failure", "cancellation"])("retains every original extrac
   expect(accepted).toEqual(ending === "not_found" ? [expect.objectContaining({ outcome: "not_found",
     coverage: "complete", value: null, claims: [], evidence: [] })] : []);
 });
+
+it("makes carried search history readable without placing failed query terms in the cell prompt", async () => {
+  const bytes = Buffer.from("Ordinary provision."), sourceSha256 = sha256(bytes),
+    resource = "document://history-doc/version/v1", documents = {
+      metadata: async () => ({ filename: "Terms.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
+      projectionSource: async () => ({ documentId: "history-doc", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }),
+    } as unknown as DocumentStore;
+  let inspected = false;
+  await extractTabularAnswers({ documents, scope: { userId: "owner" }, model: "codex:reader", apiKeys: {},
+    subject: { sourceId: "history", resource, reference: { provider: "library", kind: "document", id: "history-doc", versionId: "v1" } },
+    columns: [{ index: 0, name: "Issue", prompt: "Evaluate this provision" }],
+    prior: { passages: [], queries: [{ query_id: "q_prior", call_id: "read", tool: "Read", model: "reader",
+      executed_at: "2026-09-24T00:00:00Z", executor_version: "legal-source-pattern-v1",
+      input: { resource, pattern: "earlier-zero-hit-needle" }, results: [] }] },
+    runTurn: async options => {
+      expect(options.messages.map(message => message.content).join(" ")).not.toContain("earlier-zero-hit-needle");
+      const context: ChatToolContext = { evidence: options.evidenceState!, operation: options.operation!, addEvent() {} },
+        read = options.createTools(context.evidence, "main", context).find(tool => tool.name === "Read")!,
+        result = await read.execute({ file_path: "queries", pattern: "earlier-zero" }, context,
+          new AbortController().signal, { id: "history", name: "Read", input: {} });
+      expect(JSON.stringify(result.result)).toContain("earlier-zero-hit-needle"); inspected = true;
+      throw new Error("End after history inspection");
+    }, accept: async () => {},
+  }).catch(error => { expect(error.message).toBe("End after history inspection"); });
+  expect(inspected).toBe(true);
+});

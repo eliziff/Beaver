@@ -9,7 +9,7 @@ import { safeErrorMessage } from "../safeError";
 import { tabularDtos, type TabularApplication } from "../tabular/application";
 import { researchArrangementToolSchema } from "../tabular/researchArrangement";
 import { modelEvidencePassage, type LegalEvidenceReceipt } from "./legalEvidence";
-import { objectSchema as object, toolText, type BeaverOutcome, type BeaverTool } from "./toolRegistry";
+import { objectSchema as object, modelToolData, toolText, type BeaverOutcome, type BeaverTool } from "./toolRegistry";
 
 const string = (maxLength: number) => ({ type: "string", minLength: 1, maxLength });
 const ids = { type: "array", maxItems: 500, uniqueItems: true, items: string(200) };
@@ -57,7 +57,7 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
       throw new ApplicationError(413, "This original supporting passage exceeds the model read limit");
     return { result: toolText(passage), evidence: [receipt] };
   }
-  const value = { ...metadata(finding), question: finding.question, result: finding.answer }, json = JSON.stringify(value),
+  const value = { ...metadata(finding), question: finding.question, result: finding.answer }, json = JSON.stringify(modelToolData(value)),
     nextRead = { file_path: "findings", section: JSON.stringify(finding.reference) }, evidence: LegalEvidenceReceipt[] = [];
   let shown = json.slice(options.text_offset, options.text_offset + options.text_limit);
   while (JSON.stringify(shown).length > 40_000) shown = shown.slice(0, Math.ceil(shown.length / 2));

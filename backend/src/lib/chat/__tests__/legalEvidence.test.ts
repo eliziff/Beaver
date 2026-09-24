@@ -286,8 +286,9 @@ describe("production legal evidence", () => {
     expect([...restored.queries]).toEqual([[event.queries[0].query_id, event.queries[0]]]);
     expect(legalEvidenceReceiptEvent(restored)).toBeNull();
     const inventory = priorLegalEvidencePrompt([], event.queries);
-    expect(inventory).toContain(event.queries[0].query_id);
-    expect(inventory).toContain("standard of review");
+    expect(inventory).not.toContain(event.queries[0].query_id);
+    expect(inventory).not.toContain("standard of review");
+    expect(inventory).toContain("queries");
     expect(inventory).not.toContain("executor_version");
   });
 

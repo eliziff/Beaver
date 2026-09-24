@@ -1,4 +1,6 @@
 import { readPatterns } from "./chat/resourceTools";
+import { previousEmptyScan } from "./chat/queryHistory";
+import type { LegalResearchQueryReceipt } from "./researchContract";
 import { readDocumentProjection } from "./documentApplication";
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -21,7 +23,7 @@ import { findTextMatches } from "./chat/tools/documentOps";
 import type { A2AJReferenceDirection } from "./chat/tools/a2ajTools";
 import type { ReadSubagentAssignment, LegalEvidenceReceiptEvent } from "./chat/assistantEvents";
 import type { NormalizedToolCall } from "./llm";
-import { withoutUrls, toolOutcome as result, failedOutcome as fail, MAX_MODEL_TOOL_RESULT_CHARS, type BeaverOutcome } from "./chat/toolRegistry";
+import { modelToolData, toolOutcome as result, failedOutcome as fail, MAX_MODEL_TOOL_RESULT_CHARS, type BeaverOutcome } from "./chat/toolRegistry";
 import { jsonRecord as objectRecord, trimmedText as trimmed } from "./value";
 import { utf16PrefixCeil } from "./text";
 import type { ResearchChange } from "./researchHistory";
@@ -192,7 +194,12 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
         source_references: query.sourceReferences ?? {}, label_paths: query.labelPaths ?? {},
         matched_source_ids: query.matchedSourceIds, evidence_ids: query.evidenceIds, slots: query.slots,
         failures: query.failures, sources: query.sourceIds.length || query.results.length,
-        matches: query.evidenceIds.length || query.results.length, truncated: false }; }
+        matches: query.scan?.total_matches ?? (query.evidenceIds.length || query.results.length),
+        ...(query.scan ? { scan: modelToolData(query.scan) } : {}),
+        ...(query.reader_id ? { reader_id: query.reader_id } : {}),
+        ...(query.unavailable?.length ? { unavailable: query.unavailable } : {}),
+        truncated: query.scan?.truncated ?? Boolean(query.input.coverage &&
+          objectRecord(query.input.coverage)?.complete === false) }; }
       const { receipt, sourceId, labelIds, note } = passages.get(index)!;
       return { kind, passage_index: index + 1, sourceId, evidence_id: receipt.evidence_id,
         citation: receipt.citation, locator: receipt.locator, exact_passage: receipt.span_text, labelIds, note };
@@ -226,7 +233,7 @@ export async function readResearchWorkspace(documents: DocumentStore, scope: App
     if (index < 0 || index >= counts[category]) return fail("Research section not found");
     const { items: safe, ...evidence } = await register(await rows(category, index, 1));
     if (!safe.length) return fail("Research passage is outside the current selection");
-    const json = JSON.stringify(withoutUrls(safe[0])), total = Math.ceil(json.length / chunk),
+    const json = JSON.stringify(modelToolData(safe[0])), total = Math.ceil(json.length / chunk),
       count = Math.min(3, limit, Math.max(0, total - offset)),
       items = Array.from({ length: count }, (_, index) => ({ kind: "search_continuation", section: section[0],
         field: "receipt", encoding: "json", offset: (offset + index) * chunk + 1,
@@ -489,6 +496,7 @@ export async function readLegalSourceResource(
     signal?: AbortSignal;
     reader?: ReadSubagentAssignment;
     knownSources: Map<string, LegalSourceReference>;
+    priorQueries?: () => Iterable<LegalResearchQueryReceipt>;
   },
 ): Promise<BeaverOutcome | null> {
   if (call.name !== "Read") return null;
@@ -533,7 +541,7 @@ export async function readLegalSourceResource(
         : {}),
       signal: options.signal,
     }, options.userId);
-    if (read.status !== "found") {
+    if (read.status !== "found" || !read.values.length) {
       return fail(
         read.status === "unsupported"
           ? "Legal source provider is unavailable."
@@ -638,11 +646,20 @@ export async function readLegalSourceResource(
       const corpus = registered.map(({ passage }) => ({ passage,
         judgment: passage.source.kind === "case" && passage.role === "document"
           ? structureNative().documentAnchors(passage.documentArtifact).find(({ kind }) => kind === "paragraph")?.start ?? 0 : 0 }));
+      const scanSources = [...new Map(corpus.map(({ passage }) => [researchSourceResource(passage.source), {
+        resource: researchSourceResource(passage.source),
+        source_sha256: structureNative().documentRevision(passage.documentArtifact),
+      }])).values()];
+      const queryInput = (pattern: string, allowance: number) => ({ resource: trimmed(args.file_path), pattern,
+        ...(locator ? { locator_kind: locatorKind, locator } : {}), ...(endLocator ? { end_locator: endLocator } : {}),
+        context_blocks: locator ? contextBlocks : 0, max_results: allowance, context_chars: contextChars,
+        ...(source.kind === "case" && !locator ? { search_scope: "judgment_text" } : {}) });
       const queries = patterns.map((pattern, index) => {
         options.signal?.throwIfAborted();
         const allowance = Math.ceil(available / (patterns.length - index));
-        let total = 0, headnote = 0, kept = 0;
-        const hits = corpus.flatMap(({ passage, judgment }) => {
+        const prior = previousEmptyScan(options.priorQueries?.() ?? [], queryInput(pattern, allowance), scanSources);
+        let total = 0, headnote = prior?.scan?.headnote_matches ?? 0, kept = 0;
+        const hits = (prior ? [] : corpus).flatMap(({ passage, judgment }) => {
           const find = (text: string, maxResults: number) => findTextMatches({ text,
             query: pattern, maxResults, contextChars });
           // Exclude editorial text before limiting hits, so headnotes cannot hide judgment matches.
@@ -669,12 +686,13 @@ export async function readLegalSourceResource(
           });
         });
         available -= hits.length;
-        return { pattern, allowance, total_matches: total,
+        return { pattern, allowance, total_matches: total, prior,
+          ...(prior ? { reused: prior.query_id } : {}),
           ...(headnote ? { headnote_matches: headnote } : {}),
           truncated: total > hits.length, hits };
       });
       const evidence = uniqueReceipts(queries.flatMap(query => query.hits.map(hit => hit.receipt)));
-      const visible = queries.map(({ allowance: _allowance, hits, ...query }) => ({ ...query,
+      const visible = queries.map(({ allowance: _allowance, prior: _prior, hits, ...query }) => ({ ...query,
         hits: hits.map(({ receipt: _receipt, ...hit }) => hit) }));
       return {
         activityCitations,
@@ -684,12 +702,11 @@ export async function readLegalSourceResource(
           ...(pdfRenditions.length ? { pdf_renditions: pdfRenditions } : {}) }),
         ...(evidence.length ? { evidence } : {}),
         ...(evidenceSources.size ? { evidenceSources } : {}),
-        queryReceipts: queries.map(query => ({ call_id: call.id, tool: "Read",
+        queryReceipts: queries.map(query => query.prior ?? ({ call_id: call.id, tool: "Read",
           executed_at: new Date().toISOString(), executor_version: "legal-source-pattern-v1",
-          input: { resource: trimmed(args.file_path), pattern: query.pattern,
-            ...(locator ? { locator_kind: locatorKind, locator } : {}),
-            ...(endLocator ? { end_locator: endLocator } : {}),
-            context_blocks: locator ? contextBlocks : 0, max_results: query.allowance, context_chars: contextChars },
+          input: queryInput(query.pattern, query.allowance),
+          scan: { sources: scanSources, total_matches: query.total_matches,
+            headnote_matches: query.headnote_matches ?? 0, truncated: query.truncated },
           results: uniqueReceipts(query.hits.map(hit => hit.receipt)).map(({ evidence_id }, rank) => ({ rank: rank + 1, evidence_id })),
         })),
       };
@@ -779,6 +796,12 @@ export async function readLegalSourceResource(
       ...result(payload),
       activityCitations,
       evidence: evidences,
+      queryReceipts: [{ call_id: call.id, tool: "Read", executed_at: new Date().toISOString(),
+        executor_version: "legal-source-pattern-v1", input: { resource: trimmed(args.file_path),
+          ...(locator ? { locator_kind: locatorKind, locator, ...(endLocator ? { end_locator: endLocator } : {}) }
+            : { offset: Number(args.offset) || 1, start_char: Number(args.start_char) || 0 }),
+          next, returned_passages: evidences.length },
+        results: evidences.slice(0, 100).map(({ evidence_id }, rank) => ({ rank: rank + 1, evidence_id })) }],
       ...(evidenceSources.size ? { evidenceSources } : {}),
     };
   } catch (error) {
