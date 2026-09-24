@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readerHandoff } from "./readerHandoff";
+import type { QueryHistorySource } from "./queryHistory";
 import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "./assistantWire";
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderTurnControl,
@@ -71,7 +72,7 @@ export type ChatToolContext = {
   evidence: LegalEvidenceTurnState;
   research?: ResearchReadContext;
   operation: ResearchOperationContext;
-  queryHistory?: () => Iterable<LegalResearchQueryReceipt>;
+  queryHistory?: QueryHistorySource;
   addEvent: (event: AssistantEvent) => void;
   updateActivity?(id: string, label: string): void;
   onActivity?: () => void;
@@ -113,7 +114,7 @@ export async function runChatTurn(options: {
   activityDetail?: "auto" | "standard" | "tools" | "trace";
   priorEvidence?: PriorLegalEvidence[];
   priorQueries?: LegalResearchQueryReceipt[];
-  queryHistory?: () => Iterable<LegalResearchQueryReceipt>;
+  queryHistory?: QueryHistorySource;
   evidenceState?: LegalEvidenceTurnState;
   /** Structuring calls restate already-verified material as JSON; they are not answers to ground. */
   grounded?: false;
@@ -171,8 +172,11 @@ export async function runChatTurn(options: {
   };
   const context: ChatToolContext = {
     evidence,
-    queryHistory: () => new Map([...(options.queryHistory?.() ?? []), ...evidence.queries.values()]
-      .map(query => [query.query_id, query])).values(),
+    queryHistory: async () => {
+      for (const query of await options.queryHistory?.() ?? []) if (!evidence.queries.has(query.query_id))
+        registerPriorLegalResearchQueries(evidence, [query]);
+      return evidence.queries.values();
+    },
     research: options.researchContext,
     operation: { ...options.operation, executor: "assistant", model: options.model },
     addEvent,

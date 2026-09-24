@@ -561,3 +561,48 @@ handoffs](https://www.anthropic.com/engineering/multi-agent-research-system),
 [LangChain's on-demand context offloading](https://www.langchain.com/blog/context-management-for-deepagents),
 and [Scrapy's resumable worklist and duplicate filtering](https://docs.scrapy.org/en/latest/topics/jobs.html).
 These are design precedents, not new runtime dependencies.
+
+
+## Reusing saved research
+
+The research workspace keeps sources, exact passages, authored notes and structured
+findings separate from the operational query log. Chat and table findings remain
+in their existing stores; accepted tables reuse their original results. No new
+agent framework, semantic duplicate detector or research database is required.
+
+`Read(file_path: "findings", pattern, offset, limit)` searches saved questions,
+answer prose and summaries before paging. It returns previews with the original
+finding references. With a returned `section`, `pattern` continues to identify
+an exact supporting evidence ID, not a search over the finding. Source and selected
+claim restrictions apply before either view is returned.
+
+`document_operation(action: "research", document_id, research_action: {
+type: "memo", title, references, mode: "append" })` copies the selected original
+findings into the workspace's existing Markdown memo. `references` are the
+returned chat-answer or table-cell references, including any selected claim
+indices. It does not ask a model to restate answers, re-read sources or retype
+citation URLs. Append is the default; replace is explicit. The same application
+operation is available as `POST /source-workspaces/:id/memo` with `version_id`,
+`working_revision`, `title`, `references` and optional `mode`.
+
+This is a snapshot, not a live transclusion: later edits to a cell or chat do not
+rewrite an authored memo. Exact duplicate prose with the same support is copied
+once within the operation; distinct support is retained. Original passage links
+and the memo write commit together under the existing version/revision check.
+Missing support, forbidden scope, stale revisions and oversized writes fail
+without modifying the memo. The operation does not change labels, source notes
+or explicit highlights. Claimless review outcomes retain their wording and
+coverage with a source-level link, never invented passage evidence for absence.
+Cited table rows use the same renderer as chat answers.
+
+Workspace query history is loaded once on first demand, not in every chat or
+before every table row's first model call. A table result that reuses older
+support loads history at publication to preserve its original query provenance.
+Read/scan consumers await the same supplier; current-turn receipts stay in the
+existing evidence state. The storage format remains the bounded existing JSON
+query part, not an added indexed log. Public history pages remain bounded to 200
+records, and history terms are not appended to model prompts.
+
+These separations follow [Zotero's source-linked annotations and notes](https://www.zotero.org/support/pdf_reader)
+and [LangGraph's distinction between execution checkpoints and cross-thread stored data](https://docs.langchain.com/oss/javascript/langgraph/persistence).
+They are design precedents, not added dependencies or guarantees about legal quality.

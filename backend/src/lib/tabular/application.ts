@@ -27,7 +27,7 @@ import {
 import { ApplicationError, reject as fail } from "../applicationError";
 import { parseResourceReference, resourceReference } from "../resourceReferences";
 import { researchSelectionSchema } from "../researchSelection";
-import { researchSourceResource, type ResearchFile } from "../researchFile";
+import { readResearchQueries, researchSourceResource, type ResearchFile } from "../researchFile";
 import { researchCategoryBudget, researchLabelDraft, researchLabelInventory, researchLabelModelView, researchLabelPlan,
   type ProposalOptions, type ResearchLabelTarget } from "../researchLabelDesign";
 import { FOLDER_PROMPT, folderDesignSchema, folderInventory, folderOrganizePlan,
@@ -443,14 +443,16 @@ export function createTabularApplication(
     let received: Set<number>;
     const fileId = selection?.research_file_id, workspace = fileId ? await dependencies.sources() : null;
     const prior = workspace && fileId ? await (async () => {
-      const [saved, queries] = await Promise.all([
-        workspace.items(scope, fileId, { kind: "passages", sourceId: item.sourceId, offset: 0, limit: 40 }),
-        workspace.items(scope, fileId, { kind: "queries", sourceId: item.sourceId, offset: 0, limit: 10_000 })]);
+      const saved = await workspace.items(scope, fileId,
+        { kind: "passages", sourceId: item.sourceId, offset: 0, limit: 40 });
       const scoped = item.evidence && new Set(item.evidence.map(({ evidence_id }) => evidence_id));
       return { passages: saved.items.flatMap((entry) => entry.kind === "passage" &&
           (!scoped || scoped.has(entry.value.receipt.evidence_id)) ? [entry.value] : []),
-        queries: queries.items.flatMap((entry) => entry.kind === "query" &&
-          entry.value.sourceIds.includes(item.sourceId) ? [entry.value] : []) };
+        queries: async () => {
+          const file = await workspace.get(scope, fileId);
+          if (!file) return fail(404, "Sources workspace not found");
+          return (await readResearchQueries(documents, scope, file)).filter(query => query.sourceIds.includes(item.sourceId));
+        } };
     })() : undefined;
     try {
       received = await extractTabularAnswers({ model, apiKeys, reasoningEffort, subject: item, prior, jevRouting: selection?.jevRouting,
