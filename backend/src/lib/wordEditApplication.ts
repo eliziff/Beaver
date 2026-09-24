@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { runLibreOffice } from "./libreOffice";
+import { runWordPython } from "./wordPython";
 import { parseResourceReference, resourceReference } from "./resourceReferences";
 import type { DocumentContent, DocumentRecord, DocumentStore } from "./documentStore";
 
-const RECEIPT = "uno-preview.json";
+const RECEIPT = "word-preview.json";
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 type Options = { documents: DocumentStore; userId: string; userEmail?: string;
   matterId?: string | null; docIndex?: Record<string, { document_id: string; filename?: string; version_id?: string | null }>;
@@ -13,15 +13,15 @@ type Options = { documents: DocumentStore; userId: string; userEmail?: string;
 };
 type Receipt = { schema: 2; source: string; workingRevision: number;
   sourceSha256: string; candidateSha256: string; mode: "tracked" | "direct"; report: Record<string, unknown> };
-export type UnoApplicationResult = { report: Record<string, unknown>;
+export type WordEditResult = { report: Record<string, unknown>;
   publication?: { id: string; version: string; number: number; filename: string; action: "created" | "edited" } };
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Existing document ports own access and CAS publication; the engine produces
  * frozen candidates. The user's edit-mode setting, never a model argument, owns review policy. */
-export function createLibreOfficeApplication(options: Options, execute = runLibreOffice) {
+export function createWordEditApplication(options: Options, execute = runWordPython) {
   const scope = { userId: options.userId, userEmail: options.userEmail };
-  const created = new Set<string>(), published = new Map<string, UnoApplicationResult>();
+  const created = new Set<string>(), published = new Map<string, WordEditResult>();
   const mode = options.editMode === "auto" ? "direct" : "tracked";
   // Mistyped ids are common; name the attached resources so the model can retry exactly.
   const outside = (where: string) => new Error([`file_path names no document in the ${where}`,
@@ -46,7 +46,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     return { reference, meta, file };
   };
   const artifact = (id: string, version: string, number: number, filename: string,
-    action: "created" | "edited", report: Record<string, unknown>): UnoApplicationResult => ({
+    action: "created" | "edited", report: Record<string, unknown>): WordEditResult => ({
     report: { ...report, resource: resourceReference.document(id, version) },
     publication: { id, version, number, filename, action },
   });
@@ -55,9 +55,9 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     const raw: unknown = JSON.parse(parts?.[0]?.bytes.toString("utf8") ?? "null");
     return record(raw) && raw.schema === 2 ? raw as Receipt : undefined;
   };
-  return async (input: Record<string, unknown>, signal: AbortSignal, restricted = false): Promise<UnoApplicationResult> => {
+  return async (input: Record<string, unknown>, signal: AbortSignal, restricted = false): Promise<WordEditResult> => {
     signal.throwIfAborted();
-    if (restricted) throw new Error("Whole-document UNO access is unavailable in a restricted research selection");
+    if (restricted) throw new Error("Whole-document Word editing is unavailable in a restricted research selection");
     if (input.action === "apply") {
       // The preview's receipt names the document it revises.
       const preview = await loaded(String(input.file_path));
@@ -83,7 +83,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
         expectedCurrentWorkingRevision: source.file.version.working_revision,
         expectedCurrentSha256: sourceSha256,
         provenance: { schemaVersion: 1, actor: "assistant", action: "revised", turnId: options.turnId },
-        comment: raw.mode === "tracked" ? "Applied verified native Word revisions" : "Applied inspected LibreOffice candidate (direct edits)",
+        comment: raw.mode === "tracked" ? "Applied verified native Word revisions" : "Applied verified Word candidate (direct edits)",
       });
       if (!version) throw new Error("Source changed or is no longer writable; nothing was published");
       options.onPublished(source.meta.id, version.id, version.working_revision, source.file.version.id);
@@ -95,7 +95,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     }
     const source = await loaded(String(input.file_path));
     const sourceSha256 = hash(source.file.bytes);
-    if (!["inspect", "describe", "preview"].includes(String(input.action))) throw new Error("Unknown Word action");
+    if (!["inspect", "preview"].includes(String(input.action))) throw new Error("Unknown Word action");
     // A preview of a preview keeps revising the original document.
     let root: Pick<Receipt, "source" | "workingRevision" | "sourceSha256"> = { source: source.reference,
       workingRevision: source.file.version.working_revision, sourceSha256 };
@@ -107,7 +107,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
       if (input.snapshot !== undefined && input.snapshot !== sourceSha256)
         throw new Error("The document changed since that snapshot; inspect the current snapshot again");
       if (typeof input.program !== "string" || !input.program.trim())
-        throw new Error("preview requires a JavaScript program; use object.find(literal).set(values) for exact edits");
+        throw new Error("preview requires a Python program");
       const parent = await receiptOf(source);
       if (parent && parent.mode !== mode) throw new Error("That preview used another editing mode; preview the original document");
       if (parent) root = { source: parent.source, workingRevision: parent.workingRevision, sourceSha256: parent.sourceSha256 };
@@ -125,7 +125,7 @@ export function createLibreOfficeApplication(options: Options, execute = runLibr
     const receipt: Receipt = { schema: 2, ...root, mode, candidateSha256: hash(result.candidate), report: result.report };
     options.onMutationCommitted();
     const copy = await options.documents.create(scope, {
-      filename: source.file.filename.replace(/(?: \(UNO preview\))?\.docx$/iu, " (UNO preview).docx"), fileType: "docx", bytes: result.candidate,
+      filename: source.file.filename.replace(/(?: \(preview\))?\.docx$/iu, " (preview).docx"), fileType: "docx", bytes: result.candidate,
       projectId: source.meta.project_id, folderId: source.meta.project_id ? source.meta.folder_id : source.meta.library_folder_id,
       libraryKind: "file", parts: [{ name: RECEIPT, bytes: Buffer.from(JSON.stringify(receipt)) }],
       provenance: { schemaVersion: 1, actor: "assistant", action: "created", turnId: options.turnId },

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { TurnToolRegistry } from "../chat/toolRegistry";
-import { createLibreOfficeTool } from "../chat/libreOfficeTool";
+import { createWordPythonTool } from "../chat/wordPythonTool";
 import type { ChatToolContext } from "../chat/turnEngine";
 import { streamHosted, modelMessages, IncompleteGenerationError } from "./sdk";
 import type { ModelState, StreamChatParams, Tool } from "./types";
@@ -325,11 +325,11 @@ it.each([
 // Test the real specialist, not a transport double with the same name.
 it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
   "dispatches %s deferred Word calls without inventing availability or duplicating results", async scenario => {
-    const word = createLibreOfficeTool({ userId: "fixture", documents: {} as never,
+    const word = createWordPythonTool({ userId: "fixture", documents: {} as never,
       artifactFor: () => "unused", onMutationCommitted() {}, onPublished() {} });
     const registry = new TurnToolRegistry([word]);
-    const load = { functionCall: { name: "load_tools", args: { names: ["word_uno"] } }, thoughtSignature: "load-signature" };
-    const help = { functionCall: { name: scenario === "unknown" ? "missing_uno" : "word_uno",
+    const load = { functionCall: { name: "load_tools", args: { names: ["word_python"] } }, thoughtSignature: "load-signature" };
+    const help = { functionCall: { name: scenario === "unknown" ? "missing_word" : "word_python",
       args: { action: scenario === "invalid" ? "invented_action" : "help" } }, thoughtSignature: "word-signature" };
     const separate = scenario === "separate";
     const { bodies } = transport([
@@ -346,7 +346,7 @@ it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
     const results = states.flatMap(state => state.messages.flatMap(message => message.role === "tool"
       ? message.content : []));
     expect(new Set(results.map(result => result.toolCallId)).size).toBe(results.length);
-    const wordResult = results.find(result => result.toolName.endsWith("uno"))!;
+    const wordResult = results.find(result => result.toolName !== "load_tools")!;
     if (scenario === "unknown") {
       expect(wordResult.output).toMatchObject({ type: "error-text", value: expect.stringContaining("unavailable tool") });
       expect(dispatch).not.toHaveBeenCalled();
@@ -355,18 +355,18 @@ it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
       expect(JSON.parse(String((wordResult.output as { value: string }).value)).error).toBe("invalid_arguments");
     } else if (scenario !== "separate" && scenario !== "batched") {
       // A valid call to a known specialist runs even without its loader; the real result replaces the SDK's verdict.
-      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("word.target(") });
+      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("numbered_list(") });
       expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
     } else {
-      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("word.target(") });
+      expect(wordResult.output).toMatchObject({ type: "text", value: expect.stringContaining("numbered_list(") });
       expect(JSON.stringify(states)).not.toContain("AI_NoSuchToolError");
-      const published = bodies[1].tools[0].functionDeclarations.find((tool: any) => tool.name === "word_uno");
-      expect(published.parameters.properties.action.enum).toEqual(["help", "inspect", "describe", "preview", "apply"]);
+      const published = bodies[1].tools[0].functionDeclarations.find((tool: any) => tool.name === "word_python");
+      expect(published.parameters.properties.action.enum).toEqual(["help", "inspect", "preview", "apply"]);
       expect(published.parameters.properties.program.type).toBe("string");
       const loaded = results.find(result => result.toolName === "load_tools")!;
       const receipt = JSON.parse(String((loaded.output as { value: string }).value));
       expect(receipt.tools[0].inputSchema).toEqual(word.inputSchema);
       expect(dispatch.mock.calls.flatMap(([calls]) => calls).map(call => call.name))
-        .toEqual(["load_tools", "word_uno"]);
+        .toEqual(["load_tools", "word_python"]);
     }
   });

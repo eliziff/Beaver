@@ -41,7 +41,7 @@ describe("TurnToolRegistry", () => {
     expect(() => new TurnToolRegistry([tool("")])).toThrow(/Invalid tool|empty/u);
     expect(() => new TurnToolRegistry([tool(LOAD_TOOLS_NAME)])).toThrow(/Reserved/u);
     expect(() => new TurnToolRegistry([tool("same"), tool("same")])).toThrow(/Duplicate/u);
-    expect(() => new TurnToolRegistry([tool("word_uno", { execute: undefined })])).toThrow(/no executor/u);
+    expect(() => new TurnToolRegistry([tool("word_python", { execute: undefined })])).toThrow(/no executor/u);
   });
 
   it("validates literally without scalar coercion", async () => {
