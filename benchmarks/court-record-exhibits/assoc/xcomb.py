@@ -1,6 +1,6 @@
 """Combine the v4 feature scores with a pair reranker (xenc.py's llm_<tag>.npz) and measure it.
 
-Usage: python xcomb.py <tag> [--base v4] [--thr 0.5] [--save name]
+Usage: python xcomb.py <tag> [--base v4] [--thr 0.5] [--save name] [--folds 0,1]
 
 Confidence of a file = min(row softmax, column softmax) of v4's score at its Hungarian pick;
 "low" = below --thr (the calibration row's gate). Reports
@@ -43,6 +43,9 @@ Z = np.load(os.path.join(HERE, f"llm_{TAG}.npz"))
 RAW = "--raw" in args
 R = np.load(os.path.join(HERE, f"ce_{TAG}.npz")) if RAW else None
 recs = [r for r in recs if r["record"] in Z.files]
+if opt("--folds", ""):  # only the folds the reranker has scored so far
+    keep = {int(x) for x in opt("--folds", "").split(",")}
+    recs = [r for r in recs if fo[r["record"]] in keep]
 data = []
 for r in recs:
     s, t = B[r["record"]], truth(r)
