@@ -23,7 +23,7 @@ import {
   submitLegalEvidenceAnswer,
 } from "./legalEvidence";
 import { UNVERIFIED_LEGAL_ANSWER } from "./legalOutputGate";
-import { AssistantStreamError, runChatTurn, type ChatToolContext } from "./turnEngine";
+import { applicationContextMessage, AssistantStreamError, runChatTurn, type ChatToolContext } from "./turnEngine";
 import { toolText, type BeaverTool } from "./toolRegistry";
 import { a2ajLegalSourceProvider } from "../legalSources/a2aj";
 import { structureNative } from "../structureNative";
@@ -714,4 +714,34 @@ it("loads off-context query history only on demand and makes returned handles re
   expect(history).toHaveBeenCalledTimes(1);
   expect(output.evidence.queries.get(receipt.query_id)).toEqual(receipt);
   expect(priorLegalResearchQueryReceipts(output.events)).toEqual([]);
+});
+
+
+it("reinstates current application state after compaction without changing the stable system instructions", async () => {
+  const model = "gemini-3-flash-preview", snapshot = applicationContextMessage("Current document: v2"),
+    old = { role: "assistant" as const, content: "", modelState: { model, messages: [snapshot] } }, saved: unknown[] = [];
+  stream.mockImplementationOnce(async params => {
+    expect(params.systemPrompt).toBe("Stable policy");
+    const { modelMessages } = await import("../llm/sdk"), messages = modelMessages(params.messages, model);
+    expect(messages.at(-1)).toEqual(snapshot);
+    expect(messages.filter(message => message.content === snapshot.content)).toHaveLength(1);
+    return { fullText: "Done" };
+  });
+  await runChatTurn({ model, systemPrompt: "Stable policy", turnContext: "Current document: v2",
+    messages: [old, { role: "user", content: "Continue" }],
+    prepareMessages: async () => [{ role: "assistant", content: "Compacted history" }, { role: "user", content: "Continue" }],
+    createTools: () => [], emit: () => {}, onModelMessages: event => { saved.push(event); } });
+  expect(saved).toHaveLength(1);
+});
+
+it("retains native session context ownership rather than injecting hosted replay snapshots", async () => {
+  const saved = vi.fn();
+  stream.mockImplementationOnce(async params => {
+    expect(params.systemPrompt).toContain("Native current state");
+    expect(JSON.stringify(params.messages)).not.toContain("Current application context");
+    return { fullText: "Done" };
+  });
+  await runChatTurn({ model: "codex:gpt-5.6-luna", systemPrompt: "Stable policy", turnContext: "Native current state",
+    messages: [{ role: "user", content: "Continue" }], createTools: () => [], emit: () => {}, onModelMessages: saved });
+  expect(saved).not.toHaveBeenCalled();
 });

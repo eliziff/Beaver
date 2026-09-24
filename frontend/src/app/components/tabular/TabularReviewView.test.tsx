@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     applyWorkspaceLabels: vi.fn(),
     getResearchFile: vi.fn(),
     ensureWorkspace: vi.fn(),
+    copyFindingsToMemo: vi.fn(),
 }));
 function fixture(status: TabularCell["status"]) {
     const document: Document = { id: "document-1", filename: "lease.pdf", project_id: null,
@@ -55,6 +56,7 @@ vi.mock("@/app/lib/api/researchFiles", async (original) => ({
   proposeWorkspaceLabels: mocks.proposeWorkspaceLabels,
   applyWorkspaceLabels: mocks.applyWorkspaceLabels,
   ensureSourcesWorkspace: mocks.ensureWorkspace,
+  copyFindingsToMemo: mocks.copyFindingsToMemo,
   getResearchItems: vi.fn().mockResolvedValue({ items: [], next_cursor: null, total: 0 }),
   getWorkspaceFindings: vi.fn().mockResolvedValue({ items: [], total: 0, next_offset: null })
 }));
@@ -200,7 +202,8 @@ it("reviews a tag column in the shared dialog before filing it in the workspace"
     await screen.findByRole("checkbox", { name: "Select lease.pdf" });
 
     chooseColumnAction("Outcome", "Labels from this column");
-    fireEvent.click(await screen.findByRole("button", { name: "Suggest labels" }));
+    const suggest = await screen.findByRole("button", { name: "Suggest labels" });
+    await waitFor(() => expect(suggest).toBeEnabled()); fireEvent.click(suggest);
     await waitFor(() => expect(mocks.proposeWorkspaceLabels).toHaveBeenCalledWith("workspace-1", {
       tableId: "review-1", columnIndex: 3, selection: { target: "sources", members: [{ sourceId: "source-1" }] }, model: "gpt-5", reasoningEffort: "medium" }, expect.any(Function), expect.any(AbortSignal)));
     const apply = await screen.findByRole("button", { name: "Apply labels" });
@@ -230,4 +233,18 @@ it("discusses the selected column with its actual completed cell references", as
     chooseColumnAction("Term", "Discuss column");
     await waitFor(() => expect(screen.getByTestId("discussion")).toHaveAttribute("data-ready", "true"));
     expect(JSON.parse(screen.getByTestId("discussion").getAttribute("data-selection")!).findingRefs).toHaveLength(1);
+});
+
+
+it("copies only completed findings in the selected table rows directly into the memo", async () => {
+    const data = scoped([{ index: 0, name: "Term", prompt: "Find term" }]), file = workspaceFile({});
+    mocks.getTabularReview.mockResolvedValue(data); mocks.getResearchFile.mockResolvedValue(file);
+    mocks.ensureWorkspace.mockResolvedValue(file); mocks.copyFindingsToMemo.mockResolvedValue({ ...file, workingRevision: 1 });
+    renderReview(); fireEvent.click(await screen.findByRole("checkbox", { name: "Select lease.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to memo" }));
+    expect(await screen.findByText("Added to memo")).toBeVisible();
+    expect(mocks.copyFindingsToMemo).toHaveBeenCalledExactlyOnceWith(file, { title: "Lease review", references: [
+      { kind: "cell", reviewId: "review-1", rowId: "document-1", columnIndex: 0 },
+    ] });
+    expect(mocks.startGeneration).not.toHaveBeenCalled(); expect(mocks.regenerateCell).not.toHaveBeenCalled();
 });

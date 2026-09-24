@@ -231,3 +231,17 @@ describe("local chat store", () => {
     expect((await store.list(scope(), {})).map(({ id }) => id)).toEqual([assistantChat.id]);
   });
 });
+
+
+it("keeps accepted user/context pairs in causal order even when two commits share the wall clock", async () => {
+  vi.useFakeTimers(); vi.setSystemTime("2026-09-24T00:00:00Z");
+  const store = await loadStore(), chat = await store.create(scope(), { projectId: null, tabularReviewId: null });
+  for (let index = 0; index < 2; index++) await store.commitTurn(scope(), chat.id, { expectedVersion: index,
+    userMessage: { id: `ffffffff-0000-4000-8000-00000000000${index}`, content: `Question ${index}` },
+    assistantMessage: { id: `00000000-0000-4000-8000-00000000000${index}`, content: [{ type: "model_messages", id: `context:${index}`,
+      model: "gemini-3-flash-preview", messages: [{ role: "user", content: `State ${index}` }] }] } });
+  const rows = await store.transcript(scope(), chat.id);
+  expect(rows?.map(row => row.role)).toEqual(["user", "assistant", "user", "assistant"]);
+  const { visibleChatMessages } = await import("../chat/chatTranscript");
+  expect(visibleChatMessages(rows!)).toMatchObject([{ role: "user", content: "Question 0" }, { role: "user", content: "Question 1" }]);
+});
