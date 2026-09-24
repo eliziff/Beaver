@@ -3,7 +3,14 @@
 Task: label each stripped exhibit file with its exhibit letter, from the affidavit
 alone, with something that runs in a browser. Chronology is a separate stream.
 
-Working files (experiments, not yet in the benchmark folder):
+Scripts: copied (untracked, not committed) to `benchmarks/court-record-exhibits/assoc/` on
+2026-09-24 since v4 beat the README baseline; the scratchpad copy below also holds the caches.
+To rebuild there: `exhibit_inputs.py` output -> `assoc/inputs.json`, then `refs.py`, `cache_base.py`,
+`feats2.py`, `feats3.py`, `kinds.py`, `models.py base,sim,fs,order,seg,kind --save v4`,
+`export.py v4`. `cache_base.py`, `feats5.py` and `timing.py` still point `POTION` at the
+scratchpad's `embed-models/potion-8m`.
+
+Working files (experiments):
 `%TEMP%\claude\C--Users-elias-Desktop-MikeOSS-Fork\1f20d775-c0b0-4f05-b9bf-1a656c0b4e6c\scratchpad\assoc\`
 - `common.py`: data, grouped 5-fold split (records of one family / court file share a fold,
   balanced by file count), one-to-one Hungarian scoring.
@@ -45,13 +52,17 @@ labelled correctly after one-to-one assignment. Numbers below are all on that.
 | `stack.py`: second stage over first-stage OOF (row/col softmax, margins, ranks, Hungarian pick) | 0.793 (no gain) | cheap features have plateaued near 0.79 |
 | `feats5.py` emb: potion-8m cosine, 4 affidavit views x head/full, with ranks | 0.442 alone; 0.791 stacked (no gain) | static embeddings add nothing over TF-IDF/char-grams here |
 | Browser cost of an LLM MC step (`wasm_time.mjs`, onnxruntime-web 1.30 WASM as Lens ships it, onnx-community Qwen2.5-0.5B-Instruct `model_q4.onnx` 786 MB, chunked prefill 128) | - | 1 thread **22.6 tok/s** on the loaded laptop; native ORT same model 82.6 tok/s (1 thread), 134 tok/s (4 threads). f2l prompts avg ~1,400 tokens (K=5, 900-char heads): a 13-file record = 18.7k tokens = ~14 min WASM 1-thread, ~8 min at 4 threads. CPU-WASM LLM reranking is minutes per record; only WebGPU or much shorter prompts make it interactive |
+| Qwen2.5-0.5B-Instruct zero-shot f2l MC, GPU, all 1,427 files, 5 cyclic rotations averaged, shortlist top-5 of `oof_v4` | shortlist top-1 **0.315**; stacked with v4: 0.791 (no gain) | 6.4M tokens in 390 s on the 3080 Ti (16k tok/s, shared GPU) |
+| Qwen2.5-1.5B-Instruct, same (zero-shot f2l, 5 rotations) | shortlist top-1 **0.498**; alone 0.621; stacked 0.782-0.790 (no gain; label top-1 0.671 -> 0.697 but assignment flat) | 2,099 s on the shared GPU. Zero-shot small LLMs see what the features already see |
+| Qwen3-1.7B zero-shot | not run to completion | killed to free the GPU for fine-tuning (1.5B already answered the question) |
+| `mc_ft.py` LoRA r16 on Qwen2.5-0.5B, both directions, 1 epoch (2,286 prompts, lr 5e-4, 570 optimizer steps), fold 0 only | shortlist top-1 l2f 0.211, f2l 0.208 (chance, below zero-shot 0.315) | **inconclusive**: one run, train loss plateaued at the uniform floor (1.76 -> 1.59, ln 5 = 1.61); a fine-tune ending below its zero-shot start points at the setup, and no overfit test (50 examples, 300 steps, loss -> 0) was run. Stopped after fold 0 (1,043 s); the co-tenant's job shares the GPU |
 | `decode.py`: joint decoding with a pairwise label-order/date-order prior (swap local search), nested lam | 0.788 (no gain) | all pairs: lam>0 only hurts (0.02: 0.787, 0.2: 0.746); near-duplicate pairs only (char-gram cos > 0.5/0.7): flat. The order feature already carries it. |
 
 **Best browser-runnable configuration so far (v4):** base+sim+fs+order+seg+kind, listwise linear
 (154 weights) + Hungarian. Official scorer (`export.py v4` -> `score.py exhibits`):
 1135/1427 = **0.795**. Size: potion-8m 31 MB + two hashed-word kind classifiers 2 x 2.2 MB
 (fp32, 32k x 17). CPU per record (`timing.py`, single-core Python, loaded laptop): median
-0.21 s, p90 0.61 s, max 2.8 s. Zero-shot 0.5B MC smoke showed strong letter-position bias
+0.21 s, p90 0.61 s, max 2.8 s; the affidavit-side `refs.py` pass adds 0.003 s median (0.03 s max). Zero-shot 0.5B MC smoke showed strong letter-position bias
 (argmax on A or C for 32/33 l2f prompts): `llm_mc.py --rot` now averages over cyclic rotations.
 
 Official scorer on `oof_all_list` (`export.py` -> `score.py exhibits`): 1098/1427 = **0.769**
@@ -77,13 +88,9 @@ direction ("my email to X" vs X's email to me), or "respectively" order.
   structural prior when a file's date can be read).
 
 ## Next
-- DONE: inputs2 features, field-level agreement, order prior (feature: yes; joint decoding: no).
-- Queued: `run_gpu.cmd` on the desktop (launch with `wmic process call create` once PID 8660
-  exits): f2l zero-shot, 5 cyclic rotations, shortlist `oof_v4.npz`, models 0.5B, Qwen3-4B,
-  1.5B, Qwen3-1.7B; logs `q*.log`, outputs `llm_q*.npz`; then `mc_ft.py` on 0.5B.
-- Waiting on the desktop GPU (another session's gen_distill.py holds 12 GB): `llm_mc.py`
-  zero-shot multiple choice (Qwen2.5-0.5B/1.5B, Qwen3-1.7B; 4B as ceiling) over the top-5
-  shortlist of `oof_v3.npz`, both directions; then `llmfeat.py <tag>` and
-  `models.py base,sim,fs,order,seg,<tag>`. If it helps, `mc_ft.py` (manual LoRA, grouped
-  folds from `folds.json`). Desktop C: has only ~230 MB free: write nothing big there.
-- Then: laptop-CPU timing of the chosen LLM (ONNX int4 via onnxruntime as the WASM proxy).
+- Overfit test for `mc_ft.py` (50 examples, 300 steps; loss must go to ~0) before judging
+  fine-tuned MC; then a fine-tuned reranker only on low-confidence picks.
+- Residual errors are same-kind near-duplicates differing by one field (date, number, party,
+  ordinal, direction): they need a joint two-text reader, not more cheap features.
+- LLM reranking in the browser is WebGPU-only (CPU WASM is minutes per record); not measured on WebGPU.
+- Recall@5 of the shortlist is 0.928: the ceiling of any top-5 reranker.
