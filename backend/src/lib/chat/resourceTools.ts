@@ -69,18 +69,18 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. List prior receipts with file_path evidence or queries, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
         pattern: READABLE_RESOURCE_PATTERN,
-        description: "Resource from Glob or search_sources, a saved evidence_id or query_id, or selection/findings.",
+        description: "Resource from Glob or search_sources, a saved evidence_id or query_id, or selection/findings/readers/queries.",
       },
       mode: { type: "string", enum: ["text", "drafting", "redline"] },
       offset: { type: "integer", minimum: 1, maximum: 100_000_000, description: "Starting line or item." },
       limit: { type: "integer", minimum: 1, maximum: 2000 },
       start_char: { type: "integer", minimum: 0, maximum: 100_000_000 },
-      section: { type: "string", description: "Exact structural handle, or the section returned by a findings read." },
+      section: { type: "string", description: "Exact structural handle, a findings section, or a reader ID. With queries, filter by reader ID or source resource." },
       references: {
         type: "string",
         enum: ["none", "inbound", "outbound", "both"],
@@ -107,7 +107,7 @@ export const RESOURCE_TOOLS = [
         type: "string",
         minLength: 1,
         maxLength: 256,
-        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID returned by a findings read.",
+        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID from findings; with queries, filter the saved query text.",
       },
       patterns: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true,
         items: { type: "string", minLength: 1, maxLength: 256 },

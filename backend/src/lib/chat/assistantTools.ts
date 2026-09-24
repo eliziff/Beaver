@@ -1,4 +1,6 @@
 import { readDocumentProjection } from "../documentApplication";
+import { readerHandoff } from "./readerHandoff";
+import { queryResources, readQueryHistory } from "./queryHistory";
 import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
   sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
@@ -71,8 +73,6 @@ import {
   legalSourceEvidence,
   modelEvidencePassage,
   modelEvidencePreview,
-  modelResearchQuery,
-  modelResearchQueryPreview,
   readPriorLegalEvidence,
   registerLegalEvidence,
   type LegalEvidenceReceipt,
@@ -1501,6 +1501,7 @@ export type AssistantToolsDependencies = {
   documents: DocumentStore;
   sources?: SourceWorkspaceApplication;
   researchContext?: ResearchReadContext;
+  queryHistory?: () => Iterable<import("./legalEvidence").LegalResearchQueryReceipt>;
   operation?: ResearchOperationContext;
   library: LibraryStore;
   projects: ProjectStore;
@@ -1562,6 +1563,7 @@ export function assistantTools<Context extends {
     documents,
     sources,
     researchContext,
+    queryHistory,
     operation: researchOperation,
     library,
     projects,
@@ -1647,14 +1649,32 @@ export function assistantTools<Context extends {
     if (call.name === "Read" && legalEvidenceState) {
       const inScope = researchResultFilter(researchContext), permittedEvidence = [...legalEvidenceState.evidence.values()]
         .filter(({ receipt }) => inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }));
-      if (requested === "evidence" || requested === "queries") {
+      if (requested === "readers") {
+        const readers = [...legalEvidenceState.readerResults.values()].filter(event =>
+          !researchContext?.restricted || !!event.grounding?.evidence.length && event.grounding.evidence.every(receipt =>
+            inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] })));
         const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20));
-        const values = requested === "evidence"
-          ? permittedEvidence.slice(offset, offset + limit)
-            .map(({ receipt }) => { const { preview: _preview, ...entry } = modelEvidencePreview(receipt); return entry; })
-          : [...legalEvidenceState.queries.values()].slice(offset, offset + limit).map(modelResearchQueryPreview);
-        const total = requested === "evidence" ? permittedEvidence.length : legalEvidenceState.queries.size;
-        return result({ total, items: values, next_offset: offset + limit < total ? offset + limit + 1 : null });
+        if (!args.section) return result({ items: readers.slice(offset, offset + limit).map(event => ({
+          reader_id: event.id, task: event.task.slice(0, 240), status: event.status,
+          read: { file_path: "readers", section: event.id } })), total: readers.length,
+          next_offset: offset + limit < readers.length ? offset + limit + 1 : null });
+        const event = readers.find(event => event.id === args.section);
+        return event ? result(readerHandoff(event, legalEvidenceState, offset, limit)) : fail("Reader result not found in this scope");
+      }
+      if (requested === "queries" || /^q_/u.test(requested)) {
+        const queries = [...(queryHistory?.() ?? legalEvidenceState.queries.values())].filter(query =>
+          !researchContext?.restricted || queryResources(query).length > 0 &&
+            queryResources(query).every(resource => inScope({ resource })));
+        return result(readQueryHistory(queries, { file_path: requested,
+          pattern: trimmed(args.pattern), section: trimmed(args.section),
+          offset: Number(args.offset) || 1, limit: Number(args.limit) || 20, start_char: Number(args.start_char) || 0 }));
+      }
+      if (requested === "evidence") {
+        const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20)),
+          values = permittedEvidence.slice(offset, offset + limit).map(({ receipt }) => {
+            const { preview: _preview, ...entry } = modelEvidencePreview(receipt); return entry; });
+        return result({ total: permittedEvidence.length, items: values,
+          next_offset: offset + limit < permittedEvidence.length ? offset + limit + 1 : null });
       }
       if (/^e_/u.test(requested)) {
         const saved = researchContext?.subjects?.flatMap(({ savedEvidence }) => savedEvidence ?? [])
@@ -1664,13 +1684,7 @@ export function assistantTools<Context extends {
         return entry && inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
           ? { ...result(modelEvidencePassage(entry.receipt)), evidence: [entry.receipt] } : fail("Evidence unavailable in the selected scope");
       }
-      if (/^q_/u.test(requested)) {
-        const query = legalEvidenceState.queries.get(requested);
-        const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20));
-        return query ? result({ ...modelResearchQuery(query), results: query.results.slice(offset, offset + limit),
-          total: query.results.length, next_offset: offset + limit < query.results.length
-            ? offset + limit + 1 : null }) : fail("Search receipt not found");
-      }
+
     }
     const reference = call.name === "Read" ? parseResourceReference(requested) : null;
     const workspaceId = reference?.kind === "document" &&
@@ -1709,6 +1723,7 @@ export function assistantTools<Context extends {
       signal,
       reader: readerAssignment,
       knownSources,
+      priorQueries: queryHistory ?? (() => legalEvidenceState?.queries.values() ?? []),
     });
     if (sourceRead) return sourceRead;
     return runCodingShapeCall(call, args, {
@@ -1979,6 +1994,7 @@ export function assistantTools<Context extends {
           limit: Math.max(1, Math.min(20, Math.trunc(Number(input.limit) || 10))),
         },
         results: resources,
+        ...(Array.isArray(searched.unavailable) ? { unavailable: searched.unavailable.map(String) } : {}),
       }],
     };
   };
