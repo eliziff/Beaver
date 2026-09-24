@@ -1,0 +1,18 @@
+{
+ "url": "https://s3.documentcloud.org/documents/4953220/Minister-of-National-Revenue-v-Brewers-Retail.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/4953220",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-578-18",
+ "document_title": "Applicant's Motion Record (April 2018), Minister of National Revenue v. Brewers Retail Inc. (o/a The Beer Store): Affidavit of John Tsetsos sworn March 16, 2018",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-mnr-beerstore-tsetsos",
+ "source_file": "hdc-4953220.pdf",
+ "page_range": [
+  12,
+  28
+ ],
+ "source_sha256": "0fdfa5d8070bf9699e64eaef9e30f85fefd326a6f4468508f7d8816506efc898",
+ "source_pages": 46
+}

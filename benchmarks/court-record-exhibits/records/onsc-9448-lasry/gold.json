@@ -1,0 +1,949 @@
+{
+ "record_id": "onsc-9448-lasry",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00000045-0000 (Cornwall)",
+ "subject": "real_property",
+ "proceeding": "9448-1462 Quebec Inc. v. 2416300 Ontario Inc. and Daniel Orr: mortgage enforcement (first charge on 510/520 Second Street East, Cornwall); plaintiff's motion for summary judgment against borrower and guarantor",
+ "document": "Affidavit of Roger Lasry sworn November 21, 2023 (Amended Motion Record of the Plaintiff, December 21, 2023)",
+ "deponent": "Roger Lasry",
+ "deponent_role": "President, 9448-1462 Quebec Inc. (plaintiff lender)",
+ "sworn_date": "2023-11-21",
+ "notes": "The start of paragraph 16 (citing X and F) is also missing from the scan (references paragraph null). DocumentCloud (CBC) upload; scanned record with OCR layer; exhibit covers are separate typed-and-stamped pages, --covers by page (read by eye: A-N, O1-O7, P-X); --ocr-affidavit; OCR noise throughout.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-g52jtx.pdf",
+   "kind": "public_record",
+   "date": "2022-06-13",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [],
+   "description": "Charge/mortgage registered as ST135752 against 510 and 520 Second Street East, Cornwall",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "attached hereto as\nExhibit “A”"
+    }
+   ],
+   "content_check": "Teraview charge registration print (poor OCR)"
+  },
+  {
+   "label": "B",
+   "file": "doc-aqyept.pdf",
+   "kind": "letter",
+   "date": "2022-05-02",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [
+    "2416300 Ontario Inc."
+   ],
+   "description": "Commitment Letter of May 2, 2022",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Those letters are attached hereto as Exhibits “B and “C”"
+    }
+   ],
+   "content_check": "'May 2, 2022 2416300 ONTARIO INC. Dear Mr. Orr: RE: Commitment Letter for $1,300,000 first-ranking mortgage loan'"
+  },
+  {
+   "label": "C",
+   "file": "doc-eqykxr.pdf",
+   "kind": "letter",
+   "date": "2022-06-07",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [
+    "2416300 Ontario Inc."
+   ],
+   "description": "Amended and Restated Commitment Letter of June 7, 2022",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Those letters are attached hereto as Exhibits “B and “C”"
+    },
+    {
+     "paragraph": 15,
+     "quote": "the Amended and Restated Commitment Letter (attached hereto as Exhibit “C”)"
+    }
+   ],
+   "content_check": "'June 7, 2022 ... RE: Amended and Restated Commitment Letter'"
+  },
+  {
+   "label": "D",
+   "file": "doc-7f7pbr.pdf",
+   "kind": "corporate_record",
+   "date": "2022",
+   "author": "2416300 Ontario Inc.",
+   "recipients": [
+    "9448-1462 Quebec Inc."
+   ],
+   "description": "Certificate of Officer noting Orr as Vice-President of 241, with articles, by-law and borrowing resolution",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "is attached hereto as Exhibit “D\""
+    }
+   ],
+   "content_check": "'2416300 ONTARIO INC. (the Corporation) To: 9448-1462 QUEBEC INC ... Barker Willson Professional Corporation' certificate; ARTICLES / BY-LAW / BORROWING RESOLUTION pages"
+  },
+  {
+   "label": "E",
+   "file": "doc-4n3qvj.pdf",
+   "kind": "letter",
+   "date": "2022-12-21",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [
+    "2416300 Ontario Inc.",
+    "Daniel Orr"
+   ],
+   "description": "Notice of Default and Demand for Payment",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copyofthat notice and demand\nletter is attached hereto as Exhibit \"E\""
+    }
+   ],
+   "content_check": "'December 21, 2022 BY REGISTERED MAIL AND EMAIL Without prejudice 2416300 ONTARIO INC, as borrower'"
+  },
+  {
+   "label": "F",
+   "file": "doc-raqwgt.pdf",
+   "kind": "agreement",
+   "date": "2022-05-12",
+   "author": "Daniel Orr",
+   "recipients": [
+    "9448-1462 Quebec Inc."
+   ],
+   "description": "Guarantee and Postponement of Claim by Orr",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of that Guarantee is attached hereto as Exhibit"
+    },
+    {
+     "paragraph": null,
+     "quote": "(attachedheretoas Exhibit “F\")"
+    }
+   ],
+   "content_check": "'GUARANTORS: DANIEL ORR ... DEBTOR: 2416300 ONTARIO INC. ... CREDITOR: 9448-1462 QUEBEC INC.'"
+  },
+  {
+   "label": "G",
+   "file": "doc-3dxkvy.pdf",
+   "kind": "notice",
+   "date": "2023-02-22",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [
+    "2416300 Ontario Inc.",
+    "Daniel Orr"
+   ],
+   "description": "Notice of Sale under the Charge",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A copyof that NoticeofSale is attachedheretoas Exhibit “G\""
+    }
+   ],
+   "content_check": "'Take notice that default has been made in payment of the money due under a certain mortgage dated the 2 day of May 2022'"
+  },
+  {
+   "label": "H",
+   "file": "doc-bthcyd.pdf",
+   "kind": "court_filing",
+   "date": "2023-04-17",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [],
+   "description": "Statement of Claim",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "The Statement of Claim is attached hereto as Exhibit “H"
+    }
+   ],
+   "content_check": "'ONTARIO SUPERIOR COURT OF JUSTICE ... 9448-1462 QUEBEC INC. Plaintiff and 2416300 ONTARIO INC. and DANIEL ORR ... STATEMENT OF CLAIM'"
+  },
+  {
+   "label": "I",
+   "file": "doc-yxqgnk.pdf",
+   "kind": "court_order",
+   "date": "2023-05-16",
+   "author": "Justice Desormeau",
+   "recipients": [],
+   "description": "Order for substituted service on Orr",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Order as Exhibit “I”"
+    }
+   ],
+   "content_check": "'BEFORE Justice Desormeau ) Tuesday, May 16 2023'"
+  },
+  {
+   "label": "J",
+   "file": "doc-dqt6s6.pdf",
+   "kind": "court_filing",
+   "date": "2023-05",
+   "author": "Daniel Orr",
+   "recipients": [],
+   "description": "Orr's Statement of Defence (on behalf of himself and 241)",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "In his Statement of Defense, Orr does not deny"
+    }
+   ],
+   "content_check": "'COURT FILE NO: CV-23-00000045-0000 ... 9448-1462 QUEBEC INC. PLAINTIFF AND 2416300 ONTARIO INC. AND DANIEL ORR' statement of defence; the citing paragraph 8 is missing from the posted affidavit"
+  },
+  {
+   "label": "K",
+   "file": "doc-ftnawk.pdf",
+   "kind": "court_order",
+   "date": "2023-08-11",
+   "author": "Justice Bergeron",
+   "recipients": [],
+   "description": "Endorsement and order of Justice Bergeron of August 11, 2023",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "endorsement and orderof Justice Bergeron are attachedheretoas Exhibit “K”"
+    }
+   ],
+   "content_check": "'ENDORSEMENT ... CV-23-00000045-0000 ... 9448-1462 QUEBEC INC.'"
+  },
+  {
+   "label": "L",
+   "file": "doc-qg7dnv.pdf",
+   "kind": "email",
+   "date": "2023-10-20",
+   "author": "Janelle Ruest (Court and Client Representative)",
+   "recipients": [
+    "Megan Fife"
+   ],
+   "description": "Court email confirming the Statement of Defence was struck",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "that said document had been struck, is attached hereto as\nExhibit “L”"
+    }
+   ],
+   "content_check": "'Good Morning, Requisition has been filed and Statement of Defence has been struck.'"
+  },
+  {
+   "label": "M",
+   "file": "doc-vcbss5.pdf",
+   "kind": "court_filing",
+   "date": "2023-06-05",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [],
+   "description": "Plaintiff's Reply",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "document is attached hereto as Exhibit “M”"
+    }
+   ],
+   "content_check": "'ONTARIO SUPERIOR COURT OF JUSTICE ... REPLY 1. The Plaintiff'"
+  },
+  {
+   "label": "N",
+   "file": "doc-jvvba3.pdf",
+   "kind": "email",
+   "date": "2023-04-14",
+   "author": "Roger Lasry",
+   "recipients": [
+    "Megan Fife"
+   ],
+   "description": "Lasry's April 14, 2023 email summarizing a call from a mortgage broker",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "hereto as Exhibit “N”"
+    }
+   ],
+   "content_check": "email 'Hi Megan ... has not paid back any of the money that is owed to my company'"
+  },
+  {
+   "label": "O1",
+   "file": "doc-3ytzwa.pdf",
+   "kind": "email",
+   "date": "2023-05-08",
+   "author": "Matthew Cinnamon",
+   "recipients": [
+    "Megan Fife"
+   ],
+   "description": "May 8, 2023 email from Cinnamon with the draft offer to purchase",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "'Date: Monday, May 8, 2023 ... Hi Megan, Thanks again for calling me back!'"
+  },
+  {
+   "label": "O2",
+   "file": "doc-gj5awn.pdf",
+   "kind": "email_chain",
+   "date": "2023-05-24",
+   "author": "Megan Fife; Matthew Cinnamon; Sylvie Patenaude",
+   "recipients": [],
+   "description": "May 24, 2023 emails on the mortgage agreement and payout statements",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "scanned email chain, OCR garbled"
+  },
+  {
+   "label": "O3",
+   "file": "doc-5bysgz.pdf",
+   "kind": "email_chain",
+   "date": "2023-05-26",
+   "author": "Megan Fife; Matthew Cinnamon",
+   "recipients": [],
+   "description": "May 26, 2023 emails with Cinnamon",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "scanned email chain, OCR garbled"
+  },
+  {
+   "label": "O4",
+   "file": "doc-mwg8hu.pdf",
+   "kind": "email_chain",
+   "date": "2023-06-08",
+   "author": "Megan Fife",
+   "recipients": [
+    "Matthew Cinnamon",
+    "Stephane Loyer"
+   ],
+   "description": "June 8, 2023 email forwarding the full security package",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "scanned email chain on Maclaren Corlett letterhead, OCR garbled"
+  },
+  {
+   "label": "O5",
+   "file": "doc-3ckb9c.pdf",
+   "kind": "email",
+   "date": "2023-06-01",
+   "author": "Roger Lasry",
+   "recipients": [
+    "Megan Fife"
+   ],
+   "description": "June 1, 2023 email summarizing the call with Stephane Loyer",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "'Hi Megan, Eric and I just completed the call with Stephane Boyer and Jean Pierre Poulin who is the President of D...' (email dated Thursday June 1, 2023: the covers put it after the June 8 forwarding email)"
+  },
+  {
+   "label": "O6",
+   "file": "doc-px85ch.pdf",
+   "kind": "email",
+   "date": "2023-06-09",
+   "author": "Roger Lasry",
+   "recipients": [
+    "Megan Fife"
+   ],
+   "description": "June 9, 2023 email summary of the call with Stephane Loyer",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "'Hi Megan, We just completed our call with Stephane. He advised us that they are still very interested to purchase'"
+  },
+  {
+   "label": "O7",
+   "file": "doc-xjqher.pdf",
+   "kind": "email",
+   "date": "2023-06-16",
+   "author": "Roger Lasry",
+   "recipients": [
+    "Megan Fife"
+   ],
+   "description": "June 16, 2023 email: Devcore will not waive conditions",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibits “0-1” through “0-7”"
+    }
+   ],
+   "content_check": "'Hi Megan We had a call with Devcore yesterday and they confirmed that they will not be buying our mortgage'"
+  },
+  {
+   "label": "P",
+   "file": "doc-bejyz4.pdf",
+   "kind": "email",
+   "date": "2023-06-20",
+   "author": "Megan Fife",
+   "recipients": [
+    "Roger Lasry"
+   ],
+   "description": "June 20, 2023 email: nothing received from Devina Sharma",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Exhibit “FP"
+    }
+   ],
+   "content_check": "'Tuesday June 20, 2023 ... Good afternoon Roger, Just a quick email to let you know I have still received nothing from Devina Sharma'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-sq2mu8.pdf",
+   "kind": "email_chain",
+   "date": "2023-06-24",
+   "author": "Megan Fife; Daniel Orr",
+   "recipients": [],
+   "description": "June 23 and 24, 2023 emails on Orr's payout request",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of the June 23 and June 24, 2023, emails are attached hereto as Exhibit \"Q\""
+    }
+   ],
+   "content_check": "'Good morning Roger, I had a phone call from Daniel Orr this morning. He has asked if I can send him the current payout total'"
+  },
+  {
+   "label": "R",
+   "file": "doc-zkgptt.pdf",
+   "kind": "email",
+   "date": "2023-07-11",
+   "author": "Megan Fife",
+   "recipients": [
+    "Roger Lasry"
+   ],
+   "description": "July 11, 2023 email describing the call from Devina Sharma",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "call, i attached hereto as Exhibit \"R\""
+    }
+   ],
+   "content_check": "'Good afternoon Roger and Eric, I hope you're both well. I just got off an interesting call'"
+  },
+  {
+   "label": "S",
+   "file": "doc-99gvn2.pdf",
+   "kind": "letter",
+   "date": "2023-09-12",
+   "author": "Megan Fife",
+   "recipients": [
+    "2416300 Ontario Inc."
+   ],
+   "description": "Correspondence from the plaintiff's solicitor to 241/Orr",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "are attached hereto as Exhibi\nST, U7 and V"
+    }
+   ],
+   "content_check": "'Sent! 2416300 Ontario ... September 12, 2023. Megan Fife' (OCR)"
+  },
+  {
+   "label": "T",
+   "file": "doc-sk74j3.pdf",
+   "kind": "email",
+   "date": "2023-08-14",
+   "author": "Megan Fife",
+   "recipients": [
+    "Daniel Orr"
+   ],
+   "description": "Solicitor's email to Orr of August 2023",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "are attached hereto as Exhibi\nST, U7 and V"
+    }
+   ],
+   "content_check": "'Good afternoon Mr. Orr, This morning we received...' (date OCR garbled)"
+  },
+  {
+   "label": "U",
+   "file": "doc-2s2zc9.pdf",
+   "kind": "email",
+   "date": "2023-08-29",
+   "author": "Megan Fife",
+   "recipients": [
+    "Daniel Orr"
+   ],
+   "description": "Solicitor's email to Orr of August 29, 2023",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "are attached hereto as Exhibi\nST, U7 and V"
+    }
+   ],
+   "content_check": "'Good morning Mr. Orr, note that...' (date OCR garbled)"
+  },
+  {
+   "label": "V",
+   "file": "doc-pc4htg.pdf",
+   "kind": "email",
+   "date": "2023-10-19",
+   "author": "Megan Fife",
+   "recipients": [
+    "Daniel Orr"
+   ],
+   "description": "Solicitor's email to Orr of October 19, 2023",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "are attached hereto as Exhibi\nST, U7 and V"
+    }
+   ],
+   "content_check": "'Subject 9448-1462 Quebec Inc. v 2416300 Ontario Inc. and Daniel Orr ... October 19, 2023 ... Good afternoon Mr. Orr'"
+  },
+  {
+   "label": "W",
+   "file": "doc-h3zyaa.pdf",
+   "kind": "spreadsheet",
+   "date": "2023-11",
+   "author": "9448-1462 Quebec Inc.",
+   "recipients": [],
+   "description": "Calculation of principal and interest owing",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "The calculation of principal and interest owing, to date, is attache\nhereto as Exhibit “W\""
+    }
+   ],
+   "content_check": "'LOAN REIMBURSEMENT DATE 13-Dec-22 PRINCIPAL AMOUNT $1,300,000.00 Interest to January 13, 2023'"
+  },
+  {
+   "label": "X",
+   "file": "doc-d4keen.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "",
+   "recipients": [],
+   "description": "Standard Charge Terms",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "hereto as Exhibit “X\")"
+    }
+   ],
+   "content_check": "scanned standard charge terms, OCR garbled"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Commitment letter issued",
+   "date": "2022-05-02",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Commitment Letter dated May 2, 2022",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Orr gives the Guarantee and Postponement of Claim",
+   "date": "2022-05-12",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Guarantee and PostponementofClaim dated May 12, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Amended and Restated Commitment Letter",
+   "date": "2022-06-07",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Amended and Restated Commitment Letter, dated June 7, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Charge registered against the Cornwall properties",
+   "date": "2022-06-13",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "on June 13, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "241 defaults under the Charge",
+   "date": "2022-12-13",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "December 13, 2022",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Notice of Default and Demand for Payment sent",
+   "date": "2022-12-21",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "December21, 2022",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Notice of Sale issued",
+   "date": "2023-02-22",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On February 22,2023, a Notice of Sale under the Charge was issued",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Notice of Sale expires",
+   "date": "2023-04-10",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "April 10, 2023",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Lasry's email summarizing the broker's call",
+   "date": "2023-04-14",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "A copy of my April 14, 2023, email",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Statement of Claim issued",
+   "date": "2023-04-17",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The Statement of Claim of 9448 was subsequently issued on April 17, 2023",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "241 served personally through Cinnamon",
+   "date": "2023-04-19",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "on April 19, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Orr served by email",
+   "date": "2023-04-26",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "by email on April 26, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Cinnamon sends the draft offer to purchase",
+   "date": "2023-05-08",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On May 8, 2023, Cinnamon, contacted our solicitor",
+   "exhibits": [
+    "O1"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Order for substituted service on Orr",
+   "date": "2023-05-16",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Desormeau dated May 16, 2023",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Cinnamon requests the mortgage agreement and payout statements",
+   "date": "2023-05-24",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On May 24, 2023, Cinnamon requested",
+   "exhibits": [
+    "O2"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Orr's Statement of Defence served",
+   "date": "2023-05-25",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on May 25, 2023, we were served with Orr's Statement of Defense",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Cinnamon asks for updates",
+   "date": "2023-05-26",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On May 26, 2023, Cinnamon asked",
+   "exhibits": [
+    "O3"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Plaintiff files its Reply",
+   "date": "2023-06-05",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "on June 5, 2023",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Lasry's call with Stephane Loyer of Devcore",
+   "date": "2023-06-01",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "spoke with Stephane Loyer on June 1, 2023",
+   "exhibits": [
+    "O5"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Solicitor forwards the full security package",
+   "date": "2023-06-08",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On June 8, 2023, our solicitor forwarded the full security package",
+   "exhibits": [
+    "O4"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Second call with Loyer",
+   "date": "2023-06-09",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On June 9, 2023, T had another call with Stephane Loyer",
+   "exhibits": [
+    "O6"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Final call: Devcore will not waive conditions",
+   "date": "2023-06-15",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On June 15,2023, Thad my final call with Stephane Loyer",
+   "exhibits": [
+    "O7"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Devina Sharma messages Lasry about Orr's financing",
+   "date": "2023-06-14",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on June 14,2023",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Solicitor reports nothing from Devina Sharma",
+   "date": "2023-06-20",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On June 20, 2023, our solicitor had still received no communications",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Orr calls claiming refinancing; payout sent",
+   "date": "2023-06-23",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On June 23, 2023,Orrtelephoned our solicitor",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Devina Sharma calls the solicitor",
+   "date": "2023-07-11",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On July 11,2023, Devina Sharma telephoned our solicitor",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Justice Bergeron's motion: 241's filing irregular",
+   "date": "2023-08-11",
+   "precision": "day",
+   "paragraphs": [
+    9,
+    12
+   ],
+   "quote": "On August 11,2023, ata motion brought by 9448",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "241's Statement of Defence struck",
+   "date": "2023-09-11",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "by September 11,2023",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Solicitor's emails to Orr go unanswered",
+   "date": "2023-08-14",
+   "precision": "range",
+   "paragraphs": [
+    13
+   ],
+   "quote": "emails dated August 14, August 29, and October 19, 2023",
+   "exhibits": [
+    "T",
+    "U",
+    "V"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "Court confirms the defence was struck",
+   "date": "2023-10-20",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "email confirmation received October 20, 2023",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Dan Charlebois calls about refinancing",
+   "date": "2023-10-04",
+   "precision": "range",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On October 4, 2023, and on November 15, 2023",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Paragraph 8 of the affidavit (which would cite Exhibit J) is missing from the posted scan: the text jumps from paragraph 7 to 9",
+  "Orr's Statement of Defence filed May 25, 2023 as such (Exhibit J is identified only from its content and from paragraph 10)"
+ ]
+}

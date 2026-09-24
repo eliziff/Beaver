@@ -1,0 +1,19 @@
+{
+ "url": "https://s3.documentcloud.org/documents/28061504/old-water-license-affidavit.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/28061504-old-water-license-affidavit",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2503-20600",
+ "document_title": "Affidavit of Paul L. Palandjian sworn March 2026 (O'Leary Digital Limited application to strike Sturgeon Lake Cree Nation's judicial review of the Wonder Valley water licence)",
+ "retrieved": "2026-09-24",
+ "record_id": "abkb-odl-palandjian",
+ "source_file": "hdc-28061504.pdf",
+ "page_range": [
+  1,
+  231
+ ],
+ "source_sha256": "e38c15e5080b53dc614a79c54fc0ce272cb13cbe4e4344952b38c5c4e63a58f8",
+ "source_pages": 231,
+ "covers": "1=10,2=14,3=23,4=25,5=28,6=31,7=35,8=38,9=43,10=46,11=50,12=53,13=114,14=128,15=130,16=133,17=136,18=143,19=146,20=150,21=153,22=157,23=163,24=166,25=169,26=184,27=187,28=191,29=194,30=196,31=198,32=229"
+}

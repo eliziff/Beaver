@@ -1,0 +1,1243 @@
+{
+ "record_id": "fc-sfm-macdonald1",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-956-21 / T-1412-21 / T-121-22",
+ "subject": "environmental",
+ "family": "safe-food-matters-chlorpyrifos",
+ "proceeding": "Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health: judicial review of the PMRA's chlorpyrifos decisions (three-year phase-out, no special review, maximum residue limits kept) under the Pest Control Products Act",
+ "document": "First Affidavit of Dr. Elaine MacDonald affirmed January 19, 2022 (Applicants' Record, Volume 2, Tab 8)",
+ "deponent": "Dr. Elaine MacDonald",
+ "deponent_role": "Scientist, Ecojustice (counsel to the applicants)",
+ "sworn_date": "2022-01-19",
+ "notes": "DocumentCloud (David McKie's Research Methods) upload of Applicants' Record vol. 2; --pages 23-396 --drop 85,86 (Exhibit D cover + 'moved to Tab 18' note) and 322,325,328,332,334 (the Q.2-Q.6 sub-covers: the affidavit cites only 'Exhibit Q', so Q.1-Q.6 form one file); covers read by eye (--covers by page); broken-font pages in Q OCR'd.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dg9acx.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Dr. Elaine MacDonald with counsel",
+   "recipients": [],
+   "description": "Glossary of acronyms in the record prepared by the deponent with counsel",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "This glossary is attached as  Exhibit “A”"
+    }
+   ],
+   "content_check": "'Glossary Acronym Meaning AChE Acetylcholinesterase...' 3 pp"
+  },
+  {
+   "label": "B",
+   "file": "doc-8r746g.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Dr. Elaine MacDonald with counsel",
+   "recipients": [],
+   "description": "Chronology of key events in the re-evaluation history of chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "This chronology is attached as  Exhibit “B”"
+    }
+   ],
+   "content_check": "'Chronology of Key Events Date Issue Document 1999 Re-evaluation of chlorpyrifos products commenced...'"
+  },
+  {
+   "label": "C",
+   "file": "doc-tg6wee.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Dr. Elaine MacDonald with counsel",
+   "recipients": [],
+   "description": "Chart summarizing PMRA data requests for drinking water, greenhouse and mosquito uses",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "This chart is attached as  Exhibit “C”"
+    }
+   ],
+   "content_check": "'Chart of Data Call-In Requests 1. MRLs Document Location in Record Data Gap identified Data requested'"
+  },
+  {
+   "label": "E",
+   "file": "doc-rbe4n2.pdf",
+   "kind": "public_record",
+   "date": "1996-08-03",
+   "author": "U.S. Congress",
+   "recipients": [],
+   "description": "Excerpt of the U.S. Food Quality Protection Act",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "An excerpt  from this legislation is attached to my affidavit as Exhibit “E”"
+    }
+   ],
+   "content_check": "'PUBLIC LAW 104-170-AUG. 3, 1996 110 STAT. 1489 ... To amend the Federal Insecticide, Fungicide, and Rodenticide Act'"
+  },
+  {
+   "label": "F",
+   "file": "doc-buy4zz.pdf",
+   "kind": "court_order",
+   "date": "2021-04-29",
+   "author": "U.S. Court of Appeals for the Ninth Circuit",
+   "recipients": [],
+   "description": "Ninth Circuit decision in League of United Latin American Citizens v. Regan (No. 19-71979)",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Attached as Exhibit  “F” to my affidavit is the 9th Circuit Court decision"
+    },
+    {
+     "paragraph": 126,
+     "quote": "this court decision is included in my  affidavit as Exhibit F"
+    }
+   ],
+   "content_check": "'FOR PUBLICATION UNITED STATES COURT OF APPEALS FOR THE NINTH CIRCUIT LEAGUE OF UNITED LATIN AMERICAN CITIZENS...' 116 pp"
+  },
+  {
+   "label": "G",
+   "file": "doc-tgse6u.pdf",
+   "kind": "public_record",
+   "date": "2006-06-28",
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Information note describing the 2006 changes to the Pest Control Products Act",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "Attached as Exhibit “G” to my affidavit is an information note"
+    }
+   ],
+   "content_check": "'Information Note: The New Pest Control Products Act ... June 28, 2006'"
+  },
+  {
+   "label": "H",
+   "file": "doc-pwbanw.pdf",
+   "kind": "letter",
+   "date": "2021-09-17",
+   "author": "Department of Justice Canada (counsel for the respondents)",
+   "recipients": [
+    "Ecojustice"
+   ],
+   "description": "Respondents' letter of September 17, 2021 treating the requested drinking water modelling documents as outside the CTR",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "This letter is included as Exhibit “H”"
+    },
+    {
+     "paragraph": 76,
+     "quote": "Attached to my affidavit as Exhibit H is a letter from the respondents dated  September 17, 2021"
+    }
+   ],
+   "content_check": "Department of Justice Canada, Ontario Regional Office letterhead"
+  },
+  {
+   "label": "I",
+   "file": "doc-t6e9gy.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "European Commission",
+   "recipients": [],
+   "description": "European Commission web page summarizing the EU review and non-renewal of chlorpyrifos and chlorpyrifos-methyl",
+   "references": [
+    {
+     "paragraph": 104,
+     "quote": "A European  Commission document downloaded from its website explaining and summarizing this is  attached as Exhibit “I”"
+    }
+   ],
+   "content_check": "ec.europa.eu print 9/20/21 'Food Safety Chlorpyrifos & Chlorpyrifos-methyl'"
+  },
+  {
+   "label": "J1",
+   "file": "doc-rq2dxr.pdf",
+   "kind": "public_record",
+   "date": "2019-04-11",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation decision RVD2019-04 for thiamethoxam (pollinator re-evaluation)",
+   "references": [
+    {
+     "paragraph": 123,
+     "quote": "Attached as Exhibit “J1” and Exhibit “J2” are summaries"
+    }
+   ],
+   "content_check": "canada.ca print 10/29/21 'Re-evaluation Decision RVD2019-04, Thiamethoxam and Its Associated End-use Products'"
+  },
+  {
+   "label": "J2",
+   "file": "doc-a8p5ka.pdf",
+   "kind": "public_record",
+   "date": "2019-04-11",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation decision RVD2019-05 for clothianidin (pollinator re-evaluation)",
+   "references": [
+    {
+     "paragraph": 123,
+     "quote": "Exhibit “J2” are summaries of  previous decisions"
+    }
+   ],
+   "content_check": "canada.ca print 10/29/21 'Re-evaluation Decision RVD2019-05, Clothianidin'"
+  },
+  {
+   "label": "K",
+   "file": "doc-w2h4f8.pdf",
+   "kind": "letter",
+   "date": "2018-03-05",
+   "author": "Laura Bowman (Ecojustice)",
+   "recipients": [
+    "PMRA"
+   ],
+   "description": "Correspondence with the PMRA about its refusal to do cumulative organophosphate risk assessments",
+   "references": [
+    {
+     "paragraph": 133,
+     "quote": "This correspondence is attached as Exhibit  “K”"
+    }
+   ],
+   "content_check": "Ecojustice letter from Laura Bowman re REV2018-01 special review of dichlorvos"
+  },
+  {
+   "label": "L",
+   "file": "doc-67qx5j.pdf",
+   "kind": "spreadsheet",
+   "date": "2021-06",
+   "author": "Dr. Elaine MacDonald",
+   "recipients": [],
+   "description": "Summary of the PMRA public registry information on the 24 chlorpyrifos products and permitted label uses",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "which are summarized in  Exhibit L to this affidavit"
+    },
+    {
+     "paragraph": 134,
+     "quote": "this is attached to my affidavit as Exhibit “L”"
+    }
+   ],
+   "content_check": "table: Registration number, Product name, Registrant name, Label uses permitted, Expiry date"
+  },
+  {
+   "label": "M",
+   "file": "doc-nr4vjt.pdf",
+   "kind": "public_record",
+   "date": "2000-12-22",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Notice SPN2000-01 (decision framework for risk assessment) explaining MRLs",
+   "references": [
+    {
+     "paragraph": 140,
+     "quote": "explaining this is attached as Exhibit “M”"
+    }
+   ],
+   "content_check": "'Science Policy Notice SPN2000-01 Technical Paper A Decision Framework for Risk Assessment and Risk Management'"
+  },
+  {
+   "label": "N",
+   "file": "doc-w72yc9.pdf",
+   "kind": "public_record",
+   "date": "2012-07-17",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Proposed Maximum Residue Limit PMRL2012-37 for chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 142,
+     "quote": "A copy of a recent MRL decision for  chlorpyrifos explaining this process is attached to this affidavit as Exhibit “N”"
+    }
+   ],
+   "content_check": "'Proposed Maximum Residue Limit PMRL2012-37 Chlorpyrifos ... 17 July 2012'"
+  },
+  {
+   "label": "O",
+   "file": "doc-9smgcq.pdf",
+   "kind": "webpage",
+   "date": "2021-09-02",
+   "author": "Robert Arnason (The Western Producer)",
+   "recipients": [],
+   "description": "Western Producer article 'Growers stockpile Lorsban ahead of ban'",
+   "references": [
+    {
+     "paragraph": 164,
+     "quote": "This article is attached as  Exhibit “O”"
+    }
+   ],
+   "content_check": "producer.com print 10/12/21 'Growers stockpile Lorsban ahead of ban By Robert Arnason'"
+  },
+  {
+   "label": "P",
+   "file": "doc-s9npqg.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "",
+   "recipients": [],
+   "description": "Product label for Pyrate 480EC (chlorpyrifos)",
+   "references": [
+    {
+     "paragraph": 165,
+     "quote": "Exhibit “P” at page 4 of which states"
+    }
+   ],
+   "content_check": "'Permanent label PYRATE 480EC GROUP 1B INSECTICIDE (Contains Chlorpyrifos)'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-8aepaq.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Provincial governments (ON, BC, AB, SK, MB, QC)",
+   "recipients": [],
+   "description": "Provincial web pages and guidance on disposing of unwanted pesticides",
+   "references": [
+    {
+     "paragraph": 165,
+     "quote": "copies of which are attached as Exhibit “Q”"
+    }
+   ],
+   "content_check": "six provincial disposal documents in one file: Ontario OMAFRA 'Surplus Pesticides Disposal' (print 9/17/21), BC 'Safe Disposal of Unwanted Pesticides' (Sept. 3, 2020), Alberta fact sheet (March 2008), Saskatchewan and Quebec pages (broken fonts, OCR'd), Manitoba disposal guidelines; the index numbers them Q.1-Q.6 but the affidavit cites only 'Q'"
+  },
+  {
+   "label": "R",
+   "file": "doc-9sgf4z.pdf",
+   "kind": "report",
+   "date": "2018",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "PMRA / Regulatory Operations and Regions Branch compliance and enforcement report 2017-2018",
+   "references": [
+    {
+     "paragraph": 166,
+     "quote": "The most recent available  compliance report from the PMRA is attached to my affidavit as Exhibit “R”"
+    }
+   ],
+   "content_check": "'NATIONAL PESTICIDE COMPLIANCE PROGRAM ANNUAL REPORT 2017 - 2018'"
+  },
+  {
+   "label": "S",
+   "file": "doc-v84uyt.pdf",
+   "kind": "public_record",
+   "date": "2007-10-01",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Discussion document DIS2007-01 on reconsideration of decisions (notice of objection policy)",
+   "references": [
+    {
+     "paragraph": 168,
+     "quote": "This policy is attached to my affidavit as Exhibit “S”"
+    }
+   ],
+   "content_check": "'Discussion Document DIS2007-01 Reconsideration of Decisions Under the New Pest Control Products Act ... 1 October 2007'"
+  },
+  {
+   "label": "T",
+   "file": "doc-mkdbjp.pdf",
+   "kind": "email",
+   "date": "2016-07",
+   "author": "PMRA (Guillaume Clement-Mathieu)",
+   "recipients": [
+    "Charles Hatt",
+    "Randy Christensen"
+   ],
+   "description": "PMRA response to the deponent's notice of objection refusing to consider regulatory issues",
+   "references": [
+    {
+     "paragraph": 168,
+     "quote": "This response is attached at Exhibit “T” to my affidavit"
+    }
+   ],
+   "content_check": "email July-07-16 from Guillaume Clement-Mathieu (HC/SC) to Ecojustice/CELA counsel re Notice of Objection RD2013-14 (clothianidin)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Chlorpyrifos first registered in Canada",
+   "date": "1969",
+   "precision": "year",
+   "paragraphs": [
+    10
+   ],
+   "quote": "first registered in Canada in 1969",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "PMRA begins the re-evaluation of chlorpyrifos",
+   "date": "1999",
+   "precision": "year",
+   "paragraphs": [
+    15
+   ],
+   "quote": "The PMRA began the re-evaluation of  chlorpyrifos under a predecessor to the modern Pest Control Products Act (“PCPA”) in  1999",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "PMRA enters voluntary cancellation agreements and implements registration changes",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In 2000, the PMRA entered into voluntary agreements for cancellation",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "PMRA's draft dietary risk assessment",
+   "date": "2000-10",
+   "precision": "month",
+   "paragraphs": [
+    28
+   ],
+   "quote": "based on an  assessment completed in October 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "PMRA comments on the EPA's cumulative organophosphate assessment",
+   "date": "2001",
+   "precision": "year",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In 2001, the PMRA commented publicly",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "PMRA releases re-evaluation update PACR2003-03",
+   "date": "2003",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "In 2003 the PMRA released a re-evaluation update",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "PMRA staff emails on drinking water exposure",
+   "date": "2006-05",
+   "precision": "month",
+   "paragraphs": [
+    55
+   ],
+   "quote": "Emails between PMRA staff in May 2006",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Modern Pest Control Products Act comes into force",
+   "date": "2006-06-28",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "The modern PCPA came into force  on June 28, 2006",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "PMRA updates the re-evaluation (REV2007-01)",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    30
+   ],
+   "quote": "The PMRA updated the re-evaluation in 2007",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "PMRA puts the chlorpyrifos re-evaluation on hold",
+   "date": "2008-02",
+   "precision": "month",
+   "paragraphs": [
+    33
+   ],
+   "quote": "In February 2008, the PMRA put the re-evaluation of chlorpyrifos on hold",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "EPA begins reviewing epidemiological data",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    36
+   ],
+   "quote": "In 2008 the EPA began to look at epidemiological data",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "PMRA briefing note on the 2008 EPA Science Advisory Panel",
+   "date": "2008-09",
+   "precision": "month",
+   "paragraphs": [
+    38
+   ],
+   "quote": "a September 2008 Briefing Note",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "PMRA receives epidemiological data from Dr. Weichenthal",
+   "date": "2009-02",
+   "precision": "month",
+   "paragraphs": [
+    39
+   ],
+   "quote": "In February 2009, the PMRA received information on new epidemiological data",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "PMRA email chain on neurodevelopmental studies and special review potential",
+   "date": "2011-05",
+   "precision": "month",
+   "paragraphs": [
+    41
+   ],
+   "quote": "A May 2011 email chain",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "EPA Science Advisory Panel minutes question AChE-based levels",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    44
+   ],
+   "quote": "In 2012 the EPA’s Science Advisory Panel’s minutes drew new conclusions",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "PMRA proposed MRL PMRL2012-37 for chlorpyrifos",
+   "date": "2012-07-17",
+   "precision": "day",
+   "paragraphs": [
+    142
+   ],
+   "quote": "A copy of a recent MRL decision for  chlorpyrifos",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "EPA revised human health risk assessment",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    45
+   ],
+   "quote": "In 2014 the EPA released a revised human health risk assessment",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "EPA presentation to the PMRA on endpoints and drinking water",
+   "date": "2015-03",
+   "precision": "month",
+   "paragraphs": [
+    48,
+    58
+   ],
+   "quote": "In March  2015 PMRA staff were presented with the EPA’s findings",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Draft briefing note recommending updated toxicology endpoints circulated",
+   "date": "2015-05-12",
+   "precision": "day",
+   "paragraphs": [
+    61
+   ],
+   "quote": "On May 12, 2015, an email was sent between PMRA staff with an attached draft Briefing  Note",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Senior-manager-approved briefing note circulated",
+   "date": "2015-05-15",
+   "precision": "day",
+   "paragraphs": [
+    67
+   ],
+   "quote": "The senior-manager-approved Briefing Note is attached to an email on May 15, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Directors General meeting decides not to update the 2000 endpoints",
+   "date": "2015-05-26",
+   "precision": "day",
+   "paragraphs": [
+    67,
+    68
+   ],
+   "quote": "this May 26, 2015  Directors General meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "PMRA staff email on chlorpyrifos oxon reference doses",
+   "date": "2015-09",
+   "precision": "month",
+   "paragraphs": [
+    59,
+    69
+   ],
+   "quote": "In a September 2015 email  chain between Shairoz Ramji",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "PMRA call with the EPA on the proposed revocation of tolerances",
+   "date": "2015-11-02",
+   "precision": "day",
+   "paragraphs": [
+    71
+   ],
+   "quote": "On November 2, 2015, an email from Shairoz Ramji",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "EPA proposes to revoke all chlorpyrifos tolerances",
+   "date": "2015-11",
+   "precision": "month",
+   "paragraphs": [
+    70
+   ],
+   "quote": "In November of 2015 the EPA proposed to revoke all tolerances",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Directors General meeting on the environmental risk assessment",
+   "date": "2016-01",
+   "precision": "month",
+   "paragraphs": [
+    72
+   ],
+   "quote": "The decision in the minutes for the January 2016 Directors General meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "May 2016 briefing note: drinking water EECs exceed levels of comparison",
+   "date": "2016-05",
+   "precision": "month",
+   "paragraphs": [
+    77
+   ],
+   "quote": "In May 2016 the PMRA discussed the approach",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "EPA releases new human health risk assessment",
+   "date": "2016-11-03",
+   "precision": "day",
+   "paragraphs": [
+    74
+   ],
+   "quote": "On November 3, 2016, the EPA released a new human health risk assessment",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "November 2016 briefing note confirms EEC exceedance",
+   "date": "2016-11",
+   "precision": "month",
+   "paragraphs": [
+    78
+   ],
+   "quote": "In November 2016 another Briefing Note confirmed",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "PMRA's Health Evaluation Directorate receives preliminary drinking water values",
+   "date": "2017-04",
+   "precision": "month",
+   "paragraphs": [
+    79
+   ],
+   "quote": "In April 2017, the PMRA’s Health Evaluation Directorate had received the preliminary  drinking water values",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "PMRA scientific monograph on chlorpyrifos oxon",
+   "date": "2017-05-12",
+   "precision": "day",
+   "paragraphs": [
+    83
+   ],
+   "quote": "In a scientific monograph dated May 12, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e31",
+   "description": "July 2017 briefing note on human health issues",
+   "date": "2017-07",
+   "precision": "month",
+   "paragraphs": [
+    81,
+    82
+   ],
+   "quote": "The July 2017 Briefing Note states",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "PMRA staff emails on Canadian Health Measures Survey biomonitoring data",
+   "date": "2017-08",
+   "precision": "month",
+   "paragraphs": [
+    84
+   ],
+   "quote": "Email correspondence between PMRA staff  from August 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e33",
+   "description": "Ecojustice letter to PMRA on cumulative risk assessment (REV2018-01)",
+   "date": "2018-03-05",
+   "precision": "day",
+   "paragraphs": [
+    133
+   ],
+   "quote": "I was involved in  correspondence with the PMRA",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "PMRA 1-pager on the status of the re-evaluation",
+   "date": "2018-08",
+   "precision": "month",
+   "paragraphs": [
+    87
+   ],
+   "quote": "In August 2018 a 1-pager on the status of the chlorpyrifos re-evaluation was prepared",
+   "exhibits": []
+  },
+  {
+   "id": "e35",
+   "description": "PMRA staff asked to do a qualitative drinking water assessment",
+   "date": "2018-11",
+   "precision": "range",
+   "paragraphs": [
+    88
+   ],
+   "quote": "Between November and December 2018, PMRA staff would be asked",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "description": "January 2019 emails on the drinking water section of the PRVD",
+   "date": "2019-01",
+   "precision": "month",
+   "paragraphs": [
+    95
+   ],
+   "quote": "A January 2019 email chain PMRA staff discussed",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "description": "Draft PRVD of January 15, 2019",
+   "date": "2019-01-15",
+   "precision": "day",
+   "paragraphs": [
+    97
+   ],
+   "quote": "in a version dated January 15, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "description": "PMRA pollinator re-evaluation decisions for thiamethoxam and clothianidin",
+   "date": "2019-04-11",
+   "precision": "day",
+   "paragraphs": [
+    123
+   ],
+   "quote": "the 2019 re-evaluation of  neonicotinoids",
+   "exhibits": [
+    "J1",
+    "J2"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "EFSA experts discuss the human health assessment of chlorpyrifos",
+   "date": "2019-04",
+   "precision": "month",
+   "paragraphs": [
+    104
+   ],
+   "quote": "In April 2019, as part of the standard regulatory renewal",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e40",
+   "description": "PMRA releases the Proposed Environmental Re-evaluation Decision",
+   "date": "2019-05-31",
+   "precision": "day",
+   "paragraphs": [
+    99,
+    100
+   ],
+   "quote": "On May 31, 2019, the PMRA released the final Proposed Environmental Re-evaluation  Decision",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "description": "EFSA publishes its conclusions",
+   "date": "2019-08",
+   "precision": "month",
+   "paragraphs": [
+    105
+   ],
+   "quote": "In August 2019, EFSA published statements",
+   "exhibits": []
+  },
+  {
+   "id": "e42",
+   "description": "EU Standing Committee approves non-renewal",
+   "date": "2019-12",
+   "precision": "month",
+   "paragraphs": [
+    106
+   ],
+   "quote": "reviewed by the European Commission’s Standing Committee  on Plants, Animals, Food and Feed in December 2019",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e43",
+   "description": "European Commission adopts the non-renewal regulation",
+   "date": "2020-01-10",
+   "precision": "day",
+   "paragraphs": [
+    106
+   ],
+   "quote": "The final regulation was adopted by the European Commission on  January 10, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "description": "PMRA preliminary analysis of the need for a special review",
+   "date": "2020",
+   "precision": "approximate",
+   "paragraphs": [
+    110
+   ],
+   "quote": "The PMRA conducted a preliminary analysis of the need for a special review in early  2020",
+   "exhibits": []
+  },
+  {
+   "id": "e45",
+   "description": "Senior management decides not to initiate a special review",
+   "date": "2020-05",
+   "precision": "approximate",
+   "paragraphs": [
+    113
+   ],
+   "quote": "a senior management decision was made to not initiate a  special review sometime in May of 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e46",
+   "description": "Science Management Committee meeting",
+   "date": "2020-06-04",
+   "precision": "day",
+   "paragraphs": [
+    113
+   ],
+   "quote": "met about this issue on June 4, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e47",
+   "description": "PMRA final environmental re-evaluation decision RVD2020-14",
+   "date": "2020-12",
+   "precision": "month",
+   "paragraphs": [
+    101
+   ],
+   "quote": "In December 2020, the PMRA issued the final environmental risk re-evaluation decision",
+   "exhibits": []
+  },
+  {
+   "id": "e48",
+   "description": "PMRA documents its decision not to initiate a special review",
+   "date": "2021-02-10",
+   "precision": "day",
+   "paragraphs": [
+    114
+   ],
+   "quote": "was documented on February 10, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e49",
+   "description": "PMRA issues a human health data call-in",
+   "date": "2021-02-10",
+   "precision": "day",
+   "paragraphs": [
+    115
+   ],
+   "quote": "On February 10, 2021 the PMRA issued a human health data call-in",
+   "exhibits": []
+  },
+  {
+   "id": "e50",
+   "description": "PMRA notifies Adama and Sharda of cancellation",
+   "date": "2021-04-08",
+   "precision": "day",
+   "paragraphs": [
+    116
+   ],
+   "quote": "on April 8, 2021, the PMRA  notified the registrants",
+   "exhibits": []
+  },
+  {
+   "id": "e51",
+   "description": "Trevor Satchwill email on MRL changes",
+   "date": "2021-04-16",
+   "precision": "day",
+   "paragraphs": [
+    156
+   ],
+   "quote": "By way of an April 16, 2021 email",
+   "exhibits": []
+  },
+  {
+   "id": "e52",
+   "description": "MRL Trackers' Meeting decides to maintain MRLs",
+   "date": "2021-04-19",
+   "precision": "day",
+   "paragraphs": [
+    147,
+    154
+   ],
+   "quote": "On April 19, 2021, at  an MRL Trackers’ Meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e53",
+   "description": "PMRA email chain on the draft re-evaluation note",
+   "date": "2021-04-24",
+   "precision": "day",
+   "paragraphs": [
+    118
+   ],
+   "quote": "An email chain  from April 24, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e54",
+   "description": "Science Management Committee agrees to publish the RevNote",
+   "date": "2021-04-29",
+   "precision": "day",
+   "paragraphs": [
+    124,
+    125
+   ],
+   "quote": "on April 29, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e55",
+   "description": "Ninth Circuit decision in LULAC v. Regan",
+   "date": "2021-04-29",
+   "precision": "day",
+   "paragraphs": [
+    34,
+    161
+   ],
+   "quote": "the April 2021 9th Circuit Court order",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e56",
+   "description": "PMRA becomes aware of the Ninth Circuit decision",
+   "date": "2021-05-03",
+   "precision": "approximate",
+   "paragraphs": [
+    126
+   ],
+   "quote": "On or about May 3, 2021 the PMRA became aware of the 9th Circuit Court decision",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e57",
+   "description": "Science Management Committee approves the three-year phase-out",
+   "date": "2021-05-06",
+   "precision": "day",
+   "paragraphs": [
+    127,
+    129
+   ],
+   "quote": "approved by the Science Management Committee on May 6, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e58",
+   "description": "PMRA releases REV2021-02",
+   "date": "2021-05-13",
+   "precision": "day",
+   "paragraphs": [
+    130
+   ],
+   "quote": "On May 13, 2021, the PMRA released",
+   "exhibits": []
+  },
+  {
+   "id": "e59",
+   "description": "PMRA email to the Ontario Fruit and Vegetable Growers on MRLs",
+   "date": "2021-05-14",
+   "precision": "day",
+   "paragraphs": [
+    158
+   ],
+   "quote": "In an email dated May 14, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e60",
+   "description": "PMRA registry shows live registrations for 24 products",
+   "date": "2021-06",
+   "precision": "month",
+   "paragraphs": [
+    134
+   ],
+   "quote": "As of June 2021, the PMRA public registry indicated live registrations",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e61",
+   "description": "Respondents first serve the CTR",
+   "date": "2021-08-17",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The respondents first served the CTR on August 17, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e62",
+   "description": "EPA publishes the final rule revoking all tolerances",
+   "date": "2021-08-30",
+   "precision": "day",
+   "paragraphs": [
+    161
+   ],
+   "quote": "On August 30, 2021, in response to the April 2021 9th Circuit Court order",
+   "exhibits": []
+  },
+  {
+   "id": "e63",
+   "description": "Western Producer article on growers stockpiling Lorsban",
+   "date": "2021-09-02",
+   "precision": "day",
+   "paragraphs": [
+    164
+   ],
+   "quote": "On September 2, 2021, the Western Producer  published an article",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e64",
+   "description": "Respondents' letter treating drinking water modelling as outside the CTR",
+   "date": "2021-09-17",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "counsel for the respondents sent a letter on September  17, 2021",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e65",
+   "description": "Revised CTR served",
+   "date": "2021-09-20",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "a revised CTR was  served on September 20, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e66",
+   "description": "EPA final rule takes effect",
+   "date": "2021-10-29",
+   "precision": "day",
+   "paragraphs": [
+    162
+   ],
+   "quote": "The  final rule became effective October 29, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e67",
+   "description": "PMRA updates the registry to 'phase-out' status",
+   "date": "2021-11-01",
+   "precision": "day",
+   "paragraphs": [
+    139
+   ],
+   "quote": "updated the registry on November 1, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e68",
+   "description": "Further revised public CTR served",
+   "date": "2021-11-15",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "A further revised public version of the CTR was served  on November 15th",
+   "exhibits": []
+  },
+  {
+   "id": "e69",
+   "description": "Last date of sale by registrants",
+   "date": "2021-12-10",
+   "precision": "day",
+   "paragraphs": [
+    131
+   ],
+   "quote": "Last date of sale by registrant: 10 December 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e70",
+   "description": "All chlorpyrifos tolerances expire in the U.S.",
+   "date": "2022-02-28",
+   "precision": "day",
+   "paragraphs": [
+    162
+   ],
+   "quote": "will expire on February 28, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e71",
+   "description": "Last date of use for all chlorpyrifos products",
+   "date": "2023-12-10",
+   "precision": "day",
+   "paragraphs": [
+    131
+   ],
+   "quote": "Last date of use for all chlorpyrifos uses/products: 10 December 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e72",
+   "description": "PMRA response to the Ecojustice/CELA notice of objection",
+   "date": "2016-07",
+   "precision": "month",
+   "paragraphs": [
+    168
+   ],
+   "quote": "involved in a notice of objection where the PMRA refused to consider regulatory issues",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e73",
+   "description": "Deadline for data under the 2019 data call-in",
+   "date": "2019-08-04",
+   "precision": "day",
+   "paragraphs": [
+    92
+   ],
+   "quote": "Data was required by August 4, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e74",
+   "description": "Science Management Committee briefing note recommending cancellation of greenhouse and mosquito uses",
+   "date": "2018-11-29",
+   "precision": "day",
+   "paragraphs": [
+    96
+   ],
+   "quote": "November 29, 2018 Science Management Committee briefing note",
+   "exhibits": []
+  },
+  {
+   "id": "e75",
+   "description": "EU member states must revoke chlorpyrifos authorizations",
+   "date": "2020-02-16",
+   "precision": "day",
+   "paragraphs": [
+    163
+   ],
+   "quote": "revoke authorizations by February 16, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e76",
+   "description": "Briefing note on file closure of the chlorpyrifos re-evaluation",
+   "date": "2021-05-06",
+   "precision": "day",
+   "paragraphs": [
+    157
+   ],
+   "quote": "a May 6, 2021 Briefing Note was provided to the Science Management Committee on the  file closure",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit D: excerpts from the November 15, 2021 Certified Tribunal Record (moved to Tab 18 of the Applicants' Record; the posted volume holds only a cover and a note, dropped)",
+  "Exhibits to the affidavit of Elizabeth Gabel affirmed November 17, 2021 (A1-A13, B1-B15, C3-C14, D1, D3)",
+  "Exhibits to the affidavit of Mary Lou McDonald affirmed November 3, 2021 (D, G)",
+  "Certified Tribunal Record documents (CTR Docs)",
+  "Affidavit of Margaret Sears"
+ ]
+}

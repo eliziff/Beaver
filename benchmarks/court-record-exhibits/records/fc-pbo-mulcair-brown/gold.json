@@ -1,0 +1,152 @@
+{
+ "record_id": "fc-pbo-mulcair-brown",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-2092-12",
+ "subject": "administrative",
+ "proceeding": "Page (Parliamentary Budget Officer) v. Mulcair: reference under s. 18.3 of the Federal Courts Act on the PBO's jurisdiction to analyze budget savings and request departmental data; ex parte motion for directions",
+ "document": "Affidavit of Patricia Brown sworn November 21, 2012 (Ex parte Motion Record, Tab 2)",
+ "deponent": "Patricia Brown",
+ "deponent_role": "Administrative Coordinator, Office of the Parliamentary Budget Officer",
+ "sworn_date": "2012-11-21",
+ "notes": "DocumentCloud (CBC) upload, scanned with OCR layer; --pages 14-23; paragraph 5 is OCR'd as 's.' (references paragraph null).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-cyv55q.pdf",
+   "kind": "letter",
+   "date": "2012-11",
+   "author": "Thomas Mulcair (Leader of the Official Opposition)",
+   "recipients": [
+    "Kevin Page (Parliamentary Budget Officer)"
+   ],
+   "description": "Mulcair's letter received by the PBO on November 13, 2012",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "I have attached this letter to this, my affidavit, as \"Exhibit A\""
+    }
+   ],
+   "content_check": "Leader of the Official Opposition letterhead, Thomas Mulcair to the Parliamentary Budget Officer"
+  },
+  {
+   "label": "B",
+   "file": "doc-sjtsd9.pdf",
+   "kind": "letter",
+   "date": "2012-11-14",
+   "author": "Kevin Page (Parliamentary Budget Officer)",
+   "recipients": [
+    "Thomas Mulcair"
+   ],
+   "description": "PBO's November 14, 2012 response",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "I have attached this letter to this, my affidavit, as \"Exhibit B\""
+    }
+   ],
+   "content_check": "'November 14, 2012 The Honourable Thomas J. Mulcair ... Dear Mr. Mulcair: Thank you for your letter.'"
+  },
+  {
+   "label": "C",
+   "file": "doc-chsqvf.pdf",
+   "kind": "letter",
+   "date": "2012-11-15",
+   "author": "Thomas Mulcair",
+   "recipients": [
+    "Kevin Page"
+   ],
+   "description": "Mulcair's further letter, received November 16, 2012",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "I have attached this letter to this, my affidavit, as \"Exhibit C\""
+    }
+   ],
+   "content_check": "Leader of the Official Opposition letterhead, 'November 15, 2012 Kevin Page Parliamentary Budget Officer'"
+  },
+  {
+   "label": "D",
+   "file": "doc-x36rq8.pdf",
+   "kind": "letter",
+   "date": "2012-11-19",
+   "author": "Kevin Page",
+   "recipients": [
+    "Thomas Mulcair"
+   ],
+   "description": "PBO's November 19, 2012 response",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "I have attached this letter to this, my affidavit, as \"Exhibit D\""
+    }
+   ],
+   "content_check": "'November 19, 2012 The Honourable Thomas J. Mulcair ... Dear Mr. Mulcair: Thank you for yo[ur letter]'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent becomes Administrative Coordinator at the PBO",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "have been so since 2008",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "PBO receives Mulcair's letter",
+   "date": "2012-11-13",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On November 13, 2012, the Parliamentary Budget Officer received a letter",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "PBO responds to Mulcair",
+   "date": "2012-11-14",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On November 14, 2012, the Parliamentary Budget Officer responded",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "PBO receives Mulcair's further letter",
+   "date": "2012-11-16",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On November 16, 2012, the Parliamentary Budget Officer received a further letter",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "PBO responds again",
+   "date": "2012-11-19",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "On November 19, 2012, the Parliamentary Budget Officer responded",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": []
+}

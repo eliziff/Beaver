@@ -1,0 +1,1032 @@
+{
+ "record_id": "abkb-odl-palandjian",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2503-20600",
+ "subject": "indigenous_rights",
+ "proceeding": "Sturgeon Lake Cree Nation v. Alberta (Minister of Indigenous Relations, Minister of Environment and Protected Areas) and MD of Greenview: judicial review of the Water Act licence and Aboriginal Consultation Office assessments for the Wonder Valley AI data centre; O'Leary Digital Limited's application to strike",
+ "document": "Affidavit of Paul L. Palandjian sworn March 23, 2026 (filed March 24, 2026)",
+ "deponent": "Paul L. Palandjian",
+ "deponent_role": "Vice President and director, O'Leary Digital Limited",
+ "sworn_date": "2026-03-23",
+ "notes": "DocumentCloud (s3) upload; exhibit covers on their own pages, --covers by page (numeric 1-32); scanned exhibits carry an OCR text layer; jurat page scanned (para 19 number lost).",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-9yh6nd.pdf",
+   "kind": "corporate_record",
+   "date": "2026-03",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Alberta corporate search result for O'Leary Digital Limited",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit \"1\" is a copy\nof the Alberta corporate search result for ODL"
+    }
+   ],
+   "content_check": "Alberta corporate search: Legal Entity Name O'LEARY DIGITAL LIMITED, Corporate Access Number 202664755, registered office 4500 855 2nd Street SW Calgary"
+  },
+  {
+   "label": "2",
+   "file": "doc-atsjbc.pdf",
+   "kind": "corporate_record",
+   "date": "2026-03-09",
+   "author": "Ontario Business Registry",
+   "recipients": [],
+   "description": "Ontario corporate search result for O'Leary Productions Inc.",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"2\" is a copy of the Ontario corporate search result for O'Leary Productions Inc."
+    }
+   ],
+   "content_check": "Ontario Corporation Profile Report, O'LEARY PRODUCTIONS INC. as of March 9, 2026"
+  },
+  {
+   "label": "3",
+   "file": "doc-g6gwsn.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Alberta Major Projects",
+   "recipients": [],
+   "description": "Screenshot of the Alberta Major Projects website on Phase 1 of the Project",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit \"3\" is a screenshot of the Alberta Major\nProjects website"
+    }
+   ],
+   "content_check": "one-page screenshot, image only (OCR noise)"
+  },
+  {
+   "label": "4",
+   "file": "doc-8zf9dj.pdf",
+   "kind": "notice",
+   "date": "2024-12-09",
+   "author": "O'Leary Ventures; MD of Greenview",
+   "recipients": [],
+   "description": "Joint media release of December 9, 2024 announcing the Project",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "media release is attached as Exhibit \"4\""
+    }
+   ],
+   "content_check": "'December, 2024 Kevin O'Leary in cooperation with the Municipal District of Greenview to develop world's largest AI Data Centre Industrial Park Wonder Valley'"
+  },
+  {
+   "label": "5",
+   "file": "doc-6vw557.pdf",
+   "kind": "webpage",
+   "date": "2024-12-12",
+   "author": "Nate Glubish (Sherwood Park News)",
+   "recipients": [],
+   "description": "Sherwood Park News opinion by Minister Glubish 'Kevin O'Leary to build world's largest data centre in Alberta'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of this article is attached as\nExhibit \"5\""
+    }
+   ],
+   "content_check": "database print: Sherwood Park News, 568 words, 12 December 2024"
+  },
+  {
+   "label": "6",
+   "file": "doc-jhu7vp.pdf",
+   "kind": "webpage",
+   "date": "2024-12-11",
+   "author": "CBC News",
+   "recipients": [],
+   "description": "CBC article 'Why celebrity investor Kevin O'Leary is proposing a massive AI data centre in northern Alberta'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy\nof this article is attached as Exhibit \"6\""
+    }
+   ],
+   "content_check": "CBC News Dec 11, 2024, 465 words"
+  },
+  {
+   "label": "7",
+   "file": "doc-5vh3h3.pdf",
+   "kind": "webpage",
+   "date": "2024-12-10",
+   "author": "Edmonton Journal",
+   "recipients": [],
+   "description": "Edmonton Journal article 'O'Leary Proposes AI Data Park in Province'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "copy of this news article is attached as Exhibit \"7\""
+    }
+   ],
+   "content_check": "Edmonton Journal, 1,061 words, 10 December 2024"
+  },
+  {
+   "label": "8",
+   "file": "doc-hv8ngn.pdf",
+   "kind": "webpage",
+   "date": "2024-12-28",
+   "author": "National Post",
+   "recipients": [],
+   "description": "National Post article 'A dealmaker's mission to revive Canada; O'Leary's vision begins with wonder valley'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of this article is attached\nas Exhibit \"8\""
+    }
+   ],
+   "content_check": "National Post Dec 28, 2024"
+  },
+  {
+   "label": "9",
+   "file": "doc-np7f76.pdf",
+   "kind": "webpage",
+   "date": "2025-01-20",
+   "author": "The Canadian Press",
+   "recipients": [],
+   "description": "Canadian Press article 'First Nation says it wasn't consulted on celebrity businessman's proposed data centre project'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of this article is attached as Exhibit\n\"9\""
+    }
+   ],
+   "content_check": "Canadian Press broadcast wire, 741 words, 20 January 2025"
+  },
+  {
+   "label": "10",
+   "file": "doc-8xgb7j.pdf",
+   "kind": "webpage",
+   "date": "2025-02-21",
+   "author": "CBC News",
+   "recipients": [],
+   "description": "CBC article 'First Nation to get in-person meeting with Alberta after cancelling virtual discussion about AI centre'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of this article is attached as Exhibit\n\"10\""
+    }
+   ],
+   "content_check": "CBC News Feb 21, 2025, 673 words"
+  },
+  {
+   "label": "11",
+   "file": "doc-7zvfej.pdf",
+   "kind": "webpage",
+   "date": "2025-04",
+   "author": "The Canadian Press",
+   "recipients": [],
+   "description": "Canadian Press article 'O'Leary's AI centre south of Grand Prairie working with province in weekly meetings'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of this news article is attached as Exhibit \"11\""
+    }
+   ],
+   "content_check": "Canadian Press broadcast wire, 673 words, April 2025"
+  },
+  {
+   "label": "12",
+   "file": "doc-5zwub9.pdf",
+   "kind": "agreement",
+   "date": "2025-03-25",
+   "author": "2664755 Alberta Limited; MD of Greenview No. 16",
+   "recipients": [],
+   "description": "Purchase and Sale Agreement between ODL and the MD, redacted",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A copy of the PSA, redacted to protect commercially sensitive\ninformation, is attached as Exhibit \"12\""
+    }
+   ],
+   "content_check": "'PURCHASE AND SALE AGREEMENT WONDER VALLEY - GREENVIEW INDUSTRIAL GATEWAY BETWEEN 2664755 ALBERTA LIMITED -AND- MUNICIPAL DISTRICT OF GREENVIEW NO. 16 MADE AS OF MARCH 25, 2025', 59 pp"
+  },
+  {
+   "label": "13",
+   "file": "doc-3nd7tb.pdf",
+   "kind": "public_record",
+   "date": "2024-02-24",
+   "author": "Alberta Environment",
+   "recipients": [
+    "Municipal District of Greenview No. 16"
+   ],
+   "description": "Water Act preliminary certificate no. 00476030-00-00",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A copy of\nthe Certificate is attached as Exhibit \"13\""
+    }
+   ],
+   "content_check": "'PRELIMINARY CERTIFICATE No. 00476030-00-00 ... HOLDER Municipal District of Greenview No. 16'"
+  },
+  {
+   "label": "14",
+   "file": "doc-6rmrxw.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "",
+   "recipients": [],
+   "description": "Map of the Project and the Smoky River relative to the SLCN Lands",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached as Exhibit \"14\" is a map of the Project"
+    }
+   ],
+   "content_check": "one-page map, image only"
+  },
+  {
+   "label": "15",
+   "file": "doc-xv2tq7.pdf",
+   "kind": "report",
+   "date": "2024-11-07",
+   "author": "Aboriginal Consultation Office (Tim MacDonald)",
+   "recipients": [],
+   "description": "ACO pre-consultation assessment of November 7, 2024 that no consultation was required",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "attached as Exhibits \"15\" and \"16\""
+    }
+   ],
+   "content_check": "ACO assessment FNC202455127, Greenview Industrial Gateway - Provisional Water Intake, Recommendation November 7, 2024"
+  },
+  {
+   "label": "16",
+   "file": "doc-zzpu7n.pdf",
+   "kind": "report",
+   "date": "2024-11-21",
+   "author": "Aboriginal Consultation Office (Tim MacDonald)",
+   "recipients": [],
+   "description": "ACO pre-consultation assessment of November 21, 2024",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "attached as Exhibits \"15\" and \"16\""
+    }
+   ],
+   "content_check": "ACO assessment FNC202455665, Recommendation November 21, 2024"
+  },
+  {
+   "label": "17",
+   "file": "doc-z8w4j9.pdf",
+   "kind": "public_record",
+   "date": "2025-04-07",
+   "author": "Alberta Environment and Protected Areas",
+   "recipients": [
+    "Municipal District of Greenview No. 16"
+   ],
+   "description": "Water Licence DAUT0021649",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of the Water Licence is attached as Exhibit \"17\""
+    }
+   ],
+   "content_check": "Water Act licence number DAUT0021649, effective 2025-04-07, expiry 2035-04-01, source Smoky River"
+  },
+  {
+   "label": "18",
+   "file": "doc-4m5ewx.pdf",
+   "kind": "email_chain",
+   "date": "2024-12-11",
+   "author": "Paul Palandjian; Chief Sheldon Sunshine",
+   "recipients": [],
+   "description": "December 2024 emails introducing the Project and Chief Sunshine's reply agreeing to meet",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of this email exchange is\nattached as Exhibit \"18\""
+    }
+   ],
+   "content_check": "emails: 'Good day Paul, Thank you for reaching out. We are interested in sitting down to discuss in January'"
+  },
+  {
+   "label": "19",
+   "file": "doc-qdx6xs.pdf",
+   "kind": "letter",
+   "date": "2025-01-13",
+   "author": "Chief Sheldon Sunshine",
+   "recipients": [
+    "Premier Danielle Smith"
+   ],
+   "description": "Chief Sunshine's open letter to Premier Smith raising concerns about the Project",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of Chief Sunshine's open letter is\nattached as Exhibit \"19\""
+    }
+   ],
+   "content_check": "'Open Letter: Sturgeon Lake Cree Nation Concerns over AI Data Centre in Traditional Territory' (OCR reads the year as 2024)"
+  },
+  {
+   "label": "20",
+   "file": "doc-umcwgm.pdf",
+   "kind": "email_chain",
+   "date": "2025-01-17",
+   "author": "Paul Palandjian; Chief Sheldon Sunshine",
+   "recipients": [],
+   "description": "January 2025 emails: invitation to meet in Grande Prairie and Chief's invitation for January 29",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of this email exchange is attached as Exhibit\n\"20\""
+    }
+   ],
+   "content_check": "'Good day Paul, I would like to invite you to come to meet at our nation on January 29th'"
+  },
+  {
+   "label": "21",
+   "file": "doc-73hdrd.pdf",
+   "kind": "email",
+   "date": "2025-04-22",
+   "author": "Chief Sheldon Sunshine",
+   "recipients": [
+    "Paul Palandjian"
+   ],
+   "description": "Chief Sunshine's email asking for a Project update",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of Chief Sunshine's email is attached as Exhibit \"21\""
+    }
+   ],
+   "content_check": "'Hope alls well its been awhile since we talked. Are you making any progress?'"
+  },
+  {
+   "label": "22",
+   "file": "doc-pacq8b.pdf",
+   "kind": "email_chain",
+   "date": "2025-06-23",
+   "author": "Paul Palandjian; Chief Sheldon Sunshine",
+   "recipients": [],
+   "description": "June 2025 emails about an in-person meeting in July 2025",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of this email exchange is attached as\nExhibit \"22\""
+    }
+   ],
+   "content_check": "'I had a schedule change and July 17th is unavailable ... Monday July 14 2025 will work best for me'"
+  },
+  {
+   "label": "23",
+   "file": "doc-ucx3gp.pdf",
+   "kind": "letter",
+   "date": "2025-08-18",
+   "author": "Chief Sheldon Sunshine",
+   "recipients": [
+    "Paul Palandjian"
+   ],
+   "description": "Chief Sunshine's letter summarizing the January 28 meeting and requesting information",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of Chief Sunshine's\nletter is attached as Exhibit \"23\""
+    }
+   ],
+   "content_check": "letter August 18, 2025 'Re: Outstanding Requests & New requests'"
+  },
+  {
+   "label": "24",
+   "file": "doc-tye9hp.pdf",
+   "kind": "letter",
+   "date": "2025-08-21",
+   "author": "Paul Palandjian (O'Leary Ventures)",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "Palandjian's reply letter of August 21, 2025",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "attached as Exhibits \"24\" and \"25\""
+    }
+   ],
+   "content_check": "O'Leary Ventures letter August 21, 2025 'Re: Wonder Valley Project & Sturgeon Lake Cree Nation'"
+  },
+  {
+   "label": "25",
+   "file": "doc-g9k6fh.pdf",
+   "kind": "report",
+   "date": "2025-06-17",
+   "author": "O'Leary Ventures",
+   "recipients": [],
+   "description": "Master Plan for the Project dated June 17, 2025, enclosed with the August 21 letter",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "the enclosed Master Plan for the Project\ndated June 17, 2025 are attached as Exhibits \"24\" and \"25\""
+    }
+   ],
+   "content_check": "image-heavy 'Wonder Valley Campus' master plan deck (13 pp)"
+  },
+  {
+   "label": "26",
+   "file": "doc-me4x6a.pdf",
+   "kind": "letter",
+   "date": "2025-08-25",
+   "author": "Chief Sheldon Sunshine",
+   "recipients": [
+    "Paul Palandjian"
+   ],
+   "description": "Chief Sunshine's letter declining the August 26 meeting",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of Chief\nSunshine's letter is attached as Exhibit \"26\""
+    }
+   ],
+   "content_check": "letter August 25, 2025 'Re: Prerequisites to next Meeting Remain Unanswered'"
+  },
+  {
+   "label": "27",
+   "file": "doc-2awq58.pdf",
+   "kind": "email",
+   "date": "2025-10-01",
+   "author": "Paul Palandjian",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "Palandjian's October 1, 2025 email and enclosed response letter",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of\nmy email to Chief Sunshine and letter enclosed therein is attached as Exhibit \"27\""
+    }
+   ],
+   "content_check": "email Wednesday October 1, 2025 'please find the response letter to your letter dated August 25'"
+  },
+  {
+   "label": "28",
+   "file": "doc-h7tcab.pdf",
+   "kind": "email",
+   "date": "2025-10-20",
+   "author": "Paul Palandjian",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "October 20, 2025 email and letter introducing KPMG Indigenous Advisory Services",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of my email to Chief\nSunshine and letter enclosed therein is attached as Exhibit \"28\""
+    }
+   ],
+   "content_check": "email 'Dear Chief Sunshine. I hope this finds you and your community well. Please find the attached letter'"
+  },
+  {
+   "label": "29",
+   "file": "doc-xkwfgf.pdf",
+   "kind": "email",
+   "date": "2025-12-05",
+   "author": "Paul Palandjian",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "December 5, 2025 email thanking the Chief for the call and asking for a Zoom meeting",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of my email to Chief\nSunshine and enclosed letter is attached as Exhibit \"29\""
+    }
+   ],
+   "content_check": "'I very much appreciate your time on the phone last night ... zoom meeting with you and your counsel before the holidays'"
+  },
+  {
+   "label": "30",
+   "file": "doc-d4rn7k.pdf",
+   "kind": "email",
+   "date": "2026-01-06",
+   "author": "Paul Palandjian",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "January 6, 2026 follow-up email requesting a meeting",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of my email to Chief Sunshine is\nattached as Exhibit \"30\""
+    }
+   ],
+   "content_check": "'Happy New Year Chief Sunshine! ... follow up on our previous correspondence regarding a potential meeting'"
+  },
+  {
+   "label": "31",
+   "file": "doc-fpj5aj.pdf",
+   "kind": "email",
+   "date": "2026-01-29",
+   "author": "Paul Palandjian",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "January 29, 2026 email with the detailed Project map, description, land and licence enclosures",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A\ncopy of my email to Chief Sunshine and its enclosures are attached as Exhibit\n\"31\""
+    }
+   ],
+   "content_check": "email 'Please find the attached response to your letter and information materials under a separate attachment' with 30 pp of enclosures"
+  },
+  {
+   "label": "32",
+   "file": "doc-j94qeu.pdf",
+   "kind": "email",
+   "date": "2026-02-12",
+   "author": "Paul Palandjian",
+   "recipients": [
+    "Chief Sheldon Sunshine"
+   ],
+   "description": "February 12, 2026 email and letter inviting a meeting and offering $50,000 capacity funding",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of my email to Chief Sunshine and enclosed letter is attached as\nExhibit \"32\""
+    }
+   ],
+   "content_check": "email February 12, 2026 'Please find a letter response to your previous correspondence'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "ODL (formerly 2664755 Alberta Limited) changes its name",
+   "date": "2025-10",
+   "precision": "month",
+   "paragraphs": [
+    3
+   ],
+   "quote": "changed its name to ODL in October 2025",
+   "exhibits": [
+    "1"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Joint media release announcing Wonder Valley",
+   "date": "2024-12-09",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On December 9, 2024, O'Leary Ventures and the MD jointly announced the Project",
+   "exhibits": [
+    "4"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Glubish opinion piece in Sherwood Park News",
+   "date": "2024-12",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In December 2024, Minister Nate Glubish published an opinion",
+   "exhibits": [
+    "5"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CBC article on O'Leary's proposed data centre",
+   "date": "2024-12",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In December 2024, the CBC published an article",
+   "exhibits": [
+    "6"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Edmonton Journal article on the proposal",
+   "date": "2024-12",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In December 2024, the Edmonton Journal published an article",
+   "exhibits": [
+    "7"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "National Post article on Wonder Valley",
+   "date": "2024-12",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In December 2024, the National Post published an article",
+   "exhibits": [
+    "8"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Canadian Press: First Nation says it wasn't consulted",
+   "date": "2025-01",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In January 2025, the Canadian Press published an article",
+   "exhibits": [
+    "9"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "CBC: First Nation to get in-person meeting with Alberta",
+   "date": "2025-02",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In February 2025, the CBC published an article",
+   "exhibits": [
+    "10"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Canadian Press: AI centre working with province in weekly meetings",
+   "date": "2025-04",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In April 2025, the Canadian Press published an article",
+   "exhibits": [
+    "11"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "MD files provisional water intake application",
+   "date": "2024-02-24",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "the MD filed a provisional water\nintake application (no. DAPP0123946) on February 24, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "MD obtains the Water Act preliminary certificate",
+   "date": "2024-02-24",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "the MD obtained a preliminary\ncertificate (no. 00476030-00-00) under the Water Act on February 24, 2024",
+   "exhibits": [
+    "13"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "ODL and the MD sign the Purchase and Sale Agreement",
+   "date": "2025-03-25",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On March 25, 2025, ODL and the MD signed a Purchase and Sale Agreement",
+   "exhibits": [
+    "12"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "ACO determines no consultation required (first assessment)",
+   "date": "2024-11-07",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On November 7, 2024 and November 21, 2024, the Aboriginal Consultation Office\ndetermined",
+   "exhibits": [
+    "15"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "ACO second assessment",
+   "date": "2024-11-21",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "November 21, 2024, the Aboriginal Consultation Office",
+   "exhibits": [
+    "16"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "MD obtains the Water Licence",
+   "date": "2025-04-07",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On April 7, 2025, the MD obtained the Water Licence",
+   "exhibits": [
+    "17"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Palandjian emails Chief Sunshine to introduce the Project",
+   "date": "2024-12-03",
+   "precision": "range",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On December 3 and 4, 2024, I emailed SLCN Chief Sheldon Sunshine",
+   "exhibits": [
+    "18"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Chief Sunshine replies, interested in meeting",
+   "date": "2024-12-11",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On December 11, 2024, Chief Sunshine replied",
+   "exhibits": [
+    "18"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Chief Sunshine's open letter to Premier Smith",
+   "date": "2025-01-13",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On January 13, 2025, Chief Sunshine sent an open letter to Premier Danielle Smith",
+   "exhibits": [
+    "19"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Palandjian invites Chief to meet in Grande Prairie",
+   "date": "2025-01-13",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On January 13, 2025, I invited Chief Sunshine to meet in Grande Prairie",
+   "exhibits": [
+    "20"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Chief invites Palandjian to meet on January 29",
+   "date": "2025-01-17",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On January 17, 2025, Chief Sunshine invited me to\nmeet on January 29, 2025",
+   "exhibits": [
+    "20"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "In-person meeting at Sturgeon Lake 154 Reserve",
+   "date": "2025-01-28",
+   "precision": "approximate",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On or around January 28, 2025, I, along with others at ODL, met in person",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Chief Sunshine emails asking for an update",
+   "date": "2025-04-22",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On April 22, 2025, Chief Sunshine emailed me to ask for an update",
+   "exhibits": [
+    "21"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Palandjian invites Chief to a further meeting; July 14 confirmed",
+   "date": "2025-06-12",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On June 12, 2025, I invited Chief Sunshine to attend a further in person meeting",
+   "exhibits": [
+    "22"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Emails about the July 2025 meeting",
+   "date": "2025-06-20",
+   "precision": "range",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Between June 20 and 23, 2025, Chief Sunshine and I exchanged emails",
+   "exhibits": [
+    "22"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Chief Sunshine's letter summarizing the January meeting",
+   "date": "2025-08-18",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On August 18, 2025, Chief Sunshine sent me a letter",
+   "exhibits": [
+    "23"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Master Plan for the Project",
+   "date": "2025-06-17",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Master Plan for the Project\ndated June 17, 2025",
+   "exhibits": [
+    "25"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Palandjian replies with information and the Master Plan",
+   "date": "2025-08-21",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On August 21, 2025, I replied to Chief Sunshine's letter",
+   "exhibits": [
+    "24",
+    "25"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "Chief declines the August 26 meeting",
+   "date": "2025-08-25",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On August 25, 2025, Chief Sunshine replied to my letter",
+   "exhibits": [
+    "26"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Palandjian calls Chief to request a meeting",
+   "date": "2025-08-26",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On August 26, 2025, I called Chief Sunshine to request an in-person meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Palandjian's October 1 response letter",
+   "date": "2025-10-01",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On October 1, 2025, I replied to Chief Sunshine's letter dated August 25, 2025",
+   "exhibits": [
+    "27"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "SLCN files its Application for Judicial Review",
+   "date": "2025-10-07",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    16
+   ],
+   "quote": "On October 7, 2025, SLCN filed its Application for Judicial Review",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "Palandjian's letter introducing KPMG Indigenous Advisory Services",
+   "date": "2025-10-20",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On October 20, 2025, I sent Chief Sunshine a letter",
+   "exhibits": [
+    "28"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Phone call between Chief Sunshine and Palandjian",
+   "date": "2025-12-04",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On December 4, 2025, Chief Sunshine and I spoke via phone call",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "description": "Palandjian's thank-you email asking for a Zoom meeting",
+   "date": "2025-12-05",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "on December\n5, 2025, I sent Chief Sunshine an email",
+   "exhibits": [
+    "29"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "Follow-up email requesting a meeting in February",
+   "date": "2026-01-06",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On January 6, 2026, I sent an email to Chief Sunshine",
+   "exhibits": [
+    "30"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "Palandjian sends the detailed Project map and enclosures",
+   "date": "2026-01-29",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On January 29, 2026, in response to a request for further information",
+   "exhibits": [
+    "31"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "Palandjian invites a meeting and offers $50,000 capacity funding",
+   "date": "2026-02-12",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On February 12, 2026, I sent Chief Sunshine a letter inviting SLCN leadership",
+   "exhibits": [
+    "32"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "SLCN's Application for Judicial Review filed October 7, 2025"
+ ]
+}

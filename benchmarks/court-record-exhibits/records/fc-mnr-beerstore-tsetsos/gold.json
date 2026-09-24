@@ -1,0 +1,149 @@
+{
+ "record_id": "fc-mnr-beerstore-tsetsos",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-578-18",
+ "subject": "tax",
+ "proceeding": "Minister of National Revenue v. Brewers Retail Inc. (o/a The Beer Store): ex parte application under ETA s. 289(3) and ITA s. 231.2(3) to authorize unnamed persons requirements for the identities and sales data of licensed beer buyers",
+ "document": "Affidavit of John Tsetsos sworn March 16, 2018 (Applicant's Motion Record, Tab 3)",
+ "deponent": "John Tsetsos",
+ "deponent_role": "Manager, Business Intelligence and Quality Assurance Division, Canada Revenue Agency (Ontario Region)",
+ "sworn_date": "2018-03-16",
+ "notes": "DocumentCloud (CBC) upload, CamScanner scan with OCR layer; --pages 12-28; sworn day read from the index (March 16, 2018).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-fpadqg.pdf",
+   "kind": "court_order",
+   "date": "2014-09-19",
+   "author": "Justice Boswell (Federal Court)",
+   "recipients": [],
+   "description": "Order of September 19, 2014 authorizing UPRs on TBS for July 1, 2010 to December 31, 2016",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto as Exhibit \"A\" is a true copy of the Order"
+    }
+   ],
+   "content_check": "faxed Federal Court order 'Date: 20140919 Docket: T-1590-14', with the requirement form"
+  },
+  {
+   "label": "B",
+   "file": "doc-87kxtu.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Brewers Retail Inc."
+   ],
+   "description": "Draft proposed requirement for which authorization is sought",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit \"B\" is a draft copy of the proposed requirement"
+    }
+   ],
+   "content_check": "'[Date] Brewers Retail Inc. o/a The Beer Store 5900 Explorer Drive ... Requirement (DRAFT) Attention: Brian Park'"
+  },
+  {
+   "label": "C",
+   "file": "doc-mybkyy.pdf",
+   "kind": "letter",
+   "date": "2018-03-02",
+   "author": "Jeff Zabalet (VP Legal, The Beer Store)",
+   "recipients": [
+    "John Tsetsos"
+   ],
+   "description": "TBS's letter taking no position on the UPR application",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached hereto as Exhibit \"C\" is a copy of the March 2, 2018 letter"
+    }
+   ],
+   "content_check": "'From the Office of the VP Legal March 2, 2018 Further to your letter dated January 31, 2018 (enclosed), TBS takes no position on this UPR'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Minister applies for the first UPR authorization",
+   "date": "2014-09",
+   "precision": "month",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In September 20 l 4, the Minister of National Revenue (Minister) brought an",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Justice Boswell grants the 2014 Order",
+   "date": "2014-09-19",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "dated September 19, 2014",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "2014 Order expires",
+   "date": "2016-12-31",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "The 2014 Order expired on December 31, 2016",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Minister issues three UPRs to TBS by oversight; TBS complies",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    10,
+    17
+   ],
+   "quote": "issued th!._-ee UPRs to TBS in 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Deponent writes to TBS for its position",
+   "date": "2018-01",
+   "precision": "month",
+   "paragraphs": [
+    20
+   ],
+   "quote": "In January 2018, l wrote to the TBS",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "TBS replies taking no position",
+   "date": "2018-03-02",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "By letter dated March 2, 2018, TBS replied",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "CRA's January 2018 letter to TBS (enclosed with Exhibit C per its text)",
+  "The three UPRs issued to TBS in 2017"
+ ]
+}

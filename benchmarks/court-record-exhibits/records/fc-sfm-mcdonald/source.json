@@ -1,0 +1,18 @@
+{
+ "url": "https://s3.documentcloud.org/documents/23570119/2022-09-29-applicants-record-t-121-22-volume-7.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/23570119",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-121-22 / T-956-21",
+ "document_title": "Applicants' Record, Volume 7 of 15 (September 29, 2022), Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-sfm-mcdonald",
+ "source_file": "hdc-23570119.pdf",
+ "page_range": [
+  23,
+  116
+ ],
+ "source_sha256": "fa231246ff7ba2b7e9a5e77a4ee33748eefd6f3d4dbbd1c960acbbe0d8dd8d62",
+ "source_pages": 227
+}

@@ -1,0 +1,18 @@
+{
+ "url": "https://s3.documentcloud.org/documents/522211/page-and-mulcair-federal-court-file-t-2092-12.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/522211",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-2092-12",
+ "document_title": "Ex parte Motion Record, Page (Parliamentary Budget Officer) v. Mulcair, November 21, 2012: Affidavit of Patricia Brown",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-pbo-mulcair-brown",
+ "source_file": "hdc-522211.pdf",
+ "page_range": [
+  14,
+  23
+ ],
+ "source_sha256": "bd3251e73e51c9682fb8526ae8bd9c10c726fdf3004f876978cf71d72ba0ae3a",
+ "source_pages": 30
+}

@@ -1,0 +1,19 @@
+{
+ "url": "https://s3.documentcloud.org/documents/26511048/2022-06-28-motion-record-of-the-plaintiff.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/26511048",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-21-00673984-00CP",
+ "document_title": "Motion Record of the Plaintiffs (substituted service), June 28, 2022: Affidavit of Laurence Day sworn June 28, 2022",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-medjedovic-day",
+ "source_file": "hdx-26511048.pdf",
+ "page_range": [
+  12,
+  161
+ ],
+ "source_sha256": "894e26d843941505d34aa6f4a9ca2d82270892239bba4673e2dfc8e2b3073104",
+ "source_pages": 290,
+ "covers": "A=18,B=138,C=142,D=145,E=148,F=152,G=154"
+}

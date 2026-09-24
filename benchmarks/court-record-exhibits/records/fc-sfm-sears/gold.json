@@ -1,0 +1,422 @@
+{
+ "record_id": "fc-sfm-sears",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-956-21 / T-1412-21",
+ "subject": "environmental",
+ "family": "safe-food-matters-chlorpyrifos",
+ "proceeding": "Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health: judicial review of the PMRA's May 13, 2021 chlorpyrifos cancellation with a three-year phase-out (applicant PCN's evidence)",
+ "document": "Affidavit of Margaret Sears affirmed November 2, 2021 (Applicants' Record, Volume 7, Tab 12)",
+ "deponent": "Margaret Sears",
+ "deponent_role": "Chair, Prevent Cancer Now (applicant)",
+ "sworn_date": "2021-11-02",
+ "notes": "DocumentCloud upload of Applicants' Record vol. 7; --pages 117-204; covers D-H print their labels in a shifted font (', (, ), *, +): --covers by page.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-km3hyt.pdf",
+   "kind": "other",
+   "date": "2021",
+   "author": "Margaret Sears",
+   "recipients": [],
+   "description": "Curriculum vitae of Margaret Sears",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "My curriculum vitae is attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "'Margaret (Meg) E. Sears - 1 - 2021 Margaret (Meg) E. Sears (M.Eng., Ph.D.) RR 1, 107 Mast Ln. Dunrobin ON'"
+  },
+  {
+   "label": "B",
+   "file": "doc-ukgncr.pdf",
+   "kind": "public_record",
+   "date": "2017-03-01",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Proposal PRO2017-01, Cumulative Risk Assessment Framework",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "This is attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "'Regulatory Proposal PRO2017-01 Cumulative Risk Assessment Framework ... 1 March 2017'"
+  },
+  {
+   "label": "C",
+   "file": "doc-j46s4d.pdf",
+   "kind": "letter",
+   "date": "2017-04-14",
+   "author": "Prevent Cancer Now and six other organizations",
+   "recipients": [
+    "Pest Management Regulatory Agency"
+   ],
+   "description": "Joint letter recommending how to strengthen the proposed cumulative risk assessment framework",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "The letter is attached to this affidavit as Exhibit “C”"
+    }
+   ],
+   "content_check": "'April 14, 2017 Pest Management Regulatory Agency Health Canada ... BY E-MAIL to PMRA.publications'"
+  },
+  {
+   "label": "D",
+   "file": "doc-f5m5sr.pdf",
+   "kind": "report",
+   "date": "2019-08-29",
+   "author": "Prevent Cancer Now",
+   "recipients": [
+    "Pest Management Regulatory Agency"
+   ],
+   "description": "PCN's submission on the Proposed Re-evaluation Decision PRVD2019-05",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "The submission is attached to this affidavit as Exhibit “D”"
+    }
+   ],
+   "content_check": "'PreventCancerNow.ca Submission Regarding: Chlorpyrifos and Its Associated End-use Products: Updated Environmental Risk Assessment Proposed Re-evaluation Decision PRVD2019-05'"
+  },
+  {
+   "label": "E",
+   "file": "doc-74skgr.pdf",
+   "kind": "report",
+   "date": "2018-10-28",
+   "author": "Irva Hertz-Picciotto et al. (PLOS Medicine)",
+   "recipients": [],
+   "description": "PLOS Medicine article 'Organophosphate exposures during pregnancy and child neurodevelopment: Recommendations for essential policy reforms'",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "a copy of which is attached to this affidavit as Exhibit “E”"
+    }
+   ],
+   "content_check": "'POLICY FORUM Organophosphate exposures during pregnancy and child neurodevelopment ... Irva Hertz-Picciotto'"
+  },
+  {
+   "label": "F",
+   "file": "doc-3qbgb2.pdf",
+   "kind": "letter",
+   "date": "2019-07-31",
+   "author": "David Suzuki Foundation, CELA, CAPE, Environmental Defence and Equiterre",
+   "recipients": [
+    "Pest Management Regulatory Agency"
+   ],
+   "description": "Joint comments of other organizations on the proposed chlorpyrifos decision",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "This document is attached as Exhibit “F”"
+    }
+   ],
+   "content_check": "'July 31, 2019 Pest Management Regulatory Agency Publications Section ... BY E-MAIL'"
+  },
+  {
+   "label": "G",
+   "file": "doc-cq9dks.pdf",
+   "kind": "chart",
+   "date": "2021-06-10",
+   "author": "Margaret Sears",
+   "recipients": [],
+   "description": "Summary table of chlorpyrifos sales data from PMRA sales reports",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "The summary table is attached to this affidavit as Exhibit “G”"
+    }
+   ],
+   "content_check": "'Canadian Chlorpyrifos sales data reported by the Pest Management Regulatory Agency (PMRA) ... Year Rank among Insecticides'"
+  },
+  {
+   "label": "H",
+   "file": "doc-mgsh65.pdf",
+   "kind": "notice",
+   "date": "2021-02-10",
+   "author": "Health Canada PMRA",
+   "recipients": [
+    "Adama Agricultural Solutions Canada Ltd.",
+    "Sharda Cropchem Limited"
+   ],
+   "description": "PMRA's February 10, 2021 data call-in for chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "This data call-in is included as Exhibit “H”"
+    }
+   ],
+   "content_check": "'Paragraph 19(1)a Announcement of Data Call-In Active Ingredient: Chlorpyrifos Reference Number: 2019-3275 Date Sent: 10 February 2021'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Prevent Cancer Now founded",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "PCN is a Canadian non-profit corporation founded in 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "PCN submission to the Senate committee on neonicotinoids",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "to the Senate Agriculture and Forestry Committee on neonicotinoid pesticides in 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "PCN submissions to the Standing Committee on Agriculture",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "PCN made submissions in 2019 to the federal Standing Committee on Agriculture",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Deponent receives the Carleton Lee Award",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "In 2013, I received the Carleton Lee Award",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "PMRA releases the Proposed Cumulative Risk Assessment Framework",
+   "date": "2017-03-01",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On March 1, 2017, the PMRA released Regulatory Proposal PRO2017-01",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "PCN and six organizations send recommendations on the framework",
+   "date": "2017-04-14",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On April 14, 2017, PCN and six other non-profit organizations",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "IARC carcinogenicity findings on organophosphates",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the 2015 carcinogenicity findings of the International Agency for Research on Cancer",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "PMRA releases the Proposed Re-evaluation Decision PRVD2019-05",
+   "date": "2019-05-31",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On May 31, 2019, the PMRA released Proposed Re-evaluation Decision PRVD2019-05",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Joint comments of other organizations on the proposed decision",
+   "date": "2019-07-31",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "dated July 31, 2019",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "PCN submission on the Proposed Re-evaluation Decision",
+   "date": "2019-08-29",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On August 29, 2019, PCN made a submission to the PMRA",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "EFSA unable to conduct chlorpyrifos risk assessments",
+   "date": "2019-08",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "was unable to conduct risk assessments of Chlorpyrifos in August 2019",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "PLOS Medicine article on organophosphates in pregnancy",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    21
+   ],
+   "quote": "a 2018 article published in PLOS Medicine",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "PMRA releases the Final Re-evaluation Decision RVD2020-14",
+   "date": "2020-12-10",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On December 10, 2020, the PMRA released decision RVD2020-14",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "PCN, SFM and eight others file the Notice of Objection",
+   "date": "2021-02-08",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On February 8, 2021, PCN, Safe Food Matters Inc. (“SFM”), and eight other organizations submitted",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Deponent requests PMRA pesticide sales reports",
+   "date": "2018-06-24",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "On June 24, 2018 I sent an email to the PMRA requesting pesticides sales reports",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Deponent completes the chlorpyrifos sales summary table",
+   "date": "2021-06-10",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "on June 10, 2021 I completed a summary table",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "PMRA issues the data call-in",
+   "date": "2021-02-10",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "on February 10, 2021, the PMRA issued a “Data Call-in”",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "PMRA releases REV2021-02 cancelling all uses",
+   "date": "2021-05-13",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "On May 13, 2021, the PMRA released Re-evaluation Note REV2021-02",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "PCN and SFM commence the judicial review",
+   "date": "2021-05",
+   "precision": "approximate",
+   "paragraphs": [
+    40
+   ],
+   "quote": "PCN and SFM then commenced this judicial review application",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "CTR served",
+   "date": "2021-08-17",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "we were served with the Certified Tribunal Record (“CTR”) for this application on August 17, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "MRL Trackers' Meeting",
+   "date": "2021-04-19",
+   "precision": "day",
+   "paragraphs": [
+    41,
+    42
+   ],
+   "quote": "an MRL Trackers’ Meeting on April 19, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Re-evaluation of chlorpyrifos commences",
+   "date": "1999",
+   "precision": "year",
+   "paragraphs": [
+    38
+   ],
+   "quote": "which commenced in 1999",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibits D and F to the affidavit of Mary Lou McDonald (the February 8, 2021 Notice of Objection; REV2021-02)",
+  "PMRA pesticide sales reports 2007-2018",
+  "PCN's 2019 chlorpyrifos submission on its website"
+ ]
+}

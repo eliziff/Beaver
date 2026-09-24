@@ -1,0 +1,20 @@
+{
+ "url": "https://s3.documentcloud.org/documents/24521090/amended-motion-record-pl-21-dec-2023.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/24521090",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00000045-0000 (Cornwall)",
+ "document_title": "Amended Motion Record of the Plaintiff (summary judgment), December 21, 2023: Affidavit of Roger Lasry sworn November 21, 2023",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-9448-lasry",
+ "source_file": "hdx-24521090.pdf",
+ "page_range": [
+  24,
+  154
+ ],
+ "source_sha256": "2334fe403d2fb8cc44c6b51b67e12b461a8626f82fad36e230fee83339d6f3e6",
+ "source_pages": 178,
+ "affidavit_ocr": true,
+ "covers": "A=32,B=37,C=47,D=58,E=65,F=69,G=75,H=77,I=84,J=88,K=92,L=97,M=99,N=103,O1=105,O2=115,O3=119,O4=122,O5=125,O6=127,O7=129,P=131,Q=134,R=137,S=139,T=141,U=143,V=145,W=147,X=149"
+}

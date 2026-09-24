@@ -34,7 +34,8 @@ def fetch(url, path, referer=""):
     headers = ["-H", "Accept: application/pdf,text/html;q=0.9,*/*;q=0.8", "-H", "Accept-Language: en-CA,en;q=0.9"]
     if referer:
         headers += ["-e", referer]
-    r = subprocess.run(["curl", "-sfL", "--retry", "3", "--retry-all-errors", "-A", UA, *headers, "-o", path, url])
+    agent = "curl/8" if "documentcloud.org" in url else UA  # DocumentCloud's S3 refuses browser user agents
+    r = subprocess.run(["curl", "-sfL", "--retry", "3", "--retry-all-errors", "-A", agent, *headers, "-o", path, url])
     ok = r.returncode == 0 and os.path.exists(path) and os.path.getsize(path) > 0
     if not ok and os.path.exists(path):
         os.remove(path)  # never leave a partial download behind

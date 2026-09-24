@@ -1,0 +1,893 @@
+{
+ "record_id": "fc-sfm-macdonald2",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-121-22 / T-956-21",
+ "subject": "environmental",
+ "family": "safe-food-matters-chlorpyrifos",
+ "proceeding": "Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health: judicial review of the PMRA's December 21, 2021 Amended Decision (REV2021-04) cancelling chlorpyrifos registrations with a three-year phase-out",
+ "document": "Second Affidavit of Dr. Elaine MacDonald affirmed March 7, 2022 (Applicants' Record, Volume 3, Tab 9)",
+ "deponent": "Dr. Elaine MacDonald",
+ "deponent_role": "Program Director and Senior Scientist, Ecojustice Canada",
+ "sworn_date": "2022-03-07",
+ "notes": "DocumentCloud upload of Applicants' Record vol. 3; --pages 23-488 --drop 59,60 (Exhibit A cover + placeholder); --covers by page.",
+ "exhibits": [
+  {
+   "label": "B",
+   "file": "doc-9qaff9.pdf",
+   "kind": "spreadsheet",
+   "date": "2021",
+   "author": "Health Canada ATIP",
+   "recipients": [
+    "Charlotte Ireland"
+   ],
+   "description": "List of chlorpyrifos registration documents 2019-2021 provided in response to access request A-2021-000382",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "This spreadsheet is attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "table: Document No., Application No., Document ID, Description, Title (e.g. 3051357 2019-5985 Signed Letter and Revised Registration Certificate)"
+  },
+  {
+   "label": "C",
+   "file": "doc-xmcxad.pdf",
+   "kind": "letter",
+   "date": "2021-10-21",
+   "author": "Health Canada Access to Information and Privacy Division",
+   "recipients": [
+    "Charlotte Ireland"
+   ],
+   "description": "Health Canada letter taking a 260-day extension for access request A-2021-000964",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "this extension letter is  provided at Exhibit “C”"
+    }
+   ],
+   "content_check": "Health Canada ATIP Division letter to Charlotte Ireland"
+  },
+  {
+   "label": "D",
+   "file": "doc-b34fhg.pdf",
+   "kind": "letter",
+   "date": "2021-10-22",
+   "author": "Department of Justice Canada (counsel for the respondents)",
+   "recipients": [
+    "Ecojustice"
+   ],
+   "description": "Respondents' letter consenting to set aside the cancellation decision as unreasonable",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "This letter is  attached to my affidavit as Exhibit “D”"
+    }
+   ],
+   "content_check": "Department of Justice letter 'Via Email October 22, 2021'"
+  },
+  {
+   "label": "E",
+   "file": "doc-k9u86u.pdf",
+   "kind": "letter",
+   "date": "2021-11-01",
+   "author": "Department of Justice Canada (counsel for the respondents)",
+   "recipients": [
+    "Federal Court"
+   ],
+   "description": "Respondents' letter to the Federal Court acknowledging the Phase-out Decision is unreasonable",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "This letter is attached to my affidavit as Exhibit “E”"
+    },
+    {
+     "paragraph": 40,
+     "quote": "(see Exhibit  E, Exhibit G)"
+    }
+   ],
+   "content_check": "Department of Justice letter November 1, 2021 'VIA E-FILING'"
+  },
+  {
+   "label": "F",
+   "file": "doc-t8cpu6.pdf",
+   "kind": "court_filing",
+   "date": "2021-11-25",
+   "author": "Attorney General of Canada",
+   "recipients": [],
+   "description": "Excerpt of the respondents' written representations on the consolidation motion",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "I attach an excerpt from these"
+    },
+    {
+     "paragraph": 19,
+     "quote": "(Exhibit F, para 21)"
+    }
+   ],
+   "content_check": "table of contents 'PART I - OVERVIEW AND STATEMENT OF FACTS' of written representations"
+  },
+  {
+   "label": "G",
+   "file": "doc-yxsz75.pdf",
+   "kind": "letter",
+   "date": "2021-12-08",
+   "author": "Laura Bowman (Ecojustice)",
+   "recipients": [
+    "Andrea Bourke",
+    "Karen Lovell"
+   ],
+   "description": "Applicants' counsel's letter serving affidavits and asking about the new decision",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached as Exhibit “G” is a December 8, 2021 letter"
+    }
+   ],
+   "content_check": "Ecojustice letter December 8, 2021, File No. 2062"
+  },
+  {
+   "label": "H",
+   "file": "doc-dkgkva.pdf",
+   "kind": "public_record",
+   "date": "2021-12-21",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Amended Decision: Re-evaluation Note REV2021-04 cancelling remaining chlorpyrifos registrations under s. 20(1)(a)",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "The Amended Decision is  included as Supplementary CTR Doc 24 and is attached to this affidavit as  Exhibit “H”"
+    }
+   ],
+   "content_check": "'Re-evaluation Note REV2021-04 Cancellation of remaining chlorpyrifos registrations under paragraph 20(1)(a) ... 21 December 2021'"
+  },
+  {
+   "label": "I",
+   "file": "doc-82v5a3.pdf",
+   "kind": "email",
+   "date": "2022-01-14",
+   "author": "Andrew Law (Department of Justice)",
+   "recipients": [
+    "Laura Bowman",
+    "Daniel Cheater"
+   ],
+   "description": "Respondents' counsel's email of January 14, 2022 advising of the Amended Decision",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Attached as Exhibit “I” is a copy of an email from Andrew Law"
+    }
+   ],
+   "content_check": "email From: Law, Andrew, Sent: Friday, January 14, 2022 3:55 PM, Subject: RE: Safe Food Matters"
+  },
+  {
+   "label": "J",
+   "file": "doc-y97z3c.pdf",
+   "kind": "webpage",
+   "date": "2021-12-21",
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Information Note 'Update on implementation of post-market decisions' (Cancellation Policy Update)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "attached to this  affidavit as Exhibit “J”"
+    }
+   ],
+   "content_check": "canada.ca print 2/7/2022 'Information Note: Update on implementation of post-market decisions'"
+  },
+  {
+   "label": "K",
+   "file": "doc-ym9jzw.pdf",
+   "kind": "webpage",
+   "date": "2022-02-07",
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Web update on finding information on cancelled pesticide products during the phase-out period",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "A  copy of this update is attached as Exhibit “K”"
+    }
+   ],
+   "content_check": "canada.ca print 2/7/2022 'Finding information on cancelled pesticide products during the phase-out'"
+  },
+  {
+   "label": "L",
+   "file": "doc-ndwzzp.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "",
+   "recipients": [],
+   "description": "Current label for Sharphos Insecticide (32768)",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "This label is attached  to this affidavit as Exhibit “L”"
+    }
+   ],
+   "content_check": "'GROUP 1B INSECTICIDE <Container label> SHARPHOS INSECTICIDE AGRICULTURAL Emulsifiable Concentrate, Contains Chlorpyrifos'"
+  },
+  {
+   "label": "M",
+   "file": "doc-jbcnwq.pdf",
+   "kind": "report",
+   "date": "2020-09-21",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "EPA 2020 chlorpyrifos human health risk assessment downloaded from regulations.gov",
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "this document is attached to this affidavit as Exhibit “M”"
+    }
+   ],
+   "content_check": "'Chlorpyrifos Human Health Risk Assessment D456427 ... UNITED STATES ENVIRONMENTAL PROTECTION AGENCY ... MEMORANDUM', 142 pp"
+  },
+  {
+   "label": "N",
+   "file": "doc-z5kfma.pdf",
+   "kind": "public_record",
+   "date": "1989-03",
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Existing Canadian drinking water guideline for chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 93,
+     "quote": "Attached to this affidavit as  Exhibit “N” is a copy of the existing drinking water guideline"
+    }
+   ],
+   "content_check": "'February 1986 (edited March 1989) Chlorpyrifos Guideline The maximum acceptable concentration (MAC)...'"
+  },
+  {
+   "label": "O",
+   "file": "doc-et83gb.pdf",
+   "kind": "public_record",
+   "date": "2008",
+   "author": "Canadian Council of Ministers of the Environment",
+   "recipients": [],
+   "description": "CCME guideline for the protection of aquatic life for chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 94,
+     "quote": "this  document was downloaded from ccme.ca and is attached to this affidavit as  Exhibit “O”"
+    }
+   ],
+   "content_check": "'Canadian Environmental Quality Guidelines Canadian Council of Ministers of the Environment, 2008 ... Chlorpyrifos'"
+  },
+  {
+   "label": "P",
+   "file": "doc-ea8h3t.pdf",
+   "kind": "public_record",
+   "date": "2018-04-17",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Note SPN2018-02, Cumulative Health Risk Assessment Framework",
+   "references": [
+    {
+     "paragraph": 107,
+     "quote": "a 2018 Science Policy Note, attached to this affidavit as  Exhibit “P”"
+    }
+   ],
+   "content_check": "'Science Policy Note SPN2018-02 Cumulative Health Risk Assessment Framework ... 17 April 2018'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-eyth93.pdf",
+   "kind": "public_record",
+   "date": "1999-03-12",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Directive DIR99-03, PMRA strategy for implementing the Toxic Substances Management Policy",
+   "references": [
+    {
+     "paragraph": 109,
+     "quote": "a copy of which  is attached to this affidavit as Exhibit “Q”"
+    }
+   ],
+   "content_check": "'Regulatory Directive DIR99-03 The Pest Management Regulatory Agency's Strategy for Implementing the Toxic Substances Management Policy'"
+  },
+  {
+   "label": "R",
+   "file": "doc-j8spx3.pdf",
+   "kind": "public_record",
+   "date": "2019",
+   "author": "Stockholm Convention Secretariat",
+   "recipients": [],
+   "description": "Text of the Stockholm Convention on Persistent Organic Pollutants (revised 2019)",
+   "references": [
+    {
+     "paragraph": 112,
+     "quote": "Attached to this affidavit as Exhibit “R” is a copy of the  Stockholm Convention"
+    }
+   ],
+   "content_check": "'STOCKHOLM CONVENTION ON PERSISTENT ORGANIC POLLUTANTS (POPS) TEXT AND ANNEXES REVISED IN 2019'"
+  },
+  {
+   "label": "S",
+   "file": "doc-ashdk3.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Environment and Climate Change Canada",
+   "recipients": [],
+   "description": "Government of Canada web page on the Stockholm Convention and Canada's participation on POPRC",
+   "references": [
+    {
+     "paragraph": 113,
+     "quote": "is attached as  Exhibit “S”"
+    }
+   ],
+   "content_check": "canada.ca print 2/7/2022 'Persistent organic pollutants: Stockholm Convention - Canada.ca'"
+  },
+  {
+   "label": "T",
+   "file": "doc-4wmxae.pdf",
+   "kind": "report",
+   "date": "2021-06-03",
+   "author": "Secretariat of the Stockholm Convention",
+   "recipients": [
+    "Persistent Organic Pollutants Review Committee"
+   ],
+   "description": "Secretariat note for POPRC on the proposal to list chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 115,
+     "quote": "This note is attached to my affidavit as  Exhibit “T”"
+    },
+    {
+     "paragraph": 116,
+     "quote": "(emphasis added, Exhibit T, p. 26)"
+    }
+   ],
+   "content_check": "UNEP/POPS/POPRC.17/5, Distr.: General 3 June 2021"
+  },
+  {
+   "label": "U",
+   "file": "doc-4c7myw.pdf",
+   "kind": "letter",
+   "date": "2022-02-15",
+   "author": "Laura Bowman (Ecojustice)",
+   "recipients": [
+    "Andrea Bourke",
+    "Karen Lovell"
+   ],
+   "description": "Applicants' counsel's letter asking whether further documentation such as science memos should be in the CTR (misdated February 15, 2021)",
+   "references": [
+    {
+     "paragraph": 120,
+     "quote": "This is attached as Exhibit  “U”"
+    }
+   ],
+   "content_check": "Ecojustice letter File No. 2062 dated 'February 15, 2021' (the affidavit notes the misdating)"
+  },
+  {
+   "label": "V",
+   "file": "doc-gfnn84.pdf",
+   "kind": "letter",
+   "date": "2022-02-18",
+   "author": "Department of Justice Canada (counsel for the respondents)",
+   "recipients": [
+    "Ecojustice"
+   ],
+   "description": "Respondents' reply that there is no further documentation",
+   "references": [
+    {
+     "paragraph": 120,
+     "quote": "This response is attached as Exhibit  “V”"
+    }
+   ],
+   "content_check": "Department of Justice letter 'Via Email February 18, 2022'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Respondents first serve the CTR",
+   "date": "2021-08-17",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "The respondents  first served the CTR on August 17, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Revised CTR served",
+   "date": "2021-09-20",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "A revised CTR was served on  September 20, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Further revised public CTR served",
+   "date": "2021-11-15",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "a further revised public version was served on  November 15, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Supplementary CTR served in T-121-22",
+   "date": "2022-02-07",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "the Certified Tribunal Record served on February 7,  2022 in Court File No. T-121-22",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "May 13, 2021 Phase-out Decision",
+   "date": "2021-05-13",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    7,
+    9
+   ],
+   "quote": "the May 13, 2021 cancellation and phase-out",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Science Management Committee briefing note supporting the Phase-out Decision",
+   "date": "2021-05-06",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "the May 6, 2021 Science Management Committee briefing note",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Discontinuation applications registered for the four products",
+   "date": "2021-04-12",
+   "precision": "day",
+   "paragraphs": [
+    13,
+    36
+   ],
+   "quote": "having an April 12, 2021 discontinuation  application",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Access to information request A-2021-000382",
+   "date": "2021-06",
+   "precision": "month",
+   "paragraphs": [
+    11
+   ],
+   "quote": "she submitted an access to information request (A- 2021-000382) in June 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Request narrowed under A-2021-000964",
+   "date": "2021-09",
+   "precision": "month",
+   "paragraphs": [
+    12
+   ],
+   "quote": "In September 2021 Ms. Ireland narrowed the request",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "PMRA takes a 260-day extension",
+   "date": "2021-10",
+   "precision": "month",
+   "paragraphs": [
+    12
+   ],
+   "quote": "In October 2021, a 260-day extension was “required” by the PMRA",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Respondents consent to set aside the cancellation decision",
+   "date": "2021-10-22",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "on October 22, 2021,  counsel for the respondents wrote to counsel for the applicants",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Respondents write to the Federal Court",
+   "date": "2021-11-01",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On November 1, 2021, counsel for the respondents wrote to the Federal  Court",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Earlier version of the First MacDonald Affidavit affirmed",
+   "date": "2021-11-24",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "An earlier version of the First MacDonald Affidavit was affirmed on  November 24, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Respondents file written representations on the consolidation motion",
+   "date": "2021-11-25",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "on November 25, 2021,  the respondents served and filed written representations",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Applicants serve affidavits and ask about the new decision",
+   "date": "2021-12-08",
+   "precision": "day",
+   "paragraphs": [
+    21,
+    37
+   ],
+   "quote": "a December 8, 2021 letter  from counsel for the applicants",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "PMRA publishes the Amended Decision",
+   "date": "2021-12-21",
+   "precision": "approximate",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On or about December 21, 2021, the PMRA published a new decision",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "PMRA publishes the Cancellation Policy Update",
+   "date": "2021-12-21",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "on December 21,  2021, the PMRA published an Information Note",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Respondents' counsel first advises of the Amended Decision",
+   "date": "2022-01-14",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "did not advise the applicants of the existence of the Amended  Decision until January 14, 2022",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Public version of the First MacDonald Affidavit re-commissioned and re-served",
+   "date": "2022-01-19",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "The public version of my affidavit was re-commissioned and re-served on  January 19, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "PMRA posts an update on finding cancelled products in the registry",
+   "date": "2022-02-07",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "A further update was posted on the PMRA website on February 7, 2022",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Applicants' counsel asks whether further documentation exists",
+   "date": "2022-02-15",
+   "precision": "day",
+   "paragraphs": [
+    120
+   ],
+   "quote": "on February 15, 2022  counsel for the applicants wrote to counsel for the respondents",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Respondents reply there is no further documentation",
+   "date": "2022-02-18",
+   "precision": "day",
+   "paragraphs": [
+    120
+   ],
+   "quote": "Counsel for the respondents responded on February 18, 2022",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Deponent reviews the public registry",
+   "date": "2022-03-04",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "I reviewed the public registry on March 4, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Sharphos label updated after June 8, 2021",
+   "date": "2021-06-08",
+   "precision": "approximate",
+   "paragraphs": [
+    47
+   ],
+   "quote": "This label has been updated some time after June 8,  2021",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "EPA revised human health risk assessment",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    42
+   ],
+   "quote": "In 2014, the EPA released a revised human health risk assessment",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "PMRA's aggregate exposure Science Policy Note",
+   "date": "2003-07",
+   "precision": "month",
+   "paragraphs": [
+    63
+   ],
+   "quote": "In July 2003, the PMRA published a Science Policy Note",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Environmental Assessment Directorate to provide EECs (Directors General minutes)",
+   "date": "2016-01-26",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "January 26, 2016 minutes",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Briefing note: revised EECs exceed DWLOCs",
+   "date": "2016-05-31",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "May 31, 2016 Briefing Note",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Drinking water review provided by the Environmental Assessment Directorate",
+   "date": "2017-05-30",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "in May 30, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Groundwater detection in a Quebec well",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    65
+   ],
+   "quote": "from a well in Quebec in 2005",
+   "exhibits": []
+  },
+  {
+   "id": "e31",
+   "description": "Maximum detection of 44 ug/L in Quebec",
+   "date": "2011-05",
+   "precision": "month",
+   "paragraphs": [
+    68
+   ],
+   "quote": "the maximum detection was 44  μg/L in Quebec in May 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "EECs modelled on a reduced use pattern",
+   "date": "2018-07",
+   "precision": "month",
+   "paragraphs": [
+    71
+   ],
+   "quote": "In July 2018 the estimated environmental concentrations were modelled",
+   "exhibits": []
+  },
+  {
+   "id": "e33",
+   "description": "Consultation on withdrawing the drinking water guideline closes",
+   "date": "2020-04-24",
+   "precision": "day",
+   "paragraphs": [
+    90
+   ],
+   "quote": "a consultation period ending on April 24, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "description": "Briefing note on human health incident reports",
+   "date": "2018-11-21",
+   "precision": "day",
+   "paragraphs": [
+    96
+   ],
+   "quote": "In a November 21, 2018 briefing note to the Science Operation Committee",
+   "exhibits": []
+  },
+  {
+   "id": "e35",
+   "description": "Elm bark application incident near a residence",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    99
+   ],
+   "quote": "an elm bark application near a residence in 2008",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "description": "EPA revokes all tolerances; U.S. agricultural uses effectively banned",
+   "date": "2022-02-28",
+   "precision": "day",
+   "paragraphs": [
+    50,
+    52
+   ],
+   "quote": "effectively banning all agricultural uses  of chlorpyrifos in the United States on February 28, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "description": "PMRA's final environmental risk re-evaluation decision RVD2020-14",
+   "date": "2020-12-10",
+   "precision": "day",
+   "paragraphs": [
+    111
+   ],
+   "quote": "dated  December 10, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "description": "Canada ratifies the Stockholm Convention",
+   "date": "2001-05",
+   "precision": "month",
+   "paragraphs": [
+    112
+   ],
+   "quote": "Canada ratified the convention in May 2001",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "Stockholm Convention in force",
+   "date": "2004-05",
+   "precision": "month",
+   "paragraphs": [
+    112
+   ],
+   "quote": "it  has been in-force since May 2004",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e40",
+   "description": "EU requests listing chlorpyrifos under the Stockholm Convention",
+   "date": "2021",
+   "precision": "approximate",
+   "paragraphs": [
+    114
+   ],
+   "quote": "In early 2021, the European Union forwarded a request",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "description": "Secretariat note for POPRC on chlorpyrifos",
+   "date": "2021-06-03",
+   "precision": "day",
+   "paragraphs": [
+    115
+   ],
+   "quote": "dated June 3, 2021",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "Last date for lawful use of chlorpyrifos products",
+   "date": "2023-12",
+   "precision": "month",
+   "paragraphs": [
+    39
+   ],
+   "quote": "ahead  of the December 2023 end date for lawful use of the products",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit A: excerpts from the November 15, 2021 Certified Tribunal Record (moved to Tab 18 of the Applicants' Record; the posted volume holds only a cover and a 'please see Exhibit A folder' page, dropped)",
+  "Exhibits to the First MacDonald Affidavit (C, D, F, K, L, O, P) and to the affidavits of Elizabeth Gabel and Charlotte Ireland",
+  "Supplementary CTR documents (Docs 05, 07, 10, 15, 17, 24)",
+  "Affidavit of Margaret Sears affirmed November 2, 2021"
+ ]
+}

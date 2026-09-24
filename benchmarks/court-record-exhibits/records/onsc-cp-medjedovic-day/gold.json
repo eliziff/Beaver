@@ -1,0 +1,329 @@
+{
+ "record_id": "onsc-cp-medjedovic-day",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-21-00673984-00CP",
+ "subject": "class_action",
+ "proceeding": "Kellar and Day v. Medjedovic: proposed class action for victims of the October 2021 Indexed Finance DeFi cyber-attack; plaintiffs' motion for substituted service and to validate service on an absconding defendant",
+ "document": "Affidavit of Dr. Laurence Day sworn June 28, 2022 (Motion Record of the Plaintiffs, Tab 2)",
+ "deponent": "Laurence Day",
+ "deponent_role": "Plaintiff (victim of the cyber-attack)",
+ "sworn_date": "2022-06-28",
+ "notes": "DocumentCloud (CBC) upload; --pages 12-161; covers B-G print their labels in a shifted font (%, &, ', (, ), *): --covers by page; Exhibit A is the deponent's own December 9, 2021 affidavit with its numeric exhibit covers kept inside.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-f478n8.pdf",
+   "kind": "affidavit",
+   "date": "2021-12-09",
+   "author": "Laurence Day",
+   "recipients": [],
+   "description": "The deponent's affidavit of December 9, 2021 (with relevant exhibits only) detailing the investigation identifying Medjedovic's email addresses",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "which is attached (with relevant exhibits only) as Exhibit “A”"
+    }
+   ],
+   "content_check": "'AFFIDAVIT OF DR. LAURENCE DAY' in Kellar and Day v Medjedovic, 116 pp with its own numbered exhibits"
+  },
+  {
+   "label": "B",
+   "file": "doc-85atfx.pdf",
+   "kind": "email",
+   "date": "2021-12-17",
+   "author": "Reuben Rothstein (McMillan)",
+   "recipients": [
+    "Medjedovic email addresses"
+   ],
+   "description": "Emails of December 17, 2021 notifying Medjedovic of the motion to extend the Initial Order",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto and marked as Exhibit “B” is a copy of the emails sent by Mr. Rothstein"
+    }
+   ],
+   "content_check": "'From: Reuben Rothstein ... Sent: Friday, December 17, 2021 10:34 AM To: andymedjedovic@gmail.com'"
+  },
+  {
+   "label": "C",
+   "file": "doc-z62tw7.pdf",
+   "kind": "email",
+   "date": "2021-12-17",
+   "author": "Stephen Aylward (Stockwoods)",
+   "recipients": [
+    "Medjedovic email addresses",
+    "Andy Lin"
+   ],
+   "description": "Email sending the Initial Order to Medjedovic",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto and marked as Exhibit “C” is a copy of the email sent by Mr. Aylward"
+    }
+   ],
+   "content_check": "'From: Stephen Aylward Sent: Friday, December 17, 2021 1:23 PM'"
+  },
+  {
+   "label": "D",
+   "file": "doc-nxykr3.pdf",
+   "kind": "email",
+   "date": "2021-12-17",
+   "author": "Stephen Aylward",
+   "recipients": [
+    "Andy Lin"
+   ],
+   "description": "Email forwarding the Court's case-conference email to Mr. Lin",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit “D” is a copy of the forwarding"
+    }
+   ],
+   "content_check": "'From: Stephen Aylward Sent: Friday, December 17, 2021 2:39 PM To: alin@pcrfirm.com ... FW: Cicada v Medjedovic'"
+  },
+  {
+   "label": "E",
+   "file": "doc-b5n82f.pdf",
+   "kind": "email_chain",
+   "date": "2021-11-03",
+   "author": "Andean Medjedovic; Ediz Medjedovic",
+   "recipients": [],
+   "description": "Emails of November 3, 2021 between Medjedovic and his father produced on examination",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit “E” is a copy of the Ediz’s emails"
+    }
+   ],
+   "content_check": "forwarded by Ed Medjedo on January 22, 2022 'FW: Photocopies of documents'"
+  },
+  {
+   "label": "F",
+   "file": "doc-9adk2n.pdf",
+   "kind": "email",
+   "date": "2021-12-17",
+   "author": "Stephen Aylward",
+   "recipients": [
+    "Gowling WLG"
+   ],
+   "description": "Email sending the Notice of Action to Gowling WLG",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached hereto and marked as Exhibit “F” is a copy of Mr. Aylward’s email"
+    }
+   ],
+   "content_check": "'From: Stephen Aylward Sent: Friday, December 17, 2021 4:51 PM To: duncan.boswell@gowlingwlg.com'"
+  },
+  {
+   "label": "G",
+   "file": "doc-ey6pwy.pdf",
+   "kind": "email",
+   "date": "2022-01-17",
+   "author": "Alice Chu (Stockwoods)",
+   "recipients": [
+    "Medjedovic email addresses"
+   ],
+   "description": "Email serving the Notice of Action and Statement of Claim, with the failed-delivery notice",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached hereto and marked as Exhibit “G” is a copy of Ms. Chu’s email"
+    }
+   ],
+   "content_check": "'From: Alice Chu Sent: Monday, January 17, 2022 10:51 AM To: andymedjedovic@gmail.com ...' and delivery failure notice"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Medjedovic emails his father about citizenship elsewhere",
+   "date": "2021-11-03",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On November 3, 2021, Mr. Medjedovic sent an email",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Cicada 137 LLC commences the Cicada Action",
+   "date": "2021-11-12",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "on November 12, 2021, by way of a Notice of Action",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Cicada brings an urgent ex parte motion",
+   "date": "2021-11-25",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On November 25, 2021, in the Cicada Action",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Justice Myers grants the Initial Order freezing the assets",
+   "date": "2021-11-28",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On November 28, 2021, Justice Myers granted the relief",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Initial Order extended on an interim basis",
+   "date": "2021-12-08",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On December 8, 2021, Justice Myers extended the Initial Order",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Deponent's first affidavit sworn",
+   "date": "2021-12-09",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "my affidavit of December 9, 2021",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Cicada's counsel emails notice of a further motion",
+   "date": "2021-12-17",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On December 17, 2021, counsel to Cicada 137 LLC notified Mr. Medjedovic",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Medjedovic moves the disputed assets; plaintiffs' counsel sends the Initial Order",
+   "date": "2021-12-17",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Less than two hours later, Mr. Medjedovic began to transfer the disputed assets",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Urgent case conference before Justice Myers",
+   "date": "2021-12-17",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The Court sent an email directing that the parties attend an urgent case conference",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Plaintiffs' Notice of Action issued and emailed to Gowling",
+   "date": "2021-12-17",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    15
+   ],
+   "quote": "On December 17, 2021, counsel to the Plaintiffs emailed the Notice of Action",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Medjedovic fails to transfer assets or attend; arrest warrant",
+   "date": "2021-12-21",
+   "precision": "day",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "By noon on December 21, 2021, Mr. Medjedovic had failed to transfer",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Statement of Claim issued and emailed to Medjedovic",
+   "date": "2022-01-17",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    16
+   ],
+   "quote": "On January 17, 2022, counsel to the Plaintiffs emailed the Notice of Action and Statement of Claim",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Myers J. endorsement on the Anton Piller execution",
+   "date": "2022-01-17",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In his endorsement dated January 17, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Examination of Ediz Medjedovic",
+   "date": "2022-01-26",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On January 26, 2022, counsel to the plaintiffs examined Ediz Medjedovic",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Medjedovic's website document placing him with his parents",
+   "date": "2021-10",
+   "precision": "month",
+   "paragraphs": [
+    6
+   ],
+   "quote": "on the defendant’s personal website in October 2021",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibits to the December 9, 2021 affidavit other than the relevant ones reproduced in Exhibit A (e.g. Exhibit 44)",
+  "Endorsements and orders of Justice Myers in the Cicada Action (Tabs 6-16 of the motion record)"
+ ]
+}

@@ -1,0 +1,52 @@
+{
+ "record_id": "fc-pbo-mulcair-brown",
+ "affidavit_pages": [
+  14,
+  15
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-cyv55q.pdf",
+   "source_pages": [
+    17
+   ],
+   "cover_page": 16,
+   "stamp_page": null,
+   "text_chars": 2022
+  },
+  {
+   "label": "B",
+   "file": "doc-sjtsd9.pdf",
+   "source_pages": [
+    19
+   ],
+   "cover_page": 18,
+   "stamp_page": null,
+   "text_chars": 643
+  },
+  {
+   "label": "C",
+   "file": "doc-chsqvf.pdf",
+   "source_pages": [
+    21
+   ],
+   "cover_page": 20,
+   "stamp_page": null,
+   "text_chars": 1146
+  },
+  {
+   "label": "D",
+   "file": "doc-x36rq8.pdf",
+   "source_pages": [
+    23
+   ],
+   "cover_page": 22,
+   "stamp_page": null,
+   "text_chars": 1714
+  }
+ ],
+ "leak_audit": []
+}

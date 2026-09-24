@@ -1,0 +1,357 @@
+{
+ "record_id": "fc-sfm-mcdonald",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-956-21 / T-1412-21",
+ "subject": "environmental",
+ "family": "safe-food-matters-chlorpyrifos",
+ "proceeding": "Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health: judicial review of the PMRA's May 13, 2021 chlorpyrifos cancellation with a three-year phase-out (applicant's standing and notice of objection)",
+ "document": "Affidavit of Mary Lou McDonald affirmed November 3, 2021 (Applicants' Record, Volume 7, Tab 11)",
+ "deponent": "Mary Lou McDonald",
+ "deponent_role": "President, Safe Food Matters Inc. (applicant)",
+ "sworn_date": "2021-11-03",
+ "notes": "DocumentCloud upload of Applicants' Record vol. 7; --pages 23-116 (Sears and Ireland affidavits follow in the same volume).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4ryxdd.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Safe Food Matters Inc.",
+   "recipients": [
+    "New Brunswick Standing Committee on Climate Change and Environmental Stewardship"
+   ],
+   "description": "SFM's submission to the New Brunswick Standing Committee on the PMRA's glyphosate risk assessment",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit “A” is a copy of that submission"
+    }
+   ],
+   "content_check": "'Submission to the Standing Committee on Climate Change and Environmental Stewardship on the Federal Registration of Glyphosate', 17 pp"
+  },
+  {
+   "label": "B",
+   "file": "doc-7jb2ks.pdf",
+   "kind": "webpage",
+   "date": "2021-06-14",
+   "author": "Safe Food Matters",
+   "recipients": [],
+   "description": "SFM website post of June 2021 on delays in the chlorpyrifos re-evaluation ('Delay, delay ... by the PMRA')",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "This is attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "safefoodmatters.org print 8/10/2021 'DELAY, DELAY ... BY THE PMRA 2021-06-14'"
+  },
+  {
+   "label": "C",
+   "file": "doc-7bbwuv.pdf",
+   "kind": "webpage",
+   "date": "2020-10-21",
+   "author": "Safe Food Matters",
+   "recipients": [],
+   "description": "SFM website post of October 2020 on the re-evaluation delay ('Safe food matters, but not to Health Canada?')",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "This is attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "safefoodmatters.org/2020/10/21 'SAFE FOOD MATTERS, BUT NOT TO HEALTH CANADA ?'"
+  },
+  {
+   "label": "D",
+   "file": "doc-qfv523.pdf",
+   "kind": "notice",
+   "date": "2021-02-08",
+   "author": "Safe Food Matters, Prevent Cancer Now and eight other organizations",
+   "recipients": [
+    "Minister of Health Patty Hajdu"
+   ],
+   "description": "Notice of Objection to the Final Re-evaluation Decision RVD2020-14",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "This Notice of Objection is attached to this affidavit as Exhibit “D”"
+    }
+   ],
+   "content_check": "'To: Minister of Health Patty Hajdu, PC, MP February 8, 2021 c/o Pest Management Regulatory Agency'"
+  },
+  {
+   "label": "E",
+   "file": "doc-bgkkf2.pdf",
+   "kind": "notice",
+   "date": "2021-02-08",
+   "author": "Bill Jeffery (Centre for Health Science and Law)",
+   "recipients": [
+    "Minister of Health Patty Hajdu"
+   ],
+   "description": "Second Notice of Objection on the PMRA's delay with the human health risk assessment",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "This Notice of Objection is attached to this affidavit as Exhibit “E”"
+    }
+   ],
+   "content_check": "'1 | P a g e Minister of Health Patty Hajdu, PC, MP February 8, 2021' notice of objection RVD2020-14 and PRVD2019-05"
+  },
+  {
+   "label": "F",
+   "file": "doc-m3zhdh.pdf",
+   "kind": "public_record",
+   "date": "2021-05-13",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2021-02 cancelling all remaining chlorpyrifos uses with a three-year phase-out",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "This decision is attached as Exhibit “F”"
+    }
+   ],
+   "content_check": "'Re-evaluation Note REV2021-02 Update on the Re-evaluation of Chlorpyrifos ... 13 May 2021'"
+  },
+  {
+   "label": "G",
+   "file": "doc-qu2pb3.pdf",
+   "kind": "letter",
+   "date": "2021-05-21",
+   "author": "Minoli Silva (PMRA Registration Directorate)",
+   "recipients": [
+    "Safe Food Matters"
+   ],
+   "description": "PMRA response proposing that the notice of objection be closed because of the cancellation",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "This is attached as Exhibit “G”"
+    }
+   ],
+   "content_check": "Health Canada PMRA letter to SafeFoodMatters@gmail.com, Reference No. 2021-06..., signed Minoli Silva, Director, Registration Directorate"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Safe Food Matters founded",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "SFM is a Canadian non-profit corporation, founded in 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Deponent's participation in the Basel, Rotterdam and Stockholm Conventions",
+   "date": "2014-01",
+   "precision": "range",
+   "paragraphs": [
+    3
+   ],
+   "quote": "January 2014 to June 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Deponent comments on the low-level presence of GM crops policy",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Commenting on Canada's Proposed Domestic Policy",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Deponent petitions the Commissioner of the Environment on DecaBDE",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Petitioning the federal Auditor General Commissioner",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "SFM submission to the New Brunswick Standing Committee on glyphosate",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "SFM provided submissions to the New Brunswick Standing Committee",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "SFM comments on the chlorpyrifos re-evaluation delays",
+   "date": "2021-06",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "in June 2021, SFM provided a comment on the delays",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "SFM comments that the review cycle became 39 years",
+   "date": "2020-10",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In October 2020, SFM commented on the delays",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "SFM comments on Health Canada's Novel Foods guidance",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Health Canada’s proposed new guidance on Novel Foods in 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "PMRA releases the Final Re-evaluation Decision RVD2020-14",
+   "date": "2020-12-10",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On December 10, 2020, the PRMA released decision RVD2020-14",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "SFM, PCN and eight others file a Notice of Objection",
+   "date": "2021-02-08",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On February 8, 2021, SFM, Prevent Cancer Now (“PCN”) and eight other organizations submitted",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Bill Jeffery files a second Notice of Objection",
+   "date": "2021-02-08",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "A second Notice of Objection was submitted on February 8, 2021, by Bill Jeffery",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "PMRA issues a data call-in",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    14
+   ],
+   "quote": "the issued a “Data Call-In” for the Chlorpyrifos active ingredient",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "PMRA publishes REV2021-02 cancelling all chlorpyrifos uses",
+   "date": "2021-05-13",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On May 13, 2021, the PMRA published a Re-evaluation Note REV2021-02",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "SFM comments on the cancellation decision",
+   "date": "2021-05",
+   "precision": "approximate",
+   "paragraphs": [
+    17
+   ],
+   "quote": "After the decision SFM commented on the decision on the SFM website",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "PMRA responds proposing to close the Notice of Objection",
+   "date": "2021-05-21",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On May 21, 2021, I received a response to our Notice of Objection from the PMRA",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "SFM and PCN commence the judicial review",
+   "date": "2021-05",
+   "precision": "approximate",
+   "paragraphs": [
+    19
+   ],
+   "quote": "SFM and Prevent Cancer Now commenced this judicial review application",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "CTR served",
+   "date": "2021-08-17",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "we were served with the Certified Tribunal Record (“CTR”) for this application on August 17, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "MRL Trackers' Meeting decision on MRLs",
+   "date": "2021-04-19",
+   "precision": "day",
+   "paragraphs": [
+    20,
+    21
+   ],
+   "quote": "an MRL Trackers’ Meeting on April 19, 2021",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit H to the affidavit of Margaret Sears (the February 2021 data call-in)",
+  "SFM's National Observer article on the cancellation decision",
+  "Certified Tribunal Record (MRL Trackers' Meeting record of decision, April 19, 2021)"
+ ]
+}
