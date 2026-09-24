@@ -1,0 +1,207 @@
+{
+ "record_id": "fc-moushoom-meawasige2022",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-402-19 / T-141-20 / T-1120-21",
+ "subject": "class_action",
+ "family": "moushoom-fn-child-welfare",
+ "proceeding": "Moushoom et al. v. Attorney General of Canada (First Nations child welfare and Jordan's Principle class actions): motion for approval of the June 30, 2022 settlement",
+ "document": "Affidavit of Jonavon Joseph Meawasige sworn September 1, 2022",
+ "deponent": "Jonavon Joseph Meawasige",
+ "deponent_role": "Representative plaintiff and litigation guardian of his brother, representative plaintiff Jeremy Meawasige",
+ "sworn_date": "2022-09-01",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-tdhe3m.pdf",
+   "kind": "affidavit",
+   "date": "2019-05-08",
+   "author": "Maurina Beadle",
+   "recipients": [],
+   "description": "Affidavit of Maurina Beadle, Jeremy's late mother and litigation guardian",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "She swore an Affidavit on May 8, 2019."
+    }
+   ],
+   "content_check": "3 pages: 'AFFIDAVIT OF MAURINA BEADLE (Sworn May 8th, 2019)', Court File No. T-402-19"
+  },
+  {
+   "label": "B",
+   "file": "doc-c5q6sm.pdf",
+   "kind": "court_order",
+   "date": "2019-05-28",
+   "author": "Federal Court (St-Louis J.)",
+   "recipients": [],
+   "description": "Order appointing Maurina Beadle litigation guardian, without Schedule A",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "She was appointed litigation guardian for Jeremy by order of the Court dated May 28, 2019."
+    }
+   ],
+   "content_check": "2 pages, image-only scan of the order (OCR'd)"
+  },
+  {
+   "label": "C",
+   "file": "doc-8cv5s5.pdf",
+   "kind": "court_order",
+   "date": "2021-07-07",
+   "author": "Federal Court (St-Louis J.)",
+   "recipients": [],
+   "description": "Order appointing Jonavon Meawasige as Jeremy's litigation guardian",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "The Court appointed me as Jeremy"
+    }
+   ],
+   "content_check": "6 pages: order dated 20210707, Docket T-402-19 T-141-20, Madam Justice St-Louis"
+  },
+  {
+   "label": "D",
+   "file": "doc-cxhrtc.pdf",
+   "kind": "court_order",
+   "date": "2021-11-26",
+   "author": "Federal Court (Aylen J.)",
+   "recipients": [],
+   "description": "Certification order appointing Jeremy and Jonavon as representative plaintiffs, without schedules",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "On November 26, 2021, Madam Justice Aylen certified the class action"
+    }
+   ],
+   "content_check": "15 pages: 2021 FC 1225, November 26, 2021, Madam Justice Aylen, class proceeding"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Federal Court orders Canada to pay for Jeremy's essential services under Jordan's Principle",
+   "date": "2013-04-04",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On April 4, 2013, the Court found that Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Maurina Beadle swears her affidavit in the class action",
+   "date": "2019-05-08",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "She swore an Affidavit on May 8, 2019.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Beadle appointed Jeremy's litigation guardian",
+   "date": "2019-05-28",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "by order of the Court dated May 28, 2019",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Maurina Beadle dies after a stroke",
+   "date": "2019-11-13",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "passed away on November 13, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Beadle is laid to rest in Pictou Landing",
+   "date": "2019-11-18",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "She was laid to rest in Pictou Landing on November 18, 2019.",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Jonavon appointed Jeremy's representative and litigation guardian",
+   "date": "2021-07-07",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "litigation guardian on July 7, 2021",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Class action certified; Jeremy and Jonavon appointed representative plaintiffs",
+   "date": "2021-11-26",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On November 26, 2021, Madam Justice Aylen certified the class action",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Agreement in principle signed",
+   "date": "2021-12",
+   "precision": "approximate",
+   "paragraphs": [
+    24
+   ],
+   "quote": "I was thrilled with the agreement in principle that was signed late last year.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "All parties sign the settlement agreement",
+   "date": "2022-06-30",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "All parties finally signed the settlement agreement on June 30, 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Meeting in Toronto with class counsel, Zacheus Trout and Dr. Lach on the Jordan's Principle claims method",
+   "date": "2022-09",
+   "precision": "month",
+   "paragraphs": [
+    20
+   ],
+   "quote": "Earlier this month, I travelled to Toronto to meet with class counsel",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Pictou Landing Band Council v. Canada (Attorney General), 2013 FC 342",
+  "Consolidated Statement of Claim",
+  "Settlement agreement of June 30, 2022"
+ ],
+ "leak_waivers": [],
+ "notes": "Split from the plaintiffs' settlement-approval motion record (Tab 3, pages 27-64). B is image-only. Same proceeding as fc-moushoom-meawasige and fc-moushoom-kugler (2023 supplementary record), which carry no family slug."
+}

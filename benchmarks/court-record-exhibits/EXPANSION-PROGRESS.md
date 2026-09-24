@@ -88,3 +88,66 @@ by level (6): superior_trial 93, federal_trial 14, administrative_tribunal 13, a
 by subject (7): insolvency 63, other 51, charter 7, human_rights 2, class_action 2, administrative 2, indigenous_rights 1
 
 ```
+
+## Pass 3 (2026-09-24, target ~160 after the vetting pass)
+
+Scratchpad additions: mkmeta.py (writes raw/<name>.meta.json), g/<id>.json gold drafts.
+
+| id | jur | level | subject | source | exhibits | family | notes |
+|---|---|---|---|---|---|---|---|
+| onsc-bill7-heckman | ON | superior_trial | charter | ontariohealthcoalition.ca | 4 | ohc-bill7-charter | expert; stamps clipped header chars of A-C |
+| onsc-bill7-arya | ON | superior_trial | charter | ontariohealthcoalition.ca | 3 | ohc-bill7-charter | expert; B/C cited in footnotes |
+| onsc-bill7-sinha | ON | superior_trial | charter | ontariohealthcoalition.ca | 4 | ohc-bill7-charter | expert; C(ii) not attached |
+| onsc-bill7-pelc | ON | superior_trial | charter | ontariohealthcoalition.ca | 4 | ohc-bill7-charter | respondent expert; B OCR'd |
+| chrt-caring-smylie | federal | administrative_tribunal | human_rights | fncaringsociety.com | 7 | fncfcs-chrt-t1340 | DOJ digital-signature covers: --covers from stamp pages; B broken encoding OCR'd |
+| chrt-caring-farthingnichol1 | federal | administrative_tribunal | human_rights | fncaringsociety.com | 9 | fncfcs-chrt-t1340 | jurat March 7, 2025 (cited elsewhere as March 13); --covers by page |
+| onsc-cp-fresco-brown-dp | ON | superior_trial | employment (unpaid overtime CP) | sotosclassactions.com | 6 | fresco-cibc-overtime | --pages 33-89; A,D-F broken encoding OCR'd; existing onsc-cp-fresco-brown (same file no.) has no family slug |
+| onsc-cp-fresco-brown-sa | ON | superior_trial | employment (unpaid overtime CP) | sotosclassactions.com | 13 | fresco-cibc-overtime | --pages 10-679; 5 scans OCR'd; fn 15 mislabels Ankura report as Exhibit J |
+| nlca-wabush-meakin | NL | appellate | insolvency (CCAA monitor on the NL pension-trust Reference) | FTI bloomlake | 3 | - | first NL appellate; NM-1..3 labels; NM-1 handwritten in body; redact_text 'NM-3.' |
+
+- CAUTION: `rebuild.py --help` is not a help flag; it rebuilds EVERY record. Pass 3 ran it by mistake (piped to head, so it died after 5): abca-jmb-doran, abca-lynx-watts, abkb-420-norrisbrown, abkb-cwb-stark, abkb-dynamic-deiure were rewritten. Checked against scratchpad text-backup (identical where backed up), OCR'd texts untouched (it failed before writing them for lack of TESSDATA_PREFIX), verify ok on all five.
+- Pass 3 dead ends: WebSearch budget exhausted (200/session). Union/advocacy WP media (cupe, opseu, psac, bcgeu, unifor, etfo, bctf, ecojustice, wcel, amnesty, leaf, ccf ...) return no affidavit PDFs; cela.ca and democracywatch hits were already harvested. FTI bloomlake (QC) affidavits are mostly image-only or motions with R-n pieces; MonetteFarms is ABKB. OHC 2024 JR application record (c-application-record-...) is the source of existing ondc-ohc-* (Armstrong has 2 real exhibits). LPAT Simcoe appeal record: handwritten covers. CELA Darlington (FC T-634-13): image covers.
+| chrt-caring-farthingnichol2 | federal | administrative_tribunal | human_rights | fncaringsociety.com | 15 | fncfcs-chrt-t1340 | A = nested affidavit (leak waived); B,C,L-O duplicate farthingnichol1 exhibits |
+| fc-moushoom-meawasige2022 | federal | federal_trial | class_action | sotosclassactions.com (2022 settlement MR) | 4 | moushoom-fn-child-welfare | --pages 27-64; existing fc-moushoom-meawasige/kugler have no family slug |
+| fc-moushoom-ciavaglia | federal | federal_trial | class_action | same MR | 5 | moushoom-fn-child-welfare | --pages 153-235 --covers (D/E image stamps) |
+| onsc-cl-baffinland-glen1 | ON | superior_trial | insolvency (CCAA, EDC DIP) | FTI Baffinland | 3 | baffinland-ccaa | leak A waived (credit agreement's own form exhibits) |
+| onsc-cl-baffinland-glen2 | ON | superior_trial | insolvency (CCAA, SISP control) | FTI Baffinland | 4 | baffinland-ccaa | --covers (para 25 quotes 'Exhibit BB'); B posted as the approval order |
+| onsc-cl-baffinland-gordon | ON | superior_trial | insolvency (CCAA, competing DIP) | FTI Baffinland | 5 | baffinland-ccaa | counsel's correspondence affidavit |
+| fc-moushoom-colish | federal | federal_trial | class_action | same MR | 17 | moushoom-fn-child-welfare | --pages 236-1867; class counsel's settlement narrative, 32 events |
+| onsc-cp-bell-gortana | ON | superior_trial | class_action (defendant's evidence) | sotosclassactions.com (Bell responding record) | 3 | bell-prison-collect-calls | --pages 13-96; A image-only RFP OCR'd |
+| onsc-cp-bell-herbert | ON | superior_trial | regulatory (CRTC jurisdiction) | same record | 23 | bell-prison-collect-calls | --pages 98-391; index mislabels H |
+| abkb-lynx-woodward0 | AB | superior_trial | insolvency (initial CCAA) | FTI lynxair | 43 | lynx-air | numeric 1-43; five near-identical note/guarantee/GSA sets; 5 files OCR'd |
+| nssc-4499127-santimaw1 | NS | superior_trial | insolvency (receivership) | bdo.ca (4499127 Nova Scotia) | 5 | ns-4499127-receivership | all exhibits are Property Online printouts told apart by PID |
+| nssc-4499127-santimaw2 | NS | superior_trial | insolvency (receivership) | bdo.ca | 4 | ns-4499127-receivership | same |
+| mbkb-102149699-orth | MB | superior_trial | insolvency (s.243 receivership, motel) | bdo.ca | 8 | - | affidavit text layer doubled (native + OCR) |
+| abkb-monette-monette2 | AB | superior_trial | insolvency (farm CCAA + Chapter 15) | FTI MonetteFarms | 7 | - | Delaware orders, SK land titles |
+
+- Pass 3 tooling: ocr_exhibits.py counted '[page N]' markers as words, so multi-page image-only files (>20 pages) were never OCR'd; fixed (words() strips markers). ocr_exhibits.py only runs on records whose gold.json exists: run fin.py first, OCR, then fin.py again so the repo split.json gets ocr_files.
+- Pass 3 sources: BDO engagement list (bdo.ca/services/financial-advisory-services/business-restructuring-turnaround-services/current-engagements) + scratchpad bdoaff.py <slug>...; MNP sitemap (mnpdebt.ca/sitemap.xml, 1,618 engagements) + mnpaff.py (stdin URLs). autoref.py <id> prints first exhibit mentions with paragraph numbers.
+- Pass 3 dead ends: CLC v PPS OBGYN expert (CV fully redacted, 2 real exhibits); Pickle/Viminitz v U Lethbridge (ABKB, image stamps); Canada applicant's record T-3594-25 (Farthing-Nichol Oct 2025 exhibits lack covers); kmlaw Austin v Bell vol 1 (both affidavits already used); Moushoom Trout/Lach (2 exhibits); BCSC Keltic Ng (BC, garbled covers).
+- Pass 3 added family slugs to the repo gold of siblings (onsc-cp-fresco-brown -> fresco-cibc-overtime and subject employment; fc-moushoom-meawasige/kugler -> moushoom-fn-child-welfare; onsc-cp-bell-capay/blum/fareau -> bell-prison-collect-calls). Data-dir copies were left untouched (rule: only the record being built); rebuild.py or a copy of gold.json syncs them.
+| skqb-cds-runzer2 | SK | superior_trial | insolvency (NOI proposals, FireSong resort) | mnpdebt.ca | 3 | firesong-noi-sk | Runzer's first affidavit rejected (D stamp on a content page with garbled text) |
+| skqb-cds-haverstock | SK | superior_trial | insolvency (creditor opposing) | mnpdebt.ca | 4 | firesong-noi-sk | BC land titles |
+| mbkb-6525785-pacheco | MB | superior_trial | insolvency (s.243 receivership, fire-damaged apartment) | mnpdebt.ca | 19 | - | jurat day unclear (13 or 15 Feb 2023) |
+| nssc-adts-montgomery | NS | superior_trial | insolvency (CCAA initial, trucking) | bdo.ca (adts) | 11 | - | scanned: --ocr-affidavit, covers by page; OCR reads C as '0', I as '1' |
+| skkb-abbey-black2 | SK | superior_trial | insolvency (regulator's evidence: pipeline shut-down order) | mnpdebt.ca (abbey-resources) | 6 | - | scanned; --ocr-affidavit --drop 34,35 (PD1); affidavit labels E as 'D'; probe flags A (letter cites Gettis Exhibit A) |
+| mbkb-customtransport-ahmad | MB | superior_trial | insolvency (s.243 receivership, trucking; forbearance) | bdo.ca (customtransport) | 12 | - | affirmed in Calgary |
+| mbkb-padm-wang | MB | superior_trial | insolvency (s.243 receivership, 3D printing/medical) | bdo.ca (padmgroup) | 30 | - | --relabel DO=DD; 5+5 PPR searches, 4 postponements, 2 priority agreements (near-identical forms) |
+
+## Pass 3 summary (2026-09-24)
+
+30 new records (127 -> 157 in records/; 149 in the data dir, the 8 ct-* still absent). verify --all: 149/149. Leak column 0 on all new records except skkb-abbey-black2 (the Ministry letter cites another affidavit's "Exhibit A"; content, not a stamp). Matter docs copied from siblings for the Bill 7, CHRT, Moushoom, Bell, Fresco and Lynx families.
+
+```
+157 records
+by jurisdiction (10): ON 50, federal 36, AB 22, BC 15, MB 11, NS 10, SK 7, NL 3, NB 2, PE 1
+by level (6): superior_trial 115, federal_trial 17, administrative_tribunal 16, appellate 5, superior_divisional 2, apex_appellate 2
+by subject (8): insolvency 78, charter 33, class_action 21, human_rights 8, competition 8, administrative 5, employment 3, indigenous_rights 1
+families: 15 (58 records)
+```
+
+Leads left: Barrington first affidavit (Genesus, MB; 465 scanned pages, covers need reading by eye); Runzer first affidavit (SK FireSong; needs a stamp-page override for D); MNP/BDO regional engagements are mostly scans (Karwood NL, Universal Helicopters NL, Lighthouse/Voyager/Korf SK, Terra Firma NS) - an OCR-first pipeline would open them; Moushoom Trout/Lach and Treaty 9 Archibald/Crawford have 2 exhibits each; ryfan (NWT company, ABKB) E. Ngo A-H in raw/r6-sep-24-2025-affidavit-e-ngo.pdf; BCSC Kensington Brad Wise A-H and ABKB Ironclad Cameron supplementary A-E in raw/k8-*. Non-insolvency subjects remain the gap: without web search, sources were limited to known WP media sites (jccf, sotos, kmlaw, OHC, fncaringsociety, bccla).
+- rebuild.py had the same '[page N]' word-count bug: fixed (imports words from ocr_exhibits), so image-only exhibits over ~20 pages are re-OCR'd on rebuild.
+- Sibling gold edits (repo only) verified against the data-dir text copies: all six pass verify.py. Data-dir gold.json for those six still lacks the family slug until synced.
+- harvest.py caveat: files are named from the URL basename, so two engagements posting the same file name collide (the 5684961 Manitoba Pacheco affidavit, 485 Furby, was overwritten by 6525785's; re-download it under another prefix to use it).
+- Unexamined leads: democracywatch Affidavit1.pdf / Affidavit2.pdf (harvest kept, labels ACHM/PCRT garbled; an earlier note rejected 'web-affidavit1/2' for missing covers, not logged); treaty9 amended motion record tabs 5+ (J.R. Miller and later affidavits) unread.

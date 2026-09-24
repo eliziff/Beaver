@@ -1,0 +1,278 @@
+{
+ "record_id": "onsc-cl-baffinland-glen2",
+ "court": "Ontario Superior Court of Justice (Commercial List)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CL-26-00000219-0000",
+ "subject": "insolvency",
+ "family": "baffinland-ccaa",
+ "proceeding": "Nunavut Iron Ore, Baffinland Iron Mines Corporation et al. (CCAA): EDC's response to the Debtors' motion to approve a sale and investment solicitation process (who controls the SISP)",
+ "document": "Affidavit of Ashley Glen sworn September 21, 2026",
+ "deponent": "Ashley Glen",
+ "deponent_role": "Director, Structured & Project Finance, Export Development Canada (DIP lender)",
+ "sworn_date": "2026-09-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-qqz69p.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "NIO, its subsidiaries, EMG and ArcelorMittal",
+   "recipients": [],
+   "description": "Unanimous shareholders agreement (USA) governing NIO and Baffinland",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the unanimous shareholders agreement is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "124 pages: 'SHAREHOLDERS AGREEMENT of AM BAFFINLAND ULC among IRON ORE LUX S.A R.L., EMG IRON ORE ...' (execution version, with its own Exhibit A form of joinder)"
+  },
+  {
+   "label": "B",
+   "file": "doc-9yh5kt.pdf",
+   "kind": "court_order",
+   "date": "2026-06-30",
+   "author": "Ontario Superior Court of Justice (Steele J.)",
+   "recipients": [],
+   "description": "Justice Steele's June 30, 2026 order approving the EDC DIP Facility Agreement (posted as the exhibit the affidavit calls the DIP Facility Agreement)",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "which approved the EDC DIP Facility Agreement (attached as Exhibit"
+    }
+   ],
+   "content_check": "9 pages: order of Madam Justice Steele, Tuesday the 30th day of June, 2026, CL-26-00000219-0000; refers to Confidential Exhibit B to the Babbitt affidavit"
+  },
+  {
+   "label": "C",
+   "file": "doc-zfszwg.pdf",
+   "kind": "agreement",
+   "date": "2026-05",
+   "author": "Oaktree, Hartree and holders of the 2026 Notes (proposed)",
+   "recipients": [
+    "Baffinland"
+   ],
+   "description": "Competing DIP commitment terms proposed by the noteholders, Oaktree and Hartree",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "is a copy of those DIP commitment terms"
+    }
+   ],
+   "content_check": "51 pages: 'CONFIDENTIAL FRE 408 ... DIP FACILITY LOAN AGREEMENT DATED AS OF May [blank], 2026'"
+  },
+  {
+   "label": "D",
+   "file": "doc-qken79.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Export Development Canada",
+   "recipients": [],
+   "description": "EDC's proposed form of SISP",
+   "references": [
+    {
+     "paragraph": 50,
+     "quote": "s proposed form of SISP"
+    }
+   ],
+   "content_check": "10 pages: 'SALE AND INVESTMENT SOLICITATION PROCESS', form reciting a SISP Order to be granted September 24, 2026"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "EDC begins overseeing its loans to Baffinland",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Senior Credit Facility entered into",
+   "date": "2017-05-26",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "A Senior Credit Facility entered into on May 26, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "8.75% senior secured notes issued",
+   "date": "2018-06-27",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "issued June 27, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "First royalty agreement entered into for $100 million",
+   "date": "2024-03-25",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "was entered into on March 25, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Second royalty agreement entered into for $200 million",
+   "date": "2024-12-23",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "was entered into on December 23, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Senior Credit Facility assigned to Oaktree and Hartree",
+   "date": "2025-11-24",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "assigned on November 24, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "FTI begins acting as financial advisor to the Debtors",
+   "date": "2026-01-14",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "since January 14, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Debtors file for CCAA protection; Initial Order granted by Conway J.",
+   "date": "2026-05-14",
+   "precision": "day",
+   "paragraphs": [
+    19,
+    20
+   ],
+   "quote": "The Initial Order was granted by Justice Conway on May 14, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Amended and Restated Initial Order granted",
+   "date": "2026-05-25",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On May 25, 2026, on consent and on the recommendation of the Monitor",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Monitor's Second Report recommends appointing a CRO",
+   "date": "2026-06-04",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "In its Second Report to the Court, dated June 4, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "EMG written submissions oppose a SISP",
+   "date": "2026-06-09",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "In written submissions dated June 9, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "DIP dispute settled; Steele J. approves the EDC DIP Facility Agreement",
+   "date": "2026-06-30",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The DIP dispute was settled by June 30, 2026",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "BlueTree engagement agreement for the CRO",
+   "date": "2026-07-23",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "The BlueTree engagement agreement dated July 23, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Waheed affidavit supports the CRO motion",
+   "date": "2026-07-24",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "an affidavit of Jowdat Waheed sworn July 24, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Court approves BlueTree and William Aziz as CRO",
+   "date": "2026-07-29",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On July 29, 2026, the Court issued an order approving the engagement of BlueTree",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "EDC proposes its form of SISP with decision-making vested in the CRO",
+   "date": "2026-09-21",
+   "precision": "day",
+   "paragraphs": [
+    50,
+    51
+   ],
+   "quote": "s proposed form of SISP",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "First Van Tonder Affidavit (May 14, 2026) and its Exhibits J, K and BB",
+  "Affidavit of Jowdat Waheed sworn July 24, 2026 and the BlueTree Agreement",
+  "Monitor's Second and Fourth Reports",
+  "Independent Member Mandate and engagement letters",
+  "Written Submissions of EMG dated June 9, 2026"
+ ],
+ "leak_waivers": [
+  "A",
+  "B"
+ ],
+ "notes": "Split with --covers: paragraph 25 quotes 'Exhibit BB' of the Van Tonder affidavit, which the auto-detector took for a cover. Leaks waived: A is the USA with its own 'Exhibit A Form of Joinder'; B (the June 30 order) refers to 'Confidential Exhibit B to the Affidavit of Alison Babbitt'. The affidavit says the DIP Facility Agreement is Exhibit B, but the posted Exhibit B is the order approving it."
+}

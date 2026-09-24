@@ -1,0 +1,187 @@
+{
+ "record_id": "nlca-wabush-meakin",
+ "court": "Court of Appeal of Newfoundland and Labrador",
+ "court_level": "appellate",
+ "jurisdiction": "NL",
+ "court_file": "Reference re Wabush pension deemed trusts (CCAA court record 500-11-048114-157)",
+ "subject": "insolvency",
+ "proceeding": "Reference by the Lieutenant-Governor in Council of Newfoundland and Labrador to the Court of Appeal on pension deemed trusts under s. 32 of the NL Pension Benefits Act, 1997, in the context of the Wabush CCAA proceedings before the Quebec Superior Court: the Monitor's application in respect of the Reference",
+ "document": "Affidavit of Nigel Meakin sworn May 15, 2017",
+ "deponent": "Nigel Meakin",
+ "deponent_role": "Senior Managing Director, FTI Consulting Canada Inc., court-appointed Monitor of the Wabush CCAA Parties",
+ "sworn_date": "2017-05-15",
+ "exhibits": [
+  {
+   "label": "NM-1",
+   "file": "doc-4m2s2u.pdf",
+   "kind": "court_order",
+   "date": "2017-01-30",
+   "author": "Quebec Superior Court (Hamilton J.)",
+   "recipients": [],
+   "description": "The CCAA Court's January 30th Order on jurisdictional issues and preliminary objections to the Motion for Directions",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Copy of \nthe January 30th Order is attached as Exhibit"
+    }
+   ],
+   "content_check": "22 pages: Quebec Superior Court (Commercial Division) judgment No. 500-11-048114-157, January 30, 2017, Hamilton J.S.C., Bloom Lake / Wabush CCAA"
+  },
+  {
+   "label": "NM-2",
+   "file": "doc-hysz5f.pdf",
+   "kind": "letter",
+   "date": "2017-05-09",
+   "author": "Sylvain Rigaud, Norton Rose Fulbright (counsel to the Monitor)",
+   "recipients": [
+    "Rolf Pritchard, Q.C., Office of the Attorney General of Newfoundland and Labrador"
+   ],
+   "description": "The May 9 Letter from the Monitor's counsel to the NL Attorney General's office, with the Motion for Directions and list of orders",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "copy of which is attached as Exhibit NM-2 to this Affidavit"
+    }
+   ],
+   "content_check": "62 pages: letter dated May 9, 2017 'Without Prejudice Sent By E-mail' to Rolf Pritchard, with schedules including the amended Motion for Directions (exhibits R-1 to R-26)"
+  },
+  {
+   "label": "NM-3",
+   "file": "doc-wyer8g.pdf",
+   "kind": "email_chain",
+   "date": "2017-05-12",
+   "author": "NL Attorney General's office; Sylvain Rigaud",
+   "recipients": [],
+   "description": "Reply to the May 9 Letter by email of May 11, 2017 and the Monitor's counsel's follow-up email of May 12, 2017",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is attached as Exhibit NM-3 to this Affidavit"
+    }
+   ],
+   "content_check": "3 pages: emails forwarded by Sylvain Rigaud to Nigel Meakin on May 15, 2017, including the May 11 reply and the May 12 follow-up"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CCAA Court issues the Wabush Initial Order",
+   "date": "2015-05-20",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "Wabush Initial Order means order issued on May 20, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "CCAA Court issues the Claims Procedure Order",
+   "date": "2015-11-05",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "Claims Procedure Order means order issued on November 5, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Monitor files the Motion for Directions on pension claims and deemed trusts",
+   "date": "2016-09-20",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On September 20, 2016, the Monitor filed a Motion for Directions",
+   "exhibits": [
+    "NM-2"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CCAA Court rules on jurisdiction and preliminary objections (January 30th Order)",
+   "date": "2017-01-30",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On January 30, 2017, the CCAA Court issued its decision",
+   "exhibits": [
+    "NM-1"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Motion for Directions amended",
+   "date": "2017-04-13",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "as amended on April 13, 2017",
+   "exhibits": [
+    "NM-2"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "NL order referring three questions to the Court of Appeal (the Reference)",
+   "date": "2017-05-05",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "The May 5th Order and the three (3) questions to be submitted",
+   "exhibits": [
+    "NM-2"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Monitor's counsel writes to the NL Attorney General's office about the scope of the Reference",
+   "date": "2017-05-09",
+   "precision": "day",
+   "paragraphs": [
+    4,
+    5
+   ],
+   "quote": "On May 9, 2017, counsel to the Monitor sent a letter to Rolf Pritchard",
+   "exhibits": [
+    "NM-2"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "NL replies to the May 9 Letter by email",
+   "date": "2017-05-11",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "by way of email message dated May 11, 2017",
+   "exhibits": [
+    "NM-3"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Monitor's counsel sends a follow-up email",
+   "date": "2017-05-12",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "follow-up email from the Monitor's counsel dated May 12, 2017",
+   "exhibits": [
+    "NM-3"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "May 5th Order and the Reference Questions",
+  "Motion for Directions (attached only within NM-2 as a schedule)"
+ ],
+ "leak_waivers": [],
+ "notes": "The affidavit has no style of cause; court from FTI's description ('filed in support of the Monitor's Application in respect of the Newfoundland Reference') and the Reference being before the NL Court of Appeal. The NM-1 label is handwritten in the body (text layer shows 'Exhibit  to this Affidavit'). 'NM-3.' was stamped on the first email page; split.json redact_text removes it."
+}

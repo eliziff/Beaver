@@ -1,0 +1,20 @@
+{
+ "url": "https://www.bdo.ca/getmedia/6b245a1f-bb50-435a-a9ed-700a82688c1a/Filed-Affidavit-of-David-Montgomery.pdf",
+ "landing_url": "https://www.bdo.ca/services/financial-advisory-services/business-restructuring-turnaround-services/current-engagements/adts",
+ "court": "Supreme Court of Nova Scotia",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "Hfx (CCAA, 2017)",
+ "document_title": "Affidavit of David Montgomery sworn November 2017 (ADTS CCAA initial application)",
+ "retrieved": "2026-09-24",
+ "record_id": "nssc-adts-montgomery",
+ "source_file": "r6-filed-affidavit-of-david-montgomery.pdf",
+ "page_range": [
+  1,
+  591
+ ],
+ "source_sha256": "5ad256b158f09a07abfef4c2aac9561ae6571be3b8f0a3f86a71aac6853be68d",
+ "source_pages": 591,
+ "affidavit_ocr": true,
+ "covers": "A=7,B=11,C=14,D=17,E=81,F=189,G=501,H=547,I=568,J=588,K=590"
+}

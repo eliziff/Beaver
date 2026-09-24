@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/onsc-bill7-arya/notice-of-application.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Notice-of-Application-April-12-2023.pdf",
+  "title": "Notice of Application (Charter), April 12, 2023",
+  "kind": "court_filing",
+  "relation": "originating process of this application"
+ },
+ {
+  "file": "raw/matter/onsc-bill7-arya/applicants-factum.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Factum-Applicants-Jun-21-2024-.pdf",
+  "title": "Applicants' Factum, June 21, 2024",
+  "kind": "court_filing",
+  "relation": "applicants' argument"
+ }
+]

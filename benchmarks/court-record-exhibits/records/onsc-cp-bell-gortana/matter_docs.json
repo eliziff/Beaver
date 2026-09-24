@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/onsc-cp-bell-gortana/statement-of-claim.pdf",
+  "url": "https://www.sotosclassactions.com/wp-content/uploads/2020/02/Statement-Of-Claim-Bell-Canada-Prison-Calls.pdf",
+  "title": "Statement of Claim, Fareau and Capay v. Bell Canada et al. (prison collect calls)",
+  "kind": "court_filing",
+  "relation": "the claim the certification motion concerns"
+ },
+ {
+  "file": "raw/matter/onsc-cp-bell-gortana/decision-2023-05-02.pdf",
+  "url": "https://www.sotosclassactions.com/wp-content/uploads/2023/05/Bell-Class-Action-Decision-2May2023.pdf",
+  "title": "Decision of May 2, 2023, Fareau v. Bell Canada",
+  "kind": "court_order",
+  "relation": "decision in the same proceeding"
+ }
+]

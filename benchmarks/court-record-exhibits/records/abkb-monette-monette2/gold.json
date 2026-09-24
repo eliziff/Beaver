@@ -1,0 +1,303 @@
+{
+ "record_id": "abkb-monette-monette2",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2601-07148 (Calgary)",
+ "subject": "insolvency",
+ "proceeding": "Monette Farms Ltd. et al. (CCAA, with Chapter 15 recognition in Delaware): application for an amended and restated initial order, DIP increase and approval and vesting of the Hafford, Saskatchewan farmland sale",
+ "document": "Affidavit No. 2 of Darrel Noel Monette sworn April 28, 2026",
+ "deponent": "Darrel Noel Monette",
+ "deponent_role": "Sole voting shareholder, director, president and CEO of the Monette Farms group (applicants)",
+ "sworn_date": "2026-04-28",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dherzj.pdf",
+   "kind": "contract",
+   "date": "2026-03-09",
+   "author": "Monette Farms and Monette Farms Land II LP (seller); G and K Walter Farms and Harvest Ltd. (buyer)",
+   "recipients": [],
+   "description": "Hafford Purchase and Sale Agreement for Saskatchewan farmland",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "substantially in the form attached hereto and marked as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: Saskatchewan REALTORS Association contract of purchase and sale, Authentisign"
+  },
+  {
+   "label": "B",
+   "file": "doc-b8yq55.pdf",
+   "kind": "court_order",
+   "date": "2026-04-24",
+   "author": "US Bankruptcy Court for the District of Delaware",
+   "recipients": [],
+   "description": "Preliminary Relief Order in the Chapter 15 case",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Copies of the Preliminary Relief Order and US Recognition Scheduling Order are attached hereto and marked as Exhibit"
+    }
+   ],
+   "content_check": "8 pages: Case 26-10547-LSS Doc 33 Filed 04/24/26, Chapter 15, Monette Farms Ltd., et al."
+  },
+  {
+   "label": "C",
+   "file": "doc-e5jeju.pdf",
+   "kind": "court_order",
+   "date": "2026-04-23",
+   "author": "US Bankruptcy Court for the District of Delaware",
+   "recipients": [],
+   "description": "US Recognition Scheduling Order setting the May 14, 2026 recognition hearing",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "respectively"
+    }
+   ],
+   "content_check": "8 pages: Case 26-10547-LSS Doc 30 Filed 04/23/26"
+  },
+  {
+   "label": "D",
+   "file": "doc-ptk7xp.pdf",
+   "kind": "agreement",
+   "date": "2026-04",
+   "author": "Monette Farms group and DIP Lenders",
+   "recipients": [],
+   "description": "US Order Waiver of Chapter 15 initial availability conditions",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "is true copy of the US Order Waiver"
+    }
+   ],
+   "content_check": "15 pages: 'EXECUTION COPY WAIVER, ACKNOWLEDGMENT AND AGREEMENT RE: Commitment Letter dated April 17, 2026'"
+  },
+  {
+   "label": "E",
+   "file": "doc-vs2g8a.pdf",
+   "kind": "letter",
+   "date": "2026-04-23",
+   "author": "Canadian Grain Commission",
+   "recipients": [
+    "Jesse Loyns, Monette Seeds Ltd."
+   ],
+   "description": "CGC Letter confirming the grain licence will not be renewed",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "is a copy of the CGC Letter"
+    }
+   ],
+   "content_check": "1 page: Canadian Grain Commission letter, Winnipeg, April 23, 2026, to Jesse Loyns, Monette Seeds"
+  },
+  {
+   "label": "F",
+   "file": "doc-t6pjnq.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Saskatchewan land titles (ISC)",
+   "recipients": [],
+   "description": "Schedule of the Hafford real property and Saskatchewan land title certificates",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "is a schedule of the real property included in the Hafford Purchased Assets"
+    }
+   ],
+   "content_check": "39 pages: 'Schedule of Lands' with title numbers and legal descriptions, then title certificates"
+  },
+  {
+   "label": "G",
+   "file": "doc-er2ewm.pdf",
+   "kind": "notice",
+   "date": "2026-03-26",
+   "author": "Hafford Purchaser",
+   "recipients": [
+    "Monette Farms"
+   ],
+   "description": "Notice to Remove Conditions on the Hafford contract",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "is a Notice to Remove Conditions dated March 26, 2026"
+    }
+   ],
+   "content_check": "1 page: Saskatchewan REALTORS 'NOTICE TO REMOVE CONDITION(S) ON FARM/RANCH CONTRACT OF PURCHASE AND SALE'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Hafford PSA signed",
+   "date": "2026-03-09",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "dated March 9, 2026",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Purchaser removes conditions on the Hafford contract",
+   "date": "2026-03-26",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "Notice to Remove Conditions dated March 26, 2026",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Monette swears the First Monette Affidavit for the initial order",
+   "date": "2026-04-17",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On April 17, 2026, I swore an affidavit",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Jones J. grants the Initial Order",
+   "date": "2026-04-21",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "granted the Initial Order",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Monitor starts Chapter 15 proceedings in Delaware",
+   "date": "2026-04-21",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On April 21, 2026, the Monitor, as foreign representative of the Group",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "US Bankruptcy Court hearing on recognition relief",
+   "date": "2026-04-22",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On April 22, 2026 the US Bankruptcy Court held a hearing",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "CGC confirms the grain licence will expire April 30, 2026",
+   "date": "2026-04-23",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "on April 23, 2026, the CGC sent a letter",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "US Recognition Scheduling Order filed",
+   "date": "2026-04-23",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "US Recognition Scheduling Order",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "US court grants the Preliminary Relief Order; US Order Waiver signed; Initial Advance of $40 million made",
+   "date": "2026-04-24",
+   "precision": "day",
+   "paragraphs": [
+    13,
+    14,
+    18
+   ],
+   "quote": "the Initial Advance was made on April 24, 2026",
+   "exhibits": [
+    "B",
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Grain licence expires",
+   "date": "2026-04-30",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "would expire on April 30, 2026",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Initial stay period ends unless extended",
+   "date": "2026-05-01",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "up to and including May 1,2026",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Key-man life insurance premium of $2.1 million falls due",
+   "date": "2026-05-04",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "due on May 4, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "US recognition hearing scheduled",
+   "date": "2026-05-14",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "scheduling the recognition hearing for May 14, 2026",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "First Monette Affidavit sworn April 17, 2026",
+  "Confidential Affidavit sworn April 17, 2026 (appraisal, confidential Exhibits J and K)",
+  "Initial Order",
+  "Grain Purchase Contracts",
+  "DIP Term Sheet",
+  "Monitor's First Report and Cash Flow Projection"
+ ],
+ "leak_waivers": [],
+ "notes": "Alberta CCAA of a Saskatchewan-based farming group with a US Chapter 15 case; exhibits mix Delaware court orders, Saskatchewan realtor forms and land titles."
+}

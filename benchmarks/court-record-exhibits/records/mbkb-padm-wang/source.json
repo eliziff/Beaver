@@ -1,0 +1,19 @@
+{
+ "url": "https://www.bdo.ca/getmedia/e1087a36-4347-4d00-8e4b-4bb9f2592540/Affidavit-of-Alex-Wang-for-Receivership-application-(Clean)-PDF.pdf",
+ "landing_url": "https://www.bdo.ca/services/financial-advisory-services/business-restructuring-turnaround-services/current-engagements/padmgroup",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 24-01-",
+ "document_title": "Affidavit of Alex Wang affirmed May 2024 (RBC v. PADM Group Inc. et al., receivership application)",
+ "retrieved": "2026-09-24",
+ "record_id": "mbkb-padm-wang",
+ "source_file": "m7-affidavit-of-alex-wang-for-receivership-application-clean-pd.pdf",
+ "page_range": [
+  1,
+  266
+ ],
+ "source_sha256": "d9ed9ccc1eff2a2f0f355991bd3ce767ce9764736bf7edb9f3a1b3f30c74f61c",
+ "source_pages": 266,
+ "relabel": "DO=DD"
+}

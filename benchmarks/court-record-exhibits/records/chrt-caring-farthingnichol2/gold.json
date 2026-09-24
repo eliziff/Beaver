@@ -1,0 +1,764 @@
+{
+ "record_id": "chrt-caring-farthingnichol2",
+ "court": "Canadian Human Rights Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "T1340/7008",
+ "subject": "human_rights",
+ "family": "fncfcs-chrt-t1340",
+ "proceeding": "First Nations Child and Family Caring Society of Canada et al. v. Attorney General of Canada (CHRT T1340/7008): Canada's plan for long-term reform of the FNCFS Program outside Ontario (National Framework), filed under 2025 CHRT 80",
+ "document": "Affidavit of Duncan Farthing-Nichol affirmed December 22, 2025",
+ "deponent": "Duncan Farthing-Nichol",
+ "deponent_role": "Director, Litigation Management Directorate, Child and Family Services Reform Sector, Indigenous Services Canada",
+ "sworn_date": "2025-12-22",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-qeh84r.pdf",
+   "kind": "affidavit",
+   "date": "2025-03-13",
+   "author": "Duncan Farthing-Nichol",
+   "recipients": [],
+   "description": "Farthing-Nichol's March 13, 2025 affidavit responding to the Caring Society's consultation motion",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A copy of that affidavit is attached as Exhibit A."
+    }
+   ],
+   "content_check": "51 pages: affidavit, Tribunal File No. T-1340/7008, with its own exhibits (Caring Society letter to the Minister of November 12, 2024 etc.); its body refers to exhibits of the Quintana-James affidavit"
+  },
+  {
+   "label": "B",
+   "file": "doc-mnt6s8.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Indigenous Services Canada",
+   "recipients": [],
+   "description": "Publicly available summary of the Agreement-in-Principle",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "is attached hereto for convenience as Exhibit B"
+    }
+   ],
+   "content_check": "16 pages: canada.ca 'Executive Summary of Agreement-in-Principle on Long-Term Reform' (same document as chrt-caring-farthingnichol1 Exhibit A)"
+  },
+  {
+   "label": "C",
+   "file": "doc-vg7h8y.pdf",
+   "kind": "report",
+   "date": "2020",
+   "author": "Institute of Fiscal Studies and Democracy",
+   "recipients": [],
+   "description": "IFSD Phase 2 report on a performance budget approach to FNCFS funding",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "is attached hereto for convenience as Exhibit C"
+    }
+   ],
+   "content_check": "502 pages: IFSD 'Funding First Nations child and family services (FNCFS): A performance budget approach to well-being' (same as farthingnichol1 Exhibit B)"
+  },
+  {
+   "label": "D",
+   "file": "doc-h66v3r.pdf",
+   "kind": "letter",
+   "date": "2025-12-15",
+   "author": "AFN, Caring Society and NCCC",
+   "recipients": [
+    "Mandy Gull-Masty, Minister of Indigenous Services"
+   ],
+   "description": "Letter from the AFN, the Caring Society and the NCCC declining to share their plan before filing",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "The letter from the AFN, the Caring Society and the NCCC is attached as Exhibit D."
+    }
+   ],
+   "content_check": "2 pages: letter dated December 15, 2025 to the Honourable Mandy Gull-Masty, 'Re: Next Steps to Advance Long-Term Reform of First Nations Child & Family Services'"
+  },
+  {
+   "label": "E",
+   "file": "doc-zf5eb6.pdf",
+   "kind": "letter",
+   "date": "2025-12-21",
+   "author": "Canada (Minister of Indigenous Services)",
+   "recipients": [
+    "Chief Pauline Frost, NCCC",
+    "Regional Chief Francis Verreault-Paul, AFN",
+    "Caring Society"
+   ],
+   "description": "Canada's reply confirming openness to discussions after December 22, 2025",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "reply is attached as Exhibit E."
+    }
+   ],
+   "content_check": "2 pages: letter dated December 21, 2025 to Chief Pauline Frost, Chair NCCC, and Regional Chief Francis Verreault-Paul"
+  },
+  {
+   "label": "F",
+   "file": "doc-2z3rjw.pdf",
+   "kind": "letter",
+   "date": "2024-10-29",
+   "author": "Sheshatshiu Innu First Nation and Mushuau Innu First Nation",
+   "recipients": [
+    "Patty Hajdu, Minister of Indigenous Services"
+   ],
+   "description": "Labrador Innu request to negotiate a regional agreement",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "letter is attached at Exhibit F."
+    }
+   ],
+   "content_check": "2 pages: letter October 29, 2024 to the Hon. Patty Hajdu, 'Re: Request to Negotiate a Regional Agreement ...'"
+  },
+  {
+   "label": "G",
+   "file": "doc-ej79dg.pdf",
+   "kind": "letter",
+   "date": "2025-05-20",
+   "author": "Assembly of Manitoba Chiefs",
+   "recipients": [
+    "Prime Minister Mark Carney"
+   ],
+   "description": "AMC letter seeking a Manitoba regional agreement",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "letters and proposal are attached at Exhibits G and H."
+    }
+   ],
+   "content_check": "2 pages: letter May 20, 2025 to the Right Honourable Mark Carney, 'Re: Manitoba First Nations Ready ...'"
+  },
+  {
+   "label": "H",
+   "file": "doc-hy3q2f.pdf",
+   "kind": "letter",
+   "date": "2025-08-19",
+   "author": "Assembly of Manitoba Chiefs",
+   "recipients": [
+    "Mandy Gull-Masty, Minister of Indigenous Services"
+   ],
+   "description": "AMC letter and proposal 'Manitoba First Nations Regional Approach to Long-Term Reform'",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "letters and proposal are attached at Exhibits G and H."
+    }
+   ],
+   "content_check": "15 pages: AMC letter August 19, 2025 (head office Long Plain First Nation, Winnipeg) with the regional approach proposal"
+  },
+  {
+   "label": "I",
+   "file": "doc-8cm6y9.pdf",
+   "kind": "letter",
+   "date": "2025-08-29",
+   "author": "British Columbia Assembly of First Nations",
+   "recipients": [
+    "Mandy Gull-Masty, Minister of Indigenous Services"
+   ],
+   "description": "BCAFN letter proposing a BC-specific negotiation table",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "letter is attached at Exhibit I."
+    }
+   ],
+   "content_check": "2 pages: letter August 29, 2025, 'RE: Long-Term Reform of the First Nations Child and Family Services Program'"
+  },
+  {
+   "label": "J",
+   "file": "doc-8crb3m.pdf",
+   "kind": "minutes",
+   "date": "2025-11-21",
+   "author": "Sovereign Nations of Treaty No. 8 Chiefs",
+   "recipients": [],
+   "description": "Treaty 8 First Nations of Alberta resolution favouring a regional agreement",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "letter is attached at Exhibit J."
+    }
+   ],
+   "content_check": "1 page: 'Sovereign Nations of Treaty No.8 Chiefs Meeting Resolution November 21, 2025'"
+  },
+  {
+   "label": "K",
+   "file": "doc-jj8tzq.pdf",
+   "kind": "letter",
+   "date": "2025-12-18",
+   "author": "New Brunswick Assembly of First Nations",
+   "recipients": [
+    "Mandy Gull-Masty, Minister of Indigenous Services"
+   ],
+   "description": "NBAFN letter expressing interest in exploratory regional discussions",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "letter is attached at Exhibit K."
+    }
+   ],
+   "content_check": "1 page: letter Dec 18, 2025 to Minister Gull-Masty following discussions with the Wolastoqey Chiefs on December 8, 2025"
+  },
+  {
+   "label": "L",
+   "file": "doc-fxdsc3.pdf",
+   "kind": "report",
+   "date": "2018-12-15",
+   "author": "Institute of Fiscal Studies and Democracy",
+   "recipients": [
+    "Assembly of First Nations"
+   ],
+   "description": "IFSD Phase 1 report 'Enabling First Nations Children to Thrive'",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "which is attached as Exhibit L"
+    }
+   ],
+   "content_check": "378 pages: IFSD December 15, 2018 report to the AFN (same as farthingnichol1 Exhibit C)"
+  },
+  {
+   "label": "M",
+   "file": "doc-cz8y69.pdf",
+   "kind": "report",
+   "date": "2022-04",
+   "author": "ISC Strategic Research and Data Innovation Branch",
+   "recipients": [],
+   "description": "ISC technical report 'Development of a Remoteness Cost Adjustment Factor'",
+   "references": [
+    {
+     "paragraph": 92,
+     "quote": "Development of a Remoteness Cost Adjustment Factor is attached as Exhibit M"
+    }
+   ],
+   "content_check": "47 pages: April 2022 technical report (same as farthingnichol1 Exhibit G)"
+  },
+  {
+   "label": "N",
+   "file": "doc-ufjkja.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Indigenous Services Canada",
+   "recipients": [],
+   "description": "Research brief 'Calculating the Remoteness Cost Adjustment Factor: A Primer'",
+   "references": [
+    {
+     "paragraph": 92,
+     "quote": "A Primer is attached as Exhibit N"
+    }
+   ],
+   "content_check": "3 pages (same as farthingnichol1 Exhibit H)"
+  },
+  {
+   "label": "O",
+   "file": "doc-z9qf2t.pdf",
+   "kind": "report",
+   "date": "2023-06-30",
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "Statistics Canada report 'Toward a Classification of Communities by Remoteness: A Proposal'",
+   "references": [
+    {
+     "paragraph": 96,
+     "quote": "Toward a Classification of Communities by Remoteness: A Proposal, is attached as Exhibit O"
+    }
+   ],
+   "content_check": "27 pages: Catalogue no. 18-001-X, released June 30, 2023 (same as farthingnichol1 Exhibit I)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Tribunal substantiates the complaint in 2016 CHRT 2",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    13,
+    127
+   ],
+   "quote": "Since the Tribunal",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "National Advisory Committee established and begins meeting",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    16
+   ],
+   "quote": "met eight times in 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "NAN and Canada establish the Remoteness Quotient Table",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    90
+   ],
+   "quote": "In 2017, NAN and Canada established the NAN-Canada Remoteness Quotient Table",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Special Representative Wesley-Esquimaux releases her final engagement report",
+   "date": "2017-09",
+   "precision": "month",
+   "paragraphs": [
+    14
+   ],
+   "quote": "released her final summary report in September 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Minister hosts an emergency national meeting on Indigenous child and family services",
+   "date": "2018-01",
+   "precision": "month",
+   "paragraphs": [
+    15
+   ],
+   "quote": "In January 2018, the Minister hosted an emergency national meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Actual-cost claims for agencies begin (2018 CHRT 4)",
+   "date": "2018-02-01",
+   "precision": "day",
+   "paragraphs": [
+    53,
+    59
+   ],
+   "quote": "On February 1, 2018, Canada began funding claims from FNCFS agencies for the actual \ncosts of prevention services.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Canada enters a Consultation Protocol with the parties",
+   "date": "2018-03-02",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On March 2, 2018, and in response to 2018 CHRT 4, Canada entered into a Consultation \nProtocol",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Consultation Committee on Child Welfare finalizes its Terms of Reference",
+   "date": "2018-08",
+   "precision": "month",
+   "paragraphs": [
+    18
+   ],
+   "quote": "finalized its Terms of Reference in August 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "IFSD reports 'Enabling First Nations Children to Thrive' (Phase 1)",
+   "date": "2018-12-15",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "Enabling First Nations Children to Thrive",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "IFSD reports on housing gaps and needs in First Nations",
+   "date": "2021-07-30",
+   "precision": "day",
+   "paragraphs": [
+    111
+   ],
+   "quote": "dated July 30, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Canada makes $947 per capita prevention funding available (2021 CHRT 12)",
+   "date": "2021-10",
+   "precision": "month",
+   "paragraphs": [
+    61
+   ],
+   "quote": "In October 2021, in accordance with the 2021 CHRT 12 consent order",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Agreement-in-Principle reached",
+   "date": "2021-12-31",
+   "precision": "day",
+   "paragraphs": [
+    20,
+    22
+   ],
+   "quote": "On December 31, 2021, following two months of intensive negotiation",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Capital project funding at actual cost begins",
+   "date": "2022-02",
+   "precision": "month",
+   "paragraphs": [
+    99
+   ],
+   "quote": "Since February 2022, Canada has been funding the development, purchase and construction",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Gideon affidavit reports the reformed funding approach drawn from IFSD Phase 2",
+   "date": "2022-03-04",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "March 4, 2022 affidavit of Valerie Gideon",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Per capita prevention, post-majority and FNRS funding begin under 2022 CHRT 8",
+   "date": "2022-04-01",
+   "precision": "day",
+   "paragraphs": [
+    63,
+    68,
+    78
+   ],
+   "quote": "Starting on April 1, 2022, ISC began to provide FNRS funding",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "ISC's Remoteness Cost Adjustment Factor report",
+   "date": "2022-04",
+   "precision": "month",
+   "paragraphs": [
+    92
+   ],
+   "quote": "Development of a Remoteness Cost Adjustment Factor is attached as Exhibit M",
+   "exhibits": [
+    "M",
+    "N"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Farthing-Nichol takes up his current role",
+   "date": "2022-10-01",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "in my current role since 1 October 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "AFN and Caring Society present the Joint Path Forward",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    27
+   ],
+   "quote": "Discussions slowed in March 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Statistics Canada remoteness classification proposal released",
+   "date": "2023-06-30",
+   "precision": "day",
+   "paragraphs": [
+    96
+   ],
+   "quote": "Toward a Classification of Communities by Remoteness",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "ISC secures a revised negotiation mandate",
+   "date": "2023-10",
+   "precision": "month",
+   "paragraphs": [
+    28
+   ],
+   "quote": "In October 2023, ISC secured a revised negotiation mandate",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "AFN, COO, NAN and Canada reach the Draft Final Agreement",
+   "date": "2024-07-11",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On July 11, 2024, the AFN, COO, NAN, and Canada reached the Draft Final Agreement.",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "First Nations-in-Assembly reject the Draft Final Agreement",
+   "date": "2024-10-17",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "On October 17, 2024, after two days of discussions",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Resolutions 60/2024 and 61/2024 call for renegotiation",
+   "date": "2024-10-18",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "On October 18, 2024, the First Nations-in-Assembly adopted two resolutions",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Labrador Innu First Nations ask to negotiate a regional agreement",
+   "date": "2024-10-29",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "On October 29, 2024, Sheshatshiu Innu First Nation and Mushuau Innu First Nation wrote",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Tribunal asks the parties for views on long-term relief",
+   "date": "2025-02-10",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On February 10, 2025, the Tribunal wrote to Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "Farthing-Nichol affirms his affidavit on the consultation motion",
+   "date": "2025-03-13",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On March 13, 2025, I affirmed an affidavit in these proceedings",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Canada responds to the Tribunal's letter",
+   "date": "2025-03-17",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On March 17, 2025, Canada provided a response",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Caring Society responds; COO and NAN take no position",
+   "date": "2025-03-24",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On March 24, 2025, the Caring Society provided a response",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "AFN responds to the Tribunal's letter",
+   "date": "2025-03-31",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On March 31, 2025, the AFN provided its response",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "AMC writes seeking a Manitoba regional agreement",
+   "date": "2025-05-20",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "In letters dated May 20, 2025 and August 19, 2025, the Assembly of Manitoba Chiefs",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "AMC sends its regional approach proposal and Resolution Jan-25.01",
+   "date": "2025-08-19",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "In its August 19, 2025 correspondence, the AMC included a proposal",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "Tribunal releases 2025 CHRT 80 directing a national plan by December 22, 2025",
+   "date": "2025-08-20",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "On August 20, 2025, the Tribunal released its ruling in 2025 CHRT 80",
+   "exhibits": []
+  },
+  {
+   "id": "e33",
+   "description": "BCAFN proposes a BC-specific negotiation table",
+   "date": "2025-08-29",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "On August 29, 2025, the British Columbia Assembly of First Nations",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "Treaty 8 First Nations of Alberta pass a resolution for a regional agreement",
+   "date": "2025-11-21",
+   "precision": "day",
+   "paragraphs": [
+    43
+   ],
+   "quote": "On November 21, 2025, the Treaty 8 First Nations of Alberta passed a resolution",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "AFN, Caring Society and NCCC write that they will not share their plan before filing",
+   "date": "2025-12-15",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On December 15, 2025, the AFN, the Caring Society and the NCCC wrote to Canada",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "NBAFN writes seeking exploratory regional discussions",
+   "date": "2025-12-18",
+   "precision": "day",
+   "paragraphs": [
+    44
+   ],
+   "quote": "On December 18, 2025, the New Brunswick Assembly of First Nations",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "Canada replies confirming openness to discussions",
+   "date": "2025-12-21",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "Canada replied in a letter dated December 21, 2025",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "Canada files its plan for long-term reform outside Ontario",
+   "date": "2025-12-22",
+   "precision": "day",
+   "paragraphs": [
+    36,
+    37
+   ],
+   "quote": "before it was filed with the Tribunal on December 22, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e39",
+   "description": "Canada intends to begin regional negotiations",
+   "date": "2026-01",
+   "precision": "month",
+   "paragraphs": [
+    45
+   ],
+   "quote": "Canada intends to begin regional negotiations in January 2026.",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "Canada files judicial review of 2025 CHRT 80 (T-3594-25)",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    38
+   ],
+   "quote": "Canada has filed an application for judicial review in respect of 2025 CHRT 80",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Farthing-Nichol affidavits of March 7, May 15, October 17 and October 31, 2025 on the OFA motion",
+  "Affidavit of Valerie Gideon, March 4, 2022",
+  "Affidavit of Jasmine Kaur affirmed October 2, 2025 (IFSD Phase 3 report)",
+  "Draft Final Agreement",
+  "Consultation Protocol (2018)",
+  "AFN resolutions 60/2024 and 61/2024",
+  "IFSD housing report of July 30, 2021"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Covers are DOJ digital-signature pages, given by page with --covers. B, C, L, M, N, O are the same documents as chrt-caring-farthingnichol1 A, B, C, G, H, I (cross-record duplicates within the family). Leak A waived: Exhibit A is itself an affidavit whose body refers to Exhibit A of the Quintana-James affidavit and carries its own internal exhibit covers."
+}

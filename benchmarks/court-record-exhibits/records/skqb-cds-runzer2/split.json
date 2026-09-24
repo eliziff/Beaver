@@ -1,0 +1,72 @@
+{
+ "record_id": "skqb-cds-runzer2",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-h8894u.pdf",
+   "source_pages": [
+    9,
+    10,
+    11,
+    12,
+    13
+   ],
+   "cover_page": null,
+   "stamp_page": 9,
+   "text_chars": 3228
+  },
+  {
+   "label": "B",
+   "file": "doc-72gp2h.pdf",
+   "source_pages": [
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 77712
+  },
+  {
+   "label": "C",
+   "file": "doc-wms7u3.pdf",
+   "source_pages": [
+    34,
+    35,
+    36
+   ],
+   "cover_page": null,
+   "stamp_page": 34,
+   "text_chars": 3505
+  }
+ ],
+ "leak_audit": []
+}

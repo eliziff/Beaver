@@ -16,7 +16,7 @@ import hashlib, json, os, shutil, subprocess, sys
 import fitz
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from split import clean_copy, cover_label, record_folios, text_of
-from ocr_exhibits import read
+from ocr_exhibits import read, words
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.environ["LOCALAPPDATA"], "OpenLegalData", "benchmarks", "court-record-exhibits")
@@ -80,7 +80,7 @@ def rebuild(rid, backup):
             d = doc or fitz.open(os.path.join(out, rel.replace(".txt", ".pdf")))
             text = text_of(d)
             if os.path.basename(rel).replace(".txt", ".pdf") in split.get("ocr_files", []):  # the same pages ocr_exhibits.py read
-                text = read(d, force=len(text.split()) < 40)[0]
+                text = read(d, force=words(text) < 40)[0]
             open(os.path.join(out, rel), "w", encoding="utf-8").write(text)
     md = os.path.join(rec, "matter_docs.json")
     missing = 0

@@ -1,0 +1,71 @@
+{
+ "record_id": "skqb-cds-haverstock",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-k6kukm.pdf",
+   "source_pages": [
+    6
+   ],
+   "cover_page": 5,
+   "stamp_page": null,
+   "text_chars": 1098
+  },
+  {
+   "label": "B",
+   "file": "doc-edmqpa.pdf",
+   "source_pages": [
+    8,
+    9,
+    10,
+    11
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 4883
+  },
+  {
+   "label": "C",
+   "file": "doc-5422vz.pdf",
+   "source_pages": [
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+   ],
+   "cover_page": 12,
+   "stamp_page": null,
+   "text_chars": 1217
+  },
+  {
+   "label": "D",
+   "file": "doc-k94w78.pdf",
+   "source_pages": [
+    26,
+    27,
+    28,
+    29
+   ],
+   "cover_page": 25,
+   "stamp_page": null,
+   "text_chars": 4696
+  }
+ ],
+ "leak_audit": []
+}

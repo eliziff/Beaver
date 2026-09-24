@@ -1,0 +1,419 @@
+{
+ "record_id": "mbkb-customtransport-ahmad",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 26-01-55408",
+ "subject": "insolvency",
+ "proceeding": "Toronto-Dominion Bank v. Custom Transport Ltd.: application to appoint BDO Canada Limited as receiver under s. 243 BIA",
+ "document": "Affidavit of Mudasar Ahmad affirmed January 2026",
+ "deponent": "Mudasar Ahmad",
+ "deponent_role": "Account Manager, Financial Restructuring Group, Toronto-Dominion Bank (applicant creditor)",
+ "sworn_date": "2026-01-13",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-tcahjq.pdf",
+   "kind": "public_record",
+   "date": "2025-10-21",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Corporate search of Custom Transport",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "at 97 Massalia Drive, Winnipeg Manitoba, R2P 1C7. \nAttached hereto as Exhibit “A”"
+    }
+   ],
+   "content_check": "3 pages: Companies Office file summary, Registry No 373745, Custom Transport Ltd., as of 21-Oct-2025"
+  },
+  {
+   "label": "B",
+   "file": "doc-ddzmzr.pdf",
+   "kind": "agreement",
+   "date": "2024-11-06",
+   "author": "TD Commercial Banking",
+   "recipients": [],
+   "description": "Demand Operating Facility Agreement (the Loan Agreement)",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Loan \nAgreement”). A copy of the Loan Agreement is attached hereto as Exhibit \n“B”"
+    }
+   ],
+   "content_check": "22 pages: TD Commercial Banking, Winnipeg Commercial Banking Centre, facility letter"
+  },
+  {
+   "label": "C",
+   "file": "doc-r44k72.pdf",
+   "kind": "agreement",
+   "date": "2024-12-11",
+   "author": "Custom Transport Ltd.",
+   "recipients": [],
+   "description": "General security agreement granted to TD",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "rsonal \nproperty (the “GSA”). A copy of the GSA is attached hereto as Exhibit “C”"
+    }
+   ],
+   "content_check": "13 pages: 'TO: The Toronto-Dominion Bank ... General Security Agreement'"
+  },
+  {
+   "label": "D",
+   "file": "doc-337t4g.pdf",
+   "kind": "public_record",
+   "date": "2026-01-05",
+   "author": "Manitoba Personal Property Registry (Teranet)",
+   "recipients": [],
+   "description": "Manitoba PPR search results for Custom Transport",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "8. \nAttached hereto as Exhibit “D”"
+    }
+   ],
+   "content_check": "29 pages: Teranet Manitoba Business Debtor Search, 2026-01-05"
+  },
+  {
+   "label": "E",
+   "file": "doc-32cuuu.pdf",
+   "kind": "email",
+   "date": "2025-08-08",
+   "author": "Mudasar Ahmad, TD",
+   "recipients": [
+    "Kulwinder Chahal"
+   ],
+   "description": "Ahmad's August 8, 2025 email raising TD's concerns and requesting financial reporting",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "arding same on August 8, \n2025, a copy of which is attached hereto as Exhibit “E”"
+    }
+   ],
+   "content_check": "3 pages: email from Ahmad, Mudasar, Friday August 8, 2025 6:53 PM to Kulwinder Chahal, cc Kevin Patel"
+  },
+  {
+   "label": "F",
+   "file": "doc-sx74gp.pdf",
+   "kind": "spreadsheet",
+   "date": "2025-03",
+   "author": "Custom Transport Ltd.",
+   "recipients": [],
+   "description": "Equipment list with amounts owing",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "ounts owing on them as of March 2025, a copy of which is \nattached at Exhibit “F”"
+    }
+   ],
+   "content_check": "3 pages: 'EQUIPMENT OWNED BY CUSTOM TRANSPORT', remaining balances as on 30 Sep 2024 and 31 Mar 2025"
+  },
+  {
+   "label": "G",
+   "file": "doc-pcd6as.pdf",
+   "kind": "letter",
+   "date": "2025-09-08",
+   "author": "Fillmore Riley LLP for TD",
+   "recipients": [],
+   "description": "Demand letter and notice of intention to enforce security",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Bankruptcy and Insolvency Act. \nCopies of same are attached hereto as Exhibit “G”"
+    }
+   ],
+   "content_check": "6 pages: Fillmore Riley letter September 8, 2025 'STRICTLY PERSONAL AND CONFIDENTIAL' to Custom Transport, Attention Kulwinder Chahal"
+  },
+  {
+   "label": "H",
+   "file": "doc-jxm7gs.pdf",
+   "kind": "agreement",
+   "date": "2025-10-31",
+   "author": "TD and Custom Transport Ltd.",
+   "recipients": [],
+   "description": "Forbearance Agreement",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "(the “Forbearance Agreement”), a copy of which is attached hereto as \nExhibit “H”"
+    }
+   ],
+   "content_check": "34 pages: 'This Forbearance Agreement made effective the 31st day of October, 2025'"
+  },
+  {
+   "label": "I",
+   "file": "doc-8c2xx3.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Custom Transport Ltd.",
+   "recipients": [],
+   "description": "Executed consent to the appointment of a receiver",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "of the executed consent to appoint a receiver is attached hereto \nas Exhibit “I”"
+    }
+   ],
+   "content_check": "17 pages: consent in the form of a King's Bench (Winnipeg Centre) filing for a s. 243 BIA receiver, with draft order"
+  },
+  {
+   "label": "J",
+   "file": "doc-8smkw9.pdf",
+   "kind": "letter",
+   "date": "2025-12-05",
+   "author": "Fillmore Riley LLP for TD",
+   "recipients": [],
+   "description": "Letter to Custom Transport's counsel listing forbearance defaults",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "remedied in short order.  A copy of the letter is attached \nhereto as Exhibit “J”"
+    }
+   ],
+   "content_check": "2 pages: Fillmore Riley letter December 5, 2025 to A&M Lawyers Professional Corporation, Attention Marryam Singh"
+  },
+  {
+   "label": "K",
+   "file": "doc-2zkxmp.pdf",
+   "kind": "email",
+   "date": "2025-12-31",
+   "author": "Kalev Anniko, Fillmore Riley",
+   "recipients": [],
+   "description": "Email to Custom Transport's counsel warning of termination of the forbearance",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "to Custom Transport’s counsel, a copy of which is attached hereto as \nExhibit “K”"
+    }
+   ],
+   "content_check": "2 pages: email from Anniko, Kalev, Wednesday December 31, 2025 to Marryam Singh"
+  },
+  {
+   "label": "L",
+   "file": "doc-d26g6z.pdf",
+   "kind": "letter",
+   "date": "2026-01-05",
+   "author": "Fillmore Riley LLP for TD",
+   "recipients": [],
+   "description": "Letter terminating the Forbearance Agreement effective January 12, 2026",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "ctive January 12, 2026.  A copy \nof that letter is attached hereto as Exhibit “L”"
+    }
+   ],
+   "content_check": "2 pages: Fillmore Riley letter January 5, 2026 to Custom Transport, Attention Kulwinder Singh Chahal"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "TD and Custom Transport enter the Demand Operating Facility Agreement",
+   "date": "2024-11-06",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "dated November 6, 2024",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Custom Transport grants TD a general security agreement",
+   "date": "2024-12-11",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "a general security agreement dated December 11, 2024",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "About $300,000 transferred from the operating line to Ravi Chahal in 21 transactions",
+   "date": "2025-05",
+   "precision": "range",
+   "paragraphs": [
+    12
+   ],
+   "quote": "in May and June 2025, by way of 21 transactions",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Custom Transport provides an equipment list",
+   "date": "2025-06",
+   "precision": "month",
+   "paragraphs": [
+    16
+   ],
+   "quote": "The only thing that Custom Transport provided, in June 2025, was an equipment list",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Account referred to TD's Financial Restructuring Group",
+   "date": "2025-07",
+   "precision": "approximate",
+   "paragraphs": [
+    9
+   ],
+   "quote": "in or around late July 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Ahmad meets Kulwinder Chahal and follows up by email",
+   "date": "2025-08-08",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "I followed up with an email regarding same on August 8, 2025",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "TD issues demand and notice of intention to enforce security",
+   "date": "2025-09-08",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "by letter dated September 8, 2025, TD, through counsel, issued a demand letter",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Forbearance Agreement takes effect, with consent to a receiver",
+   "date": "2025-10-31",
+   "precision": "day",
+   "paragraphs": [
+    19,
+    20,
+    21
+   ],
+   "quote": "commencing October 31, 2025",
+   "exhibits": [
+    "H",
+    "I"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Custom Transport misses the November 30 payment",
+   "date": "2025-11-30",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Custom Transport failed to make the November 30, 2025, payment",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "TD's counsel lists forbearance defaults",
+   "date": "2025-12-05",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "dated December 5, 2025",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Promised receivable and payment do not arrive",
+   "date": "2025-12-23",
+   "precision": "day",
+   "paragraphs": [
+    25,
+    26
+   ],
+   "quote": "on or around December 23, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "TD's counsel warns it will terminate the forbearance",
+   "date": "2025-12-31",
+   "precision": "approximate",
+   "paragraphs": [
+    26
+   ],
+   "quote": "advising that the defaults had to be resolved to TD",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "TD terminates the Forbearance Agreement effective January 12, 2026",
+   "date": "2026-01-05",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "by letter dated January 5, 2026, TD, through its counsel, terminated the Forbearance Agreement",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "PPR search run",
+   "date": "2026-01-05",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "dated January 5, 2026",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Indebtedness of $493,976.68 calculated",
+   "date": "2026-01-06",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "As at January 6, 2026",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Kulwinder emails from India with new promises of payment",
+   "date": "2026-01-06",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "Kulwinder emailed me on January 6, 2026",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "BDO's consent to act as receiver",
+  "Custom Transport's GST filings"
+ ],
+ "leak_waivers": [],
+ "notes": "Affirmed in Calgary; the jurat day is illegible and BDO lists it as January 13, 2026. Exhibit I (consent to receivership) is itself formatted as a court filing."
+}

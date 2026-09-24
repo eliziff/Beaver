@@ -1,0 +1,18 @@
+{
+ "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Affidavit-of-Dr.-Amit-Arya-March-23-2023.pdf",
+ "landing_url": "https://www.ontariohealthcoalition.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "document_title": "Affidavit of Dr. Amit Arya March 23, 2023 (Charter application re Bill 7)",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-bill7-arya",
+ "source_file": "c-affidavit-of-dr-amit-arya-march-23-2023.pdf",
+ "page_range": [
+  1,
+  103
+ ],
+ "source_sha256": "738ad02b74cc480c109f77425b5749942ae2055aa26fb65ee5b950c2c945e286",
+ "source_pages": 103
+}

@@ -1,0 +1,320 @@
+{
+ "record_id": "nssc-adts-montgomery",
+ "court": "Supreme Court of Nova Scotia (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "2017 Hfx No. (CCAA)",
+ "subject": "insolvency",
+ "proceeding": "Atlantica Diversified Transportation Systems Inc. (ADTS): application for an initial order under the CCAA, with BDO Canada Limited as proposed monitor",
+ "document": "Affidavit of David Montgomery sworn November 2017",
+ "deponent": "David Montgomery",
+ "deponent_role": "President and sole director of Atlantica Diversified Transportation Systems Inc. (applicant trucking company)",
+ "sworn_date": "2017-11-24",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-krduup.pdf",
+   "kind": "public_record",
+   "date": "2017-11-23",
+   "author": "Nova Scotia Registry of Joint Stock Companies",
+   "recipients": [],
+   "description": "Nova Scotia Companies Office printout for Atlantica",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"A\" is a printout from the Nova Scotia Companies Office"
+    }
+   ],
+   "content_check": "3 pages: 'Registry of Joint Stock Companies' printout, gov.ns.ca (scan with OCR layer)"
+  },
+  {
+   "label": "B",
+   "file": "doc-p8ng4m.pdf",
+   "kind": "public_record",
+   "date": "2017-11-23",
+   "author": "Service New Brunswick Corporate Affairs Registry",
+   "recipients": [],
+   "description": "New Brunswick Corporate Registry printout for Atlantica",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"B\" is a printout from the New Brunswick Corporate Registry"
+    }
+   ],
+   "content_check": "2 pages: 'Corporate Affairs Registry Database', Service New Brunswick"
+  },
+  {
+   "label": "C",
+   "file": "doc-szm4vv.pdf",
+   "kind": "financial_statement",
+   "date": "2017-10-19",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Atlantica Diversified Transportation Systems Inc."
+   ],
+   "description": "CRA statement of account for unremitted source deductions",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Copies of CRA documents are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: CRA statement, St. John's NL tax centre, Atlantica Diversified Transportation (the text layer reads the label in the affidavit as '0')"
+  },
+  {
+   "label": "D",
+   "file": "doc-be4w9x.pdf",
+   "kind": "public_record",
+   "date": "2017-11-23",
+   "author": "Nova Scotia Personal Property Registry",
+   "recipients": [],
+   "description": "Nova Scotia PPSA search result",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto as Exhibit \"D\" is\na copy of the Nova Scotia PPSA printout"
+    }
+   ],
+   "content_check": "63 pages: 'Nova Scotia PPRS Search Result Report 15837184'"
+  },
+  {
+   "label": "E",
+   "file": "doc-b8b8ge.pdf",
+   "kind": "public_record",
+   "date": "2017-11-23",
+   "author": "New Brunswick Personal Property Registry",
+   "recipients": [],
+   "description": "New Brunswick PPSA search result",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "as Exhibit \"E\" is a copy of the\nNew Brunswick PPSA printout"
+    }
+   ],
+   "content_check": "107 pages: 'New Brunswick PPRS Search Result Report 15837227'"
+  },
+  {
+   "label": "F",
+   "file": "doc-6bsjxm.pdf",
+   "kind": "spreadsheet",
+   "date": "2017-11-23",
+   "author": "ADTS Inc.",
+   "recipients": [],
+   "description": "Accounts payable listing",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Attached as Exhibit \"F\" is a copy of our Accounts Payable Listing"
+    }
+   ],
+   "content_check": "311 pages: 'ADTS INC. ... Accounts Payable Aging, Aged as of: 11/23/2017'"
+  },
+  {
+   "label": "G",
+   "file": "doc-kgzmr2.pdf",
+   "kind": "letter",
+   "date": "2017-08-24",
+   "author": "Cox & Palmer (Gavin MacDonald) for Canadian Western Bank",
+   "recipients": [
+    "Atlantica Diversified Transportation Systems Inc."
+   ],
+   "description": "Canadian Western Bank's demand letters with attachments",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "a copy of which are attached as Exhibit \"G\""
+    }
+   ],
+   "content_check": "45 pages: Cox & Palmer letter August 24, 2017 via registered mail to Atlantica, with BIA notices"
+  },
+  {
+   "label": "H",
+   "file": "doc-y27wnh.pdf",
+   "kind": "spreadsheet",
+   "date": "2017-11",
+   "author": "Atlantica",
+   "recipients": [],
+   "description": "13-week cash flow statement",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached is Exhibit \"H\" is a Cash Flow Statement"
+    }
+   ],
+   "content_check": "20 pages: 'Atlantica ADTS Cash Flow Forecast' by week"
+  },
+  {
+   "label": "I",
+   "file": "doc-mzjuef.pdf",
+   "kind": "financial_statement",
+   "date": "2016-09-30",
+   "author": "Atlantica Diversified Transportation Systems Inc.",
+   "recipients": [],
+   "description": "Draft unaudited non-consolidated financial statements",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "is a copy of each financial statement, audited and\nunaudited"
+    }
+   ],
+   "content_check": "19 pages: 'Non-consolidated Financial Statements (Unaudited) September 30, 2016 DRAFT' (the affidavit's text layer reads the label as '1')"
+  },
+  {
+   "label": "J",
+   "file": "doc-tn4suv.pdf",
+   "kind": "letter",
+   "date": "2017-11-24",
+   "author": "BDO Canada Limited",
+   "recipients": [
+    "Atlantica"
+   ],
+   "description": "BDO's consent to act as Monitor",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Attached as Exhibit \"J\" is a Consent from BDO Canada Limited to act as\nMonitor"
+    }
+   ],
+   "content_check": "1 page: BDO Canada Limited letter, Halifax, November [24, 2017]"
+  },
+  {
+   "label": "K",
+   "file": "doc-dffsax.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Atlantica",
+   "recipients": [],
+   "description": "List of critical suppliers under CCAA s. 11.4",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Attached as Exhibit \"K\" is a List of Critical Suppliers"
+    }
+   ],
+   "content_check": "1 page: 'Critical Supplier Listing' (Irving fuel, Tchek, Telus, GBS IT support, Loadlink ...)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Montgomery becomes sole director of Atlantica",
+   "date": "2016-12-23",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "I became sole director on or about December 23, 2016.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "CRA cheques for September-December 2016 found written but never sent",
+   "date": "2017-03",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "learn in March Of 2017 that\ncheques were being run for Canada Revenue Agency",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Canadian Western Bank's solicitors send demand letters",
+   "date": "2017-08-24",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On August 24, 2017, the solicitors for Canadian Western Bank sent demand\nletters to us",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Montgomery learns MNP was appointed 'unofficial receiver'",
+   "date": "2017-09",
+   "precision": "approximate",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In mid-September, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "CRA statement of account for source deductions",
+   "date": "2017-10-19",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Copies of CRA documents are attached hereto as Exhibit",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Negotiations with Canadian Western Bank continue",
+   "date": "2017-11-10",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "including right up\nto November 10, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Bailiff Alton Bubar Sales begins seizing Atlantica's units",
+   "date": "2017-11-13",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "began making seizures starting on\nNovember 13, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Registry, PPSA and payables printouts prepared",
+   "date": "2017-11-23",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    9,
+    10
+   ],
+   "quote": "Attached as Exhibit \"F\" is a copy of our Accounts Payable Listing",
+   "exhibits": [
+    "A",
+    "B",
+    "D",
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "BDO consents to act as monitor; application for initial order filed",
+   "date": "2017-11-24",
+   "precision": "day",
+   "paragraphs": [
+    18,
+    23
+   ],
+   "quote": "This Affidavit is filed to support an Application for an Initial Order",
+   "exhibits": [
+    "J",
+    "H",
+    "K"
+   ]
+  }
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Scanned affidavit (OCR'd with --ocr-affidavit); covers are scanned stamp pages given by page. The affidavit's own index of exhibits (page 6) lists them. OCR reads Exhibit C as '0' (para 8) and I as '1' (para 20). The jurat day is illegible; the court stamp and BDO's consent date it November 24, 2017."
+}

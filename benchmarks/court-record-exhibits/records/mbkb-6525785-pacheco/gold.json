@@ -1,0 +1,670 @@
+{
+ "record_id": "mbkb-6525785-pacheco",
+ "court": "Court of King's Bench of Manitoba (Winnipeg Centre)",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 23-01-",
+ "subject": "insolvency",
+ "proceeding": "First National Financial GP Corporation v. 6525785 Manitoba Ltd., 6472240 Manitoba Ltd. and PGRP Properties Inc.: application to appoint MNP Ltd. as receiver of 480 Young Street, Winnipeg",
+ "document": "Affidavit of Sonia Pacheco sworn February 2023",
+ "deponent": "Sonia Pacheco",
+ "deponent_role": "Senior Mortgage Closing Specialist, Montrose Mortgage Corporation (agent for the applicant lender)",
+ "sworn_date": "2023-02-13",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zbwk4r.pdf",
+   "kind": "public_record",
+   "date": "2022-12-29",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office search for 6525785 Manitoba Ltd.",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "dential units located at the \nYoung Property. \n5. \nAttached hereto as Exhibit \"A\""
+    }
+   ],
+   "content_check": "2 pages: Companies Office file summary, Registry No 6525785, as of 29-Dec-2022"
+  },
+  {
+   "label": "B",
+   "file": "doc-sx58eg.pdf",
+   "kind": "public_record",
+   "date": "2022-12-29",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office search for 6472240 Manitoba Ltd.",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "ial owner of the Young Property, along with PGRP. Attached \nhereto as Exhibit \"B\""
+    }
+   ],
+   "content_check": "2 pages: file summary, 6472240 Manitoba Ltd."
+  },
+  {
+   "label": "C",
+   "file": "doc-3ay2jt.pdf",
+   "kind": "public_record",
+   "date": "2022-12-29",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Companies Office search for PGRP Properties Inc.",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "- 4 - \nhereto as Exhibit \"C\""
+    }
+   ],
+   "content_check": "2 pages: file summary, PGRP Properties Inc., Registry No 4347073"
+  },
+  {
+   "label": "D",
+   "file": "doc-jeb4sp.pdf",
+   "kind": "agreement",
+   "date": "2012-11-14",
+   "author": "6525785 Manitoba Ltd., 6472240 Manitoba Ltd. and PGRP Properties Inc.",
+   "recipients": [],
+   "description": "Direction and Consent by Beneficial Owner confirming 652 holds the Young Property as bare trustee",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "for PGRP dated December 29, 2022. \n8. \nAttached hereto and marked as Exhibit \"D\""
+    }
+   ],
+   "content_check": "2 pages: 'DIRECTION AND CONSENT BY BENEFICIAL OWNER TO: 6525785 MANITOBA LTD. (the Nominee) AND TO: FIRST NATIONAL FINANCIAL LP'"
+  },
+  {
+   "label": "E",
+   "file": "doc-s4fptt.pdf",
+   "kind": "letter",
+   "date": "2012-11-01",
+   "author": "First National Financial (via Montrose Mortgage)",
+   "recipients": [],
+   "description": "Commitment Letter for the Young Loan of $2,130,625",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "t mortgage \nagainst the Young Property. Attached hereto and marked as Exhibit \"E\""
+    }
+   ],
+   "content_check": "46 pages: commitment letter to 6525785 Manitoba Ltd. c/o K&P Properties, Attention Mr. Patrick Penner, executed with handwritten annotations"
+  },
+  {
+   "label": "F",
+   "file": "doc-8ff72b.pdf",
+   "kind": "letter",
+   "date": "2014-07-07",
+   "author": "Montrose Mortgage Corporation",
+   "recipients": [],
+   "description": "Amendment letters of July 7, 2014 and April 26, 2016",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "g Loan was decreased to $1,887,228.19. \nAttached hereto and marked as Exhibit \"F\""
+    }
+   ],
+   "content_check": "45 pages: Montrose letter July 7, 2014 to 6525785 Manitoba Ltd. c/o K&P Properties, and later amendment letter"
+  },
+  {
+   "label": "G",
+   "file": "doc-4nh8sx.pdf",
+   "kind": "agreement",
+   "date": "2012-11-14",
+   "author": "6525785 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Young Mortgage with CMHC standard charge terms and the 2014 amending agreement",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "way \nof agreement dated July 28, 2014. Attached hereto and \nmarked as Exhibit \"G\""
+    }
+   ],
+   "content_check": "33 pages: registered Manitoba mortgage form (Registrar General approved) with Schedule A and standard charge terms"
+  },
+  {
+   "label": "H",
+   "file": "doc-6egxgy.pdf",
+   "kind": "agreement",
+   "date": "2012-11-14",
+   "author": "6525785 Manitoba Ltd. and First National",
+   "recipients": [],
+   "description": "General Security Agreement (site specific)",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "ung \nProperty dated November 14, 2012. Attached hereto and \nmarked as Exhibit \"H\""
+    }
+   ],
+   "content_check": "9 pages: 'GENERAL SECURITY AGREEMENT (SITE SPECIFIC) ... made as of the 14th day of November, 2012'"
+  },
+  {
+   "label": "I",
+   "file": "doc-zfwu5p.pdf",
+   "kind": "agreement",
+   "date": "2012-11-14",
+   "author": "6525785 Manitoba Ltd.",
+   "recipients": [],
+   "description": "General Assignment of Rents",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "November 14, 2012, a copy of which is \nattached hereto and marked as Exhibit \"I\""
+    }
+   ],
+   "content_check": "3 pages: 'GENERAL ASSIGNMENT OF RENTS ... November, 2012'"
+  },
+  {
+   "label": "J",
+   "file": "doc-ymn638.pdf",
+   "kind": "letter",
+   "date": "2016-04-27",
+   "author": "6525785 Manitoba Ltd.",
+   "recipients": [],
+   "description": "Request to Fix Rate letter with First National's confirmation",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "date of \nthe Loan occurred in mid-2026. Attached hereto and marked as Exhibit \n\"J\""
+    }
+   ],
+   "content_check": "1 page: 'REQUEST TO FIX RATE CONSTRUCTION TO TERM TO: First National Financial LP'"
+  },
+  {
+   "label": "K",
+   "file": "doc-fy3tdq.pdf",
+   "kind": "public_record",
+   "date": "2023-02-08",
+   "author": "Manitoba Land Titles Office",
+   "recipients": [],
+   "description": "Status of Title No. 2638652/1 for the Young Property",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "-7-\n13. \nAttached hereto and marked as Exhibit \"K\""
+    }
+   ],
+   "content_check": "7 pages: 'STATUS OF TITLE Title Number 2638652/1', registered owner 6525785 Manitoba Ltd."
+  },
+  {
+   "label": "L",
+   "file": "doc-esw8jh.pdf",
+   "kind": "public_record",
+   "date": "2023-01-26",
+   "author": "Manitoba Personal Property Registry (Teranet)",
+   "recipients": [],
+   "description": "PPSR search for 652",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "n the case of the Young Property. \n15. \nAttached hereto and marked as Exhibit \"L\""
+    }
+   ],
+   "content_check": "2 pages: Teranet Manitoba Property Registry business debtor search, printed 1/26/23"
+  },
+  {
+   "label": "M",
+   "file": "doc-emfms6.pdf",
+   "kind": "report",
+   "date": "2021-09-27",
+   "author": "SMS Engineering",
+   "recipients": [],
+   "description": "Fire and Water Damage Review Report on 480 Young Street",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "ntire Young Property had to be vacated. Attached hereto \nan marked as Exhibit \"M\""
+    }
+   ],
+   "content_check": "30 pages: SMS Engineering report to Sedgwick Claims, 'Re: 480 Young Street, Winnipeg - Fire and Water Damage'"
+  },
+  {
+   "label": "N",
+   "file": "doc-6atjff.pdf",
+   "kind": "letter",
+   "date": "2022-11-30",
+   "author": "City of Winnipeg Planning, Property & Development",
+   "recipients": [],
+   "description": "City of Winnipeg letter about the building at the Young Property",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "of the building at the Young Property. \nAttached hereto and marked as Exhibit \"N\""
+    }
+   ],
+   "content_check": "1 page: City of Winnipeg letter November 30, 2022 to 6525785 Manitoba Ltd."
+  },
+  {
+   "label": "O",
+   "file": "doc-ydn4yc.pdf",
+   "kind": "webpage",
+   "date": "2023-01-23",
+   "author": "City of Winnipeg",
+   "recipients": [],
+   "description": "Permit search for the Young Property showing open restoration permits",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "eg pertaining to the restoration work. \nAttached hereto and marked as Exhibit \"O\""
+    }
+   ],
+   "content_check": "2 pages: 'Search for Issued Construction-Related Permits, Permits for 480 Young Street'"
+  },
+  {
+   "label": "P",
+   "file": "doc-9gfhzu.pdf",
+   "kind": "letter",
+   "date": "2022-11-15",
+   "author": "Thompson Dorfman Sweatman LLP (Albina P. Moran)",
+   "recipients": [],
+   "description": "TDS demand letter for arrears and insurance information",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "atus of repairs to the Young Property. Attached hereto and \nmarked as Exhibit \"P\""
+    }
+   ],
+   "content_check": "2 pages: TDS letter November 15, 2022 to 6525785 Manitoba Ltd."
+  },
+  {
+   "label": "Q",
+   "file": "doc-g5yumj.pdf",
+   "kind": "notice",
+   "date": "2023-01-16",
+   "author": "Thompson Dorfman Sweatman LLP (Ross A. McFadyen)",
+   "recipients": [],
+   "description": "Notice of Intention to Enforce Security (s. 244 BIA) and covering letter",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "-16 -\nas Exhibit \"Q\""
+    }
+   ],
+   "content_check": "6 pages: TDS letter January 16, 2023 with NITES"
+  },
+  {
+   "label": "R",
+   "file": "doc-ckbbyy.pdf",
+   "kind": "other",
+   "date": "2023-01-22",
+   "author": "Patrick Penner",
+   "recipients": [],
+   "description": "Penner's '480 Young - Plan Jan 22nd 2023'",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "(\"TIPP\") \nto pay taxes going forward. Attached hereto and marked \nas Exhibit \"R\""
+    }
+   ],
+   "content_check": "1 page: '480 Young - Plan January 22nd, 2023', mortgage payments outstanding $29,800 (3 months)"
+  },
+  {
+   "label": "S",
+   "file": "doc-y6be23.pdf",
+   "kind": "email_chain",
+   "date": "2023-01-31",
+   "author": "Ross McFadyen (TDS) and Patrick Penner",
+   "recipients": [],
+   "description": "Email correspondence between Penner and TDS about the insurance proceeds",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "nge payment of the insurance \nproceeds. Attached hereto and marked as Exhibit \"S\""
+    }
+   ],
+   "content_check": "forwarded email chain (FW: 480 Young - Permit 22 129463 000 00MU) from Melanie LaBossiere, February 10, 2023"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "652, 647 and PGRP sign the commitment letter for the Young Loan",
+   "date": "2012-11-01",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On November 1, 2012, 652, 647 and PGRP all executed a Commitment Letter",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Young Mortgage, GSA, assignment of rents and beneficial owner direction granted",
+   "date": "2012-11-14",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    11
+   ],
+   "quote": "A Mortgage of the Young Property dated November 14, 2012",
+   "exhibits": [
+    "D",
+    "G",
+    "H",
+    "I"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "First loan amendment letter",
+   "date": "2014-07-07",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "dated July 7, 2014",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Mortgage amending agreement",
+   "date": "2014-07-28",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "as further amended by way of agreement dated July 28, 2014",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Loan amended and principal reduced to $1,887,228.19",
+   "date": "2016-04-26",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "April 26, 2016",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "652 fixes the interest rate at 3.27% for ten years",
+   "date": "2016-04-27",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on April 27, 2016, 652 elected to fix the interest rate",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Security transferred to Computershare",
+   "date": "2016-05",
+   "precision": "month",
+   "paragraphs": [
+    14
+   ],
+   "quote": "were transferred and assigned, respectively, to Computershare Trust Company of Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Fire at the Young Property; one unit vacated",
+   "date": "2020-07-12",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "July 12, 2020, which resulted in one unit at the Young Property being vacated",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "652 defaults on monthly payments",
+   "date": "2021-09",
+   "precision": "approximate",
+   "paragraphs": [
+    17
+   ],
+   "quote": "In or about September of 2021, 652 defaulted on the monthly payments",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Major fire; building vacated",
+   "date": "2021-09-10",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "September 10, 2021, which resulted in significant fire and water damage",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "SMS Engineering issues the fire and water damage report",
+   "date": "2021-09-27",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "issued by SMS Engineering on September 27, 2021",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Loan brought current with insurance proceeds",
+   "date": "2022-02",
+   "precision": "approximate",
+   "paragraphs": [
+    18
+   ],
+   "quote": "In or about February of 2022, 652 brought the Young Loan and Mortgage current",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "652 defaults again",
+   "date": "2022-04",
+   "precision": "approximate",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In or about April of 2022, 652 again defaulted",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Inspection of the Young Property",
+   "date": "2022-05",
+   "precision": "approximate",
+   "paragraphs": [
+    25
+   ],
+   "quote": "In or about May of 2022, I, along with Penner",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Loan brought current again",
+   "date": "2022-07",
+   "precision": "approximate",
+   "paragraphs": [
+    20
+   ],
+   "quote": "In or about July of 2022, 652 brought the Young Loan and Mortgage current",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "652 defaults a third time; tax arrears and inadequate insurance",
+   "date": "2022-10-15",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "By October 15, 2022, 652 had again defaulted",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "TDS retained",
+   "date": "2022-10",
+   "precision": "month",
+   "paragraphs": [
+    30
+   ],
+   "quote": "in October of 2022 to assist with this matter",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "TDS demands arrears and insurance information",
+   "date": "2022-11-15",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On November 15, 2022, TDS wrote a letter to 652",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "City of Winnipeg letter about the property",
+   "date": "2022-11-30",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "November 30, 2022",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Companies Office searches run",
+   "date": "2022-12-29",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    6,
+    7
+   ],
+   "quote": "dated December 29, 2022",
+   "exhibits": [
+    "A",
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Indebtedness of $1,726,176.23",
+   "date": "2023-01-06",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "as of January 6, 2023, the total amount of indebtedness",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "TDS issues the notice of intention to enforce security",
+   "date": "2023-01-16",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On January 16, 2023, given the continuing defaults",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Penner proposes the 480 Young plan",
+   "date": "2023-01-22",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "Plan Jan 22nd 2023",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Permit search shows open restoration permits",
+   "date": "2023-01-23",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "dated January 23, 2023",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Penner says $29,000 insurance money is available; PPSR search",
+   "date": "2023-01-26",
+   "precision": "day",
+   "paragraphs": [
+    36,
+    15
+   ],
+   "quote": "on or about January 26, 2023, Penner advised Montrose",
+   "exhibits": [
+    "L",
+    "R"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "TDS tells Penner the insurance proceeds belong to First National; Loewen tries to deliver a cheque",
+   "date": "2023-01-31",
+   "precision": "day",
+   "paragraphs": [
+    37,
+    38
+   ],
+   "quote": "On January 31, 2023, TDS advised Penner",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Status of title obtained",
+   "date": "2023-02-08",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "dated February 8, 2023",
+   "exhibits": [
+    "K"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Coinamatic caveats and other title registrations",
+  "Forced-placed insurance policy (the Young Policy)",
+  "News articles and ASH communications about the fires"
+ ],
+ "leak_waivers": [],
+ "notes": "The jurat day is hard to read ('15th' or '13th' of February 2023); MNP posts it as the February 13, 2023 affidavit. Exhibit E carries handwritten annotations. The court file number is incomplete on the filed copy."
+}

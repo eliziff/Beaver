@@ -1,0 +1,274 @@
+{
+ "record_id": "fc-moushoom-ciavaglia",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-402-19 / T-141-20 / T-1120-21",
+ "subject": "class_action",
+ "family": "moushoom-fn-child-welfare",
+ "proceeding": "Moushoom et al. v. Attorney General of Canada (First Nations child welfare and Jordan's Principle class actions): motion for approval of the June 30, 2022 settlement",
+ "document": "Affidavit of Janice Ciavaglia affirmed September 6, 2022",
+ "deponent": "Janice Ciavaglia",
+ "deponent_role": "Chief Executive Officer, Assembly of First Nations (plaintiff)",
+ "sworn_date": "2022-09-06",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-6ct3nk.pdf",
+   "kind": "minutes",
+   "date": "2020-01-15",
+   "author": "AFN Executive Committee",
+   "recipients": [],
+   "description": "Executive motion authorizing the AFN to commence its own class action",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "is a copy of the Executive Motion authorizing AFN to commence its own class action"
+    }
+   ],
+   "content_check": "1 page: 'AFN EXECUTIVE COMMITTEE TELECONFERENCE January 15, 2020 Draft Record of Decisions'"
+  },
+  {
+   "label": "B",
+   "file": "doc-t563un.pdf",
+   "kind": "report",
+   "date": "2021-12",
+   "author": "Gabrielle Fayant and Ashley Dawn Bach (Assembly of Seven Generations)",
+   "recipients": [],
+   "description": "'Children Back, Land Back' report by First Nations youth in care advisors",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "report. Attached as Exhibit"
+    }
+   ],
+   "content_check": "46 pages: 'CHILDREN BACK, LAND BACK: A Follow-Up Report of First Nations Youth In Care Advisors', December 2021"
+  },
+  {
+   "label": "C",
+   "file": "doc-ug9kjj.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Assembly of First Nations",
+   "recipients": [],
+   "description": "Framework Approach to Jordan's Principle (framework of essential services) posted on the AFN website",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "which is currently posted on the AFN"
+    }
+   ],
+   "content_check": "4 pages: 'First Nations Child and Family Services and Jordan's Principle Class Action Framework of Essential Services'"
+  },
+  {
+   "label": "D",
+   "file": "doc-gmrrer.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Assembly of First Nations",
+   "recipients": [],
+   "description": "Draft professional's confirmation of essential service form",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A draft professional confirmation form is attached hereto and marked as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: 'Professional's Confirmation of Essential Service Form', guidelines for professionals"
+  },
+  {
+   "label": "E",
+   "file": "doc-2gcafd.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Assembly of First Nations",
+   "recipients": [],
+   "description": "Draft Jordan's Principle impact assessment questionnaire",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A draft impact assessment questionnaire is attached hereto and marked as Exhibit"
+    }
+   ],
+   "content_check": "9 pages: 'JORDAN'S PRINCIPLE DRAFT IMPACT ASSESSMENT QUESTIONNAIRE' with categories 1-6"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "AFN begins joint AFN-Canada reports and reviews on the FNCFS Program",
+   "date": "1998",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Since 1998, the AFN has been involved in the development of various joint AFN-Canada reports",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "National Policy Review published",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "National Policy Review, published in 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Wen:De reports published",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "two reports known as the Wen:De reports published in 2005",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "AFN and Caring Society file the human rights complaint",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "jointly filed the 2007 complaint",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "CHRT substantiates the complaint",
+   "date": "2016-01-26",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The CHRT issued its landmark ruling in this matter on January 26, 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Minister Miller tells the AFN Special Chiefs Assembly Canada will negotiate compensation",
+   "date": "2019-12",
+   "precision": "month",
+   "paragraphs": [
+    10
+   ],
+   "quote": "attended the AFN",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "AFN Executive Committee instructs the Secretariat to start its own class action",
+   "date": "2020-01-15",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "on January 15, 2020, the AFN Executive Committee instructed the AFN Secretariat",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "AFN counsel meet representative plaintiffs at least 30 times",
+   "date": "2020-01",
+   "end_date": "2022-07",
+   "precision": "range",
+   "paragraphs": [
+    13
+   ],
+   "quote": "at least 30 times from January 2020 to July 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "About 50 briefings to First Nations leadership on the negotiations",
+   "date": "2021-09",
+   "end_date": "2022-06",
+   "precision": "range",
+   "paragraphs": [
+    14
+   ],
+   "quote": "during the period of September 2021 to June 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Assembly of Seven Generations publishes 'Children Back, Land Back'",
+   "date": "2021-12",
+   "precision": "month",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Children Back, Land Back",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "AFN recruits a circle of First Nations experts on Jordan's Principle compensation",
+   "date": "2022-06",
+   "precision": "month",
+   "paragraphs": [
+    37
+   ],
+   "quote": "In June 2022, under my direction, Stephanie Wellman",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Circle of experts begins meeting",
+   "date": "2022-06-10",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "on several occasions since June 10, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Final Settlement Agreement presented to the AFN Annual General Assembly",
+   "date": "2022-07-06",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "at the AFN Annual General Assembly on July 6, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "AFN framework, professional confirmation form and impact questionnaire drafted for pilot testing",
+   "date": "2022-09",
+   "precision": "approximate",
+   "paragraphs": [
+    41,
+    42,
+    44
+   ],
+   "quote": "the testing is to occur based upon the versions of the documents that are attached to this my affidavit",
+   "exhibits": [
+    "C",
+    "D",
+    "E"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "2019 CHRT 39 compensation decision",
+  "Agreement-in-Principle",
+  "Final Settlement Agreement",
+  "AFN Charter"
+ ],
+ "leak_waivers": [],
+ "notes": "Split from the plaintiffs' settlement-approval motion record (Tab 8, pages 153-235). D and E covers are image stamps with only the commissioner's name as text, so all covers were given by page."
+}

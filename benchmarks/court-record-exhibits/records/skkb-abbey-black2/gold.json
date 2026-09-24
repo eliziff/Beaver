@@ -1,0 +1,258 @@
+{
+ "record_id": "skkb-abbey-black2",
+ "court": "Court of Queen's Bench for Saskatchewan (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "SK",
+ "court_file": "Q.B. No. 151 of 2022 (Saskatoon)",
+ "subject": "insolvency",
+ "proceeding": "Rural Municipalities of Lacadena, Miry Creek and Snipe Lake and the Government of Saskatchewan (Minister of Energy and Resources) v. Abbey Resources Corp.: application to appoint a receiver over an oil and gas operator under a pipeline shut-down order, opposing CCAA protection",
+ "document": "Second Affidavit of Kathryn A. Black sworn February 25, 2022",
+ "deponent": "Kathryn A. Black",
+ "deponent_role": "Acting Executive Director of Field Services, Saskatchewan Ministry of Energy and Resources (applicant regulator)",
+ "sworn_date": "2022-02-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-tmnchy.pdf",
+   "kind": "letter",
+   "date": "2022-02-01",
+   "author": "Saskatchewan Ministry of Energy and Resources",
+   "recipients": [
+    "Counsel for Abbey Resources Corp."
+   ],
+   "description": "Ministry letter explaining the basis for the pipeline shut-down order",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached and marked hereto as Exhibit “A” is a copy of the\nletter."
+    }
+   ],
+   "content_check": "3 pages, image-only scan (OCR'd)"
+  },
+  {
+   "label": "B",
+   "file": "doc-r43cwg.pdf",
+   "kind": "letter",
+   "date": "2022-02-16",
+   "author": "Abbey Resources Corp.",
+   "recipients": [
+    "Saskatchewan Ministry of Energy and Resources"
+   ],
+   "description": "Abbey's written reply to the shut-down order and the February 1 letter",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached and marked hereto as\nExhibit “B” is a copy of the reply received."
+    }
+   ],
+   "content_check": "11 pages, image-only scan (OCR'd)"
+  },
+  {
+   "label": "C",
+   "file": "doc-fu26cq.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "Saskatchewan Ministry of Energy and Resources",
+   "recipients": [],
+   "description": "Photos showing salt-water damage to prairie land",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached and marked hereto as\nExhibit “C” are copies of photos evidencing the negative effects to the land."
+    }
+   ],
+   "content_check": "1 page, photographs (image-only)"
+  },
+  {
+   "label": "D",
+   "file": "doc-8dwyqm.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "Ministry field officer",
+   "recipients": [],
+   "description": "Photos of a pipeline break discovered near Kindersley",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached and marked hereto as Exhibit “D” is a copy of photos of a pipeline break"
+    }
+   ],
+   "content_check": "1 page, photographs (image-only)"
+  },
+  {
+   "label": "E",
+   "file": "doc-swkddk.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "Landowner / Ministry",
+   "recipients": [],
+   "description": "Photo of the landowner's field left unremediated after an October 2021 spill (the affidavit's text labels it 'D')",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "is a\ncopy of a photo ofthe landowner"
+    }
+   ],
+   "content_check": "1 page, photograph (image-only); cover page reads Exhibit E"
+  },
+  {
+   "label": "F",
+   "file": "doc-abhtsg.pdf",
+   "kind": "court_order",
+   "date": "2022-02",
+   "author": "Minister of Energy and Resources (Saskatchewan)",
+   "recipients": [
+    "Abbey Resources Corp."
+   ],
+   "description": "Minister's new order shutting in the pipeline affected by the unapproved liner",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached and marked hereto as Exhibit “F” is a copy of the order confirming the\nsame."
+    }
+   ],
+   "content_check": "2 pages, image-only scan of the order (OCR'd); the commissioner's PD1 declaration after it is dropped"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Abbey applies to install a pipeline liner, declaring a Safety and Loss Management System",
+   "date": "2021-09-28",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Abbey submitted an application for a liner to be installed",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Spill whose site Abbey leaves unremediated",
+   "date": "2021-10",
+   "precision": "month",
+   "paragraphs": [
+    16
+   ],
+   "quote": "For a spill that took place in October, 2021",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Ministry imposes an obligation on the liner approval pending corrected calculations",
+   "date": "2021-11-30",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "the Ministry immediately\nimposed an obligation",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Pipeline risk assessment report received by the Ministry",
+   "date": "2021-12",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "since the risk assessment was\nreceived in early December",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Incident on a medium risk pipeline",
+   "date": "2021-12-14",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "December 14, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Incident on a high risk pipeline",
+   "date": "2022-01-21",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "January 21, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Ministry sends Abbey's counsel a letter explaining the shut-down order",
+   "date": "2022-02-01",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "forwarded the same to Abbey",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Ministry field staff discover a further incident on a low risk line",
+   "date": "2022-02-09",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "February 9, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Abbey replies to the shut-down order",
+   "date": "2022-02-16",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On or about February 16, 2022, Abbey provided the Ministry with its written reply",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Minister issues a new order shutting in the pipeline with the unapproved liner",
+   "date": "2022-02",
+   "precision": "approximate",
+   "paragraphs": [
+    27
+   ],
+   "quote": "the Minister issued a new order shutting in the affected\npipeline",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Hearing scheduled on the receivership application",
+   "date": "2022-02-28",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "at the hearing of this matter on February 28",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "First Affidavit of Kathryn Black",
+  "Third and Fourth Affidavits of Brad Wagner",
+  "Explore Inc. Pipeline Risk Assessment Report",
+  "Ministry's earlier cost assessment"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Scanned affidavit (OCR'd with --ocr-affidavit); every exhibit is a scan. Paragraph 16 labels two different photos 'Exhibit D': 16(a) the Kindersley pipeline break (cover D) and 16(c) the landowner's field (cover E); the cover pages are authoritative. The regulator's evidence in an insolvency proceeding. The commissioner's PD1 declaration (source pages 34-35) is dropped. The leak probe flags Exhibit A: the Ministry letter itself cites 'the ninth affidavit of Jim Gettis, as Exhibit A', a reference to another affidavit's exhibit, not a stamp."
+}

@@ -1,0 +1,561 @@
+{
+ "record_id": "chrt-caring-farthingnichol1",
+ "court": "Canadian Human Rights Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "T1340/7008",
+ "subject": "human_rights",
+ "family": "fncfcs-chrt-t1340",
+ "proceeding": "First Nations Child and Family Caring Society of Canada et al. v. Attorney General of Canada (CHRT T1340/7008): COO and NAN joint motion for approval of the Ontario Final Agreement on long-term reform of the FNCFS Program",
+ "document": "Affidavit of Duncan Farthing-Nichol affirmed March 7, 2025 (Canada)",
+ "deponent": "Duncan Farthing-Nichol",
+ "deponent_role": "Director, Litigation Management Directorate, Child and Family Services Reform Sector, Indigenous Services Canada",
+ "sworn_date": "2025-03-07",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ekvf29.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Indigenous Services Canada",
+   "recipients": [],
+   "description": "Publicly available summary of the Agreement-in-Principle on long-term reform",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "a \npublicly available summary of the Agreement-in-Principle is attached as Exhibit A"
+    }
+   ],
+   "content_check": "16 pages: canada.ca page 'Final settlement agreement on Compensation and Agreement-in-Principle for long-term reform', Executive Summary of the AIP"
+  },
+  {
+   "label": "B",
+   "file": "doc-d34t2k.pdf",
+   "kind": "report",
+   "date": "2020",
+   "author": "Institute of Fiscal Studies and Democracy",
+   "recipients": [],
+   "description": "IFSD Phase 2 report 'Funding First Nations child and family services (FNCFS): A performance budget approach to well-being'",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "of the Institute of Fiscal \nStudies and Democracy (“IFSD”), which is attached as Exhibit B"
+    }
+   ],
+   "content_check": "502 pages: IFSD report 'Funding First Nations child and family services (FNCFS): A performance budget approach to well-being'"
+  },
+  {
+   "label": "C",
+   "file": "doc-henmhw.pdf",
+   "kind": "report",
+   "date": "2018-12-15",
+   "author": "Institute of Fiscal Studies and Democracy",
+   "recipients": [
+    "Assembly of First Nations"
+   ],
+   "description": "IFSD report 'Enabling First Nations Children to Thrive'",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "Enabling First Nations Children to \nThrive, which is attached as Exhibit C"
+    }
+   ],
+   "content_check": "378 pages: IFSD, December 15, 2018, Report to the Assembly of First Nations, 'Enabling First Nations Children to Thrive'"
+  },
+  {
+   "label": "D",
+   "file": "doc-gtv2vz.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "Statistics Canada definition of the Market Basket Measure",
+   "references": [
+    {
+     "paragraph": 87,
+     "quote": "are attached respectively as Exhibit D and Exhibit E"
+    }
+   ],
+   "content_check": "7 pages: Census of Population reference materials, 2021 Census, definition of the Market Basket Measure (MBM)"
+  },
+  {
+   "label": "E",
+   "file": "doc-s2xxhp.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "Statistics Canada definition of the Low-Income Measure, After Tax",
+   "references": [
+    {
+     "paragraph": 87,
+     "quote": "are attached respectively as Exhibit D and Exhibit E"
+    }
+   ],
+   "content_check": "7 pages: Census of Population reference materials, 2021 Census, definition of the Low-income measure, after tax"
+  },
+  {
+   "label": "F",
+   "file": "doc-7tg9q8.pdf",
+   "kind": "report",
+   "date": "2024-03-01",
+   "author": "Institute of Fiscal Studies and Democracy",
+   "recipients": [],
+   "description": "IFSD draft interim update on its Phase 3 research",
+   "references": [
+    {
+     "paragraph": 93,
+     "quote": "That draft interim update has been posted on IFSD’s website and is attached as \nExhibit F."
+    }
+   ],
+   "content_check": "287 pages: 'Interim update: First Nations child and family services (FNCFS) - Phase 3 DRAFT', IFSD, March 1, 2024"
+  },
+  {
+   "label": "G",
+   "file": "doc-n9azqp.pdf",
+   "kind": "report",
+   "date": "2022-04",
+   "author": "ISC Strategic Research and Data Innovation Branch",
+   "recipients": [],
+   "description": "ISC technical report 'Development of a Remoteness Cost Adjustment Factor'",
+   "references": [
+    {
+     "paragraph": 98,
+     "quote": "Development of a Remoteness Cost Adjustment Factor is attached as Exhibit G"
+    }
+   ],
+   "content_check": "47 pages: 'Development of a Remoteness Cost Adjustment Factor', Chief Data Officer, April 2022, ISC / CIRNAC"
+  },
+  {
+   "label": "H",
+   "file": "doc-jzbceu.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Indigenous Services Canada",
+   "recipients": [],
+   "description": "Research brief 'Calculating the Remoteness Cost Adjustment Factor: A Primer'",
+   "references": [
+    {
+     "paragraph": 98,
+     "quote": "Calculating the Remoteness Cost Adjustment Factor: A Primer is \nattached as Exhibit H"
+    }
+   ],
+   "content_check": "3 pages: 'Calculating the Remoteness Cost Adjustment Factor: A Primer'"
+  },
+  {
+   "label": "I",
+   "file": "doc-4h5mt6.pdf",
+   "kind": "report",
+   "date": "2023-06-30",
+   "author": "Statistics Canada (Hosseininasabnajar, Munro, Jafri)",
+   "recipients": [],
+   "description": "Statistics Canada report 'Toward a Classification of Communities by Remoteness: A Proposal'",
+   "references": [
+    {
+     "paragraph": 103,
+     "quote": "Toward a Classification of Communities by Remoteness: A Proposal, is attached as Exhibit"
+    }
+   ],
+   "content_check": "27 pages: Catalogue no. 18-001-X, release date June 30, 2023"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Tribunal substantiates the complaint",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    133
+   ],
+   "quote": "since this complaint was \nsubstantiated in 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "NAN and Canada establish the NAN-Canada Remoteness Quotient Table",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    96
+   ],
+   "quote": "In 2017, NAN and Canada established the NAN-Canada Remoteness Quotient Table",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "ISC and Ontario co-fund the Ontario Special Study of the 1965 Agreement",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    125
+   ],
+   "quote": "In 2017, ISC and the Government of Ontario co-funded the Ontario Special Study",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Under 2018 CHRT 4, FNCFS agencies may claim actual costs of intake, legal fees, repairs, prevention and FNRS",
+   "date": "2018-02-01",
+   "precision": "day",
+   "paragraphs": [
+    40,
+    48,
+    74
+   ],
+   "quote": "Since the 2018 CHRT 4 decision, rendered on February 1, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "IFSD reports to the AFN in 'Enabling First Nations Children to Thrive'",
+   "date": "2018-12-15",
+   "precision": "day",
+   "paragraphs": [
+    53
+   ],
+   "quote": "Enabling First Nations Children to \nThrive, which is attached as Exhibit C",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Ontario Special Study released and filed with the Tribunal",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    126
+   ],
+   "quote": "The Ontario Special Study, released and filed with the Tribunal in 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Canada begins funding youth and young adults aging out of care because of COVID-19",
+   "date": "2020-08",
+   "precision": "month",
+   "paragraphs": [
+    65
+   ],
+   "quote": "In August 2020, in recognition of the challenges presented by the COVID-19 pandemic",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Farthing-Nichol starts in the Litigation Management Directorate",
+   "date": "2021-06",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I started work \nin the Litigation Management Directorate in June 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Canada makes $947 per capita prevention funding available under 2021 CHRT 12",
+   "date": "2021-10",
+   "precision": "month",
+   "paragraphs": [
+    50
+   ],
+   "quote": "In October 2021, in accordance with the 2021 CHRT 12 consent order",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Agreement-in-Principle on long-term reform reached",
+   "date": "2021-12-31",
+   "precision": "day",
+   "paragraphs": [
+    10,
+    12
+   ],
+   "quote": "On December 31, 2021, the Agreement-in-Principle on Long-Term Reform of the FNCFS \nProgram",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Canada begins funding capital projects at actual cost",
+   "date": "2022-02",
+   "precision": "month",
+   "paragraphs": [
+    105
+   ],
+   "quote": "Since February 2022, Canada has been funding the development, purchase and construction \nof capital projects",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Gideon affidavit reports the reformed funding approach drawn from IFSD Phase 2",
+   "date": "2022-03-04",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "March 4, 2022 affidavit of Valerie Gideon",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Per capita prevention, FNRS and post-majority funding begin under 2022 CHRT 8",
+   "date": "2022-04-01",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    52,
+    66
+   ],
+   "quote": "On April 1, 2022, as committed in the Agreement-in-Principle and outlined in the 2022 \nCHRT 8 consent order",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "ISC publishes its Remoteness Cost Adjustment Factor technical report",
+   "date": "2022-04",
+   "precision": "month",
+   "paragraphs": [
+    98
+   ],
+   "quote": "Development of a Remoteness Cost Adjustment Factor is attached as Exhibit G",
+   "exhibits": [
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Farthing-Nichol takes up his current role",
+   "date": "2022-10",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "have been in my current role \nsince October 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "AFN and Caring Society present the Joint Path Forward proposal, slowing negotiations",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    17
+   ],
+   "quote": "Discussions slowed in March 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Statistics Canada releases its remoteness classification proposal",
+   "date": "2023-06-30",
+   "precision": "day",
+   "paragraphs": [
+    103
+   ],
+   "quote": "Toward a Classification of Communities by Remoteness: A Proposal",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "ISC secures a revised negotiation mandate",
+   "date": "2023-10",
+   "precision": "month",
+   "paragraphs": [
+    18
+   ],
+   "quote": "In October 2023, ISC secured a revised negotiation mandate",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "IFSD issues its draft interim Phase 3 update recommending Indian Registry population",
+   "date": "2024-03-01",
+   "precision": "day",
+   "paragraphs": [
+    93
+   ],
+   "quote": "March 1, 2024, draft interim update on its Phase 3 research",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "ISC officials meet Ontario ministry officials to press reform of the 1965 Agreement",
+   "date": "2024-02-08",
+   "end_date": "2024-07-26",
+   "precision": "range",
+   "paragraphs": [
+    130
+   ],
+   "quote": "February 8, April 4, June 7 and July 26, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "AFN, COO, NAN and Canada reach a tentative national Final Agreement ($47.8 billion)",
+   "date": "2024-07-11",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On July 11, 2024, the AFN, COO, NAN and Canada reached a tentative Final Agreement",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Regional engagement sessions on the draft Final Agreement",
+   "date": "2024-07",
+   "end_date": "2024-10",
+   "precision": "range",
+   "paragraphs": [
+    21,
+    22
+   ],
+   "quote": "from July to October 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Ontario Chiefs ratify the Final Agreement at NAN and COO assemblies",
+   "date": "2024-10-09",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Ontario Chiefs ratified the Final Agreement during NAN and COO’s assemblies on October \n9 and 10, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "First Nations-in-Assembly vote to reject the Final Agreement",
+   "date": "2024-10-17",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On October 17, however, after two days of discussions at the AFN’s Special \nChiefs Assembly in Calgary",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "AFN resolutions 60/2024 and 61/2024 call for renegotiation",
+   "date": "2024-10-18",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On October 18, the First Nations-in-Assembly adopted two resolutions",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "Ontario Regional Chief Benedict proposes an Ontario-specific approach",
+   "date": "2024-10-25",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On October 25, 2024, Ontario Regional Chief Abram Benedict wrote to the Minister",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Intensive COO-NAN-Canada negotiations begin",
+   "date": "2025-01",
+   "precision": "month",
+   "paragraphs": [
+    27
+   ],
+   "quote": "Intensive negotiations between COO, NAN and Canada \nbegan in January 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Tentative Ontario Final Agreement, Trilateral Agreement and off-reserve FNRS agreement concluded",
+   "date": "2025-02-07",
+   "precision": "day",
+   "paragraphs": [
+    27,
+    28,
+    132
+   ],
+   "quote": "A tentative OFA was reached on February 7, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Farthing-Nichol attends COO and NAN engagement sessions on the OFA",
+   "date": "2025-02-13",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "on February 13 and 21, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Ontario Chiefs-in-Assembly approve the OFA",
+   "date": "2025-02-25",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On February 25 and 26, 2025, at COO’s and NAN’s respective assemblies",
+   "exhibits": []
+  },
+  {
+   "id": "e31",
+   "description": "ISC receives IFSD's pre-production draft of the Phase 3 report",
+   "date": "2025-03-06",
+   "precision": "day",
+   "paragraphs": [
+    93
+   ],
+   "quote": "on \nMarch 6, 2025, the day before this affidavit is being commissioned",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "COO and NAN file their joint notice of motion",
+   "date": "2025-03-07",
+   "precision": "day",
+   "paragraphs": [
+    135
+   ],
+   "quote": "joint \nnotice of motion dated March 7, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e33",
+   "description": "Trilateral Agreement takes effect",
+   "date": "2025-04-01",
+   "precision": "day",
+   "paragraphs": [
+    129
+   ],
+   "quote": "The Trilateral \nAgreement becomes effective on April 1, 2025",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Agreement-in-Principle (confidential)",
+  "Affidavit of Valerie Gideon, March 4, 2022",
+  "Ontario Final Agreement and its appendices",
+  "Trilateral Agreement",
+  "AFN resolutions 60/2024 and 61/2024",
+  "Ontario Special Study (2020)",
+  "Remoteness Quotient reports (2017, 2019)"
+ ],
+ "leak_waivers": [],
+ "notes": "The posted file name and later affidavits call it the March 13, 2025 affidavit; the jurat reads March 7, 2025. Footnotes cite exhibit pages (Exhibit B, F). Covers given by page (DOJ signature covers)."
+}

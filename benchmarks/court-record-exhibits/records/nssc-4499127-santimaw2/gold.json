@@ -1,0 +1,148 @@
+{
+ "record_id": "nssc-4499127-santimaw2",
+ "court": "Supreme Court of Nova Scotia (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "Hfx No. 547515",
+ "subject": "insolvency",
+ "family": "ns-4499127-receivership",
+ "proceeding": "Express Mortgage Corporation Limited v. 4499127 Nova Scotia Limited: receivership (BDO Canada Limited, receiver), motion concerning the debtor's Upper Onslow lots",
+ "document": "Affidavit of Joshua J. Santimaw sworn December 15, 2025",
+ "deponent": "Joshua J. Santimaw",
+ "deponent_role": "Lawyer for BDO Canada Limited, court-appointed receiver",
+ "sworn_date": "2025-12-15",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-7nxczj.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 4 Roseway Lane, Upper Onslow (PID 20498671)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"A\" is a true copy of the Property Online printout",
+     "paragraph": 4
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20498671, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "B",
+   "file": "doc-xr2zk7.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 19 Summer Hill Place, Upper Onslow (PID 20501300)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"B\" is a true copy of the Property Online printout",
+     "paragraph": 5
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20501300, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "C",
+   "file": "doc-awuwrx.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 21 Summer Hill Place, Upper Onslow (PID 20501318)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"C\" is a true copy of the Property Online printout",
+     "paragraph": 6
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20501318, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "D",
+   "file": "doc-5ud2vy.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 2 Roseway Lane, Upper Onslow (PID 20498515)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"D\" is a true copy of the Property Online printout",
+     "paragraph": 7
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20498515, owner 4499127 Nova Scotia Limited"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 4 Roseway Lane, Upper Onslow (PID 20498671) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    4
+   ],
+   "quote": "PID 20498671",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 19 Summer Hill Place, Upper Onslow (PID 20501300) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    5
+   ],
+   "quote": "PID 20501300",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 21 Summer Hill Place, Upper Onslow (PID 20501318) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "PID and 20501318",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 2 Roseway Lane, Upper Onslow (PID 20498515) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "PID 20498515",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Receiver's counsel swears the affidavit in support of the receiver's motion",
+   "date": "2025-12-15",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I make this affidavit in support of the motion and for no other purpose.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Short identification affidavit: every exhibit is a Property Online printout of the same kind, told apart only by civic address and PID, so matching depends on reading the PID. The PID for C reads 'PID and 20501318' in the affidavit."
+}

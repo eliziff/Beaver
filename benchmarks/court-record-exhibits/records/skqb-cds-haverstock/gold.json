@@ -1,0 +1,143 @@
+{
+ "record_id": "skqb-cds-haverstock",
+ "court": "Court of Queen's Bench for Saskatchewan (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "SK",
+ "court_file": "Q.B.G. 1076 of 2021 (Saskatoon)",
+ "subject": "insolvency",
+ "family": "firesong-noi-sk",
+ "leak_waivers": [],
+ "proceeding": "Notices of intention to make a proposal of Canadian Development Strategies Inc., Crossroads ONE Inc., Oak and Ash Farm Ltd. and others of the FireSong Group (FireSong resort, Fowler Lake), with MNP Ltd. as proposal trustee: creditor's opposition to the proposal trustee's release of funds to Yvonne Hoeller",
+ "document": "Affidavit of Nancy Haverstock sworn January 25, 2022",
+ "deponent": "Nancy Haverstock",
+ "deponent_role": "Named creditor opposing the applicants' requests",
+ "sworn_date": "2022-01-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-k6kukm.pdf",
+   "kind": "letter",
+   "date": "2022-01-10",
+   "author": "W Law (counsel to the proposal trustee)",
+   "recipients": [
+    "Marie Dussault, Miller Thomson LLP"
+   ],
+   "description": "W Law's letter seeking information about paragraphs 9(b) and (c) of the Gabrielson J. order",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the letter from W Law is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page: letter January 10, 2022 to Miller Thomson LLP, Attention Marie Dussault, 'Re: QBG No. ...'"
+  },
+  {
+   "label": "B",
+   "file": "doc-edmqpa.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "BC Land Title Office (Victoria)",
+   "recipients": [],
+   "description": "British Columbia title to the Langford property registered to Dean Runzer",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit “B” is a copy of a British Columbia title for a property in the City of Langford"
+    }
+   ],
+   "content_check": "4 pages: 'CURRENT INFORMATION ONLY' title search, Land Title District VICTORIA, Title Number CA1005894"
+  },
+  {
+   "label": "C",
+   "file": "doc-5422vz.pdf",
+   "kind": "public_record",
+   "date": "2020-04-09",
+   "author": "Yvonne Hoeller",
+   "recipients": [],
+   "description": "The Hoeller Mortgage registered against the property",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "I attach as Exhibit “C” a copy of the interest which was registered against title by Ms. Hoeller"
+    }
+   ],
+   "content_check": "12 pages: registered document CA8132766, RCVD 2020-04-09, requested 2022-01-14"
+  },
+  {
+   "label": "D",
+   "file": "doc-k94w78.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "BC Land Title Office (Victoria)",
+   "recipients": [],
+   "description": "More recent title showing the transfer and the discharge of the Hoeller Mortgage",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit “D” is a copy of a more recent title to the Property"
+    }
+   ],
+   "content_check": "4 pages: strata title search, Land Title District VICTORIA, current information only"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Hoeller Mortgage registered against the Langford property",
+   "date": "2020-04-09",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "a mortgage had been registered against the Title by Yvonne Hoeller",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Gabrielson J. order winding up the trust and vesting trust property",
+   "date": "2021-12-22",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "issued on the 22nd of December, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Proposed trustee's counsel W Law writes to Haverstock's counsel",
+   "date": "2022-01-10",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On or about January 10, 2022, my counsel, Miller Thomson LLP was contacted",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Langford property transferred and Hoeller Mortgage discharged, possibly without consideration, around Dean Runzer's NOI",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    4,
+    7,
+    8
+   ],
+   "quote": "the discharge on the Property may have been done without consideration",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Order of Gabrielson J. of December 22, 2021",
+  "Affidavits of Lori Runzer"
+ ],
+ "notes": "Creditor's short affidavit; three of four exhibits are BC land title records."
+}

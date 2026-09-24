@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/abkb-lynx-woodward0/gtaa-application.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/Application - GTAA.pdf",
+  "title": "Application of the Greater Toronto Airports Authority re AIF trust",
+  "kind": "court_filing",
+  "relation": "the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/abkb-lynx-woodward0/abkb-2024-514.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/2024abkb0514.pdf",
+  "title": "Reasons for Decision, Greater Toronto Airports Authority v Lynx Air Holdings Corporation, 2024 ABKB 514",
+  "kind": "court_order",
+  "relation": "decision on the GTAA application"
+ }
+]

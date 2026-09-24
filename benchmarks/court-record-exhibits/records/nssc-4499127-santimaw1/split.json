@@ -1,0 +1,86 @@
+{
+ "record_id": "nssc-4499127-santimaw1",
+ "affidavit_pages": [
+  1,
+  2
+ ],
+ "divider_pages": [
+  3,
+  8,
+  13,
+  19,
+  25
+ ],
+ "scanned_pages": [
+  3,
+  8,
+  13,
+  19,
+  25
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-6duut5.pdf",
+   "source_pages": [
+    5,
+    6,
+    7
+   ],
+   "cover_page": 4,
+   "stamp_page": null,
+   "text_chars": 7270
+  },
+  {
+   "label": "B",
+   "file": "doc-pz53m9.pdf",
+   "source_pages": [
+    10,
+    11,
+    12
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 7239
+  },
+  {
+   "label": "C",
+   "file": "doc-svw4y3.pdf",
+   "source_pages": [
+    15,
+    16,
+    17,
+    18
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 7954
+  },
+  {
+   "label": "D",
+   "file": "doc-q56jby.pdf",
+   "source_pages": [
+    21,
+    22,
+    23,
+    24
+   ],
+   "cover_page": 20,
+   "stamp_page": null,
+   "text_chars": 8056
+  },
+  {
+   "label": "E",
+   "file": "doc-z2qmpz.pdf",
+   "source_pages": [
+    27,
+    28,
+    29
+   ],
+   "cover_page": 26,
+   "stamp_page": null,
+   "text_chars": 7442
+  }
+ ],
+ "leak_audit": []
+}

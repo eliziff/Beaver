@@ -1,0 +1,201 @@
+{
+ "record_id": "onsc-cl-baffinland-glen1",
+ "court": "Ontario Superior Court of Justice (Commercial List)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CL-26-00000219-0000",
+ "subject": "insolvency",
+ "family": "baffinland-ccaa",
+ "proceeding": "Nunavut Iron Ore, Baffinland Iron Mines Corporation et al. (CCAA): contested DIP financing, EDC's response to the Carissimo and Nicoll affidavits",
+ "document": "Affidavit of Ashley Glen sworn June 19, 2026",
+ "deponent": "Ashley Glen",
+ "deponent_role": "Director, Structured & Project Finance, Export Development Canada (pre-filing lender and proposed DIP lender)",
+ "sworn_date": "2026-06-19",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-z7qwt3.pdf",
+   "kind": "agreement",
+   "date": "2025-11-24",
+   "author": "EDC and Baffinland",
+   "recipients": [],
+   "description": "EDC Pre-Filing Credit Agreement of October 7, 2022, as amended most recently on November 24, 2025",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the EDC Pre-Filing Credit Agreement is attached as Exhibit"
+    }
+   ],
+   "content_check": "210 pages: 'AMENDING AGREEMENT ... dated as of November 24, 2025' among Baffinland Iron Mines Corporation et al., with the amended credit agreement (its own form exhibits labelled A etc.)"
+  },
+  {
+   "label": "B",
+   "file": "doc-7qpsua.pdf",
+   "kind": "agreement",
+   "date": "2026-06-03",
+   "author": "EDC (for His Majesty in Right of Canada) and Baffinland",
+   "recipients": [],
+   "description": "EDC DIP Facility Loan Agreement",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the EDC DIP Agreement is attached as Exhibit"
+    }
+   ],
+   "content_check": "31 pages: 'DIP FACILITY LOAN AGREEMENT DATED AS OF JUNE 3, 2026'"
+  },
+  {
+   "label": "C",
+   "file": "doc-xq6dsn.pdf",
+   "kind": "letter",
+   "date": "2026-05-08",
+   "author": "Export Development Canada",
+   "recipients": [
+    "Mark O'Brien, Baffinland Iron Mines Corporation"
+   ],
+   "description": "EDC's May 8 Letter to Baffinland setting out its concerns",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of the May 8 Letter is attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: letter dated May 8, 2026 to Mark O'Brien, Baffinland, 'We write to you further to recent discussions regarding the fina[ncial situation]'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "EDC begins overseeing its loans to Baffinland",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Glen takes up her role at EDC",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been employed in this role at EDC since 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "EDC and Baffinland enter the pre-filing Credit Agreement",
+   "date": "2022-10-07",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "dated October 7, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Credit Agreement last amended",
+   "date": "2025-11-24",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "most recently on November 24, 2025",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Hartree's Rosales tells Glen of Hartree's ambition to take control of Baffinland through insolvency",
+   "date": "2026-03-01",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "on March 1, 2026, I was in Toronto for the annual Prospectors & Developers Association of Canada conference",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "EDC signs an NDA with Baffinland on interim financing and sends its May 8 Letter",
+   "date": "2026-05-08",
+   "precision": "day",
+   "paragraphs": [
+    9,
+    14
+   ],
+   "quote": "dated May 8, 2026",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Van Tonder affidavit attaches the May 8 Letter as its Exhibit BB",
+   "date": "2026-05-14",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "sworn May 14, 2026",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Monitor's letter describing the DIP solicitation process received",
+   "date": "2026-05-15",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "received on May 15, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "EDC executes the DIP Facility Loan Agreement",
+   "date": "2026-06-03",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "dated June 3, 2026",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Carissimo and Nicoll affidavits challenge the EDC DIP",
+   "date": "2026-06-14",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "sworn June 14, 2026",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Sandro Carissimo sworn June 14, 2026",
+  "Affidavit of David Nicoll sworn June 14, 2026",
+  "Affidavit of Celeste Van Tonder sworn May 14, 2026",
+  "Monitor's letter on the DIP solicitation process",
+  "Non-disclosure agreement of May 8, 2026",
+  "Competing DIP facility of Oaktree, Hartree and the Noteholders"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Leak A waived: the credit agreement defines its own forms as 'Exhibit A' etc. (e.g. 'a notice substantially in the form of Exhibit A'), which is the contract's content, not a stamp."
+}

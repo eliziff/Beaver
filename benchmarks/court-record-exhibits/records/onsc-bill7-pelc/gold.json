@@ -1,0 +1,146 @@
+{
+ "record_id": "onsc-bill7-pelc",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022); respondent Ontario's expert evidence",
+ "document": "Affidavit of Dr. Jordan Pelc sworn February 23, 2024",
+ "deponent": "Jordan Pelc",
+ "deponent_role": "Hospitalist and hospital medicine director, Hennick Bridgepoint Hospital (Sinai Health); expert retained by the Government of Ontario",
+ "sworn_date": "2024-02-23",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-prx7vb.pdf",
+   "kind": "other",
+   "date": "2024-02-22",
+   "author": "Jordan Pelc",
+   "recipients": [],
+   "description": "Pelc's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 1,
+     "quote": "A copy of my curriculum vitae is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "17 pages: 'Jordan Pelc, Curriculum Vitae', date prepared 2024 February 22"
+  },
+  {
+   "label": "B",
+   "file": "doc-mzz9pe.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Jordan Pelc",
+   "recipients": [],
+   "description": "Pelc's signed Acknowledgement of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "My signed Acknowledgement of Expert"
+    }
+   ],
+   "content_check": "2 pages, image-only scan: Form 53 acknowledgment of expert's duty (text from OCR)"
+  },
+  {
+   "label": "C",
+   "file": "doc-afv23k.pdf",
+   "kind": "report",
+   "date": "2021-04-01",
+   "author": "Ontario Health",
+   "recipients": [],
+   "description": "Ontario Health's ALC Reference Manual",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A copy of Ontario Health"
+    }
+   ],
+   "content_check": "146 pages: 'Alternate Level of Care (ALC) Reference Manual April 1, 2021 Version 3'"
+  },
+  {
+   "label": "D",
+   "file": "doc-qxd25e.pdf",
+   "kind": "report",
+   "date": "2021-09",
+   "author": "Ontario ALC Leading Practices Working Group (Ontario Health)",
+   "recipients": [],
+   "description": "Ontario Health's ALC Leading Practices Guide",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "s ALC Leading Practices Guide is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "20 pages: 'The Alternate Level of Care (ALC) Leading Practices Guide: Preventing Hospitalization and Extended Stays for Older Adults', September 2021, V1"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Pelc is retained by the Government of Ontario to answer questions on ALC designation",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have been retained by the Government of Ontario to address the following questions",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Pelc previously worked on ALC-dedicated teams at Mount Sinai and Hennick Bridgepoint and attended weekly ALC huddles",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Historically, I worked on ALC-dedicated teams at both Mount Sinai Hospital and Hennick Bridgepoint",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Sinai Health's ALC steering committee implements Ontario Health best practices for ALC designation",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    15
+   ],
+   "quote": "There is an ALC steering committee that is implementing best practices directed by Ontario Health",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Latest Ontario Health numbers show 49 ALC patients at Mount Sinai and 74 at Hennick Bridgepoint",
+   "date": "2024-02",
+   "precision": "approximate",
+   "paragraphs": [
+    23
+   ],
+   "quote": "there are 49 ALC patients at Mount Sinai, out of 294 operational acute beds",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "An entire inpatient rehabilitation unit was converted to an ALC unit because of high ALC volumes",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    25
+   ],
+   "quote": "at one time converted an entire inpatient rehabilitation unit to an ALC unit",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Respondent's expert affidavit, largely undated. Exhibit B is an image-only scan, OCR'd."
+}

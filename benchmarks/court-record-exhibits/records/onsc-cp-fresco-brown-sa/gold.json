@@ -1,0 +1,788 @@
+{
+ "record_id": "onsc-cp-fresco-brown-sa",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "07-CV-334113-00CP",
+ "subject": "employment",
+ "family": "fresco-cibc-overtime",
+ "proceeding": "Fresco v. Canadian Imperial Bank of Commerce (class proceeding for unpaid overtime of front-line branch employees): motion to approve the $153 million settlement",
+ "document": "Affidavit of Jody Brown affirmed February 23, 2023 (Settlement Approval)",
+ "deponent": "Jody Brown",
+ "deponent_role": "Partner, Goldblatt Partners LLP, class counsel",
+ "sworn_date": "2023-02-23",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zsjav9.pdf",
+   "kind": "agreement",
+   "date": "2022-12-28",
+   "author": "Fresco, Gaudet and CIBC",
+   "recipients": [],
+   "description": "Executed CIBC Overtime Class Actions National Settlement Agreement",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "is a true copy of the executed Settlement Agreement"
+    },
+    {
+     "paragraph": 108,
+     "quote": "The comprehensive Settlement Agreement (attached as Exhibit"
+    }
+   ],
+   "content_check": "73 pages: 'CIBC OVERTIME CLASS ACTIONS NATIONAL SETTLEMENT AGREEMENT Made as of December 28, 2022 Between DARA FRESCO AND SARAH GAUDET ...'"
+  },
+  {
+   "label": "B",
+   "file": "doc-sk5uma.pdf",
+   "kind": "agreement",
+   "date": "2007-06-05",
+   "author": "Class Counsel and Dara Fresco",
+   "recipients": [],
+   "description": "Class counsel's retainer agreement with Fresco",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "retainer agreement with Ms. Fresco is attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages, image-only scan: retainer agreement (index dates it June 5, 2007); OCR'd"
+  },
+  {
+   "label": "C",
+   "file": "doc-zuuh23.pdf",
+   "kind": "court_filing",
+   "date": "2007-06-18",
+   "author": "Sarah Gaudet",
+   "recipients": [],
+   "description": "Originating process in the Quebec companion action Gaudet v. CIBC",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of the originating process in that action is attached"
+    }
+   ],
+   "content_check": "13 pages, image-only scan: Quebec Superior Court motion for authorization (French); OCR'd"
+  },
+  {
+   "label": "D",
+   "file": "doc-un9nkn.pdf",
+   "kind": "court_order",
+   "date": "2012-06-26",
+   "author": "Court of Appeal for Ontario",
+   "recipients": [],
+   "description": "Certification order",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "A copy of the certification order is attached as Exhibit"
+    }
+   ],
+   "content_check": "7 pages, image-only scan: certification order (index: June 26, 2012); OCR'd"
+  },
+  {
+   "label": "E",
+   "file": "doc-2z67e8.pdf",
+   "kind": "court_filing",
+   "date": "2015-03-17",
+   "author": "Dara Fresco (plaintiff)",
+   "recipients": [],
+   "description": "Plaintiff's notice of motion for a sworn affidavit of documents and a detailed Schedule B",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "A copy of the Plaintiff’s notice \nof motion is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: notice of motion, Fresco (Plaintiff/Moving Party) v. CIBC, partly scanned"
+  },
+  {
+   "label": "F",
+   "file": "doc-cr92hz.pdf",
+   "kind": "court_order",
+   "date": "2015-06-03",
+   "author": "Justice Belobaba",
+   "recipients": [],
+   "description": "Endorsement of June 3, 2015 ordering production of a detailed Schedule B",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "A copy of this Court’s endorsement, dated \nJune 3, 2015"
+    }
+   ],
+   "content_check": "1 page, handwritten/scanned endorsement; OCR'd"
+  },
+  {
+   "label": "G",
+   "file": "doc-a9xcq8.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Dara Fresco (plaintiff)",
+   "recipients": [],
+   "description": "Plaintiff's notice of motion for summary judgment on the common issues",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A copy of the Plaintiff’s notice of motion \nis attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "22 pages: notice of motion, Court File No. 07-CV-334113PD2, Plaintiff/Moving Party (summary judgment)"
+  },
+  {
+   "label": "H",
+   "file": "doc-wur8ts.pdf",
+   "kind": "court_filing",
+   "date": "2017-04-28",
+   "author": "Dara Fresco (plaintiff)",
+   "recipients": [],
+   "description": "Plaintiff's notice of motion for production of additional documents and related relief",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "In May 2017, the Plaintiff delivered a notice of motion for production of additional"
+    }
+   ],
+   "content_check": "26 pages: notice of motion, Fresco v. CIBC (index: April 28, 2017)"
+  },
+  {
+   "label": "I",
+   "file": "doc-sn4uf6.pdf",
+   "kind": "court_order",
+   "date": "2017-11-30",
+   "author": "Justice Glustein",
+   "recipients": [],
+   "description": "Justice Glustein's endorsement resolving the production motion",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "Glustein’s endorsement is attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages, image-only scan: endorsement (index: November 30, 2017); OCR'd"
+  },
+  {
+   "label": "J",
+   "file": "doc-chk8qb.pdf",
+   "kind": "court_order",
+   "date": "2020-05-14",
+   "author": "Justice Belobaba",
+   "recipients": [],
+   "description": "Court's direction that CIBC's limitations defences be heard in a third phase of summary judgment",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "A copy of this direction is attached as"
+    },
+    {
+     "paragraph": 57,
+     "quote": "Pursuant to the direction of the Court dated May \n14, 2020"
+    }
+   ],
+   "content_check": "1 page: 'CITATION: Fresco v. Canadian Imperial Bank of Commerce ... Cross-motions for summary judgment on the certified common issues' direction"
+  },
+  {
+   "label": "K",
+   "file": "doc-37uky2.pdf",
+   "kind": "report",
+   "date": "2022-01-12",
+   "author": "Stefan Boedeker, Berkeley Research Group",
+   "recipients": [],
+   "description": "BRG expert report estimating the Class's aggregate damages",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "Mr. Boedeker prepared a report dated January 12, 2022, which is attached as Exhibit"
+    }
+   ],
+   "content_check": "254 pages: expert report, Fresco v. CIBC, Court File No. 07-CV-334113PD2"
+  },
+  {
+   "label": "L",
+   "file": "doc-fg2sys.pdf",
+   "kind": "court_filing",
+   "date": "2022-01-21",
+   "author": "Dara Fresco (plaintiff)",
+   "recipients": [],
+   "description": "Plaintiff's notice of motion for summary judgment on Common Issue 9 (aggregate damages)",
+   "references": [
+    {
+     "paragraph": 95,
+     "quote": "and in her Notice of Motion for summary judgment on\nCommon Issue 9, attached as Exhibit"
+    }
+   ],
+   "content_check": "18 pages: notice of motion, Plaintiff/Moving Party, 07-CV-334113PD2"
+  },
+  {
+   "label": "M",
+   "file": "doc-mrmfye.pdf",
+   "kind": "email_chain",
+   "date": "2023-02",
+   "author": "Class Members",
+   "recipients": [
+    "Class Counsel"
+   ],
+   "description": "Class members' emails in support of the settlement, names redacted",
+   "references": [
+    {
+     "paragraph": 122,
+     "quote": "Attached hereto and marked \nas Exhibit"
+    }
+   ],
+   "content_check": "175 pages: emails to tatherfold@goldblattpartners.com, cc Sotos Class Actions, subject 'CIBC Unpaid Overtime Class A...'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Fresco retains class counsel and agrees to act as representative plaintiff",
+   "date": "2007-06-05",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Ms. Fresco agreed to act as Representative Plaintiff",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Court of Appeal releases Markson v. MBNA on aggregate damages",
+   "date": "2007-05",
+   "precision": "month",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In May 2007, the Court of Appeal released its decision in Markson v. MBNA",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Action commenced in Ontario",
+   "date": "2007-06-04",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    15
+   ],
+   "quote": "This action was commenced in Ontario on June 4, 2007.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Quebec companion action Gaudet v. CIBC commenced",
+   "date": "2007-06-18",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "was commenced in the Superior Court of Quebec \n(District of Montreal) on June 18, 2007",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Quebec action stayed pending this action",
+   "date": "2007-10-02",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "since October 2, 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Plaintiff serves certification motion",
+   "date": "2007-11",
+   "precision": "month",
+   "paragraphs": [
+    17
+   ],
+   "quote": "The Plaintiff served her certification motion in November 2007.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "CIBC delivers responding certification record with 56 affidavits",
+   "date": "2008-05",
+   "precision": "month",
+   "paragraphs": [
+    18
+   ],
+   "quote": "In May 2008, CIBC delivered a responding certification record containing 56 affidavits",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Five-day certification hearing before Justice Lax",
+   "date": "2008-12",
+   "precision": "month",
+   "paragraphs": [
+    20
+   ],
+   "quote": "A five-day certification hearing took place in December 2008 before the Honourable Justice Lax.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Certification motion dismissed",
+   "date": "2009-06",
+   "precision": "month",
+   "paragraphs": [
+    20
+   ],
+   "quote": "In June 2009, the Plaintiff’s certification motion was dismissed.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Divisional Court majority dismisses the appeal",
+   "date": "2010-09",
+   "precision": "month",
+   "paragraphs": [
+    22
+   ],
+   "quote": "was dismissed by a majority of that panel (Swinton and Ferrier JJ.) in September 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Leave to appeal to the Court of Appeal granted",
+   "date": "2011-01",
+   "precision": "month",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The leave application was granted in January 2011.",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Court of Appeal certifies eight common issues and issues the certification order",
+   "date": "2012-06-26",
+   "precision": "day",
+   "paragraphs": [
+    25,
+    26
+   ],
+   "quote": "The Court of Appeal certified eight common issues.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Supreme Court of Canada dismisses both leave applications",
+   "date": "2013-03",
+   "precision": "month",
+   "paragraphs": [
+    31
+   ],
+   "quote": "The Supreme Court of Canada dismissed both applications in March 2013.",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Sokolov joins Sotos LLP, which becomes co-class counsel",
+   "date": "2013-05",
+   "precision": "month",
+   "paragraphs": [
+    12
+   ],
+   "quote": "in May of 2013, Mr. Sokolov joined Sotos LLP",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "CIBC delivers its Statement of Defence and begins rolling productions",
+   "date": "2014-02-27",
+   "precision": "day",
+   "paragraphs": [
+    32,
+    33
+   ],
+   "quote": "On February 27, 2014, CIBC delivered its Statement of Defence.",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "CIBC memorandum describes its three-tiered document collection",
+   "date": "2014-06-17",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "CIBC disclosed in a June 17, 2014 memorandum",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Plaintiff brings the first production motion",
+   "date": "2015",
+   "precision": "approximate",
+   "paragraphs": [
+    34
+   ],
+   "quote": "the Plaintiff brought the first of several production motions",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Court orders production of a detailed Schedule B",
+   "date": "2015-06-03",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "A copy of this Court’s endorsement, dated \nJune 3, 2015, ordering production of a detailed Schedule",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Plaintiff serves notice of motion for summary judgment on all common issues",
+   "date": "2015-10",
+   "precision": "month",
+   "paragraphs": [
+    36
+   ],
+   "quote": "The Plaintiff served a notice of motion for summary judgment on all the common issues in October 2015.",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Plaintiff serves five-volume summary judgment record",
+   "date": "2016-07",
+   "precision": "month",
+   "paragraphs": [
+    39
+   ],
+   "quote": "The Plaintiff served her initial five-volume summary judgment motion record in July 2016.",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "CIBC produces employee engagement survey documents",
+   "date": "2017-04",
+   "precision": "month",
+   "paragraphs": [
+    40
+   ],
+   "quote": "In April 2017, a few days before it was due to deliver its responding motion record",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Plaintiff delivers notice of motion for additional production",
+   "date": "2017-05",
+   "precision": "month",
+   "paragraphs": [
+    43
+   ],
+   "quote": "In May 2017, the Plaintiff delivered a notice of motion for production of additional",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "CIBC delivers hundreds of additional documents",
+   "date": "2017-08",
+   "precision": "month",
+   "paragraphs": [
+    44
+   ],
+   "quote": "because in August 2017, CIBC delivered hundreds of additional documents",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Production motion resolved before Justice Glustein",
+   "date": "2017-11-30",
+   "precision": "day",
+   "paragraphs": [
+    45
+   ],
+   "quote": "The motion was subsequently resolved following an attendance before Justice \nGlustein",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "CIBC claims privilege over the 2007 theme documents",
+   "date": "2018-08",
+   "precision": "approximate",
+   "paragraphs": [
+    46
+   ],
+   "quote": "In or about August 2018, CIBC advised that the 2007 theme documents were subject to a claim of privilege",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "CIBC's privilege motion dismissed",
+   "date": "2019-05",
+   "precision": "month",
+   "paragraphs": [
+    46
+   ],
+   "quote": "CIBC’s motion was dismissed by this Court in May 2019.",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "CIBC serves cross-motion for summary judgment",
+   "date": "2019-08",
+   "precision": "month",
+   "paragraphs": [
+    48
+   ],
+   "quote": "In August 2019, CIBC served its own notice of cross-motion for summary judgment",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Liability phase of summary judgment heard",
+   "date": "2019-12",
+   "precision": "month",
+   "paragraphs": [
+    51,
+    52
+   ],
+   "quote": "was heard by this Court in December 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Court finds for the plaintiff on liability",
+   "date": "2020-03-30",
+   "precision": "day",
+   "paragraphs": [
+    52
+   ],
+   "quote": "on March 30, 2020, finding in favour of the Plaintiff",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Court directs limitations defences be heard in a third phase",
+   "date": "2020-05-14",
+   "precision": "day",
+   "paragraphs": [
+    53,
+    57
+   ],
+   "quote": "Pursuant to the direction of the Court dated May \n14, 2020",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Remedies decision; aggregate damages certified as Common Issue 9",
+   "date": "2020-08-10",
+   "precision": "day",
+   "paragraphs": [
+    54,
+    55
+   ],
+   "quote": "the Court released its decision on remedies (Common Issues 6-8) on August 10, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "Limitations decision refuses a class-wide limitation order",
+   "date": "2020-10-21",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "In reasons dated October 21, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e33",
+   "description": "Court of Appeal dismisses motion to strike parts of CIBC's appeal",
+   "date": "2021-01-26",
+   "precision": "day",
+   "paragraphs": [
+    62
+   ],
+   "quote": "On January 26, 2021, the Court of Appeal dismissed the motion.",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "description": "CIBC produces time-stamped electronic data in tranches",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    65
+   ],
+   "quote": "CIBC provided electronic data in multiple tranches in the spring, summer and early fall in 2021.",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "Court of Appeal hears CIBC's appeal",
+   "date": "2021-09-28",
+   "end_date": "2021-09-29",
+   "precision": "range",
+   "paragraphs": [
+    72
+   ],
+   "quote": "CIBC’s appeal was heard by the Court of Appeal over two days on September 28-29, 2021.",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "description": "BRG damages report delivered",
+   "date": "2022-01-12",
+   "precision": "day",
+   "paragraphs": [
+    69
+   ],
+   "quote": "Mr. Boedeker prepared a report dated January 12, 2022",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "Plaintiff moves for summary judgment on Common Issue 9",
+   "date": "2022-01-21",
+   "precision": "day",
+   "paragraphs": [
+    95
+   ],
+   "quote": "in her Notice of Motion for summary judgment on\nCommon Issue 9",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "Court of Appeal dismisses CIBC's appeal",
+   "date": "2022-02-09",
+   "precision": "day",
+   "paragraphs": [
+    72
+   ],
+   "quote": "On February 9, 2022, the Court of Appeal released its decision dismissing the appeal.",
+   "exhibits": []
+  },
+  {
+   "id": "e39",
+   "description": "CIBC counsel proposes mediation",
+   "date": "2022-04",
+   "precision": "month",
+   "paragraphs": [
+    80
+   ],
+   "quote": "At the beginning of April, 2022, counsel for CIBC contacted Mr. O",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "BRG reply report delivered",
+   "date": "2022-07-18",
+   "precision": "day",
+   "paragraphs": [
+    85
+   ],
+   "quote": "On July 18, 2022, the Plaintiff provided a detailed reply",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "description": "Mediation briefs exchanged",
+   "date": "2022-08-05",
+   "precision": "day",
+   "paragraphs": [
+    86
+   ],
+   "quote": "The parties agreed to exchange mediation briefs on the same day, August 5, 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e42",
+   "description": "Mediation with William Kaplan ends without resolution",
+   "date": "2022-08-22",
+   "precision": "approximate",
+   "paragraphs": [
+    82,
+    105
+   ],
+   "quote": "the parties agreed to end the mediation, without having reached a resolution",
+   "exhibits": []
+  },
+  {
+   "id": "e43",
+   "description": "Agreement in principle to settle for $153 million",
+   "date": "2022-10-03",
+   "precision": "day",
+   "paragraphs": [
+    107
+   ],
+   "quote": "An agreement in principle was reached on October 3, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "description": "Minutes of Settlement executed",
+   "date": "2022-11",
+   "precision": "month",
+   "paragraphs": [
+    108
+   ],
+   "quote": "Minutes of Settlement executed\nin mid-November, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e45",
+   "description": "Settlement Agreement finalized and executed",
+   "date": "2022-12-28",
+   "precision": "day",
+   "paragraphs": [
+    108
+   ],
+   "quote": "was \nfinalized and executed on December 28, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e46",
+   "description": "Deadline for class members to comment; 148 supportive communications and no objections",
+   "date": "2023-02-20",
+   "precision": "day",
+   "paragraphs": [
+    122
+   ],
+   "quote": "The deadline for commenting is February 20, 2023.",
+   "exhibits": [
+    "M"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Ankura without-prejudice mediation report (footnote 15 cites it as 'Exhibit J, p. 74', but Exhibit J is the May 14, 2020 direction)",
+  "Mediation briefs",
+  "Minutes of Settlement",
+  "Court decisions cited in footnotes"
+ ],
+ "leak_waivers": [],
+ "notes": "Split from the plaintiffs' settlement approval motion record, pages 10-679 (Dara Fresco's own affidavit and the draft order excluded). B, C, D, F, I are image-only and OCR'd. Dates for B, D, E, H, I come from the record's index."
+}

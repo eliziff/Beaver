@@ -1,0 +1,218 @@
+{
+ "record_id": "onsc-cp-fresco-brown-dp",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "07-CV-334113-00CP",
+ "subject": "employment",
+ "family": "fresco-cibc-overtime",
+ "proceeding": "Fresco v. Canadian Imperial Bank of Commerce (class proceeding for unpaid overtime of front-line branch employees): motion to approve the settlement distribution protocol",
+ "document": "Affidavit of Jody Brown affirmed February 22, 2023 (Distribution Protocol Approval)",
+ "deponent": "Jody Brown",
+ "deponent_role": "Partner, Goldblatt Partners LLP, class counsel",
+ "sworn_date": "2023-02-22",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ukwfcc.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [],
+   "description": "Proposed Distribution Protocol",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the proposed Distribution Protocol is marked as Exhibit"
+    },
+    {
+     "paragraph": 13,
+     "quote": "The proposed Distribution Protocol is marked as Exhibit"
+    }
+   ],
+   "content_check": "13 pages: 'DISTRIBUTION PROTOCOL ... CIBC OVERTIME CLASS ACTION NATIONAL DISTRIBUTION PROTOCOL' (broken font encoding, OCR'd)"
+  },
+  {
+   "label": "B",
+   "file": "doc-6rx8vk.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": "RicePoint / KCC / Computershare",
+   "recipients": [
+    "Louis Sokolov"
+   ],
+   "description": "Outline of the experience and infrastructure of RicePoint, KCC and Computershare",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "is collectively marked as Exhibit"
+    }
+   ],
+   "content_check": "9 pages: letter 'Dear Louis' listing Bozsik v. Livingston, Horner v. Primary Response, BMO Nesbitt Burns, Grigoryev settlements administered"
+  },
+  {
+   "label": "C",
+   "file": "doc-zymmeq.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "RicePoint Administration Inc.",
+   "recipients": [
+    "Class Counsel"
+   ],
+   "description": "RicePoint's estimate for administering the settlement",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A copy of RicePoint"
+    }
+   ],
+   "content_check": "4 pages: cost estimate with class size, members with email/postal address, case duration 24 months"
+  },
+  {
+   "label": "D",
+   "file": "doc-sfgmgp.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [
+    "Class Members"
+   ],
+   "description": "Proposed direct notice of settlement approval",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A copy of the proposed Direct Notice is attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: 'SCHEDULE A APPROVED SETTLEMENT NOTICE (FRESCO - DIRECT NOTICE)' (OCR'd)"
+  },
+  {
+   "label": "E",
+   "file": "doc-g7ghmt.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [
+    "Class Members"
+   ],
+   "description": "Proposed publication notice",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A copy of the proposed Publication Notice is attached as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: 'SCHEDULE B APPROVED SETTLEMENT NOTICE (FRESCO - PUBLICATION)' (OCR'd)"
+  },
+  {
+   "label": "F",
+   "file": "doc-7nsq9t.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [
+    "Class Members"
+   ],
+   "description": "Proposed digital media banner",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A copy of the digital media banner is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page: 'SCHEDULE C APPROVED SETTLEMENT NOTICE (FRESCO - DIGITAL BANNER)' (OCR'd)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Class action against CIBC commenced",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since the commencement of this case in 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Brown joins Goldblatt Partners and the class counsel team",
+   "date": "2019-01",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have worked at Goldblatt Partners LLP since \nJanuary 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Parties sign the Settlement Agreement",
+   "date": "2022-12-28",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the Settlement Agreement dated December 28, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Distribution Protocol is mailed with the settlement-hearing notice and published on class counsel websites",
+   "date": "2023-01-19",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "The Protocol has also been published on the websites of Class Counsel and www.CIBCunpaidovertime.ca since January 19th",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "RicePoint selected as claims administrator after a tender against Epiq",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    38
+   ],
+   "quote": "RicePoint was selected after a tendering process between RicePoint and Epiq",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "BRG advises a distribution tool will cost about $65,000",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    39
+   ],
+   "quote": "We have been advised by BRG that it will cost approximately $65,000",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "No objections to the protocol received as of the affidavit",
+   "date": "2023-02-22",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "As of the date of this affidavit, no objections to the Protocol have been received.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Brown Settlement Approval Affidavit (February 2023)",
+  "Settlement Agreement dated December 28, 2022"
+ ],
+ "leak_waivers": [],
+ "notes": "Split from the plaintiffs' motion record, pages 33-89. Exhibits D-F are the approved notice forms whose own headers read Schedule A/B/C (the settlement agreement's schedules), not exhibit labels. Family fresco-cibc-overtime also covers onsc-cp-fresco-brown (same court file) and onsc-cp-fresco-brown-sa."
+}

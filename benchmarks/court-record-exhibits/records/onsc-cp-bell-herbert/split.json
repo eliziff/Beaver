@@ -1,0 +1,495 @@
+{
+ "record_id": "onsc-cp-bell-herbert",
+ "affidavit_pages": [
+  98,
+  99,
+  100,
+  101,
+  102,
+  103,
+  104,
+  105,
+  106,
+  107,
+  108,
+  109,
+  110,
+  111,
+  112,
+  113,
+  114,
+  115,
+  116,
+  117
+ ],
+ "divider_pages": [
+  378
+ ],
+ "scanned_pages": [
+  388,
+  389
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-t6b8xg.pdf",
+   "source_pages": [
+    119,
+    120,
+    121,
+    122,
+    123,
+    124
+   ],
+   "cover_page": 118,
+   "stamp_page": null,
+   "text_chars": 14754
+  },
+  {
+   "label": "B",
+   "file": "doc-9y8ra9.pdf",
+   "source_pages": [
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132
+   ],
+   "cover_page": 125,
+   "stamp_page": null,
+   "text_chars": 15119
+  },
+  {
+   "label": "C",
+   "file": "doc-zb7hcn.pdf",
+   "source_pages": [
+    134,
+    135
+   ],
+   "cover_page": 133,
+   "stamp_page": null,
+   "text_chars": 9764
+  },
+  {
+   "label": "D",
+   "file": "doc-b9cv83.pdf",
+   "source_pages": [
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166
+   ],
+   "cover_page": 136,
+   "stamp_page": null,
+   "text_chars": 86980
+  },
+  {
+   "label": "E",
+   "file": "doc-kp3kkj.pdf",
+   "source_pages": [
+    168,
+    169,
+    170,
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179,
+    180,
+    181,
+    182,
+    183,
+    184,
+    185,
+    186,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194
+   ],
+   "cover_page": 167,
+   "stamp_page": null,
+   "text_chars": 74737
+  },
+  {
+   "label": "F",
+   "file": "doc-9hugzg.pdf",
+   "source_pages": [
+    196,
+    197,
+    198,
+    199,
+    200
+   ],
+   "cover_page": 195,
+   "stamp_page": null,
+   "text_chars": 12536
+  },
+  {
+   "label": "G",
+   "file": "doc-enmmvw.pdf",
+   "source_pages": [
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210,
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220,
+    221,
+    222,
+    223,
+    224,
+    225,
+    226,
+    227,
+    228,
+    229,
+    230,
+    231,
+    232,
+    233,
+    234,
+    235,
+    236,
+    237,
+    238,
+    239,
+    240,
+    241,
+    242,
+    243,
+    244,
+    245,
+    246
+   ],
+   "cover_page": 201,
+   "stamp_page": null,
+   "text_chars": 135142
+  },
+  {
+   "label": "H",
+   "file": "doc-h2fnez.pdf",
+   "source_pages": [
+    248,
+    249,
+    250,
+    251,
+    252,
+    253,
+    254,
+    255,
+    256,
+    257
+   ],
+   "cover_page": 247,
+   "stamp_page": null,
+   "text_chars": 19256
+  },
+  {
+   "label": "I",
+   "file": "doc-rt2z9r.pdf",
+   "source_pages": [
+    259,
+    260,
+    261,
+    262,
+    263,
+    264,
+    265,
+    266,
+    267,
+    268,
+    269,
+    270,
+    271,
+    272,
+    273,
+    274,
+    275,
+    276,
+    277
+   ],
+   "cover_page": 258,
+   "stamp_page": null,
+   "text_chars": 71066
+  },
+  {
+   "label": "J",
+   "file": "doc-agra6d.pdf",
+   "source_pages": [
+    279,
+    280,
+    281,
+    282,
+    283,
+    284
+   ],
+   "cover_page": 278,
+   "stamp_page": null,
+   "text_chars": 11933
+  },
+  {
+   "label": "K",
+   "file": "doc-9xx3xb.pdf",
+   "source_pages": [
+    286,
+    287,
+    288,
+    289,
+    290
+   ],
+   "cover_page": 285,
+   "stamp_page": null,
+   "text_chars": 13793
+  },
+  {
+   "label": "L",
+   "file": "doc-3c7pz2.pdf",
+   "source_pages": [
+    292,
+    293,
+    294
+   ],
+   "cover_page": 291,
+   "stamp_page": null,
+   "text_chars": 6021
+  },
+  {
+   "label": "M",
+   "file": "doc-4m8p2y.pdf",
+   "source_pages": [
+    296,
+    297,
+    298,
+    299,
+    300
+   ],
+   "cover_page": 295,
+   "stamp_page": null,
+   "text_chars": 9889
+  },
+  {
+   "label": "N",
+   "file": "doc-rcdgvg.pdf",
+   "source_pages": [
+    302,
+    303,
+    304
+   ],
+   "cover_page": 301,
+   "stamp_page": null,
+   "text_chars": 7205
+  },
+  {
+   "label": "O",
+   "file": "doc-prhtwy.pdf",
+   "source_pages": [
+    306,
+    307,
+    308,
+    309,
+    310,
+    311,
+    312,
+    313,
+    314
+   ],
+   "cover_page": 305,
+   "stamp_page": null,
+   "text_chars": 23806
+  },
+  {
+   "label": "P",
+   "file": "doc-y9gvne.pdf",
+   "source_pages": [
+    316,
+    317,
+    318,
+    319,
+    320,
+    321,
+    322,
+    323,
+    324,
+    325
+   ],
+   "cover_page": 315,
+   "stamp_page": null,
+   "text_chars": 26699
+  },
+  {
+   "label": "Q",
+   "file": "doc-ec9wse.pdf",
+   "source_pages": [
+    327,
+    328,
+    329,
+    330,
+    331,
+    332,
+    333,
+    334,
+    335,
+    336,
+    337,
+    338,
+    339,
+    340,
+    341,
+    342,
+    343,
+    344,
+    345,
+    346
+   ],
+   "cover_page": 326,
+   "stamp_page": null,
+   "text_chars": 53797
+  },
+  {
+   "label": "R",
+   "file": "doc-prnpdg.pdf",
+   "source_pages": [
+    348,
+    349,
+    350,
+    351,
+    352,
+    353,
+    354,
+    355,
+    356,
+    357,
+    358
+   ],
+   "cover_page": 347,
+   "stamp_page": null,
+   "text_chars": 32326
+  },
+  {
+   "label": "S",
+   "file": "doc-2dtju3.pdf",
+   "source_pages": [
+    360,
+    361,
+    362
+   ],
+   "cover_page": 359,
+   "stamp_page": null,
+   "text_chars": 6888
+  },
+  {
+   "label": "T",
+   "file": "doc-mjwxzb.pdf",
+   "source_pages": [
+    364,
+    365,
+    366,
+    367
+   ],
+   "cover_page": 363,
+   "stamp_page": null,
+   "text_chars": 9146
+  },
+  {
+   "label": "U",
+   "file": "doc-xzyr5r.pdf",
+   "source_pages": [
+    369,
+    370,
+    371,
+    372,
+    373,
+    374,
+    375,
+    376,
+    377,
+    379,
+    380,
+    381,
+    382,
+    383,
+    384,
+    385,
+    386
+   ],
+   "cover_page": 368,
+   "stamp_page": null,
+   "text_chars": 40192
+  },
+  {
+   "label": "V",
+   "file": "doc-6usfps.pdf",
+   "source_pages": [
+    388,
+    389
+   ],
+   "cover_page": 387,
+   "stamp_page": null,
+   "text_chars": 17
+  },
+  {
+   "label": "W",
+   "file": "doc-vswh9w.pdf",
+   "source_pages": [
+    391
+   ],
+   "cover_page": 390,
+   "stamp_page": null,
+   "text_chars": 1884
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-6usfps.pdf"
+ ]
+}

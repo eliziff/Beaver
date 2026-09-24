@@ -1,0 +1,18 @@
+{
+ "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Affidavit-of-Dr.-Samir-Sinha-March-21-2023.pdf",
+ "landing_url": "https://www.ontariohealthcoalition.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "document_title": "Affidavit of Dr. Samir Sinha March 21, 2023 (Charter application re Bill 7)",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-bill7-sinha",
+ "source_file": "c-affidavit-of-dr-samir-sinha-march-21-2023.pdf",
+ "page_range": [
+  1,
+  233
+ ],
+ "source_sha256": "36f18805b117f9e997e9dbed46795cbdb5400e493446da8685a8a587cd238e65",
+ "source_pages": 233
+}

@@ -1,0 +1,436 @@
+{
+ "record_id": "chrt-caring-smylie",
+ "court": "Canadian Human Rights Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "T1340/7008",
+ "subject": "human_rights",
+ "family": "fncfcs-chrt-t1340",
+ "proceeding": "First Nations Child and Family Caring Society of Canada et al. v. Attorney General of Canada (CHRT T1340/7008): Canada's plan on long-term reform of the FNCFS Program outside Ontario; the Expert Advisory Committee ordered in 2022 CHRT 8",
+ "document": "Affidavit of Lisa Smylie (Redacted) affirmed December 22, 2025",
+ "deponent": "Lisa Smylie",
+ "deponent_role": "Assistant Deputy Minister, Strategic Policy and Partnerships Sector, Indigenous Services Canada; ISC co-chair of the Expert Advisory Committee",
+ "sworn_date": "2025-12-22",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ebruvr.pdf",
+   "kind": "report",
+   "date": "2023-05-10",
+   "author": "Expert Advisory Committee",
+   "recipients": [],
+   "description": "Evaluation Framework for the third-party evaluation of ISC finalized by the EAC",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "an Evaluation Framework for the third-party evaluation, attached as Exhibit A"
+    }
+   ],
+   "content_check": "16 pages: 'DRAFT May 10, 2023 Evaluation Framework to Guide the Third-Party Independent Evaluation of Indigenous Services Canada'"
+  },
+  {
+   "label": "B",
+   "file": "doc-c2n9pt.pdf",
+   "kind": "report",
+   "date": "2023-09",
+   "author": "J. Bradley Cousins, Jill Chouinard, Susanne Thiessen",
+   "recipients": [
+    "ISC Evaluation Directorate"
+   ],
+   "description": "200-page literature review monograph supporting the third-party evaluation",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "a 200-page literature review monograph developed as a resource document to support \nthe third-party evaluation, attached as Exhibit B"
+    }
+   ],
+   "content_check": "220 pages: 'Indigenous Children and Families at the Centre: Considerations for an Independent Review of Indigenous Services Canada', September 2023 (broken font encoding, OCR'd)"
+  },
+  {
+   "label": "C",
+   "file": "doc-gkfq84.pdf",
+   "kind": "agreement",
+   "date": "2024-07",
+   "author": "AFN, COO, NAN and Canada",
+   "recipients": [],
+   "description": "EAC Terms of Reference proposed in the Draft Final Agreement",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A copy of those proposed \nTerms of Reference are attached as Exhibit C."
+    }
+   ],
+   "content_check": "7 pages: 'Appendix 7: Expert Advisory Committee Terms of Reference'"
+  },
+  {
+   "label": "D",
+   "file": "doc-quecs2.pdf",
+   "kind": "agreement",
+   "date": "2024-07",
+   "author": "AFN, COO, NAN and Canada",
+   "recipients": [],
+   "description": "Proposed Confidentiality Agreement for EAC members",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "The \nproposed Confidentiality Agreement is attached as Exhibit D."
+    }
+   ],
+   "content_check": "2 pages: 'SCHEDULE A CONFIDENTIALITY AGREEMENT: MEMBERS AND ATTENDEES OF THE EXPERT ADVISORY COMMITTEE'"
+  },
+  {
+   "label": "E",
+   "file": "doc-uyd9db.pdf",
+   "kind": "agreement",
+   "date": "2024-10",
+   "author": "EAC members and the Caring Society",
+   "recipients": [
+    "ISC"
+   ],
+   "description": "New version of the EAC Terms of Reference proposed by the EAC members and the Caring Society",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "proposed a new version of the Terms of Reference \non November 14, 2024, attached as Exhibit E"
+    },
+    {
+     "paragraph": 18,
+     "quote": "(as reflected at Exhibit E)"
+    }
+   ],
+   "content_check": "13 pages: 'Expert Advisory Committee - Draft Terms of Reference - October 2024'"
+  },
+  {
+   "label": "F",
+   "file": "doc-w554vq.pdf",
+   "kind": "email_chain",
+   "date": "2025-08-12",
+   "author": "ISC and the Caring Society",
+   "recipients": [],
+   "description": "Email exchanges between ISC and the Caring Society, October 21, 2024 to August 12, 2025",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit F is a \nseries of email exchanges between ISC and the Caring Society between October 21, 2024 and \nAugust 12, 2025."
+    },
+    {
+     "paragraph": 15,
+     "quote": "is located in Exhibit F"
+    },
+    {
+     "paragraph": 16,
+     "quote": "some of which are reflected in the email exchanges included in Exhibit F"
+    }
+   ],
+   "content_check": "16 pages: chain topped by Lisa Smylie to Cindy Blackstock and AFN, Tuesday August 12, 2025"
+  },
+  {
+   "label": "G",
+   "file": "doc-4bmta7.pdf",
+   "kind": "email",
+   "date": "2025-11-28",
+   "author": "ISC-EAC Secretariat, for the EAC co-chairs",
+   "recipients": [
+    "EAC members"
+   ],
+   "description": "Email invitation to EAC members for the December 8, 2025 meeting",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached as Exhibit G is an email"
+    }
+   ],
+   "content_check": "2 pages: email from Secretariat CCE-SAC - ISC-EAC Secretariat, November 28, 2025, to EAC members"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Tribunal orders in 2022 CHRT 8 the work to prevent recurrence of discrimination that the EAC supports",
+   "date": "2022",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "order in 2022 CHRT 8",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Formal invitations to join the EAC are sent",
+   "date": "2022-03",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Formal invitations to join the EAC were sent in March 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "The EAC begins meeting as a full committee (13 times since)",
+   "date": "2022-04",
+   "precision": "month",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Since April 2022 the EAC has met as a full committee 13 times",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Canada puts contracts in place for EAC members, valid to March 31, 2026",
+   "date": "2023-04",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Canada \nput contracts in place for EAC members in April 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "EAC finalizes an Evaluation Framework for the third-party evaluation",
+   "date": "2023-05-10",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "an Evaluation Framework for the third-party evaluation, attached as Exhibit A",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Literature review monograph supporting the evaluation is completed",
+   "date": "2023-09",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "a 200-page literature review monograph",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "EAC co-chairs draft numerous iterations of the Terms of Reference",
+   "date": "2022-04",
+   "end_date": "2024-04",
+   "precision": "range",
+   "paragraphs": [
+    10
+   ],
+   "quote": "Between April 2022 and April 2024, the EAC co-chairs, with input from the EAC members, \ndrafted numerous iterations of a Terms of Reference",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "EAC members begin regular caucus meetings",
+   "date": "2023-11",
+   "precision": "month",
+   "paragraphs": [
+    10
+   ],
+   "quote": "regular caucus meetings beginning in November 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "A youth member joins the EAC",
+   "date": "2024",
+   "precision": "approximate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "A youth member joined the Committee in Spring 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "AFN, COO, NAN and Canada co-develop proposed EAC Terms of Reference and confidentiality agreement tied to the Draft Final Agreement",
+   "date": "2024-07",
+   "precision": "month",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "in July 2024 \nthe AFN, COO, NAN, and Canada co-developed proposed EAC Terms of Reference",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "EAC members submit their rewritten Terms of Reference to the co-chairs",
+   "date": "2024-10",
+   "precision": "month",
+   "paragraphs": [
+    10
+   ],
+   "quote": "submitted it to the co-chairs in October 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "First Nations-in-Assembly reject the Draft Final Agreement",
+   "date": "2024-10",
+   "precision": "month",
+   "paragraphs": [
+    13
+   ],
+   "quote": "The Draft Final Agreement was rejected by First Nations-in-Assembly in October 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Email exchanges between ISC and the Caring Society on the EAC begin",
+   "date": "2024-10-21",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "between October 21, 2024 and \nAugust 12, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Smylie becomes ISC co-chair of the EAC",
+   "date": "2024-11",
+   "precision": "month",
+   "paragraphs": [
+    1,
+    13
+   ],
+   "quote": "In \nNovember 2024, I assumed the role as ISC co-chair.",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "EAC members and the Caring Society propose a new version of the Terms of Reference",
+   "date": "2024-11-14",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "proposed a new version of the Terms of Reference \non November 14, 2024",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Co-chairs meet and reaffirm their commitment to work with the EAC members",
+   "date": "2025-03-13",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "the co-chairs met on March 13, 2025 and November 6, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Caring Society emails ISC stating its position on the EAC",
+   "date": "2025-05-05",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "an email communication dated May 5, 2025 from \nthe Caring Society to ISC",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Smylie writes to the co-chairs proposing a co-chair meeting, agenda and invitation letter",
+   "date": "2025-05-12",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    16
+   ],
+   "quote": "email communication dated \nMay 12, 2025 to the Caring Society and the AFN is located in Exhibit F",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Last email in the ISC-Caring Society exchange",
+   "date": "2025-08-12",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "August 12, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Second co-chair meeting, attended by AFN CEO Andrew Bisson",
+   "date": "2025-11-06",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "A second meeting of the co-\nchairs took place in November 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Secretariat emails EAC members an invitation to the December 8 meeting",
+   "date": "2025-11-28",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "Attached as Exhibit G is an email",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Co-chairs meet in person with the EAC members to reset the relationship; ISC states the EAC is not independent",
+   "date": "2025-12-08",
+   "precision": "day",
+   "paragraphs": [
+    17,
+    18,
+    19
+   ],
+   "quote": "On December 8, 2025, the co-chairs met in person with the EAC members.",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Canada files its plan for long-term reform of the FNCFS Program outside Ontario",
+   "date": "2025-12-22",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "December 22, 2025 plan",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Duncan Farthing-Nichol affirmed March 13, 2025",
+  "Agreement-in-Principle on Long-Term Reform (2021)",
+  "Draft Final Agreement on Long-Term Reform of the FNCFS Program",
+  "Canada's December 22, 2025 plan"
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibit covers carry a commissioner's digital signature and were detected as stamp pages; split with --covers so each cover page is removed whole. Paragraph 16 gives both co-chair dates (March 13 and November 6, 2025)."
+}

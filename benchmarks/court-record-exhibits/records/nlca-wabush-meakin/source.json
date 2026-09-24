@@ -1,0 +1,18 @@
+{
+ "url": "https://cfcanada.fticonsulting.com/bloomlake/docs/Meakin%20Affidavit%20-%20Sworn%20May%2015,%202017.pdf",
+ "landing_url": "https://cfcanada.fticonsulting.com/bloomlake/",
+ "court": "Court of Appeal of Newfoundland and Labrador",
+ "court_level": "appellate",
+ "jurisdiction": "NL",
+ "court_file": "Reference re Wabush pension deemed trusts (CCAA court record 500-11-048114-157)",
+ "document_title": "Affidavit of Nigel Meakin sworn May 15, 2017, filed in support of the Monitor's Application in respect of the Newfoundland Reference (Wabush CCAA)",
+ "retrieved": "2026-09-24",
+ "record_id": "nlca-wabush-meakin",
+ "source_file": "q4-meakin-20affidavit-20-20sworn-20may-2015-202017.pdf",
+ "page_range": [
+  1,
+  93
+ ],
+ "source_sha256": "a197b065625ec71d22c3d1623608ca9cea91a4d30b50a9d237ed72f7b856b95f",
+ "source_pages": 93
+}

@@ -1,0 +1,236 @@
+{
+ "record_id": "onsc-bill7-sinha",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022); applicants' expert evidence",
+ "document": "Affidavit of Dr. Samir Sinha affirmed March 21, 2023",
+ "deponent": "Samir Sinha",
+ "deponent_role": "Director of Geriatrics, Sinai Health and UHN; expert retained by the applicants",
+ "sworn_date": "2023-03-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-xdur5u.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Samir Sinha",
+   "recipients": [],
+   "description": "Sinha's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of my curriculum vitae is attached as Exhibit"
+    }
+   ],
+   "content_check": "160 pages: 'SAMIR K. SINHA MD, DPhil ...' CV beginning with current appointments"
+  },
+  {
+   "label": "B",
+   "file": "doc-remxyz.pdf",
+   "kind": "report",
+   "date": "2023-01",
+   "author": "Ontario Health, Health System Performance and Support",
+   "recipients": [],
+   "description": "Ontario Health's provincial ALC performance summary for January 2023",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of the summary for January 2023, is attached as Exhibit"
+    }
+   ],
+   "content_check": "12 pages: 'Alternate Level of Care Provincial Monthly ... Provincial and Sub-Region Level', Jan 2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-nmakda.pdf",
+   "kind": "report",
+   "date": "2022",
+   "author": "Concerned Friends of Ontario Citizens in Care Facilities",
+   "recipients": [],
+   "description": "Concerned Friends' report on LTC homes' compliance with legislation as reflected in 2021 inspections",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "Attached as Exhibits C(i) and (ii) hereto are reports of Concerned Friends"
+    }
+   ],
+   "content_check": "17 pages: '2021 Report on Compliance with Long-Term Care Legislation As reflected in Inspections of Homes', with 2021 inspection data tables by home; mentions PCIs received up to April 18 (2022)"
+  },
+  {
+   "label": "D",
+   "file": "doc-96qhbg.pdf",
+   "kind": "letter",
+   "date": "2022-09-14",
+   "author": "Nancy Matthews, Deputy Minister of Long-Term Care, and Alison Blair (Ontario Health)",
+   "recipients": [
+    "Health System Partners"
+   ],
+   "description": "Bill 7 field guidance on implementing the More Beds, Better Care Act",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "Field Guidance (attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: memorandum dated September 14, 2022 'RE: Bill 7 Implementation to Support Ontario's Plan to Stay Open: Health System Stability'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Sinha becomes Director of Geriatrics at Sinai Health System and UHN",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "Since 2010 I have served as the Director of Geriatrics at Sinai Health System",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "CIHI issues its Definitions and Guidelines to Support ALC Designation in Acute Inpatient Care",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "document in 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Concerned Friends is incorporated as a registered charity",
+   "date": "1982",
+   "precision": "year",
+   "paragraphs": [
+    44
+   ],
+   "quote": "In 1982 they were incorporated as a registered charity in Ontario",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Ontario stops requiring an annual Resident Quality Inspection of every LTC home",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    44
+   ],
+   "quote": "in 2018, the Ontario \ngovernment stopped requiring that every LTC home had an Resident Quality Inspections (RQI) \nannually",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Only seven RQIs are conducted across 626 Ontario LTC homes in 2019, and none in 2020",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    44
+   ],
+   "quote": "with only seven RQIs \nacross all 626 Ontario LTC homes in 2019, and zero in 2020",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Government regulations allow hospital patients waiting for LTC to be put on the crisis placement list",
+   "date": "2020-03",
+   "precision": "month",
+   "paragraphs": [
+    37
+   ],
+   "quote": "in March 2020 the Government proclaimed regulations mandating that hospital patients waiting for LTC homes could also be put on the crisis list",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "The High Intensity Support Services home care program is suspended when its funding runs out",
+   "date": "2022-03-31",
+   "precision": "day",
+   "paragraphs": [
+    66
+   ],
+   "quote": "it too was suspended on March 31, 2022 when its funding ran out",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Deputy Minister and Ontario Health issue Bill 7 implementation field guidance to health system partners",
+   "date": "2022-09-14",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "Field Guidance (attached as Exhibit",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Daily $400 charge for ALC patients refusing an LTC placement is in effect",
+   "date": "2022-10-01",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "As of October 1, 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "LTC Minister is quoted in the Toronto Star saying 2,400 patients had been moved from hospitals into LTC since Bill 7",
+   "date": "2022-11-21",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "Toronto Star (November 21, 2022)",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "January 2023 provincial ALC summary: 682 ALC-LTC patients in acute beds and 730 in post-acute beds",
+   "date": "2023-01",
+   "precision": "month",
+   "paragraphs": [
+    14
+   ],
+   "quote": "According to the provincial ALC summaries for January 2023, there were 682 ALC-LTC patients in acute care beds",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "3,425 ALC patients wait in acute care beds, 65% aged 75 or older",
+   "date": "2023-01-31",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "waiting in acute care beds as of Jan 31, 2023, 65% were 75 years of age or older",
+   "exhibits": [
+    "B"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit C(ii): the affidavit refers to two Concerned Friends reports (C(i) and (ii)); the posted record has one Exhibit C cover and one report",
+  "Journal articles, reports and web pages cited in footnotes"
+ ],
+ "leak_waivers": [],
+ "notes": "Expert opinion affidavit. Exhibit C is filed under a single cover though paragraph 44 speaks of C(i) and (ii)."
+}

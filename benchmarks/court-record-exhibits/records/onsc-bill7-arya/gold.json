@@ -1,0 +1,123 @@
+{
+ "record_id": "onsc-bill7-arya",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022); applicants' expert evidence",
+ "document": "Affidavit of Dr. Amit Arya affirmed March 23, 2023",
+ "deponent": "Amit Arya",
+ "deponent_role": "Palliative care physician (Kensington Gardens LTC, North York General); expert retained by the applicants",
+ "sworn_date": "2023-03-23",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-9z5amq.pdf",
+   "kind": "other",
+   "date": "2023-02-14",
+   "author": "Amit Arya",
+   "recipients": [],
+   "description": "Arya's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of my curriculum vitae is attached as Exhibit A to this affidavit."
+    }
+   ],
+   "content_check": "30 pages: 'AMIT ARYA ... Curriculum Vitae', date prepared 2023 02 14"
+  },
+  {
+   "label": "B",
+   "file": "doc-phgv32.pdf",
+   "kind": "report",
+   "date": "2023",
+   "author": "Alice Menard et al.",
+   "recipients": [],
+   "description": "Draft manuscript on caregiving patterns of spouses/partners and adult children of LTC residents in Ontario",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "draft manuscript, pending journal submission, attached as Exhibit B to this affidavit"
+    }
+   ],
+   "content_check": "27 pages: manuscript 'Variations in caregiving patterns of spouses/partners and adult children of long-term care home residents in Ontario, Canada'"
+  },
+  {
+   "label": "C",
+   "file": "doc-yef47v.pdf",
+   "kind": "report",
+   "date": "2023",
+   "author": "Peter Tanuseputro et al.",
+   "recipients": [],
+   "description": "Draft manuscript on variation in prescribing subcutaneous palliative medications to LTC residents at end of life",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Draft Manuscript, pending journal submission, attached as Exhibit C to this affidavit"
+    }
+   ],
+   "content_check": "22 pages: 'Variations in Prescribing Rate of Subcutaneous Palliative Medications among Long-term Care Residents at their End of life', original study manuscript"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Arya receives the 2020 Award of Excellence in Social Responsibility",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I received the 2020 Award of Excellence in Social Resp",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "2017/2018 data show Ontario's ALC crisis is driven largely by patients approaching end of life",
+   "date": "2017",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "Data from 2017/2018 indicates that Ontario",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Hsu-led study finds most family caregiver visits to LTC last over an hour and half of spouses visit daily",
+   "date": "2023",
+   "precision": "approximate",
+   "paragraphs": [
+    12,
+    15
+   ],
+   "quote": "Our recent research study (led by Dr. Amy Hsu) showed that greater than 90% of visits from family caregivers last over one hour",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Tanuseputro et al. study of palliative medication prescribing in LTC at end of life is drafted for submission",
+   "date": "2023",
+   "precision": "approximate",
+   "paragraphs": [
+    24
+   ],
+   "quote": "(2023) Draft Manuscript, pending journal submission",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Journal articles, reports and web pages cited in footnotes",
+  "Acknowledgment of expert's duty (attached after the jurat, not an exhibit)"
+ ],
+ "leak_waivers": [],
+ "notes": "Expert opinion affidavit, so few events. Exhibits B and C are cited in footnotes 9 and 17; the paragraph given is the one the footnote marker sits in."
+}

@@ -1,0 +1,163 @@
+{
+ "record_id": "onsc-bill7-heckman",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022); applicants' expert evidence",
+ "document": "Affidavit of Dr. George Heckman affirmed March 3, 2023",
+ "deponent": "George Heckman",
+ "deponent_role": "Geriatrician and University of Waterloo researcher; expert retained by the applicants",
+ "sworn_date": "2023-03-03",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-yexcvf.pdf",
+   "kind": "webpage",
+   "date": "2022-09-30",
+   "author": "George Heckman, Jenny Basran, Andrea Gruneir (Toronto Star)",
+   "recipients": [],
+   "description": "Toronto Star op-ed 'How to make hospitals right for seniors'",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "titled “How to make hospitals right for seniors,” and dated September 30"
+    }
+   ],
+   "content_check": "2 pages: thestar.com printout of the op-ed, printed 12/29/22 (URL path dated 2022/09/29)"
+  },
+  {
+   "label": "B",
+   "file": "doc-7y7p9b.pdf",
+   "kind": "webpage",
+   "date": "2022-08-24",
+   "author": "George Heckman (The Conversation)",
+   "recipients": [],
+   "description": "Conversation op-ed on preventing delirium in hospitalized seniors",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "August 24, 2022, is attached hereto as Exhibit B"
+    }
+   ],
+   "content_check": "4 pages: theconversation.com printout 'Preventing delirium protects seniors in hospital...'"
+  },
+  {
+   "label": "C",
+   "file": "doc-rznbxf.pdf",
+   "kind": "webpage",
+   "date": "2018-12-13",
+   "author": "George Heckman, Paul Hébert (Policy Options)",
+   "recipients": [],
+   "description": "Policy Options op-ed 'Hospitals are needlessly risky for frail seniors'",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "as Exhibit C"
+    }
+   ],
+   "content_check": "4 pages: policyoptions.irpp.org printout, printed 1/12/2019"
+  },
+  {
+   "label": "D",
+   "file": "doc-wn9fzs.pdf",
+   "kind": "other",
+   "date": "2022-10-13",
+   "author": "George Heckman",
+   "recipients": [],
+   "description": "Heckman's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A copy of my curriculum vitae is attached hereto as Exhibit D."
+    }
+   ],
+   "content_check": "111 pages: 'George Heckman - Curriculum Vitae Oct 13, 2022', University of Waterloo format"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Heckman graduates from medical school at the University of Toronto",
+   "date": "1995",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "graduating in 1995",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Heckman begins independent hospital practice",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I have been working as a physician in hospitals since 2000",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Heckman and Hébert publish 'Hospitals are needlessly risky for frail seniors' in Policy Options",
+   "date": "2018-12-13",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "dated December 13, 2018",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Heckman publishes the delirium-prevention op-ed in The Conversation",
+   "date": "2022-08-24",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "August 24, 2022, is attached hereto as Exhibit B",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Heckman, Basran and Gruneir publish 'How to make hospitals right for seniors' in the Toronto Star",
+   "date": "2022-09-30",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "and dated September 30, \n2022, is attached as hereto Exhibit A",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Heckman is retained by the applicants to give expert evidence on Bill 7",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I have been retained by the Ontario Health Coalition and the Advocacy Centre for the \nElderly to give evidence",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Journal articles and reports cited in footnotes 1-13"
+ ],
+ "leak_waivers": [],
+ "notes": "Expert opinion affidavit, so few events. Jurat reads 'AFFIRMED' though the heading says sworn. Exhibit stamps overlapped the printouts' headers, so a few header characters are missing from A-C text."
+}

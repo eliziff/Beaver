@@ -1,0 +1,167 @@
+{
+ "record_id": "skqb-cds-runzer2",
+ "court": "Court of Queen's Bench for Saskatchewan (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "SK",
+ "court_file": "Q.B.G. 1076 of 2021 (Saskatoon)",
+ "subject": "insolvency",
+ "family": "firesong-noi-sk",
+ "leak_waivers": [],
+ "proceeding": "Notices of intention to make a proposal of Canadian Development Strategies Inc., Crossroads ONE Inc., Oak and Ash Farm Ltd. and others of the FireSong Group (FireSong resort, Fowler Lake), with MNP Ltd. as proposal trustee: application for a second stay extension and an administration charge",
+ "document": "Second Affidavit of Lori Runzer sworn December 6, 2021",
+ "deponent": "Lori Runzer",
+ "deponent_role": "Director of the FireSong Group companies (applicants)",
+ "sworn_date": "2021-12-06",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-h8894u.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Tourism Saskatchewan",
+   "recipients": [],
+   "description": "Tourism Saskatchewan brochure on whitetail deer and big game hunting near the resort",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached and marked as Exhibit \"A\" to this Affidavit is a copy of a brochure prepared by"
+    }
+   ],
+   "content_check": "5 pages: Tourism Saskatchewan web page 'Hunting > Big Game Hunting' (COVID-19 banner)"
+  },
+  {
+   "label": "B",
+   "file": "doc-72gp2h.pdf",
+   "kind": "report",
+   "date": "2021-11",
+   "author": "Tourism Saskatchewan",
+   "recipients": [],
+   "description": "November 2021 Tourism Saskatchewan publication showcasing the kaniyasihk Culture Camps",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached and marked as Exhibit \"B\" to this Affidavit is a copy of the November 2021"
+    }
+   ],
+   "content_check": "19 pages: Tourism Saskatchewan newsletter (editor Susan Parkin)"
+  },
+  {
+   "label": "C",
+   "file": "doc-wms7u3.pdf",
+   "kind": "agreement",
+   "date": "2008-05-16",
+   "author": "1143402 Alberta Ltd.",
+   "recipients": [
+    "Benjamin Warren Runzer"
+   ],
+   "description": "Trust Deed under which 114 holds the Cranbrook Property for Benjamin Runzer",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of the Trust Deed is attached and marked as Exhibit \"C\""
+    }
+   ],
+   "content_check": "3 pages: 'DECLARATION OF TRUST' by 1143402 Alberta Ltd. of Sherwood Park for Benjamin Warren Runzer"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "114 declares a trust over the Cranbrook Property for Benjamin Runzer",
+   "date": "2008-05-16",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "pursuant to a trust deed dated May 16, 2008",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Applicants file their notices of intention to make a proposal",
+   "date": "2021-09-29",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On September 29, 2021, the Applicants filed the Applicants' Notices of Intention",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Runzer swears her first affidavit",
+   "date": "2021-10-21",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the affidavit that I swore on October 21, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Court grants the first stay extension to December 13, 2021",
+   "date": "2021-10-28",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On October 28, 2021, this Honourable Court granted the first extension",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Tourism Saskatchewan publication features the kaniyasihk Culture Camps",
+   "date": "2021-11",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "the November 2021 \npublication by Tourism Saskatchewan",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "FireSong Group retains Jon Zwickel of InnVentures Hospitality",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The Applicants have retained the services of Mr. Jon Zwickel",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "ATB obtains a redemption order on the Farmland",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "has obtained a redemption order in respect of the Farmland",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Proposed second extension date for filing a proposal",
+   "date": "2022-01-26",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "on January 26, 2022 (the \"Second Extension Date\")",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "First Runzer Affidavit sworn October 21, 2021",
+  "Farmland Purchase Agreement",
+  "Cranbrook Sale Agreement"
+ ],
+ "notes": "Second stay-extension affidavit in the FireSong NOIs."
+}

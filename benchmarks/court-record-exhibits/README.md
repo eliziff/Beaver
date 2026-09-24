@@ -101,7 +101,7 @@ now added.
 - **Error estimate:** about 1-2% in `events[]`; no exhibit
   identification errors were found.
 
-### Vetting pass (2026-09-24, 128 records)
+### Vetting pass (2026-09-24, 128 records, then 157 after the growth pass)
 
 Checks beyond `verify.py` and `audit.py`, applied to every record:
 

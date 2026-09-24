@@ -30,9 +30,13 @@ def read(doc, force=False):
     return "\n".join(out), used
 
 
+def words(text):
+    return len(re.sub(r"\[page \d+\]", " ", text).split())  # page markers are not text
+
+
 def needs_ocr(pdf, txt):
     text = open(txt, encoding="utf-8").read() if os.path.exists(txt) else ""
-    return len(text.split()) < 40 or broken(text)
+    return words(text) < 40 or broken(text)
 
 
 def main():
@@ -46,7 +50,7 @@ def main():
             if not name.endswith(".pdf") or not needs_ocr(pdf, txt):
                 continue
             doc = fitz.open(pdf)
-            text, used = read(doc, force=len(open(txt, encoding="utf-8").read().split()) < 40 if os.path.exists(txt) else True)
+            text, used = read(doc, force=words(open(txt, encoding="utf-8").read()) < 40 if os.path.exists(txt) else True)
             if used:
                 open(txt, "w", encoding="utf-8").write(text)
                 done.append(name)

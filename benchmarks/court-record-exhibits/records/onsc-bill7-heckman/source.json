@@ -1,0 +1,18 @@
+{
+ "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Affidavit-of-Dr.-George-Heckman-March-3-2023.pdf",
+ "landing_url": "https://www.ontariohealthcoalition.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "document_title": "Affidavit of Dr. George Heckman sworn March 3, 2023 (Charter application re Bill 7)",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-bill7-heckman",
+ "source_file": "c-affidavit-of-dr-george-heckman-march-3-2023.pdf",
+ "page_range": [
+  1,
+  140
+ ],
+ "source_sha256": "53c58bed234fa43ae05b652679783a7d4ea4213fc92b7d6067c4d65c100d26de",
+ "source_pages": 140
+}

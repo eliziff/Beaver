@@ -1,0 +1,19 @@
+{
+ "url": "https://cfcanada.fticonsulting.com/Baffinland/docs/Affidavit%20-%20Ashley%20Glen%20-%2021-SEPT-2026-%20Commissioned%20Affidavit-1019117208%20(003).pdf",
+ "landing_url": "https://cfcanada.fticonsulting.com/Baffinland/",
+ "court": "Ontario Superior Court of Justice (Commercial List)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CL-26-00000219-0000",
+ "document_title": "Affidavit of Ashley Glen sworn September 21, 2026 (EDC), Baffinland Iron Mines CCAA",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cl-baffinland-glen2",
+ "source_file": "q4-affidavit-20-20ashley-20glen-20-2021-sept-2026-20commissione.pdf",
+ "page_range": [
+  1,
+  214
+ ],
+ "source_sha256": "a65b26817d967121efea33514d1e62d4da21611a11c55d2f0c715e1b6a460fcb",
+ "source_pages": 214,
+ "covers": "A=17,B=142,C=152,D=204"
+}

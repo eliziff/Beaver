@@ -1,0 +1,174 @@
+{
+ "record_id": "nssc-4499127-santimaw1",
+ "court": "Supreme Court of Nova Scotia (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "Hfx No. 547515",
+ "subject": "insolvency",
+ "family": "ns-4499127-receivership",
+ "proceeding": "Express Mortgage Corporation Limited v. 4499127 Nova Scotia Limited: receivership (BDO Canada Limited, receiver), motion concerning the debtor's Upper Onslow lots",
+ "document": "Affidavit of Joshua J. Santimaw sworn November 28, 2025",
+ "deponent": "Joshua J. Santimaw",
+ "deponent_role": "Lawyer for BDO Canada Limited, court-appointed receiver",
+ "sworn_date": "2025-11-28",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-6duut5.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 23 Summer Hill Place, Upper Onslow (PID 20501326)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"A\" is a true copy of the Property Online printout",
+     "paragraph": 4
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20501326, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "B",
+   "file": "doc-pz53m9.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 25 Summer Hill Place, Upper Onslow (PID 20501334)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"B\" is a true copy of the Property Online printout",
+     "paragraph": 5
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20501334, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "C",
+   "file": "doc-svw4y3.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 30 and 32 Summer Hill Place, Upper Onslow (PID 20498549)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"C\" is a true copy of the Property Online printout",
+     "paragraph": 6
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20498549, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "D",
+   "file": "doc-q56jby.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 34 and 36 Summer Hill Place, Upper Onslow (PID 20498531)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"D\" is a true copy of the Property Online printout"
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20498531, owner 4499127 Nova Scotia Limited"
+  },
+  {
+   "label": "E",
+   "file": "doc-z2qmpz.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Nova Scotia Property Online (Land Registration)",
+   "recipients": [],
+   "description": "Property Online printout for 38 and 40 Summer Hill Place, Upper Onslow (PID 20498523)",
+   "references": [
+    {
+     "quote": "Attached hereto as Exhibit \"E\" is a true copy of the Property Online printout",
+     "paragraph": 8
+    }
+   ],
+   "content_check": "Land Registration View parcel printout, PID 20498523, owner 4499127 Nova Scotia Limited"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 23 Summer Hill Place, Upper Onslow (PID 20501326) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    4
+   ],
+   "quote": "PID 20501326",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 25 Summer Hill Place, Upper Onslow (PID 20501334) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    5
+   ],
+   "quote": "PID 20501334",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 30 and 32 Summer Hill Place, Upper Onslow (PID 20498549) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "PID 20498549",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 34 and 36 Summer Hill Place, Upper Onslow (PID 20498531) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [],
+   "quote": "PID 20498531",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "4499127 Nova Scotia Limited holds the parcel at 38 and 40 Summer Hill Place, Upper Onslow (PID 20498523) in the receivership",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "PID 20498523",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Receiver's counsel swears the affidavit in support of the receiver's motion",
+   "date": "2025-11-28",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "I make this affidavit in support of the motion and for no other purpose.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Short identification affidavit: every exhibit is a Property Online printout of the same kind, told apart only by civic address and PID, so matching depends on reading the PID. Paragraph 7's number is lost in the text layer, so Exhibit D's reference has no paragraph."
+}

@@ -1,0 +1,1284 @@
+{
+ "record_id": "abkb-lynx-woodward0",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2401-02664 (Calgary)",
+ "subject": "insolvency",
+ "family": "lynx-air",
+ "proceeding": "Lynx Air Holdings Corporation and 1263343 Alberta Inc. dba Lynx Air: initial CCAA application",
+ "document": "Affidavit of Michael Woodward sworn February 22, 2024",
+ "deponent": "Michael Woodward",
+ "deponent_role": "Interim Contractor CFO of Lynx Air",
+ "sworn_date": "2024-02-22",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-rcbf3m.pdf",
+   "kind": "public_record",
+   "date": "2024-02",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Alberta corporate searches for each of the Applicants",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "corporate searches for each of the Applicants are attached hereto as \nExhibit “1”"
+    }
+   ],
+   "content_check": "8 pages: corporate registry search results (broken font encoding; OCR'd)"
+  },
+  {
+   "label": "2",
+   "file": "doc-xdrf2d.pdf",
+   "kind": "public_record",
+   "date": "2024-02",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Alberta trade name search for 'Lynx Air'",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "of the Alberta trade name search for “Lynx Air” is attached hereto as Exhibit \n“2”"
+    }
+   ],
+   "content_check": "1 page: trade name search (broken font encoding; OCR'd)"
+  },
+  {
+   "label": "3",
+   "file": "doc-argxeh.pdf",
+   "kind": "financial_statement",
+   "date": "2022-12-31",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Unaudited consolidated financial statements for 2021 and 2022",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "er 31, 2023 (the “2023 Financial Statement”), are \nattached hereto as Exhibits “3”"
+    }
+   ],
+   "content_check": "4 pages: 'Lynx Air Holdings Corporation ... Unaudited December 31, 2022 / 2021' balance sheet and statements"
+  },
+  {
+   "label": "4",
+   "file": "doc-nggwpe.pdf",
+   "kind": "financial_statement",
+   "date": "2023-12-31",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Draft unaudited consolidated financial statement for 2023",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Exhibits “3” and “4”"
+    }
+   ],
+   "content_check": "4 pages: statements as at December 31, 2023 and 2022"
+  },
+  {
+   "label": "5",
+   "file": "doc-2scuvb.pdf",
+   "kind": "contract",
+   "date": "2023-10-14",
+   "author": "Zurich Insurance Company Ltd.",
+   "recipients": [],
+   "description": "D&O Insurance Policy",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "ss Insurance Policies expire on October 14, 2024. Attached hereto \nas Exhibit “5”"
+    }
+   ],
+   "content_check": "46 pages: executive liability policy No. 8622083, policy period October 14, 2023 to October 14, 2024, insured Lynx Air Holdings Corporation"
+  },
+  {
+   "label": "6",
+   "file": "doc-v2qfx9.pdf",
+   "kind": "contract",
+   "date": "2023-10-14",
+   "author": "Markel Canada Limited; Arthur J. Gallagher Canada Limited",
+   "recipients": [],
+   "description": "Excess D&O insurance policies",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Exhibit “5” and “6”"
+    }
+   ],
+   "content_check": "40 pages: Markel Canada Limited excess private company D&O policy documents"
+  },
+  {
+   "label": "7",
+   "file": "doc-9xh8gw.pdf",
+   "kind": "agreement",
+   "date": "2023-09-20",
+   "author": "Lynx Air Holdings Corporation and TSX Trust Company",
+   "recipients": [],
+   "description": "D&O Trust Indenture",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "O Trust \nIndenture”) for the Lynx Air D&O Trust is attached hereto as Exhibit “7”"
+    }
+   ],
+   "content_check": "23 pages: 'TRUST INDENTURE As at September 20, 2023', Lynx Air Holdings Corporation and TSX Trust Company"
+  },
+  {
+   "label": "8",
+   "file": "doc-nu9ywc.pdf",
+   "kind": "agreement",
+   "date": "2024-02-08",
+   "author": "Aeroports de Montreal and Lynx Air",
+   "recipients": [],
+   "description": "ADM Payment Agreement for outstanding airport improvement fees",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "s ending on \nApril 1, 2024 (the “ADM Payment Agreement”). Attached as Exhibit “8”"
+    }
+   ],
+   "content_check": "2 pages, mostly image: payment schedule signed Calgary February 8, 2024 by Michael Woodward, Interim CFO (OCR'd)"
+  },
+  {
+   "label": "9",
+   "file": "doc-rhmp7w.pdf",
+   "kind": "notice",
+   "date": "2024-02-16",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [],
+   "description": "GTAA Notice of Default",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "ir must cure the outstanding amount by February 21, 2024. Attached as Exhibit “9”"
+    }
+   ],
+   "content_check": "3 pages: letter February 16, 2024 to Mike Woodward, 'Re: Notice of Default - Overdue Aer[onautical fees]'"
+  },
+  {
+   "label": "10",
+   "file": "doc-v9amuc.pdf",
+   "kind": "notice",
+   "date": "2024-02-17",
+   "author": "Delta TechOps",
+   "recipients": [],
+   "description": "Delta Notice of Default under the CFS Agreement",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "e the right to suspend services under the CFS Agreement. \nAttached as Exhibit “10”"
+    }
+   ],
+   "content_check": "2 pages: Delta TechOps letter February 17, 2024 to Mr. Jim Sullivan, Lynx Air"
+  },
+  {
+   "label": "11",
+   "file": "doc-xpse5k.pdf",
+   "kind": "agreement",
+   "date": "2018-12-20",
+   "author": "Enerjet Holdco, 1263343 Alberta and Indigo",
+   "recipients": [],
+   "description": "Note Purchase Agreement, as amended June 30, 2023",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "he “Note \nPurchase Agreement”), a copy of which is attached hereto as Exhibit \n“11”"
+    }
+   ],
+   "content_check": "78 pages: 'Dated: December 20, 2018 ENERJET HOLDCO INC. and 1263343 ALBERTA INC. ... and INDI[GO]' note purchase agreement"
+  },
+  {
+   "label": "12",
+   "file": "doc-vh3k3m.pdf",
+   "kind": "agreement",
+   "date": "2023-02-24",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Bridge Note Purchase Agreement, as amended January 12, 2024",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "dge Note Purchase Agreement”), a copy of which is attached hereto \nas Exhibit “12”"
+    }
+   ],
+   "content_check": "77 pages: execution version dated February 24, 2023"
+  },
+  {
+   "label": "13",
+   "file": "doc-fvhss9.pdf",
+   "kind": "agreement",
+   "date": "2023-10-26",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Second Bridge Note Purchase Agreement",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "Bridge Note Purchase Agreement”), a copy of \nwhich attached hereto as Exhibit “13”"
+    }
+   ],
+   "content_check": "78 pages: execution version dated October 26, 2023"
+  },
+  {
+   "label": "14",
+   "file": "doc-pdqqa3.pdf",
+   "kind": "agreement",
+   "date": "2024-01-12",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Third Bridge Note Purchase Agreement",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "Bridge Note Purchase Agreement”), a copy of \nwhich attached hereto as Exhibit “14”"
+    }
+   ],
+   "content_check": "73 pages: execution version dated January 12, 2024"
+  },
+  {
+   "label": "15",
+   "file": "doc-shnvgj.pdf",
+   "kind": "agreement",
+   "date": "2024-02-02",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Fourth Bridge Note Purchase Agreement",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "Bridge Note Purchase Agreement”), a copy of \nwhich attached hereto as Exhibit “15”"
+    }
+   ],
+   "content_check": "74 pages: execution version dated February 2, 2024"
+  },
+  {
+   "label": "16",
+   "file": "doc-jz3kej.pdf",
+   "kind": "agreement",
+   "date": "2024-02-07",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Fifth Bridge Note Purchase Agreement",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "Bridge Note Purchase Agreement”), a copy of \nwhich attached hereto as Exhibit “16”"
+    }
+   ],
+   "content_check": "74 pages: execution version dated February 7, 2024"
+  },
+  {
+   "label": "17",
+   "file": "doc-t7txcu.pdf",
+   "kind": "agreement",
+   "date": "2023-11",
+   "author": "Lynx Opco and ATB Financial",
+   "recipients": [],
+   "description": "Assignment of Deposit Certificates securing letters of credit and the ATB credit card",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "ATB, copies of which Assignment \nCertificates are attached hereto as Exhibit “17”"
+    }
+   ],
+   "content_check": "46 pages: ATB Form 7015 'ASSIGNMENT OF MONIES ON DEPOSIT', dated between May 2020 and November 2023"
+  },
+  {
+   "label": "18",
+   "file": "doc-zwrpnz.pdf",
+   "kind": "letter",
+   "date": "2023-06-30",
+   "author": "Indigo Northern Ventures LP",
+   "recipients": [],
+   "description": "Deferral Agreement deferring interest on the Initial Notes",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "e Agreement). A copy of the \nDeferral Agreement is attached hereto as Exhibit “18”"
+    }
+   ],
+   "content_check": "2 pages: 'Lynx - Notice of Interest Option', June 30, 2023, to Lynx Air Holdings Corporation"
+  },
+  {
+   "label": "19",
+   "file": "doc-yd239s.pdf",
+   "kind": "financial_statement",
+   "date": "2022-12-13",
+   "author": "Enerjet Holdco Inc.",
+   "recipients": [],
+   "description": "Initial Notes certificates",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "of CAD$9,815,005. Copies of the \nInitial Notes are attached hereto as Exhibit “19”"
+    }
+   ],
+   "content_check": "8 pages: 'CERTIFICATE REPRESENTING NOTES', Certificate No. P-001 $12,179,[529] etc."
+  },
+  {
+   "label": "20",
+   "file": "doc-a7m9s9.pdf",
+   "kind": "agreement",
+   "date": "2021-10-28",
+   "author": "Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Note Guarantee",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "antee and the Note General Security \nAgreement are attached hereto as Exhibit “20”"
+    }
+   ],
+   "content_check": "13 pages: 'Guarantee of Enerjet Holdco ... made as of October 28, 2021'"
+  },
+  {
+   "label": "21",
+   "file": "doc-r3rsp8.pdf",
+   "kind": "agreement",
+   "date": "2021-10-28",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Note General Security Agreement",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "Exhibit “20” and “21”"
+    }
+   ],
+   "content_check": "44 pages: 'Enerjet - General Security Agreement ... made as of October 28, [2021]'"
+  },
+  {
+   "label": "22",
+   "file": "doc-93b7nw.pdf",
+   "kind": "financial_statement",
+   "date": "2023-03-10",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Bridge Notes certificates",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "and \nCAD$6,072,000. Copies of the Bridge Notes are attached hereto as Exhibit “22”"
+    }
+   ],
+   "content_check": "2 pages: certificates representing notes"
+  },
+  {
+   "label": "23",
+   "file": "doc-p9v4k2.pdf",
+   "kind": "agreement",
+   "date": "2023-02-24",
+   "author": "Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "First Bridge Note Guarantee",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "e First Bridge Note General Security Agreement are attached hereto as Exhibit \n“23”"
+    }
+   ],
+   "content_check": "13 pages: guarantee made as of February 24, 2023"
+  },
+  {
+   "label": "24",
+   "file": "doc-4h6pa8.pdf",
+   "kind": "agreement",
+   "date": "2023-02-24",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "First Bridge Note General Security Agreement",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "Exhibit \n“23” and “24”"
+    }
+   ],
+   "content_check": "44 pages: general security agreement made as of February 24, 2023"
+  },
+  {
+   "label": "25",
+   "file": "doc-rxxwyb.pdf",
+   "kind": "financial_statement",
+   "date": "2023-10-26",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Second Bridge Note certificate",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "June 30, 2024. A copy of the Second Bridge Note is attached hereto as Exhibit \n“25”"
+    }
+   ],
+   "content_check": "1 page: certificate representing notes"
+  },
+  {
+   "label": "26",
+   "file": "doc-s6kf7r.pdf",
+   "kind": "agreement",
+   "date": "2023-10-26",
+   "author": "Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Second Bridge Note Guarantee",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "Second Bridge Note General Security Agreement are \nattached hereto as Exhibit “26”"
+    }
+   ],
+   "content_check": "13 pages: guarantee made as of October 26, 2023"
+  },
+  {
+   "label": "27",
+   "file": "doc-38x6t8.pdf",
+   "kind": "agreement",
+   "date": "2023-10-26",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Second Bridge Note General Security Agreement",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "Exhibit “26” and “27”"
+    }
+   ],
+   "content_check": "44 pages: general security agreement made as of October [26, 2023]"
+  },
+  {
+   "label": "28",
+   "file": "doc-qbwqtd.pdf",
+   "kind": "financial_statement",
+   "date": "2024-01-12",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Third Bridge Note certificate",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "June 30, 2024. A copy of the Third Bridge Note is attached \nhereto as Exhibit “28”"
+    }
+   ],
+   "content_check": "1 page: certificate representing notes"
+  },
+  {
+   "label": "29",
+   "file": "doc-m4mw5z.pdf",
+   "kind": "agreement",
+   "date": "2024-01-12",
+   "author": "Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Third Bridge Note Guarantee",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "Third Bridge Note General Security Agreement are attached hereto \nas Exhibit “29”"
+    }
+   ],
+   "content_check": "13 pages: guarantee made as of January 12, 2024"
+  },
+  {
+   "label": "30",
+   "file": "doc-93mgwz.pdf",
+   "kind": "agreement",
+   "date": "2024-01-12",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Third Bridge Note General Security Agreement",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "Exhibit “29” and “30”"
+    }
+   ],
+   "content_check": "44 pages: general security agreement (recitals first)"
+  },
+  {
+   "label": "31",
+   "file": "doc-exhtec.pdf",
+   "kind": "financial_statement",
+   "date": "2024-02-02",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Fourth Bridge Note certificate",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "une 30, 2024. A copy of the Fourth \nBridge Note is attached hereto as Exhibit “31”"
+    }
+   ],
+   "content_check": "1 page: certificate representing notes"
+  },
+  {
+   "label": "32",
+   "file": "doc-kurwxz.pdf",
+   "kind": "agreement",
+   "date": "2024-02-02",
+   "author": "Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Fourth Bridge Note Guarantee",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "Fourth Bridge Note General Security Agreement are attached \nhereto as Exhibit “32”"
+    }
+   ],
+   "content_check": "13 pages: guarantee made as of February 2, 2024"
+  },
+  {
+   "label": "33",
+   "file": "doc-qhzdjw.pdf",
+   "kind": "agreement",
+   "date": "2024-02-02",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Fourth Bridge Note General Security Agreement",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "Exhibit “32” and “33”"
+    }
+   ],
+   "content_check": "44 pages: general security agreement made as of Februar[y 2, 2024]"
+  },
+  {
+   "label": "34",
+   "file": "doc-n9kman.pdf",
+   "kind": "financial_statement",
+   "date": "2024-02-07",
+   "author": "Lynx Air Holdings Corporation",
+   "recipients": [],
+   "description": "Fifth Bridge Note certificate",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "June \n30, 2024. A copy of the Fifth Bridge Note is attached hereto as Exhibit “34”"
+    }
+   ],
+   "content_check": "1 page: certificate representing notes"
+  },
+  {
+   "label": "35",
+   "file": "doc-59bevn.pdf",
+   "kind": "agreement",
+   "date": "2024-02-07",
+   "author": "Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Fifth Bridge Note Guarantee",
+   "references": [
+    {
+     "paragraph": 66,
+     "quote": "Fifth Bridge Note General Security Agreement are attached hereto \nas Exhibit “35”"
+    }
+   ],
+   "content_check": "13 pages: guarantee made as of February 7, 2024"
+  },
+  {
+   "label": "36",
+   "file": "doc-wj9kdv.pdf",
+   "kind": "agreement",
+   "date": "2024-02-07",
+   "author": "Lynx Holdco, Lynx Opco and Indigo",
+   "recipients": [],
+   "description": "Fifth Bridge Note General Security Agreement",
+   "references": [
+    {
+     "paragraph": 66,
+     "quote": "Exhibit “35” and “36”"
+    }
+   ],
+   "content_check": "44 pages: general security agreement made as of Februar[y 7, 2024]"
+  },
+  {
+   "label": "37",
+   "file": "doc-fnw53d.pdf",
+   "kind": "agreement",
+   "date": "2018-12-20",
+   "author": "Enerjet Holdco, 1263343 Alberta, Indigo, Enerjet SPV, Torquest and others",
+   "recipients": [],
+   "description": "Noteholders' and Shareholders' Agreement, as amended",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "of the Noteholders’ and Shareholders’ Agreement is attached hereto as Exhibit \n“37”"
+    }
+   ],
+   "content_check": "117 pages: 'Dated: December 20, 2018 ENERJET HOLDCO INC. 1263343 ALBERTA INC. INDIGO NORTHERN VENTURES LP ENERJET SPV INC. TORQUEST ...'"
+  },
+  {
+   "label": "38",
+   "file": "doc-wwm7sm.pdf",
+   "kind": "agreement",
+   "date": "2023-11-17",
+   "author": "Canada Revenue Agency and Lynx Opco",
+   "recipients": [],
+   "description": "CRA Arrangement Agreement for the GST arrears",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "76. \nA copy of the CRA Arrangement Agreement is attached hereto as Exhibit “38”"
+    }
+   ],
+   "content_check": "2 pages, image-only (OCR'd)"
+  },
+  {
+   "label": "39",
+   "file": "doc-dg2hqa.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Alberta Personal Property Registry",
+   "recipients": [],
+   "description": "PPR search for Lynx Holdco",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "Registry search for Lynx Holdco and \nLynx Opco is attached hereto as Exhibit “39”"
+    }
+   ],
+   "content_check": "4 pages: 'Exact Result(s) Only Found' personal property registry search"
+  },
+  {
+   "label": "40",
+   "file": "doc-hz8wxj.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Alberta Personal Property Registry",
+   "recipients": [],
+   "description": "PPR search for Lynx Opco",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "Exhibit “39” and “40”"
+    }
+   ],
+   "content_check": "47 pages: 'Exact Result(s) Only Found' personal property registry search"
+  },
+  {
+   "label": "41",
+   "file": "doc-9zkz3q.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Lynx Air with FTI Consulting",
+   "recipients": [],
+   "description": "Cash-Flow Projections to March 2, 2024",
+   "references": [
+    {
+     "paragraph": 102,
+     "quote": "“Cash-Flow Projections”). The Cash-Flow \nProjections are attached as Exhibit “41”"
+    }
+   ],
+   "content_check": "1 page: 'Consolidated Cash Flow Statement For the 2 week period ending March 2, 2024'"
+  },
+  {
+   "label": "42",
+   "file": "doc-nbgtd4.pdf",
+   "kind": "other",
+   "date": "2024-02",
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [],
+   "description": "FTI's consent to act as Monitor",
+   "references": [
+    {
+     "paragraph": 104,
+     "quote": "as Monitor of the Applicants, subject to Court approval. \nAttached as Exhibit “42”"
+    }
+   ],
+   "content_check": "1 page, image-only (OCR'd)"
+  },
+  {
+   "label": "43",
+   "file": "doc-3gkvtm.pdf",
+   "kind": "agreement",
+   "date": "2024-02-21",
+   "author": "Lynx Air and the Interim Lender",
+   "recipients": [],
+   "description": "Draft Interim Lending Term Sheet",
+   "references": [
+    {
+     "paragraph": 109,
+     "quote": "ich I believe to be either final or near final) is attached hereto as Exhibit “43”"
+    }
+   ],
+   "content_check": "26 pages: 'INTERIM FINANCING TERM SHEET made as of February 21, 2024'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Lynx Opco enters the aircraft purchase agreement",
+   "date": "2015-10-18",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "On October 18, 2015, Lynx Opco entered into a purchase agreement",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Lynx Holdco incorporated as Enerjet Holdco",
+   "date": "2018-12-17",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "on December 17, 2018",
+   "exhibits": [
+    "1"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Note Purchase Agreement and Noteholders' and Shareholders' Agreement signed; first Initial Note issued",
+   "date": "2018-12-20",
+   "precision": "day",
+   "paragraphs": [
+    48,
+    53,
+    68
+   ],
+   "quote": "Note Purchase Agreement dated December 20, 2018",
+   "exhibits": [
+    "11",
+    "19",
+    "37"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Boeing 737 MAX 8 grounded by Transport Canada",
+   "date": "2019-03-13",
+   "precision": "day",
+   "paragraphs": [
+    43,
+    90
+   ],
+   "quote": "beginning on March 13, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Initial Notes issued in eight tranches",
+   "date": "2018-12-20",
+   "precision": "range",
+   "paragraphs": [
+    53
+   ],
+   "quote": "Pursuant to the Note Purchase Agreement, the Applicants issued the Initial Notes on",
+   "exhibits": [
+    "19"
+   ],
+   "end_date": "2022-12-13"
+  },
+  {
+   "id": "e6",
+   "description": "Note Guarantee and General Security Agreement granted to Indigo",
+   "date": "2021-10-28",
+   "precision": "day",
+   "paragraphs": [
+    54
+   ],
+   "quote": "dated October 28, 2021",
+   "exhibits": [
+    "20",
+    "21"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Lynx Holdco renamed Lynx Air Holdings Corporation",
+   "date": "2021-11-16",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "changed its name to Lynx Air Holdings Corporation on November 16, 2021",
+   "exhibits": [
+    "1"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Lynx Air's inaugural flight",
+   "date": "2022-04-07",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "did not have its inaugural flight until April 7, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "First Bridge Note Purchase Agreement, guarantee and GSA",
+   "date": "2023-02-24",
+   "precision": "day",
+   "paragraphs": [
+    56,
+    57,
+    58
+   ],
+   "quote": "one on February 24, 2023",
+   "exhibits": [
+    "12",
+    "22",
+    "23",
+    "24"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Second Bridge Note issued",
+   "date": "2023-03-10",
+   "precision": "day",
+   "paragraphs": [
+    57
+   ],
+   "quote": "the second on March 10, 2023",
+   "exhibits": [
+    "22"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Woodward becomes Interim Contractor CFO",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been the Interim Contractor CFO of Lynx Air since March of 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "CIRB certifies ALPA for Lynx pilots",
+   "date": "2023-06-03",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On June 3, 2023, the Canada Industrial Relations Board",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Indigo agrees to defer interest on the Initial Notes",
+   "date": "2023-06-30",
+   "precision": "day",
+   "paragraphs": [
+    52
+   ],
+   "quote": "On June 30, 2023, Indigo accepted the Applicants request to defer",
+   "exhibits": [
+    "18"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "D&O Trust established with TSX Trust",
+   "date": "2023-09-20",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "on September 20, 2023, Lynx Holdco established a CAD$2,000,000 irrevocable trust",
+   "exhibits": [
+    "7"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "D&O insurance policies begin",
+   "date": "2023-10-14",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "expires on October 14, 2024",
+   "exhibits": [
+    "5",
+    "6"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Second Bridge Note Purchase Agreement; note, guarantee and GSA",
+   "date": "2023-10-26",
+   "precision": "day",
+   "paragraphs": [
+    59,
+    60
+   ],
+   "quote": "The Second Bridge Note was issued on October 26, 2023",
+   "exhibits": [
+    "13",
+    "25",
+    "26",
+    "27"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "CRA payment arrangement for GST arrears",
+   "date": "2023-11-17",
+   "precision": "day",
+   "paragraphs": [
+    75
+   ],
+   "quote": "dated November 17, 2023",
+   "exhibits": [
+    "38"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Initial Notes mature unpaid",
+   "date": "2023-12-20",
+   "precision": "day",
+   "paragraphs": [
+    55
+   ],
+   "quote": "The Initial Notes matured on December 20, 2023.",
+   "exhibits": [
+    "11",
+    "19"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Third Bridge Note issued with guarantee and GSA",
+   "date": "2024-01-12",
+   "precision": "day",
+   "paragraphs": [
+    61,
+    62
+   ],
+   "quote": "The Third Bridge Note was issued on January 12, 2024",
+   "exhibits": [
+    "14",
+    "28",
+    "29",
+    "30"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "CGFC notice of default",
+   "date": "2024-02-01",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On February 1, 2024, Lynx Air received a notice of default from the CGFC",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "ADM notice of default",
+   "date": "2024-02-02",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "On February 2, 2024, Lynx Air received a notice of default from the Aeroports de Montreal",
+   "exhibits": [
+    "8"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Fourth Bridge Note issued with guarantee and GSA",
+   "date": "2024-02-02",
+   "precision": "day",
+   "paragraphs": [
+    63,
+    64
+   ],
+   "quote": "The Fourth Bridge Note was issued on February 2, 2024",
+   "exhibits": [
+    "15",
+    "31",
+    "32",
+    "33"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "CIRB certifies CUPE for Lynx cabin crew",
+   "date": "2024-02-07",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On February 7, 2024, the CIRB certified CUPE",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Fifth Bridge Note issued with guarantee and GSA",
+   "date": "2024-02-07",
+   "precision": "day",
+   "paragraphs": [
+    65,
+    66
+   ],
+   "quote": "The Fifth Bridge Note was issued on February 7, 2024",
+   "exhibits": [
+    "16",
+    "34",
+    "35",
+    "36"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "ADM payment schedule agreed",
+   "date": "2024-02-08",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "on February 8, 2024, a payment schedule was agreed to between Lynx Air and ADM",
+   "exhibits": [
+    "8"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "ATB registers additional security interest in cash deposits",
+   "date": "2024-02-14",
+   "precision": "day",
+   "paragraphs": [
+    74
+   ],
+   "quote": "on February 14, 2024, ATB registered an additional security interest",
+   "exhibits": [
+    "17"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "GTAA notice of default",
+   "date": "2024-02-16",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On February 16, 2024, Lynx Air received a notice of default from the Greater Toronto Airports Authority",
+   "exhibits": [
+    "9"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "PPR searches show 16 registrations",
+   "date": "2024-02-16",
+   "precision": "day",
+   "paragraphs": [
+    81,
+    82
+   ],
+   "quote": "as of February 16, 2024, there are 16 registrations",
+   "exhibits": [
+    "39",
+    "40"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Delta notice of default under the CFS Agreement",
+   "date": "2024-02-17",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On February 17, 2024, Lynx Air received a notice of default from Delta",
+   "exhibits": [
+    "10"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "Letter of intent for an orderly wind-down transaction; interim financing term sheet",
+   "date": "2024-02-21",
+   "precision": "day",
+   "paragraphs": [
+    98,
+    109
+   ],
+   "quote": "As of February 21, 2024, the Applicants have entered into a Letter of Intent",
+   "exhibits": [
+    "43"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "FTI consents to act as Monitor",
+   "date": "2024-02",
+   "precision": "approximate",
+   "paragraphs": [
+    104
+   ],
+   "quote": "FTI has consented to act as Monitor of the Applicants",
+   "exhibits": [
+    "42"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "Cash-flow projections to March 2, 2024 prepared with FTI",
+   "date": "2024-02-22",
+   "precision": "approximate",
+   "paragraphs": [
+    102
+   ],
+   "quote": "on a go forward basis up to and including March 2, 2024",
+   "exhibits": [
+    "41"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Nine supplemental agreements to the aircraft purchase agreement",
+   "date": "2017-02-06",
+   "precision": "range",
+   "paragraphs": [
+    42
+   ],
+   "quote": "dated February 6, 2017, August 31, 2018",
+   "exhibits": [],
+   "end_date": "2023-08-17"
+  },
+  {
+   "id": "e34",
+   "description": "Lynx enters the Comprehensive Fleet Support Agreement with Delta",
+   "date": "2022-09-20",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "dated September 20, 2022 (the",
+   "exhibits": [
+    "10"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "Head office lease with Deerfoot Junction Holdings",
+   "date": "2021-12-30",
+   "precision": "day",
+   "paragraphs": [
+    79
+   ],
+   "quote": "dated December 30, 2021, as amended on May 1, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "description": "Engine lease agreements with Engine Lease Finance Corporation",
+   "date": "2023-04-26",
+   "precision": "day",
+   "paragraphs": [
+    71
+   ],
+   "quote": "each dated April 26, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "description": "Aircraft lease novation and amendment agreements executed",
+   "date": "2023-06-24",
+   "precision": "approximate",
+   "paragraphs": [
+    70
+   ],
+   "quote": "dated June 24, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "description": "ATB registers a security interest in cash deposits",
+   "date": "2023-11-06",
+   "precision": "day",
+   "paragraphs": [
+    74
+   ],
+   "quote": "On November 6, 2023, ATB registered a security interest",
+   "exhibits": [
+    "17"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "First CRA arrangement payment of $100,000 due",
+   "date": "2023-12-01",
+   "precision": "day",
+   "paragraphs": [
+    75
+   ],
+   "quote": "CAD$100,000 on December 1, 2023",
+   "exhibits": [
+    "38"
+   ]
+  },
+  {
+   "id": "e40",
+   "description": "Year-end position: assets $429.1M, liabilities $599.9M, 500 employees",
+   "date": "2023-12-31",
+   "precision": "day",
+   "paragraphs": [
+    16,
+    17,
+    19
+   ],
+   "quote": "As at December 31, 2023, the Applicants had total assets having a book value",
+   "exhibits": [
+    "4"
+   ]
+  },
+  {
+   "id": "e41",
+   "description": "Indigo indebtedness totals $100.2M principal and $24.1M interest",
+   "date": "2024-01-31",
+   "precision": "day",
+   "paragraphs": [
+    67,
+    100
+   ],
+   "quote": "As at January 31, 2024, the total amount owing under all of the aforementioned promissory notes",
+   "exhibits": [
+    "19",
+    "22",
+    "25",
+    "28",
+    "31",
+    "34"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "GTAA and Delta cure periods expire",
+   "date": "2024-02-21",
+   "precision": "range",
+   "paragraphs": [
+    97
+   ],
+   "quote": "cure periods expiring on February 21, 2024 and February 26, 2024",
+   "exhibits": [
+    "9",
+    "10"
+   ],
+   "end_date": "2024-02-26"
+  }
+ ],
+ "referenced_not_attached": [
+  "Aircraft Purchase Agreement and nine supplemental agreements (confidential)",
+  "Aircraft and engine leases",
+  "CGFC Agreement and notice of default",
+  "CFS Agreement with Delta",
+  "Letter of Intent of February 21, 2024",
+  "Commercial Lease with Deerfoot Junction Holdings"
+ ],
+ "leak_waivers": [],
+ "notes": "Initial CCAA affidavit with 43 numeric exhibits; the Indigo note certificates, guarantees and general security agreements form five near-identical sets (22-36), a hard case for matching. 1 and 2 have broken font encodings and 8, 38, 42 are scans (OCR'd)."
+}

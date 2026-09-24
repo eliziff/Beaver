@@ -1,0 +1,161 @@
+{
+ "record_id": "onsc-cp-bell-gortana",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00635778-00CP",
+ "subject": "class_action",
+ "family": "bell-prison-collect-calls",
+ "proceeding": "Fareau and Capay v. Bell Canada and HMK in right of Ontario (class action over collect-call rates from provincial correctional facilities): Bell's motion to dismiss for want of jurisdiction and response to certification",
+ "document": "Affidavit of Paul Gortana affirmed June 30, 2021",
+ "deponent": "Paul Gortana",
+ "deponent_role": "Director, Sales - Ontario Public Sector, Bell Canada (defendant)",
+ "sworn_date": "2021-06-30",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hr4yba.pdf",
+   "kind": "other",
+   "date": "2012-09-28",
+   "author": "Ontario Ministry of Community Safety and Correctional Services",
+   "recipients": [
+    "Telecommunications companies"
+   ],
+   "description": "Ministry's request for proposals for the Offender Telephone Management System",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the RFP is attached as Exhibit"
+    }
+   ],
+   "content_check": "64 pages, image-only scan: request for proposals issued September 28, 2012 (OCR'd)"
+  },
+  {
+   "label": "B",
+   "file": "doc-8xeuns.pdf",
+   "kind": "webpage",
+   "date": "2021-06-28",
+   "author": "Bell Canada (bell.ca)",
+   "recipients": [],
+   "description": "Printouts of bell.ca charts on collect-call surcharges and long distance rates",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: support.bell.ca 'How to make a collect call and how much does it cost', printed 6/28/2021, and long distance rate tables"
+  },
+  {
+   "label": "C",
+   "file": "doc-ckddt8.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Plaintiffs Vanessa Fareau and Ransome Capay",
+   "recipients": [
+    "Bell Canada"
+   ],
+   "description": "Plaintiffs' response to Bell's demand for particulars",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "response to Bell"
+    }
+   ],
+   "content_check": "6 pages: response to demand for particulars, Court File No. CV-20-00635778-00CP"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Ministry issues the RFP for OTMS inmate telephone services",
+   "date": "2012-09-28",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "on September 28, 2012",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Bell selected and enters the OTMS Agreement with the Ministry",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Ultimately, Bell was selected by the Ministry and entered into an agreement with the Ministry",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Bell spokesperson statement relied on by the plaintiffs",
+   "date": "2019-01-31",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "January 31, 2019",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Second Bell spokesperson statement relied on by the plaintiffs",
+   "date": "2020-01-14",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "January 14, 2020",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Plaintiffs' fresh as amended statement of claim",
+   "date": "2020-08-14",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "amended August 14, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Plaintiffs deliver their certification motion record",
+   "date": "2021-01-06",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "motion record dated January 6, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Supplementary Blum affidavit sworn",
+   "date": "2021-05-13",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the supplementary affidavit of Nadine Blum sworn May 13, 2021",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "OTMS Agreement (Exhibit A to the Blum Affidavit)",
+  "Fresh as amended statement of claim",
+  "Plaintiffs' certification motion record of January 6, 2021",
+  "Supplementary affidavit of Nadine Blum sworn May 13, 2021"
+ ],
+ "leak_waivers": [],
+ "notes": "Defendant-side affidavit from Bell's responding and cross-motion record (Tab 2, pages 13-96). Exhibit A is an image-only scan. Family bell-prison-collect-calls also covers onsc-cp-bell-capay, -blum and -fareau (plaintiffs' certification record; they carry no family slug) and onsc-cp-bell-herbert."
+}

@@ -16,6 +16,7 @@
  "leak_waivers": [],
  "notes": "Tab 2 of the certification motion record (source pages 14-30). The jurat page is a scan; its text was OCR'd with --ocr-affidavit (garbled at the foot). All four exhibits are image-only phone screenshots. The same record gave onsc-cp-bell-capay and onsc-cp-bell-blum (3 of max 3 for this proceeding).",
  "subject": "class_action",
+ "family": "bell-prison-collect-calls",
  "exhibits": [
   {
    "label": "A",

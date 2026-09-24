@@ -1,0 +1,700 @@
+{
+ "record_id": "onsc-cp-bell-herbert",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00635778-00CP",
+ "subject": "class_action",
+ "family": "bell-prison-collect-calls",
+ "proceeding": "Fareau and Capay v. Bell Canada and HMK in right of Ontario (class action over collect-call rates from provincial correctional facilities): Bell's motion to dismiss for want of jurisdiction, on the CRTC's telecommunications regulatory framework",
+ "document": "Affidavit of Pierre-Luc Hébert affirmed June 30, 2021",
+ "deponent": "Pierre-Luc Hébert",
+ "deponent_role": "Assistant General Counsel, BCE Inc. (parent of defendant Bell Canada), regulatory",
+ "sworn_date": "2021-06-30",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-t6b8xg.pdf",
+   "kind": "public_record",
+   "date": "2006",
+   "author": "Minister of Industry",
+   "recipients": [
+    "CRTC"
+   ],
+   "description": "2006 Policy Direction to the CRTC",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "The first is the 2006 Policy Direction, a copy of which is attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: consolidated regulation from laws-lois.justice.gc.ca, current to May 4, 2021 (bilingual)"
+  },
+  {
+   "label": "B",
+   "file": "doc-9y8ra9.pdf",
+   "kind": "public_record",
+   "date": "2019",
+   "author": "Minister of Industry",
+   "recipients": [
+    "CRTC"
+   ],
+   "description": "2019 Policy Direction to the CRTC",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "In 2019, the Minister issued a new Policy Direction, a copy of which is attached as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: consolidated regulation, current to May 4, 2021 (bilingual)"
+  },
+  {
+   "label": "C",
+   "file": "doc-zb7hcn.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Bell Canada",
+   "recipients": [],
+   "description": "Bell General Tariff Item 250 on public telephone rates",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "GT Item 250 is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: 'Bell Canada TC 6716 GENERAL TARIFF / TARIF GENERAL', Part 2"
+  },
+  {
+   "label": "D",
+   "file": "doc-b9cv83.pdf",
+   "kind": "public_record",
+   "date": "1997-12-18",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Decision CRTC 97-19 forbearing from regulating long distance services",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A copy of TD CRTC 1997-19 is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "30 pages: crtc.gc.ca printout 'Telecom Decision CRTC 97-19', printed 5/26/2021"
+  },
+  {
+   "label": "E",
+   "file": "doc-kp3kkj.pdf",
+   "kind": "public_record",
+   "date": "1998-06-30",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Decision CRTC 98-8, Local Pay Telephone Competition",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "27 pages: 'ARCHIVED - Telecom Decision CRTC 98-8', printed 5/26/2021"
+  },
+  {
+   "label": "F",
+   "file": "doc-9hugzg.pdf",
+   "kind": "public_record",
+   "date": "1995-03-15",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Order CRTC 95-316 on operator services tariffs and consumer safeguards",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "is a copy of Telecom Order CRTC 95-316"
+    }
+   ],
+   "content_check": "5 pages: 'ARCHIVED - Telecom Order CRTC 95-316', printed 5/26/2021"
+  },
+  {
+   "label": "G",
+   "file": "doc-enmmvw.pdf",
+   "kind": "public_record",
+   "date": "2007",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Decision CRTC 2007-27, price cap framework permitting higher payphone rates",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "45 pages: 'Telecom Decision CRTC 2007-27', printed 6/22/2021"
+  },
+  {
+   "label": "H",
+   "file": "doc-h2fnez.pdf",
+   "kind": "public_record",
+   "date": "2013-06-05",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Notice of Consultation 2013-337 on payphone consumer safeguards",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "A copy of Telecom Notice 2013-337 is attached as Exhibit"
+    }
+   ],
+   "content_check": "10 pages: 'Telecom Notice of Consultation CRTC 2013-337', printed 6/29/2021 (the record's index mislabels H as Decision 2007-27)"
+  },
+  {
+   "label": "I",
+   "file": "doc-rt2z9r.pdf",
+   "kind": "report",
+   "date": "2015-02-26",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "CRTC fact-finding report on the role of payphones",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "A copy of the Report is attached as Exhibit"
+    }
+   ],
+   "content_check": "19 pages: 'Results of the Fact-Finding Process on the Role of Payphones in the Canadian Communications System', printed 5/26/2021"
+  },
+  {
+   "label": "J",
+   "file": "doc-agra6d.pdf",
+   "kind": "public_record",
+   "date": "2015-02-26",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Notice of Consultation 2015-67 calling for comments",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "issued Telecom Notice of Consultation 2015-67, a copy of which is attached as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: 'Telecom Notice of Consultation CRTC 2015-67', Ottawa, 26 February 2015"
+  },
+  {
+   "label": "K",
+   "file": "doc-9xx3xb.pdf",
+   "kind": "letter",
+   "date": "2015-03-30",
+   "author": "Bell et al.",
+   "recipients": [
+    "John Traversy, CRTC Secretary General"
+   ],
+   "description": "Bell et al.'s initial response to the Notice",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "an initial response, dated March 30, 2015, which is attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: letter File No. 8650-C12-201501825, 2015 03 30, to Mr. John Traversy"
+  },
+  {
+   "label": "L",
+   "file": "doc-3c7pz2.pdf",
+   "kind": "letter",
+   "date": "2015-04-09",
+   "author": "Philippe Gauvin, Bell Canada",
+   "recipients": [
+    "CRTC"
+   ],
+   "description": "Bell et al.'s final reply",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "a final reply, dated April 9, 2015, which is attached as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: letter from Bell Canada, Philippe Gauvin, 160 Elgin Street"
+  },
+  {
+   "label": "M",
+   "file": "doc-4m8p2y.pdf",
+   "kind": "letter",
+   "date": "2015-04-24",
+   "author": "CRTC staff",
+   "recipients": [
+    "Interested parties including Bell"
+   ],
+   "description": "CRTC procedural letter seeking comments on an additional notification proposal",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "are \nattached as Exhibits"
+    }
+   ],
+   "content_check": "5 pages: 'ARCHIVED - Telecom - Commission procedural letter addressed to various parties interested in the call for comments', printed 5/26/2021"
+  },
+  {
+   "label": "N",
+   "file": "doc-rcdgvg.pdf",
+   "kind": "letter",
+   "date": "2015-05-08",
+   "author": "Bell et al.",
+   "recipients": [
+    "John Traversy, CRTC Secretary General"
+   ],
+   "description": "Bell et al.'s May 8 reply to the CRTC's letter",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "are \nattached as Exhibits"
+    }
+   ],
+   "content_check": "3 pages: letter File No. 8650-C12-201501825, 2015 05 08"
+  },
+  {
+   "label": "O",
+   "file": "doc-prhtwy.pdf",
+   "kind": "public_record",
+   "date": "2015-12-10",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Regulatory Policy CRTC 2015-546",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "A copy of TRP CRTC 2015-546 is attached as Exhibit"
+    }
+   ],
+   "content_check": "9 pages: 'Telecom Regulatory Policy CRTC 2015-546', printed 5/26/2021"
+  },
+  {
+   "label": "P",
+   "file": "doc-y9gvne.pdf",
+   "kind": "public_record",
+   "date": "2013",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Decision 2013-327 on payphone operator services",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "which is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "10 pages: 'ARCHIVED - Telecom Decision CRTC 2013-327', printed 5/26/2021"
+  },
+  {
+   "label": "Q",
+   "file": "doc-ec9wse.pdf",
+   "kind": "public_record",
+   "date": "2007",
+   "author": "CRTC",
+   "recipients": [],
+   "description": "Telecom Decision 2007-130 approving the CCTS structure and mandate",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "is a copy of Telecom Decision 2007-130"
+    }
+   ],
+   "content_check": "20 pages: 'ARCHIVED - Telecom Decision CRTC 2007-130', printed 5/26/2021"
+  },
+  {
+   "label": "R",
+   "file": "doc-prnpdg.pdf",
+   "kind": "webpage",
+   "date": "2017-09",
+   "author": "Commission for Complaints for Telecom-television Services",
+   "recipients": [],
+   "description": "CCTS procedural code from the CCTS website",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "s procedural code, which was accessed from the CCTS"
+    }
+   ],
+   "content_check": "11 pages: 'CCTS Procedural Code Sep 2017' printed 5/26/2021"
+  },
+  {
+   "label": "S",
+   "file": "doc-2dtju3.pdf",
+   "kind": "letter",
+   "date": "2015-10-15",
+   "author": "CCTS",
+   "recipients": [
+    "CRTC"
+   ],
+   "description": "CCTS response to a CRTC request for information on complaints about long distance payphone calls",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "A copy of the Response to Request for Information dated October 15, 2015 is attached as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: 'Q. Complaints with Aspects Both in and out of Scope ... How does the CCTS handle complaints'"
+  },
+  {
+   "label": "T",
+   "file": "doc-mjwxzb.pdf",
+   "kind": "letter",
+   "date": "2016-06-10",
+   "author": "Bell Canada",
+   "recipients": [
+    "Danielle May-Cuconato, CRTC Secretary General"
+   ],
+   "description": "Bell's June 10, 2016 response to the CRTC Direction proposing IVR changes",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "is a copy of this June 10, 2016 letter"
+    }
+   ],
+   "content_check": "4 pages: letter File No. 8650-C12-201501825, 2016 06 10, to Ms. Danielle May-Cuconato"
+  },
+  {
+   "label": "U",
+   "file": "doc-xzyr5r.pdf",
+   "kind": "letter",
+   "date": "2016",
+   "author": "Other ILECs",
+   "recipients": [
+    "CRTC"
+   ],
+   "description": "Letters from other incumbent carriers responding to the CRTC Direction",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "are copies of these letters from other ILECs"
+    }
+   ],
+   "content_check": "17 pages: letters, first from Stephen Schmidt, Vice-President Telecom Policy & Chief Regulatory Legal Counsel"
+  },
+  {
+   "label": "V",
+   "file": "doc-6usfps.pdf",
+   "kind": "letter",
+   "date": "1996-05-10",
+   "author": "Bell Canada",
+   "recipients": [
+    "CRTC"
+   ],
+   "description": "Bell's May 1996 letter proposing a tariff item for inmate telephone service",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "On May 10, 1996, Bell wrote to the CRTC to propose this new item"
+    }
+   ],
+   "content_check": "2 pages, image-only scan (OCR'd)"
+  },
+  {
+   "label": "W",
+   "file": "doc-vswh9w.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Bell Canada",
+   "recipients": [],
+   "description": "General Tariff Item 292, Inmate Service",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "A copy of GT Item 292 is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "1 page: 'PUBLIC TELEPHONE SERVICE ... Item 292. INMATE SERVICE' (bilingual)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Local payphone rates last changed before 2007",
+   "date": "1981",
+   "precision": "year",
+   "paragraphs": [
+    14
+   ],
+   "quote": "prior to this, the rates had not changed since 1981",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "CRTC Telecom Order 95-316 requires operator services tariffs with consumer safeguards",
+   "date": "1995-03-15",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Telecom Order CRTC 95-316, issued on March 15, 1995",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Bell writes to the CRTC proposing an inmate service tariff item",
+   "date": "1996-05-10",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "On May 10, 1996, Bell wrote to the CRTC to propose this new item",
+   "exhibits": [
+    "V",
+    "W"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CRTC forbears from regulating long distance (TD CRTC 97-19)",
+   "date": "1997-12-18",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On December 18, 1997, the CRTC issued Telecom Decision CRTC 97-19",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "CRTC opens local payphone competition (TD CRTC 98-8)",
+   "date": "1998-06-30",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "This changed on June 30, 1998, when the CRTC issued Telecom Decision CRTC 98-8",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Hébert joins Bell",
+   "date": "2003",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been with Bell since 2003.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Minister of Industry issues the 2006 Policy Direction",
+   "date": "2006",
+   "precision": "year",
+   "paragraphs": [
+    10
+   ],
+   "quote": "The first is the 2006 Policy Direction",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "CRTC permits higher payphone charges (TD CRTC 2007-27)",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    14,
+    22
+   ],
+   "quote": "In 2007, the tariffed rate for local non-cash payphone calls rose",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "CCTS established by service providers at the Government's direction",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    32
+   ],
+   "quote": "The CCTS was established by a number of telecommunications service providers in 2007",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "CRTC launches the payphone safeguards review (Notice 2013-337)",
+   "date": "2013-06-05",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Telecom Notice of Consultation 2013-337 on June 5, 2013",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "CRTC denies Bell's request to raise payphone rates",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    14
+   ],
+   "quote": "In 2013, the CRTC denied a request by Bell",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "CRTC releases its payphone fact-finding report and Notice 2015-67",
+   "date": "2015-02-26",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "on February 26, 2015, the CRTC",
+   "exhibits": [
+    "I",
+    "J"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Bell et al. file their initial response",
+   "date": "2015-03-30",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "an initial response, dated March 30, 2015",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Bell et al. file their final reply",
+   "date": "2015-04-09",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "a final reply, dated April 9, 2015",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "CRTC staff letter seeks comments on an additional notification proposal",
+   "date": "2015-04-24",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "dated April 24, 2015",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Bell et al. reply to the CRTC letter",
+   "date": "2015-05-08",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "a letter, dated May 8, 2015",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "CCTS answers the CRTC's request for information on its jurisdiction",
+   "date": "2015-10-15",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "Response to Request for Information dated October 15, 2015",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "CRTC releases TRP CRTC 2015-546 directing ILECs to propose notice measures",
+   "date": "2015-12-10",
+   "precision": "day",
+   "paragraphs": [
+    26,
+    28
+   ],
+   "quote": "released on December 10, 2015",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Bell responds to the CRTC Direction proposing IVR changes",
+   "date": "2016-06-10",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "By correspondence dated June 10, 2016, Bell provided the CRTC with its response",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Other ILECs respond to the CRTC Direction",
+   "date": "2016",
+   "precision": "approximate",
+   "paragraphs": [
+    38
+   ],
+   "quote": "Other ILECs provided responses to the CRTC Direction.",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Minister issues the 2019 Policy Direction",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In 2019, the Minister issued a new Policy Direction",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Plaintiffs' fresh as amended claim",
+   "date": "2020-08-14",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "amended August 14, 2020",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Telecom Public Notice CRTC 97-26",
+  "Order P.C. 2007-533",
+  "Fresh as amended statement of claim",
+  "Plaintiffs' certification motion record and supplementary Blum affidavit"
+ ],
+ "leak_waivers": [],
+ "notes": "Defendant-side regulatory affidavit from Bell's responding and cross-motion record (Tab 3, pages 98-391). The record's index lists H as Telecom Decision 2007-27, but the affidavit and the file are Notice of Consultation 2013-337. Subject is regulatory: the motion turns on CRTC jurisdiction over inmate collect calls."
+}

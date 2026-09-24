@@ -17,6 +17,7 @@
  "leak_waivers": [],
  "notes": "Affidavit pages are scanned; affidavit.txt is Tesseract OCR (split --ocr-affidavit), so quotes keep OCR spellings such as 'ofmy'. The affirmation day is illegible ('December/ 42020'); sworn_date is the month. Exhibits B-G are image-only scanned bills.",
  "subject": "class_action",
+ "family": "bell-prison-collect-calls",
  "exhibits": [
   {
    "label": "A",

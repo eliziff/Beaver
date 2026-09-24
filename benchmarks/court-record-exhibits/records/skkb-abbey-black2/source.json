@@ -1,0 +1,20 @@
+{
+ "url": "https://mnpdebt.ca/-/media/files/mnpdebt/corporate/corporate-engagements/receivership/abbey-resources/second-affidavit-of-kathryn-black.pdf",
+ "landing_url": "https://mnpdebt.ca/en/corporate/corporate-engagements/abbey-resources",
+ "court": "Court of King's Bench for Saskatchewan",
+ "court_level": "superior_trial",
+ "jurisdiction": "SK",
+ "court_file": "Q.B. No. 151 of 2022 (Saskatoon)",
+ "document_title": "Second Affidavit of Kathryn A. Black sworn February 25, 2022 (receivership and CCAA of Abbey Resources Corp.)",
+ "retrieved": "2026-09-24",
+ "record_id": "skkb-abbey-black2",
+ "source_file": "r6-second-affidavit-of-kathryn-black.pdf",
+ "page_range": [
+  1,
+  35
+ ],
+ "source_sha256": "9923d3778f92f25b554d7165020ce423a78fd021bbd608095bd04e41a6839cd5",
+ "source_pages": 35,
+ "affidavit_ocr": true,
+ "drop": "34,35"
+}

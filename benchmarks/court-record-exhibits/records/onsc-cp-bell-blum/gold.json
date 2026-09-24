@@ -13,6 +13,7 @@
  "leak_waivers": [],
  "notes": "Page 3 of the affidavit (paragraphs 7-8 and the jurat) is a scan; affidavit.txt holds its Tesseract OCR (split --ocr-affidavit). Second record from this certification motion record (see onsc-cp-bell-capay).",
  "subject": "class_action",
+ "family": "bell-prison-collect-calls",
  "exhibits": [
   {
    "label": "A",

@@ -1,0 +1,19 @@
+{
+ "url": "https://fncaringsociety.com/sites/default/files/2026-02/Affidavit%20of%20Lisa%20Smylie%20(Redacted).pdf",
+ "landing_url": "https://fncaringsociety.com/i-am-witness-tribunal-timeline-and-documents",
+ "court": "Canadian Human Rights Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "T1340/7008",
+ "document_title": "Affidavit of Lisa Smylie (Redacted), ISC Assistant Deputy Minister (T1340/7008)",
+ "retrieved": "2026-09-24",
+ "record_id": "chrt-caring-smylie",
+ "source_file": "lb-affidavit-20of-20lisa-20smylie-20-redacted.pdf",
+ "page_range": [
+  1,
+  291
+ ],
+ "source_sha256": "be07a6c212f32ecb284a5e52e74acc13e397b618f3c878927e3b0dbb3a915965",
+ "source_pages": 291,
+ "covers": "A=9,B=26,C=247,D=255,E=258,F=272,G=289"
+}

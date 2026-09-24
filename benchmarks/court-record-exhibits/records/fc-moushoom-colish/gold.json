@@ -1,0 +1,700 @@
+{
+ "record_id": "fc-moushoom-colish",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-402-19 / T-141-20 / T-1120-21",
+ "subject": "class_action",
+ "family": "moushoom-fn-child-welfare",
+ "proceeding": "Moushoom et al. v. Attorney General of Canada (First Nations child welfare and Jordan's Principle class actions): motion for approval of the June 30, 2022 settlement",
+ "document": "Affidavit of William Colish affirmed September 2, 2022",
+ "deponent": "William Colish",
+ "deponent_role": "Lawyer, Kugler Kandestin LLP, class counsel",
+ "sworn_date": "2022-09-02",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-y6tpes.pdf",
+   "kind": "court_order",
+   "date": "2021-07-07",
+   "author": "Federal Court (St-Louis J.)",
+   "recipients": [],
+   "description": "Order consolidating the actions and granting leave to commence the Trout Action",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "6 pages: order dated 20210707, Docket T-402-19 T-141-20, Madam Justice St-Louis"
+  },
+  {
+   "label": "B",
+   "file": "doc-ntuccv.pdf",
+   "kind": "court_order",
+   "date": "2021-11-26",
+   "author": "Federal Court (Aylen J.)",
+   "recipients": [],
+   "description": "Certification order of the Consolidated Class Action",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "is the certification order of the Consolidated Class Action"
+    }
+   ],
+   "content_check": "15 pages: 2021 FC 1225, November 26, 2021, Aylen J."
+  },
+  {
+   "label": "C",
+   "file": "doc-twb4su.pdf",
+   "kind": "court_order",
+   "date": "2022-02-11",
+   "author": "Federal Court (Aylen J.)",
+   "recipients": [],
+   "description": "Certification order of the Trout Action",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "is the certification order of the Trout Action"
+    }
+   ],
+   "content_check": "47 pages: 2022 FC 149, Docket T-1120-21, February 11, 2022, Aylen J."
+  },
+  {
+   "label": "D",
+   "file": "doc-esvfr9.pdf",
+   "kind": "report",
+   "date": "2020-04-02",
+   "author": "Office of the Parliamentary Budget Officer",
+   "recipients": [],
+   "description": "PBO report 'First Nations Child Welfare: Compensation for Removals'",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "29 pages: 'April 02, 2020 FIRST NATIONS CHILD WELFARE: COMPENSATION FOR REMOVALS', PBO"
+  },
+  {
+   "label": "E",
+   "file": "doc-fmhsyx.pdf",
+   "kind": "report",
+   "date": "2021-01-18",
+   "author": "Nico Trocmé and Peter Gorham",
+   "recipients": [
+    "Class counsel"
+   ],
+   "description": "Expert report estimating the size of the Removed Child Class, 1991-2019",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "provided a report on January 18, 2021"
+    }
+   ],
+   "content_check": "48 pages: 'Report on the Estimated Class Size - First Nations Children in Care 1991 to 2019', Peter Gorham, JDM Actuarial"
+  },
+  {
+   "label": "F",
+   "file": "doc-2uxxr7.pdf",
+   "kind": "letter",
+   "date": "2022-02-07",
+   "author": "Peter Gorham",
+   "recipients": [
+    "Robert Kugler, Kugler Kandestin LLP"
+   ],
+   "description": "Gorham letter updating the class size estimate to 116,000 removed children",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "Mr. Gorham delivered a letter on February 7, 2022, updating the class size estimate."
+    }
+   ],
+   "content_check": "2 pages: letter 7 February 2022 to Mr. Robert Kugler, 'RE: Moushoom/Trout - Removed Children ...'"
+  },
+  {
+   "label": "G",
+   "file": "doc-rws6ba.pdf",
+   "kind": "report",
+   "date": "2021-02-23",
+   "author": "Office of the Parliamentary Budget Officer",
+   "recipients": [],
+   "description": "PBO report 'Compensation for the Delay and Denial of Services to First Nations Children'",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "19 pages: 'February 23, 2021 COMPENSATION FOR THE DELAY AND DENIAL OF SERVICES TO FIRST NATIONS CHILDREN'"
+  },
+  {
+   "label": "H",
+   "file": "doc-pw4kar.pdf",
+   "kind": "report",
+   "date": "2005",
+   "author": "First Nations Child and Family Caring Society (Wen:De)",
+   "recipients": [],
+   "description": "Wen:De: We are Coming to the Light of Day report",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "is Wen:De: We are Coming to the Light of Day"
+    }
+   ],
+   "content_check": "225 pages: 'WEN: DE WE ARE COMING TO THE LIGHT OF DAY'"
+  },
+  {
+   "label": "I",
+   "file": "doc-qhn8v6.pdf",
+   "kind": "public_record",
+   "date": "2007-12-12",
+   "author": "House of Commons of Canada",
+   "recipients": [],
+   "description": "December 12, 2007 House of Commons Motion 296 on Jordan's Principle",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "and attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: 'Journals No. 36 - December 12, 2007 (39-2) - House of Commons of Canada', printed 10/20/2020"
+  },
+  {
+   "label": "J",
+   "file": "doc-vqhhyg.pdf",
+   "kind": "report",
+   "date": "2022-02",
+   "author": "Fallon, Trocmé et al. (University of Toronto and McGill)",
+   "recipients": [
+    "Indigenous Services Canada"
+   ],
+   "description": "Report 'Review of Data and Process Considerations for Compensation Under 2019 CHRT 39'",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "The report is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "743 pages: 'Review of Data and Process Considerations for Compensation Under 2019 CHRT 39, Report prepared for Indigenous Services Canada, February 2022'"
+  },
+  {
+   "label": "K",
+   "file": "doc-zmwkzq.pdf",
+   "kind": "agreement",
+   "date": "2022-06-30",
+   "author": "Plaintiffs, AFN and Canada",
+   "recipients": [],
+   "description": "Final Settlement Agreement with schedules",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "The parties signed the FSA on June 30, 2022."
+    }
+   ],
+   "content_check": "307 pages: 'First Nations Child and Family Services, Jordan's Principle, Trout Class Settlement Agreement' with table of contents"
+  },
+  {
+   "label": "L",
+   "file": "doc-e5z2sj.pdf",
+   "kind": "webpage",
+   "date": "2022-07-22",
+   "author": "Crown-Indigenous Relations and Northern Affairs Canada",
+   "recipients": [],
+   "description": "Statistics on the implementation of the Indian Residential Schools Settlement Agreement",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "11 pages: rcaanc-cirnac.gc.ca 'Statistics on the Implementation of the Indian Residential Schools Sett...', printed 2022-07-22"
+  },
+  {
+   "label": "M",
+   "file": "doc-x3d9qh.pdf",
+   "kind": "court_order",
+   "date": "2022-06-24",
+   "author": "Federal Court (Aylen J.)",
+   "recipients": [],
+   "description": "Order approving the notices of certification and settlement approval hearing and opt-out form, English and French",
+   "references": [
+    {
+     "paragraph": 106,
+     "quote": "is the Court"
+    }
+   ],
+   "content_check": "59 pages: order dated 20220624, Dockets T-402-19 T-141-20 T-1120-21, Aylen J., with approved notices"
+  },
+  {
+   "label": "N",
+   "file": "doc-jpawe6.pdf",
+   "kind": "court_order",
+   "date": "2022-08-11",
+   "author": "Federal Court (Aylen J.)",
+   "recipients": [],
+   "description": "Order approving the notice plan and appointing Deloitte as administrator, English and French",
+   "references": [
+    {
+     "paragraph": 107,
+     "quote": "On August 11, 2022, Madam Justice Aylen approved the notice plan"
+    }
+   ],
+   "content_check": "42 pages: order dated 20220811, Aylen J., with notice plan"
+  },
+  {
+   "label": "O",
+   "file": "doc-2cdk5d.pdf",
+   "kind": "letter",
+   "date": "2022-08-08",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
+   "description": "Tribunal's timetable direction of August 8, 2022",
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "timetable direction of August 8, 2022"
+    }
+   ],
+   "content_check": "3 pages: letter August 8, 2022 'By e-mail ... Dear Parties, Re: First Nations Child and Family Caring Society et al. ... Tribunal File: T1340/7008'"
+  },
+  {
+   "label": "P",
+   "file": "doc-hdp49k.pdf",
+   "kind": "letter",
+   "date": "2022-08-16",
+   "author": "Canadian Human Rights Tribunal panel",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
+   "description": "Tribunal panel direction of August 16, 2022 reaffirming the schedule",
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: letter August 16, 2022 to the parties, Tribunal File T1340"
+  },
+  {
+   "label": "Q",
+   "file": "doc-g28843.pdf",
+   "kind": "court_order",
+   "date": "2022-08-18",
+   "author": "Federal Court (McDonald J.)",
+   "recipients": [],
+   "description": "Interim order and reasons banning unapproved communications to the class",
+   "references": [
+    {
+     "paragraph": 109,
+     "quote": "decision is \nattached as Exhibit"
+    }
+   ],
+   "content_check": "12 pages: 2022 FC 1212, August 18, 2022, Madam Justice McDonald, class proceedings"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Wen:De report first articulates Jordan's Principle",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    38
+   ],
+   "quote": "from its inception in 2005 in Wen:De",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "AFN and Caring Society file their human rights complaint",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    21
+   ],
+   "quote": "In 2007, the AFN and the First Nations Child and Family Caring Society of Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "House of Commons adopts Motion 296 on Jordan's Principle",
+   "date": "2007-12-12",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "a 2007 \nHouse of Commons resolution",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Commission refers the complaint to the Tribunal",
+   "date": "2008-10-14",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On October 14, 2008, the Canadian Human Rights Commission referred the complaint",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Tribunal's merits decision, 2016 CHRT 2",
+   "date": "2016-01-26",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The Tribunal rendered its decision on the merits of the complaint on January 26, 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Moushoom commences the proposed class action T-402-19",
+   "date": "2019-03-04",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "on March 4, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Exploratory settlement discussions; Trocmé and Gorham retained to estimate the Removed Child Class",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The parties to the Moushoom Class Action had some exploratory settlement discussions with Canada in 2019.",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Canada completes the GCCase roll-out for Jordan's Principle data",
+   "date": "2019-12",
+   "precision": "month",
+   "paragraphs": [
+    42
+   ],
+   "quote": "In December 2019, Canada completed its roll-out of GCCase.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "AFN files its proposed class action T-141-20",
+   "date": "2020-01-28",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On January 28, 2020, the AFN and some proposed representative plaintiffs filed a proposed class action",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "PBO issues 'First Nations Child Welfare: Compensation for Removals'",
+   "date": "2020-04-02",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "the Parliamentary Budget Officer issued a report on April 2, 2020",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Mediation before the Hon. Leonard Mandamin begins",
+   "date": "2020-11-22",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Beginning on November 22, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Trocmé and Gorham deliver the class size report",
+   "date": "2021-01-18",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "provided a report on January 18, 2021",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "PBO issues 'Compensation for the Delay and Denial of Services to First Nations Children'",
+   "date": "2021-02-23",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "dated February 23, 2021",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Actions consolidated and Trout Action authorized by St-Louis J.",
+   "date": "2021-07-07",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    16
+   ],
+   "quote": "The claims were formally consolidated on July 7, 2021",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Trout and the AFN commence the Trout Action T-1120-21",
+   "date": "2021-07-16",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "on July 16, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Mediation ends without agreement",
+   "date": "2021-09",
+   "precision": "month",
+   "paragraphs": [
+    29
+   ],
+   "quote": "until September 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Intensive negotiations facilitated by the Hon. Murray Sinclair begin",
+   "date": "2021-11",
+   "precision": "month",
+   "paragraphs": [
+    30
+   ],
+   "quote": "Beginning in early November 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Consolidated Class Action certified on consent",
+   "date": "2021-11-26",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "certified the Consolidated Class Action on consent on November 26, 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Parties execute the $20 billion agreement in principle",
+   "date": "2021-12-31",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "On December 31, 2021, the parties executed an agreement in principle",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Gorham updates the class size estimate to 116,000",
+   "date": "2022-02-07",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "Mr. Gorham delivered a letter on February 7, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Trout Action certified on consent",
+   "date": "2022-02-11",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "certified the Trout Action on consent on February 11, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "ISC-commissioned experts issue the data review report",
+   "date": "2022-02",
+   "precision": "month",
+   "paragraphs": [
+    48
+   ],
+   "quote": "On February 2022, the experts issued a report",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Aylen J. approves the notices and opt-out form",
+   "date": "2022-06-24",
+   "precision": "day",
+   "paragraphs": [
+    106
+   ],
+   "quote": "On June 24, 2022, Madam Justice Aylen approved the short form notice",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Parties sign the Final Settlement Agreement",
+   "date": "2022-06-30",
+   "precision": "day",
+   "paragraphs": [
+    52
+   ],
+   "quote": "The parties signed the FSA on June 30, 2022.",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Class counsel learn of misleading communications to the class by an outside law firm",
+   "date": "2022-07",
+   "precision": "month",
+   "paragraphs": [
+    109
+   ],
+   "quote": "In July 2022, we learned of communications to the class by a law firm",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Sotos begins trying to arrange publication in First Nations Drum",
+   "date": "2022-08-02",
+   "precision": "day",
+   "paragraphs": [
+    114
+   ],
+   "quote": "as of August 2, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Tribunal sets its timetable for the FSA motion",
+   "date": "2022-08-08",
+   "precision": "day",
+   "paragraphs": [
+    108
+   ],
+   "quote": "timetable direction of August 8, 2022",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "Aylen J. approves the notice plan and appoints Deloitte",
+   "date": "2022-08-11",
+   "precision": "day",
+   "paragraphs": [
+    107
+   ],
+   "quote": "On August 11, 2022, Madam Justice Aylen approved the notice plan",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Tribunal reaffirms its schedule and sets hearing dates",
+   "date": "2022-08-16",
+   "precision": "day",
+   "paragraphs": [
+    108
+   ],
+   "quote": "On August 16, \n2022, the Tribunal issued a direction",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "McDonald J. grants interlocutory relief banning unapproved communications to the class",
+   "date": "2022-08-18",
+   "precision": "day",
+   "paragraphs": [
+    109
+   ],
+   "quote": "The Court granted \nthe interlocutory relief on August 18, 2022",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Notices published under the approved notice plan",
+   "date": "2022-08-19",
+   "precision": "day",
+   "paragraphs": [
+    110,
+    111
+   ],
+   "quote": "as of August 19, 2022",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "As of September 1, 2022, no effective opt-outs and 11,261 ad link clicks",
+   "date": "2022-09-01",
+   "precision": "day",
+   "paragraphs": [
+    119,
+    120
+   ],
+   "quote": "as of September 1, 2022, no class member appears to have opted out of the FSA",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "2019 CHRT 39 Compensation Decision and later rulings",
+  "Other affidavits sworn concurrently on the Jordan's Principle methodology",
+  "Tribunal hearing materials on the AFN and Canada motion"
+ ],
+ "leak_waivers": [],
+ "notes": "Split from the plaintiffs' settlement-approval motion record (Tab 9, pages 236-1867). Exhibits A, B are the same orders as fc-moushoom-meawasige2022 C, D (same family). Several exhibits are scanned in part and OCR'd."
+}
