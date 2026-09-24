@@ -9,27 +9,243 @@
  "deponent": "Nadine Blum",
  "deponent_role": "Lawyer at Goldblatt Partners LLP, class counsel",
  "sworn_date": "2020-12-21",
- "exhibits": [
-  {"label": "A", "file": "doc-dczs25.pdf", "kind": "public_record", "date": "2017-02-06", "author": "Ministry of Community Safety and Correctional Services", "recipients": ["Michael J. Spratt"], "description": "Package of documents obtained by Michael Spratt from MCSCS under a FIPPA request (CSCS-A-2016-02841): covering letter, policy manual, OMTS memoranda, Bell's RFP proposal, the Crown-Bell agreement and a Deputy Minister's information note", "references": [{"paragraph": 2, "quote": "Attached as Exhibit \"A\" is a copy of a package of documents that I am advised by, and\nbelieve, were obtained by Ottawa lawyer Michael Spratt"}], "content_check": "87 scanned pages opening with the MCSCS FOI coordinator's letter to Michael J. Spratt stamped FEB 06 2017, subject Request Number CSCS-A-2016-02841, granting partial access to inmate telephone records"},
-  {"label": "B", "file": "doc-m8y7v8.pdf", "kind": "webpage", "date": "2020-01-31", "author": "Ministry of the Solicitor General", "recipients": [], "description": "Web page 'Corrections - Inmate Telephone Communication | Ministry of the Solicitor General'", "references": [{"paragraph": 3, "quote": "Attached as Exhibit \"B\" is a copy of a document titled \"Corrections - Inmate Telephone \nCommunication | Ministry of the Solicitor General\""}], "content_check": "Three-page printout dated 1/31/2020 of the mcscs.jus.gov.on.ca Inmate Telephone Communication page"},
-  {"label": "C", "file": "doc-tqaqsy.pdf", "kind": "chart", "date": null, "author": "Geetha Philipupillai (Goldblatt Partners LLP)", "recipients": [], "description": "Chart of prison telephone rates across Canada built from publicly available information", "references": [{"paragraph": 4, "quote": "Attached as Exhibit \"C\" is a chart of prison telephone rates across Canada."}], "content_check": "53-page rate chart, beginning 'A. Rate Information from Publicly Available Contracts or Provincial Rate Summaries', British Columbia December 2012 contract"},
-  {"label": "D", "file": "doc-5xpccf.pdf", "kind": "webpage", "date": "2020-01-14", "author": "Global News", "recipients": [], "description": "Article 'Ontario looking to adjust jail phone call system, include calls to cellphones'", "references": [{"paragraph": 5, "quote": "Attached as Exhibit \"D\" is an article dated January 14, 2020 titled \"Ontario looking to \nadjust jail phone call system, include calls to cellphones\""}], "content_check": "Four-page web printout; text layer is font-garbled"},
-  {"label": "E", "file": "doc-8erx9m.pdf", "kind": "webpage", "date": "2019-01-31", "author": "Ottawa Citizen", "recipients": [], "description": "Article 'Bell, let's talk about making it easier for inmates to call from jail, say protesters'", "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"E\" is an article dated January 31, 2019 titled \"Bell, let's talk about \nmaking it easier for inmates to call from jail, say protesters\""}], "content_check": "Seven-page Ottawa Citizen printout with the matching headline"},
-  {"label": "F", "file": "doc-dvzmzx.pdf", "kind": "public_record", "date": "2018-12-17", "author": "Office of the Chief Coroner for Ontario", "recipients": [], "description": "Verdict of Coroner's Jury dated December 17, 2018 (inquest into the death of Cleve Geddes)", "references": [{"paragraph": 7, "quote": "Attached as Exhibit \"F\" is the Verdict of Coroner's Jury dated December 17, 2018"}], "content_check": "Seven-page printout (12/17/2020) of the Verdict of Coroner's Jury, inquest into the death of Cleve Gordon Geddes, held November 26 to December 17, 2018; text layer is font-garbled"},
-  {"label": "G", "file": "doc-khvb3y.pdf", "kind": "court_filing", "date": null, "author": "Plaintiffs' counsel", "recipients": [], "description": "Proposed litigation plan", "references": [{"paragraph": 8, "quote": "Attached as Exhibit \"G\" is a proposed litigation plan."}], "content_check": "Eleven-page litigation plan captioned Fareau and Capay v. Bell Canada et al., CV-20-00635778-00CP"}
- ],
- "events": [
-  {"id": "e1", "date": "2012-11-20", "precision": "day", "description": "Bell Canada submitted its proposal in response to the Crown's Request for Proposals No. COS-0009", "paragraphs": [2], "quote": "Bell Canada's proposal dated November 20, 2012 in response to \nthe Crown's Request for Proposals No. COS-0009", "exhibits": ["A"]},
-  {"id": "e2", "date": "2013-02-13", "precision": "day", "description": "MCSCS memorandum regarding the Offender Management Telephone System", "paragraphs": [2], "quote": "Memorandums regarding the Offender Management Telephone System dated February 13, \n2013 and October 29, 2013", "exhibits": ["A"]},
-  {"id": "e3", "date": "2013-10-29", "precision": "day", "description": "Second MCSCS memorandum regarding the Offender Management Telephone System", "paragraphs": [2], "quote": "2013 and October 29, 2013", "exhibits": ["A"]},
-  {"id": "e4", "date": "2016-05-09", "precision": "day", "description": "Deputy Minister's information note at MCSCS", "paragraphs": [2], "quote": "an information note by the Deputy Minister at MCSCS dated May 9, \n2016", "exhibits": ["A"]},
-  {"id": "e5", "date": null, "precision": "undated", "description": "Michael Spratt obtained the documents from MCSCS through a FIPPA request, redacted by the Ministry before disclosure", "paragraphs": [2], "quote": "the redactions in these documents were made \nby the MCSCS before the documents were disclosed to Mr. Spratt", "exhibits": ["A"]},
-  {"id": "e6", "date": "2018-12-17", "precision": "day", "description": "Coroner's jury delivered its verdict", "paragraphs": [7], "quote": "Verdict of Coroner's Jury dated December 17, 2018", "exhibits": ["F"]},
-  {"id": "e7", "date": "2019-01-31", "precision": "day", "description": "Ottawa Citizen reported protesters urging Bell to make it easier for inmates to call from jail", "paragraphs": [6], "quote": "an article dated January 31, 2019", "exhibits": ["E"]},
-  {"id": "e8", "date": "2020-01-14", "precision": "day", "description": "Global News reported Ontario was looking to adjust its jail phone system to include calls to cellphones", "paragraphs": [5], "quote": "an article dated January 14, 2020", "exhibits": ["D"]},
-  {"id": "e9", "date": null, "precision": "undated", "description": "Geetha Philipupillai created a chart of prison telephone rates from public sources", "paragraphs": [4], "quote": "she\ncreated this chart based on publicly available information regarding those rates", "exhibits": ["C"]}
- ],
  "referenced_not_attached": [],
  "leak_waivers": [],
- "notes": "Page 3 of the affidavit (paragraphs 7-8 and the jurat) is a scan; affidavit.txt holds its Tesseract OCR (split --ocr-affidavit). Second record from this certification motion record (see onsc-cp-bell-capay)."
+ "notes": "Page 3 of the affidavit (paragraphs 7-8 and the jurat) is a scan; affidavit.txt holds its Tesseract OCR (split --ocr-affidavit). Second record from this certification motion record (see onsc-cp-bell-capay).",
+ "subject": "class_action",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dczs25.pdf",
+   "kind": "public_record",
+   "date": "2017-02-06",
+   "author": "Ministry of Community Safety and Correctional Services",
+   "recipients": [
+    "Michael J. Spratt"
+   ],
+   "description": "Package of documents obtained by Michael Spratt from MCSCS under a FIPPA request (CSCS-A-2016-02841): covering letter, policy manual, OMTS memoranda, Bell's RFP proposal, the Crown-Bell agreement and a Deputy Minister's information note",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached as Exhibit \"A\" is a copy of a package of documents that I am advised by, and\nbelieve, were obtained by Ottawa lawyer Michael Spratt"
+    }
+   ],
+   "content_check": "87 scanned pages opening with the MCSCS FOI coordinator's letter to Michael J. Spratt stamped FEB 06 2017, subject Request Number CSCS-A-2016-02841, granting partial access to inmate telephone records"
+  },
+  {
+   "label": "B",
+   "file": "doc-m8y7v8.pdf",
+   "kind": "webpage",
+   "date": "2020-01-31",
+   "author": "Ministry of the Solicitor General",
+   "recipients": [],
+   "description": "Web page 'Corrections - Inmate Telephone Communication | Ministry of the Solicitor General'",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit \"B\" is a copy of a document titled \"Corrections - Inmate Telephone \nCommunication | Ministry of the Solicitor General\""
+    }
+   ],
+   "content_check": "Three-page printout dated 1/31/2020 of the mcscs.jus.gov.on.ca Inmate Telephone Communication page"
+  },
+  {
+   "label": "C",
+   "file": "doc-tqaqsy.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Geetha Philipupillai (Goldblatt Partners LLP)",
+   "recipients": [],
+   "description": "Chart of prison telephone rates across Canada built from publicly available information",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit \"C\" is a chart of prison telephone rates across Canada."
+    }
+   ],
+   "content_check": "53-page rate chart, beginning 'A. Rate Information from Publicly Available Contracts or Provincial Rate Summaries', British Columbia December 2012 contract"
+  },
+  {
+   "label": "D",
+   "file": "doc-5xpccf.pdf",
+   "kind": "webpage",
+   "date": "2020-01-14",
+   "author": "Global News",
+   "recipients": [],
+   "description": "Article 'Ontario looking to adjust jail phone call system, include calls to cellphones'",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"D\" is an article dated January 14, 2020 titled \"Ontario looking to \nadjust jail phone call system, include calls to cellphones\""
+    }
+   ],
+   "content_check": "Four-page web printout; text layer is font-garbled"
+  },
+  {
+   "label": "E",
+   "file": "doc-8erx9m.pdf",
+   "kind": "webpage",
+   "date": "2019-01-31",
+   "author": "Ottawa Citizen",
+   "recipients": [],
+   "description": "Article 'Bell, let's talk about making it easier for inmates to call from jail, say protesters'",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit \"E\" is an article dated January 31, 2019 titled \"Bell, let's talk about \nmaking it easier for inmates to call from jail, say protesters\""
+    }
+   ],
+   "content_check": "Seven-page Ottawa Citizen printout with the matching headline"
+  },
+  {
+   "label": "F",
+   "file": "doc-dvzmzx.pdf",
+   "kind": "public_record",
+   "date": "2018-12-17",
+   "author": "Office of the Chief Coroner for Ontario",
+   "recipients": [],
+   "description": "Verdict of Coroner's Jury dated December 17, 2018 (inquest into the death of Cleve Geddes)",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit \"F\" is the Verdict of Coroner's Jury dated December 17, 2018"
+    }
+   ],
+   "content_check": "Seven-page printout (12/17/2020) of the Verdict of Coroner's Jury, inquest into the death of Cleve Gordon Geddes, held November 26 to December 17, 2018; text layer is font-garbled"
+  },
+  {
+   "label": "G",
+   "file": "doc-khvb3y.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Plaintiffs' counsel",
+   "recipients": [],
+   "description": "Proposed litigation plan",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit \"G\" is a proposed litigation plan."
+    }
+   ],
+   "content_check": "Eleven-page litigation plan captioned Fareau and Capay v. Bell Canada et al., CV-20-00635778-00CP"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2012-11-20",
+   "precision": "day",
+   "description": "Bell Canada submitted its proposal in response to the Crown's Request for Proposals No. COS-0009",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Bell Canada's proposal dated November 20, 2012 in response to \nthe Crown's Request for Proposals No. COS-0009",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2013-02-13",
+   "precision": "day",
+   "description": "MCSCS memorandum regarding the Offender Management Telephone System",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Memorandums regarding the Offender Management Telephone System dated February 13, \n2013 and October 29, 2013",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2013-10-29",
+   "precision": "day",
+   "description": "Second MCSCS memorandum regarding the Offender Management Telephone System",
+   "paragraphs": [
+    2
+   ],
+   "quote": "2013 and October 29, 2013",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2016-05-09",
+   "precision": "day",
+   "description": "Deputy Minister's information note at MCSCS",
+   "paragraphs": [
+    2
+   ],
+   "quote": "an information note by the Deputy Minister at MCSCS dated May 9, \n2016",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": null,
+   "precision": "undated",
+   "description": "Michael Spratt obtained the documents from MCSCS through a FIPPA request, redacted by the Ministry before disclosure",
+   "paragraphs": [
+    2
+   ],
+   "quote": "the redactions in these documents were made \nby the MCSCS before the documents were disclosed to Mr. Spratt",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2018-12-17",
+   "precision": "day",
+   "description": "Coroner's jury delivered its verdict",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Verdict of Coroner's Jury dated December 17, 2018",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2019-01-31",
+   "precision": "day",
+   "description": "Ottawa Citizen reported protesters urging Bell to make it easier for inmates to call from jail",
+   "paragraphs": [
+    6
+   ],
+   "quote": "an article dated January 31, 2019",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2020-01-14",
+   "precision": "day",
+   "description": "Global News reported Ontario was looking to adjust its jail phone system to include calls to cellphones",
+   "paragraphs": [
+    5
+   ],
+   "quote": "an article dated January 14, 2020",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": null,
+   "precision": "undated",
+   "description": "Geetha Philipupillai created a chart of prison telephone rates from public sources",
+   "paragraphs": [
+    4
+   ],
+   "quote": "she\ncreated this chart based on publicly available information regarding those rates",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ]
 }

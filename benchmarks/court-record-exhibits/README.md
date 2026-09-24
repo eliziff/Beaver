@@ -27,7 +27,11 @@ directory keeps the scripts and a copy of each record's three JSON files under
 from the committed JSON. It re-downloads each source, checks its sha256, cuts
 the affidavit and exhibits from `split.json`'s page lists and re-fetches the
 same-matter documents. OCR text comes from the backup when one is given.
-Sources that have vanished or changed are reported, never guessed. The
+Sources that have vanished or changed are reported, never guessed.
+`python ocr_exhibits.py` OCRs image-only exhibit files with Tesseract, so
+their `.txt` holds what a reader, or Event Strip's own OCR, would get. It lists
+them under `ocr_files` in `split.json`, and `rebuild.py` re-OCRs exactly those
+files. Before this pass, 8% of gold events cited exhibit files with no text. The
 Competition Tribunal site puts up a captcha after heavy use, so its eight
 records rebuild only once it clears.
 
@@ -96,6 +100,33 @@ now added.
   exhibit link (fixed).
 - **Error estimate:** about 1-2% in `events[]`; no exhibit
   identification errors were found.
+
+### Vetting pass (2026-09-24, 128 records)
+
+Checks beyond `verify.py` and `audit.py`, applied to every record:
+
+- **Label leaks:** the probe found 5 files in 1,428 naming their own label.
+  Two were the document's own title ("Exhibit D - Lynx unremitted AIF
+  Fees"); `split.json` now lists such strings under `redact_text` and the
+  rebuild blanks them. One was a confidentiality placeholder page standing
+  in for an exhibit that was never posted; it is now
+  `referenced_not_attached`. Two are references to other affidavits'
+  exhibits inside the document body, which is not a leak.
+- **Identical files:** 4 pairs of exhibits within a record carry the same
+  text (a policy attached twice). Gold marks them `same_text_as`, and
+  `score.py` accepts either label for either file. 3 files are shared
+  across unrelated records (the same public document attached in two
+  matters); `haystack.py` never uses a copy of a target's own exhibit as a
+  distractor.
+- **Text layers:** 72 image-only exhibits and 28 pages with broken font
+  encodings (glyph codes that extract as control characters) were OCR'd,
+  see `ocr_exhibits.py`. 1.8% of files remain text-less.
+- **Labels:** `subject` is required and specific; `family` slugs are shared
+  by every record of a proceeding; two future-dated events were checked and
+  are real (a maturity date and a scheduled hearing).
+- **Blind relabelling** of 18 records, including the newest, with quotes
+  checked mechanically: see `packets.py`. Results are in the next revision
+  of this section.
 
 ## Harder variant: a file system with distractors (`haystack.py`)
 

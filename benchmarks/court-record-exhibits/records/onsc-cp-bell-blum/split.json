@@ -332,5 +332,9 @@
    "text_chars": 15306
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-5xpccf.pdf",
+  "doc-dvzmzx.pdf"
+ ]
 }

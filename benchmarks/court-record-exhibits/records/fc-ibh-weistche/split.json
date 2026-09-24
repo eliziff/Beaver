@@ -1,0 +1,80 @@
+{
+ "record_id": "fc-ibh-weistche",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-7pabc5.pdf",
+   "source_pages": [
+    7,
+    8,
+    9
+   ],
+   "cover_page": 6,
+   "stamp_page": null,
+   "text_chars": 6313
+  },
+  {
+   "label": "B",
+   "file": "doc-dyx9sg.pdf",
+   "source_pages": [
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ],
+   "cover_page": 10,
+   "stamp_page": null,
+   "text_chars": 7630
+  },
+  {
+   "label": "C",
+   "file": "doc-g5p28m.pdf",
+   "source_pages": [
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+   ],
+   "cover_page": 17,
+   "stamp_page": null,
+   "text_chars": 8153
+  },
+  {
+   "label": "D",
+   "file": "doc-bdcsky.pdf",
+   "source_pages": [
+    25,
+    26
+   ],
+   "cover_page": 24,
+   "stamp_page": null,
+   "text_chars": 1339
+  },
+  {
+   "label": "E",
+   "file": "doc-pe366k.pdf",
+   "source_pages": [
+    28,
+    29,
+    30
+   ],
+   "cover_page": 27,
+   "stamp_page": null,
+   "text_chars": 7908
+  }
+ ],
+ "leak_audit": []
+}

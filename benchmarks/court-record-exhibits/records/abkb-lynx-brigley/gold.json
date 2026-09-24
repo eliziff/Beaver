@@ -1,0 +1,213 @@
+{
+ "record_id": "abkb-lynx-brigley",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2401-02664 (Calgary)",
+ "subject": "insolvency",
+ "family": "lynx-air",
+ "proceeding": "In the matter of the compromise or arrangement of Lynx Air Holdings Corporation and 1263343 Alberta Inc. dba Lynx Air (CCAA); Airport Authorities' application on the trust treatment of unremitted Airport Improvement Fees",
+ "document": "Affidavit of Paul Brigley sworn May 23, 2024",
+ "deponent": "Paul Brigley",
+ "deponent_role": "Vice President, Finance & Chief Financial Officer, Halifax International Airports Authority",
+ "sworn_date": "2024-05-23",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-etj85v.pdf",
+   "kind": "agreement",
+   "date": "2004-01-20",
+   "author": "Air Transport Association of Canada, signatory air carriers and certain airports",
+   "recipients": [],
+   "description": "The Memorandum of Agreement between the Air Transport Association of Canada, certain air carriers and certain airport authorities (the MOA)",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached and marked as\nExhibit “A” is a copy of the MOA."
+    }
+   ],
+   "content_check": "67 pages: Memorandum of Agreement between the Air Transport Association of Canada and signatory air carriers and certain airports, as amended effective January 20, 2004, with table of contents and articles"
+  },
+  {
+   "label": "B",
+   "file": "doc-vqqwwq.pdf",
+   "kind": "agreement",
+   "date": "2022",
+   "author": "Halifax International Airport Authority",
+   "recipients": [
+    "1263343 Alberta Inc. dba Lynx Air"
+   ],
+   "description": "The Air Carrier Operating Agreement between HIAA and Lynx, which set the AIF remittance deadline",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached and marked as Exhibit \n“B” is a copy of the ACOA."
+    }
+   ],
+   "content_check": "7 pages: Air Carrier Operating Agreement between Halifax International Airport Authority and 1263343 Alberta Inc. DBA Lynx Air, agreement no. AA3115, effective 2022"
+  },
+  {
+   "label": "C",
+   "file": "doc-w3xwwx.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Lynx Air",
+   "recipients": [],
+   "description": "Lynx's reservation Terms and Conditions representing that it collects AIF and remits them to the airports",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached and marked as Exhibit “C” is a copy of the Terms and Conditions."
+    }
+   ],
+   "content_check": "9 pages: printout of the Lynx Air website 'Reservation Terms and Conditions' (fare information, payments, fees and taxes); text layer is garbled, read from the rendered page"
+  },
+  {
+   "label": "D",
+   "file": "doc-ja7qh7.pdf",
+   "kind": "spreadsheet",
+   "date": "2024-05-23",
+   "author": "Halifax International Airports Authority",
+   "recipients": [],
+   "description": "HIAA accounting spreadsheet showing the unremitted AIF owed by Lynx",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached and marked\nas Exhibit “D” is an HIAA accounting spreadsheet demonstrating the amount owed to HIAA by\nLynx in unremitted AIF."
+    }
+   ],
+   "content_check": "1 page: 'HIAA Affidavit - Lynx as of May 23, 2024, Exhibit D - Lynx unremitted AIF Fees' table of AIF invoices Nov 2023-Feb 2024 with net, HST and gross"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Airport Transfer (Miscellaneous Matters) Act begins transfer of airports to airport authorities",
+   "date": "1992",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "This transfer began in 1992 with\nthe introduction of the Airport Transfer (Miscellaneous Matters) Act",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "HIAA designated as an airport authority",
+   "date": "1999",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "HIAA was designated as a designated airport authority in 1999",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "HIAA signs ground lease with the Crown and assumes responsibility for Halifax Airport",
+   "date": "2000-02-01",
+   "precision": "day",
+   "paragraphs": [
+    4,
+    5
+   ],
+   "quote": "on February 1, 2000 HIAA\nsigned a ground lease with Her Majesty the Queen in Right of Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Lynx becomes a signatory to the MOA",
+   "date": "2022-04-06",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "became a signatory to the MOA on April 6, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "HIAA and Lynx enter the Air Carrier Operating Agreement amending the AIF remittance deadline",
+   "date": "2022",
+   "precision": "year",
+   "paragraphs": [
+    8
+   ],
+   "quote": "This was amended by the Air Carrier Operating Agreement (the \n“ACOA”) between HIAA and Lynx",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Lynx stops remitting collected AIF to HIAA",
+   "date": "2023-11",
+   "precision": "month",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Lynx had failed to remit collected AIF funds in accordance with its obligations\nunder the MOA since November 2023",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Lynx pays $89,752.77, directed to aeronautical fees",
+   "date": "2024-01-19",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Due to a payment made by Lynx on January 19, 2024 of $89,752.77",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Lynx files for CCAA protection owing HIAA $377,205.30 in unremitted AIF",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "HIAA was owed $377,205.30 ($328,004.60 + HST) in unremitted AIF\nby Lynx at the time of Lynx’s CCAA filing",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Lynx makes a single AIF payment of $601.65",
+   "date": "2024-03-26",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "save for one payment of $601.65 made by Lynx to the HIAA\non March 26, 2024",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "HIAA applies the $100,000 deposit to aeronautical fees and the residual $57,167.85 to AIF",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    13
+   ],
+   "quote": "After Lynx filed for CCAA protection, HIAA applied the Deposit to outstanding aeronautical fees\nowed by Lynx to HIAA.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Airport Transfer (Miscellaneous Matters) Act, SC 1992, c 5",
+  "HIAA ground lease with the Crown (February 1, 2000)"
+ ],
+ "leak_waivers": [
+  "D"
+ ],
+ "notes": "Affidavit page 1 appears twice in the posted copy (stamped and unstamped). Leak D is the spreadsheet's own title 'Exhibit D - Lynx unremitted AIF Fees', printed as part of the document. Family lynx-air: Brigley, Boyd and Woodward are trial-level affidavits on the AIF applications; Watts (ABCA) seeks permission to appeal the resulting decision, 2024 ABKB 514."
+}

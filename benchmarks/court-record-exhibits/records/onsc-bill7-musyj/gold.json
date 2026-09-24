@@ -1,0 +1,388 @@
+{
+ "record_id": "onsc-bill7-musyj",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022); respondent Ontario's evidence",
+ "document": "Affidavit of David Musyj affirmed February 23, 2024",
+ "deponent": "David Musyj",
+ "deponent_role": "President and CEO, Windsor Regional Hospital (witness for the respondent Ontario)",
+ "sworn_date": "2024-02-23",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-mqjqpd.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "David Musyj",
+   "recipients": [],
+   "description": "Musyj's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of my curriculum vitae is attached hereto as Exhibit “A”."
+    }
+   ],
+   "content_check": "2 pages: CV of David Mark Musyj, LL.B., J.D., President and CEO of Windsor Regional Hospital 2007-present"
+  },
+  {
+   "label": "B",
+   "file": "doc-jq6s4u.pdf",
+   "kind": "other",
+   "date": "2016",
+   "author": "Canadian Institute for Health Information",
+   "recipients": [],
+   "description": "CIHI Definitions and Guidelines on ALC designation",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto as Exhibit “B” and Exhibit “C”, \nrespectively"
+    }
+   ],
+   "content_check": "4 pages: CIHI Job Aid 'Definitions and Guidelines to Support ALC Designation in Acute Inpatient Care', (c) 2016"
+  },
+  {
+   "label": "C",
+   "file": "doc-bgtgfa.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canadian Institute for Health Information",
+   "recipients": [],
+   "description": "CIHI Guidelines to Support ALC Designation",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto as Exhibit “B” and Exhibit “C”, \nrespectively"
+    }
+   ],
+   "content_check": "5 pages: guidance for clinical and physician leaders on ALC designation"
+  },
+  {
+   "label": "D",
+   "file": "doc-nvggj8.pdf",
+   "kind": "report",
+   "date": "2021-09",
+   "author": "Ontario Health",
+   "recipients": [],
+   "description": "Ontario Health ALC Leading Practices Guide",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto as Exhibit “D” and Exhibit \n“E”, respectively"
+    }
+   ],
+   "content_check": "19 pages: 'The Alternate Level of Care (ALC) Leading Practices Guide: Preventing Hospitalization and Extended Stays for Older Adults', September 2021, V1"
+  },
+  {
+   "label": "E",
+   "file": "doc-6r6kgr.pdf",
+   "kind": "other",
+   "date": "2021-09",
+   "author": "Ontario Health",
+   "recipients": [],
+   "description": "Ontario Health ALC Self-Assessment Tool",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto as Exhibit “D” and Exhibit \n“E”, respectively"
+    }
+   ],
+   "content_check": "19 pages: 'Self-Assessment Tool: ALC Leading Practices', September 2021, V1"
+  },
+  {
+   "label": "F",
+   "file": "doc-fv5wne.pdf",
+   "kind": "other",
+   "date": "2022-02-04",
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "WRH ALC Clinical Care Guideline",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "The WRH “ALC Clinical Care Guideline” attached hereto as Exhibit “F”."
+    }
+   ],
+   "content_check": "3 pages: WRH Clinical Practice Guideline MED-U-104 'Alternate Level of Care Clinical Care Guideline', effective 02/04/2022"
+  },
+  {
+   "label": "G",
+   "file": "doc-hjkawn.pdf",
+   "kind": "other",
+   "date": "2024-02-07",
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "WRH ALC Huddle standard",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "WRH’s “ALC Huddle” standard attached hereto as “Exhibit G”"
+    }
+   ],
+   "content_check": "2 pages: Standard Work 'ALC Huddle', dated 07-Feb-24, owner VP of Access & Flow"
+  },
+  {
+   "label": "H",
+   "file": "doc-wneeeu.pdf",
+   "kind": "other",
+   "date": "2023-03-01",
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "WRH Patient Flow - Discharge Planning standard",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "WRH’s “Patient Flow \n– Discharge Planning” standard attached hereto as “Exhibit H”"
+    }
+   ],
+   "content_check": "2 pages: Standard Work dated 01-Mar-23, owner VP of Patient Flow (admitting nurse, patient flow lead steps)"
+  },
+  {
+   "label": "I",
+   "file": "doc-gmnsmb.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "WRH Systems Huddle report",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "WRH’s “Systems Huddle” \nReport attached hereto as “Exhibit I”"
+    }
+   ],
+   "content_check": "7 pages: huddle report template with occupancy %, number of ALC, COVID+ and outbreak fields"
+  },
+  {
+   "label": "J",
+   "file": "doc-49cmut.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "WRH Discharge Planning Policy used before Bill 7",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Our Discharge Planning Policy used prior to \nBill 7 is attached hereto as Exhibit “J”"
+    }
+   ],
+   "content_check": "8 pages: WRH policy FLOW-U-102 'WRH Discharge Planning Policy'; the posted text is identical to Exhibit K (revised 04/19/2023), so the two files differ only in PDF bytes",
+   "same_text_as": [
+    "K"
+   ]
+  },
+  {
+   "label": "K",
+   "file": "doc-xy729j.pdf",
+   "kind": "other",
+   "date": "2023-04-19",
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "WRH current Discharge Planning Policy",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "our current Discharge Planning Policy is attached \nhereto as Exhibit “K”"
+    }
+   ],
+   "content_check": "8 pages: WRH policy FLOW-U-102 'WRH Discharge Planning Policy', revised 04/19/2023",
+   "same_text_as": [
+    "J"
+   ]
+  },
+  {
+   "label": "L",
+   "file": "doc-ebpvhq.pdf",
+   "kind": "letter",
+   "date": "2023",
+   "author": "Windsor Regional Hospital",
+   "recipients": [
+    "ALC patient/family (template)"
+   ],
+   "description": "Example letter to a patient designated ALC",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Examples of these letters are attached hereto as Exhibit “L” \nand Exhibit “M”."
+    }
+   ],
+   "content_check": "1 page: WRH letter template '_____, 2023 Dear Patient/Family: You have been identified...'"
+  },
+  {
+   "label": "M",
+   "file": "doc-ky7vdq.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": "Windsor Regional Hospital",
+   "recipients": [
+    "ALC patient (template)"
+   ],
+   "description": "Example discharge letter to an ALC patient",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Examples of these letters are attached hereto as Exhibit “L” \nand Exhibit “M”."
+    }
+   ],
+   "content_check": "1 page: template letter '[DATE] Dear [NAME] Your / family member's doctor has determined that you no longer require acute hospital care'"
+  },
+  {
+   "label": "N",
+   "file": "doc-chdxf3.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Windsor Regional Hospital",
+   "recipients": [],
+   "description": "ALC LTC Sign Off Sheet",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "supported by the ALC LTC Sign Off Sheet attached hereto as Exhibit “N”"
+    }
+   ],
+   "content_check": "2 pages: 'Windsor Regional Hospital ALC-LTC Sign-Off Sheet' form"
+  },
+  {
+   "label": "O",
+   "file": "doc-666y4g.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": "Windsor Regional Hospital",
+   "recipients": [
+    "Patient (template)"
+   ],
+   "description": "Letter informing patients of WRH's pre-Bill 7 daily rate for refusing an LTC placement",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "A copy of the letter that was sent to patients informing them of WRH’s rate is attached \nhereto as Exhibit “O”."
+    }
+   ],
+   "content_check": "1 page: template letter '[DATE] Dear [NAME] On [DATE], your physician documented ... ready for discharge'"
+  },
+  {
+   "label": "P",
+   "file": "doc-auq86q.pdf",
+   "kind": "other",
+   "date": "2023-07-12",
+   "author": "Ontario Health",
+   "recipients": [
+    "Acute Care and Rehabilitation/Complex Continuing Care Hospital CEOs"
+   ],
+   "description": "Ontario Health operational direction on rehabilitation and complex continuing care capacity",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "operational directions from Ontario Health attached hereto as Exhibit “P” and Exhibit \n“Q”, respectively"
+    }
+   ],
+   "content_check": "6 pages: Operational Direction 'Rehabilitation and Complex Continuing Care Capacity and Flow', July 12, 2023"
+  },
+  {
+   "label": "Q",
+   "file": "doc-e2dybt.pdf",
+   "kind": "other",
+   "date": "2023-10-03",
+   "author": "Ontario Health",
+   "recipients": [
+    "Health System Partners"
+   ],
+   "description": "Ontario Health operational direction on Fall/Winter readiness",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "operational directions from Ontario Health attached hereto as Exhibit “P” and Exhibit \n“Q”, respectively"
+    }
+   ],
+   "content_check": "6 pages: Operational Direction 'Fall/Winter Readiness and Response', October 3, 2023"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Musyj serves as VP Corporate Services and Medical Affairs at WRH",
+   "date": "2000",
+   "precision": "range",
+   "end_date": "2007",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I served as the Vice President of Corporate Services and Medical Affairs of the WRH from \n2000-2007.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Musyj becomes President and CEO of Windsor Regional Hospital",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have held this position since 2007.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "WRH's pre-Bill 7 $600 daily rate for patients refusing an LTC placement",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    30
+   ],
+   "quote": "WRH had a similar internal policy in place where a patient who was \naccepted to an LTC home, but refused to leave the hospital, would be subject to a $600 daily rate",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Bill 7 requires a standardized $400 daily rate after a 24-hour waiting period",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    29
+   ],
+   "quote": "there is now a requirement that hospitals charge a standardized rate of $400",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Ontario Health issues operational directions on rehab/CCC capacity and fall/winter readiness",
+   "date": "2023",
+   "precision": "year",
+   "paragraphs": [
+    41
+   ],
+   "quote": "there is active work ongoing province wide to provide better access to care",
+   "exhibits": [
+    "P",
+    "Q"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Bill 7 changes place 15 WRH ALC patients in HCCSS-selected LTC homes",
+   "date": "2023",
+   "precision": "year",
+   "paragraphs": [
+    34
+   ],
+   "quote": "In 2023, the changes under Bill 7 facilitated the placement of 15 WRH ALC patients",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavits of Dr. Samir Sinha, Jane Meadus, Dr. Pat Armstrong and Dr. George Heckman (applicants' evidence)",
+  "Bill 7, More Beds, Better Care Act"
+ ],
+ "leak_waivers": [],
+ "notes": "Responding (Ontario) evidence; most of the affidavit is opinion, so events are few. Exhibits J and K as posted carry the same policy text. Family ohc-bill7-charter; it responds to onsc-bill7-meadus."
+}

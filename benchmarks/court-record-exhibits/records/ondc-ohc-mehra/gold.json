@@ -1,0 +1,366 @@
+{
+ "record_id": "ondc-ohc-mehra",
+ "court": "Ontario Superior Court of Justice, Divisional Court",
+ "court_level": "superior_divisional",
+ "jurisdiction": "ON",
+ "court_file": "DC-24-00000007-00JR",
+ "subject": "administrative",
+ "family": "ohc-orchard-villa-jr",
+ "proceeding": "The Ontario Health Coalition and Catherine Parkes v. Ontario Minister of Long-Term Care: application for judicial review of the Director's approval of Southbridge's new 30-year licence and 87-bed expansion at Orchard Villa long-term care home",
+ "document": "Affidavit of Natalie Mehra affirmed April 18, 2024",
+ "deponent": "Natalie Mehra",
+ "deponent_role": "Executive Director, Ontario Health Coalition (applicant)",
+ "sworn_date": "2024-04-18",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ykj53s.pdf",
+   "kind": "other",
+   "date": "2021-07-15",
+   "author": "OHC volunteer",
+   "recipients": [],
+   "description": "Partial recording of the July 15, 2021 teleconference consultation",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A partial recording of the teleconference consultation made by a volunteer for the OHC is \nmarked as Exhibit “A” to this affidavit."
+    }
+   ],
+   "content_check": "1 page: placeholder naming the audio file 'Recording-Public consultation.m4a' (the recording itself is not in the PDF)"
+  },
+  {
+   "label": "B",
+   "file": "doc-qxtejp.pdf",
+   "kind": "email_chain",
+   "date": "2021-07-15",
+   "author": "Would-be consultation participants",
+   "recipients": [
+    "Ontario Health Coalition"
+   ],
+   "description": "Emails to the Coalition from people unable to participate in the call",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Copies \nof some of the emails received by the Coalition are marked as Exhibit “B” to this affidavit."
+    }
+   ],
+   "content_check": "3 pages: forwarded emails incl. from Marie DellaVedova, July 15, 2021, subject 'Orchard Villa conference call', to the Ontario Health Coalition"
+  },
+  {
+   "label": "C",
+   "file": "doc-cjccud.pdf",
+   "kind": "letter",
+   "date": "2021-07-26",
+   "author": "Natalie Mehra, Ontario Health Coalition",
+   "recipients": [
+    "Hon. Rod Phillips, Minister of Long-Term Care",
+    "Ministry officials"
+   ],
+   "description": "Mehra's July 26, 2021 letter asking the Ministry to reconvene the consultation",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A copy of my July 26, 2021 letter is marked as Exhibit “C” to this \naffidavit."
+    }
+   ],
+   "content_check": "4 pages: OHC open letter dated July 26, 2021 to Hon. Rod Phillips, Minister of Long-Term Care"
+  },
+  {
+   "label": "D",
+   "file": "doc-vcj7zs.pdf",
+   "kind": "email",
+   "date": "2022-10-19",
+   "author": "Natalie Mehra, Ontario Health Coalition",
+   "recipients": [
+    "Director under the Fixing Long-Term Care Act, 2021 (MLTC)"
+   ],
+   "description": "The Coalition's October 19, 2022 email submission to the written consultation, with its original hyperlinks",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "a ‘.pdf’ copy of my email submission with the original hyperlinks is marked as Exhibit “D” \nto this affidavit"
+    }
+   ],
+   "content_check": "3 pages: 'Submission to Ministry of Long-Term Care Public Consultation on New License & Expansion for Southbridge Care Homes Orchard Villa', to the Director, dated October 19, 2022"
+  },
+  {
+   "label": "E",
+   "file": "doc-2rrvvm.pdf",
+   "kind": "transcript",
+   "date": "2020-10-23",
+   "author": "Neesons Reporting",
+   "recipients": [],
+   "description": "Transcript of the Long Term Care COVID-19 Commission meeting with Families of Orchard Villa, October 23, 2020",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Exhibit “E”: Transcript of the Long Term Care Covid-19 Commission Meeting"
+    }
+   ],
+   "content_check": "66 pages: Neesons Reporting transcript of the Commission meeting with Families of Orchard Villa, October 23, 2020 (same document as Parkes Exhibit A)"
+  },
+  {
+   "label": "F",
+   "file": "doc-hbghna.pdf",
+   "kind": "webpage",
+   "date": "2020-08-31",
+   "author": "Toronto Star",
+   "recipients": [],
+   "description": "August 31, 2020 Toronto Star article on problems inside Orchard Villa",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Exhibit “F”: August 31, 2020, Toronto Star article"
+    }
+   ],
+   "content_check": "9 pages, text layer empty: thestar.com printout 'Improper use of PPE. Medicine to the wrong patient. Injuries from falls. A look at the problems inside Orchard Villa as COVID-19 deaths climbed', Aug. 31, 2020"
+  },
+  {
+   "label": "G",
+   "file": "doc-5d9scf.pdf",
+   "kind": "webpage",
+   "date": "2020-05-27",
+   "author": "Kristen Calis, Pickering News Advertiser (DurhamRegion.com)",
+   "recipients": [],
+   "description": "May 27, 2020 DurhamRegion.com article on the report of conditions at Orchard Villa",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Exhibit “G”: May 27, 2020 Article from DurhamRegion.Com"
+    }
+   ],
+   "content_check": "8 pages, garbled text layer: durhamregion.com printout 'It's our worst nightmare: Report details horrendous conditions at Pickering's Orchard Villa Retirement Residence'"
+  },
+  {
+   "label": "H",
+   "file": "doc-sr3bwr.pdf",
+   "kind": "public_record",
+   "date": "2022-10-27",
+   "author": "Ontario Ministry of Long-Term Care",
+   "recipients": [],
+   "description": "Public Reporting on Inspections at Orchard Villa with all inspection reports 2010-2022, as of October 27, 2022",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Exhibit “H”: A link to the Public Reporting on Inspections at Orchard Villa"
+    }
+   ],
+   "content_check": "1,228 pages, garbled text layer: 'Reports on Long-Term Care Homes' Home Report for Orchard Villa, 1955 Valley Farm Road, Pickering, followed by Ministry inspection reports under the Long-Term Care Homes Act, 2007 (e.g. an October 2016 complaint inspection)"
+  },
+  {
+   "label": "I",
+   "file": "doc-q5avcy.pdf",
+   "kind": "webpage",
+   "date": "2020-12-18",
+   "author": "CBC News (Marketplace)",
+   "recipients": [],
+   "description": "December 18, 2020 CBC article on nursing home chains with the highest COVID-19 death rates",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Exhibit “I”: CBC article dated December 18, 2020"
+    }
+   ],
+   "content_check": "11 pages, text layer empty: CBC Marketplace article 'These nursing home chains have the highest COVID-19 death rates in Ontario, data analysis finds', posted Dec 18, 2020"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Mehra becomes Executive Director of the Ontario Health Coalition",
+   "date": "2000-09",
+   "precision": "month",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have been the Executive Director of the Ontario Health Coalition since September 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Coalition participates in consultations leading to the Canada Health Act",
+   "date": "1984",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "including having participated in the consultations that lead to the passage of the Canada \nHealth Act in 1984",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "DurhamRegion.com reports on conditions at Orchard Villa",
+   "date": "2020-05-27",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "May 27, 2020 Article from DurhamRegion.Com",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Toronto Star reports on problems inside Orchard Villa",
+   "date": "2020-08-31",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "August 31, 2020, Toronto Star article",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Families of Orchard Villa meet the Long Term Care COVID-19 Commission",
+   "date": "2020-10-23",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Meeting \nwith Families of Orchard Villa on Friday, October 23, 2020",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "CBC reports on chains with the highest COVID-19 death rates",
+   "date": "2020-12-18",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "CBC article dated December 18, 2020",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Mehra learns MLTC is considering Southbridge's application for a 30-year licence and 87-bed expansion",
+   "date": "2021",
+   "precision": "approximate",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In or around the summer of 2021, I learned that the Ministry of Long-Term Care",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Ministry teleconference consultation; moderator restricts questions and many callers cannot get through",
+   "date": "2021-07-15",
+   "precision": "day",
+   "paragraphs": [
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18
+   ],
+   "quote": "On July 15, 2021, I participated in a teleconference consultation run by the Ministry",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Would-be participants email the Coalition that they could not join the call",
+   "date": "2021-07-15",
+   "precision": "approximate",
+   "paragraphs": [
+    19
+   ],
+   "quote": "the Coalition received several emails from \nwould-be participants",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Mehra writes to Minister Phillips asking to reconvene the hearing",
+   "date": "2021-07-26",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "I wrote to the Minister of Long-Term Care, \nRod Philips",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "OHC emails the Ministry petitions opposing the licence and expansion",
+   "date": "2021-07-27",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "the OHC submitted two emails to the \nMinistry dated July 27, 2021 and August 26, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "OHC emails the Ministry further petitions",
+   "date": "2021-08-26",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "July 27, 2021 and August 26, 2021 attaching petitions",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Coalition makes its written consultation submission",
+   "date": "2022-10-19",
+   "precision": "day",
+   "paragraphs": [
+    22,
+    24
+   ],
+   "quote": "On October 19, 2022, I made a submission to the MLTC written consultation",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Inspection reports for Orchard Villa as of October 27, 2022",
+   "date": "2022-10-27",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "the inspection reports as of October 27, 2022",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Mehra learns the Southbridge application was approved by public notice, without reasons",
+   "date": "2023-12",
+   "precision": "month",
+   "paragraphs": [
+    25
+   ],
+   "quote": "I found out in December 2023 that Southbridge’s application had been approved",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Record of Decision / Record of Proceedings (Tabs 94V, 94S, 88BBBBBBB)",
+  "Petitions delivered to Minister Phillips' constituency office",
+  "Director's decision approving the Southbridge application"
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibit A is a one-page placeholder for an audio recording. Exhibits F-I are web printouts with empty or garbled text layers (checked by eye). Exhibit E is the same transcript as Parkes Exhibit A (family ohc-orchard-villa-jr)."
+}

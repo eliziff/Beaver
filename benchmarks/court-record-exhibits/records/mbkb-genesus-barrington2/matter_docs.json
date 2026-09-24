@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/mbkb-genesus-barrington2/consent-receivership-order.pdf",
+  "url": "https://www.bdo.ca/getmedia/f783ca09-a8cf-4c1c-8d76-c336a69b4b17/Consent-Receivership-Order-(signed).pdf",
+  "title": "Consent Receivership Order (signed)",
+  "kind": "court_order",
+  "relation": "order made on the application"
+ },
+ {
+  "file": "raw/matter/mbkb-genesus-barrington2/first-report-2024-07-02.pdf",
+  "url": "https://www.bdo.ca/getmedia/0d099597-cdb0-4acd-9627-af29cdbbb460/25_020-First-Report-of-the-Receiver-dated-July-2-2024-(sent-for-e-filing).pdf",
+  "title": "First Report of the Receiver dated July 2, 2024",
+  "kind": "report",
+  "relation": "receiver's report in the same proceeding"
+ }
+]

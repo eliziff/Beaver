@@ -9,40 +9,383 @@
  "deponent": "Julian Kleinbrodt",
  "deponent_role": "Partner, Gibson, Dunn & Crutcher LLP, counsel to Apple Inc.",
  "sworn_date": "2026-05-11",
+ "referenced_not_attached": [
+  "Affidavits of Luca Bellisario (December 18, 2025 and February 13, 2026)",
+  "Affidavit of Kelli Fairbrother affirmed December 17, 2025",
+  "Rotterdam, EC Music Streaming, EC DMA, U.K. CAT and Australian decisions (exhibited to the Bellisario affidavits)"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit page 6 (end of paragraph 19 and the jurat) is image-only; affidavit.txt carries its OCR (--ocr-affidavit).",
+ "subject": "competition",
  "exhibits": [
-  {"label": "A", "file": "doc-nhw54s.pdf", "kind": "court_order", "date": "2021-09-10", "author": "U.S. District Court for the Northern District of California", "recipients": [], "description": "The N.D. Cal. decision in Epic Games, Inc. v Apple Inc., 559 F. Supp. 3d 898, dated September 10, 2021", "references": [{"paragraph": 5, "quote": "I obtained a copy of this decision \nfrom the U.S. court’s case docket and attached it as Exhibit “A” to my affidavit."}], "content_check": "185-page line-numbered decision of the United States District Court, Northern District of California, Epic Games, Inc. v. Apple Inc."},
-  {"label": "B", "file": "doc-ed4bhm.pdf", "kind": "court_order", "date": "2023-04-24", "author": "U.S. Court of Appeals for the Ninth Circuit", "recipients": [], "description": "The Ninth Circuit's decision in Epic Games, Inc. v. Apple Inc., 67 F.4th 946, dated April 24, 2023", "references": [{"paragraph": 6, "quote": "attached it as Exhibit “B” to my affidavit"}], "content_check": "91-page Ninth Circuit opinion 'FOR PUBLICATION', No. 21-16506, Epic Games v. Apple"},
-  {"label": "C", "file": "doc-fsku3v.pdf", "kind": "court_order", "date": "2025-10-27", "author": "U.S. District Court for the Northern District of California", "recipients": [], "description": "Order in In re Apple iPhone Antitrust Litigation granting Apple's motion to decertify the class", "references": [{"paragraph": 7, "quote": "attached \nit as Exhibit “C” to my affidavit"}], "content_check": "27-page N.D. Cal. order captioned 'IN RE APPLE IPHONE ANTITRUST LITIGATION'"},
-  {"label": "D", "file": "doc-vqztcc.pdf", "kind": "court_order", "date": "2026-03-23", "author": "Court of Appeal of England and Wales (Lord Justice Green)", "recipients": [], "description": "U.K. Court of Appeal order of March 23, 2026 directing further submissions and a rolled-up hearing on permission to appeal the CAT decision", "references": [{"paragraph": 15, "quote": "a copy of which order is attached as Exhibit “D” to my affidavit"}], "content_check": "Two-page Court of Appeal Civil Division order CA-2025-003023, Apple Inc. v Rachel Kent, by Lord Justice Green, sealed 23 Mar 2026"},
-  {"label": "E", "file": "doc-2wfqw8.pdf", "kind": "webpage", "date": "2026-05-05", "author": "Coalition for App Fairness", "recipients": [], "description": "Screenshot of the Coalition for App Fairness 'Members' webpage", "references": [{"paragraph": 18, "quote": "Attached as Exhibit “E” to my affidavit is a copy of the “Members” \npage on CAF’s website."}], "content_check": "Two-page screenshot 'coalition members' with member logos (Proton, Spotify, xigxag and others)"},
-  {"label": "F", "file": "doc-vctdsx.pdf", "kind": "webpage", "date": "2026-05-05", "author": "Coalition for App Fairness", "recipients": [], "description": "Screenshot of the Coalition for App Fairness 'Operations' webpage", "references": [{"paragraph": 18, "quote": "Attached as Exhibit “F” to my affidavit is a copy of the \n“Operations” page on CAF’s website."}], "content_check": "Image-only seven-page screenshot 'coalition operations' describing CAF as a 501(c)(4) organization"},
-  {"label": "G", "file": "doc-t8c4ht.pdf", "kind": "webpage", "date": "2026-05-05", "author": "xigxag", "recipients": [], "description": "Screenshot of xigxag's website homepage", "references": [{"paragraph": 19, "quote": "Attached as Exhibit “G” to my affidavit is a copy ofthe homepage on xigxag’s website."}], "content_check": "Seven pages of the xigxag site ('Audiobooks, But Better', Women's Prize for Fiction longlist promotion)"}
+  {
+   "label": "A",
+   "file": "doc-nhw54s.pdf",
+   "kind": "court_order",
+   "date": "2021-09-10",
+   "author": "U.S. District Court for the Northern District of California",
+   "recipients": [],
+   "description": "The N.D. Cal. decision in Epic Games, Inc. v Apple Inc., 559 F. Supp. 3d 898, dated September 10, 2021",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "I obtained a copy of this decision \nfrom the U.S. court’s case docket and attached it as Exhibit “A” to my affidavit."
+    }
+   ],
+   "content_check": "185-page line-numbered decision of the United States District Court, Northern District of California, Epic Games, Inc. v. Apple Inc."
+  },
+  {
+   "label": "B",
+   "file": "doc-ed4bhm.pdf",
+   "kind": "court_order",
+   "date": "2023-04-24",
+   "author": "U.S. Court of Appeals for the Ninth Circuit",
+   "recipients": [],
+   "description": "The Ninth Circuit's decision in Epic Games, Inc. v. Apple Inc., 67 F.4th 946, dated April 24, 2023",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "attached it as Exhibit “B” to my affidavit"
+    }
+   ],
+   "content_check": "91-page Ninth Circuit opinion 'FOR PUBLICATION', No. 21-16506, Epic Games v. Apple"
+  },
+  {
+   "label": "C",
+   "file": "doc-fsku3v.pdf",
+   "kind": "court_order",
+   "date": "2025-10-27",
+   "author": "U.S. District Court for the Northern District of California",
+   "recipients": [],
+   "description": "Order in In re Apple iPhone Antitrust Litigation granting Apple's motion to decertify the class",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "attached \nit as Exhibit “C” to my affidavit"
+    }
+   ],
+   "content_check": "27-page N.D. Cal. order captioned 'IN RE APPLE IPHONE ANTITRUST LITIGATION'"
+  },
+  {
+   "label": "D",
+   "file": "doc-vqztcc.pdf",
+   "kind": "court_order",
+   "date": "2026-03-23",
+   "author": "Court of Appeal of England and Wales (Lord Justice Green)",
+   "recipients": [],
+   "description": "U.K. Court of Appeal order of March 23, 2026 directing further submissions and a rolled-up hearing on permission to appeal the CAT decision",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "a copy of which order is attached as Exhibit “D” to my affidavit"
+    }
+   ],
+   "content_check": "Two-page Court of Appeal Civil Division order CA-2025-003023, Apple Inc. v Rachel Kent, by Lord Justice Green, sealed 23 Mar 2026"
+  },
+  {
+   "label": "E",
+   "file": "doc-2wfqw8.pdf",
+   "kind": "webpage",
+   "date": "2026-05-05",
+   "author": "Coalition for App Fairness",
+   "recipients": [],
+   "description": "Screenshot of the Coalition for App Fairness 'Members' webpage",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached as Exhibit “E” to my affidavit is a copy of the “Members” \npage on CAF’s website."
+    }
+   ],
+   "content_check": "Two-page screenshot 'coalition members' with member logos (Proton, Spotify, xigxag and others)"
+  },
+  {
+   "label": "F",
+   "file": "doc-vctdsx.pdf",
+   "kind": "webpage",
+   "date": "2026-05-05",
+   "author": "Coalition for App Fairness",
+   "recipients": [],
+   "description": "Screenshot of the Coalition for App Fairness 'Operations' webpage",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached as Exhibit “F” to my affidavit is a copy of the \n“Operations” page on CAF’s website."
+    }
+   ],
+   "content_check": "Image-only seven-page screenshot 'coalition operations' describing CAF as a 501(c)(4) organization"
+  },
+  {
+   "label": "G",
+   "file": "doc-t8c4ht.pdf",
+   "kind": "webpage",
+   "date": "2026-05-05",
+   "author": "xigxag",
+   "recipients": [],
+   "description": "Screenshot of xigxag's website homepage",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached as Exhibit “G” to my affidavit is a copy ofthe homepage on xigxag’s website."
+    }
+   ],
+   "content_check": "Seven pages of the xigxag site ('Audiobooks, But Better', Women's Prize for Fiction longlist promotion)"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2021-09-10", "precision": "day", "description": "N.D. Cal. decided Epic Games v Apple", "paragraphs": [5], "quote": "dated September 10, 2021", "exhibits": ["A"]},
-  {"id": "e2", "date": "2023-04-24", "precision": "day", "description": "Ninth Circuit decided the Epic Games appeal", "paragraphs": [6], "quote": "dated April 24, 2023", "exhibits": ["B"]},
-  {"id": "e3", "date": "2025-10-27", "precision": "day", "description": "N.D. Cal. granted Apple's motion to decertify the class in In re Apple iPhone Antitrust Litigation", "paragraphs": [7], "quote": "(N.D. Cal. Oct. 27, 2025), granting Apple’s Motion to Decertify \nthe Class", "exhibits": ["C"]},
-  {"id": "e4", "date": "2025-06-16", "precision": "day", "description": "District Court of Rotterdam judgment in Apple v Netherlands Authority for Consumers and Markets", "paragraphs": [8], "quote": "dated June 16, 2025", "exhibits": []},
-  {"id": "e5", "date": "2025-07-16", "precision": "day", "description": "Apple appealed the Rotterdam decision to the Dutch Trade and Industry Appeals Tribunal", "paragraphs": [9], "quote": "Apple filed an appeal of the DCR Decision to the Dutch Trade and Industry Appeals Tribunal on July 16, \n2025", "exhibits": []},
-  {"id": "e6", "date": "2025-11-14", "precision": "day", "description": "Apple submitted its grounds for the Dutch appeal", "paragraphs": [9], "quote": "submitted its grounds for appeal on November 14, 2025", "exhibits": []},
-  {"id": "e7", "date": "2027-03-16", "precision": "day", "description": "Dutch appeal oral hearing provisionally scheduled for March 16-17, 2027", "paragraphs": [9], "quote": "an oral hearing is provisionally \nscheduled for March 16 and 17, 2027", "exhibits": []},
-  {"id": "e8", "date": "2024-03-04", "precision": "day", "description": "European Commission Music Streaming decision against Apple", "paragraphs": [10], "quote": "dated March 4, 2024", "exhibits": []},
-  {"id": "e9", "date": "2024-05-16", "precision": "day", "description": "Apple appealed the Music Streaming decision to the EU General Court", "paragraphs": [11], "quote": "Apple has filed an appeal to the European Union General Court to annul the EC Music \nStreaming Decision on May 16, 2024", "exhibits": []},
-  {"id": "e10", "date": "2025-04-23", "precision": "day", "description": "European Commission DMA decision on App Store", "paragraphs": [12], "quote": "dated April 23, \n2025", "exhibits": []},
-  {"id": "e11", "date": "2025-07-07", "precision": "day", "description": "Apple appealed the DMA decision to the EU General Court", "paragraphs": [13], "quote": "on July 7, 2025", "exhibits": []},
-  {"id": "e12", "date": "2025-10-23", "precision": "day", "description": "U.K. CAT decision in Kent v Apple", "paragraphs": [14], "quote": "append its decision dated October 23, 2025", "exhibits": []},
-  {"id": "e13", "date": "2025-11-13", "precision": "day", "description": "CAT denied Apple permission to appeal", "paragraphs": [14], "quote": "its subsequent \ndecision denying Apple’s permission to appeal dated November 13, 2025", "exhibits": []},
-  {"id": "e14", "date": "2025-12-05", "precision": "day", "description": "Apple applied to the U.K. Court of Appeal for permission to appeal", "paragraphs": [15], "quote": "Apple filed an application for permission to appeal the U.K. CAT Decision to the U.K. \nCourt of Appeal on December 5, 2025.", "exhibits": []},
-  {"id": "e15", "date": "2026-03-23", "precision": "day", "description": "U.K. Court of Appeal ordered further submissions and a hearing between November 2026 and March 2027", "paragraphs": [15], "quote": "On March 23, 2026, the U.K. Court of Appeal \nordered further written submissions and a hearing", "exhibits": ["D"]},
-  {"id": "e16", "date": "2025-08-12", "precision": "day", "description": "Federal Court of Australia merits decision in Epic Games v Apple", "paragraphs": [16], "quote": "appended its merits phase decision dated August 12, 2025", "exhibits": []},
-  {"id": "e17", "date": "2026-05", "precision": "month", "description": "Remedies phase hearing in the Australian proceedings concluded", "paragraphs": [17], "quote": "concluded in early May 2026. The time period for appeal", "exhibits": []},
-  {"id": "e18", "date": "2025-12-18", "precision": "day", "description": "Luca Bellisario affirmed his first affidavit for the applicant", "paragraphs": [3], "quote": "the Affidavit of Luca Bellisario affirmed on December 18, 2025", "exhibits": []},
-  {"id": "e19", "date": "2025-12-17", "precision": "day", "description": "Kelli Fairbrother affirmed her affidavit for the applicant", "paragraphs": [3], "quote": "the Affidavit of Kelli Fairbrother affirmed on December 17, \n2025", "exhibits": []},
-  {"id": "e20", "date": "2026-02-13", "precision": "day", "description": "Bellisario affirmed his second affidavit", "paragraphs": [3], "quote": "the Affidavit of Luca Bellisario affirmed on February 13, 2026", "exhibits": []},
-  {"id": "e21", "date": "2026-05-05", "precision": "day", "description": "Kleinbrodt viewed and captured the CAF Members and Operations webpages", "paragraphs": [18], "quote": "On May 5, 2026, I viewed the Coalition for App \nFairness “Members” and “Operations” webpages.", "exhibits": ["E", "F"]},
-  {"id": "e22", "date": "2026-05-05", "precision": "day", "description": "Kleinbrodt viewed and captured the xigxag webpage", "paragraphs": [19], "quote": "On May 5, 2026, I \nviewed the xigxag “About” webpage.", "exhibits": ["G"]}
- ],
- "referenced_not_attached": ["Affidavits of Luca Bellisario (December 18, 2025 and February 13, 2026)", "Affidavit of Kelli Fairbrother affirmed December 17, 2025", "Rotterdam, EC Music Streaming, EC DMA, U.K. CAT and Australian decisions (exhibited to the Bellisario affidavits)"],
- "leak_waivers": [],
- "notes": "Affidavit page 6 (end of paragraph 19 and the jurat) is image-only; affidavit.txt carries its OCR (--ocr-affidavit)."
+  {
+   "id": "e1",
+   "date": "2021-09-10",
+   "precision": "day",
+   "description": "N.D. Cal. decided Epic Games v Apple",
+   "paragraphs": [
+    5
+   ],
+   "quote": "dated September 10, 2021",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2023-04-24",
+   "precision": "day",
+   "description": "Ninth Circuit decided the Epic Games appeal",
+   "paragraphs": [
+    6
+   ],
+   "quote": "dated April 24, 2023",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2025-10-27",
+   "precision": "day",
+   "description": "N.D. Cal. granted Apple's motion to decertify the class in In re Apple iPhone Antitrust Litigation",
+   "paragraphs": [
+    7
+   ],
+   "quote": "(N.D. Cal. Oct. 27, 2025), granting Apple’s Motion to Decertify \nthe Class",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2025-06-16",
+   "precision": "day",
+   "description": "District Court of Rotterdam judgment in Apple v Netherlands Authority for Consumers and Markets",
+   "paragraphs": [
+    8
+   ],
+   "quote": "dated June 16, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2025-07-16",
+   "precision": "day",
+   "description": "Apple appealed the Rotterdam decision to the Dutch Trade and Industry Appeals Tribunal",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Apple filed an appeal of the DCR Decision to the Dutch Trade and Industry Appeals Tribunal on July 16, \n2025",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2025-11-14",
+   "precision": "day",
+   "description": "Apple submitted its grounds for the Dutch appeal",
+   "paragraphs": [
+    9
+   ],
+   "quote": "submitted its grounds for appeal on November 14, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2027-03-16",
+   "precision": "day",
+   "description": "Dutch appeal oral hearing provisionally scheduled for March 16-17, 2027",
+   "paragraphs": [
+    9
+   ],
+   "quote": "an oral hearing is provisionally \nscheduled for March 16 and 17, 2027",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2024-03-04",
+   "precision": "day",
+   "description": "European Commission Music Streaming decision against Apple",
+   "paragraphs": [
+    10
+   ],
+   "quote": "dated March 4, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2024-05-16",
+   "precision": "day",
+   "description": "Apple appealed the Music Streaming decision to the EU General Court",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Apple has filed an appeal to the European Union General Court to annul the EC Music \nStreaming Decision on May 16, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2025-04-23",
+   "precision": "day",
+   "description": "European Commission DMA decision on App Store",
+   "paragraphs": [
+    12
+   ],
+   "quote": "dated April 23, \n2025",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2025-07-07",
+   "precision": "day",
+   "description": "Apple appealed the DMA decision to the EU General Court",
+   "paragraphs": [
+    13
+   ],
+   "quote": "on July 7, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2025-10-23",
+   "precision": "day",
+   "description": "U.K. CAT decision in Kent v Apple",
+   "paragraphs": [
+    14
+   ],
+   "quote": "append its decision dated October 23, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2025-11-13",
+   "precision": "day",
+   "description": "CAT denied Apple permission to appeal",
+   "paragraphs": [
+    14
+   ],
+   "quote": "its subsequent \ndecision denying Apple’s permission to appeal dated November 13, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2025-12-05",
+   "precision": "day",
+   "description": "Apple applied to the U.K. Court of Appeal for permission to appeal",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Apple filed an application for permission to appeal the U.K. CAT Decision to the U.K. \nCourt of Appeal on December 5, 2025.",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2026-03-23",
+   "precision": "day",
+   "description": "U.K. Court of Appeal ordered further submissions and a hearing between November 2026 and March 2027",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On March 23, 2026, the U.K. Court of Appeal \nordered further written submissions and a hearing",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2025-08-12",
+   "precision": "day",
+   "description": "Federal Court of Australia merits decision in Epic Games v Apple",
+   "paragraphs": [
+    16
+   ],
+   "quote": "appended its merits phase decision dated August 12, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2026-05",
+   "precision": "month",
+   "description": "Remedies phase hearing in the Australian proceedings concluded",
+   "paragraphs": [
+    17
+   ],
+   "quote": "concluded in early May 2026. The time period for appeal",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2025-12-18",
+   "precision": "day",
+   "description": "Luca Bellisario affirmed his first affidavit for the applicant",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the Affidavit of Luca Bellisario affirmed on December 18, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2025-12-17",
+   "precision": "day",
+   "description": "Kelli Fairbrother affirmed her affidavit for the applicant",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the Affidavit of Kelli Fairbrother affirmed on December 17, \n2025",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2026-02-13",
+   "precision": "day",
+   "description": "Bellisario affirmed his second affidavit",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the Affidavit of Luca Bellisario affirmed on February 13, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2026-05-05",
+   "precision": "day",
+   "description": "Kleinbrodt viewed and captured the CAF Members and Operations webpages",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On May 5, 2026, I viewed the Coalition for App \nFairness “Members” and “Operations” webpages.",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2026-05-05",
+   "precision": "day",
+   "description": "Kleinbrodt viewed and captured the xigxag webpage",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On May 5, 2026, I \nviewed the xigxag “About” webpage.",
+   "exhibits": [
+    "G"
+   ]
+  }
+ ]
 }

@@ -1,0 +1,1061 @@
+{
+ "record_id": "mbkb-genesus-barrington3",
+ "court": "Court of King's Bench of Manitoba, Winnipeg Centre",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 24-01-45056",
+ "subject": "insolvency",
+ "family": "genesus",
+ "proceeding": "Bank of Montreal's application to appoint a receiver of Genesus Inc., Can-Am Genetics Inc. and Genesus Genetics Inc.; BMO reply to Sea Air's preference/fraudulent-conveyance challenge to BMO's Second Mortgage",
+ "document": "Affidavit of Ed Barrington affirmed January 15, 2025 (filed January 17, 2025)",
+ "deponent": "Ed Barrington",
+ "deponent_role": "Senior Account Manager, Special Accounts Management Unit, Western Canada, Bank of Montreal (applicant)",
+ "sworn_date": "2025-01-15",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-rmczq3.pdf",
+   "kind": "email",
+   "date": "2023-02-13",
+   "author": "Ed Barrington (BMO)",
+   "recipients": [
+    "Jim Long (Genesus)"
+   ],
+   "description": "Barrington's email to Long of February 13, 2023 recapping their introductory call",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "my email to Mr. Long, dated February 13, 2023"
+    }
+   ],
+   "content_check": "2 pages: email from Ed Barrington, February 13, 2023 11:50 AM, to jimlong@genesus.com, 'Recap of our Conversation - Financial Statements and Business Review Required'"
+  },
+  {
+   "label": "B",
+   "file": "doc-9weyh3.pdf",
+   "kind": "email_chain",
+   "date": "2023-03-17",
+   "author": "Ed Barrington (BMO)",
+   "recipients": [
+    "Jim Long (Genesus)",
+    "Trevor Klippenstein (Genesus)"
+   ],
+   "description": "Email correspondence with Long about Genesus' unauthorized overdraft",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "regarding Genesus’ unauthorized overdraft position, dated March 17, 2023"
+    }
+   ],
+   "content_check": "1 page: email of March 17, 2023 7:33 AM from Barrington to Jim Long, 'Cheque Returned', cheque 34388 for $46,130.00"
+  },
+  {
+   "label": "C",
+   "file": "doc-e5nvfz.pdf",
+   "kind": "email",
+   "date": "2023-04-26",
+   "author": "Ed Barrington (BMO)",
+   "recipients": [
+    "Trevor Klippenstein (Genesus)",
+    "Jim Long (Genesus)"
+   ],
+   "description": "Barrington's email advising of a hold for the Venbridge garnishment",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "“C” to this my Affidavit is a copy of my email to Mr. Klippenstein and Mr."
+    }
+   ],
+   "content_check": "8 pages: email April 26, 2023 9:36 AM from Barrington to Klippenstein cc Long, 'FW: garnishment Genesus Inc.', with the garnishment"
+  },
+  {
+   "label": "D",
+   "file": "doc-n2em6u.pdf",
+   "kind": "email",
+   "date": "2023-05-23",
+   "author": "Ed Barrington (BMO)",
+   "recipients": [
+    "Trevor Klippenstein (Genesus)",
+    "Jim Long (Genesus)"
+   ],
+   "description": "Barrington's email raising concerns about cash flow projections and overdraft",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached hereto and marked as Exhibit “D” to this my Affidavit is a copy of"
+    }
+   ],
+   "content_check": "2 pages: email May 23, 2023 10:11 AM from Barrington to Jim Long and David Lewis (BDO), re BDO Independent Business Review"
+  },
+  {
+   "label": "E",
+   "file": "doc-mqgp64.pdf",
+   "kind": "email_chain",
+   "date": "2023-07-07",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Howden's email correspondence with Anniko of July 7, 2023 on a forbearance request",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Ms. Howden’s email correspondence with Mr. Anniko, dated July 7, 2023"
+    }
+   ],
+   "content_check": "3 pages: emails of Friday, July 7, 2023 between Catherine Howden and Kalev Anniko"
+  },
+  {
+   "label": "F",
+   "file": "doc-zpfbbz.pdf",
+   "kind": "email_chain",
+   "date": "2023-07-21",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)"
+   ],
+   "description": "Howden/Anniko correspondence of July 13 to 21, 2023",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "a copy of Ms. Howden’s email correspondence with Mr. Anniko between July"
+    }
+   ],
+   "content_check": "3 pages: email chain topped by Anniko to Howden, Friday, July 21, 2023, following up"
+  },
+  {
+   "label": "G",
+   "file": "doc-g35hnf.pdf",
+   "kind": "email_chain",
+   "date": "2023-07-27",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)",
+    "Ed Barrington (BMO)"
+   ],
+   "description": "Howden's July 26 proposal and Anniko's July 27 response",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "as Exhibit “G” to this my Affidavit is a copy of Ms. Howden’s email to Mr."
+    }
+   ],
+   "content_check": "3 pages: email chain topped by Anniko, Thursday, July 27, 2023, 'I will discuss with my client'"
+  },
+  {
+   "label": "H",
+   "file": "doc-5f5h85.pdf",
+   "kind": "email",
+   "date": "2023-07-31",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)",
+    "Ed Barrington (BMO)"
+   ],
+   "description": "Anniko's email agreeing to the Second Mortgage",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Attached hereto and marked as Exhibit “H” to"
+    }
+   ],
+   "content_check": "3 pages: email from Kalev Anniko, Monday, July 31, 2023 2:17 PM, to Catherine Howden cc Barrington"
+  },
+  {
+   "label": "I",
+   "file": "doc-kpsxae.pdf",
+   "kind": "email",
+   "date": "2023-07-28",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Michael Dow",
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Howden's email explaining BDO's role as monitor",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached hereto and marked as Exhibit “I” to this my"
+    }
+   ],
+   "content_check": "2 pages: email from Catherine Howden, Friday, July 28, 2023 1:56 PM, to Michael Dow and Kalev Anniko, 'BMO/Genesus'"
+  },
+  {
+   "label": "J",
+   "file": "doc-k73wz7.pdf",
+   "kind": "email_chain",
+   "date": "2023-08-01",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Anniko's August 1 summary and Howden's confirmation",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "hereto and marked as Exhibit “J” to this my Affidavit is a copy of Mr."
+    }
+   ],
+   "content_check": "6 pages: email chain, top Catherine Howden, Tuesday, August 1, 2023 12:24 PM: 'Your email accurately describes the main points of our meeting'"
+  },
+  {
+   "label": "K",
+   "file": "doc-7g7qsx.pdf",
+   "kind": "email_chain",
+   "date": "2023-08-02",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Howden/Anniko correspondence of August 2, 2023 about overdrafts and Bank of Nova Scotia transfers",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "as Exhibit “K” to this my Affidavit is a copy of Ms. Howden’s email"
+    }
+   ],
+   "content_check": "3 pages: the August 2, 2023 chain as forwarded by Howden to Madison Laval on January 14, 2025"
+  },
+  {
+   "label": "L",
+   "file": "doc-7k33jv.pdf",
+   "kind": "email_chain",
+   "date": "2023-08-11",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)",
+    "Ed Barrington (BMO)"
+   ],
+   "description": "Anniko's emails of August 9 and 11, 2023 on FCC consent and the Second Mortgage",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "as Exhibit “L” to this my Affidavit is a copy of Mr. Anniko’s email"
+    }
+   ],
+   "content_check": "8 pages: email chain topped by Anniko, Friday, August 11, 2023 8:24 AM, re the St. Andrews titles"
+  },
+  {
+   "label": "M",
+   "file": "doc-qsh6tq.pdf",
+   "kind": "email_chain",
+   "date": "2023-08-14",
+   "author": "Trevor Klippenstein (Genesus)",
+   "recipients": [
+    "Ed Barrington (BMO)",
+    "Jim Long (Genesus)"
+   ],
+   "description": "Barrington/Klippenstein emails about the August 14 overdraft",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached hereto and marked as Exhibit “M” to this my Affidavit is"
+    }
+   ],
+   "content_check": "2 pages: emails of August 14, 2023, 'RE: Overdrawn', Klippenstein to Barrington"
+  },
+  {
+   "label": "N",
+   "file": "doc-az5c44.pdf",
+   "kind": "email_chain",
+   "date": "2023-08-15",
+   "author": "Ed Barrington (BMO)",
+   "recipients": [
+    "Trevor Klippenstein (Genesus)",
+    "Jim Long (Genesus)"
+   ],
+   "description": "Emails on the expected $130,000 payroll overdraft",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached hereto and marked as Exhibit “N” to"
+    }
+   ],
+   "content_check": "3 pages: email August 15, 2023 1:51 PM Barrington to Klippenstein, 'RE: Payroll - August 15th'"
+  },
+  {
+   "label": "O",
+   "file": "doc-eq6qqb.pdf",
+   "kind": "email",
+   "date": "2023-08-24",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+    "Ed Barrington (BMO)"
+   ],
+   "description": "Howden's email enclosing the draft forbearance agreement",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "as Exhibit “O” to this my Affidavit is a copy of Ms. Howden’s email to Mr."
+    }
+   ],
+   "content_check": "3 pages: email Thursday, August 24, 2023 2:40 PM from Howden to Anniko, 'BMO - Genesus', enclosing a proposed forbearance agreement"
+  },
+  {
+   "label": "P",
+   "file": "doc-f3btqn.pdf",
+   "kind": "email",
+   "date": "2023-08-31",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)"
+   ],
+   "description": "Anniko's August 31 email on delayed cash flows and sale proceeds",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "marked as Exhibit “P” is a copy of Mr. Anniko’s email to Ms. Howden, dated"
+    }
+   ],
+   "content_check": "3 pages: email Thursday, August 31, 2023 2:43 PM, Anniko to Howden, 'BMO and Genesus'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-jzypq4.pdf",
+   "kind": "letter",
+   "date": "2023-08-31",
+   "author": "E. Scott Ransom (Pitblado LLP)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Ransom's letter enclosing the Second Mortgage documents for execution",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Mr. Ransom’s letter to Mr. Anniko, dated"
+    }
+   ],
+   "content_check": "2 pages: Pitblado letter by email of August 31, 2023 to Fillmore Riley LLP, attention Kalev A. Anniko, re BMO mortgages from Genesus and Can-Am"
+  },
+  {
+   "label": "R",
+   "file": "doc-8fyd3j.pdf",
+   "kind": "email_chain",
+   "date": "2023-09-05",
+   "author": "Ed Barrington (BMO)",
+   "recipients": [
+    "Trevor Klippenstein (Genesus)"
+   ],
+   "description": "Barrington/Klippenstein emails of September 5, 2023 about overdrafts and returned items",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Klippenstein, dated September 5, 2023"
+    }
+   ],
+   "content_check": "5 pages: BMO stop-payment search screens and the September 5, 2023 emails"
+  },
+  {
+   "label": "S",
+   "file": "doc-aycegw.pdf",
+   "kind": "email_chain",
+   "date": "2023-09-07",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)"
+   ],
+   "description": "Howden/Anniko correspondence of September 6 and 7, 2023",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "email correspondence with Mr. Anniko between September 6 and 7, 2023"
+    }
+   ],
+   "content_check": "4 pages: email chain topped by Anniko, Thursday, September 7, 2023 11:35 AM"
+  },
+  {
+   "label": "T",
+   "file": "doc-5kngg4.pdf",
+   "kind": "email",
+   "date": "2023-09-08",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Howden's email again attaching a draft forbearance agreement",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "marked as Exhibit “T” to this my Affidavit is a copy of Ms. Howden’s email"
+    }
+   ],
+   "content_check": "2 pages: email Friday, September 8, 2023 3:38 PM, Howden to Anniko, attachment 'BMO Genesus Forbearance Agreement.docx'"
+  },
+  {
+   "label": "U",
+   "file": "doc-f72rkg.pdf",
+   "kind": "email",
+   "date": "2023-09-12",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)"
+   ],
+   "description": "Anniko's email with cash flow projections and proposed revisions",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "marked as Exhibit “U” to this my Affidavit is a copy of Mr. Anniko’s email to"
+    }
+   ],
+   "content_check": "3 pages: email Tuesday, September 12, 2023 10:14 AM, Anniko to Howden, attaching projected cash flows"
+  },
+  {
+   "label": "V",
+   "file": "doc-jkvp6q.pdf",
+   "kind": "email_chain",
+   "date": "2023-09-22",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+    "Ed Barrington (BMO)"
+   ],
+   "description": "Howden/Anniko emails of September 22, 2023 on the forbearance term and sale proceeds",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "Attached hereto and marked as Exhibit “V” to this"
+    }
+   ],
+   "content_check": "4 pages: email chain, Howden Friday, September 22, 2023 3:33 PM, 'RE: BMO and Genesus Inc. - Forbearance'"
+  },
+  {
+   "label": "W",
+   "file": "doc-5pf9ws.pdf",
+   "kind": "email",
+   "date": "2023-09-27",
+   "author": "Catherine Howden (Pitblado LLP, for BMO)",
+   "recipients": [
+    "Kalev Anniko (Fillmore Riley LLP, for the Debtors)"
+   ],
+   "description": "Howden's email summarizing revised forbearance terms",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Exhibit “W” to this my Affidavit is a copy of Ms. Howden’s email to Mr."
+    }
+   ],
+   "content_check": "2 pages: email Wednesday, September 27, 2023 6:48 PM, Howden to Anniko cc Ransom and Barrington, 'BMO/Genesus et al - forbearance agreement'"
+  },
+  {
+   "label": "X",
+   "file": "doc-qk6xgv.pdf",
+   "kind": "email_chain",
+   "date": "2023-10-02",
+   "author": "Kalev Anniko (Fillmore Riley LLP, for the Debtors)",
+   "recipients": [
+    "Catherine Howden (Pitblado LLP, for BMO)",
+    "Ed Barrington (BMO)"
+   ],
+   "description": "Howden/Anniko emails from September 28 to October 2, 2023 on the signed forbearance agreement",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "“X” to this my Affidavit is a copy of Ms. Howden’s email correspondence with"
+    }
+   ],
+   "content_check": "5 pages: chain topped by Anniko, Monday, October 2, 2023 12:28 PM, 'RE: BMO and Genesus Inc. - Forbearance'"
+  },
+  {
+   "label": "Y",
+   "file": "doc-fr3997.pdf",
+   "kind": "public_record",
+   "date": "2024-01-18",
+   "author": "Manitoba Land Titles Registry",
+   "recipients": [],
+   "description": "Status of Title for the Genesus and Can-Am properties showing the Second Mortgage",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "as Exhibit “Y” are copies of the Status of Title for the Genesus Property and"
+    }
+   ],
+   "content_check": "37 pages: Manitoba Status of Title reports, first title 1848166/2 (Can-Am Genetics Inc.), status as of 2024-01-18"
+  },
+  {
+   "label": "Z",
+   "file": "doc-uekn8q.pdf",
+   "kind": "letter",
+   "date": "2023-11-16",
+   "author": "E. Scott Ransom (Pitblado LLP)",
+   "recipients": [
+    "Bank of Montreal"
+   ],
+   "description": "Ransom's letter confirming registration of the Second Mortgage",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "Attached hereto and marked as Exhibit “Z” to this my Affidavit is a copy of Mr."
+    }
+   ],
+   "content_check": "6 pages: Pitblado letter by email of November 16, 2023 to Bank of Montreal, Edmonton"
+  },
+  {
+   "label": "AA",
+   "file": "doc-6fsyqd.pdf",
+   "kind": "public_record",
+   "date": "2025-01-08",
+   "author": "Ontario Ministry of Public and Business Service Delivery",
+   "recipients": [],
+   "description": "Ontario corporate search results for Sea Air",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "Attached hereto and marked as Exhibit"
+    }
+   ],
+   "content_check": "9 pages: Ontario Profile Report, Sea Air International Forwarders Limited, as of January 08, 2025"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Each Debtor grants BMO a General Security Agreement",
+   "date": "2011-03",
+   "precision": "approximate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "each of the \nDebtors executed a General Security Agreement in favour of BMO in or \nabout March, 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Barrington becomes involved in the Debtors' accounts at BMO's Special Accounts Management Unit",
+   "date": "2023-02",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "in or about February 2023 and had regular contact with the Debtors",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Introductory call between Barrington and Long; operating line in overdraft, reporting in breach",
+   "date": "2023-02-10",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "the introductory \nconversation Mr. Long and I had over the phone on February 10, 2023",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Barrington emails Long a recap of the call",
+   "date": "2023-02-13",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On or about February 13, 2023, I sent an email to Jim Long",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Genesus overdraft; BMO returns a $46,130 cheque",
+   "date": "2023-03-17",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On or about March 17, 2023, Genesus’ account was in an \nunauthorized overdraft position",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "BMO served with Venbridge Notice of Garnishment; hold placed on Genesus' account",
+   "date": "2023-04-26",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On or about April 26, 2023, and as further set out at subparagraph",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Barrington emails concerns about cash flow projections and continuing overdraft",
+   "date": "2023-05-23",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On or about May 23, 2023, I sent an email to Mr. Klippenstein and Mr.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "BMO serves Demand and NIES and Farm Debt Mediation Act notices",
+   "date": "2023-06-16",
+   "precision": "range",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on or about \nJune 16 and July 6, 2023, BMO made demand and served Notices of",
+   "exhibits": [],
+   "end_date": "2023-07-06"
+  },
+  {
+   "id": "e9",
+   "description": "Debtors' BMO accounts converted to non-accrual status",
+   "date": "2023-07-06",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On or about July 6, 2023, upon sending the Demand and NIES to the",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Debtors retain Anniko; he seeks a forbearance agreement",
+   "date": "2023-07-07",
+   "precision": "day",
+   "paragraphs": [
+    16,
+    17
+   ],
+   "quote": "on or about July 7, 2023, the Debtors retained Kalev Anniko",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Howden provides the signed Demand and NIES to Anniko",
+   "date": "2023-07-13",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "about July 13, 2023, she provided copies of the signed Demand and NIES",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Anniko follows up asking for BMO's proposal",
+   "date": "2023-07-21",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "that on or about July 21, 2023, Mr. Anniko sent an",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Howden sets out possible forbearance terms including an $8M Second Mortgage",
+   "date": "2023-07-26",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "about July 26, 2023, she sent an email to Mr. Anniko setting out the possible",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Anniko responds and asks about BDO's role",
+   "date": "2023-07-27",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "believe that on or about July 27, 2023, in response to Ms. Hodwen’s email",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Howden explains BDO's role as monitor",
+   "date": "2023-07-28",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "about July 28, 2023, she responded to Mr. Anniko’s email of July 27, 2023",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Anniko advises the Debtors agree to provide the Second Mortgage",
+   "date": "2023-07-31",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "about July 31, 2023, Mr. Anniko again responded to Ms. Howden’s email of",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Meeting of the parties; Anniko summarizes, Howden confirms",
+   "date": "2023-08-01",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "about August 1, 2023, Mr. Anniko sent an email to Ms. Howden, further to a",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "All BMO accounts in overdraft; Genesus and Can-Am try to move about $24,000 each to Bank of Nova Scotia",
+   "date": "2023-08-02",
+   "precision": "day",
+   "paragraphs": [
+    23,
+    24
+   ],
+   "quote": "On or about August 2, 2023, the Debtors’ BMO accounts were all in an",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "FCC prepared to allow the Second Mortgage",
+   "date": "2023-08-09",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "about August 9, 2023, Mr. Anniko sent an email to Ms. Howden and advised,",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Debtors confirm they will grant the Second Mortgage",
+   "date": "2023-08-11",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "August 11, 2023, Mr. Anniko sent another email to Ms. Howden, confirming,",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Deposit Account overdraft; Debtors move funds to cure",
+   "date": "2023-08-14",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On or about August 14, 2023, the Debtors’ Deposit Account was in an",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Klippenstein warns of $130,000 payroll overdraft; BMO refuses to cover",
+   "date": "2023-08-15",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On or about August 15, 2023, I received an email from Mr. Klippenstein",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Genesus cures the $130,000 overdraft",
+   "date": "2023-08-16",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On or about August 16, 2023, Genesus cured its $130,000.00",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Howden sends a draft forbearance agreement",
+   "date": "2023-08-24",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "about August 24, 2023, she sent an email to Mr. Anniko, attaching a draft",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Genesus overdraft of about $24,000; BMO returns a cheque",
+   "date": "2023-08-30",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On or about August 30, 2023, Genesus’ BMO account was in an",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "Anniko says response is delayed pending cash flows",
+   "date": "2023-08-31",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "about August 31, 2023, Mr. Anniko sent an email to Ms. Howden to advise,",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Ransom sends Second Mortgage documents for execution",
+   "date": "2023-08-31",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On or about August 31, 2023, counsel for BMO, E. Scott Ransom of",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "All BMO accounts in overdraft; BMO returns items after stop payments",
+   "date": "2023-09-05",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "On or about September 5, 2023, all of the Debtors’ BMO accounts were",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Howden asks whether the Second Mortgage can be signed before forbearance; Anniko declines",
+   "date": "2023-09-06",
+   "precision": "range",
+   "paragraphs": [
+    34
+   ],
+   "quote": "about September 6, 2023, she responded to Mr. Anniko’s email of August",
+   "exhibits": [
+    "S"
+   ],
+   "end_date": "2023-09-07"
+  },
+  {
+   "id": "e30",
+   "description": "Howden again sends a draft forbearance agreement",
+   "date": "2023-09-08",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "September 8, 2023, she sent an email to Mr. Anniko, again attaching a draft",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Anniko sends cash flow projections and proposed revisions",
+   "date": "2023-09-12",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "about September 12, 2023, Mr. Anniko sent and email to Ms. Howden and",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "BMO agrees to extend the Forbearance Term to January 15, 2024 but refuses retention of sale proceeds",
+   "date": "2023-09-22",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "about September 22, 2023, she sent an email to Mr. Anniko, enclosing a",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Howden summarizes revised terms: $45,000 forbearance fee",
+   "date": "2023-09-27",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "about September 27, 2023, she sent an email to Mr. Anniko, summarizing a",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "Revised forbearance agreement sent; St. Andrews Property removed from Second Mortgage",
+   "date": "2023-09-28",
+   "precision": "range",
+   "paragraphs": [
+    39
+   ],
+   "quote": "about September 28, 2023, Ms. Howden sent an email to Mr. Anniko,",
+   "exhibits": [
+    "X"
+   ],
+   "end_date": "2023-09-29"
+  },
+  {
+   "id": "e35",
+   "description": "Forbearance Agreement executed",
+   "date": "2023-09-30",
+   "precision": "approximate",
+   "paragraphs": [
+    40
+   ],
+   "quote": "executed by BMO and the Debtors on or about September 30, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "description": "Anniko provides the Forbearance Agreement signed by the Debtors",
+   "date": "2023-10-02",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "that on October 2, 2023, Mr.",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "BMO registers the Second Mortgage against the Genesus and Can-Am properties",
+   "date": "2023-10-12",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "On or about October 12, 2023, BMO registered its Second Mortgage",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "Ransom confirms registration of the Second Mortgage",
+   "date": "2023-11-16",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "On or about November 16, 2023, Mr. Ransom sent me a letter, via",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "Sea Air files its Ontario judgment in Manitoba",
+   "date": "2023-12-12",
+   "precision": "day",
+   "paragraphs": [
+    46
+   ],
+   "quote": "on December 12, 2023, Sea Air",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "Sea Air's judgment registered against Genesus' property",
+   "date": "2023-12-15",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "was registered against title to \nGenesus’ Property on or about December 15, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "description": "Forbearance Term expires",
+   "date": "2024-01-15",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "until 11:59 p.m. on January \n15, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e42",
+   "description": "BMO files its Notice of Application for a receiver",
+   "date": "2024-02-12",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Appointment of a Receiver with respect to the Debtors on February 12, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e43",
+   "description": "Herman Affidavit affirmed for Sea Air",
+   "date": "2024-05-29",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "affirmed May 29, 2024 (the “Herman Affidavit”)",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Barrington's First Affidavit (Feb 9, 2024) and its Exhibits II, KK, YY",
+  "Barrington's Second (Supplemental) Affidavit",
+  "Herman Affidavit",
+  "Demand and NIES",
+  "Forbearance Agreement",
+  "Venbridge Notice of Garnishment",
+  "Exhibits II, KK and YY to the first Barrington affidavit"
+ ]
+}

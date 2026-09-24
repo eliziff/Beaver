@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/fc-ibh-weistche/mckay-affidavit.pdf",
+  "url": "https://www.callkleinlawyers.com/wp-content/uploads/2023/08/5.-IBH-Aff-of-A.-McKay-sworn-07-23-2023-Filed-07-24-2023.pdf",
+  "title": "Affidavit of Allan Medrick McKay sworn July 23, 2023 (settlement approval)",
+  "kind": "affidavit",
+  "relation": "same motion, other representative plaintiff"
+ },
+ {
+  "file": "raw/matter/fc-ibh-weistche/notice-of-motion.pdf",
+  "url": "https://boardinghomesclassaction.com/wp-content/uploads/IBH-Notice-of-Motion-SA-Approval-Filed-07-24-2023.pdf",
+  "title": "Notice of motion for settlement approval filed July 24, 2023",
+  "kind": "court_filing",
+  "relation": "the motion this affidavit supports"
+ },
+ {
+  "file": "raw/matter/fc-ibh-weistche/reasons-approval.pdf",
+  "url": "https://boardinghomesclassaction.com/wp-content/uploads/Reasons-for-Approval-of-Settlement.pdf",
+  "title": "Federal Court reasons approving the settlement",
+  "kind": "court_order",
+  "relation": "later decision on the motion"
+ }
+]

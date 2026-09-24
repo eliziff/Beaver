@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/abca-lynx-watts/abca-permission-application.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/Application for Permission to Appeal(120074420.3).pdf",
+  "title": "Application for Permission to Appeal",
+  "kind": "court_filing",
+  "relation": "the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/abca-lynx-watts/abca-judgment.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/Judgment - Filed.pdf",
+  "title": "Court of Appeal of Alberta judgment, 2401-0244AC",
+  "kind": "court_order",
+  "relation": "later judgment on the appeal"
+ }
+]

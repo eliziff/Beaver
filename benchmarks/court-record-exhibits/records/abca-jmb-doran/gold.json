@@ -9,79 +9,402 @@
  "deponent": "Katie Doran",
  "deponent_role": "Legal assistant, McCarthy Tetrault LLP, counsel for FTI Consulting Canada Inc. as Monitor",
  "sworn_date": "2020-12-04",
+ "referenced_not_attached": [
+  "Monitor's Memorandums of Argument in 2001-0211 AC and 2001-0213 AC"
+ ],
+ "leak_waivers": [
+  "G"
+ ],
+ "notes": "The affidavit only lists exhibits, so events are the dated documents it names. Exhibits B, E, F, H and I are image-only scans. Leak G is the Howells affidavit's own internal references to its Exhibit G, not the Doran label.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-vwpuqb.pdf", "kind": "court_order", "date": "2020-05-11", "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-vwpuqb.pdf",
+   "kind": "court_order",
+   "date": "2020-05-11",
+   "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)",
+   "recipients": [],
    "description": "The Amended and Restated CCAA Initial Order granted May 11, 2020 by Justice K.M. Eidsvik",
-   "references": [{"paragraph": 4, "quote": "Attached as Exhibit \"A\" is a copy of the Amended and Restated CCAA Initial"}],
-   "content_check": "Amended and Restated CCAA Initial Order, court file 2001-05482, filed by Gowling WLG for JMB Crushing Systems Inc. and 2161889 Alberta Ltd., 33 pages"},
-  {"label": "B", "file": "doc-p8tgm8.pdf", "kind": "court_order", "date": "2020-05-20", "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit \"A\" is a copy of the Amended and Restated CCAA Initial"
+    }
+   ],
+   "content_check": "Amended and Restated CCAA Initial Order, court file 2001-05482, filed by Gowling WLG for JMB Crushing Systems Inc. and 2161889 Alberta Ltd., 33 pages"
+  },
+  {
+   "label": "B",
+   "file": "doc-p8tgm8.pdf",
+   "kind": "court_order",
+   "date": "2020-05-20",
+   "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)",
+   "recipients": [],
    "description": "Order - Lien Claims - MD of Bonnyville granted May 20, 2020 by Justice K.M. Eidsvik",
-   "references": [{"paragraph": 5, "quote": "Attached as Exhibit \"B\" is a copy of the Order"}],
-   "content_check": "Image-only certified copy of 'Order - Lien Claims - MD of Bonnyville' pronounced May 20, 2020 by Madam Justice K.M. Eidsvik, filed May 21, 2020; 8 pages, no text layer"},
-  {"label": "C", "file": "doc-47wpcz.pdf", "kind": "court_order", "date": "2020-10-16", "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"B\" is a copy of the Order"
+    }
+   ],
+   "content_check": "Image-only certified copy of 'Order - Lien Claims - MD of Bonnyville' pronounced May 20, 2020 by Madam Justice K.M. Eidsvik, filed May 21, 2020; 8 pages, no text layer"
+  },
+  {
+   "label": "C",
+   "file": "doc-47wpcz.pdf",
+   "kind": "court_order",
+   "date": "2020-10-16",
+   "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)",
+   "recipients": [],
    "description": "The unfiled Order (Amended and Restated Mantle Sale Approval and Vesting Order) granted October 16, 2020",
-   "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"C\" is a copy of the unfiled Order (Amended and Restated"}],
-   "content_check": "Order (Amended and Restated Mantle Sale Approval and Vesting Order) in court file 2001-05482, McCarthy Tetrault filing block, 35 pages; the cover stamp read 'Exhibit 0' in OCR"},
-  {"label": "D", "file": "doc-asv33w.pdf", "kind": "court_order", "date": "2020-10-16", "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit \"C\" is a copy of the unfiled Order (Amended and Restated"
+    }
+   ],
+   "content_check": "Order (Amended and Restated Mantle Sale Approval and Vesting Order) in court file 2001-05482, McCarthy Tetrault filing block, 35 pages; the cover stamp read 'Exhibit 0' in OCR"
+  },
+  {
+   "label": "D",
+   "file": "doc-asv33w.pdf",
+   "kind": "court_order",
+   "date": "2020-10-16",
+   "author": "Court of Queen's Bench of Alberta (Justice K.M. Eidsvik)",
+   "recipients": [],
    "description": "The unfiled Reverse Vesting Order granted October 16, 2020",
-   "references": [{"paragraph": 7, "quote": "Attached as Exhibit \"D\" is a copy of the unfiled Reverse Vesting Order, granted"}],
-   "content_check": "Reverse Vesting Order in court file 2001-05482, 21 pages"},
-  {"label": "E", "file": "doc-3chq9w.pdf", "kind": "affidavit", "date": "2020-04-16", "author": "Jeff Buck", "recipients": [],
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit \"D\" is a copy of the unfiled Reverse Vesting Order, granted"
+    }
+   ],
+   "content_check": "Reverse Vesting Order in court file 2001-05482, 21 pages"
+  },
+  {
+   "label": "E",
+   "file": "doc-3chq9w.pdf",
+   "kind": "affidavit",
+   "date": "2020-04-16",
+   "author": "Jeff Buck",
+   "recipients": [],
    "description": "Body of the Affidavit of Jeff Buck sworn April 16, 2020",
-   "references": [{"paragraph": 8, "quote": "Attached as Exhibit \"E\" is a copy of the body of the Affidavit of Jeff Buck, sworn"}],
-   "content_check": "Image-only affidavit, 31 pages, no text layer (not rendered beyond the count)"},
-  {"label": "F", "file": "doc-em3x56.pdf", "kind": "affidavit", "date": "2020-05-20", "author": "Jeff Buck", "recipients": [],
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit \"E\" is a copy of the body of the Affidavit of Jeff Buck, sworn"
+    }
+   ],
+   "content_check": "Image-only affidavit, 31 pages, no text layer (not rendered beyond the count)"
+  },
+  {
+   "label": "F",
+   "file": "doc-em3x56.pdf",
+   "kind": "affidavit",
+   "date": "2020-05-20",
+   "author": "Jeff Buck",
+   "recipients": [],
    "description": "Body of the Affidavit of Jeff Buck sworn May 20, 2020",
-   "references": [{"paragraph": 9, "quote": "Attached as Exhibit \"F\" is a copy of the body of the Affidavit of Jeff Buck, sworn"}],
-   "content_check": "Image-only affidavit, 3 pages, no text layer"},
-  {"label": "G", "file": "doc-tdwhs5.pdf", "kind": "affidavit", "date": "2020-05-29", "author": "David Howells", "recipients": [],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit \"F\" is a copy of the body of the Affidavit of Jeff Buck, sworn"
+    }
+   ],
+   "content_check": "Image-only affidavit, 3 pages, no text layer"
+  },
+  {
+   "label": "G",
+   "file": "doc-tdwhs5.pdf",
+   "kind": "affidavit",
+   "date": "2020-05-29",
+   "author": "David Howells",
+   "recipients": [],
    "description": "Body of the Affidavit of David Howells sworn May 29, 2020",
-   "references": [{"paragraph": 10, "quote": "Attached as Exhibit \"G\" is a copy of the body of the Affidavit of David Howells"}],
-   "content_check": "Affidavit of David Howells for RBEE Aggregate Consulting Ltd. (Bishop & McKenzie LLP), headed 'Schedule A to the Lien Notice of RBEE Aggregate Consulting Ltd.', 6 pages; its own paragraphs cite its Exhibits G-I"},
-  {"label": "H", "file": "doc-snw47y.pdf", "kind": "affidavit", "date": "2020-10-09", "author": "Jason Panter", "recipients": [],
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Attached as Exhibit \"G\" is a copy of the body of the Affidavit of David Howells"
+    }
+   ],
+   "content_check": "Affidavit of David Howells for RBEE Aggregate Consulting Ltd. (Bishop & McKenzie LLP), headed 'Schedule A to the Lien Notice of RBEE Aggregate Consulting Ltd.', 6 pages; its own paragraphs cite its Exhibits G-I"
+  },
+  {
+   "label": "H",
+   "file": "doc-snw47y.pdf",
+   "kind": "affidavit",
+   "date": "2020-10-09",
+   "author": "Jason Panter",
+   "recipients": [],
    "description": "Body of the Affidavit of Jason Panter sworn October 9, 2020 and its Exhibit C",
-   "references": [{"paragraph": 11, "quote": "Attached as Exhibit \"H\" is a copy of the body of the Affidavit of Jason Panter"}],
-   "content_check": "Image-only affidavit, 24 pages, no text layer"},
-  {"label": "I", "file": "doc-x6p2hc.pdf", "kind": "affidavit", "date": "2020-11-06", "author": "Jerry Shankowski", "recipients": [],
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached as Exhibit \"H\" is a copy of the body of the Affidavit of Jason Panter"
+    }
+   ],
+   "content_check": "Image-only affidavit, 24 pages, no text layer"
+  },
+  {
+   "label": "I",
+   "file": "doc-x6p2hc.pdf",
+   "kind": "affidavit",
+   "date": "2020-11-06",
+   "author": "Jerry Shankowski",
+   "recipients": [],
    "description": "Body of the Affidavit of Jerry Shankowski sworn November 6, 2020 in the CCAA Proceedings",
-   "references": [{"paragraph": 12, "quote": "Attached as Exhibit \"I\" is a copy of the body of the Affidavit of Jerry Shankowski"}],
-   "content_check": "Image-only 'Affidavit of Jerry Shankowski sworn November 6, 2020' (Hajduk LLP), stamped COM Nov. 27, 2020 Justice Eidsvik; 9 pages"},
-  {"label": "J", "file": "doc-b7uk2x.pdf", "kind": "affidavit", "date": "2020-11-20", "author": "Blake Elyea", "recipients": [],
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached as Exhibit \"I\" is a copy of the body of the Affidavit of Jerry Shankowski"
+    }
+   ],
+   "content_check": "Image-only 'Affidavit of Jerry Shankowski sworn November 6, 2020' (Hajduk LLP), stamped COM Nov. 27, 2020 Justice Eidsvik; 9 pages"
+  },
+  {
+   "label": "J",
+   "file": "doc-b7uk2x.pdf",
+   "kind": "affidavit",
+   "date": "2020-11-20",
+   "author": "Blake Elyea",
+   "recipients": [],
    "description": "Body of the Affidavit of Blake Elyea sworn November 20, 2020",
-   "references": [{"paragraph": 13, "quote": "Attached as Exhibit \"J\" is a copy of the body of the Affidavit of Blake Elyea, sworn"}],
-   "content_check": "Affidavit of Blake M. Elyea (Gowling WLG) with a certificate to accompany affidavit made November 20, 2020, 8 pages"},
-  {"label": "K", "file": "doc-sxvqyw.pdf", "kind": "report", "date": "2020-08-25", "author": "FTI Consulting Canada Inc. (Monitor)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Attached as Exhibit \"J\" is a copy of the body of the Affidavit of Blake Elyea, sworn"
+    }
+   ],
+   "content_check": "Affidavit of Blake M. Elyea (Gowling WLG) with a certificate to accompany affidavit made November 20, 2020, 8 pages"
+  },
+  {
+   "label": "K",
+   "file": "doc-sxvqyw.pdf",
+   "kind": "report",
+   "date": "2020-08-25",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
    "description": "Body of the Fourth Report of the Monitor dated August 25, 2020",
-   "references": [{"paragraph": 14, "quote": "Attached as Exhibit \"K\" is a copy of the body of the Fourth Report of the Monitor"}],
-   "content_check": "Fourth Report of FTI Consulting Canada Inc. as Monitor of JMB Crushing Systems Inc., 40 pages"},
-  {"label": "L", "file": "doc-wtgvpn.pdf", "kind": "report", "date": "2020-09-30", "author": "FTI Consulting Canada Inc. (Monitor)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit \"K\" is a copy of the body of the Fourth Report of the Monitor"
+    }
+   ],
+   "content_check": "Fourth Report of FTI Consulting Canada Inc. as Monitor of JMB Crushing Systems Inc., 40 pages"
+  },
+  {
+   "label": "L",
+   "file": "doc-wtgvpn.pdf",
+   "kind": "report",
+   "date": "2020-09-30",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
    "description": "Body of the Seventh Report of the Monitor dated September 30, 2020 with Appendix A and Confidential Appendices B and F",
-   "references": [{"paragraph": 15, "quote": "Attached as Exhibit \"L\" is a copy of the body of the Seventh Report of the Monitor"}],
-   "content_check": "Seventh Report of FTI Consulting Canada Inc. as Monitor, with appendices, 90 pages"},
-  {"label": "M", "file": "doc-3w8afy.pdf", "kind": "report", "date": "2020-11-20", "author": "FTI Consulting Canada Inc. (Monitor)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit \"L\" is a copy of the body of the Seventh Report of the Monitor"
+    }
+   ],
+   "content_check": "Seventh Report of FTI Consulting Canada Inc. as Monitor, with appendices, 90 pages"
+  },
+  {
+   "label": "M",
+   "file": "doc-3w8afy.pdf",
+   "kind": "report",
+   "date": "2020-11-20",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
    "description": "The Tenth Report of the Monitor dated November 20, 2020",
-   "references": [{"paragraph": 16, "quote": "Attached as Exhibit \"M\" is a copy of the Tenth Report of the Monitor, dated"}],
-   "content_check": "Tenth Report of FTI Consulting Canada Inc. as Monitor dated November 20, 2020, with Appendix A cash flow summary to November 13, 2020; 15 pages"},
-  {"label": "N", "file": "doc-ghmb2s.pdf", "kind": "court_filing", "date": "2020-10-14", "author": "FTI Consulting Canada Inc. (Monitor), by McCarthy Tetrault LLP", "recipients": [],
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached as Exhibit \"M\" is a copy of the Tenth Report of the Monitor, dated"
+    }
+   ],
+   "content_check": "Tenth Report of FTI Consulting Canada Inc. as Monitor dated November 20, 2020, with Appendix A cash flow summary to November 13, 2020; 15 pages"
+  },
+  {
+   "label": "N",
+   "file": "doc-ghmb2s.pdf",
+   "kind": "court_filing",
+   "date": "2020-10-14",
+   "author": "FTI Consulting Canada Inc. (Monitor), by McCarthy Tetrault LLP",
+   "recipients": [],
    "description": "The Bench Brief of the Monitor filed October 14, 2020",
-   "references": [{"paragraph": 17, "quote": "Attached as Exhibit \"N\" is a copy of the Bench Brief of the Monitor, filed on"}],
-   "content_check": "Monitor's Brief of Law and Argument (McCarthy Tetrault) on approval of the Mantle transaction and reverse vesting order, with tabbed authorities (Soundair, Harte Gold, etc.), 101 pages"}
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached as Exhibit \"N\" is a copy of the Bench Brief of the Monitor, filed on"
+    }
+   ],
+   "content_check": "Monitor's Brief of Law and Argument (McCarthy Tetrault) on approval of the Mantle transaction and reverse vesting order, with tabbed authorities (Soundair, Harte Gold, etc.), 101 pages"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2020-04-16", "precision": "day", "description": "Jeff Buck swore his first affidavit in the CCAA proceedings", "paragraphs": [8], "quote": "Affidavit of Jeff Buck, sworn", "exhibits": ["E"]},
-  {"id": "e2", "date": "2020-05-11", "precision": "day", "description": "Justice Eidsvik granted the Amended and Restated CCAA Initial Order", "paragraphs": [4], "quote": "Order, granted on May 11, 2020 by the Honourable Madam Justice K.M. Eidsvik", "exhibits": ["A"]},
-  {"id": "e3", "date": "2020-05-20", "precision": "day", "description": "Justice Eidsvik granted the Order - Lien Claims - MD of Bonnyville; Jeff Buck swore a second affidavit the same day", "paragraphs": [5, 9], "quote": "granted on May 20, 2020 by the Honourable Madam Justice K.M. Eidsvik", "exhibits": ["B", "F"]},
-  {"id": "e4", "date": "2020-05-29", "precision": "day", "description": "David Howells swore his affidavit", "paragraphs": [10], "quote": "sworn on May 29, 2020", "exhibits": ["G"]},
-  {"id": "e5", "date": "2020-08-25", "precision": "day", "description": "The Monitor issued its Fourth Report", "paragraphs": [14], "quote": "dated August 25, 2020", "exhibits": ["K"]},
-  {"id": "e6", "date": "2020-09-30", "precision": "day", "description": "The Monitor issued its Seventh Report", "paragraphs": [15], "quote": "dated September 30, 2020", "exhibits": ["L"]},
-  {"id": "e7", "date": "2020-10-09", "precision": "day", "description": "Jason Panter swore his affidavit", "paragraphs": [11], "quote": "sworn on October 9, 2020", "exhibits": ["H"]},
-  {"id": "e8", "date": "2020-10-14", "precision": "day", "description": "The Monitor filed its Bench Brief", "paragraphs": [17], "quote": "October 14, 2020", "exhibits": ["N"]},
-  {"id": "e9", "date": "2020-10-16", "precision": "day", "description": "Justice Eidsvik granted the Amended and Restated Mantle Sale Approval and Vesting Order and the Reverse Vesting Order", "paragraphs": [6, 7], "quote": "Mantle Sale Approval and Vesting Order), granted on October 16, 2020", "exhibits": ["C", "D"]},
-  {"id": "e10", "date": "2020-11-06", "precision": "day", "description": "Jerry Shankowski swore his affidavit in the CCAA Proceedings", "paragraphs": [12], "quote": "sworn on November 6, 2020, in the CCAA Proceedings", "exhibits": ["I"]},
-  {"id": "e11", "date": "2020-11-20", "precision": "day", "description": "Blake Elyea swore his affidavit and the Monitor issued its Tenth Report", "paragraphs": [13, 16], "quote": "on November 20, 2020", "exhibits": ["J", "M"]},
-  {"id": "e12", "precision": "undated", "description": "Shankowski and 945411 Alberta Ltd. applied for leave to appeal the CCAA orders and for a stay of their enforcement pending appeal", "paragraphs": [2], "quote": "response to applications by Jerry Shankowski and 945411 Alberta Ltd. seeking", "exhibits": ["C", "D"]}
- ],
- "referenced_not_attached": ["Monitor's Memorandums of Argument in 2001-0211 AC and 2001-0213 AC"],
- "leak_waivers": ["G"],
- "notes": "The affidavit only lists exhibits, so events are the dated documents it names. Exhibits B, E, F, H and I are image-only scans. Leak G is the Howells affidavit's own internal references to its Exhibit G, not the Doran label."
+  {
+   "id": "e1",
+   "date": "2020-04-16",
+   "precision": "day",
+   "description": "Jeff Buck swore his first affidavit in the CCAA proceedings",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Affidavit of Jeff Buck, sworn",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2020-05-11",
+   "precision": "day",
+   "description": "Justice Eidsvik granted the Amended and Restated CCAA Initial Order",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Order, granted on May 11, 2020 by the Honourable Madam Justice K.M. Eidsvik",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2020-05-20",
+   "precision": "day",
+   "description": "Justice Eidsvik granted the Order - Lien Claims - MD of Bonnyville; Jeff Buck swore a second affidavit the same day",
+   "paragraphs": [
+    5,
+    9
+   ],
+   "quote": "granted on May 20, 2020 by the Honourable Madam Justice K.M. Eidsvik",
+   "exhibits": [
+    "B",
+    "F"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2020-05-29",
+   "precision": "day",
+   "description": "David Howells swore his affidavit",
+   "paragraphs": [
+    10
+   ],
+   "quote": "sworn on May 29, 2020",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2020-08-25",
+   "precision": "day",
+   "description": "The Monitor issued its Fourth Report",
+   "paragraphs": [
+    14
+   ],
+   "quote": "dated August 25, 2020",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2020-09-30",
+   "precision": "day",
+   "description": "The Monitor issued its Seventh Report",
+   "paragraphs": [
+    15
+   ],
+   "quote": "dated September 30, 2020",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2020-10-09",
+   "precision": "day",
+   "description": "Jason Panter swore his affidavit",
+   "paragraphs": [
+    11
+   ],
+   "quote": "sworn on October 9, 2020",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2020-10-14",
+   "precision": "day",
+   "description": "The Monitor filed its Bench Brief",
+   "paragraphs": [
+    17
+   ],
+   "quote": "October 14, 2020",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2020-10-16",
+   "precision": "day",
+   "description": "Justice Eidsvik granted the Amended and Restated Mantle Sale Approval and Vesting Order and the Reverse Vesting Order",
+   "paragraphs": [
+    6,
+    7
+   ],
+   "quote": "Mantle Sale Approval and Vesting Order), granted on October 16, 2020",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2020-11-06",
+   "precision": "day",
+   "description": "Jerry Shankowski swore his affidavit in the CCAA Proceedings",
+   "paragraphs": [
+    12
+   ],
+   "quote": "sworn on November 6, 2020, in the CCAA Proceedings",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2020-11-20",
+   "precision": "day",
+   "description": "Blake Elyea swore his affidavit and the Monitor issued its Tenth Report",
+   "paragraphs": [
+    13,
+    16
+   ],
+   "quote": "on November 20, 2020",
+   "exhibits": [
+    "J",
+    "M"
+   ]
+  },
+  {
+   "id": "e12",
+   "precision": "undated",
+   "description": "Shankowski and 945411 Alberta Ltd. applied for leave to appeal the CCAA orders and for a stay of their enforcement pending appeal",
+   "paragraphs": [
+    2
+   ],
+   "quote": "response to applications by Jerry Shankowski and 945411 Alberta Ltd. seeking",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  }
+ ]
 }

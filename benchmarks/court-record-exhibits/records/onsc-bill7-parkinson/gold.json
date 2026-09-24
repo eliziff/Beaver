@@ -1,0 +1,465 @@
+{
+ "record_id": "onsc-bill7-parkinson",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022) on placing hospital ALC patients in long-term care homes",
+ "document": "Affidavit of Bonny Parkinson affirmed May 25, 2023",
+ "deponent": "Bonny Parkinson",
+ "deponent_role": "Daughter and substitute decision-maker of Donalda (Donna) Smith, placed in a short-wait-list long-term care home",
+ "sworn_date": "2023-05-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ntearg.pdf",
+   "kind": "email",
+   "date": "2022-10-24",
+   "author": "Bonny Parkinson",
+   "recipients": [
+    "Katherine Porter, HCCSS placement co-ordinator"
+   ],
+   "description": "Parkinson's October 24, 2022 email inquiring about long-term care placement",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "which is attached hereto as Exhibit A"
+    }
+   ],
+   "content_check": "1 page: forwarded email from Bonny Parkinson, Mon Oct 24, 2022, subject 'Donna Smith', to Katherine Porter (hccontario.ca)"
+  },
+  {
+   "label": "B",
+   "file": "doc-es76ma.pdf",
+   "kind": "email_chain",
+   "date": "2022-11-16",
+   "author": "Priscilla Schill, HCCSS",
+   "recipients": [
+    "Bonny Parkinson"
+   ],
+   "description": "November 15-16 email exchange in which Schill proposed short-wait-list homes",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "which is \nattached hereto as Exhibit B"
+    }
+   ],
+   "content_check": "5 pages: email chain incl. Priscilla Schill to Bonny Parkinson, Wed Nov 16, 2022, subject 'Facility Choice List'"
+  },
+  {
+   "label": "C",
+   "file": "doc-g7gamj.pdf",
+   "kind": "email",
+   "date": "2022-11-16",
+   "author": "Bonny Parkinson",
+   "recipients": [
+    "Priscilla Schill, HCCSS"
+   ],
+   "description": "Parkinson's November 16, 2022 email asking about the short-wait-list homes and St. Joseph's",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A copy of this email is attached as Exhibit C."
+    }
+   ],
+   "content_check": "1 page: email from Bonny Parkinson dated Wed Nov 16, 2022, subject 'Donna smith', forwarded to counsel May 23, 2023"
+  },
+  {
+   "label": "D",
+   "file": "doc-jrcv8p.pdf",
+   "kind": "email",
+   "date": "2022-11-17",
+   "author": "Bonny Parkinson",
+   "recipients": [
+    "Barry Smith (brother)"
+   ],
+   "description": "Parkinson's email to her brother Barry quoting Schill's reply",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of that email is attached as \nExhibit D."
+    }
+   ],
+   "content_check": "3 pages: email thread 'Pricilla email' between Bonny Parkinson and her brother (rosenbarrysmith), Nov 17, 2022"
+  },
+  {
+   "label": "E",
+   "file": "doc-mjm8qt.pdf",
+   "kind": "email",
+   "date": "2022-11-23",
+   "author": "OHWest Forms via DocuSign",
+   "recipients": [
+    "Bonny Parkinson"
+   ],
+   "description": "Email confirming submission of the long-term care application",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of the email confirming the \nsubmission of my application is attached hereto as Exhibit E."
+    }
+   ],
+   "content_check": "8 pages: DocuSign email Wed Nov 23, 2022 'Completed: Facility Choice List - HCCSS Waterloo Wellington' with the completed choice list"
+  },
+  {
+   "label": "F",
+   "file": "doc-jrnbmn.pdf",
+   "kind": "email",
+   "date": "2022-11-23",
+   "author": "Priscilla Schill, HCCSS",
+   "recipients": [
+    "Bonny Parkinson"
+   ],
+   "description": "Schill's November 23, 2022 email encouraging more homes and saying she would send in the application",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "A copy of \nthat email is attached hereto as Exhibit F."
+    }
+   ],
+   "content_check": "5 pages: forwarded email 'St Joe's TCU app' dated Wed Nov 23, 2022, forwarded to counsel May 18, 2023"
+  },
+  {
+   "label": "G",
+   "file": "doc-y5f98s.pdf",
+   "kind": "other",
+   "date": "2022-12-23",
+   "author": "Bonny Parkinson (substitute decision-maker)",
+   "recipients": [
+    "HCCSS Waterloo Wellington"
+   ],
+   "description": "The December 23, 2022 long-term care application ranking St. Joseph's first",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "is attached hereto as Exhibit G"
+    }
+   ],
+   "content_check": "3 pages: HCCSS Waterloo Wellington Facility Choice List form"
+  },
+  {
+   "label": "H",
+   "file": "doc-xntkn8.pdf",
+   "kind": "other",
+   "date": "2023-02-27",
+   "author": "Bonny Parkinson (substitute decision-maker)",
+   "recipients": [
+    "Waterloo Wellington LHIN"
+   ],
+   "description": "The revised application of February 27, 2023",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "is attached hereto as Exhibit H"
+    }
+   ],
+   "content_check": "2 pages: Waterloo Wellington LHIN Facility Choice List form"
+  },
+  {
+   "label": "I",
+   "file": "doc-2dqnv3.pdf",
+   "kind": "email",
+   "date": "2023-03-20",
+   "author": "Lee-Anne Plume-Campbell, HCCSS",
+   "recipients": [
+    "Bonny Parkinson"
+   ],
+   "description": "Authorization for admission to Caressant Care Fergus sent March 20, 2023",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "which \nwas sent to me on March 20, 2023, is attached hereto as Exhibit I"
+    }
+   ],
+   "content_check": "2 pages: email from Lee-Anne Plume-Campbell Mon Mar 20, 2023 'Authorization for admission', forwarded to counsel May 17, 2023"
+  },
+  {
+   "label": "J",
+   "file": "doc-nw8xmt.pdf",
+   "kind": "webpage",
+   "date": "2020-10",
+   "author": "CBC News Marketplace",
+   "recipients": [],
+   "description": "October 2020 CBC report ranking Caressant Care Fergus among homes with most written notices",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "A \ncopy of that article is attached hereto as Exhibit J."
+    }
+   ],
+   "content_check": "4 pages: CBC Marketplace 'Top 30 Ontario long-term care homes with most reported violations', printed 5/25/23"
+  },
+  {
+   "label": "K",
+   "file": "doc-2eykpt.pdf",
+   "kind": "report",
+   "date": "2022-04",
+   "author": "HCCSS Waterloo Wellington",
+   "recipients": [],
+   "description": "April 2022 HCCSS Waterloo Wellington report with wait list numbers",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "The April 2022 report from HCCSS Waterloo Wellington is attached hereto as \nExhibit K."
+    }
+   ],
+   "content_check": "4 pages: 'April 2022 Choosing a Long-term Care Home' guide with home wait lists"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Mother moves into Luther Village retirement home",
+   "date": "2020-12-09",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "since December 9, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "CBC reports Caressant Care Fergus among homes with most written notices",
+   "date": "2020-10",
+   "precision": "month",
+   "paragraphs": [
+    29
+   ],
+   "quote": "In a CBC report in October 2020",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "HCCSS wait list report: Caressant Care Fergus shortest wait list",
+   "date": "2022-04",
+   "precision": "month",
+   "paragraphs": [
+    30
+   ],
+   "quote": "as of April 2022, Caressant \nCare Fergus had the shortest waitlist in the region",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Mother's health begins to decline",
+   "date": "2022-06",
+   "precision": "approximate",
+   "paragraphs": [
+    4
+   ],
+   "quote": "From around June 2022, my mother’s health started to decline.",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Mother treated at St. Mary's General Hospital, not admitted",
+   "date": "2022-10",
+   "precision": "approximate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "My mother was taken to St. Mary’s General Hospital in Kitchener in mid-October 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Parkinson emails the placement co-ordinator about long-term care",
+   "date": "2022-10-24",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Home and Community Care Support Services \n(HCCSS) on October 24, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Mother admitted to St. Mary's with congestive heart failure",
+   "date": "2022-11-01",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "on November 1, 2022, she was admitted to St. Mary’s with congestive heart \nfailure",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Schill tells Parkinson she must choose a short-wait-list home or pay $400 per day",
+   "date": "2022-11",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In mid-November, Pricilla Schill, a placement co-ordinator from HCCSS",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Email exchange with Schill proposing short-wait-list homes",
+   "date": "2022-11-15",
+   "precision": "range",
+   "end_date": "2022-11-16",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In an email exchange with Ms. Schill between November 15 and November 16",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Parkinson emails Schill asking about St. Joseph's",
+   "date": "2022-11-16",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On November 16, 2022, I sent an email to Ms. Schill",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Schill replies that at least one short-wait-list home is required; Parkinson forwards to her brother",
+   "date": "2022-11-17",
+   "precision": "day",
+   "paragraphs": [
+    12,
+    13
+   ],
+   "quote": "On November 17, 2022, Ms. Schill replied to my email.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Long-term care application submitted with Caressant Care Fergus third",
+   "date": "2022-11-23",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On November 23, 2022, I submitted the application for long-term care",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Schill encourages adding more homes",
+   "date": "2022-11-23",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "On November 23, 2022, Ms. Schill emailed me",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Mother transferred to St. Joseph's for transitional care",
+   "date": "2022-12-21",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "At 1:30 PM on December 21, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Revised application ranking St. Joseph's first",
+   "date": "2022-12-23",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "dated \nDecember 23, 2022",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Mother accepted to Caressant Care Fergus; move delayed by outbreak",
+   "date": "2022-12-27",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On December 27, 2022, I was told by Grace Bhinder",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Revised application submitted",
+   "date": "2023-02-27",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "on February 27, 2023",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Mother transferred to Caressant Care Fergus on her 94th birthday",
+   "date": "2023-03-17",
+   "precision": "day",
+   "paragraphs": [
+    20,
+    21
+   ],
+   "quote": "My mother was transferred to Caressant Care Fergus on March 17, 2023",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Authorization for admission sent to Parkinson",
+   "date": "2023-03-20",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "sent to me on March 20, 2023",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Placement co-ordinator says mother will not move to a chosen home in her lifetime",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    28
+   ],
+   "quote": "you may as well get your mother \ncomfortable and accept where she is",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Ministry public reporting database for Caressant Care Fergus",
+  "Photo of Donna Smith (in the affidavit body)"
+ ],
+ "leak_waivers": [],
+ "notes": "Family ohc-bill7-charter."
+}

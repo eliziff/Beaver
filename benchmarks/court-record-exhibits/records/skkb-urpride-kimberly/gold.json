@@ -9,28 +9,235 @@
  "deponent": "Aaron Kimberly",
  "deponent_role": "Executive Director and founding member of Gender Dysphoria Alliance; registered nurse",
  "sworn_date": "2023-09-13",
+ "referenced_not_attached": [
+  "Affidavit of Dr. Travers (UR Pride)",
+  "UR Pride's application materials for injunctive relief",
+  "N.B. v. Ottawa-Carleton District School Board, 2022 HRTO 1044"
+ ],
+ "leak_waivers": [],
+ "notes": "Posted by JCCF also as 'Parents-for-choice-sask-Affidavit-of-Aaron-Kimberly'. Several web printouts have font-encoded text layers; contents confirmed from page renders.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-338sym.pdf", "kind": "webpage", "date": null, "author": "Gender Dysphoria Alliance", "recipients": [], "description": "List of the individuals on GDA's leadership board and advisory board", "references": [{"paragraph": 3, "quote": "Attached hereto to this my Affidavit as Exhibit \"A\" is a list of the individuals on our leadership board and our advisory board."}], "content_check": "3 pages: GDA website 'Leadership Board' and 'Advisory Board' pages (Aaron Kimberly, Aaron Terrell, Kellie Pirie, Janet Scott...); text layer is font-encoded"},
-  {"label": "B", "file": "doc-7a7gc3.pdf", "kind": "corporate_record", "date": "2023-09-05", "author": "OrgBook BC", "recipients": [], "description": "GDA's registration information", "references": [{"paragraph": 3, "quote": "Attached hereto to as Exhibit \"B\", is GDA's registration info."}], "content_check": "3 pages: OrgBook BC entry for GD ALLIANCE CANADA (FM0834876), active sole proprietorship, printed 2023-09-05"},
-  {"label": "C", "file": "doc-a2czd4.pdf", "kind": "public_record", "date": "2023-09-13", "author": "College of Registered Nurses of Manitoba (Nurse Check)", "recipients": [], "description": "Verification of his status as a registered nurse", "references": [{"paragraph": 15, "quote": "Attached hereto to this my Affidavit as Exhibit \"C\" is verification of my status as a registered nurse."}], "content_check": "1 page: 'Nurse Check' search result for Aaron Kimberly, registered nurse no. 406296, expiry 2023-12-31, retrieved 2023-09-13"},
-  {"label": "D", "file": "doc-zr5vfc.pdf", "kind": "webpage", "date": "2021-08-18", "author": "Gender Dysphoria Alliance", "recipients": [], "description": "Story of GDA Director of Operations Aaron Terrell as posted on the GDA website", "references": [{"paragraph": 29, "quote": "Attached hereto to this my Affidavit as Exhibit \"D\" is the story of the current GDA Director of Operations, Aaron Terrell"}], "content_check": "4 pages: GDA blog post 'Meet Aaron Terrell', Aug 18, 2021 (updated Dec 18, 2021); text layer is font-encoded"},
-  {"label": "E", "file": "doc-3pynkk.pdf", "kind": "webpage", "date": null, "author": "Gender Dysphoria Alliance", "recipients": [], "description": "Story of GDA Director of Education Janet Scott as posted on the website", "references": [{"paragraph": 30, "quote": "Attached hereto to this my Affidavit as Exhibit \"E\" is the story of current GDA Director of Education, Janet Scott"}], "content_check": "2 pages: GDA website story of Janet Scott; text layer is font-encoded"},
-  {"label": "F", "file": "doc-42adaa.pdf", "kind": "webpage", "date": null, "author": "Gender Dysphoria Alliance", "recipients": [], "description": "Story of Lauren Black as posted on the website", "references": [{"paragraph": 31, "quote": "Attached hereto to this my Affidavit as Exhibit \"F\" is the story of one, Lauren Black"}], "content_check": "3 pages: GDA website story of Lauren Black; text layer is font-encoded"}
+  {
+   "label": "A",
+   "file": "doc-338sym.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "List of the individuals on GDA's leadership board and advisory board",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto to this my Affidavit as Exhibit \"A\" is a list of the individuals on our leadership board and our advisory board."
+    }
+   ],
+   "content_check": "3 pages: GDA website 'Leadership Board' and 'Advisory Board' pages (Aaron Kimberly, Aaron Terrell, Kellie Pirie, Janet Scott...); text layer is font-encoded"
+  },
+  {
+   "label": "B",
+   "file": "doc-7a7gc3.pdf",
+   "kind": "corporate_record",
+   "date": "2023-09-05",
+   "author": "OrgBook BC",
+   "recipients": [],
+   "description": "GDA's registration information",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto to as Exhibit \"B\", is GDA's registration info."
+    }
+   ],
+   "content_check": "3 pages: OrgBook BC entry for GD ALLIANCE CANADA (FM0834876), active sole proprietorship, printed 2023-09-05"
+  },
+  {
+   "label": "C",
+   "file": "doc-a2czd4.pdf",
+   "kind": "public_record",
+   "date": "2023-09-13",
+   "author": "College of Registered Nurses of Manitoba (Nurse Check)",
+   "recipients": [],
+   "description": "Verification of his status as a registered nurse",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached hereto to this my Affidavit as Exhibit \"C\" is verification of my status as a registered nurse."
+    }
+   ],
+   "content_check": "1 page: 'Nurse Check' search result for Aaron Kimberly, registered nurse no. 406296, expiry 2023-12-31, retrieved 2023-09-13"
+  },
+  {
+   "label": "D",
+   "file": "doc-zr5vfc.pdf",
+   "kind": "webpage",
+   "date": "2021-08-18",
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "Story of GDA Director of Operations Aaron Terrell as posted on the GDA website",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached hereto to this my Affidavit as Exhibit \"D\" is the story of the current GDA Director of Operations, Aaron Terrell"
+    }
+   ],
+   "content_check": "4 pages: GDA blog post 'Meet Aaron Terrell', Aug 18, 2021 (updated Dec 18, 2021); text layer is font-encoded"
+  },
+  {
+   "label": "E",
+   "file": "doc-3pynkk.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "Story of GDA Director of Education Janet Scott as posted on the website",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached hereto to this my Affidavit as Exhibit \"E\" is the story of current GDA Director of Education, Janet Scott"
+    }
+   ],
+   "content_check": "2 pages: GDA website story of Janet Scott; text layer is font-encoded"
+  },
+  {
+   "label": "F",
+   "file": "doc-42adaa.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Gender Dysphoria Alliance",
+   "recipients": [],
+   "description": "Story of Lauren Black as posted on the website",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached hereto to this my Affidavit as Exhibit \"F\" is the story of one, Lauren Black"
+    }
+   ],
+   "content_check": "3 pages: GDA website story of Lauren Black; text layer is font-encoded"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1973", "precision": "year", "description": "Kimberly was born biologically female and grew up in a small farming community", "paragraphs": [17], "quote": "I was born as a biological female in 1973", "exhibits": []},
-  {"id": "e2", "date": null, "precision": "undated", "description": "At age 19, surgery removed an ovarian cyst and a biopsy revealed an ovotesticular disorder of sex development", "paragraphs": [18], "quote": "At age 19, I had surgery to remove a grapefruit-sized cyst", "exhibits": []},
-  {"id": "e3", "date": null, "precision": "undated", "description": "He changed his name to Aaron at age 22", "paragraphs": [19], "quote": "I changed my name to Aaron when I was 22.", "exhibits": []},
-  {"id": "e4", "date": "2000", "precision": "approximate", "description": "In the early 2000s he moved to Vancouver and met trans people", "paragraphs": [21], "quote": "In the early 2000s, I moved to Vancouver", "exhibits": []},
-  {"id": "e5", "date": "2007", "precision": "approximate", "description": "Around 2007, after a documentary on trans kids, he decided to transition", "paragraphs": [21], "quote": "around 2007, I saw a documentary on TV about trans kids", "exhibits": []},
-  {"id": "e6", "date": null, "precision": "undated", "description": "He had bottom surgery with complications and now regrets it", "paragraphs": [25], "quote": "I do regret getting bottom surgery done", "exhibits": []},
-  {"id": "e7", "date": "2021-02", "precision": "month", "description": "Gender Dysphoria Alliance was registered", "paragraphs": [3], "quote": "GDA was registered in February 2021", "exhibits": ["B"]},
-  {"id": "e8", "date": null, "precision": "undated", "description": "He testified in an Ontario human rights case against a school board (N.B. v. Ottawa-Carleton DSB)", "paragraphs": [4], "quote": "I also provided testimony in an Ontario human rights case against an Ontario school board", "exhibits": []},
-  {"id": "e9", "date": null, "precision": "undated", "description": "He was a panelist on aetiologies of GD at a clinical conference in Finland", "paragraphs": [4], "quote": "I was a panelist on the topic of aetiologies of GD.", "exhibits": []},
-  {"id": "e10", "date": "2023", "precision": "year", "description": "Saskatchewan implemented its 2023 'Use of Preferred First Name and Pronouns by Students' policy, which UR Pride challenged", "paragraphs": [10], "quote": "newly implemented 2023", "exhibits": []},
-  {"id": "e11", "date": "2023-09-13", "precision": "day", "description": "Kimberly swore the affidavit in Saskatoon", "paragraphs": [35], "quote": "this 13th day of September, 2023", "exhibits": []}
- ],
- "referenced_not_attached": ["Affidavit of Dr. Travers (UR Pride)", "UR Pride's application materials for injunctive relief", "N.B. v. Ottawa-Carleton District School Board, 2022 HRTO 1044"],
- "leak_waivers": [],
- "notes": "Posted by JCCF also as 'Parents-for-choice-sask-Affidavit-of-Aaron-Kimberly'. Several web printouts have font-encoded text layers; contents confirmed from page renders."
+  {
+   "id": "e1",
+   "date": "1973",
+   "precision": "year",
+   "description": "Kimberly was born biologically female and grew up in a small farming community",
+   "paragraphs": [
+    17
+   ],
+   "quote": "I was born as a biological female in 1973",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": null,
+   "precision": "undated",
+   "description": "At age 19, surgery removed an ovarian cyst and a biopsy revealed an ovotesticular disorder of sex development",
+   "paragraphs": [
+    18
+   ],
+   "quote": "At age 19, I had surgery to remove a grapefruit-sized cyst",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": null,
+   "precision": "undated",
+   "description": "He changed his name to Aaron at age 22",
+   "paragraphs": [
+    19
+   ],
+   "quote": "I changed my name to Aaron when I was 22.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2000",
+   "precision": "approximate",
+   "description": "In the early 2000s he moved to Vancouver and met trans people",
+   "paragraphs": [
+    21
+   ],
+   "quote": "In the early 2000s, I moved to Vancouver",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2007",
+   "precision": "approximate",
+   "description": "Around 2007, after a documentary on trans kids, he decided to transition",
+   "paragraphs": [
+    21
+   ],
+   "quote": "around 2007, I saw a documentary on TV about trans kids",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": null,
+   "precision": "undated",
+   "description": "He had bottom surgery with complications and now regrets it",
+   "paragraphs": [
+    25
+   ],
+   "quote": "I do regret getting bottom surgery done",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2021-02",
+   "precision": "month",
+   "description": "Gender Dysphoria Alliance was registered",
+   "paragraphs": [
+    3
+   ],
+   "quote": "GDA was registered in February 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": null,
+   "precision": "undated",
+   "description": "He testified in an Ontario human rights case against a school board (N.B. v. Ottawa-Carleton DSB)",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I also provided testimony in an Ontario human rights case against an Ontario school board",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": null,
+   "precision": "undated",
+   "description": "He was a panelist on aetiologies of GD at a clinical conference in Finland",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I was a panelist on the topic of aetiologies of GD.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2023",
+   "precision": "year",
+   "description": "Saskatchewan implemented its 2023 'Use of Preferred First Name and Pronouns by Students' policy, which UR Pride challenged",
+   "paragraphs": [
+    10
+   ],
+   "quote": "newly implemented 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2023-09-13",
+   "precision": "day",
+   "description": "Kimberly swore the affidavit in Saskatoon",
+   "paragraphs": [
+    35
+   ],
+   "quote": "this 13th day of September, 2023",
+   "exhibits": []
+  }
+ ]
 }

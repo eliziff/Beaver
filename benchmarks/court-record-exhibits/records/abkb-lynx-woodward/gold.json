@@ -1,0 +1,688 @@
+{
+ "record_id": "abkb-lynx-woodward",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2401-02664 (Calgary)",
+ "subject": "insolvency",
+ "family": "lynx-air",
+ "proceeding": "In the matter of the compromise or arrangement of Lynx Air Holdings Corporation and 1263343 Alberta Inc. dba Lynx Air (CCAA); Lynx Air's response to the Airport Authorities' and GTAA's applications on trust claims to unremitted Airport Improvement Fees",
+ "document": "Public Affidavit of Michael Woodward sworn May 31, 2024 (affidavit in response to applications relating to trust claims)",
+ "deponent": "Michael Woodward",
+ "deponent_role": "Interim Chief Financial Officer of Lynx Air (through his personal corporation)",
+ "sworn_date": "2024-05-31",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-c24dfp.pdf",
+   "kind": "spreadsheet",
+   "date": "2023",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [
+    "Lynx Air"
+   ],
+   "description": "The GTAA's security deposit calculation (March and October 2023), showing the split between aeronautical and AIF security",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit A is the \ncalculation prepared by the GTAA"
+    },
+    {
+     "paragraph": 60,
+     "quote": "($1,599,198 allocated to AIF per Exhibit A)"
+    }
+   ],
+   "content_check": "2 pages: GTAA 'Schedule A-1' fee table by month and sector (7M8, 189 seats) with landing fees, terminal charges and AIF at $35 per seat; the template header reads 'AEROMEXICO - AMX ... Winter 2021-22 Season'"
+  },
+  {
+   "label": "B",
+   "file": "doc-87mg8n.pdf",
+   "kind": "email",
+   "date": "2023-12-21",
+   "author": "Danielle Lavoie, Air Transport Association of Canada",
+   "recipients": [
+    "Airline and airport signatories of the MOA on AIF"
+   ],
+   "description": "The 2023 Amendment extending the MOA to June 30, 2024",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of the 2023 Amendment is attached hereto as Exhibit B."
+    }
+   ],
+   "content_check": "1 page: email from Danielle Lavoie (ATAC) sent December 21, 2023, subject 'MOA on AIF extension approved until June 30, 2024'"
+  },
+  {
+   "label": "D",
+   "file": "doc-sgxrvu.pdf",
+   "kind": "court_order",
+   "date": "2024-02-22",
+   "author": "Court of King's Bench of Alberta (Justice Gill)",
+   "recipients": [],
+   "description": "The CCAA Initial Order",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "are attached hereto respectively as Exhibits D, E, and F"
+    }
+   ],
+   "content_check": "20 pages: Initial Order pronounced February 22, 2024 by the Honourable Justice Gill"
+  },
+  {
+   "label": "E",
+   "file": "doc-b22p25.pdf",
+   "kind": "court_order",
+   "date": "2024-03-01",
+   "author": "Court of King's Bench of Alberta (Justice Whitling)",
+   "recipients": [],
+   "description": "The Amended and Restated Initial Order (ARIO)",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "are attached hereto respectively as Exhibits D, E, and F"
+    }
+   ],
+   "content_check": "20 pages: order pronounced March 1, 2024 by the Honourable Justice Whitling (amended and restated initial order)"
+  },
+  {
+   "label": "F",
+   "file": "doc-yq5ykc.pdf",
+   "kind": "affidavit",
+   "date": "2024-02-22",
+   "author": "Michael Woodward",
+   "recipients": [],
+   "description": "The body of Woodward's affidavit sworn in support of the Initial Order",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "the body of my Affidavit sworn in support of \nthe Initial Order"
+    }
+   ],
+   "content_check": "43 pages: Affidavit of Michael Woodward sworn February 22, 2024 (body only)"
+  },
+  {
+   "label": "G",
+   "file": "doc-ngsb9v.pdf",
+   "kind": "letter",
+   "date": "2024-03-05",
+   "author": "Osler, Hoskin & Harcourt LLP (for the GTAA)",
+   "recipients": [
+    "Randal Van de Mosselaer (counsel to Lynx Air)"
+   ],
+   "description": "The First GTAA Letter demanding $1,710,148.23 of pre-filing AIF held in trust",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "is attached hereto as Exhibits G, H, and I"
+    }
+   ],
+   "content_check": "8 pages: Osler (Toronto) letter dated March 5, 2024 to Mr. Van de Mosselaer"
+  },
+  {
+   "label": "H",
+   "file": "doc-rj2h8s.pdf",
+   "kind": "letter",
+   "date": "2024-03-28",
+   "author": "Osler, Hoskin & Harcourt LLP (for the GTAA)",
+   "recipients": [
+    "Lynx Air and the Monitor"
+   ],
+   "description": "The Second GTAA Letter reiterating the demand",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "is attached hereto as Exhibits G, H, and I"
+    }
+   ],
+   "content_check": "2 pages: Osler (Toronto) letter dated March 28, 2024, 'Dear Sirs'"
+  },
+  {
+   "label": "I",
+   "file": "doc-6q9auf.pdf",
+   "kind": "letter",
+   "date": "2024-03-28",
+   "author": "Stikeman Elliott LLP (for the Airport Authorities)",
+   "recipients": [
+    "Randal Van de Mosselaer (counsel to Lynx Air)"
+   ],
+   "description": "The First Airport Authorities Letter demanding about $4,100,000 of pre-filing AIF",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "is attached hereto as Exhibits G, H, and I"
+    }
+   ],
+   "content_check": "2 pages: Stikeman Elliott letter dated March 28, 2024 re Lynx Air - Airport Improvement Fee arrears"
+  },
+  {
+   "label": "J",
+   "file": "doc-7u4p7p.pdf",
+   "kind": "letter",
+   "date": "2024-04-02",
+   "author": "Osler, Hoskin & Harcourt LLP (for Lynx Air)",
+   "recipients": [
+    "Shawn Irving",
+    "Karen Fellowes"
+   ],
+   "description": "The First Lynx Air Letter disagreeing that any amounts were held in trust",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "is attached hereto as Exhibits J, K, and L"
+    }
+   ],
+   "content_check": "2 pages: Osler (Calgary) letter dated April 2, 2024, attention Shawn Irving and Karen Fellowes"
+  },
+  {
+   "label": "K",
+   "file": "doc-2jzpfr.pdf",
+   "kind": "letter",
+   "date": "2024-04-12",
+   "author": "Osler, Hoskin & Harcourt LLP (for Lynx Air)",
+   "recipients": [
+    "Shawn Irving (counsel to the GTAA)"
+   ],
+   "description": "The Second Lynx Air Letter accepting a trust relationship with the GTAA but saying all trust remittances were made",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "is attached hereto as Exhibits J, K, and L"
+    }
+   ],
+   "content_check": "3 pages: Osler (Calgary) letter dated April 12, 2024, attention Shawn Irving"
+  },
+  {
+   "label": "L",
+   "file": "doc-kvyvhq.pdf",
+   "kind": "letter",
+   "date": "2024-04-15",
+   "author": "Osler, Hoskin & Harcourt LLP (for Lynx Air)",
+   "recipients": [
+    "Karen Fellowes (counsel to the Airport Authorities)"
+   ],
+   "description": "The Third Lynx Air Letter giving the Airport Authorities an accounting and denying any trust",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "is attached hereto as Exhibits J, K, and L"
+    }
+   ],
+   "content_check": "2 pages: Osler (Calgary) letter dated April 15, 2024, attention Karen Fellowes"
+  },
+  {
+   "label": "M",
+   "file": "doc-6e2zrn.pdf",
+   "kind": "letter",
+   "date": "2024-04-01",
+   "author": "Counsel to ATB Financial",
+   "recipients": [
+    "Randal Van de Mosselaer, Osler (counsel to Lynx Air)"
+   ],
+   "description": "The Vancouver ATB Letter advising of the Vancouver Airport Authority's request to draw on its letter of credit",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "A copy of this correspondence is attached hereto as Exhibit M."
+    }
+   ],
+   "content_check": "2 pages: letter dated April 1, 2024 by email to Randal Van de Mosselaer re Lynx Air Holdings Corporation and 1263343 Alberta Inc."
+  },
+  {
+   "label": "N",
+   "file": "doc-pdtfh8.pdf",
+   "kind": "spreadsheet",
+   "date": "2024-05-29",
+   "author": "Lynx Air",
+   "recipients": [],
+   "description": "Lynx Air's detailed accounting of pre-filing AIF for each airport authority, including the GTAA",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "A copy of a detailed accounting for each of the \nAirport Authorities is attached hereto as Exhibit N."
+    },
+    {
+     "paragraph": 63,
+     "quote": "are \nattached hereto as Exhibits Q and N"
+    }
+   ],
+   "content_check": "1 page: 'Lynx Air Pre-Filing Payment Summary As At May 29, 2024' by airport code: pre-filing AIF, aeronautical charges, letter of credit, net outstanding"
+  },
+  {
+   "label": "O",
+   "file": "doc-652ww6.pdf",
+   "kind": "letter",
+   "date": "2024-02-22",
+   "author": "Lynx Air",
+   "recipients": [
+    "Edmonton Regional Airports Authority",
+    "Vancouver Airport Authority"
+   ],
+   "description": "Lynx Air's correspondence to Edmonton and Vancouver documenting a planned post-filing pre-payment",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "Attached as Exhibit O hereto are copies of the correspondence Lynx Air sent"
+    }
+   ],
+   "content_check": "6 pages: letters dated February 22, 2024 to Edmonton Regional Airports Authority and Vancouver Airport Authority about the Initial Order and stay to March 4, 2024, with payment schedules"
+  },
+  {
+   "label": "P",
+   "file": "doc-e7mp7d.pdf",
+   "kind": "spreadsheet",
+   "date": "2024-02",
+   "author": "Lynx Air",
+   "recipients": [],
+   "description": "Schedules for Edmonton and Vancouver evidencing the exact post-filing payments, with total columns redacted",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "Attached as Exhibit P hereto are \nschedules for each of Edmonton Regional Airports Authority and Vancouver Airport Authority"
+    }
+   ],
+   "content_check": "2 pages, image only: Lynx 'Schedule A' tables of February 22-25, 2024 flights by sector with vendor Vancouver Airport Authority and AIF column; totals column blacked out"
+  },
+  {
+   "label": "Q",
+   "file": "doc-5kdxrm.pdf",
+   "kind": "letter",
+   "date": "2024-02-28",
+   "author": "Counsel to ATB Financial",
+   "recipients": [
+    "Randal Van de Mosselaer, Osler (counsel to Lynx Air)"
+   ],
+   "description": "The GTAA ATB Letter advising that the GTAA asked to draw on the GTAA Letter of Credit",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "A copy of the GTAA ATB Letter and a detailed accounting of the GTAA's AIF are"
+    }
+   ],
+   "content_check": "2 pages: letter dated February 28, 2024 by email to Randal Van de Mosselaer re Lynx Air Holdings Corporation and 1263343 Alberta Inc."
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "MOA initial 20-year term begins",
+   "date": "1999-05-31",
+   "precision": "day",
+   "paragraphs": [
+    12,
+    14
+   ],
+   "quote": "commencing on May 31, 1999 and expiring in \n2019",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Winnipeg Airports Authority tariff of aviation fees takes effect",
+   "date": "2021-04-01",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Tariff of Aviation Fees \neffective April 1, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Lynx Air's Airport Use Licence with the Vancouver Airport Authority takes effect",
+   "date": "2021-11-16",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "Airport Use Licence effective November \n16, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Lynx Air becomes a signatory to the MOA",
+   "date": "2022-04-06",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "As of April 6, 2022, Lynx Air became a signatory to a Memorandum of Agreement",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Lynx Air posts $279,645.96 letter of credit to the Vancouver Airport Authority",
+   "date": "2022-04-06",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On April 6, 2022, Lynx Air posted an Irrevocable Standby Letter of Credit (No. 3539860)",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Lynx Air's agreement with the Calgary Airport Authority",
+   "date": "2022-04-07",
+   "precision": "day",
+   "paragraphs": [
+    17,
+    18
+   ],
+   "quote": "Lynx Air entered into an Agreement dated April 7, 2022, as \namended July 1, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Lynx Air provides $83,333 cash deposit to Winnipeg Airports Authority",
+   "date": "2022-04-12",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On April 12, 2022, Lynx Air provided a cash deposit to Winnipeg Airports Authority Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Air Carrier Operating Agreement with Halifax takes effect",
+   "date": "2022-06-29",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "Air Carrier Operating Agreement \neffective June 29, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Lynx Air provides $100,000 cash deposit to Halifax",
+   "date": "2022-07-29",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On July 29, 2022, Lynx Air provided a cash deposit to the Halifax International Airport \nAuthority",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Lynx Air enters the GTAA AIF Agreement",
+   "date": "2023-01-01",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On January 1, 2023, Lynx Air entered into The Greater Toronto Airports Authority Airport \nImprovement Fee Agreement",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Woodward begins as Interim CFO of Lynx Air",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "a role I commenced in March 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "GTAA calculates the security deposit (March) and updates it (October)",
+   "date": "2023",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The GTAA last calculated the amount to be posted \nin March 2023 and provided an updated estimate in October 2023.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "2023 Amendment extends the MOA to June 30, 2024",
+   "date": "2023-12-21",
+   "precision": "day",
+   "paragraphs": [
+    14,
+    15
+   ],
+   "quote": "December 21, 2023 (the “2023 Amendment”)",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Initial Order granted by Justice Gill; FTI appointed Monitor; stay to March 4",
+   "date": "2024-02-22",
+   "precision": "day",
+   "paragraphs": [
+    32,
+    33
+   ],
+   "quote": "On February 22, 2024, Lynx Air obtained protection under the Companies’ Creditors \nArrangement Act",
+   "exhibits": [
+    "D",
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Lynx Air makes first post-filing payments to Calgary, Edmonton, Halifax and Vancouver",
+   "date": "2024-02-23",
+   "precision": "day",
+   "paragraphs": [
+    53,
+    54
+   ],
+   "quote": "paid Feb 23, \n2024",
+   "exhibits": [
+    "O",
+    "P"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "ATB counsel advises that the GTAA requested a draw on the GTAA Letter of Credit",
+   "date": "2024-02-28",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "By letter dated February 28, 2024, counsel to ATB advised Lynx Air",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "ATB pays the GTAA $3,100,000 under the letter of credit",
+   "date": "2024-03-01",
+   "precision": "approximate",
+   "paragraphs": [
+    58
+   ],
+   "quote": "ATB paid the GTAA $3,100,000 on or around March 1, \n2024",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "ARIO granted by Justice Whitling extending the stay to April 15",
+   "date": "2024-03-01",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "On March 1, 2024, the Honourable Justice Whitling granted Lynx Air an amended and \nrestated initial order",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "First GTAA Letter demands $1,710,148.23 of pre-filing AIF",
+   "date": "2024-03-05",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "By letter dated March 5, 2024, the GTAA demanded payment from Lynx Air",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Second post-filing payments to Calgary",
+   "date": "2024-03-19",
+   "precision": "day",
+   "paragraphs": [
+    53
+   ],
+   "quote": "paid March \n19, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Second GTAA Letter reiterates the demand",
+   "date": "2024-03-28",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "The GTAA reiterated its demand for payment of pre-filing AIF by letter dated March 28, \n2024",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "First Airport Authorities Letter demands about $4,100,000",
+   "date": "2024-03-28",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "By separate letter dated March 28, 2024, the Airport Authorities demanded remittance",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "ATB counsel advises of the Vancouver Airport Authority's draw request",
+   "date": "2024-04-01",
+   "precision": "day",
+   "paragraphs": [
+    47
+   ],
+   "quote": "ATB had received a request \nfrom the Vancouver Airport Authority to draw on their Irrevocable Standby Letter of Credit",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Lynx Air replies disagreeing that amounts are held in trust (First Lynx Air Letter)",
+   "date": "2024-04-02",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "On April 2, 2024, Lynx Air replied to the Applicants’ two March 28, 2024 letters",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "ATB pays the Vancouver Airport Authority $279,645.96",
+   "date": "2024-04-03",
+   "precision": "approximate",
+   "paragraphs": [
+    47
+   ],
+   "quote": "ATB paid the Vancouver Airport Authority \n$279,645.96 on or around April 3, 2024",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Lynx Air pays the GTAA all post-filing AIF and aeronautical charges",
+   "date": "2024-04-10",
+   "precision": "day",
+   "paragraphs": [
+    61
+   ],
+   "quote": "on April 10, 2024, Lynx Air paid $5,959 to the GTAA",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "Second Lynx Air Letter accepts a GTAA trust but says all remittances were made",
+   "date": "2024-04-12",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "By letter dated April 12, 2024 (the “Second Lynx Air Letter”)",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "Third Lynx Air Letter gives the Airport Authorities an accounting and denies a trust",
+   "date": "2024-04-15",
+   "precision": "day",
+   "paragraphs": [
+    43
+   ],
+   "quote": "By letter dated April 15, 2024 (the “Third Lynx Air Letter”)",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Stay Period extended, most recently to June 28, 2024",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    35
+   ],
+   "quote": "The Stay Period was extended by further orders of this Court, most recently to June 28, \n2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Lynx Air reconciles its accounts against the Airport Authorities' affidavits",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    49
+   ],
+   "quote": "Lynx Air reconciled its accounts against those of \nthe Airport Authorities",
+   "exhibits": [
+    "N"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Confidential Affidavit of Michael Woodward (with the Calgary Airport Authority Agreement)",
+  "MOA dated May 31, 1999 (attached to the Airport Authorities' affidavits)",
+  "GTAA Air Carrier Application and GTAA AIF Agreement (Exhibits A and E to the Boyd affidavit)",
+  "Halifax ACOA (Exhibit B to the Brigley affidavit)",
+  "Winnipeg tariff (Exhibit B to the Stefaniuk affidavit)",
+  "Vancouver Licence (Exhibit D to the Vuong affidavit)",
+  "Exhibit C: the Calgary Airport Authority agreement (confidential; the posted record has only a placeholder page)"
+ ],
+ "leak_waivers": [
+  "C"
+ ],
+ "notes": "Exhibit C is a one-page public placeholder for a confidential exhibit (the file holds only 'Confidential Exhibit \"C\"'); its leak is the placeholder itself. Exhibit P is image-only. Woodward's G, H, J and K are the same letters as Boyd's M, N, O and P (siblings in family lynx-air)."
+}

@@ -9,81 +9,471 @@
  "deponent": "Jason Sterling",
  "deponent_role": "Industry Sector Specialist, Cannabis Unit, Excise Duty Division, Canada Revenue Agency",
  "sworn_date": "2024-09-12",
+ "referenced_not_attached": [
+  "Amended and Restated Initial Order of August 15, 2024",
+  "Freedom's B300 excise returns"
+ ],
+ "notes": "Exhibits A-D are blank CRA forms. The affidavit's paragraph 1-2 text layer is broken into single words, but quotes from later paragraphs are clean.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-zpyn5y.pdf", "kind": "other", "date": null, "author": "Canada Revenue Agency", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-zpyn5y.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canada Revenue Agency",
+   "recipients": [],
    "description": "Form L300, Cannabis Licence Application",
-   "references": [{"paragraph": 8, "quote": "Form L300, Cannabis Licence Application (A true copy of Form L300 is attached to this my"}],
-   "content_check": "Blank CRA form 'Cannabis Licence Application under the Excise Act, 2001' (Protected B when completed), 5 pages"},
-  {"label": "B", "file": "doc-wrqkvh.pdf", "kind": "other", "date": null, "author": "Canada Revenue Agency", "recipients": [],
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Form L300, Cannabis Licence Application (A true copy of Form L300 is attached to this my"
+    }
+   ],
+   "content_check": "Blank CRA form 'Cannabis Licence Application under the Excise Act, 2001' (Protected B when completed), 5 pages"
+  },
+  {
+   "label": "B",
+   "file": "doc-wrqkvh.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canada Revenue Agency",
+   "recipients": [],
    "description": "Form L300SCHA listing all premises where business activities are carried out",
-   "references": [{"paragraph": 9, "quote": "A true copy of Form L300SCHA is attached to this"}],
-   "content_check": "Blank CRA 'Schedule A - Other Business Location(s)' to support a cannabis licence application, 3 pages"},
-  {"label": "C", "file": "doc-w4djbv.pdf", "kind": "other", "date": null, "author": "Canada Revenue Agency", "recipients": [],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A true copy of Form L300SCHA is attached to this"
+    }
+   ],
+   "content_check": "Blank CRA 'Schedule A - Other Business Location(s)' to support a cannabis licence application, 3 pages"
+  },
+  {
+   "label": "C",
+   "file": "doc-w4djbv.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canada Revenue Agency",
+   "recipients": [],
    "description": "Form L300SCHB giving information on individuals, partners, directors, officers or shareholders of a corporate applicant",
-   "references": [{"paragraph": 9, "quote": "A true copy of Form L300SCHB is attached to this"}],
-   "content_check": "Blank CRA 'Schedule B - Information Relating to Individuals, Partners, Directors, Officers or Shareholders', 3 pages"},
-  {"label": "D", "file": "doc-gwe6p8.pdf", "kind": "other", "date": null, "author": "Canada Revenue Agency", "recipients": [],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A true copy of Form L300SCHB is attached to this"
+    }
+   ],
+   "content_check": "Blank CRA 'Schedule B - Information Relating to Individuals, Partners, Directors, Officers or Shareholders', 3 pages"
+  },
+  {
+   "label": "D",
+   "file": "doc-gwe6p8.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canada Revenue Agency",
+   "recipients": [],
    "description": "Form L301, Registration for the Cannabis Stamping Regime",
-   "references": [{"paragraph": 18, "quote": "Registration for the Cannabis Stamping Regime (A true copy of Form L301 is attached"}],
-   "content_check": "Blank CRA form 'Registration for Cannabis Stamping Regime under the Excise Act, 2001', 6 pages"},
-  {"label": "E", "file": "doc-bb5jm4.pdf", "kind": "letter", "date": "2023-05-25", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Registration for the Cannabis Stamping Regime (A true copy of Form L301 is attached"
+    }
+   ],
+   "content_check": "Blank CRA form 'Registration for Cannabis Stamping Regime under the Excise Act, 2001', 6 pages"
+  },
+  {
+   "label": "E",
+   "file": "doc-bb5jm4.pdf",
+   "kind": "letter",
+   "date": "2023-05-25",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Licence Renewal letter dated May 25, 2023 granting a 6-month renewal to November 26, 2023 and advising of the financial security shortfall",
-   "references": [{"paragraph": 39, "quote": "A true copy of the Licence Renewal letter dated May"}],
-   "content_check": "CRA letter dated May 25, 2023 to Enrico Potestio, Project Manager, Freedom Cannabis Inc., 'Renewal of Cannabis Licence under the Excise Act, 2001', 3 pages"},
-  {"label": "F", "file": "doc-taq9cz.pdf", "kind": "letter", "date": "2023-11-20", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A true copy of the Licence Renewal letter dated May"
+    }
+   ],
+   "content_check": "CRA letter dated May 25, 2023 to Enrico Potestio, Project Manager, Freedom Cannabis Inc., 'Renewal of Cannabis Licence under the Excise Act, 2001', 3 pages"
+  },
+  {
+   "label": "F",
+   "file": "doc-taq9cz.pdf",
+   "kind": "letter",
+   "date": "2023-11-20",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued November 20, 2023 with an expiry date of January 26, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued November 20, 2023 with an expiry date of January 26, 2024"}],
-   "content_check": "CRA renewal letter dated November 20, 2023 to Enrico Potestio, 4 pages"},
-  {"label": "G", "file": "doc-xkr437.pdf", "kind": "letter", "date": "2024-01-24", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued November 20, 2023 with an expiry date of January 26, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated November 20, 2023 to Enrico Potestio, 4 pages"
+  },
+  {
+   "label": "G",
+   "file": "doc-xkr437.pdf",
+   "kind": "letter",
+   "date": "2024-01-24",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued January 24, 2024 with an expiry date of February 26, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued January 24, 2024 with an expiry date of February 26, 2024"}],
-   "content_check": "CRA renewal letter dated January 24, 2024 stating the licence was renewed 'effective January 27, 2023' (sic) on conditions including maintaining the payment arrangement; 4 pages"},
-  {"label": "H", "file": "doc-m49tpt.pdf", "kind": "letter", "date": "2024-02-19", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued January 24, 2024 with an expiry date of February 26, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated January 24, 2024 stating the licence was renewed 'effective January 27, 2023' (sic) on conditions including maintaining the payment arrangement; 4 pages"
+  },
+  {
+   "label": "H",
+   "file": "doc-m49tpt.pdf",
+   "kind": "letter",
+   "date": "2024-02-19",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued February 19, 2024 with an expiry date of April 10, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued February 19, 2024 with an expiry date of April 10, 2024"}],
-   "content_check": "CRA renewal letter dated February 19, 2024, 4 pages"},
-  {"label": "I", "file": "doc-mq35sr.pdf", "kind": "letter", "date": "2024-04-08", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued February 19, 2024 with an expiry date of April 10, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated February 19, 2024, 4 pages"
+  },
+  {
+   "label": "I",
+   "file": "doc-mq35sr.pdf",
+   "kind": "letter",
+   "date": "2024-04-08",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued April 8, 2024 with an expiry date of May 10, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued April 8, 2024 with an expiry date of May 10, 2024"}],
-   "content_check": "CRA renewal letter dated April 8, 2024, renewal effective April 11, 2024; 4 pages"},
-  {"label": "J", "file": "doc-7x84hf.pdf", "kind": "letter", "date": "2024-05-09", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued April 8, 2024 with an expiry date of May 10, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated April 8, 2024, renewal effective April 11, 2024; 4 pages"
+  },
+  {
+   "label": "J",
+   "file": "doc-7x84hf.pdf",
+   "kind": "letter",
+   "date": "2024-05-09",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued May 9, 2024 with an expiry date of June 10, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued May 9, 2024 with an expiry date of June 10, 2024"}],
-   "content_check": "CRA renewal letter dated May 9, 2024, renewal effective May 11, 2024; 4 pages"},
-  {"label": "K", "file": "doc-be97vt.pdf", "kind": "letter", "date": "2024-06-07", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued May 9, 2024 with an expiry date of June 10, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated May 9, 2024, renewal effective May 11, 2024; 4 pages"
+  },
+  {
+   "label": "K",
+   "file": "doc-be97vt.pdf",
+   "kind": "letter",
+   "date": "2024-06-07",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued June 7, 2024 with an expiry date of July 10, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued June 7, 2024 with an expiry date of July 10, 2024"}],
-   "content_check": "CRA renewal letter dated June 7, 2024 (reference 35953261), 4 pages"},
-  {"label": "L", "file": "doc-nv3cqm.pdf", "kind": "letter", "date": "2024-07-04", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued June 7, 2024 with an expiry date of July 10, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated June 7, 2024 (reference 35953261), 4 pages"
+  },
+  {
+   "label": "L",
+   "file": "doc-nv3cqm.pdf",
+   "kind": "letter",
+   "date": "2024-07-04",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "Renewal letter issued July 4, 2024 with an expiry date of August 10, 2024",
-   "references": [{"paragraph": 40, "quote": "Renewal letter issued July 4, 2024 with an expiry date of August 10, 2024"}],
-   "content_check": "CRA renewal letter dated July 4, 2024, 4 pages"},
-  {"label": "M", "file": "doc-scekf9.pdf", "kind": "letter", "date": "2023-10-12", "author": "Canada Revenue Agency", "recipients": ["Enrico Potestio, Freedom Cannabis Inc."],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "Renewal letter issued July 4, 2024 with an expiry date of August 10, 2024"
+    }
+   ],
+   "content_check": "CRA renewal letter dated July 4, 2024, 4 pages"
+  },
+  {
+   "label": "M",
+   "file": "doc-scekf9.pdf",
+   "kind": "letter",
+   "date": "2023-10-12",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Enrico Potestio, Freedom Cannabis Inc."
+   ],
    "description": "The October 12, 2023 Eligibility for Renewal of a Cannabis Licence letter reminding Freedom of the eligibility requirements and a required $383,500 increase in financial security",
-   "references": [{"paragraph": 44, "quote": "A true copy of the Eligibility for Renewal of a Cannabis Licence letter is"}],
-   "content_check": "CRA letter dated October 12, 2023 'Eligibility for Renewal of Cannabis Licence under the Excise Act, 2001' noting licence 0055-CAN-168 expires November 26, 2023; 2 pages"}
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "A true copy of the Eligibility for Renewal of a Cannabis Licence letter is"
+    }
+   ],
+   "content_check": "CRA letter dated October 12, 2023 'Eligibility for Renewal of Cannabis Licence under the Excise Act, 2001' noting licence 0055-CAN-168 expires November 26, 2023; 2 pages"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2019-05-27", "precision": "day", "description": "Freedom Cannabis was originally granted a CRA cannabis licence", "paragraphs": [35], "quote": "Freedom Cannabis Inc. (\"Freedom\") was originally granted a CRA licence on May 27,", "exhibits": []},
-  {"id": "e2", "date": "2023-05-25", "precision": "day", "description": "CRA issued a 6-month renewal expiring November 26, 2023 and advised of the security shortfall", "paragraphs": [39], "quote": "On May 25, 2023, the CRA issued a 6-month renewal to Freedom", "exhibits": ["E"]},
-  {"id": "e3", "date": "2023-05-27", "precision": "day", "description": "CRA began issuing short-term renewals because of excise duty arrears over $5 million", "paragraphs": [38], "quote": "Since May 27, 2023, the CRA has been issuing short-term renewals to Freedom", "exhibits": []},
-  {"id": "e4", "date": "2023-08", "precision": "month", "description": "Freedom's excise duty arrears were about $5.8 million", "paragraphs": [48], "quote": "In August of 2023, Freedom had outstanding excise duty arrears to CRA totalling", "exhibits": []},
-  {"id": "e5", "date": "2023-10-12", "precision": "day", "description": "CRA wrote reminding Freedom of eligibility requirements and a required $383,500 security increase; arrears were $6,358,125", "paragraphs": [43, 44], "quote": "The CRA also provided a letter to Freedom on October 12, 2023", "exhibits": ["M"]},
-  {"id": "e6", "date": "2023-11-20", "precision": "day", "description": "CRA renewed the licence to January 26, 2024", "paragraphs": [40], "quote": "Renewal letter issued November 20, 2023", "exhibits": ["F"]},
-  {"id": "e7", "date": "2024-01-18", "precision": "day", "description": "Freedom entered into a $200,000/month payment arrangement with Collections that it never fully honoured", "paragraphs": [47], "quote": "On January 18, 2024, Freedom entered into a PA with Collections", "exhibits": []},
-  {"id": "e8", "date": "2024-01-24", "precision": "day", "description": "CRA renewed the licence to February 26, 2024", "paragraphs": [40], "quote": "Renewal letter issued January 24, 2024", "exhibits": ["G"]},
-  {"id": "e9", "date": "2024-02-06", "end_date": "2024-08-06", "precision": "range", "description": "Freedom made partial payments under the payment arrangement, from $100,000 on February 6 to $4,000 on August 6, 2024", "paragraphs": [47], "quote": "payments were made as follows", "exhibits": []},
-  {"id": "e10", "date": "2024-02-19", "precision": "day", "description": "CRA renewed the licence to April 10, 2024", "paragraphs": [40], "quote": "Renewal letter issued February 19, 2024", "exhibits": ["H"]},
-  {"id": "e11", "date": "2024-04-08", "precision": "day", "description": "CRA renewed the licence to May 10, 2024", "paragraphs": [40], "quote": "Renewal letter issued April 8, 2024", "exhibits": ["I"]},
-  {"id": "e12", "date": "2024-05-09", "precision": "day", "description": "CRA renewed the licence to June 10, 2024", "paragraphs": [40], "quote": "Renewal letter issued May 9, 2024", "exhibits": ["J"]},
-  {"id": "e13", "date": "2024-06-07", "precision": "day", "description": "CRA renewed the licence to July 10, 2024", "paragraphs": [40], "quote": "Renewal letter issued June 7, 2024", "exhibits": ["K"]},
-  {"id": "e14", "date": "2024-07-04", "precision": "day", "description": "CRA renewed the licence to August 10, 2024", "paragraphs": [40], "quote": "Renewal letter issued July 4, 2024", "exhibits": ["L"]},
-  {"id": "e15", "date": "2024-05", "end_date": "2024-07", "precision": "range", "description": "Freedom paid nothing directly on its B300 returns for May-July 2024; CRA received only garnishments", "paragraphs": [45, 46], "quote": "no payments were made directly to CRA for the B300 returns", "exhibits": []},
-  {"id": "e16", "date": "2024-08-08", "precision": "day", "description": "Freedom filed under the CCAA; the initial order appointed KPMG Inc. as Monitor with a 10-day stay", "paragraphs": [36], "quote": "Freedom entered into insolvency proceedings on", "exhibits": []},
-  {"id": "e17", "date": "2024-08-15", "precision": "day", "description": "The Amended and Restated Initial Order extended the stay to September 18, 2024", "paragraphs": [37], "quote": "on August 15, 2024, an Amended and Restated", "exhibits": []},
-  {"id": "e18", "date": "2024-09-11", "precision": "day", "description": "Freedom's excise duty arrears had grown to $9,676,637.24", "paragraphs": [48], "quote": "as of September 11, 2024, their balance has increased to", "exhibits": []},
-  {"id": "e19", "date": "2024-09-18", "precision": "day", "description": "Scheduled application to extend the stay period to October 18, 2024", "paragraphs": [37], "quote": "another application will be", "exhibits": []}
- ],
- "referenced_not_attached": ["Amended and Restated Initial Order of August 15, 2024", "Freedom's B300 excise returns"],
- "notes": "Exhibits A-D are blank CRA forms. The affidavit's paragraph 1-2 text layer is broken into single words, but quotes from later paragraphs are clean."
+  {
+   "id": "e1",
+   "date": "2019-05-27",
+   "precision": "day",
+   "description": "Freedom Cannabis was originally granted a CRA cannabis licence",
+   "paragraphs": [
+    35
+   ],
+   "quote": "Freedom Cannabis Inc. (\"Freedom\") was originally granted a CRA licence on May 27,",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2023-05-25",
+   "precision": "day",
+   "description": "CRA issued a 6-month renewal expiring November 26, 2023 and advised of the security shortfall",
+   "paragraphs": [
+    39
+   ],
+   "quote": "On May 25, 2023, the CRA issued a 6-month renewal to Freedom",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2023-05-27",
+   "precision": "day",
+   "description": "CRA began issuing short-term renewals because of excise duty arrears over $5 million",
+   "paragraphs": [
+    38
+   ],
+   "quote": "Since May 27, 2023, the CRA has been issuing short-term renewals to Freedom",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2023-08",
+   "precision": "month",
+   "description": "Freedom's excise duty arrears were about $5.8 million",
+   "paragraphs": [
+    48
+   ],
+   "quote": "In August of 2023, Freedom had outstanding excise duty arrears to CRA totalling",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2023-10-12",
+   "precision": "day",
+   "description": "CRA wrote reminding Freedom of eligibility requirements and a required $383,500 security increase; arrears were $6,358,125",
+   "paragraphs": [
+    43,
+    44
+   ],
+   "quote": "The CRA also provided a letter to Freedom on October 12, 2023",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2023-11-20",
+   "precision": "day",
+   "description": "CRA renewed the licence to January 26, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued November 20, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2024-01-18",
+   "precision": "day",
+   "description": "Freedom entered into a $200,000/month payment arrangement with Collections that it never fully honoured",
+   "paragraphs": [
+    47
+   ],
+   "quote": "On January 18, 2024, Freedom entered into a PA with Collections",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2024-01-24",
+   "precision": "day",
+   "description": "CRA renewed the licence to February 26, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued January 24, 2024",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2024-02-06",
+   "end_date": "2024-08-06",
+   "precision": "range",
+   "description": "Freedom made partial payments under the payment arrangement, from $100,000 on February 6 to $4,000 on August 6, 2024",
+   "paragraphs": [
+    47
+   ],
+   "quote": "payments were made as follows",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2024-02-19",
+   "precision": "day",
+   "description": "CRA renewed the licence to April 10, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued February 19, 2024",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2024-04-08",
+   "precision": "day",
+   "description": "CRA renewed the licence to May 10, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued April 8, 2024",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2024-05-09",
+   "precision": "day",
+   "description": "CRA renewed the licence to June 10, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued May 9, 2024",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2024-06-07",
+   "precision": "day",
+   "description": "CRA renewed the licence to July 10, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued June 7, 2024",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2024-07-04",
+   "precision": "day",
+   "description": "CRA renewed the licence to August 10, 2024",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Renewal letter issued July 4, 2024",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2024-05",
+   "end_date": "2024-07",
+   "precision": "range",
+   "description": "Freedom paid nothing directly on its B300 returns for May-July 2024; CRA received only garnishments",
+   "paragraphs": [
+    45,
+    46
+   ],
+   "quote": "no payments were made directly to CRA for the B300 returns",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2024-08-08",
+   "precision": "day",
+   "description": "Freedom filed under the CCAA; the initial order appointed KPMG Inc. as Monitor with a 10-day stay",
+   "paragraphs": [
+    36
+   ],
+   "quote": "Freedom entered into insolvency proceedings on",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2024-08-15",
+   "precision": "day",
+   "description": "The Amended and Restated Initial Order extended the stay to September 18, 2024",
+   "paragraphs": [
+    37
+   ],
+   "quote": "on August 15, 2024, an Amended and Restated",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2024-09-11",
+   "precision": "day",
+   "description": "Freedom's excise duty arrears had grown to $9,676,637.24",
+   "paragraphs": [
+    48
+   ],
+   "quote": "as of September 11, 2024, their balance has increased to",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2024-09-18",
+   "precision": "day",
+   "description": "Scheduled application to extend the stay period to October 18, 2024",
+   "paragraphs": [
+    37
+   ],
+   "quote": "another application will be",
+   "exhibits": []
+  }
+ ]
 }

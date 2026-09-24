@@ -46,7 +46,10 @@
    ],
    "cover_page": 10,
    "stamp_page": null,
-   "text_chars": 77272
+   "text_chars": 77272,
+   "redact_text": [
+    "Exhibit A"
+   ]
   },
   {
    "label": "B",
@@ -82,7 +85,7 @@
   {
    "label": "A",
    "file": "doc-zpmjyw",
-   "text": "[page 1] Exhibit A \u2013 CCLA Litigation Cases in which the CCLA has been granted i"
+   "text": "[page 1] Exhibit A – CCLA Litigation Cases in which the CCLA has been granted i"
   }
  ]
 }

@@ -49,8 +49,9 @@ def rows():
 def summary(ledger):
     recs = [r for r in ledger if r["use"] == "record_source"]
     print(f"{len(recs)} records; {sum(r['use'] == 'matter_doc' for r in ledger)} matter documents; {sum(r['use'] == 'rejected' for r in ledger)} rejected sources logged")
+    bench = lambda c: re.sub(r"\s*\(.*?\)|,.*$", "", c).strip()  # "Court of King's Bench of Manitoba, Winnipeg Centre" -> the court
     for key in ("jurisdiction", "level", "subject", "court", "site"):
-        c = collections.Counter(r[key] or "?" for r in recs)
+        c = collections.Counter((bench(r[key]) if key == "court" else r[key]) or "?" for r in recs)
         print(f"\nby {key} ({len(c)}):", ", ".join(f"{k} {v}" for k, v in c.most_common()))
     fams = collections.Counter(r["family"] for r in recs if r["family"])
     print(f"\nfamilies: {len(fams)} ({sum(fams.values())} records)")

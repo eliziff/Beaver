@@ -98,5 +98,9 @@
    "text_chars": 3053
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-8rdrb3.pdf",
+  "doc-94a8zr.pdf"
+ ]
 }

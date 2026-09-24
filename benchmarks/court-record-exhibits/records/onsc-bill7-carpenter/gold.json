@@ -1,0 +1,288 @@
+{
+ "record_id": "onsc-bill7-carpenter",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022); respondent Ontario's expert evidence",
+ "document": "Affidavit of Dr. Travis Carpenter sworn February 21, 2024",
+ "deponent": "Travis Carpenter",
+ "deponent_role": "General internist, St. Joseph's Health Centre, Toronto; expert retained by the Government of Ontario",
+ "sworn_date": "2024-02-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-qyw86q.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Travis Carpenter",
+   "recipients": [],
+   "description": "Carpenter's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of my curriculum vitae is attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "8 pages: CV of Travis Carpenter MD MPH FRCPC (Harvard MPH 2018, GIM fellowship 2017)"
+  },
+  {
+   "label": "B",
+   "file": "doc-vyscrk.pdf",
+   "kind": "report",
+   "date": "2023-01",
+   "author": "Stephanie Durante, Ken Fyie, Jennifer Zwicker and Travis Carpenter (University of Calgary School of Public Policy)",
+   "recipients": [],
+   "description": "Policy paper co-authored by Carpenter on policy responses to the ALC situation",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "32 pages: 'Confronting the Alternate Level of Care (ALC) Crisis with a Multifaceted Policy Lens', School of Public Policy SPP Research Paper (dated December 2022/January 2023)"
+  },
+  {
+   "label": "C",
+   "file": "doc-aa46dh.pdf",
+   "kind": "court_filing",
+   "date": "2024-02-16",
+   "author": "Travis Carpenter",
+   "recipients": [],
+   "description": "Carpenter's signed Acknowledgement of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "My signed Acknowledgement of Expert’s Duty is attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "2 pages: Form 53 Acknowledgement of Expert's Duty in CV-23-00698007-0000, dated February 16, 2024"
+  },
+  {
+   "label": "D",
+   "file": "doc-f4h32t.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Canadian Institute for Health Information",
+   "recipients": [],
+   "description": "CIHI guidelines to support ALC designation",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "The CIHI guidelines to support ALC designation are attached hereto as Exhibit “D”"
+    }
+   ],
+   "content_check": "5 pages: CIHI guidance on ALC designation for clinical and physician leaders (same document as Musyj Exhibit C)"
+  },
+  {
+   "label": "E",
+   "file": "doc-8fjvet.pdf",
+   "kind": "report",
+   "date": "2013",
+   "author": "Andrew Affleck et al., Canadian Association of Emergency Physicians",
+   "recipients": [],
+   "description": "2013 CAEP position statement on emergency department overcrowding and access block",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "is attached hereto as Exhibit “E”"
+    }
+   ],
+   "content_check": "12 pages: 'Emergency department overcrowding and access block', CAEP position statement, CJEM 2013"
+  },
+  {
+   "label": "F",
+   "file": "doc-xvqmur.pdf",
+   "kind": "other",
+   "date": "2015-03-02",
+   "author": "Nova Scotia Department of Health and Wellness",
+   "recipients": [],
+   "description": "Nova Scotia fact sheet on entering long-term care",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "The fact sheet about entering long-term care in Nova Scotia, referenced above, is attached \nhereto as Exhibit “F”."
+    }
+   ],
+   "content_check": "2 pages: 'Living well in a place you call home' Nova Scotia long-term care fact sheet (dated March 2, 2015)"
+  },
+  {
+   "label": "G",
+   "file": "doc-wjj2up.pdf",
+   "kind": "webpage",
+   "date": "2024-01-04",
+   "author": "Government of British Columbia",
+   "recipients": [],
+   "description": "BC webpage on long-term care services",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "A webpage on long-term care services in British Columbia is attached \nhereto as Exhibit “G”."
+    }
+   ],
+   "content_check": "52 pages: 'Long-Term Care Services' webpage, last updated January 4, 2024"
+  },
+  {
+   "label": "H",
+   "file": "doc-z2vydt.pdf",
+   "kind": "other",
+   "date": "2019-07-04",
+   "author": "Alberta Health Services",
+   "recipients": [],
+   "description": "AHS procedure 'Designated Living Option: Access and Waitlist Management'",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Health Services is attached hereto as Exhibit “H”."
+    }
+   ],
+   "content_check": "15 pages: AHS procedure HCS-117-01 'Designated Living Option: Access and Waitlist Management' (dates May 27, 2015 / July 4, 2019)"
+  },
+  {
+   "label": "I",
+   "file": "doc-587mbu.pdf",
+   "kind": "webpage",
+   "date": "2023-06-22",
+   "author": "Social Supports New Brunswick (Department of Social Development)",
+   "recipients": [],
+   "description": "New Brunswick webpage on nursing homes and interim placements",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "A \nwebpage from Social Supports New Brunswick is attached hereto as Exhibit “I”."
+    }
+   ],
+   "content_check": "6 pages: 'Nursing Homes' webpage, Department of Social Development, last updated June 22, 2023"
+  },
+  {
+   "label": "J",
+   "file": "doc-z2wns7.pdf",
+   "kind": "webpage",
+   "date": "2024-02-09",
+   "author": "Government of Prince Edward Island",
+   "recipients": [],
+   "description": "PEI webpage setting out its first available bed policy",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "A webpage setting out this policy is attached here as Exhibit “J”."
+    }
+   ],
+   "content_check": "5 pages: 'Long-term Care' webpage (printed February 9, 2024)"
+  },
+  {
+   "label": "K",
+   "file": "doc-ycd4yd.pdf",
+   "kind": "report",
+   "date": "2022",
+   "author": "G.J. Lim Fat, A. Gopaul, A.D. Pananos, M.-M. Taabazuing (Geriatrics)",
+   "recipients": [],
+   "description": "2022 study on healthcare-associated adverse events in ALC patients awaiting long-term care",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "is attached hereto as Exhibit “K”"
+    }
+   ],
+   "content_check": "11 pages: 'Healthcare-Associated Adverse Events in Alternate Level of Care Patients Awaiting Long-Term Care in Hospital', Geriatrics 2022, 7, 81"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Royal College recognizes General Internal Medicine as a subspecialty",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Medicine as a designated subspecialty since 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "CAEP publishes its position statement on overcrowding and access block",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "A 2013 position statement from the Canadian Association of Emergency Physicians",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Saskatchewan unifies its health system and standardizes coding, raising documented ALC rates",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Saskatchewan’s unification into one health system and the introduction of \nbetter standardized coding across the province in 2016",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Carpenter's hospital ALC rate averages 24% of internal medicine bed-days",
+   "date": "2021",
+   "precision": "range",
+   "paragraphs": [
+    24
+   ],
+   "quote": "averaged 24% of bed-days in 2021-2022",
+   "exhibits": [],
+   "end_date": "2022"
+  },
+  {
+   "id": "e5",
+   "description": "ALC rate between 16% and 22% in the final three months of 2023",
+   "date": "2023-10",
+   "precision": "range",
+   "paragraphs": [
+    24
+   ],
+   "quote": "between 16% and 22% for the final 3 months of \n2023",
+   "exhibits": [],
+   "end_date": "2023-12"
+  },
+  {
+   "id": "e6",
+   "description": "Study on adverse events in ALC patients published",
+   "date": "2022",
+   "precision": "year",
+   "paragraphs": [
+    34
+   ],
+   "quote": "a 2022 study titled",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Carpenter retained by the Government of Ontario as an expert",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I have been retained by the Government of Ontario",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Dr. Samir Sinha",
+  "Long-Term Care COVID-19 Commission Final Report",
+  "Journal and news articles cited in footnotes"
+ ],
+ "leak_waivers": [],
+ "notes": "Expert opinion affidavit, so few events. The posted file name says Feb-21-2025 but the jurat reads February 21, 2024. Exhibit D is the same CIHI document as Musyj Exhibit C (family ohc-bill7-charter)."
+}

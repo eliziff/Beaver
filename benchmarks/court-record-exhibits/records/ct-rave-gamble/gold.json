@@ -9,6 +9,11 @@
  "deponent": "Stoney Gamble",
  "deponent_role": "Senior Manager for Policy & Escalations for App Review at Apple Inc.",
  "sworn_date": "2026-07-13",
+ "referenced_not_attached": [
+  "Affidavit of Michael Pazaratz sworn May 6, 2026 and its Exhibits A (DPLA), C (ADA), D (Guidelines), K (Rave improvement document) and M (August 13, 2025 notice of pending termination)"
+ ],
+ "notes": "Apple's reply affidavit; exhibits A-E and G are exports of App Store Connect message and task logs.",
+ "subject": "competition",
  "exhibits": [
   {
    "label": "A",
@@ -16,9 +21,16 @@
    "kind": "text_messages",
    "date": "2023-10-17",
    "author": "Apple App Review",
-   "recipients": ["Rave Inc."],
+   "recipients": [
+    "Rave Inc."
+   ],
    "description": "Copies of the September-October 2023 communications between Apple and Rave about the Rave App's violations of Guidelines 1.1.4, 1.2 and 5.2.3",
-   "references": [{"paragraph": 39, "quote": "Copies of these September-October 2023 communications between Apple and Rave are attached hereto as Exhibit A."}],
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "Copies of these September-October 2023 communications between Apple and Rave are attached hereto as Exhibit A."
+    }
+   ],
    "content_check": "Three-page App Store Connect message log table (APP_NAME, MESSAGE_TYPE, MESSAGE_CREATE_DATE ...) for Rave - Watch Party, including an App Review message of 10/17/2023 on Guideline 5.2.3"
   },
   {
@@ -29,7 +41,12 @@
    "author": "Apple App Review and Rave Inc.",
    "recipients": [],
    "description": "Copies of the November 2024 communications between Apple and Rave about pornographic and user-generated content, including Rave's response on its moderation steps",
-   "references": [{"paragraph": 43, "quote": "Copies of these November 2024 communications between Apple and Rave are attached hereto as Exhibit"}],
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "Copies of these November 2024 communications between Apple and Rave are attached hereto as Exhibit"
+    }
+   ],
    "content_check": "Two-page message log; a DEVELOPER_MESSAGE of 11/27/2024 13:55 'Dear app reviewer, Regarding your concerns Guideline 1.2 - Safety - User-Generated Content ...'"
   },
   {
@@ -40,7 +57,12 @@
    "author": "Apple App Review",
    "recipients": [],
    "description": "Apple's internal record of user concerns that the Rave App contained objectionable content including pornography, CSAM and bestiality",
-   "references": [{"paragraph": 45, "quote": "A copy of Apple's internal record of these user concerns is attached hereto as Exhibit C."}],
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "A copy of Apple's internal record of these user concerns is attached hereto as Exhibit C."
+    }
+   ],
    "content_check": "One-page task table, APP_REVIEW_CALL created 1/29/2025 for Rave - Watch Party: 'Creating a call for this one to have a discussion with the developer about complaints we are receiving' (CSAM, animal porn, pirated content)"
   },
   {
@@ -49,9 +71,16 @@
    "kind": "text_messages",
    "date": "2025-02-07",
    "author": "Apple App Review",
-   "recipients": ["Michael Pazaratz (Rave Inc.)"],
+   "recipients": [
+    "Michael Pazaratz (Rave Inc.)"
+   ],
    "description": "Apple's February 7, 2025 communication to Rave requiring an improvement plan to resolve and prevent recurrence of the issues",
-   "references": [{"paragraph": 47, "quote": "A copy of Apple's February 7, 2025 communication to Rave is attached hereto as"}],
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "A copy of Apple's February 7, 2025 communication to Rave is attached hereto as"
+    }
+   ],
    "content_check": "One-page APP_MESSAGE of 2/7/2025 8:54 'Hello Mike, Call ticket: DAC116591 Thanks for your time on the phone today regarding Guidelines 1.1.4, 1.2 and 5.2.3 ...'"
   },
   {
@@ -62,7 +91,12 @@
    "author": "Apple Store Investigation (ASI) team",
    "recipients": [],
    "description": "The ASI team's record of the user complaint that people were broadcasting child pornography on the Rave App",
-   "references": [{"paragraph": 49, "quote": "A copy of the ASI team's record of that complaint is attached hereto as Exhibit E."}],
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "A copy of the ASI team's record of that complaint is attached hereto as Exhibit E."
+    }
+   ],
    "content_check": "One-page task table APP_REVIEW_ASI_ARC created 7/28/2025: 'Child porn People are broadcasting child porn on this app. Do not use', closure reason Termination, guideline 1.1.4"
   },
   {
@@ -73,7 +107,12 @@
    "author": "Apple App Review Board",
    "recipients": [],
    "description": "Screenshots showing pirated content found on the Rave App, including Apple's F1 movie",
-   "references": [{"paragraph": 55, "quote": "Screenshots showing pirated content found on the Rave App are attached hereto as"}],
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "Screenshots showing pirated content found on the Rave App are attached hereto as"
+    }
+   ],
    "content_check": "Two phone screenshots of the Rave app, the first playing 'F1 - O Filme (2025) Dublado', the second a Videos/History screen with film thumbnails; no text layer beyond the Docusign line"
   },
   {
@@ -82,9 +121,16 @@
    "kind": "text_messages",
    "date": "2025-10-22",
    "author": "Apple App Review Board",
-   "recipients": ["Michael Pazaratz (Rave Inc.)"],
+   "recipients": [
+    "Michael Pazaratz (Rave Inc.)"
+   ],
    "description": "Apple's October 22, 2025 communication that the ARB re-evaluation was complete and Rave's developer account remained flagged for termination",
-   "references": [{"paragraph": 56, "quote": "A copy of this communication to Rave is attached hereto as Exhibit G."}],
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "A copy of this communication to Rave is attached hereto as Exhibit G."
+    }
+   ],
    "content_check": "Two-page message log: 'Hello Michael, Appeal Ticket: APL222314 We reevaluated the activity associated with your Apple Developer Program membership ... dishonest or fraudulent activity ... Section 3.2(f)'"
   },
   {
@@ -95,7 +141,12 @@
    "author": "Apple App Store Editorial",
    "recipients": [],
    "description": "Copies of Canadian App Store features about HBO Max, a competitor of Apple TV, provided by Apps Editorial Manager Megan Hamilton",
-   "references": [{"paragraph": 62, "quote": "Copies of those features, provided to me by Megan Hamilton, the Apps Editorial Manager at the App Store, are attached hereto as Exhibit H."}],
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "Copies of those features, provided to me by Megan Hamilton, the Apps Editorial Manager at the App Store, are attached hereto as Exhibit H."
+    }
+   ],
    "content_check": "13 pages of App Store screenshots, first featuring 'HBO Max ... Apple TV App of the Year' with App Store Editors quote"
   },
   {
@@ -104,9 +155,16 @@
    "kind": "email_chain",
    "date": "2025-09-12",
    "author": "Conchairta Riles (Apple Ads)",
-   "recipients": ["Michael Pazaratz"],
+   "recipients": [
+    "Michael Pazaratz"
+   ],
    "description": "Ms. Riles's email exchange with Mr. Pazaratz ending with her September 12, 2025 email saying she had no access to the App Review process",
-   "references": [{"paragraph": 65, "quote": "A copy of Ms. Riles's email exchange with Mr. Pazaratz is attached hereto as Exhibit I."}],
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "A copy of Ms. Riles's email exchange with Mr. Pazaratz is attached hereto as Exhibit I."
+    }
+   ],
    "content_check": "Three-page email chain; top message from Conchairta Riles, September 12, 2025 10:41 AM EDT, Subject 'Re: Rave Media | Apple', to Michael Pazaratz"
   },
   {
@@ -117,43 +175,375 @@
    "author": "Apple Inc.",
    "recipients": [],
    "description": "The 2025 App Store Transparency Report showing app removals and developer terminations for violations of DPLA section 3.2(f)",
-   "references": [{"paragraph": 71, "quote": "A copy of the 2025 App Store Transparency Report is attached as Exhibit"}],
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "A copy of the 2025 App Store Transparency Report is attached as Exhibit"
+    }
+   ],
    "content_check": "Ten-page '2025 App Store Transparency Report' opening 'Since it launched in 2008, the App Store has proven to be a safe and trusted place'"
   }
  ],
  "events": [
-  {"id": "e1", "date": "2025-08", "precision": "month", "description": "Apple sent Rave a notice of pending termination (per paragraph 6)", "paragraphs": [6], "quote": "notice of pending termination that Apple sent to Rave in August 2025", "exhibits": []},
-  {"id": "e2", "date": "2025-12", "precision": "month", "description": "Rave was terminated as an Apple developer", "paragraphs": [7], "quote": "Rave was terminated as a developer in December 2025", "exhibits": []},
-  {"id": "e3", "date": "2015-01", "precision": "month", "description": "Rave launched on the App Store (as asserted in the Pazaratz Affidavit)", "paragraphs": [32], "quote": "Rave's launch on the App Store in January of 2015", "exhibits": []},
-  {"id": "e4", "date": "2023-09-28", "precision": "day", "description": "Apple told Rave the app violated Guidelines 1.1.4, 1.2 and 5.2.3 and would be removed until a compliant update, warning of termination", "paragraphs": [35, 36], "quote": "On September 28, 2023, Apple communicated to Rave that the Rave App was in violation of multiple Guidelines.", "exhibits": ["A"]},
-  {"id": "e5", "date": "2023-09-29", "precision": "day", "description": "Apple replied to Rave that it found pornographic and pirated streamed content in the main feed", "paragraphs": [37], "quote": "On September 29, 2023, in reply to a message from Rave, Apple further advised", "exhibits": ["A"]},
-  {"id": "e6", "date": "2023-10-13", "precision": "day", "description": "Apple discussed its review with Mr. Pazaratz by phone and then messaged its findings of pornographic content", "paragraphs": [38], "quote": "telephone conversation on October 13, 2023", "exhibits": ["A"]},
-  {"id": "e7", "date": "2023-10-17", "precision": "day", "description": "Apple told Rave the app still did not comply with Guideline 5.2.3 and asked it to remove open-web streaming or show rights", "paragraphs": [39], "quote": "October 17, 2023, Apple communicated that the Rave App was still not in compliance with Guideline 5.2.3.", "exhibits": ["A"]},
-  {"id": "e8", "date": "2023-10", "precision": "month", "description": "After reviewing Rave's re-submission Apple let the Rave App return to the App Store", "paragraphs": [40], "quote": "Upon completion of its review of Rave's re-submission in October 2023, Apple permitted the Rave App to become available for download on the App Store again.", "exhibits": []},
-  {"id": "e9", "date": "2024-11-13", "precision": "day", "description": "Apple advised Rave the app included pornographic content, contrary to Guideline 1.1.4, and required a compliant update within 14 days", "paragraphs": [41], "quote": "On November 13, 2024, Apple again advised Rave that the Rave App was not in compliance with Guideline 1.1.4", "exhibits": ["B"]},
-  {"id": "e10", "date": "2024-11-27", "precision": "day", "description": "Apple raised Guideline 1.2 user-generated content issues with Rave's re-submission; Rave responded the same day describing its moderation and AI scanning", "paragraphs": [42, 43], "quote": "On November 27, 2024, Apple advised Rave of additional issues with its app re-", "exhibits": ["B"]},
-  {"id": "e11", "date": "2024-11", "precision": "month", "description": "Apple permitted the re-submitted Rave App to remain on the App Store", "paragraphs": [44], "quote": "Upon completion of its review of the re-submission of the Rave App, Apple permitted it to remain available for download on the App Store.", "exhibits": []},
-  {"id": "e12", "date": "2025-02-06", "precision": "day", "description": "Apple called Rave about user concerns of pornography, CSAM and bestiality on the app, and spoke with Mr. Pazaratz", "paragraphs": [45, 46], "quote": "On February 6, 2025, Apple attempted to contact Rave by telephone to speak about the Rave App", "exhibits": ["C"]},
-  {"id": "e13", "date": "2025-02-07", "precision": "day", "description": "Apple messaged Rave requiring an improvement plan and steps to prevent recurrence, and flagged pirated content", "paragraphs": [46, 47], "quote": "A copy of Apple's February 7, 2025 communication to Rave is attached hereto as", "exhibits": ["D"]},
-  {"id": "e14", "date": "2025-02", "precision": "month", "description": "Rave submitted a document acknowledging users had been spreading CSAM on Rave (Exhibit K to the Pazaratz Affidavit)", "paragraphs": [48], "quote": "In response, Rave submitted to Apple the document attached as Exhibit", "exhibits": [], "referenced_not_attached": ["Exhibit K to the Pazaratz Affidavit"]},
-  {"id": "e15", "date": "2025-08", "precision": "month", "description": "The ASI team investigated the Rave App after a user complaint about child pornography and found pornographic content and potential pirated uploads", "paragraphs": [49, 50], "quote": "In August 2025, the ASI team investigated the Rave App in response to a user complaint", "exhibits": ["E"]},
-  {"id": "e16", "date": "2025-08-13", "precision": "day", "description": "The ASI team sent Rave a notice of pending termination for violating section 3.2(f) of the DPLA", "paragraphs": [51], "quote": "The ASI team sent a notice of pending termination to Rave on August 13, 2025", "exhibits": [], "referenced_not_attached": ["Exhibit M to the Pazaratz Affidavit"]},
-  {"id": "e17", "date": "2025-08-13", "precision": "day", "description": "Rave made its initial appeal, which the ARB reviewed and rejected", "paragraphs": [52], "quote": "In response to Rave's initial appeal on August 13, 2025, the ARB reviewed ASI's Rave", "exhibits": []},
-  {"id": "e18", "date": "2025-08-21", "precision": "day", "description": "Apple told Rave the account remained flagged for termination", "paragraphs": [52], "quote": "Apple communicated to Rave on August 21, 2025 that the account remained flagged for termination.", "exhibits": []},
-  {"id": "e19", "date": "2025-08-25", "precision": "day", "description": "Rave made a further appeal claiming it had fixed a moderation bug; Apple rejected it", "paragraphs": [53], "quote": "In response to Rave's further appeal on August 25, 2025", "exhibits": []},
-  {"id": "e20", "date": "2025-09-04", "precision": "day", "description": "Ms. Riles of Apple Ads held one video meeting with Mr. Pazaratz, arranged in July 2025", "paragraphs": [64, 65], "quote": "she had one (video) meeting with Mr. Pazaratz on September 4, 2025", "exhibits": []},
-  {"id": "e21", "date": "2025-09-12", "precision": "day", "description": "Ms. Riles emailed Mr. Pazaratz that she had no access to the App Review process", "paragraphs": [65], "quote": "On September 12, 2025, Ms. Riles advised Mr. Pazaratz by email", "exhibits": ["I"]},
-  {"id": "e22", "date": "2025-09-15", "precision": "day", "description": "Rave's US counsel made a third appeal; the ARB re-evaluated and confirmed continuing pornographic content and found pirated movies including Apple's F1", "paragraphs": [54, 55], "quote": "made by Rave's outside counsel in the United States on September 15, 2025", "exhibits": ["F"]},
-  {"id": "e23", "date": "2025-10-22", "precision": "day", "description": "Apple told Rave the ARB re-evaluation was complete and the account remained flagged for termination", "paragraphs": [56], "quote": "On October 22, 2025, Apple communicated to Rave that the ARB team had completed its", "exhibits": ["G"]},
-  {"id": "e24", "date": "2025-10-24", "precision": "day", "description": "Rave sent further correspondence, which Apple considered and rejected", "paragraphs": [57], "quote": "subsequent correspondence from Rave on October", "exhibits": []},
-  {"id": "e25", "date": "2025-11-03", "precision": "day", "description": "Rave sent further correspondence, which Apple considered and rejected", "paragraphs": [57], "quote": "24, 2025 and November 3, 2025", "exhibits": []},
-  {"id": "e26", "date": "2025-12-19", "precision": "day", "description": "Apple terminated Rave as a developer", "paragraphs": [57], "quote": "Apple proceeded with the Rave termination on December 19,", "exhibits": []},
-  {"id": "e27", "date": "2026-05", "precision": "month", "description": "Google removed the Rave App from Google Play, at least temporarily", "paragraphs": [60], "quote": "removed by Google from Google Play, at least temporarily, in May 2026", "exhibits": []},
-  {"id": "e28", "date": null, "precision": "undated", "description": "The Canadian App Store ran features about HBO Max, a competitor of Apple TV", "paragraphs": [62], "quote": "the Canadian App Store ran features", "exhibits": ["H"]},
-  {"id": "e29", "date": "2025", "precision": "year", "description": "In 2025 Apple removed 90,608 apps and terminated 192,702 developers for violations of DPLA section 3.2(f)", "paragraphs": [71], "quote": "Apple removed", "exhibits": ["J"]}
- ],
- "referenced_not_attached": [
-  "Affidavit of Michael Pazaratz sworn May 6, 2026 and its Exhibits A (DPLA), C (ADA), D (Guidelines), K (Rave improvement document) and M (August 13, 2025 notice of pending termination)"
- ],
- "notes": "Apple's reply affidavit; exhibits A-E and G are exports of App Store Connect message and task logs."
+  {
+   "id": "e1",
+   "date": "2025-08",
+   "precision": "month",
+   "description": "Apple sent Rave a notice of pending termination (per paragraph 6)",
+   "paragraphs": [
+    6
+   ],
+   "quote": "notice of pending termination that Apple sent to Rave in August 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2025-12",
+   "precision": "month",
+   "description": "Rave was terminated as an Apple developer",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Rave was terminated as a developer in December 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2015-01",
+   "precision": "month",
+   "description": "Rave launched on the App Store (as asserted in the Pazaratz Affidavit)",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Rave's launch on the App Store in January of 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2023-09-28",
+   "precision": "day",
+   "description": "Apple told Rave the app violated Guidelines 1.1.4, 1.2 and 5.2.3 and would be removed until a compliant update, warning of termination",
+   "paragraphs": [
+    35,
+    36
+   ],
+   "quote": "On September 28, 2023, Apple communicated to Rave that the Rave App was in violation of multiple Guidelines.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2023-09-29",
+   "precision": "day",
+   "description": "Apple replied to Rave that it found pornographic and pirated streamed content in the main feed",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On September 29, 2023, in reply to a message from Rave, Apple further advised",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2023-10-13",
+   "precision": "day",
+   "description": "Apple discussed its review with Mr. Pazaratz by phone and then messaged its findings of pornographic content",
+   "paragraphs": [
+    38
+   ],
+   "quote": "telephone conversation on October 13, 2023",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2023-10-17",
+   "precision": "day",
+   "description": "Apple told Rave the app still did not comply with Guideline 5.2.3 and asked it to remove open-web streaming or show rights",
+   "paragraphs": [
+    39
+   ],
+   "quote": "October 17, 2023, Apple communicated that the Rave App was still not in compliance with Guideline 5.2.3.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2023-10",
+   "precision": "month",
+   "description": "After reviewing Rave's re-submission Apple let the Rave App return to the App Store",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Upon completion of its review of Rave's re-submission in October 2023, Apple permitted the Rave App to become available for download on the App Store again.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2024-11-13",
+   "precision": "day",
+   "description": "Apple advised Rave the app included pornographic content, contrary to Guideline 1.1.4, and required a compliant update within 14 days",
+   "paragraphs": [
+    41
+   ],
+   "quote": "On November 13, 2024, Apple again advised Rave that the Rave App was not in compliance with Guideline 1.1.4",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2024-11-27",
+   "precision": "day",
+   "description": "Apple raised Guideline 1.2 user-generated content issues with Rave's re-submission; Rave responded the same day describing its moderation and AI scanning",
+   "paragraphs": [
+    42,
+    43
+   ],
+   "quote": "On November 27, 2024, Apple advised Rave of additional issues with its app re-",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2024-11",
+   "precision": "month",
+   "description": "Apple permitted the re-submitted Rave App to remain on the App Store",
+   "paragraphs": [
+    44
+   ],
+   "quote": "Upon completion of its review of the re-submission of the Rave App, Apple permitted it to remain available for download on the App Store.",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2025-02-06",
+   "precision": "day",
+   "description": "Apple called Rave about user concerns of pornography, CSAM and bestiality on the app, and spoke with Mr. Pazaratz",
+   "paragraphs": [
+    45,
+    46
+   ],
+   "quote": "On February 6, 2025, Apple attempted to contact Rave by telephone to speak about the Rave App",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2025-02-07",
+   "precision": "day",
+   "description": "Apple messaged Rave requiring an improvement plan and steps to prevent recurrence, and flagged pirated content",
+   "paragraphs": [
+    46,
+    47
+   ],
+   "quote": "A copy of Apple's February 7, 2025 communication to Rave is attached hereto as",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2025-02",
+   "precision": "month",
+   "description": "Rave submitted a document acknowledging users had been spreading CSAM on Rave (Exhibit K to the Pazaratz Affidavit)",
+   "paragraphs": [
+    48
+   ],
+   "quote": "In response, Rave submitted to Apple the document attached as Exhibit",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Exhibit K to the Pazaratz Affidavit"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2025-08",
+   "precision": "month",
+   "description": "The ASI team investigated the Rave App after a user complaint about child pornography and found pornographic content and potential pirated uploads",
+   "paragraphs": [
+    49,
+    50
+   ],
+   "quote": "In August 2025, the ASI team investigated the Rave App in response to a user complaint",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2025-08-13",
+   "precision": "day",
+   "description": "The ASI team sent Rave a notice of pending termination for violating section 3.2(f) of the DPLA",
+   "paragraphs": [
+    51
+   ],
+   "quote": "The ASI team sent a notice of pending termination to Rave on August 13, 2025",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Exhibit M to the Pazaratz Affidavit"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2025-08-13",
+   "precision": "day",
+   "description": "Rave made its initial appeal, which the ARB reviewed and rejected",
+   "paragraphs": [
+    52
+   ],
+   "quote": "In response to Rave's initial appeal on August 13, 2025, the ARB reviewed ASI's Rave",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2025-08-21",
+   "precision": "day",
+   "description": "Apple told Rave the account remained flagged for termination",
+   "paragraphs": [
+    52
+   ],
+   "quote": "Apple communicated to Rave on August 21, 2025 that the account remained flagged for termination.",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2025-08-25",
+   "precision": "day",
+   "description": "Rave made a further appeal claiming it had fixed a moderation bug; Apple rejected it",
+   "paragraphs": [
+    53
+   ],
+   "quote": "In response to Rave's further appeal on August 25, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2025-09-04",
+   "precision": "day",
+   "description": "Ms. Riles of Apple Ads held one video meeting with Mr. Pazaratz, arranged in July 2025",
+   "paragraphs": [
+    64,
+    65
+   ],
+   "quote": "she had one (video) meeting with Mr. Pazaratz on September 4, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2025-09-12",
+   "precision": "day",
+   "description": "Ms. Riles emailed Mr. Pazaratz that she had no access to the App Review process",
+   "paragraphs": [
+    65
+   ],
+   "quote": "On September 12, 2025, Ms. Riles advised Mr. Pazaratz by email",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2025-09-15",
+   "precision": "day",
+   "description": "Rave's US counsel made a third appeal; the ARB re-evaluated and confirmed continuing pornographic content and found pirated movies including Apple's F1",
+   "paragraphs": [
+    54,
+    55
+   ],
+   "quote": "made by Rave's outside counsel in the United States on September 15, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2025-10-22",
+   "precision": "day",
+   "description": "Apple told Rave the ARB re-evaluation was complete and the account remained flagged for termination",
+   "paragraphs": [
+    56
+   ],
+   "quote": "On October 22, 2025, Apple communicated to Rave that the ARB team had completed its",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2025-10-24",
+   "precision": "day",
+   "description": "Rave sent further correspondence, which Apple considered and rejected",
+   "paragraphs": [
+    57
+   ],
+   "quote": "subsequent correspondence from Rave on October",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "date": "2025-11-03",
+   "precision": "day",
+   "description": "Rave sent further correspondence, which Apple considered and rejected",
+   "paragraphs": [
+    57
+   ],
+   "quote": "24, 2025 and November 3, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "date": "2025-12-19",
+   "precision": "day",
+   "description": "Apple terminated Rave as a developer",
+   "paragraphs": [
+    57
+   ],
+   "quote": "Apple proceeded with the Rave termination on December 19,",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "date": "2026-05",
+   "precision": "month",
+   "description": "Google removed the Rave App from Google Play, at least temporarily",
+   "paragraphs": [
+    60
+   ],
+   "quote": "removed by Google from Google Play, at least temporarily, in May 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "date": null,
+   "precision": "undated",
+   "description": "The Canadian App Store ran features about HBO Max, a competitor of Apple TV",
+   "paragraphs": [
+    62
+   ],
+   "quote": "the Canadian App Store ran features",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e29",
+   "date": "2025",
+   "precision": "year",
+   "description": "In 2025 Apple removed 90,608 apps and terminated 192,702 developers for violations of DPLA section 3.2(f)",
+   "paragraphs": [
+    71
+   ],
+   "quote": "Apple removed",
+   "exhibits": [
+    "J"
+   ]
+  }
+ ]
 }

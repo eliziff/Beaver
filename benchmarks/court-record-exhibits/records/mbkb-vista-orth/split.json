@@ -187,5 +187,9 @@
    "text_chars": 3441
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-4q9j85.pdf",
+  "doc-xysdcf.pdf"
+ ]
 }

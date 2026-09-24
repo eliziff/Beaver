@@ -9,22 +9,168 @@
  "deponent": "Applicants' policy analysis expert (name redacted)",
  "deponent_role": "Expert in public administration and policy analysis; sole proprietor of Provida: Public Sector Solutions; former Assistant Professor, Tarleton State University",
  "sworn_date": "2025-01-17",
+ "referenced_not_attached": [
+  "Notice of Application",
+  "Affidavits of the applicants' witnesses (names redacted), including Exhibit B to one of them citing the Study",
+  "Ipsos Reid poll",
+  "National Post article on abortion polling"
+ ],
+ "leak_waivers": [],
+ "notes": "JCCF-posted redacted copy: the expert's and witnesses' names are removed; Exhibit B (CV) is almost fully blacked out. 2 of max 3 for CV-24-94951 (with onsc-clc-pps-research).",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-jawhjz.pdf", "kind": "court_filing", "date": null, "author": "Applicants' policy analysis expert", "recipients": [], "description": "The expert's signed Acknowledgment of Expert's Duty", "references": [{"paragraph": 2, "quote": "My signed Acknowledgment of Expert’s Duty is attached to this affidavit as Exhibit “A”."}], "content_check": "2 pages: Form 53 Acknowledgment of Expert's Duty, CV-24-00094951-0000, name redacted"},
-  {"label": "B", "file": "doc-gx7299.pdf", "kind": "other", "date": null, "author": "Applicants' policy analysis expert", "recipients": [], "description": "The expert's curriculum vitae", "references": [{"paragraph": 4, "quote": "My CV is attached to this affidavit as Exhibit “B”."}], "content_check": "22 image pages: CV almost entirely blacked out in the public copy"},
-  {"label": "C", "file": "doc-66r3de.pdf", "kind": "report", "date": "2016", "author": "Applicants' policy analysis expert, for CCBR", "recipients": ["Canadian Centre for Bio-Ethical Reform"], "description": "The expert's Study: A Statistical Analysis on the Effectiveness of Abortion Victim Photography in Pro-Life Activism", "references": [{"paragraph": 9, "quote": "the “Study” attached to\nthis affidavit as Exhibit “C”"}], "content_check": "24 pages: CCBR / End the Killing cover, 'A Statistical Analysis on the Effectiveness of Abortion Victim Photography in Pro-Life Activism' (author redacted)"}
+  {
+   "label": "A",
+   "file": "doc-jawhjz.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Applicants' policy analysis expert",
+   "recipients": [],
+   "description": "The expert's signed Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "My signed Acknowledgment of Expert’s Duty is attached to this affidavit as Exhibit “A”."
+    }
+   ],
+   "content_check": "2 pages: Form 53 Acknowledgment of Expert's Duty, CV-24-00094951-0000, name redacted"
+  },
+  {
+   "label": "B",
+   "file": "doc-gx7299.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Applicants' policy analysis expert",
+   "recipients": [],
+   "description": "The expert's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "My CV is attached to this affidavit as Exhibit “B”."
+    }
+   ],
+   "content_check": "22 image pages: CV almost entirely blacked out in the public copy"
+  },
+  {
+   "label": "C",
+   "file": "doc-66r3de.pdf",
+   "kind": "report",
+   "date": "2016",
+   "author": "Applicants' policy analysis expert, for CCBR",
+   "recipients": [
+    "Canadian Centre for Bio-Ethical Reform"
+   ],
+   "description": "The expert's Study: A Statistical Analysis on the Effectiveness of Abortion Victim Photography in Pro-Life Activism",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "the “Study” attached to\nthis affidavit as Exhibit “C”"
+    }
+   ],
+   "content_check": "24 pages: CCBR / End the Killing cover, 'A Statistical Analysis on the Effectiveness of Abortion Victim Photography in Pro-Life Activism' (author redacted)"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2008", "precision": "year", "description": "Expert begins working as an independent consultant", "paragraphs": [3], "quote": "I have been working as an independent consultant to various degrees since 2008.", "exhibits": ["B"]},
-  {"id": "e2", "date": "2017", "precision": "range", "description": "Expert serves as Assistant Professor at Tarleton State University (2017-2021)", "paragraphs": [4], "quote": "from 2017 to 2021", "exhibits": ["B"]},
-  {"id": "e3", "date": "2015", "precision": "approximate", "description": "CCBR delivers postcards with abortion victim images to thousands of Ontario homes in summer 2015", "paragraphs": [9], "quote": "a few months earlier in the summer of 2015", "exhibits": ["C"]},
-  {"id": "e4", "date": "2015-06", "precision": "month", "description": "Baseline household survey (n=845) before the postcard campaign", "paragraphs": [10], "quote": "consisting of n=845 in June and n=896 in September", "exhibits": ["C"]},
-  {"id": "e5", "date": "2015-09", "precision": "month", "description": "Follow-up household survey (n=896) after the postcards were delivered", "paragraphs": [10], "quote": "consisting of n=845 in June and n=896 in September", "exhibits": ["C"]},
-  {"id": "e6", "date": "2016", "precision": "year", "description": "Expert, commissioned by CCBR, analyzes the survey data (the Study)", "paragraphs": [9, 10], "quote": "I conducted my analysis in 2016", "exhibits": ["C"]},
-  {"id": "e7", "date": "2012", "precision": "year", "description": "Ipsos Reid poll for Postmedia and Global TV on Canadians' abortion views, matching the baseline data", "paragraphs": [12], "quote": "one from 2012 commissioned by Post Media News and Global TV", "exhibits": []},
-  {"id": "e8", "date": null, "precision": "undated", "description": "PPS refuses CLC the use of the signs at a press conference", "paragraphs": [22], "quote": "the use of the signs was denied by the Parliamentary Policy Service", "exhibits": []}
- ],
- "referenced_not_attached": ["Notice of Application", "Affidavits of the applicants' witnesses (names redacted), including Exhibit B to one of them citing the Study", "Ipsos Reid poll", "National Post article on abortion polling"],
- "leak_waivers": [],
- "notes": "JCCF-posted redacted copy: the expert's and witnesses' names are removed; Exhibit B (CV) is almost fully blacked out. 2 of max 3 for CV-24-94951 (with onsc-clc-pps-research)."
+  {
+   "id": "e1",
+   "date": "2008",
+   "precision": "year",
+   "description": "Expert begins working as an independent consultant",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I have been working as an independent consultant to various degrees since 2008.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2017",
+   "precision": "range",
+   "description": "Expert serves as Assistant Professor at Tarleton State University (2017-2021)",
+   "paragraphs": [
+    4
+   ],
+   "quote": "from 2017 to 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2015",
+   "precision": "approximate",
+   "description": "CCBR delivers postcards with abortion victim images to thousands of Ontario homes in summer 2015",
+   "paragraphs": [
+    9
+   ],
+   "quote": "a few months earlier in the summer of 2015",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2015-06",
+   "precision": "month",
+   "description": "Baseline household survey (n=845) before the postcard campaign",
+   "paragraphs": [
+    10
+   ],
+   "quote": "consisting of n=845 in June and n=896 in September",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2015-09",
+   "precision": "month",
+   "description": "Follow-up household survey (n=896) after the postcards were delivered",
+   "paragraphs": [
+    10
+   ],
+   "quote": "consisting of n=845 in June and n=896 in September",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2016",
+   "precision": "year",
+   "description": "Expert, commissioned by CCBR, analyzes the survey data (the Study)",
+   "paragraphs": [
+    9,
+    10
+   ],
+   "quote": "I conducted my analysis in 2016",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2012",
+   "precision": "year",
+   "description": "Ipsos Reid poll for Postmedia and Global TV on Canadians' abortion views, matching the baseline data",
+   "paragraphs": [
+    12
+   ],
+   "quote": "one from 2012 commissioned by Post Media News and Global TV",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": null,
+   "precision": "undated",
+   "description": "PPS refuses CLC the use of the signs at a press conference",
+   "paragraphs": [
+    22
+   ],
+   "quote": "the use of the signs was denied by the Parliamentary Policy Service",
+   "exhibits": []
+  }
+ ]
 }

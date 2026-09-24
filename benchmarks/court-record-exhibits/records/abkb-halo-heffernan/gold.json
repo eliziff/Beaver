@@ -9,34 +9,334 @@
  "deponent": "Nicholas Heffernan",
  "deponent_role": "Executive Vice-President, Corporate Development, Northbase Finance Inc. (lessor and secured creditor of Halo)",
  "sworn_date": "2026-02-09",
+ "referenced_not_attached": [
+  "Jenkins Affidavit sworn January 30, 2026",
+  "Supplemental Affidavit of Adam Jenkins sworn February 4, 2026 (and its cash flow forecast, Exhibit 2)",
+  "Draft Receivership Order (Schedule B to the Invico Application)"
+ ],
+ "leak_waivers": [],
+ "notes": "Responding affidavit in the same receivership as abkb-halo-jenkins (2 of max 3). Exhibit A is image-only.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-jrwau2.pdf", "kind": "corporate_record", "date": "2026-02-05", "author": "Alberta Corporate Registry", "recipients": [], "description": "Corporate search for Northbase", "references": [{"paragraph": 7, "quote": "is a copy of a corporate search for Northbase."}], "content_check": "4 image-only pages: Corporation/Non-Profit Search for Northbase Finance Inc., date of search 2026/02/05, amalgamation 2025/10/01"},
-  {"label": "B", "file": "doc-3udbga.pdf", "kind": "corporate_record", "date": "2025-12-15", "author": "Alberta Corporate Registry", "recipients": [], "description": "Corporate search for Halo", "references": [{"paragraph": 9, "quote": "a copy of a corporate search for Halo."}], "content_check": "Corporation/Non-Profit Search, date of search 2025/12/15 (Halo)"},
-  {"label": "C", "file": "doc-qrkn2g.pdf", "kind": "agreement", "date": "2022-03-21", "author": "Norden Finance Inc. and Halo Exploration Ltd.", "recipients": [], "description": "Asset Lease Agreement No. NB-2202 of March 21, 2022, with appraised values redacted", "references": [{"paragraph": 12, "quote": "Copies of the Leases are attached hereto in chronological order as Exhibits"}], "content_check": "Norden Finance Asset Lease Agreement, Lease No. NB-2202"},
-  {"label": "D", "file": "doc-amx2rz.pdf", "kind": "agreement", "date": "2022-06-28", "author": "Norden Finance Inc. and Halo Exploration Ltd.", "recipients": [], "description": "Asset Lease Agreement No. NB-2209 of June 28, 2022", "references": [{"paragraph": 12, "quote": "Copies of the Leases are attached hereto in chronological order as Exhibits"}], "content_check": "DocuSigned Norden Finance Asset Lease Agreement, Lease No. NB-2209"},
-  {"label": "E", "file": "doc-k6bjpk.pdf", "kind": "agreement", "date": "2022-08-09", "author": "Norden Finance Inc. and Halo Exploration Ltd.", "recipients": [], "description": "Asset Lease Agreement No. NB-2211 of August 9, 2022", "references": [{"paragraph": 12, "quote": "Copies of the Leases are attached hereto in chronological order as Exhibits"}], "content_check": "DocuSigned Norden Finance Asset Lease Agreement, Lease No. NB-2211"},
-  {"label": "F", "file": "doc-5jvfmk.pdf", "kind": "public_record", "date": "2026-02-05", "author": "Alberta Personal Property Registry", "recipients": [], "description": "PPR search for Halo showing Northbase's registrations ahead of Invico's", "references": [{"paragraph": 15, "quote": "Attached hereto as Exhibit “F” is a copy of the Alberta Personal Property Registry"}], "content_check": "Personal Property Registry search results report, Search ID Z19686870, 2026-Feb-05, Halo Exploration Ltd."},
-  {"label": "G", "file": "doc-xv2fwf.pdf", "kind": "email", "date": "2026-02-05", "author": "Randal Van de Mosselaer (counsel to Northbase)", "recipients": ["Robyn Gurofsky", "David LeGeyt", "Kaitlyn Wong", "Ryan Algar", "FTI"], "description": "Northbase counsel's February 5, 2026 email to Invico's counsel, the proposed receiver and its counsel on the application materials", "references": [{"paragraph": 25, "quote": "is a copy ofthe email."}], "content_check": "Email from Van de Mosselaer sent Thursday, February 05, 2026 5:43 PM re Invico v. Halo, 2601-01970"}
+  {
+   "label": "A",
+   "file": "doc-jrwau2.pdf",
+   "kind": "corporate_record",
+   "date": "2026-02-05",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Corporate search for Northbase",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "is a copy of a corporate search for Northbase."
+    }
+   ],
+   "content_check": "4 image-only pages: Corporation/Non-Profit Search for Northbase Finance Inc., date of search 2026/02/05, amalgamation 2025/10/01"
+  },
+  {
+   "label": "B",
+   "file": "doc-3udbga.pdf",
+   "kind": "corporate_record",
+   "date": "2025-12-15",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Corporate search for Halo",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "a copy of a corporate search for Halo."
+    }
+   ],
+   "content_check": "Corporation/Non-Profit Search, date of search 2025/12/15 (Halo)"
+  },
+  {
+   "label": "C",
+   "file": "doc-qrkn2g.pdf",
+   "kind": "agreement",
+   "date": "2022-03-21",
+   "author": "Norden Finance Inc. and Halo Exploration Ltd.",
+   "recipients": [],
+   "description": "Asset Lease Agreement No. NB-2202 of March 21, 2022, with appraised values redacted",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Copies of the Leases are attached hereto in chronological order as Exhibits"
+    }
+   ],
+   "content_check": "Norden Finance Asset Lease Agreement, Lease No. NB-2202"
+  },
+  {
+   "label": "D",
+   "file": "doc-amx2rz.pdf",
+   "kind": "agreement",
+   "date": "2022-06-28",
+   "author": "Norden Finance Inc. and Halo Exploration Ltd.",
+   "recipients": [],
+   "description": "Asset Lease Agreement No. NB-2209 of June 28, 2022",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Copies of the Leases are attached hereto in chronological order as Exhibits"
+    }
+   ],
+   "content_check": "DocuSigned Norden Finance Asset Lease Agreement, Lease No. NB-2209"
+  },
+  {
+   "label": "E",
+   "file": "doc-k6bjpk.pdf",
+   "kind": "agreement",
+   "date": "2022-08-09",
+   "author": "Norden Finance Inc. and Halo Exploration Ltd.",
+   "recipients": [],
+   "description": "Asset Lease Agreement No. NB-2211 of August 9, 2022",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Copies of the Leases are attached hereto in chronological order as Exhibits"
+    }
+   ],
+   "content_check": "DocuSigned Norden Finance Asset Lease Agreement, Lease No. NB-2211"
+  },
+  {
+   "label": "F",
+   "file": "doc-5jvfmk.pdf",
+   "kind": "public_record",
+   "date": "2026-02-05",
+   "author": "Alberta Personal Property Registry",
+   "recipients": [],
+   "description": "PPR search for Halo showing Northbase's registrations ahead of Invico's",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached hereto as Exhibit “F” is a copy of the Alberta Personal Property Registry"
+    }
+   ],
+   "content_check": "Personal Property Registry search results report, Search ID Z19686870, 2026-Feb-05, Halo Exploration Ltd."
+  },
+  {
+   "label": "G",
+   "file": "doc-xv2fwf.pdf",
+   "kind": "email",
+   "date": "2026-02-05",
+   "author": "Randal Van de Mosselaer (counsel to Northbase)",
+   "recipients": [
+    "Robyn Gurofsky",
+    "David LeGeyt",
+    "Kaitlyn Wong",
+    "Ryan Algar",
+    "FTI"
+   ],
+   "description": "Northbase counsel's February 5, 2026 email to Invico's counsel, the proposed receiver and its counsel on the application materials",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "is a copy ofthe email."
+    }
+   ],
+   "content_check": "Email from Van de Mosselaer sent Thursday, February 05, 2026 5:43 PM re Invico v. Halo, 2601-01970"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2020-09", "precision": "range", "description": "Deponent serves as Vice President of Northbase (September 2020 to December 2024), then EVP", "paragraphs": [1], "quote": "a Vice President of Northbase from September 2020 to December 2024", "exhibits": []},
-  {"id": "e2", "date": "2022-03-21", "precision": "day", "description": "Lease NB-2202 ($6,000,000, 10 years)", "paragraphs": [11, 12], "quote": "March 21, 2022", "exhibits": ["C"]},
-  {"id": "e3", "date": "2022-06-28", "precision": "day", "description": "Lease NB-2209 ($551,816)", "paragraphs": [11, 12], "quote": "June 28, 2022", "exhibits": ["D"]},
-  {"id": "e4", "date": "2022-08-09", "precision": "day", "description": "Lease NB-2211 ($471,214)", "paragraphs": [11, 12], "quote": "August 9, 2022", "exhibits": ["E"]},
-  {"id": "e5", "date": "2022-03-21", "precision": "day", "description": "Northbase/Norden PPR registration for NB-2202", "paragraphs": [16], "quote": "Relates to Asset Lease Agreement No. NB-\n2202", "exhibits": ["F"]},
-  {"id": "e6", "date": "2022-06-29", "precision": "day", "description": "Northbase/Norden PPR registration for NB-2209", "paragraphs": [16], "quote": "June 29, 2022", "exhibits": ["F"]},
-  {"id": "e7", "date": "2022-08-12", "precision": "day", "description": "Northbase/Norden PPR registration for NB-2211", "paragraphs": [16], "quote": "August 12, 2022", "exhibits": ["F"]},
-  {"id": "e8", "date": "2022-10-07", "precision": "day", "description": "Invico's PPR and land charge registrations, after Northbase's", "paragraphs": [16], "quote": "October 7, 2022", "exhibits": ["F"]},
-  {"id": "e9", "date": "2025-03", "precision": "month", "description": "Latest Halo asset inventory: leased Assets are about 54% of surface equipment value", "paragraphs": [13], "quote": "As of March 2025, being the date", "exhibits": []},
-  {"id": "e10", "date": "2025-10-01", "precision": "day", "description": "Northbase amalgamates with Norden Finance", "paragraphs": [7, 18], "quote": "On October 1, 2025 Northbase amalgamated with Norden", "exhibits": ["A"]},
-  {"id": "e11", "date": "2025-10-03", "precision": "day", "description": "Northbase amends its PPR registrations to reflect the name change", "paragraphs": [18], "quote": "on October 3, 2025", "exhibits": ["F"]},
-  {"id": "e12", "date": "2026-02-01", "precision": "day", "description": "Halo current on its lease obligations to Northbase", "paragraphs": [21], "quote": "As at February 1, 2026 Halo was current on its obligations owing to Northbase", "exhibits": []},
-  {"id": "e13", "date": "2026-02-02", "precision": "day", "description": "Northbase first learns of the application by email from Invico's counsel", "paragraphs": [24], "quote": "Northbase was first made aware of the immediate Application when it received an email", "exhibits": []},
-  {"id": "e14", "date": "2026-02-04", "precision": "day", "description": "Northbase receives the Supplemental Jenkins Affidavit", "paragraphs": [25], "quote": "Northbase received the Supplemental Affidavit on February 4, 2026.", "exhibits": []},
-  {"id": "e15", "date": "2026-02-05", "precision": "day", "description": "Northbase's counsel emails Invico's counsel and the proposed receiver raising priority and SISP concerns", "paragraphs": [25], "quote": "The following day,", "exhibits": ["G"]},
-  {"id": "e16", "date": "2026-02-06", "precision": "day", "description": "Amount remaining under the Leases totals $5,264,089", "paragraphs": [23], "quote": "As at February 6, 2026 the total amount", "exhibits": []}
- ],
- "referenced_not_attached": ["Jenkins Affidavit sworn January 30, 2026", "Supplemental Affidavit of Adam Jenkins sworn February 4, 2026 (and its cash flow forecast, Exhibit 2)", "Draft Receivership Order (Schedule B to the Invico Application)"],
- "leak_waivers": [],
- "notes": "Responding affidavit in the same receivership as abkb-halo-jenkins (2 of max 3). Exhibit A is image-only."
+  {
+   "id": "e1",
+   "date": "2020-09",
+   "precision": "range",
+   "description": "Deponent serves as Vice President of Northbase (September 2020 to December 2024), then EVP",
+   "paragraphs": [
+    1
+   ],
+   "quote": "a Vice President of Northbase from September 2020 to December 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2022-03-21",
+   "precision": "day",
+   "description": "Lease NB-2202 ($6,000,000, 10 years)",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "March 21, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2022-06-28",
+   "precision": "day",
+   "description": "Lease NB-2209 ($551,816)",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "June 28, 2022",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2022-08-09",
+   "precision": "day",
+   "description": "Lease NB-2211 ($471,214)",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "August 9, 2022",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2022-03-21",
+   "precision": "day",
+   "description": "Northbase/Norden PPR registration for NB-2202",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Relates to Asset Lease Agreement No. NB-\n2202",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2022-06-29",
+   "precision": "day",
+   "description": "Northbase/Norden PPR registration for NB-2209",
+   "paragraphs": [
+    16
+   ],
+   "quote": "June 29, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2022-08-12",
+   "precision": "day",
+   "description": "Northbase/Norden PPR registration for NB-2211",
+   "paragraphs": [
+    16
+   ],
+   "quote": "August 12, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2022-10-07",
+   "precision": "day",
+   "description": "Invico's PPR and land charge registrations, after Northbase's",
+   "paragraphs": [
+    16
+   ],
+   "quote": "October 7, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2025-03",
+   "precision": "month",
+   "description": "Latest Halo asset inventory: leased Assets are about 54% of surface equipment value",
+   "paragraphs": [
+    13
+   ],
+   "quote": "As of March 2025, being the date",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2025-10-01",
+   "precision": "day",
+   "description": "Northbase amalgamates with Norden Finance",
+   "paragraphs": [
+    7,
+    18
+   ],
+   "quote": "On October 1, 2025 Northbase amalgamated with Norden",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2025-10-03",
+   "precision": "day",
+   "description": "Northbase amends its PPR registrations to reflect the name change",
+   "paragraphs": [
+    18
+   ],
+   "quote": "on October 3, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2026-02-01",
+   "precision": "day",
+   "description": "Halo current on its lease obligations to Northbase",
+   "paragraphs": [
+    21
+   ],
+   "quote": "As at February 1, 2026 Halo was current on its obligations owing to Northbase",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2026-02-02",
+   "precision": "day",
+   "description": "Northbase first learns of the application by email from Invico's counsel",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Northbase was first made aware of the immediate Application when it received an email",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2026-02-04",
+   "precision": "day",
+   "description": "Northbase receives the Supplemental Jenkins Affidavit",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Northbase received the Supplemental Affidavit on February 4, 2026.",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2026-02-05",
+   "precision": "day",
+   "description": "Northbase's counsel emails Invico's counsel and the proposed receiver raising priority and SISP concerns",
+   "paragraphs": [
+    25
+   ],
+   "quote": "The following day,",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2026-02-06",
+   "precision": "day",
+   "description": "Amount remaining under the Leases totals $5,264,089",
+   "paragraphs": [
+    23
+   ],
+   "quote": "As at February 6, 2026 the total amount",
+   "exhibits": []
+  }
+ ]
 }

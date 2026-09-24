@@ -1,0 +1,20 @@
+{
+ "url": "https://cfcanada.fticonsulting.com/lynxair/docs/2024-09-16%20Affidavit%20of%20J.%20Watts%20(In%20support%20of%20application%20for%20permission%20to%20appeal).pdf",
+ "landing_url": "https://cfcanada.fticonsulting.com/lynxair/",
+ "court": "Court of Appeal of Alberta",
+ "court_level": "appellate",
+ "jurisdiction": "AB",
+ "court_file": "Court of Appeal file (number not stamped on posted copy); trial court file 2401-02664 (Calgary)",
+ "document_title": "Affidavit of Jessica Watts sworn September 16, 2024, in support of the Airport Authorities' application for permission to appeal 2024 ABKB 514",
+ "retrieved": "2026-09-23",
+ "record_id": "abca-lynx-watts",
+ "source_file": "c-2024-09-16-20affidavit-20of-20j-20watts-20-in-20support-20of.pdf",
+ "page_range": [
+  1,
+  1254
+ ],
+ "source_sha256": "5d3786a0fc2fbcc15d72e06abe98bb1748740a400fbdc5483b8726a27fcc9437",
+ "source_pages": 1254,
+ "covers": "A=4,B=48,C=84,D=134,E=167,F=177,G=263,H=427,I=513,J=606,K=715,L=730,M=942,N=1096,O=1119,P=1141,Q=1176,R=1210,S=1222",
+ "drop": "1143,1178"
+}

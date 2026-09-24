@@ -1,0 +1,281 @@
+{
+ "record_id": "mbkb-genesus-barrington2",
+ "court": "Court of King's Bench of Manitoba, Winnipeg Centre",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 24-01-45056",
+ "subject": "insolvency",
+ "family": "genesus",
+ "proceeding": "Bank of Montreal's application to appoint a receiver of Genesus Inc., Can-Am Genetics Inc. and Genesus Genetics Inc. (BIA s. 243; CKB Act s. 55)",
+ "document": "Supplemental Affidavit of Ed Barrington affirmed May 28, 2024",
+ "deponent": "Ed Barrington",
+ "deponent_role": "Senior Account Manager, Special Accounts Management Unit, Western Canada, Bank of Montreal (applicant)",
+ "sworn_date": "2024-05-28",
+ "exhibits": [
+  {
+   "label": "BBB",
+   "file": "doc-z78q4n.pdf",
+   "kind": "email_chain",
+   "date": "2024-02-22",
+   "author": "Trevor Klippenstein / Ed Barrington",
+   "recipients": [
+    "Ed Barrington",
+    "Trevor Klippenstein"
+   ],
+   "description": "Klippenstein's email asking BMO to release account holds, and Barrington's refusal",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto and marked as Exhibit \n“BBB” is a copy of Mr. Klippenstein’s email to me, dated February 22, 2024"
+    }
+   ],
+   "content_check": "2 pages: BMO cheque hold policy page, then emails of February 22, 2024: Klippenstein 'Fund Released' 10:30 AM and Barrington reply 11:25 AM 'The Bank is not comfortable releasing holds'"
+  },
+  {
+   "label": "CCC",
+   "file": "doc-f7d77m.pdf",
+   "kind": "letter",
+   "date": "2024-04-16",
+   "author": "MLT Aikins LLP (counsel for Designed Genetics Inc.)",
+   "recipients": [
+    "Catherine Howden, Pitblado Law"
+   ],
+   "description": "DGI counsel's letter reserving its Stable Keepers Act lien rights",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto and \nmarked as Exhibit “CCC” is a copy of the April 16, 2024, letter from DGI’s \ncounsel to Ms. Howden"
+    }
+   ],
+   "content_check": "1 page: MLT Aikins letter of April 16, 2024 via email to Catherine Howden, re Designed Genetics Inc. and Genesus Inc."
+  },
+  {
+   "label": "DDD",
+   "file": "doc-cw93u4.pdf",
+   "kind": "letter",
+   "date": "2024-05-24",
+   "author": "Bank of Montreal",
+   "recipients": [
+    "Genesus Inc."
+   ],
+   "description": "BMO's Partial Release for the sale of the Hamiota Property",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto and marked as Exhibit “DDD” is a copy of the Partial \nRelease signed by BMO, dated May 24, 2024"
+    }
+   ],
+   "content_check": "1 page: Bank of Montreal letter of May 24, 2024 to Genesus Inc., 'Re: Release Request', partial release terms"
+  },
+  {
+   "label": "EEE",
+   "file": "doc-kz4euh.pdf",
+   "kind": "letter",
+   "date": "2024-05-24",
+   "author": "MLT Aikins LLP (counsel for Designed Genetics Inc.)",
+   "recipients": [
+    "Catherine Howden, Pitblado Law"
+   ],
+   "description": "DGI counsel's letter giving notice of distraint over livestock for rent arrears, with enclosure",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached hereto \nand marked as Exhibit “EEE” is a copy of the May 24, 2024, letter from \nDGI’s counsel to Ms. Howden, along with the enclosure thereto"
+    }
+   ],
+   "content_check": "4 pages: MLT Aikins letter of May 24, 2024 to Catherine Howden re Designed Genetics Inc. and Genesus Inc., with enclosure"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Barrington's first affidavit affirmed and filed in support of BMO's application",
+   "date": "2024-02-09",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "my first Affidavit, affirmed \nFebruary 9, 2024, filed on February 12, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Sale of the St. Andrews Property, after which the Debt was not reduced",
+   "date": "2023-10",
+   "precision": "approximate",
+   "paragraphs": [
+    16
+   ],
+   "quote": "since the sale of the St. Andrews Property in or about October 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Klippenstein asks BMO to release account holds to pay for feed; BMO refuses",
+   "date": "2024-02-22",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "on or about February 22, 2024, the \nRespondent, Trevor Klippenstein",
+   "exhibits": [
+    "BBB"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Genesus and Can-Am owe about $12.6 million and $1.08 million to trade creditors",
+   "date": "2024-02",
+   "precision": "month",
+   "paragraphs": [
+    13
+   ],
+   "quote": "As at February 2024, based on Genesus’ and Can-Am’s payables \nstatements for February 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Can-Am overdraft: $2,922.44 returned",
+   "date": "2024-03-13",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On or about March 13, 2024, the sum of $2,922.44 was returned",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Can-Am overdraft: $2,934.84 returned",
+   "date": "2024-04-04",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On or about April 4, 2024, the sum of $2,934.84 was returned",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Can-Am overdraft: $29,095.89 returned",
+   "date": "2024-04-05",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On or about April 5, 2024, the sum of $29,095.89 was returned",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Genesus counsel advises of intended sale of the Hamiota Property and asks for a release",
+   "date": "2024-04-09",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "on or about April 9, 2024, counsel \nfor Genesus, Keith Senden of Fillmore Riley LLP",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "DGI counsel's letter reserving Stable Keepers Act lien",
+   "date": "2024-04-16",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "on or \nabout April 16, 2024, she received a letter from counsel for Designed \nGenetics Inc.",
+   "exhibits": [
+    "CCC"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "BMO consents to sale of the Hamiota Property",
+   "date": "2024-05-02",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On or about May 2, 2024, BMO consented to the sale of the Hamiota \nProperty",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "DGI's Reiss says Genesus is not paying rent or property insurance",
+   "date": "2024-05-06",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "May 6, 2024, she received a phone call from Paul Reiss",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "BMO provides the Partial Release",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "On or about May 24, 2024, BMO provided a partial release of its \nsecurity interests to Genesus",
+   "exhibits": [
+    "DDD"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Sale of the Hamiota Property closes",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "the sale of the \nHamiota Property closed on May 24, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "DGI distrains livestock at the St. Andrews Property for $392,174 rent arrears",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "DGI had exercised is \ndistraint rights over the livestock located at the St. Andrews Property",
+   "exhibits": [
+    "EEE"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "BDO advises that the VP Finance and Controller have left Genesus",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On or about May 24, 2024, I was advised by David Lewis of BDO",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "BDO advises of Genesus's debts to Manitoba Taxation",
+   "date": "2024-05-28",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On or about May 28, 2024, I was advised by David Lewis of BDO",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Barrington's First Affidavit (affirmed February 9, 2024)",
+  "lease agreement between DGI and Genesus",
+  "Purchase Agreement for the Hamiota Property"
+ ]
+}

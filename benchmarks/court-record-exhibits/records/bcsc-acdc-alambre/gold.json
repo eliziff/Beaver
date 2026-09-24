@@ -9,6 +9,10 @@
  "deponent": "Jennifer Alambre",
  "deponent_role": "Legal administrative assistant, Blake, Cassels & Graydon LLP, counsel for the Petitioners",
  "sworn_date": "2026-04-29",
+ "referenced_not_attached": [],
+ "notes": "A bare exhibit-listing affidavit (instructions to counsel's assistant); events are the dated documents it names. OCR numbered most paragraphs as '1-', '9-', '10' or left them unnumbered, so only paragraphs 5-8 and 11 carry paragraph numbers. Exhibit L's paragraph has no number. Same CCAA/receivership family as bcsc-acdc-hiebert.",
+ "family": "acdc-diamonds",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -322,8 +326,5 @@
     "L"
    ]
   }
- ],
- "referenced_not_attached": [],
- "notes": "A bare exhibit-listing affidavit (instructions to counsel's assistant); events are the dated documents it names. OCR numbered most paragraphs as '1-', '9-', '10' or left them unnumbered, so only paragraphs 5-8 and 11 carry paragraph numbers. Exhibit L's paragraph has no number. Same CCAA/receivership family as bcsc-acdc-hiebert.",
- "family": "acdc-diamonds"
+ ]
 }

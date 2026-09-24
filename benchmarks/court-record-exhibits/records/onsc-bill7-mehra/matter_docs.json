@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/onsc-bill7-mehra/notice-of-application.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Notice-of-Application-April-12-2023.pdf",
+  "title": "Notice of Application (Charter), April 12, 2023",
+  "kind": "court_filing",
+  "relation": "originating process of this application"
+ },
+ {
+  "file": "raw/matter/onsc-bill7-mehra/summary-of-expert-affidavits.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Summary-of-Expert-Affidavits.pdf",
+  "title": "OHC summary of expert affidavits",
+  "kind": "other",
+  "relation": "applicant's public summary of the expert evidence"
+ }
+]

@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/chrt-caring-dulai/nccc-reply-motion-record.pdf",
+  "url": "https://fncaringsociety.com/sites/default/files/2026-02/Reply%20Motion%20Record%20of%20the%20Proposed%20Interested%20Party,%20NCCC%20(T1340-7008).pdf",
+  "title": "Reply Motion Record of the Proposed Interested Party NCCC (T1340/7008)",
+  "kind": "court_filing",
+  "relation": "same NCCC motion, moving party's reply"
+ },
+ {
+  "file": "raw/matter/chrt-caring-dulai/affidavit-of-service.pdf",
+  "url": "https://fncaringsociety.com/sites/default/files/2026-03/2026%2003%2003%20Affidavit%20of%20Service%20re%20NCCC%20Notice%20of%20Motion%20and%20Written%20Submissions%20(T1340-7008).pdf",
+  "title": "Affidavit of service re NCCC notice of motion (T1340/7008)",
+  "kind": "affidavit",
+  "relation": "same motion, service"
+ }
+]

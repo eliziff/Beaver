@@ -9,40 +9,212 @@
  "deponent": "Noa Mendelsohn Aviv",
  "deponent_role": "Executive Director and General Counsel of the Canadian Civil Liberties Association",
  "sworn_date": "2023-07-07",
+ "referenced_not_attached": [
+  "CCLA Memorandum of Argument on the motion"
+ ],
+ "leak_waivers": [
+  "D"
+ ],
+ "notes": "Same proceeding as scc-cbc-savard. Leak waiver D: Exhibit D (the Vice Media factum) cites 'Makuch Affidavit, Exhibit D' of that earlier appeal record, a real mention inside its own content. Exhibits A and E are image-only. Events are mostly the dated interventions the affidavit lists.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-mekjh5.pdf", "kind": "webpage", "date": null, "author": "Canadian Civil Liberties Association", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-mekjh5.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [],
    "description": "A screenshot of the 'About Us' page of the CCLA's website",
-   "references": [{"paragraph": 6, "quote": "is a screenshot of the \"About Us\" page of the CCLA's website"}],
-   "content_check": "One rotated, image-only page: a browser screenshot of ccla.org's 'About Us' page ('Committed to Rights and Freedoms. Dedicated to Advocacy and Education.', Our Mission, Our Vision); no text layer"},
-  {"label": "B", "file": "doc-557fjm.pdf", "kind": "court_filing", "date": null, "author": "Canadian Civil Liberties Association", "recipients": ["Supreme Court of Canada"],
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is a screenshot of the \"About Us\" page of the CCLA's website"
+    }
+   ],
+   "content_check": "One rotated, image-only page: a browser screenshot of ccla.org's 'About Us' page ('Committed to Rights and Freedoms. Dedicated to Advocacy and Education.', Our Mission, Our Vision); no text layer"
+  },
+  {
+   "label": "B",
+   "file": "doc-557fjm.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [
+    "Supreme Court of Canada"
+   ],
    "description": "The factum the CCLA filed as intervener in Sherman Estate v. Donovan, 2021 SCC 25",
-   "references": [{"paragraph": 9, "quote": "Exhibit \"B\" is a copy of the factum filed by the CCLA in that"}],
-   "content_check": "17-page CCLA intervener factum in SCC file 38695, The Estate of Bernard Sherman et al. v. Kevin Donovan (on appeal from the Court of Appeal for Ontario)"},
-  {"label": "C", "file": "doc-5js648.pdf", "kind": "court_filing", "date": "2019-02-18", "author": "Canadian Civil Liberties Association", "recipients": ["Supreme Court of Canada"],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Exhibit \"B\" is a copy of the factum filed by the CCLA in that"
+    }
+   ],
+   "content_check": "17-page CCLA intervener factum in SCC file 38695, The Estate of Bernard Sherman et al. v. Kevin Donovan (on appeal from the Court of Appeal for Ontario)"
+  },
+  {
+   "label": "C",
+   "file": "doc-5js648.pdf",
+   "kind": "court_filing",
+   "date": "2019-02-18",
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [
+    "Supreme Court of Canada"
+   ],
    "description": "The factum the CCLA filed as intervener in Denis v. Cote, 2019 SCC 44",
-   "references": [{"paragraph": 9, "quote": "Exhibit \"C\" is a copy of the factum"}],
-   "content_check": "18-page CCLA intervener factum in SCC file 38114, Marie-Maude Denis v. Marc-Yvan Cote, on the Journalistic Sources Protection Act and s. 39.1 of the Canada Evidence Act"},
-  {"label": "D", "file": "doc-x646n2.pdf", "kind": "court_filing", "date": null, "author": "Canadian Civil Liberties Association", "recipients": ["Supreme Court of Canada"],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Exhibit \"C\" is a copy of the factum"
+    }
+   ],
+   "content_check": "18-page CCLA intervener factum in SCC file 38114, Marie-Maude Denis v. Marc-Yvan Cote, on the Journalistic Sources Protection Act and s. 39.1 of the Canada Evidence Act"
+  },
+  {
+   "label": "D",
+   "file": "doc-x646n2.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [
+    "Supreme Court of Canada"
+   ],
    "description": "The factum the CCLA filed as intervener in R. v. Vice Media Canada Inc., 2018 SCC 53",
-   "references": [{"paragraph": 9, "quote": "is a copy of the factum filed by the CCLA in that case"}],
-   "content_check": "16-page CCLA intervener factum in SCC file 37574, Vice Media Canada Inc. and Ben Makuch v. Her Majesty the Queen; its footnotes cite 'Makuch Affidavit, Exhibit D' of the Vice appeal record"},
-  {"label": "E", "file": "doc-ks5vdn.pdf", "kind": "court_filing", "date": null, "author": "Canadian Civil Liberties Association", "recipients": ["Supreme Court of Canada"],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "is a copy of the factum filed by the CCLA in that case"
+    }
+   ],
+   "content_check": "16-page CCLA intervener factum in SCC file 37574, Vice Media Canada Inc. and Ben Makuch v. Her Majesty the Queen; its footnotes cite 'Makuch Affidavit, Exhibit D' of the Vice appeal record"
+  },
+  {
+   "label": "E",
+   "file": "doc-ks5vdn.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [
+    "Supreme Court of Canada"
+   ],
    "description": "The factum the CCLA filed as intervener in R. v. Barros, 2011 SCC 51",
-   "references": [{"paragraph": 10, "quote": "Exhibit \"E\" is a copy of"}],
-   "content_check": "16 image-only pages; page 1 is the cover of the 'Factum of the Intervener The Canadian Civil Liberties Association' in SCC file 33727, Ross Barros v. Her Majesty the Queen (on appeal from the Alberta Court of Appeal)"}
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Exhibit \"E\" is a copy of"
+    }
+   ],
+   "content_check": "16 image-only pages; page 1 is the cover of the 'Factum of the Intervener The Canadian Civil Liberties Association' in SCC file 33727, Ross Barros v. Her Majesty the Queen (on appeal from the Alberta Court of Appeal)"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1964", "precision": "year", "description": "The CCLA was founded", "paragraphs": [3], "quote": "The CCLA was founded in 1964", "exhibits": ["A"]},
-  {"id": "e2", "date": "1981", "precision": "year", "description": "CCLA intervened in Solicitor General of Canada v. Royal Commission (Health Records), [1981] 2 S.C.R. 494", "paragraphs": [10], "quote": "Solicitor General of Canada, et al. v. Royal Commission (Health Records), [1981]", "exhibits": []},
-  {"id": "e3", "date": "1982", "precision": "year", "description": "CCLA intervened in A.G. (Nova Scotia) v. MacIntyre, [1982] 1 S.C.R. 175", "paragraphs": [10], "quote": "A.G. (Nova Scotia) v. MacIntyre, [1982] 1 S.C.R. 175", "exhibits": []},
-  {"id": "e4", "date": "2010", "precision": "year", "description": "CCLA intervened in Globe and Mail v. Canada (Attorney General), 2010 SCC 41", "paragraphs": [9], "quote": "Globe and Mail v. Canada (Attorney General), 2010 SCC 41", "exhibits": []},
-  {"id": "e5", "date": "2011", "precision": "year", "description": "CCLA intervened in R. v. Barros, 2011 SCC 51, on investigating the identity of police informants", "paragraphs": [10], "quote": "R. v. Barros, 2011 SCC 51, in which the CCLA argued that defendants in criminal", "exhibits": ["E"]},
-  {"id": "e6", "date": "2018", "precision": "year", "description": "CCLA intervened in R. v. Vice Media Canada Inc., 2018 SCC 53, on indefinite publication bans", "paragraphs": [9], "quote": "R. v. Vice Media Canada Inc., 2018 SCC 53, in which the CCLA argued that an", "exhibits": ["D"]},
-  {"id": "e7", "date": "2019", "precision": "year", "description": "CCLA intervened in Denis v. Cote, 2019 SCC 44, on s. 39.1 of the Canada Evidence Act", "paragraphs": [9], "quote": "Marie-Maude Denis v. Marc-Yvan Cote, 2019 SCC 44, in which the CCLA", "exhibits": ["C"]},
-  {"id": "e8", "date": "2021", "precision": "year", "description": "CCLA intervened in Sherman Estate v. Donovan, 2021 SCC 25, arguing privacy alone should rarely limit open courts", "paragraphs": [9], "quote": "Sherman Estate v. Donovan, 2021 SCC 25, in which the CCLA argued that", "exhibits": ["B"]},
-  {"id": "e9", "precision": "undated", "description": "The CCLA has been involved in more than 250 cases upholding constitutional rights", "paragraphs": [7], "quote": "has been involved in more than 250 cases", "exhibits": []}
- ],
- "referenced_not_attached": ["CCLA Memorandum of Argument on the motion"],
- "leak_waivers": ["D"],
- "notes": "Same proceeding as scc-cbc-savard. Leak waiver D: Exhibit D (the Vice Media factum) cites 'Makuch Affidavit, Exhibit D' of that earlier appeal record, a real mention inside its own content. Exhibits A and E are image-only. Events are mostly the dated interventions the affidavit lists."
+  {
+   "id": "e1",
+   "date": "1964",
+   "precision": "year",
+   "description": "The CCLA was founded",
+   "paragraphs": [
+    3
+   ],
+   "quote": "The CCLA was founded in 1964",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "1981",
+   "precision": "year",
+   "description": "CCLA intervened in Solicitor General of Canada v. Royal Commission (Health Records), [1981] 2 S.C.R. 494",
+   "paragraphs": [
+    10
+   ],
+   "quote": "Solicitor General of Canada, et al. v. Royal Commission (Health Records), [1981]",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "1982",
+   "precision": "year",
+   "description": "CCLA intervened in A.G. (Nova Scotia) v. MacIntyre, [1982] 1 S.C.R. 175",
+   "paragraphs": [
+    10
+   ],
+   "quote": "A.G. (Nova Scotia) v. MacIntyre, [1982] 1 S.C.R. 175",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2010",
+   "precision": "year",
+   "description": "CCLA intervened in Globe and Mail v. Canada (Attorney General), 2010 SCC 41",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Globe and Mail v. Canada (Attorney General), 2010 SCC 41",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2011",
+   "precision": "year",
+   "description": "CCLA intervened in R. v. Barros, 2011 SCC 51, on investigating the identity of police informants",
+   "paragraphs": [
+    10
+   ],
+   "quote": "R. v. Barros, 2011 SCC 51, in which the CCLA argued that defendants in criminal",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2018",
+   "precision": "year",
+   "description": "CCLA intervened in R. v. Vice Media Canada Inc., 2018 SCC 53, on indefinite publication bans",
+   "paragraphs": [
+    9
+   ],
+   "quote": "R. v. Vice Media Canada Inc., 2018 SCC 53, in which the CCLA argued that an",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2019",
+   "precision": "year",
+   "description": "CCLA intervened in Denis v. Cote, 2019 SCC 44, on s. 39.1 of the Canada Evidence Act",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Marie-Maude Denis v. Marc-Yvan Cote, 2019 SCC 44, in which the CCLA",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2021",
+   "precision": "year",
+   "description": "CCLA intervened in Sherman Estate v. Donovan, 2021 SCC 25, arguing privacy alone should rarely limit open courts",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Sherman Estate v. Donovan, 2021 SCC 25, in which the CCLA argued that",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e9",
+   "precision": "undated",
+   "description": "The CCLA has been involved in more than 250 cases upholding constitutional rights",
+   "paragraphs": [
+    7
+   ],
+   "quote": "has been involved in more than 250 cases",
+   "exhibits": []
+  }
+ ]
 }

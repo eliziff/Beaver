@@ -32,9 +32,15 @@ def check(record):
     aff_text = open(os.path.join(record, "affidavit.txt"), encoding="utf-8").read()
     # OCR of a scanned page can read "7." alone on its line as "7:".
     paras = set(re.findall(r"(?:^|\s)(\d{1,3})\.(?=\s)", aff_text)) | set(re.findall(r"(?m)^(\d{1,3}):$", aff_text))
-    for key in ("record_id", "court", "court_level", "jurisdiction", "proceeding", "document", "deponent", "sworn_date", "exhibits", "events"):
+    for key in ("record_id", "court", "court_level", "jurisdiction", "subject", "proceeding", "document", "deponent", "sworn_date", "exhibits", "events"):
         if key not in gold:
             errors.append(f"missing {key}")
+    if gold.get("subject") in ("", "other"):
+        errors.append("subject must name the area of law (insolvency, charter, class_action, ...)")
+    for ex in gold.get("exhibits", []):
+        twins = {e["label"] for e in gold.get("exhibits", [])}
+        if set(ex.get("same_text_as", [])) - twins:
+            errors.append(f"exhibit {ex.get('label')} same_text_as names an unknown label")
     if gold.get("sworn_date") and not ISO.match(gold["sworn_date"]):
         errors.append("sworn_date is not ISO")
     split_labels = {e["label"]: e["file"] for e in split["exhibits"]}

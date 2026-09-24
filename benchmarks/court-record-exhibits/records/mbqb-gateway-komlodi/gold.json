@@ -9,39 +9,413 @@
  "deponent": "Szilveszter Jozsef Komlodi",
  "deponent_role": "Assistant Deputy Minister of Fiscal Management and Capital Planning, Treasury Board Secretariat, Government of Manitoba",
  "sworn_date": "2021-03-05",
+ "referenced_not_attached": [
+  "Provincial programs listed without exhibits in paragraphs 5 and 7 (Pandemic Staffing Support Benefit, Seniors Economic Recovery, Risk Recognition Program, etc.)"
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibit J's cover lacks a jurat line the detector needs, so covers A-O were given by eye with --covers; the affidavit prints Exhibit O as \"0\".",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-v2wuwp.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "List of resources and support programs for individuals and businesses from the Government's website", "references": [{"paragraph": 4, "quote": "Exhibit \"A\" - A list of resources and suppmi programs available for\nindividuals and businesses"}], "content_check": "2 pages: Province of Manitoba 'Support Programs for Individuals and Businesses' web page"},
-  {"label": "B", "file": "doc-xfc3p9.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Manitoba Bridge Grant for businesses closed by COVID-19 prevention orders", "references": [{"paragraph": 4, "quote": "Exhibit \"B\" - Manitoba Bridge Grant"}], "content_check": "18 pages: Province of Manitoba 'Manitoba Bridge Grant' web pages"},
-  {"label": "C", "file": "doc-xdpqd2.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Caregiver Wage Support Program", "references": [{"paragraph": 4, "quote": "Exhibit \"C\" - Caregiver Wage Support Program."}], "content_check": "6 pages: Province of Manitoba 'Caregiver Wage Support Program' web page"},
-  {"label": "D", "file": "doc-amawsg.pdf", "kind": "webpage", "date": "2021-02-04", "author": "Manitoba Chambers of Commerce", "recipients": [], "description": "Dine-in Restaurant Relief Program announced December 22, 2020", "references": [{"paragraph": 4, "quote": "Exhibit \"D\" - Dine-in Restaurant Relief Program."}], "content_check": "4 pages: Manitoba Chambers of Commerce 'Dine-in Restaurant Relief Program' page, printed 2021-02-04"},
-  {"label": "E", "file": "doc-5ect88.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Back to Work in Manitoba Wage Subsidy Programs, including the Summer Student Recovery Jobs Program", "references": [{"paragraph": 4, "quote": "Exhibit \"E\" - Back to Work in Manitoba Wage Subsidy Programs."}], "content_check": "7 pages: Province of Manitoba 'Back to Work in Manitoba Wage Subsidy Program' page"},
-  {"label": "F", "file": "doc-9uft4w.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Tax and fee deferrals", "references": [{"paragraph": 4, "quote": "Exhibit \"F\" - Tax and Fee Deferrals."}], "content_check": "6 pages: Province of Manitoba 'Tax and Fee Deferrals' page"},
-  {"label": "G", "file": "doc-njrs9d.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Manitoba Gap Protection Program", "references": [{"paragraph": 4, "quote": "Exhibit \"G\" - Manitoba Gap Protection Program."}], "content_check": "2 pages: Province of Manitoba 'Manitoba Gap Protection Plan' page"},
-  {"label": "H", "file": "doc-d869dv.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Manitoba Job Restart Program", "references": [{"paragraph": 4, "quote": "Exhibit \"H\" - Manitoba Job Restart Program."}], "content_check": "7 pages: Province of Manitoba 'Manitoba Job Restart Program' page"},
-  {"label": "I", "file": "doc-cr3s87.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Canada-Manitoba Job Grant training support program", "references": [{"paragraph": 4, "quote": "Exhibit \"I\" - Canada-Manitoba Job Grant."}], "content_check": "1 page: 'Canada-Manitoba Job Grant - What is the Job Grant?'"},
-  {"label": "J", "file": "doc-3su2wg.pdf", "kind": "webpage", "date": "2021-01-24", "author": "Government of Manitoba", "recipients": [], "description": "'Covid-19 Novel Coronavirus - Care for Your Mental Health' page (updated January 24, 2021)", "references": [{"paragraph": 6, "quote": "Exhibit \"J\" - Covid-19 Novel Coronavirus - Care for Your Mental\nHealth"}], "content_check": "17 pages: Province of Manitoba 'Care for Your Mental Health' page, 'NEW Last updated: January 24, 2021', printed 2021-02-04"},
-  {"label": "K", "file": "doc-xyhzuj.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "Help Next Door volunteer-matching web application", "references": [{"paragraph": 6, "quote": "Exhibit \"K\" - Help Next Door."}], "content_check": "2 pages: Province of Manitoba 'Help Next Door' page"},
-  {"label": "L", "file": "doc-z82bfw.pdf", "kind": "webpage", "date": "2021-02-04", "author": "Safe at Home Manitoba", "recipients": [], "description": "Safe at Home Manitoba Grant Program", "references": [{"paragraph": 6, "quote": "Exhibit \"L\" - Safe at Home Manitoba Grant Program."}], "content_check": "8 pages: 'Stay Connected - Safe at Home Manitoba' pages captured 2021-02-04"},
-  {"label": "M", "file": "doc-7ru27g.pdf", "kind": "webpage", "date": null, "author": "Government of Manitoba", "recipients": [], "description": "List of federal support programs on the Manitoba Government's website", "references": [{"paragraph": 8, "quote": "Exhibit \"M\" - A list of support programs offered by the federal government"}], "content_check": "Province of Manitoba 'Federal Programs' page"},
-  {"label": "N", "file": "doc-qt97gy.pdf", "kind": "webpage", "date": "2021-02-04", "author": "Government of Canada", "recipients": [], "description": "Canada's COVID-19 Economic Response Plan", "references": [{"paragraph": 8, "quote": "Exhibit \"N\" - Canada's COVID-19 Economic Response Plan."}], "content_check": "Canada.ca 'Canada's COVID-19 Economic Response Plan' page printed 2021-02-04"},
-  {"label": "O", "file": "doc-9dt4ca.pdf", "kind": "webpage", "date": null, "author": "Department of Finance Canada", "recipients": [], "description": "Additional Support for Canadian Businesses from the Economic Impact of COVID-19", "references": [{"paragraph": 8, "quote": "Exhibit \"0\" - Additional Support for Canadian Businesses"}], "content_check": "Canada.ca Department of Finance page 'Additional Support for Canadian Businesses from the Economic Impact of COVID-19'"}
+  {
+   "label": "A",
+   "file": "doc-v2wuwp.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "List of resources and support programs for individuals and businesses from the Government's website",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"A\" - A list of resources and suppmi programs available for\nindividuals and businesses"
+    }
+   ],
+   "content_check": "2 pages: Province of Manitoba 'Support Programs for Individuals and Businesses' web page"
+  },
+  {
+   "label": "B",
+   "file": "doc-xfc3p9.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Manitoba Bridge Grant for businesses closed by COVID-19 prevention orders",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"B\" - Manitoba Bridge Grant"
+    }
+   ],
+   "content_check": "18 pages: Province of Manitoba 'Manitoba Bridge Grant' web pages"
+  },
+  {
+   "label": "C",
+   "file": "doc-xdpqd2.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Caregiver Wage Support Program",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"C\" - Caregiver Wage Support Program."
+    }
+   ],
+   "content_check": "6 pages: Province of Manitoba 'Caregiver Wage Support Program' web page"
+  },
+  {
+   "label": "D",
+   "file": "doc-amawsg.pdf",
+   "kind": "webpage",
+   "date": "2021-02-04",
+   "author": "Manitoba Chambers of Commerce",
+   "recipients": [],
+   "description": "Dine-in Restaurant Relief Program announced December 22, 2020",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"D\" - Dine-in Restaurant Relief Program."
+    }
+   ],
+   "content_check": "4 pages: Manitoba Chambers of Commerce 'Dine-in Restaurant Relief Program' page, printed 2021-02-04"
+  },
+  {
+   "label": "E",
+   "file": "doc-5ect88.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Back to Work in Manitoba Wage Subsidy Programs, including the Summer Student Recovery Jobs Program",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"E\" - Back to Work in Manitoba Wage Subsidy Programs."
+    }
+   ],
+   "content_check": "7 pages: Province of Manitoba 'Back to Work in Manitoba Wage Subsidy Program' page"
+  },
+  {
+   "label": "F",
+   "file": "doc-9uft4w.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Tax and fee deferrals",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"F\" - Tax and Fee Deferrals."
+    }
+   ],
+   "content_check": "6 pages: Province of Manitoba 'Tax and Fee Deferrals' page"
+  },
+  {
+   "label": "G",
+   "file": "doc-njrs9d.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Manitoba Gap Protection Program",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"G\" - Manitoba Gap Protection Program."
+    }
+   ],
+   "content_check": "2 pages: Province of Manitoba 'Manitoba Gap Protection Plan' page"
+  },
+  {
+   "label": "H",
+   "file": "doc-d869dv.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Manitoba Job Restart Program",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"H\" - Manitoba Job Restart Program."
+    }
+   ],
+   "content_check": "7 pages: Province of Manitoba 'Manitoba Job Restart Program' page"
+  },
+  {
+   "label": "I",
+   "file": "doc-cr3s87.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Canada-Manitoba Job Grant training support program",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Exhibit \"I\" - Canada-Manitoba Job Grant."
+    }
+   ],
+   "content_check": "1 page: 'Canada-Manitoba Job Grant - What is the Job Grant?'"
+  },
+  {
+   "label": "J",
+   "file": "doc-3su2wg.pdf",
+   "kind": "webpage",
+   "date": "2021-01-24",
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "'Covid-19 Novel Coronavirus - Care for Your Mental Health' page (updated January 24, 2021)",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Exhibit \"J\" - Covid-19 Novel Coronavirus - Care for Your Mental\nHealth"
+    }
+   ],
+   "content_check": "17 pages: Province of Manitoba 'Care for Your Mental Health' page, 'NEW Last updated: January 24, 2021', printed 2021-02-04"
+  },
+  {
+   "label": "K",
+   "file": "doc-xyhzuj.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "Help Next Door volunteer-matching web application",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Exhibit \"K\" - Help Next Door."
+    }
+   ],
+   "content_check": "2 pages: Province of Manitoba 'Help Next Door' page"
+  },
+  {
+   "label": "L",
+   "file": "doc-z82bfw.pdf",
+   "kind": "webpage",
+   "date": "2021-02-04",
+   "author": "Safe at Home Manitoba",
+   "recipients": [],
+   "description": "Safe at Home Manitoba Grant Program",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Exhibit \"L\" - Safe at Home Manitoba Grant Program."
+    }
+   ],
+   "content_check": "8 pages: 'Stay Connected - Safe at Home Manitoba' pages captured 2021-02-04"
+  },
+  {
+   "label": "M",
+   "file": "doc-7ru27g.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Government of Manitoba",
+   "recipients": [],
+   "description": "List of federal support programs on the Manitoba Government's website",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Exhibit \"M\" - A list of support programs offered by the federal government"
+    }
+   ],
+   "content_check": "Province of Manitoba 'Federal Programs' page"
+  },
+  {
+   "label": "N",
+   "file": "doc-qt97gy.pdf",
+   "kind": "webpage",
+   "date": "2021-02-04",
+   "author": "Government of Canada",
+   "recipients": [],
+   "description": "Canada's COVID-19 Economic Response Plan",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Exhibit \"N\" - Canada's COVID-19 Economic Response Plan."
+    }
+   ],
+   "content_check": "Canada.ca 'Canada's COVID-19 Economic Response Plan' page printed 2021-02-04"
+  },
+  {
+   "label": "O",
+   "file": "doc-9dt4ca.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Department of Finance Canada",
+   "recipients": [],
+   "description": "Additional Support for Canadian Businesses from the Economic Impact of COVID-19",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Exhibit \"0\" - Additional Support for Canadian Businesses"
+    }
+   ],
+   "content_check": "Canada.ca Department of Finance page 'Additional Support for Canadian Businesses from the Economic Impact of COVID-19'"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2020-02-10", "precision": "day", "description": "Komlodi became Assistant Deputy Minister of Fiscal Management and Capital Planning", "paragraphs": [2], "quote": "I have been\nin that position since February I 0, 2020.", "exhibits": []},
-  {"id": "e2", "date": "2020-03-20", "precision": "range", "description": "Risk Recognition Program covered front-line workers for March 20 to May 29, 2020", "paragraphs": [5], "quote": "during the period of March\n20, 2020 to May 29, 2020", "exhibits": []},
-  {"id": "e3", "date": "2020-06", "precision": "month", "description": "Government doubled access to naloxone kits", "paragraphs": [7], "quote": "The government doubled access to naloxone kits\nin June 2020", "exhibits": []},
-  {"id": "e4", "date": "2020-07-16", "precision": "range", "description": "Back to Work wage subsidy covered hires between July 16 and December 31, 2020", "paragraphs": [4], "quote": "between July 16 and\nDecember 31, 2020", "exhibits": ["E"]},
-  {"id": "e5", "date": "2020-11-01", "precision": "range", "description": "Caregiver Wage Support Program paid a wage supplement for care between November 1, 2020 and January 10, 2021", "paragraphs": [4], "quote": "between November 1, 2020 and January 10, 2021", "exhibits": ["C"]},
-  {"id": "e6", "date": "2020-11-10", "precision": "day", "description": "The Gap Protection Program was converted from a forgivable loan to a grant", "paragraphs": [4], "quote": "On November 10, 2020, the program was converted from a\nforgivable loan to a grant.", "exhibits": ["G"]},
-  {"id": "e7", "date": "2020-11-12", "precision": "day", "description": "COVID-19 Prevention Orders in effect requiring premises to close (Bridge Grant eligibility)", "paragraphs": [4], "quote": "Prevention Orders in effect as of November 12, 2020", "exhibits": ["B"]},
-  {"id": "e8", "date": "2020-12-22", "precision": "day", "description": "The $5 million Dine-in Restaurant Relief Program was announced", "paragraphs": [4], "quote": "announced on December 22, 2020", "exhibits": ["D"]},
-  {"id": "e9", "date": "2020-12", "precision": "month", "description": "Government announced legislative changes to remove barriers to naloxone access", "paragraphs": [7], "quote": "In December 2020, the\ngovernment also announced it was making legislative changes", "exhibits": []},
-  {"id": "e10", "date": "2021-01-24", "precision": "day", "description": "The 'Care for Your Mental Health' page was updated", "paragraphs": [6], "quote": "(updated January 24, 2021 )", "exhibits": ["J"]},
-  {"id": "e11", "date": "2021-02-22", "precision": "day", "description": "The Safe at Home Manitoba program was expanded to over 300 projects totalling $5 million", "paragraphs": [6], "quote": "On February 22, 2021, the program was\nexpanded to cover more than 300 projects", "exhibits": ["L"]},
-  {"id": "e12", "date": "2021-03-02", "precision": "day", "description": "Government announced a third round of Bridge Grants, bringing investment to $215 million", "paragraphs": [4], "quote": "On\nMarch 2, 2021, the government announced a third round of Bridge Grants", "exhibits": ["B"]},
-  {"id": "e13", "date": "2021-03-05", "precision": "day", "description": "Komlodi affirmed the affidavit in Winnipeg", "paragraphs": [10], "quote": "I make this affidavit bona fide.", "exhibits": []}
- ],
- "referenced_not_attached": ["Provincial programs listed without exhibits in paragraphs 5 and 7 (Pandemic Staffing Support Benefit, Seniors Economic Recovery, Risk Recognition Program, etc.)"],
- "leak_waivers": [],
- "notes": "Exhibit J's cover lacks a jurat line the detector needs, so covers A-O were given by eye with --covers; the affidavit prints Exhibit O as \"0\"."
+  {
+   "id": "e1",
+   "date": "2020-02-10",
+   "precision": "day",
+   "description": "Komlodi became Assistant Deputy Minister of Fiscal Management and Capital Planning",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have been\nin that position since February I 0, 2020.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2020-03-20",
+   "precision": "range",
+   "description": "Risk Recognition Program covered front-line workers for March 20 to May 29, 2020",
+   "paragraphs": [
+    5
+   ],
+   "quote": "during the period of March\n20, 2020 to May 29, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2020-06",
+   "precision": "month",
+   "description": "Government doubled access to naloxone kits",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The government doubled access to naloxone kits\nin June 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2020-07-16",
+   "precision": "range",
+   "description": "Back to Work wage subsidy covered hires between July 16 and December 31, 2020",
+   "paragraphs": [
+    4
+   ],
+   "quote": "between July 16 and\nDecember 31, 2020",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2020-11-01",
+   "precision": "range",
+   "description": "Caregiver Wage Support Program paid a wage supplement for care between November 1, 2020 and January 10, 2021",
+   "paragraphs": [
+    4
+   ],
+   "quote": "between November 1, 2020 and January 10, 2021",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2020-11-10",
+   "precision": "day",
+   "description": "The Gap Protection Program was converted from a forgivable loan to a grant",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On November 10, 2020, the program was converted from a\nforgivable loan to a grant.",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2020-11-12",
+   "precision": "day",
+   "description": "COVID-19 Prevention Orders in effect requiring premises to close (Bridge Grant eligibility)",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Prevention Orders in effect as of November 12, 2020",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2020-12-22",
+   "precision": "day",
+   "description": "The $5 million Dine-in Restaurant Relief Program was announced",
+   "paragraphs": [
+    4
+   ],
+   "quote": "announced on December 22, 2020",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2020-12",
+   "precision": "month",
+   "description": "Government announced legislative changes to remove barriers to naloxone access",
+   "paragraphs": [
+    7
+   ],
+   "quote": "In December 2020, the\ngovernment also announced it was making legislative changes",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2021-01-24",
+   "precision": "day",
+   "description": "The 'Care for Your Mental Health' page was updated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "(updated January 24, 2021 )",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2021-02-22",
+   "precision": "day",
+   "description": "The Safe at Home Manitoba program was expanded to over 300 projects totalling $5 million",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On February 22, 2021, the program was\nexpanded to cover more than 300 projects",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2021-03-02",
+   "precision": "day",
+   "description": "Government announced a third round of Bridge Grants, bringing investment to $215 million",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On\nMarch 2, 2021, the government announced a third round of Bridge Grants",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2021-03-05",
+   "precision": "day",
+   "description": "Komlodi affirmed the affidavit in Winnipeg",
+   "paragraphs": [
+    10
+   ],
+   "quote": "I make this affidavit bona fide.",
+   "exhibits": []
+  }
+ ]
 }

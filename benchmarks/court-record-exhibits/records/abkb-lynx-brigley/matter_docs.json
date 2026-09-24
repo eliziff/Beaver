@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/abkb-lynx-brigley/abkb-2024-514.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/2024abkb0514.pdf",
+  "title": "Reasons for Decision, Greater Toronto Airports Authority v Lynx Air Holdings Corporation, 2024 ABKB 514",
+  "kind": "court_order",
+  "relation": "decision on the AIF applications this affidavit supported"
+ },
+ {
+  "file": "raw/matter/abkb-lynx-brigley/abca-judgment.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/Judgment - Filed.pdf",
+  "title": "Court of Appeal of Alberta judgment",
+  "kind": "court_order",
+  "relation": "later appeal judgment in the same AIF dispute"
+ }
+]

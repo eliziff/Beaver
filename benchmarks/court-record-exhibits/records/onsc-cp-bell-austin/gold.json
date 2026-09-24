@@ -9,37 +9,365 @@
  "deponent": "Leslie Austin",
  "deponent_role": "Proposed representative plaintiff; retired Bell Canada employee and member of the Bell Canada Pension Plan",
  "sworn_date": "2018-07-25",
+ "referenced_not_attached": [
+  "Statement of Claim in this action",
+  "Bell Canada Pension Plan text (section 8.7)"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit is Tab 3 of Volume 1 of the plaintiff's certification and summary judgment motion record (PDF pages 18-63). Sworn day is hand-written and OCR-garbled; the record's index dates it July 25, 2018.",
+ "subject": "class_action",
  "exhibits": [
-  {"label": "A", "file": "doc-tc77b3.pdf", "kind": "financial_statement", "date": "2017-01-17", "author": "BCE Group of Companies, Benefits Administrator", "recipients": ["Leslie Austin"], "description": "Statement of his pension entitlement, printed on January 17, 2017", "references": [{"paragraph": 5, "quote": "Attached and marked as Exhibit \"A\" is a copy of a"}], "content_check": "7 pages: Bell 'Benefits / Avantages' statement addressed to Leslie J Austin with pension entitlement details"},
-  {"label": "B", "file": "doc-2fbsyn.pdf", "kind": "notice", "date": "2017-01", "author": "Bell Canada", "recipients": ["Bell Canada Pension Plan pensioners"], "description": "Document circulated to pensioners titled 'Bell Cost-of-living adjustments January 2017'", "references": [{"paragraph": 6, "quote": "Attached and marked as Exhibit \"B\" is a copy of the document"}], "content_check": "1 page: 'Bell Cost-of-living adjustments January 2017' explaining the Plan's indexation formula"},
-  {"label": "C", "file": "doc-mu2upq.pdf", "kind": "email_chain", "date": "2017-01-04", "author": "Leslie Austin", "recipients": ["Bell Canada pension plan administrator"], "description": "His correspondence with Bell about the 2017 indexation, January to September 2017", "references": [{"paragraph": 8, "quote": "Attached and marked as Exhibit \"C\" is a copy of my correspondence"}], "content_check": "10 pages of email printouts, opening with his '2017 PENSION INCREASE' email of 1/4/2017 to the pension plan administrator"},
-  {"label": "D", "file": "doc-hmbh6v.pdf", "kind": "email_chain", "date": "2012-04-25", "author": "Leslie Austin; OSFI", "recipients": ["OSFI", "Leslie Austin"], "description": "Email exchange between him and OSFI representatives dated February 20, 2012 to April 25, 2012", "references": [{"paragraph": 19, "quote": "Attached and marked as Exhibit \"D\" is a copy of the email exchange between myself"}], "content_check": "6 pages: a 2018 forward to his counsel of his 2012 email exchange with OSFI (Information@osfi-bsif.gc.ca) about Bell's mandatory retirement policy"},
-  {"label": "E", "file": "doc-qxz8fp.pdf", "kind": "webpage", "date": "2018-07-09", "author": "Office of the Superintendent of Financial Institutions", "recipients": [], "description": "OSFI website page titled 'Frequently Asked Questions' retrieved July 9, 2018", "references": [{"paragraph": 21, "quote": "Attached hereto and marked as Exhibit \"E\" is a copy of the OSFI website page titled"}], "content_check": "1 page: OSFI 'Financial Institutions' web page with the FAQ list, printed 09/07/2018"},
-  {"label": "F", "file": "doc-cjuact.pdf", "kind": "court_filing", "date": "2018", "author": "Koskie Minsky LLP and McKenzie Lake Lawyers LLP (plaintiff's counsel)", "recipients": [], "description": "Litigation plan prepared by his lawyers", "references": [{"paragraph": 24, "quote": "Attached hereto and marked as Exhibit \"F\" is a"}], "content_check": "7 pages: 'Litigation Plan' under the Austin v. Bell Canada style of cause, opening with the proposed common issues"}
+  {
+   "label": "A",
+   "file": "doc-tc77b3.pdf",
+   "kind": "financial_statement",
+   "date": "2017-01-17",
+   "author": "BCE Group of Companies, Benefits Administrator",
+   "recipients": [
+    "Leslie Austin"
+   ],
+   "description": "Statement of his pension entitlement, printed on January 17, 2017",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached and marked as Exhibit \"A\" is a copy of a"
+    }
+   ],
+   "content_check": "7 pages: Bell 'Benefits / Avantages' statement addressed to Leslie J Austin with pension entitlement details"
+  },
+  {
+   "label": "B",
+   "file": "doc-2fbsyn.pdf",
+   "kind": "notice",
+   "date": "2017-01",
+   "author": "Bell Canada",
+   "recipients": [
+    "Bell Canada Pension Plan pensioners"
+   ],
+   "description": "Document circulated to pensioners titled 'Bell Cost-of-living adjustments January 2017'",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached and marked as Exhibit \"B\" is a copy of the document"
+    }
+   ],
+   "content_check": "1 page: 'Bell Cost-of-living adjustments January 2017' explaining the Plan's indexation formula"
+  },
+  {
+   "label": "C",
+   "file": "doc-mu2upq.pdf",
+   "kind": "email_chain",
+   "date": "2017-01-04",
+   "author": "Leslie Austin",
+   "recipients": [
+    "Bell Canada pension plan administrator"
+   ],
+   "description": "His correspondence with Bell about the 2017 indexation, January to September 2017",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached and marked as Exhibit \"C\" is a copy of my correspondence"
+    }
+   ],
+   "content_check": "10 pages of email printouts, opening with his '2017 PENSION INCREASE' email of 1/4/2017 to the pension plan administrator"
+  },
+  {
+   "label": "D",
+   "file": "doc-hmbh6v.pdf",
+   "kind": "email_chain",
+   "date": "2012-04-25",
+   "author": "Leslie Austin; OSFI",
+   "recipients": [
+    "OSFI",
+    "Leslie Austin"
+   ],
+   "description": "Email exchange between him and OSFI representatives dated February 20, 2012 to April 25, 2012",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached and marked as Exhibit \"D\" is a copy of the email exchange between myself"
+    }
+   ],
+   "content_check": "6 pages: a 2018 forward to his counsel of his 2012 email exchange with OSFI (Information@osfi-bsif.gc.ca) about Bell's mandatory retirement policy"
+  },
+  {
+   "label": "E",
+   "file": "doc-qxz8fp.pdf",
+   "kind": "webpage",
+   "date": "2018-07-09",
+   "author": "Office of the Superintendent of Financial Institutions",
+   "recipients": [],
+   "description": "OSFI website page titled 'Frequently Asked Questions' retrieved July 9, 2018",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached hereto and marked as Exhibit \"E\" is a copy of the OSFI website page titled"
+    }
+   ],
+   "content_check": "1 page: OSFI 'Financial Institutions' web page with the FAQ list, printed 09/07/2018"
+  },
+  {
+   "label": "F",
+   "file": "doc-cjuact.pdf",
+   "kind": "court_filing",
+   "date": "2018",
+   "author": "Koskie Minsky LLP and McKenzie Lake Lawyers LLP (plaintiff's counsel)",
+   "recipients": [],
+   "description": "Litigation plan prepared by his lawyers",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Attached hereto and marked as Exhibit \"F\" is a"
+    }
+   ],
+   "content_check": "7 pages: 'Litigation Plan' under the Austin v. Bell Canada style of cause, opening with the proposed common issues"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1976", "precision": "year", "description": "Austin began employment with Newfoundland Telephone Co. in St. John's", "paragraphs": [2], "quote": "In 1976, I commenced my employment with Newfoundland Telephone Co.", "exhibits": []},
-  {"id": "e2", "date": "1980", "precision": "year", "description": "He transferred to Bell Canada in Ottawa", "paragraphs": [2], "quote": "In 1980, I transferred to Bell Canada Inc.", "exhibits": []},
-  {"id": "e3", "date": "1981", "precision": "year", "description": "He transferred to Bell Canada's London location", "paragraphs": [3], "quote": "In 1981, I transferred to the Bell Canada Inc. 100 Dundas St., London location.", "exhibits": []},
-  {"id": "e4", "date": "1985", "precision": "year", "description": "He transferred to the Bell Canada training centre in Toronto", "paragraphs": [3], "quote": "In 1985, I transferred again to the Bell Canada Inc. training centre", "exhibits": []},
-  {"id": "e5", "date": "2012-09-30", "precision": "day", "description": "He retired and began receiving monthly defined pension payments under the Plan", "paragraphs": [4], "quote": "I retired on September 30, 2012", "exhibits": []},
-  {"id": "e6", "date": "2012-02-20", "precision": "range", "description": "He complained to OSFI about Bell's mandatory retirement age and the Plan; OSFI replied it could not report back (exchange February 20 to April 25, 2012)", "paragraphs": [19, 20], "quote": "In\n2012, I contacted OSFI concerning the Bell mandatory retirement age", "exhibits": ["D"]},
-  {"id": "e7", "date": "2012-04-16", "precision": "day", "description": "His email of April 16, 2012 to OSFI about the Bell Canada Pension Plan, acknowledged by OSFI", "paragraphs": [19], "quote": "Thank you for your email of April 16, 2012", "exhibits": ["D"]},
-  {"id": "e8", "date": "2017-01-01", "precision": "day", "description": "His pension was indexed by $24.19 to $2,442.91 a month as of January 1, 2017", "paragraphs": [5], "quote": "as of January 1, 2017 to $2,442.91", "exhibits": ["A"]},
-  {"id": "e9", "date": "2017-01", "precision": "month", "description": "Bell circulated to pensioners a document stating 2017 indexation would be 1% and setting out its method", "paragraphs": [6], "quote": "providing a pension indexation percentage increase for 2017 of 1 %", "exhibits": ["B"]},
-  {"id": "e10", "date": "2017-01-04", "precision": "day", "description": "He wrote to Bell that 2017 indexation should have been 2%", "paragraphs": [7], "quote": "On January 4, 2017, I wrote to Bell stating that the", "exhibits": ["C"]},
-  {"id": "e11", "date": "2017-01-17", "precision": "day", "description": "His pension entitlement statement was printed", "paragraphs": [5], "quote": "printed on January 17, 2017", "exhibits": ["A"]},
-  {"id": "e12", "date": "2017-01-18", "precision": "day", "description": "He sent a further email to Bell on the indexation issue", "paragraphs": [7], "quote": "I sent additional emails on this issue to Bell on January 18, 2017", "exhibits": ["C"]},
-  {"id": "e13", "date": "2017-01-23", "precision": "day", "description": "He sent another email to Bell on the indexation issue", "paragraphs": [7], "quote": "January 23, 2017", "exhibits": ["C"]},
-  {"id": "e14", "date": "2017-01-25", "precision": "day", "description": "The Plan Administrator replied that the 1% 2017 cost-of-living adjustment would remain unchanged", "paragraphs": [8], "quote": "On January 25, 2017, I received a response to my January 23, 2017 email", "exhibits": ["C"]},
-  {"id": "e15", "date": "2017-09", "precision": "range", "description": "He followed up with Bell on the issue over several months until September 2017", "paragraphs": [8], "quote": "I followed up on this issue over the course of several months until\nSeptember 2017", "exhibits": ["C"]},
-  {"id": "e16", "date": null, "precision": "undated", "description": "The defendants unsuccessfully sought to schedule a motion to stay the class proceeding in favour of OSFI's jurisdiction", "paragraphs": [18], "quote": "the defendants unsuccessfully sought to\nschedule a motion staying this class proceeding", "exhibits": []},
-  {"id": "e17", "date": "2018-07-09", "precision": "day", "description": "The OSFI FAQ web page was retrieved", "paragraphs": [21], "quote": "July 9, 2018", "exhibits": ["E"]},
-  {"id": "e18", "date": null, "precision": "undated", "description": "He directed class counsel to commence the proceeding as a class action", "paragraphs": [23], "quote": "I directed Class Counsel to commence this proceeding by way of class action.", "exhibits": []},
-  {"id": "e19", "date": null, "precision": "undated", "description": "He reviewed the litigation plan prepared by his lawyers", "paragraphs": [24], "quote": "I have reviewed a copy of the litigation plan.", "exhibits": ["F"]},
-  {"id": "e20", "date": "2018-07-25", "precision": "day", "description": "He swore the affidavit in support of the certification and summary judgment motions", "paragraphs": [26], "quote": "I make this Affidavit in support of the within motions for certification and\nsummary judgment", "exhibits": []}
- ],
- "referenced_not_attached": ["Statement of Claim in this action", "Bell Canada Pension Plan text (section 8.7)"],
- "leak_waivers": [],
- "notes": "Affidavit is Tab 3 of Volume 1 of the plaintiff's certification and summary judgment motion record (PDF pages 18-63). Sworn day is hand-written and OCR-garbled; the record's index dates it July 25, 2018."
+  {
+   "id": "e1",
+   "date": "1976",
+   "precision": "year",
+   "description": "Austin began employment with Newfoundland Telephone Co. in St. John's",
+   "paragraphs": [
+    2
+   ],
+   "quote": "In 1976, I commenced my employment with Newfoundland Telephone Co.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "1980",
+   "precision": "year",
+   "description": "He transferred to Bell Canada in Ottawa",
+   "paragraphs": [
+    2
+   ],
+   "quote": "In 1980, I transferred to Bell Canada Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "1981",
+   "precision": "year",
+   "description": "He transferred to Bell Canada's London location",
+   "paragraphs": [
+    3
+   ],
+   "quote": "In 1981, I transferred to the Bell Canada Inc. 100 Dundas St., London location.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "1985",
+   "precision": "year",
+   "description": "He transferred to the Bell Canada training centre in Toronto",
+   "paragraphs": [
+    3
+   ],
+   "quote": "In 1985, I transferred again to the Bell Canada Inc. training centre",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2012-09-30",
+   "precision": "day",
+   "description": "He retired and began receiving monthly defined pension payments under the Plan",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I retired on September 30, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2012-02-20",
+   "precision": "range",
+   "description": "He complained to OSFI about Bell's mandatory retirement age and the Plan; OSFI replied it could not report back (exchange February 20 to April 25, 2012)",
+   "paragraphs": [
+    19,
+    20
+   ],
+   "quote": "In\n2012, I contacted OSFI concerning the Bell mandatory retirement age",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2012-04-16",
+   "precision": "day",
+   "description": "His email of April 16, 2012 to OSFI about the Bell Canada Pension Plan, acknowledged by OSFI",
+   "paragraphs": [
+    19
+   ],
+   "quote": "Thank you for your email of April 16, 2012",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2017-01-01",
+   "precision": "day",
+   "description": "His pension was indexed by $24.19 to $2,442.91 a month as of January 1, 2017",
+   "paragraphs": [
+    5
+   ],
+   "quote": "as of January 1, 2017 to $2,442.91",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2017-01",
+   "precision": "month",
+   "description": "Bell circulated to pensioners a document stating 2017 indexation would be 1% and setting out its method",
+   "paragraphs": [
+    6
+   ],
+   "quote": "providing a pension indexation percentage increase for 2017 of 1 %",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2017-01-04",
+   "precision": "day",
+   "description": "He wrote to Bell that 2017 indexation should have been 2%",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On January 4, 2017, I wrote to Bell stating that the",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2017-01-17",
+   "precision": "day",
+   "description": "His pension entitlement statement was printed",
+   "paragraphs": [
+    5
+   ],
+   "quote": "printed on January 17, 2017",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2017-01-18",
+   "precision": "day",
+   "description": "He sent a further email to Bell on the indexation issue",
+   "paragraphs": [
+    7
+   ],
+   "quote": "I sent additional emails on this issue to Bell on January 18, 2017",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2017-01-23",
+   "precision": "day",
+   "description": "He sent another email to Bell on the indexation issue",
+   "paragraphs": [
+    7
+   ],
+   "quote": "January 23, 2017",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2017-01-25",
+   "precision": "day",
+   "description": "The Plan Administrator replied that the 1% 2017 cost-of-living adjustment would remain unchanged",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On January 25, 2017, I received a response to my January 23, 2017 email",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2017-09",
+   "precision": "range",
+   "description": "He followed up with Bell on the issue over several months until September 2017",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I followed up on this issue over the course of several months until\nSeptember 2017",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": null,
+   "precision": "undated",
+   "description": "The defendants unsuccessfully sought to schedule a motion to stay the class proceeding in favour of OSFI's jurisdiction",
+   "paragraphs": [
+    18
+   ],
+   "quote": "the defendants unsuccessfully sought to\nschedule a motion staying this class proceeding",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2018-07-09",
+   "precision": "day",
+   "description": "The OSFI FAQ web page was retrieved",
+   "paragraphs": [
+    21
+   ],
+   "quote": "July 9, 2018",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": null,
+   "precision": "undated",
+   "description": "He directed class counsel to commence the proceeding as a class action",
+   "paragraphs": [
+    23
+   ],
+   "quote": "I directed Class Counsel to commence this proceeding by way of class action.",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": null,
+   "precision": "undated",
+   "description": "He reviewed the litigation plan prepared by his lawyers",
+   "paragraphs": [
+    24
+   ],
+   "quote": "I have reviewed a copy of the litigation plan.",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2018-07-25",
+   "precision": "day",
+   "description": "He swore the affidavit in support of the certification and summary judgment motions",
+   "paragraphs": [
+    26
+   ],
+   "quote": "I make this Affidavit in support of the within motions for certification and\nsummary judgment",
+   "exhibits": []
+  }
+ ]
 }

@@ -9,6 +9,11 @@
  "deponent": "Hardeep Singh",
  "deponent_role": "Senior Account Manager, Special Accounts, Business Development Bank of Canada",
  "sworn_date": "2018-11-20",
+ "referenced_not_attached": [
+  "Standstill and forbearance agreements (June 7, 2017 and extensions)"
+ ],
+ "notes": "Posted on BDO's site as a Saskatchewan matter, but the affidavit is filed in the Court of Queen's Bench of Alberta, Edmonton. Affidavit page 1 is image-only (no text layer). The guarantee forms F and M read with guarantor and debtor the other way round from the affidavit's description; gold follows the affidavit.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -625,9 +630,5 @@
     "T"
    ]
   }
- ],
- "referenced_not_attached": [
-  "Standstill and forbearance agreements (June 7, 2017 and extensions)"
- ],
- "notes": "Posted on BDO's site as a Saskatchewan matter, but the affidavit is filed in the Court of Queen's Bench of Alberta, Edmonton. Affidavit page 1 is image-only (no text layer). The guarantee forms F and M read with guarantor and debtor the other way round from the affidavit's description; gold follows the affidavit."
+ ]
 }

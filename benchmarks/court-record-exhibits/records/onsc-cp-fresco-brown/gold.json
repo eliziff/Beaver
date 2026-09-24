@@ -9,32 +9,302 @@
  "deponent": "Jody Brown",
  "deponent_role": "Lawyer at Goldblatt Partners LLP, co-counsel for the plaintiff",
  "sworn_date": "2023-01-03",
+ "referenced_not_attached": [
+  "Distribution Protocol",
+  "Summary judgment reasons of March 30, August 10 and October 21, 2020",
+  "Court of Appeal certification order of June 26, 2012"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit is Tab 2 of the plaintiff's motion record for notice approval (PDF pages 27-146). Exhibit G is a scanned order with no text layer.",
+ "subject": "class_action",
  "exhibits": [
-  {"label": "A", "file": "doc-e8b37p.pdf", "kind": "court_filing", "date": "2007", "author": "Sarah Gaudet (petitioner)", "recipients": ["Superior Court of Quebec"], "description": "Originating process in the companion Gaudet Action in the Superior Court of Quebec", "references": [{"paragraph": 3, "quote": "A copy of the originating process in\nthe Gaudet Action is attached as Exhibit “A”."}], "content_check": "13 pages: Gaudet's Motion for Authorization to Institute a Class Action against CIBC (Superior Court, District of Montreal, 500-06-000404-075), presentable July 17, 2007"},
-  {"label": "B", "file": "doc-yjyfng.pdf", "kind": "agreement", "date": "2022-12-28", "author": "Dara Fresco, Sarah Gaudet and Canadian Imperial Bank of Commerce", "recipients": [], "description": "The Settlement Agreement entered into on December 28, 2022", "references": [{"paragraph": 9, "quote": "which is attached as Exhibit\n“B”"}], "content_check": "73 pages: 'CIBC Overtime Class Actions National Settlement Agreement' made as of December 28, 2022, with schedules including draft orders"},
-  {"label": "C", "file": "doc-y25a9u.pdf", "kind": "court_filing", "date": null, "author": "Plaintiffs, with Ricepoint Administration Inc.", "recipients": [], "description": "Plan of Dissemination of the notices of the settlement approval hearing", "references": [{"paragraph": 13, "quote": "a copy of which\nis attached as Exhibit “C”"}], "content_check": "3 pages: 'Plan of Dissemination' under the Fresco v. CIBC style of cause"},
-  {"label": "D", "file": "doc-8ffktz.pdf", "kind": "notice", "date": null, "author": "Class Counsel", "recipients": ["Class Members"], "description": "Notice of Hearing (Direct Notice)", "references": [{"paragraph": 15, "quote": "A copy of the Notice of\nHearing (Direct Notice) is attached as Exhibit “D”."}], "content_check": "5 pages: 'CIBC Unpaid Overtime Class Action - Notice of Settlement Approval Hearing' for the February 7, 2023 hearing"},
-  {"label": "E", "file": "doc-xdr2zs.pdf", "kind": "notice", "date": null, "author": "Class Counsel", "recipients": ["Class Members"], "description": "Notice of Hearing (Publication Notice)", "references": [{"paragraph": 18, "quote": "a copy of which is attached as Exhibit “E”"}], "content_check": "1 page: short-form 'Notice of Settlement Approval Hearing'"},
-  {"label": "F", "file": "doc-r5s26f.pdf", "kind": "notice", "date": null, "author": "Class Counsel", "recipients": ["Class Members"], "description": "Notice of Hearing (Digital Banner) advertisement", "references": [{"paragraph": 19, "quote": "a copy of which is\nattached as Exhibit “F”"}], "content_check": "1 page: banner text asking whether the reader was a CIBC front-line retail branch employee, about the $153 million settlement hearing"},
-  {"label": "G", "file": "doc-ykk7dt.pdf", "kind": "court_order", "date": "2013-12-20", "author": "Justice Belobaba, Ontario Superior Court of Justice", "recipients": [], "description": "Order of Justice Belobaba dated December 20, 2013 approving the certification notice", "references": [{"paragraph": 20, "quote": "Order of Justice Belobaba dated December 20, 2013"}], "content_check": "12 scanned pages (no text layer): Order of Justice Belobaba dated the 20th day of December 2013 approving the Notices of Certification, with sealed stamp"}
+  {
+   "label": "A",
+   "file": "doc-e8b37p.pdf",
+   "kind": "court_filing",
+   "date": "2007",
+   "author": "Sarah Gaudet (petitioner)",
+   "recipients": [
+    "Superior Court of Quebec"
+   ],
+   "description": "Originating process in the companion Gaudet Action in the Superior Court of Quebec",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the originating process in\nthe Gaudet Action is attached as Exhibit “A”."
+    }
+   ],
+   "content_check": "13 pages: Gaudet's Motion for Authorization to Institute a Class Action against CIBC (Superior Court, District of Montreal, 500-06-000404-075), presentable July 17, 2007"
+  },
+  {
+   "label": "B",
+   "file": "doc-yjyfng.pdf",
+   "kind": "agreement",
+   "date": "2022-12-28",
+   "author": "Dara Fresco, Sarah Gaudet and Canadian Imperial Bank of Commerce",
+   "recipients": [],
+   "description": "The Settlement Agreement entered into on December 28, 2022",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "which is attached as Exhibit\n“B”"
+    }
+   ],
+   "content_check": "73 pages: 'CIBC Overtime Class Actions National Settlement Agreement' made as of December 28, 2022, with schedules including draft orders"
+  },
+  {
+   "label": "C",
+   "file": "doc-y25a9u.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Plaintiffs, with Ricepoint Administration Inc.",
+   "recipients": [],
+   "description": "Plan of Dissemination of the notices of the settlement approval hearing",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "a copy of which\nis attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "3 pages: 'Plan of Dissemination' under the Fresco v. CIBC style of cause"
+  },
+  {
+   "label": "D",
+   "file": "doc-8ffktz.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [
+    "Class Members"
+   ],
+   "description": "Notice of Hearing (Direct Notice)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of the Notice of\nHearing (Direct Notice) is attached as Exhibit “D”."
+    }
+   ],
+   "content_check": "5 pages: 'CIBC Unpaid Overtime Class Action - Notice of Settlement Approval Hearing' for the February 7, 2023 hearing"
+  },
+  {
+   "label": "E",
+   "file": "doc-xdr2zs.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [
+    "Class Members"
+   ],
+   "description": "Notice of Hearing (Publication Notice)",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "a copy of which is attached as Exhibit “E”"
+    }
+   ],
+   "content_check": "1 page: short-form 'Notice of Settlement Approval Hearing'"
+  },
+  {
+   "label": "F",
+   "file": "doc-r5s26f.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class Counsel",
+   "recipients": [
+    "Class Members"
+   ],
+   "description": "Notice of Hearing (Digital Banner) advertisement",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "a copy of which is\nattached as Exhibit “F”"
+    }
+   ],
+   "content_check": "1 page: banner text asking whether the reader was a CIBC front-line retail branch employee, about the $153 million settlement hearing"
+  },
+  {
+   "label": "G",
+   "file": "doc-ykk7dt.pdf",
+   "kind": "court_order",
+   "date": "2013-12-20",
+   "author": "Justice Belobaba, Ontario Superior Court of Justice",
+   "recipients": [],
+   "description": "Order of Justice Belobaba dated December 20, 2013 approving the certification notice",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Order of Justice Belobaba dated December 20, 2013"
+    }
+   ],
+   "content_check": "12 scanned pages (no text layer): Order of Justice Belobaba dated the 20th day of December 2013 approving the Notices of Certification, with sealed stamp"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2007-06-04", "precision": "day", "description": "The plaintiff commenced this action against CIBC", "paragraphs": [3], "quote": "The Plaintiff commenced this action against the Defendant on June 4, 2007.", "exhibits": []},
-  {"id": "e2", "date": null, "precision": "undated", "description": "Sarah Gaudet commenced a companion proceeding in the Superior Court of Quebec (the Gaudet Action)", "paragraphs": [3], "quote": "A companion\nproceeding was commenced by the Petitioner, Sarah Gaudet", "exhibits": ["A"]},
-  {"id": "e3", "date": "2012-06-26", "precision": "day", "description": "The Ontario Court of Appeal certified the action on behalf of a national class", "paragraphs": [4], "quote": "This action was certified by Order of the Ontario Court of Appeal dated June 26, 2012", "exhibits": []},
-  {"id": "e4", "date": null, "precision": "undated", "description": "The opt-out deadline passed with 1,041 opt-outs, about 126 from Quebec", "paragraphs": [5], "quote": "there were 1,041 opt-outs", "exhibits": []},
-  {"id": "e5", "date": "2013-12-20", "precision": "day", "description": "Justice Belobaba ordered the certification notice and its dissemination", "paragraphs": [20], "quote": "Order of Justice Belobaba dated December 20, 2013", "exhibits": ["G"]},
-  {"id": "e6", "date": "2020-03-30", "precision": "day", "description": "Summary judgment on the certified common issues was granted (with further rulings August 10 and October 21, 2020)", "paragraphs": [6], "quote": "granted by the Ontario Superior Court of Justice on March 30, 2020", "exhibits": []},
-  {"id": "e7", "date": "2020-08-10", "precision": "day", "description": "An additional aggregate damages common issue was ordered certified", "paragraphs": [7], "quote": "Ontario Superior Court of Justice on August 10, 2020.", "exhibits": []},
-  {"id": "e8", "date": "2020-10-21", "precision": "day", "description": "Further summary judgment ruling on the common issues", "paragraphs": [6], "quote": "October\n21, 2020", "exhibits": []},
-  {"id": "e9", "date": "2022-02-09", "precision": "day", "description": "The Court of Appeal for Ontario dismissed the appeal of the common issues judgment and the added common issue", "paragraphs": [8], "quote": "was dismissed by the Court of Appeal for Ontario on February 9, 2022.", "exhibits": []},
-  {"id": "e10", "date": "2022-08", "precision": "month", "description": "Three-day mediation with William Kaplan", "paragraphs": [9], "quote": "a three-day mediation with William Kaplan in August\n2022", "exhibits": []},
-  {"id": "e11", "date": "2022-12-28", "precision": "day", "description": "The plaintiffs and CIBC entered into the Settlement Agreement", "paragraphs": [9], "quote": "have entered into a settlement\nagreement on December 28, 2022", "exhibits": ["B"]},
-  {"id": "e12", "date": null, "precision": "undated", "description": "The plaintiffs, with proposed claims administrator Ricepoint, developed the Plan of Dissemination", "paragraphs": [13], "quote": "have developed a Plan of Dissemination", "exhibits": ["C"]},
-  {"id": "e13", "date": null, "precision": "undated", "description": "The parties agreed on the form and content of the Notices of Hearing", "paragraphs": [14], "quote": "The Plaintiff and the Defendant have agreed on the form and content of the Notices of\nHearing.", "exhibits": ["D", "E", "F"]},
-  {"id": "e14", "date": "2023-01-03", "precision": "day", "description": "Brown affirmed the affidavit", "paragraphs": [20], "quote": "on January 3, 2023", "exhibits": []}
- ],
- "referenced_not_attached": ["Distribution Protocol", "Summary judgment reasons of March 30, August 10 and October 21, 2020", "Court of Appeal certification order of June 26, 2012"],
- "leak_waivers": [],
- "notes": "Affidavit is Tab 2 of the plaintiff's motion record for notice approval (PDF pages 27-146). Exhibit G is a scanned order with no text layer."
+  {
+   "id": "e1",
+   "date": "2007-06-04",
+   "precision": "day",
+   "description": "The plaintiff commenced this action against CIBC",
+   "paragraphs": [
+    3
+   ],
+   "quote": "The Plaintiff commenced this action against the Defendant on June 4, 2007.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": null,
+   "precision": "undated",
+   "description": "Sarah Gaudet commenced a companion proceeding in the Superior Court of Quebec (the Gaudet Action)",
+   "paragraphs": [
+    3
+   ],
+   "quote": "A companion\nproceeding was commenced by the Petitioner, Sarah Gaudet",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2012-06-26",
+   "precision": "day",
+   "description": "The Ontario Court of Appeal certified the action on behalf of a national class",
+   "paragraphs": [
+    4
+   ],
+   "quote": "This action was certified by Order of the Ontario Court of Appeal dated June 26, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": null,
+   "precision": "undated",
+   "description": "The opt-out deadline passed with 1,041 opt-outs, about 126 from Quebec",
+   "paragraphs": [
+    5
+   ],
+   "quote": "there were 1,041 opt-outs",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2013-12-20",
+   "precision": "day",
+   "description": "Justice Belobaba ordered the certification notice and its dissemination",
+   "paragraphs": [
+    20
+   ],
+   "quote": "Order of Justice Belobaba dated December 20, 2013",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2020-03-30",
+   "precision": "day",
+   "description": "Summary judgment on the certified common issues was granted (with further rulings August 10 and October 21, 2020)",
+   "paragraphs": [
+    6
+   ],
+   "quote": "granted by the Ontario Superior Court of Justice on March 30, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2020-08-10",
+   "precision": "day",
+   "description": "An additional aggregate damages common issue was ordered certified",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Ontario Superior Court of Justice on August 10, 2020.",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2020-10-21",
+   "precision": "day",
+   "description": "Further summary judgment ruling on the common issues",
+   "paragraphs": [
+    6
+   ],
+   "quote": "October\n21, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2022-02-09",
+   "precision": "day",
+   "description": "The Court of Appeal for Ontario dismissed the appeal of the common issues judgment and the added common issue",
+   "paragraphs": [
+    8
+   ],
+   "quote": "was dismissed by the Court of Appeal for Ontario on February 9, 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2022-08",
+   "precision": "month",
+   "description": "Three-day mediation with William Kaplan",
+   "paragraphs": [
+    9
+   ],
+   "quote": "a three-day mediation with William Kaplan in August\n2022",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2022-12-28",
+   "precision": "day",
+   "description": "The plaintiffs and CIBC entered into the Settlement Agreement",
+   "paragraphs": [
+    9
+   ],
+   "quote": "have entered into a settlement\nagreement on December 28, 2022",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": null,
+   "precision": "undated",
+   "description": "The plaintiffs, with proposed claims administrator Ricepoint, developed the Plan of Dissemination",
+   "paragraphs": [
+    13
+   ],
+   "quote": "have developed a Plan of Dissemination",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": null,
+   "precision": "undated",
+   "description": "The parties agreed on the form and content of the Notices of Hearing",
+   "paragraphs": [
+    14
+   ],
+   "quote": "The Plaintiff and the Defendant have agreed on the form and content of the Notices of\nHearing.",
+   "exhibits": [
+    "D",
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2023-01-03",
+   "precision": "day",
+   "description": "Brown affirmed the affidavit",
+   "paragraphs": [
+    20
+   ],
+   "quote": "on January 3, 2023",
+   "exhibits": []
+  }
+ ]
 }

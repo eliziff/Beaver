@@ -9,6 +9,18 @@
  "deponent": "C. Ian Ross",
  "deponent_role": "Chairman, sole director and interim CEO of GrowthWorks Canadian Fund Ltd. (the applicant)",
  "sworn_date": "2025-06-13",
+ "referenced_not_attached": [
+  "Confidential Exhibit 1 (IAS draft Budget)",
+  "Confidential Exhibit 2 (Distribution Addendum)",
+  "IAS Agreement (January 6, 2015)",
+  "Monitor's 31st Report",
+  "Emails of January 31, 2025 and December 27, 2024 not separately attached"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Commercial List CCAA record posted by FTI (GCFL). Exhibits B, Q and U are image-only court documents. Leak waiver A: Exhibit A is itself an affidavit that refers to its own Exhibit A (the First Ross Affidavit of December 2, 2022).",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -787,16 +799,5 @@
     "W"
    ]
   }
- ],
- "referenced_not_attached": [
-  "Confidential Exhibit 1 (IAS draft Budget)",
-  "Confidential Exhibit 2 (Distribution Addendum)",
-  "IAS Agreement (January 6, 2015)",
-  "Monitor's 31st Report",
-  "Emails of January 31, 2025 and December 27, 2024 not separately attached"
- ],
- "leak_waivers": [
-  "A"
- ],
- "notes": "Commercial List CCAA record posted by FTI (GCFL). Exhibits B, Q and U are image-only court documents. Leak waiver A: Exhibit A is itself an affidavit that refers to its own Exhibit A (the First Ross Affidavit of December 2, 2022)."
+ ]
 }

@@ -1,0 +1,517 @@
+{
+ "record_id": "fc-bccla-rcmp-moore",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1347-20",
+ "subject": "charter",
+ "family": "bccla-rcmp-crcc",
+ "proceeding": "British Columbia Civil Liberties Association v. RCMP Commissioner Brenda Lucki et al.: application for mandamus over the Commissioner's delay in responding to the CRCC interim report on BCCLA's surveillance complaint",
+ "document": "Affidavit of Trudy Moore affirmed November 17, 2020",
+ "deponent": "Trudy Moore",
+ "deponent_role": "Legal assistant, Champ & Associates (solicitors for the Applicant)",
+ "sworn_date": "2020-11-17",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-kpvsgx.pdf",
+   "kind": "letter",
+   "date": "2014-02-06",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Ian McPhail, Commission for Public Complaints Against the RCMP"
+   ],
+   "description": "BCCLA's public complaint letter about RCMP surveillance of Northern Gateway participants",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "letter from Mr. Paul Champ, counsel for the Applicant, dated February 6, 2014"
+    }
+   ],
+   "content_check": "Letter dated 2014-02-06 from Paul Champ to Ian McPhail"
+  },
+  {
+   "label": "B",
+   "file": "doc-rq3tcr.pdf",
+   "kind": "letter",
+   "date": "2014-02-20",
+   "author": "Ian McPhail, Commission for Public Complaints Against the RCMP",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commission accepts the complaint and initiates a public interest investigation",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "letter from Mr. McPhail to Mr. Champ dated February 20, 2014"
+    }
+   ],
+   "content_check": "Letter dated 2014-02-20 from Ian McPhail to Paul Champ"
+  },
+  {
+   "label": "C",
+   "file": "doc-cduazw.pdf",
+   "kind": "letter",
+   "date": "2018-06-25",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Guy Bujold, CRCC"
+   ],
+   "description": "Champ letter to the CRCC Chairperson",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Review and Complaints Commission for the RCMP (“CRCC”), dated June 25, 2018"
+    }
+   ],
+   "content_check": "Letter dated 2018-06-25 from Paul Champ to Guy Bujold"
+  },
+  {
+   "label": "D",
+   "file": "doc-4b7bbx.pdf",
+   "kind": "letter",
+   "date": "2018-08-03",
+   "author": "Civilian Review and Complaints Commission for the RCMP",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "CRCC letter to Champ",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "letter from the CRCC to Mr. Champ, dated August 3, 2018"
+    }
+   ],
+   "content_check": "Letter dated 2018-08-03 from Civilian Review and Complaints Commission for the RCMP to Paul Champ"
+  },
+  {
+   "label": "E",
+   "file": "doc-8phh5p.pdf",
+   "kind": "letter",
+   "date": "2019-03-25",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Michelaine Lahaie, CRCC"
+   ],
+   "description": "Champ letter to CRCC Chairperson Lahaie",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "CRCC, dated March 25, 2019"
+    }
+   ],
+   "content_check": "Letter dated 2019-03-25 from Paul Champ to Michelaine Lahaie"
+  },
+  {
+   "label": "F",
+   "file": "doc-qyqw83.pdf",
+   "kind": "letter",
+   "date": "2019-05-21",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Michelaine Lahaie, CRCC"
+   ],
+   "description": "Champ letter to Lahaie",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "letter from Mr. Champ to Ms. Lahaie, dated May 21, 2019"
+    }
+   ],
+   "content_check": "Letter dated 2019-05-21 from Paul Champ to Michelaine Lahaie"
+  },
+  {
+   "label": "G",
+   "file": "doc-dmb44h.pdf",
+   "kind": "letter",
+   "date": "2019-05-31",
+   "author": "Nika Joncas-Bourget, CRCC",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "CRCC Director of Reviews letter to Champ",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "the CRCC, to Mr. Champ dated May 31, 2019"
+    }
+   ],
+   "content_check": "Letter dated 2019-05-31 from Nika Joncas-Bourget to Paul Champ"
+  },
+  {
+   "label": "H",
+   "file": "doc-2wujgm.pdf",
+   "kind": "letter",
+   "date": "2019-08-09",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Commissioner Brenda Lucki, RCMP"
+   ],
+   "description": "Champ letter to Commissioner Lucki",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Commissioner Brenda Lucki, dated August 9, 2019"
+    }
+   ],
+   "content_check": "Letter dated 2019-08-09 from Paul Champ to Commissioner Brenda Lucki"
+  },
+  {
+   "label": "I",
+   "file": "doc-cxrkmr.pdf",
+   "kind": "letter",
+   "date": "2019-08-16",
+   "author": "Commissioner Brenda Lucki, RCMP",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner Lucki's reply to Champ",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "letter from Commissioner Lucki to Mr. Champ, dated August 16, 2019"
+    }
+   ],
+   "content_check": "Letter dated 2019-08-16 from Commissioner Brenda Lucki to Paul Champ"
+  },
+  {
+   "label": "J",
+   "file": "doc-wzbyek.pdf",
+   "kind": "letter",
+   "date": "2020-06-23",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Michelaine Lahaie, CRCC"
+   ],
+   "description": "Champ letter to Lahaie",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "letter from Mr. Champ to Ms. Lahaie, dated June 23, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-06-23 from Paul Champ to Michelaine Lahaie"
+  },
+  {
+   "label": "K",
+   "file": "doc-vekr4g.pdf",
+   "kind": "letter",
+   "date": "2020-06-23",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Commissioner Brenda Lucki, RCMP"
+   ],
+   "description": "Champ letter to Commissioner Lucki",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "letter from Mr. Champ to Commissioner Lucki, dated June 23, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-06-23 from Paul Champ to Commissioner Brenda Lucki"
+  },
+  {
+   "label": "L",
+   "file": "doc-8efxuq.pdf",
+   "kind": "letter",
+   "date": "2020-07-08",
+   "author": "Jason Tree, CRCC Reviews Unit",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "CRCC Reviews Unit letter to Champ",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "the CRCC, to Mr. Champ dated July 8, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-07-08 from Jason Tree to Paul Champ"
+  },
+  {
+   "label": "M",
+   "file": "doc-fag4n8.pdf",
+   "kind": "letter",
+   "date": "2020-08-07",
+   "author": "Commissioner Brenda Lucki, RCMP",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner Lucki letter to Champ",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "letter from Commissioner Lucki to Mr. Champ, dated August 7, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-08-07 from Commissioner Brenda Lucki to Paul Champ"
+  },
+  {
+   "label": "N",
+   "file": "doc-jsgyx7.pdf",
+   "kind": "letter",
+   "date": "2020-09-24",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Commissioner Brenda Lucki, RCMP"
+   ],
+   "description": "Champ letter to Commissioner Lucki",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "letter from Mr. Champ to Commissioner Lucki, dated September 24, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-09-24 from Paul Champ to Commissioner Brenda Lucki"
+  },
+  {
+   "label": "O",
+   "file": "doc-pys7ch.pdf",
+   "kind": "letter",
+   "date": "2020-10-13",
+   "author": "Commissioner Brenda Lucki, RCMP",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner Lucki letter to Champ",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "letter from Commissioner Lucki to Mr. Champ, dated October 13, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-10-13 from Commissioner Brenda Lucki to Paul Champ"
+  },
+  {
+   "label": "P",
+   "file": "doc-ywjm88.pdf",
+   "kind": "letter",
+   "date": "2020-11-06",
+   "author": "Commissioner Brenda Lucki, RCMP",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner Lucki letter to Champ",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "letter from Commissioner Lucki to Mr. Champ, dated November 6, 2020"
+    }
+   ],
+   "content_check": "Letter dated 2020-11-06 from Commissioner Brenda Lucki to Paul Champ"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "BCCLA files its public complaint with the Commission for Public Complaints Against the RCMP",
+   "date": "2014-02-06",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "letter from Mr. Paul Champ, counsel for the Applicant, dated February 6, 2014",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Commission accepts the complaint and starts a public interest investigation",
+   "date": "2014-02-20",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "letter from Mr. McPhail to Mr. Champ dated February 20, 2014",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Champ writes to CRCC Chairperson Bujold",
+   "date": "2018-06-25",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Review and Complaints Commission for the RCMP (“CRCC”), dated June 25, 2018",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CRCC writes to Champ",
+   "date": "2018-08-03",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "letter from the CRCC to Mr. Champ, dated August 3, 2018",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Champ writes to CRCC Chairperson Lahaie",
+   "date": "2019-03-25",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "CRCC, dated March 25, 2019",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Champ writes again to Lahaie",
+   "date": "2019-05-21",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "letter from Mr. Champ to Ms. Lahaie, dated May 21, 2019",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "CRCC's Joncas-Bourget replies to Champ",
+   "date": "2019-05-31",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "the CRCC, to Mr. Champ dated May 31, 2019",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Champ writes to Commissioner Lucki about the status of the complaint",
+   "date": "2019-08-09",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Commissioner Brenda Lucki, dated August 9, 2019",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Commissioner Lucki replies to Champ",
+   "date": "2019-08-16",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "letter from Commissioner Lucki to Mr. Champ, dated August 16, 2019",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Champ writes to Lahaie",
+   "date": "2020-06-23",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "letter from Mr. Champ to Ms. Lahaie, dated June 23, 2020",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Champ writes to Commissioner Lucki",
+   "date": "2020-06-23",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "letter from Mr. Champ to Commissioner Lucki, dated June 23, 2020",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "CRCC's Jason Tree writes to Champ",
+   "date": "2020-07-08",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the CRCC, to Mr. Champ dated July 8, 2020",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Commissioner Lucki writes to Champ",
+   "date": "2020-08-07",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "letter from Commissioner Lucki to Mr. Champ, dated August 7, 2020",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Champ writes to Commissioner Lucki",
+   "date": "2020-09-24",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "letter from Mr. Champ to Commissioner Lucki, dated September 24, 2020",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Commissioner Lucki writes to Champ",
+   "date": "2020-10-13",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "letter from Commissioner Lucki to Mr. Champ, dated October 13, 2020",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Commissioner Lucki writes to Champ",
+   "date": "2020-11-06",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "letter from Commissioner Lucki to Mr. Champ, dated November 6, 2020",
+   "exhibits": [
+    "P"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Original enclosures to the February 6, 2014 complaint letter"
+ ]
+}

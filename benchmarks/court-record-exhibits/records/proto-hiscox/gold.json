@@ -9,54 +9,345 @@
  "deponent": "Robert Hiscox",
  "deponent_role": "Co-Founder and CEO of the Applicant, Constantine Enterprises Inc.",
  "sworn_date": "2025-10-29",
+ "referenced_not_attached": [
+  "Fifth Report of the Receiver dated July 16, 2025, Appendices G, J, L and N"
+ ],
+ "notes": "Exhibits E and F are image-only (phone screenshots and photos); reading them needs OCR or vision.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-a5kh7t.pdf", "kind": "letter", "date": "2025-02-07", "author": "Receiver's counsel (Norton Rose Fulbright Canada LLP)", "recipients": ["CEI's counsel"],
+  {
+   "label": "A",
+   "file": "doc-a5kh7t.pdf",
+   "kind": "letter",
+   "date": "2025-02-07",
+   "author": "Receiver's counsel (Norton Rose Fulbright Canada LLP)",
+   "recipients": [
+    "CEI's counsel"
+   ],
    "description": "Letter from the Receiver's counsel to CEI's counsel requesting correspondence and documents relevant to the rates MI charged for work performed by CLM (the Information Request Letter)",
-   "references": [{"paragraph": 3, "quote": "A copy of the Information Request Letter is attached hereto as Exhibit"}],
-   "content_check": "One-page letter with a Norton Rose Fulbright Canada LLP DMS footer; body is largely image, consistent with the Information Request Letter"},
-  {"label": "B", "file": "doc-3ahf9a.pdf", "kind": "email", "date": "2023-03-10", "author": "David Ho", "recipients": ["Robert Hiscox"],
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the Information Request Letter is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "One-page letter with a Norton Rose Fulbright Canada LLP DMS footer; body is largely image, consistent with the Information Request Letter"
+  },
+  {
+   "label": "B",
+   "file": "doc-3ahf9a.pdf",
+   "kind": "email",
+   "date": "2023-03-10",
+   "author": "David Ho",
+   "recipients": [
+    "Robert Hiscox"
+   ],
    "description": "Email from David Ho to Robert Hiscox reporting that MI had retained a third-party contractor supplying likely non-unionized labourers to the Hazelton Project",
-   "references": [{"paragraph": 25, "quote": "A copy of the email from David to myself on March 10, 2023 is attached hereto as Exhibit"}],
-   "content_check": "Outlook email 'RE: 128 Hazelton - Mizrahi Labour Invoice Rates' from David Ho, Fri 3/10/2023 6:16 PM, to Robert Hiscox, cc Chris Donlan"},
-  {"label": "C", "file": "doc-gqazky.pdf", "kind": "email", "date": "2023-03-14", "author": "Esteban Yanquelevech", "recipients": ["Robert Hiscox", "Chris Donlan"],
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "A copy of the email from David to myself on March 10, 2023 is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Outlook email 'RE: 128 Hazelton - Mizrahi Labour Invoice Rates' from David Ho, Fri 3/10/2023 6:16 PM, to Robert Hiscox, cc Chris Donlan"
+  },
+  {
+   "label": "C",
+   "file": "doc-gqazky.pdf",
+   "kind": "email",
+   "date": "2023-03-14",
+   "author": "Esteban Yanquelevech",
+   "recipients": [
+    "Robert Hiscox",
+    "Chris Donlan"
+   ],
    "description": "The Breakdown Email: Esteban's email giving an hourly cost breakdown (the Labour Cost Breakdown) for the Hazelton Project labourers",
-   "references": [{"paragraph": 26, "quote": "A copy of the Breakdown Email is attached hereto as Exhibit"}, {"paragraph": 28, "quote": "in his March 14, 2023 email (attached as Exhibit"}],
-   "content_check": "Email 'Labour rates' from Esteban Yanquelevech, March 14, 2023 10:58 AM, to Hiscox and Donlan, cc Sam Mizrahi, listing salary $39.32 and pension $8.70"},
-  {"label": "D", "file": "doc-qr2aev.pdf", "kind": "email", "date": "2023-03-14", "author": "Robert Hiscox", "recipients": ["David Ho"],
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "A copy of the Breakdown Email is attached hereto as Exhibit"
+    },
+    {
+     "paragraph": 28,
+     "quote": "in his March 14, 2023 email (attached as Exhibit"
+    }
+   ],
+   "content_check": "Email 'Labour rates' from Esteban Yanquelevech, March 14, 2023 10:58 AM, to Hiscox and Donlan, cc Sam Mizrahi, listing salary $39.32 and pension $8.70"
+  },
+  {
+   "label": "D",
+   "file": "doc-qr2aev.pdf",
+   "kind": "email",
+   "date": "2023-03-14",
+   "author": "Robert Hiscox",
+   "recipients": [
+    "David Ho"
+   ],
    "description": "Hiscox's email forwarding the Breakdown Email to David Ho and asking him to urgently identify the third-party labour contractor",
-   "references": [{"paragraph": 27, "quote": "A copy of my email to David on March 14, 2023 is attached hereto as Exhibit"}],
-   "content_check": "Email 'Fwd: Labour rates' from robert.hiscox to David Ho, March 14, 2023 1:03 PM: 'We need to find out the name of the 3rd party contractor'"},
-  {"label": "E", "file": "doc-94a8zr.pdf", "kind": "text_messages", "date": "2023-03-16", "author": "Lina White", "recipients": ["Robert Hiscox"],
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "A copy of my email to David on March 14, 2023 is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Email 'Fwd: Labour rates' from robert.hiscox to David Ho, March 14, 2023 1:03 PM: 'We need to find out the name of the 3rd party contractor'"
+  },
+  {
+   "label": "E",
+   "file": "doc-94a8zr.pdf",
+   "kind": "text_messages",
+   "date": "2023-03-16",
+   "author": "Lina White",
+   "recipients": [
+    "Robert Hiscox"
+   ],
    "description": "Text messages between Hiscox and his assistant Lina White reporting that the labourers were neither unionized nor MI employees",
-   "references": [{"paragraph": 29, "quote": "A copy of the text messages between myself and Ms. White are attached hereto as Exhibit"}],
-   "content_check": "Phone screenshots of messages with Lina White dated 2023-03-16 ('No Union'); image only, no text layer"},
-  {"label": "F", "file": "doc-8rdrb3.pdf", "kind": "photograph", "date": "2023-03-22", "author": "Robert Hiscox", "recipients": [],
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "A copy of the text messages between myself and Ms. White are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Phone screenshots of messages with Lina White dated 2023-03-16 ('No Union'); image only, no text layer"
+  },
+  {
+   "label": "F",
+   "file": "doc-8rdrb3.pdf",
+   "kind": "photograph",
+   "date": "2023-03-22",
+   "author": "Robert Hiscox",
+   "recipients": [],
    "description": "Pictures Hiscox took of the CLM Invoice (labour invoice and time sheets dated February 22, 2023 issued by CLM to MDI)",
-   "references": [{"paragraph": 30, "quote": "are pictures I took of the CLM Invoice"}],
-   "content_check": "Phone photos (Toronto - Midtown, March 22, 2023 3:47 PM) of a CLM invoice dated 22-02-2023 to Mizrahi Developments for handyman and general labour Jan 15 - Feb 18, 2023; image only"},
-  {"label": "G", "file": "doc-bysxv5.pdf", "kind": "email", "date": "2023-03-22", "author": "Esteban Yanquelevech", "recipients": ["Chris Donlan", "Robert Hiscox"],
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "are pictures I took of the CLM Invoice"
+    }
+   ],
+   "content_check": "Phone photos (Toronto - Midtown, March 22, 2023 3:47 PM) of a CLM invoice dated 22-02-2023 to Mizrahi Developments for handyman and general labour Jan 15 - Feb 18, 2023; image only"
+  },
+  {
+   "label": "G",
+   "file": "doc-bysxv5.pdf",
+   "kind": "email",
+   "date": "2023-03-22",
+   "author": "Esteban Yanquelevech",
+   "recipients": [
+    "Chris Donlan",
+    "Robert Hiscox"
+   ],
    "description": "Esteban's March 22, 2023 reply to the Breakdown Email saying he misunderstood the request and had provided industry costs for organized labour",
-   "references": [{"paragraph": 32, "quote": "email of March 22nd is attached hereto as Exhibit"}],
-   "content_check": "Email 'Re: Labour rates' from Esteban Yanquelevech, March 22, 2023 5:10 PM, to Chris Donlan, cc Mark Kilfoyle, Hiscox, Sam Mizrahi: 'there was a misunderstanding'"}
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "email of March 22nd is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Email 'Re: Labour rates' from Esteban Yanquelevech, March 22, 2023 5:10 PM, to Chris Donlan, cc Mark Kilfoyle, Hiscox, Sam Mizrahi: 'there was a misunderstanding'"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2017-03-31", "precision": "day", "description": "Hazelton retained MI as Construction Manager under the Construction Management Agreement (CMA)", "paragraphs": [10], "quote": "pursuant to a Construction Management Agreement dated March 31, 2017", "exhibits": [], "referenced_not_attached": ["CMA (Appendix G to the Fifth Report)"]},
-  {"id": "e2", "date": "2020", "end_date": "2023", "precision": "range", "description": "CEI and MI representatives met regularly for Hazelton Project updates and reviewed MI's invoices", "paragraphs": [18], "quote": "Between 2020 and 2023, representatives of CEI and MI met on a regular basis", "exhibits": []},
-  {"id": "e3", "date": "2021-12-03", "precision": "day", "description": "MDI, Hazelton and CEI entered into the Contribution Agreement", "paragraphs": [21], "quote": "entered into a Contribution Agreement dated December 3, 2021", "exhibits": []},
-  {"id": "e4", "date": "2023-03-09", "precision": "day", "description": "Meeting at MI's office: Mizrahi said the labourers were unionized and refused to provide T4 slips; CEI said it would approve no more labour expenses without support", "paragraphs": [24], "quote": "On March 9, 2023, Chris and I attended a meeting at MI", "exhibits": []},
-  {"id": "e5", "date": "2023-03-10", "precision": "day", "description": "Hiscox asked David Ho to investigate the labour; Ho reported that MI used a third-party contractor with likely non-unionized labourers", "paragraphs": [25], "quote": "On March 10, 2023, I spoke with David Ho", "exhibits": ["B"]},
-  {"id": "e6", "date": "2023-03-14", "precision": "day", "description": "Esteban sent the Breakdown Email with the hourly Labour Cost Breakdown", "paragraphs": [26], "quote": "On March 14, 2023, Esteban provided a breakdown by email", "exhibits": ["C"]},
-  {"id": "e7", "date": "2023-03-14", "precision": "day", "description": "Hiscox forwarded the Breakdown Email to David Ho asking him to identify the third-party labour contractor", "paragraphs": [27], "quote": "forwarded the Breakdown Email to David to ask him to urgently determine the name of the third-party contractor", "exhibits": ["D"]},
-  {"id": "e8", "date": "2023-03-16", "precision": "day", "description": "Second meeting at MI's office where Hiscox challenged the Breakdown Email; MI suggested CEI supply the labourers", "paragraphs": [28], "quote": "On March 16, 2023, I, along with Chris and David, again met with Mizrahi and Esteban", "exhibits": ["C"]},
-  {"id": "e9", "date": "2023-03-16", "precision": "day", "description": "Lina White texted Hiscox that a worker said the labourers were not unionized, not MI employees, and were paid in cash", "paragraphs": [29], "quote": "Also on March 16, 2023, I was informed by my assistant, Lina White, through a series of text messages", "exhibits": ["E"]},
-  {"id": "e10", "date": "2023-03-22", "precision": "day", "description": "Meeting with Mizrahi; Taline Melkonian gave Hiscox the CLM Invoice, which Hiscox photographed", "paragraphs": [30], "quote": "On March 22, 2023, Chris and I again attended on behalf of CEI at MI", "exhibits": ["F"]},
-  {"id": "e11", "date": "2023-03-22", "precision": "day", "description": "Esteban replied that he had misunderstood and had given industry costs for organized labour", "paragraphs": [32], "quote": "Esteban responded to the Breakdown Email and stated that he misunderstood", "exhibits": ["G"]},
-  {"id": "e12", "date": "2024-05-10", "precision": "day", "description": "MI sent Hazelton a notice terminating the CMA", "paragraphs": [17], "quote": "On May 10, 2024, MI sent a notice to Hazelton terminating the CMA", "exhibits": [], "referenced_not_attached": ["Termination notice (Appendix N to the Fifth Report)"]},
-  {"id": "e13", "date": "2024-05-13", "precision": "day", "description": "Mizrahi resigned as director and officer of Hazelton", "paragraphs": [9], "quote": "until he resigned on May 13, 2024", "exhibits": []},
-  {"id": "e14", "date": "2024-06-04", "precision": "day", "description": "Receivership Order appointed KSV Restructuring Inc. as receiver and manager", "paragraphs": [7], "quote": "issued on June 4, 2024 (the", "exhibits": []},
-  {"id": "e15", "date": "2025-02-07", "precision": "day", "description": "Receiver's counsel sent the Information Request Letter to CEI's counsel", "paragraphs": [3], "quote": "On February 7, 2025, Receiver", "exhibits": ["A"]},
-  {"id": "e16", "date": "2025-06-27", "precision": "day", "description": "CEI's counsel responded to the Information Request Letter (the CEI Letter)", "paragraphs": [4], "quote": "On June 27, 2025, CEI", "exhibits": [], "referenced_not_attached": ["CEI Letter (Appendix L to the Fifth Report)"]}
- ],
- "referenced_not_attached": ["Fifth Report of the Receiver dated July 16, 2025, Appendices G, J, L and N"],
- "notes": "Exhibits E and F are image-only (phone screenshots and photos); reading them needs OCR or vision."
+  {
+   "id": "e1",
+   "date": "2017-03-31",
+   "precision": "day",
+   "description": "Hazelton retained MI as Construction Manager under the Construction Management Agreement (CMA)",
+   "paragraphs": [
+    10
+   ],
+   "quote": "pursuant to a Construction Management Agreement dated March 31, 2017",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "CMA (Appendix G to the Fifth Report)"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2020",
+   "end_date": "2023",
+   "precision": "range",
+   "description": "CEI and MI representatives met regularly for Hazelton Project updates and reviewed MI's invoices",
+   "paragraphs": [
+    18
+   ],
+   "quote": "Between 2020 and 2023, representatives of CEI and MI met on a regular basis",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2021-12-03",
+   "precision": "day",
+   "description": "MDI, Hazelton and CEI entered into the Contribution Agreement",
+   "paragraphs": [
+    21
+   ],
+   "quote": "entered into a Contribution Agreement dated December 3, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2023-03-09",
+   "precision": "day",
+   "description": "Meeting at MI's office: Mizrahi said the labourers were unionized and refused to provide T4 slips; CEI said it would approve no more labour expenses without support",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On March 9, 2023, Chris and I attended a meeting at MI",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2023-03-10",
+   "precision": "day",
+   "description": "Hiscox asked David Ho to investigate the labour; Ho reported that MI used a third-party contractor with likely non-unionized labourers",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On March 10, 2023, I spoke with David Ho",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2023-03-14",
+   "precision": "day",
+   "description": "Esteban sent the Breakdown Email with the hourly Labour Cost Breakdown",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On March 14, 2023, Esteban provided a breakdown by email",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2023-03-14",
+   "precision": "day",
+   "description": "Hiscox forwarded the Breakdown Email to David Ho asking him to identify the third-party labour contractor",
+   "paragraphs": [
+    27
+   ],
+   "quote": "forwarded the Breakdown Email to David to ask him to urgently determine the name of the third-party contractor",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2023-03-16",
+   "precision": "day",
+   "description": "Second meeting at MI's office where Hiscox challenged the Breakdown Email; MI suggested CEI supply the labourers",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On March 16, 2023, I, along with Chris and David, again met with Mizrahi and Esteban",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2023-03-16",
+   "precision": "day",
+   "description": "Lina White texted Hiscox that a worker said the labourers were not unionized, not MI employees, and were paid in cash",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Also on March 16, 2023, I was informed by my assistant, Lina White, through a series of text messages",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2023-03-22",
+   "precision": "day",
+   "description": "Meeting with Mizrahi; Taline Melkonian gave Hiscox the CLM Invoice, which Hiscox photographed",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On March 22, 2023, Chris and I again attended on behalf of CEI at MI",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2023-03-22",
+   "precision": "day",
+   "description": "Esteban replied that he had misunderstood and had given industry costs for organized labour",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Esteban responded to the Breakdown Email and stated that he misunderstood",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2024-05-10",
+   "precision": "day",
+   "description": "MI sent Hazelton a notice terminating the CMA",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On May 10, 2024, MI sent a notice to Hazelton terminating the CMA",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Termination notice (Appendix N to the Fifth Report)"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2024-05-13",
+   "precision": "day",
+   "description": "Mizrahi resigned as director and officer of Hazelton",
+   "paragraphs": [
+    9
+   ],
+   "quote": "until he resigned on May 13, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2024-06-04",
+   "precision": "day",
+   "description": "Receivership Order appointed KSV Restructuring Inc. as receiver and manager",
+   "paragraphs": [
+    7
+   ],
+   "quote": "issued on June 4, 2024 (the",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2025-02-07",
+   "precision": "day",
+   "description": "Receiver's counsel sent the Information Request Letter to CEI's counsel",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On February 7, 2025, Receiver",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2025-06-27",
+   "precision": "day",
+   "description": "CEI's counsel responded to the Information Request Letter (the CEI Letter)",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On June 27, 2025, CEI",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "CEI Letter (Appendix L to the Fifth Report)"
+   ]
+  }
+ ]
 }

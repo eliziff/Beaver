@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/nbkb-royaloaks-randall/first-report-proposed-receiver.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/Royal%20Oaks%20Golf%20Club%20Inc/First%20Report.%20of%20Proposed%20Receiver.pdf",
+  "title": "First Report of the Proposed Receiver (Deloitte)",
+  "kind": "report",
+  "relation": "report of the proposed receiver in the same receivership application"
+ },
+ {
+  "file": "raw/matter/nbkb-royaloaks-randall/sale-vesting-order-2024-06-27.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/Royal%20Oaks%20Golf%20Club%20Inc/SJM%2044%202024%20Sale%20and%20Vesting%20Order%20DJS%20Jun%2027%202024.pdf",
+  "title": "Sale and Vesting Order, June 27, 2024",
+  "kind": "court_order",
+  "relation": "later order in the same receivership"
+ }
+]

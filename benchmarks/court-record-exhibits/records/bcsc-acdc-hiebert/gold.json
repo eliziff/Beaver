@@ -9,6 +9,14 @@
  "deponent": "Lisa Hiebert",
  "deponent_role": "Partner, Fasken Martineau DuMoulin LLP, counsel for FTI Consulting Canada Inc. as Monitor",
  "sworn_date": "2026-07-20",
+ "referenced_not_attached": [
+  "Notice of Application for the Fee Approval Order",
+  "Receivership Order",
+  "Monitor's Reports"
+ ],
+ "notes": "Exhibits are referenced only through the invoice table in paragraph 5, which pairs each exhibit letter with invoice number, date and amounts; quotes are taken from that table. Exhibit B's matter line reads Burgundy Diamond Mines Ltd. rather than Arctic Canadian Diamond Company Ltd.",
+ "family": "acdc-diamonds",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -204,12 +212,5 @@
    "quote": "I was called to the bar in Alberta in 2007",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Notice of Application for the Fee Approval Order",
-  "Receivership Order",
-  "Monitor's Reports"
- ],
- "notes": "Exhibits are referenced only through the invoice table in paragraph 5, which pairs each exhibit letter with invoice number, date and amounts; quotes are taken from that table. Exhibit B's matter line reads Burgundy Diamond Mines Ltd. rather than Arctic Canadian Diamond Company Ltd.",
- "family": "acdc-diamonds"
+ ]
 }

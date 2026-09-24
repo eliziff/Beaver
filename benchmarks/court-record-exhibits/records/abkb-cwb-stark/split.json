@@ -491,5 +491,9 @@
    "text_chars": 1377
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-8r4dkq.pdf",
+  "doc-wxrfna.pdf"
+ ]
 }

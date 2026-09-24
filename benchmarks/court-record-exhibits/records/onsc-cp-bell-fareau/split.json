@@ -65,5 +65,11 @@
    "text_chars": 8
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-2kc3yz.pdf",
+  "doc-4w2re6.pdf",
+  "doc-b296aj.pdf",
+  "doc-fka8pz.pdf"
+ ]
 }

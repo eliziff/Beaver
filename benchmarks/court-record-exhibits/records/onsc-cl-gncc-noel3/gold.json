@@ -9,22 +9,181 @@
  "deponent": "Michael Noel",
  "deponent_role": "Associate at Torys LLP, Canadian counsel to the foreign representative GNC Holdings, Inc.",
  "sworn_date": "2020-09-21",
+ "referenced_not_attached": [
+  "Affidavit of Tricia Tolivar sworn June 24, 2020",
+  "Noel affidavits of September 16 and 18, 2020",
+  "Additional U.S. Orders"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Exhibit A mentions its own internal 'Exhibit A' (the proposed U.S. order), waived. Objection deadlines in the motions are September 29, 2020.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-jswc55.pdf", "kind": "court_filing", "date": "2020-09-21", "author": "GNC Holdings, Inc. et al. (Debtors)", "recipients": ["U.S. Bankruptcy Court for the District of Delaware"], "description": "Twenty-Ninth Omnibus Motion to assume and assign certain unexpired leases", "references": [{"paragraph": 4, "quote": "the “29th Lease Assumption Motion”), attached as Exhibit “A”"}], "content_check": "20 pages: Chapter 11 Case No. 20-11662 (KBO) omnibus lease assumption motion, Doc 1223 filed 09/21/20, with proposed order"},
-  {"label": "B", "file": "doc-az4nw5.pdf", "kind": "court_filing", "date": "2020-09-21", "author": "GNC Holdings, Inc. et al. (Debtors)", "recipients": ["U.S. Bankruptcy Court for the District of Delaware"], "description": "Thirtieth Omnibus Motion to assume and assign certain unexpired leases", "references": [{"paragraph": 4, "quote": "the “30th Lease Assumption Motion”), attached as Exhibit “B”"}], "content_check": "20 pages: omnibus lease assumption motion, Doc 1224 filed 09/21/20"},
-  {"label": "C", "file": "doc-3wquwz.pdf", "kind": "court_filing", "date": "2020-09-21", "author": "GNC Holdings, Inc. et al. (Debtors)", "recipients": ["U.S. Bankruptcy Court for the District of Delaware"], "description": "Thirty-First Omnibus Motion to assume and assign certain unexpired leases", "references": [{"paragraph": 4, "quote": "the “31st Lease Assumption Motion”), attached as Exhibit “C”"}], "content_check": "21 pages: omnibus lease assumption motion, Doc 1225 filed 09/21/20"},
-  {"label": "D", "file": "doc-zack93.pdf", "kind": "court_filing", "date": "2020-09-21", "author": "GNC Holdings, Inc. et al. (Debtors)", "recipients": ["U.S. Bankruptcy Court for the District of Delaware"], "description": "Thirty-Second Omnibus Motion to assume and assign certain unexpired leases", "references": [{"paragraph": 4, "quote": "the “32nd Lease Assumption Motion”), attached as Exhibit “D”"}], "content_check": "20 pages: omnibus lease assumption motion, Doc 1226 filed 09/21/20"},
-  {"label": "E", "file": "doc-xu6tvu.pdf", "kind": "court_filing", "date": "2020-09-21", "author": "GNC Holdings, Inc. et al. (Debtors)", "recipients": ["U.S. Bankruptcy Court for the District of Delaware"], "description": "Thirty-Third Omnibus Motion to assume and assign certain unexpired leases", "references": [{"paragraph": 4, "quote": "the “33rd Lease Assumption Motion”), attached as Exhibit “E”"}], "content_check": "19 pages: omnibus lease assumption motion, Doc 1227 filed 09/21/20"}
+  {
+   "label": "A",
+   "file": "doc-jswc55.pdf",
+   "kind": "court_filing",
+   "date": "2020-09-21",
+   "author": "GNC Holdings, Inc. et al. (Debtors)",
+   "recipients": [
+    "U.S. Bankruptcy Court for the District of Delaware"
+   ],
+   "description": "Twenty-Ninth Omnibus Motion to assume and assign certain unexpired leases",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "the “29th Lease Assumption Motion”), attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "20 pages: Chapter 11 Case No. 20-11662 (KBO) omnibus lease assumption motion, Doc 1223 filed 09/21/20, with proposed order"
+  },
+  {
+   "label": "B",
+   "file": "doc-az4nw5.pdf",
+   "kind": "court_filing",
+   "date": "2020-09-21",
+   "author": "GNC Holdings, Inc. et al. (Debtors)",
+   "recipients": [
+    "U.S. Bankruptcy Court for the District of Delaware"
+   ],
+   "description": "Thirtieth Omnibus Motion to assume and assign certain unexpired leases",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "the “30th Lease Assumption Motion”), attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "20 pages: omnibus lease assumption motion, Doc 1224 filed 09/21/20"
+  },
+  {
+   "label": "C",
+   "file": "doc-3wquwz.pdf",
+   "kind": "court_filing",
+   "date": "2020-09-21",
+   "author": "GNC Holdings, Inc. et al. (Debtors)",
+   "recipients": [
+    "U.S. Bankruptcy Court for the District of Delaware"
+   ],
+   "description": "Thirty-First Omnibus Motion to assume and assign certain unexpired leases",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "the “31st Lease Assumption Motion”), attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "21 pages: omnibus lease assumption motion, Doc 1225 filed 09/21/20"
+  },
+  {
+   "label": "D",
+   "file": "doc-zack93.pdf",
+   "kind": "court_filing",
+   "date": "2020-09-21",
+   "author": "GNC Holdings, Inc. et al. (Debtors)",
+   "recipients": [
+    "U.S. Bankruptcy Court for the District of Delaware"
+   ],
+   "description": "Thirty-Second Omnibus Motion to assume and assign certain unexpired leases",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "the “32nd Lease Assumption Motion”), attached as Exhibit “D”"
+    }
+   ],
+   "content_check": "20 pages: omnibus lease assumption motion, Doc 1226 filed 09/21/20"
+  },
+  {
+   "label": "E",
+   "file": "doc-xu6tvu.pdf",
+   "kind": "court_filing",
+   "date": "2020-09-21",
+   "author": "GNC Holdings, Inc. et al. (Debtors)",
+   "recipients": [
+    "U.S. Bankruptcy Court for the District of Delaware"
+   ],
+   "description": "Thirty-Third Omnibus Motion to assume and assign certain unexpired leases",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "the “33rd Lease Assumption Motion”), attached as Exhibit “E”"
+    }
+   ],
+   "content_check": "19 pages: omnibus lease assumption motion, Doc 1227 filed 09/21/20"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2020-06-24", "precision": "day", "description": "Tricia Tolivar swore the affidavit whose defined terms this affidavit adopts", "paragraphs": [3], "quote": "the affidavit of Tricia Tolivar sworn June 24, 2020", "exhibits": []},
-  {"id": "e2", "date": "2020-09-16", "precision": "day", "description": "Noel affirmed his earlier affidavit attaching the Tolivar affidavit", "paragraphs": [3, 4], "quote": "my affidavit affirmed September 16, 2020", "exhibits": []},
-  {"id": "e3", "date": "2020-09-18", "precision": "day", "description": "Noel affirmed a further affidavit", "paragraphs": [4], "quote": "my affidavit on September 18, 2020", "exhibits": []},
-  {"id": "e4", "date": "2020-09-21", "precision": "day", "description": "The Debtors filed the 29th to 33rd omnibus lease assumption motions with the U.S. Court (Further Assumption Motions)", "paragraphs": [4], "quote": "the Debtors filed the following motions with the U.S. Court", "exhibits": ["A", "B", "C", "D", "E"]},
-  {"id": "e5", "date": "2020-09-22", "precision": "day", "description": "Scheduled Canadian motion to recognize the Additional U.S. Orders; no relief sought on the Further Assumption Motions", "paragraphs": [5], "quote": "scheduled for September 22, 2020", "exhibits": []},
-  {"id": "e6", "date": "2020-09-21", "precision": "day", "description": "Noel affirmed this affidavit remotely in Toronto", "paragraphs": [5], "quote": "AFFIRMED REMOTELY by Michael Noel", "exhibits": []}
- ],
- "referenced_not_attached": ["Affidavit of Tricia Tolivar sworn June 24, 2020", "Noel affidavits of September 16 and 18, 2020", "Additional U.S. Orders"],
- "leak_waivers": ["A"],
- "notes": "Exhibit A mentions its own internal 'Exhibit A' (the proposed U.S. order), waived. Objection deadlines in the motions are September 29, 2020."
+  {
+   "id": "e1",
+   "date": "2020-06-24",
+   "precision": "day",
+   "description": "Tricia Tolivar swore the affidavit whose defined terms this affidavit adopts",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the affidavit of Tricia Tolivar sworn June 24, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2020-09-16",
+   "precision": "day",
+   "description": "Noel affirmed his earlier affidavit attaching the Tolivar affidavit",
+   "paragraphs": [
+    3,
+    4
+   ],
+   "quote": "my affidavit affirmed September 16, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2020-09-18",
+   "precision": "day",
+   "description": "Noel affirmed a further affidavit",
+   "paragraphs": [
+    4
+   ],
+   "quote": "my affidavit on September 18, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2020-09-21",
+   "precision": "day",
+   "description": "The Debtors filed the 29th to 33rd omnibus lease assumption motions with the U.S. Court (Further Assumption Motions)",
+   "paragraphs": [
+    4
+   ],
+   "quote": "the Debtors filed the following motions with the U.S. Court",
+   "exhibits": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2020-09-22",
+   "precision": "day",
+   "description": "Scheduled Canadian motion to recognize the Additional U.S. Orders; no relief sought on the Further Assumption Motions",
+   "paragraphs": [
+    5
+   ],
+   "quote": "scheduled for September 22, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2020-09-21",
+   "precision": "day",
+   "description": "Noel affirmed this affidavit remotely in Toronto",
+   "paragraphs": [
+    5
+   ],
+   "quote": "AFFIRMED REMOTELY by Michael Noel",
+   "exhibits": []
+  }
+ ]
 }

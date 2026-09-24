@@ -197,5 +197,8 @@
    "text_chars": 6450
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-skqywz.pdf"
+ ]
 }

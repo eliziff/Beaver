@@ -9,6 +9,13 @@
  "deponent": "Jun Bi",
  "deponent_role": "Director of the petitioners Eaglecrest Properties and TCD",
  "sworn_date": "2026-06-05",
+ "referenced_not_attached": [
+  "Petition with draft Initial Order (Schedule A)",
+  "Disclosure statement amendments"
+ ],
+ "leak_waivers": [],
+ "notes": "OCR text layer; exhibit covers given with --covers (OCR reads I as '1'). Content checks limited to the first page of each file. Exhibit V's letter is dated May 30, 2026; the affidavit calls it an offer of credit dated June 8, 2026.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -646,11 +653,5 @@
    "quote": "August 3,2026",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Petition with draft Initial Order (Schedule A)",
-  "Disclosure statement amendments"
- ],
- "leak_waivers": [],
- "notes": "OCR text layer; exhibit covers given with --covers (OCR reads I as '1'). Content checks limited to the first page of each file. Exhibit V's letter is dated May 30, 2026; the affidavit calls it an offer of credit dated June 8, 2026."
+ ]
 }

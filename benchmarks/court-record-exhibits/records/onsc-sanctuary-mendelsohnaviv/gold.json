@@ -9,20 +9,141 @@
  "deponent": "Noa Mendelsohn Aviv",
  "deponent_role": "Director of the Equality Program, Canadian Civil Liberties Association",
  "sworn_date": "2020-05-04",
+ "referenced_not_attached": [],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Exhibit A's own first line reads 'Exhibit A - CCLA Litigation': the list was prepared as the exhibit, so the heading is part of the document (waived).",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-zpmjyw.pdf", "kind": "report", "date": null, "author": "Canadian Civil Liberties Association", "recipients": [], "description": "List and description of cases in which the CCLA has been granted public interest party or intervener status", "references": [{"paragraph": 10, "quote": "A list and description of \nmany of the cases in which CCLA has been granted public interest party or intervenor status is \nattached as Exhibit “A” to this Affidavit."}], "content_check": "25-page chronological list headed 'CCLA Litigation', beginning with R. v. Morgentaler, [1976] 1 S.C.R. 616"},
-  {"label": "B", "file": "doc-2whscz.pdf", "kind": "letter", "date": "2020-03-29", "author": "Canadian Civil Liberties Association", "recipients": ["Mayor John Tory", "Toronto City Council"], "description": "CCLA's March 29, 2020 open letter to Mayor Tory on public health conditions for Toronto's homeless population", "references": [{"paragraph": 20, "quote": "A copy of the letter is attached hereto as Exhibit “B”."}], "content_check": "Two-page letter dated March 29, 2020 to Mayor John Tory, 'Dear Mayor and Council, We are writing you about actions and omissions by the City of Toronto'"},
-  {"label": "C", "file": "doc-v57b34.pdf", "kind": "letter", "date": "2020-04-20", "author": "Jessica R. Orkin, Goldblatt Partners LLP", "recipients": ["Mayor John Tory", "Mary-Anne Bedard (City of Toronto)"], "description": "Counsel's April 20, 2020 letter to the City demanding physical distancing in shelters and respite centres", "references": [{"paragraph": 21, "quote": "A copy of the letter is \nattached hereto as Exhibit “C”."}], "content_check": "Nine-page Goldblatt Partners letter from Jessica R. Orkin dated April 20, 2020 to Mayor Tory and Mary-Anne Bedard, General Manager, Shelter, Support & Housing Administration"}
+  {
+   "label": "A",
+   "file": "doc-zpmjyw.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [],
+   "description": "List and description of cases in which the CCLA has been granted public interest party or intervener status",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A list and description of \nmany of the cases in which CCLA has been granted public interest party or intervenor status is \nattached as Exhibit “A” to this Affidavit."
+    }
+   ],
+   "content_check": "25-page chronological list headed 'CCLA Litigation', beginning with R. v. Morgentaler, [1976] 1 S.C.R. 616"
+  },
+  {
+   "label": "B",
+   "file": "doc-2whscz.pdf",
+   "kind": "letter",
+   "date": "2020-03-29",
+   "author": "Canadian Civil Liberties Association",
+   "recipients": [
+    "Mayor John Tory",
+    "Toronto City Council"
+   ],
+   "description": "CCLA's March 29, 2020 open letter to Mayor Tory on public health conditions for Toronto's homeless population",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A copy of the letter is attached hereto as Exhibit “B”."
+    }
+   ],
+   "content_check": "Two-page letter dated March 29, 2020 to Mayor John Tory, 'Dear Mayor and Council, We are writing you about actions and omissions by the City of Toronto'"
+  },
+  {
+   "label": "C",
+   "file": "doc-v57b34.pdf",
+   "kind": "letter",
+   "date": "2020-04-20",
+   "author": "Jessica R. Orkin, Goldblatt Partners LLP",
+   "recipients": [
+    "Mayor John Tory",
+    "Mary-Anne Bedard (City of Toronto)"
+   ],
+   "description": "Counsel's April 20, 2020 letter to the City demanding physical distancing in shelters and respite centres",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "A copy of the letter is \nattached hereto as Exhibit “C”."
+    }
+   ],
+   "content_check": "Nine-page Goldblatt Partners letter from Jessica R. Orkin dated April 20, 2020 to Mayor Tory and Mary-Anne Bedard, General Manager, Shelter, Support & Housing Administration"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1964", "precision": "year", "description": "CCLA was created", "paragraphs": [2], "quote": "Since its creation in \n1964", "exhibits": []},
-  {"id": "e2", "date": null, "precision": "undated", "description": "CCLA was granted intervener or party status in hundreds of cases", "paragraphs": [10, 12], "quote": "The CCLA has been granted intervener status and participated in hundreds of cases", "exhibits": ["A"]},
-  {"id": "e3", "date": null, "precision": "undated", "description": "CCLA acted directly as a party in court cases and an inquest", "paragraphs": [13], "quote": "the CCLA has acted directly as a party in a number of court cases and an \ninquest", "exhibits": []},
-  {"id": "e4", "date": null, "precision": "undated", "description": "CCLA made submissions to Parliament, legislatures and the Toronto Police Services Board", "paragraphs": [15], "quote": "It \nhas made \nsubmissions on these subjects before public bodies and legislatures", "exhibits": []},
-  {"id": "e5", "date": "2020-03-29", "precision": "day", "description": "CCLA wrote an open letter to Mayor Tory urging steps against shelter overcrowding and COVID-19", "paragraphs": [20], "quote": "On March 29, 2020, the CCLA wrote an open letter to Mayor John Tory", "exhibits": ["B"]},
-  {"id": "e6", "date": "2020-04-20", "precision": "day", "description": "Counsel for CCLA and other organizations wrote a second letter demanding physical distancing in shelters", "paragraphs": [21], "quote": "On April 20, 2020 counsel for the CCLA, alongside other organizations involved in this\nlitigation wrote a second letter", "exhibits": ["C"]}
- ],
- "referenced_not_attached": [],
- "leak_waivers": ["A"],
- "notes": "Exhibit A's own first line reads 'Exhibit A - CCLA Litigation': the list was prepared as the exhibit, so the heading is part of the document (waived)."
+  {
+   "id": "e1",
+   "date": "1964",
+   "precision": "year",
+   "description": "CCLA was created",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Since its creation in \n1964",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": null,
+   "precision": "undated",
+   "description": "CCLA was granted intervener or party status in hundreds of cases",
+   "paragraphs": [
+    10,
+    12
+   ],
+   "quote": "The CCLA has been granted intervener status and participated in hundreds of cases",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": null,
+   "precision": "undated",
+   "description": "CCLA acted directly as a party in court cases and an inquest",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the CCLA has acted directly as a party in a number of court cases and an \ninquest",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": null,
+   "precision": "undated",
+   "description": "CCLA made submissions to Parliament, legislatures and the Toronto Police Services Board",
+   "paragraphs": [
+    15
+   ],
+   "quote": "It \nhas made \nsubmissions on these subjects before public bodies and legislatures",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2020-03-29",
+   "precision": "day",
+   "description": "CCLA wrote an open letter to Mayor Tory urging steps against shelter overcrowding and COVID-19",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On March 29, 2020, the CCLA wrote an open letter to Mayor John Tory",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2020-04-20",
+   "precision": "day",
+   "description": "Counsel for CCLA and other organizations wrote a second letter demanding physical distancing in shelters",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On April 20, 2020 counsel for the CCLA, alongside other organizations involved in this\nlitigation wrote a second letter",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ]
 }

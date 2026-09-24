@@ -1,0 +1,18 @@
+{
+ "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Affidavit-of-Jane-E.-Meadus-April-11-2023.pdf",
+ "landing_url": "https://www.ontariohealthcoalition.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "document_title": "Affidavit of Jane E. Meadus, April 11, 2023 (Charter application re Bill 7, More Beds, Better Care Act)",
+ "retrieved": "2026-09-23",
+ "record_id": "onsc-bill7-meadus",
+ "source_file": "c-affidavit-of-jane-e-meadus-april-11-2023.pdf",
+ "page_range": [
+  1,
+  503
+ ],
+ "source_sha256": "a91debac6e8796b73d1bd2493bec15ce3b7046ecafbff3e44ac4bcc9bc37dfdf",
+ "source_pages": 503
+}

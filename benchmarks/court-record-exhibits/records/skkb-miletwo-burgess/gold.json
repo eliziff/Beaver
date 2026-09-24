@@ -9,16 +9,94 @@
  "deponent": "Dr. David Burgess",
  "deponent_role": "Professor of educational administration, University of Saskatchewan; expert retained by the plaintiffs' counsel Scharfstein LLP",
  "sworn_date": "2025-03",
- "exhibits": [
-  {"label": "A", "file": "doc-7q4q3k.pdf", "kind": "letter", "date": "2024-01-30", "author": "Grant J. Scharfstein, K.C., Scharfstein LLP", "recipients": ["Dr. David Burgess"], "description": "Scharfstein LLP's instruction letter to the expert, with the redacted intake forms provided to him", "references": [{"paragraph": 1, "quote": "Attached hereto as Exhibit “A” to this my Affidavit is a copy of the instruction letter from Scharfstein LLP"}, {"paragraph": 8, "quote": "which is attached as Exhibit A hereto"}], "content_check": "307 pages: Scharfstein letter dated January 30, 2024 re expert opinion in QBG-SA-00766-2022 (text), then image-only redacted intake forms"},
-  {"label": "B", "file": "doc-nqdazd.pdf", "kind": "other", "date": "2025-01", "author": "David Burgess", "recipients": [], "description": "The deponent's curriculum vitae", "references": [{"paragraph": 7, "quote": "My curriculum vitae is attached hereto as Exhibit “B” to this my Affidavit."}], "content_check": "63 pages: University of Saskatchewan standardized annotated CV of David Burgess, July 2007 - January 2025"},
-  {"label": "C", "file": "doc-9ytyut.pdf", "kind": "report", "date": null, "author": "David Burgess", "recipients": ["Scharfstein LLP"], "description": "The deponent's expert report answering the questions posed in the Scharfstein instruction letter", "references": [{"paragraph": 8, "quote": "Attached hereto as Exhibit “C” to this my Affidavit is my report setting out my opinion"}], "content_check": "260 pages: 'Expert Opinion - David Burgess, PhD', Caitlin Erickson et al v Keith Johnson et al, executive summary on six issues, on government oversight of Legacy Christian Academy"}
- ],
- "events": [
-  {"id": "e1", "date": null, "precision": "undated", "description": "Scharfstein LLP asks the deponent to provide an opinion in the litigation", "paragraphs": [1], "quote": "I have been asked by the law firm of Scharfstein LLP to provide an opinion", "exhibits": ["A"]},
-  {"id": "e2", "date": null, "precision": "undated", "description": "Deponent prepares his report in conformity with his duties to the court", "paragraphs": [4], "quote": "I have prepared my report appended hereto in conformity within my duties", "exhibits": ["C"]}
- ],
  "referenced_not_attached": [],
  "leak_waivers": [],
- "notes": "Posted redacted copy of an expert affidavit with the jurat day left blank ('this ____ day of March, 2025'); covers likewise. Most of Exhibit A (intake forms) and Exhibit C are image-only pages."
+ "notes": "Posted redacted copy of an expert affidavit with the jurat day left blank ('this ____ day of March, 2025'); covers likewise. Most of Exhibit A (intake forms) and Exhibit C are image-only pages.",
+ "subject": "class_action",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-7q4q3k.pdf",
+   "kind": "letter",
+   "date": "2024-01-30",
+   "author": "Grant J. Scharfstein, K.C., Scharfstein LLP",
+   "recipients": [
+    "Dr. David Burgess"
+   ],
+   "description": "Scharfstein LLP's instruction letter to the expert, with the redacted intake forms provided to him",
+   "references": [
+    {
+     "paragraph": 1,
+     "quote": "Attached hereto as Exhibit “A” to this my Affidavit is a copy of the instruction letter from Scharfstein LLP"
+    },
+    {
+     "paragraph": 8,
+     "quote": "which is attached as Exhibit A hereto"
+    }
+   ],
+   "content_check": "307 pages: Scharfstein letter dated January 30, 2024 re expert opinion in QBG-SA-00766-2022 (text), then image-only redacted intake forms"
+  },
+  {
+   "label": "B",
+   "file": "doc-nqdazd.pdf",
+   "kind": "other",
+   "date": "2025-01",
+   "author": "David Burgess",
+   "recipients": [],
+   "description": "The deponent's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "My curriculum vitae is attached hereto as Exhibit “B” to this my Affidavit."
+    }
+   ],
+   "content_check": "63 pages: University of Saskatchewan standardized annotated CV of David Burgess, July 2007 - January 2025"
+  },
+  {
+   "label": "C",
+   "file": "doc-9ytyut.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "David Burgess",
+   "recipients": [
+    "Scharfstein LLP"
+   ],
+   "description": "The deponent's expert report answering the questions posed in the Scharfstein instruction letter",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto as Exhibit “C” to this my Affidavit is my report setting out my opinion"
+    }
+   ],
+   "content_check": "260 pages: 'Expert Opinion - David Burgess, PhD', Caitlin Erickson et al v Keith Johnson et al, executive summary on six issues, on government oversight of Legacy Christian Academy"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": null,
+   "precision": "undated",
+   "description": "Scharfstein LLP asks the deponent to provide an opinion in the litigation",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been asked by the law firm of Scharfstein LLP to provide an opinion",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": null,
+   "precision": "undated",
+   "description": "Deponent prepares his report in conformity with his duties to the court",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I have prepared my report appended hereto in conformity within my duties",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ]
 }

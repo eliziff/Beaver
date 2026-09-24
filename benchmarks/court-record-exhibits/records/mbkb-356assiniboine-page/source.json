@@ -1,0 +1,19 @@
+{
+ "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/en-ca-insolv-356Assiniboine-AffidavitofGPageswornMarch192024.pdf",
+ "landing_url": "https://www.insolvencies.deloitte.ca/en-ca/Pages/356-Assiniboine-Avenue-Ltd.aspx",
+ "court": "Court of King's Bench of Manitoba, Winnipeg Centre",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 23-01-43781",
+ "document_title": "Affidavit of G. Page sworn March 19, 2024 (PwC as receiver of Bridging Finance v. Dakota Plains First Nation et al.; receivership of 356 Assiniboine Avenue Ltd.)",
+ "retrieved": "2026-09-23",
+ "record_id": "mbkb-356assiniboine-page",
+ "source_file": "mbkb-en-ca-insolv-356assiniboine-affidavitofgpageswornmarch192024.pdf",
+ "page_range": [
+  1,
+  290
+ ],
+ "source_sha256": "44271ad0f02d0d2b4f1acdc45cf92cf4ae96adc70c02622150cffbcd1c9ae230",
+ "source_pages": 290,
+ "covers": "A=36,B=66,C=69,D=75,E=79,F=87,G=90,H=93,I=96,J=99,K=102,L=105,M=109,N=114,O=119,P=121,Q=123,R=129,S=142,T=167,U=176,V=180,W=233,X=235,Y=249,Z=253,AA=258,BB=263,CC=282,DD=288"
+}

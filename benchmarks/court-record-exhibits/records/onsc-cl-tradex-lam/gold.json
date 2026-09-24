@@ -9,24 +9,225 @@
  "deponent": "Sarah Lam",
  "deponent_role": "Lawyer at Dentons Canada LLP, counsel to the Respondents",
  "sworn_date": "2023-12-22",
+ "referenced_not_attached": [],
+ "notes": "All six exhibits are near-identical email printouts from the same thread, distinguishable by date, time and sender.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-fdmr4s.pdf", "kind": "email", "date": "2023-12-12", "author": "Caroline Descours (Goodmans, counsel to FTI)", "recipients": ["The Respondents"], "description": "Goodmans' December 12, 2023 1:03 p.m. email attaching the Information Officer Letter and the Information Officer Order of December 11, 2023", "references": [{"paragraph": 2, "quote": "Attached hereto as Exhibit “A” is a copy of email correspondence sent by Caroline\nDescours of Goodmans LLP"}], "content_check": "14 pages: email from Caroline Descours, Tuesday December 12, 2023 1:03 PM, 'Trade X - Information Request - December 12, 2023', attaching 'Letter to Trade X - Dec 12.pdf' and the MBL interim order"},
-  {"label": "B", "file": "doc-k4rfz3.pdf", "kind": "email", "date": "2023-12-13", "author": "Brent Sawadsky (Trade X)", "recipients": ["Goodmans"], "description": "Brent Sawadsky's December 13, 2023 9:58 a.m. email seeking approval of expenses, attaching a spreadsheet of wages owed to staff and contractors", "references": [{"paragraph": 3, "quote": "Attached hereto as Exhibit “B” is a copy of email correspondence sent by Brent Sawadsky"}], "content_check": "Five pages: email from Brent Sawadsky, Wednesday December 13, 2023 9:58 AM, 'RE: Trade X - Information Request', attaching 'Crictual Staff List - Dec 13.xlsx'"},
-  {"label": "C", "file": "doc-f9jxte.pdf", "kind": "email", "date": "2023-12-13", "author": "John Salmas (Dentons)", "recipients": ["Goodmans", "FTI"], "description": "John Salmas's December 13, 2023 11:12 a.m. email attaching Dentons' November 30 invoice #3812165", "references": [{"paragraph": 4, "quote": "Attached hereto as Exhibit “C”, is a copy of email correspondence sent by John Salmas"}], "content_check": "Five pages: email from John Salmas, Wednesday December 13, 2023 11:12 AM, 'RE: Trade X - Information Request - December 12, 2023', with an invoice"},
-  {"label": "D", "file": "doc-feff8f.pdf", "kind": "email", "date": "2023-12-15", "author": "Caroline Descours (Goodmans)", "recipients": ["The Respondents"], "description": "Goodmans' December 15, 2023 12:41 p.m. email about the requests in the Information Officer Letter", "references": [{"paragraph": 5, "quote": "Attached hereto as Exhibit “D”, is a copy of email correspondence sent by Carolyn\nDescours of Goodmans to the Respondents on December 15, 2023"}], "content_check": "16 pages: email from Caroline Descours, Friday December 15, 2023 12:41 PM, 'RE: Trade X - Information Request - December 12, 2023', attaching the letter and the issued order"},
-  {"label": "E", "file": "doc-wpnq9r.pdf", "kind": "email", "date": "2023-12-18", "author": "Caroline Descours (Goodmans)", "recipients": ["The Respondents"], "description": "Goodmans' December 18, 2023 8:56 a.m. email to the Respondents", "references": [{"paragraph": 6, "quote": "Attached hereto as Exhibit “E”, is a copy of email correspondence sent by Caroline\nDescours of Goodmans, counsel to FTI, to the Respondents on December 18, 2023"}], "content_check": "Five pages: email from Caroline Descours, Monday December 18, 2023 8:56 AM, to Brent Sawadsky, Andrew Tymko, Lakshmi Suresh, John Salmas and others"},
-  {"label": "F", "file": "doc-v6qha7.pdf", "kind": "email", "date": "2023-12-21", "author": "John Salmas (Dentons)", "recipients": ["Paul Bishop (FTI)", "Caroline Descours"], "description": "John Salmas's December 21, 2023 11:03 a.m. email to FTI attaching Dentons' December 21 invoice", "references": [{"paragraph": 7, "quote": "Attached hereto as Exhibit “F”, is a copy of email correspondence sent by John Salmas of\nDentons, counsel for the Respondents, to FTI on December 21, 2023"}], "content_check": "Four pages: email from John Salmas, Thursday December 21, 2023 11:03 AM, 'Dentons Canada Invoice', attaching invoice #3812165 for matter 585367-000019"}
+  {
+   "label": "A",
+   "file": "doc-fdmr4s.pdf",
+   "kind": "email",
+   "date": "2023-12-12",
+   "author": "Caroline Descours (Goodmans, counsel to FTI)",
+   "recipients": [
+    "The Respondents"
+   ],
+   "description": "Goodmans' December 12, 2023 1:03 p.m. email attaching the Information Officer Letter and the Information Officer Order of December 11, 2023",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached hereto as Exhibit “A” is a copy of email correspondence sent by Caroline\nDescours of Goodmans LLP"
+    }
+   ],
+   "content_check": "14 pages: email from Caroline Descours, Tuesday December 12, 2023 1:03 PM, 'Trade X - Information Request - December 12, 2023', attaching 'Letter to Trade X - Dec 12.pdf' and the MBL interim order"
+  },
+  {
+   "label": "B",
+   "file": "doc-k4rfz3.pdf",
+   "kind": "email",
+   "date": "2023-12-13",
+   "author": "Brent Sawadsky (Trade X)",
+   "recipients": [
+    "Goodmans"
+   ],
+   "description": "Brent Sawadsky's December 13, 2023 9:58 a.m. email seeking approval of expenses, attaching a spreadsheet of wages owed to staff and contractors",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto as Exhibit “B” is a copy of email correspondence sent by Brent Sawadsky"
+    }
+   ],
+   "content_check": "Five pages: email from Brent Sawadsky, Wednesday December 13, 2023 9:58 AM, 'RE: Trade X - Information Request', attaching 'Crictual Staff List - Dec 13.xlsx'"
+  },
+  {
+   "label": "C",
+   "file": "doc-f9jxte.pdf",
+   "kind": "email",
+   "date": "2023-12-13",
+   "author": "John Salmas (Dentons)",
+   "recipients": [
+    "Goodmans",
+    "FTI"
+   ],
+   "description": "John Salmas's December 13, 2023 11:12 a.m. email attaching Dentons' November 30 invoice #3812165",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached hereto as Exhibit “C”, is a copy of email correspondence sent by John Salmas"
+    }
+   ],
+   "content_check": "Five pages: email from John Salmas, Wednesday December 13, 2023 11:12 AM, 'RE: Trade X - Information Request - December 12, 2023', with an invoice"
+  },
+  {
+   "label": "D",
+   "file": "doc-feff8f.pdf",
+   "kind": "email",
+   "date": "2023-12-15",
+   "author": "Caroline Descours (Goodmans)",
+   "recipients": [
+    "The Respondents"
+   ],
+   "description": "Goodmans' December 15, 2023 12:41 p.m. email about the requests in the Information Officer Letter",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached hereto as Exhibit “D”, is a copy of email correspondence sent by Carolyn\nDescours of Goodmans to the Respondents on December 15, 2023"
+    }
+   ],
+   "content_check": "16 pages: email from Caroline Descours, Friday December 15, 2023 12:41 PM, 'RE: Trade X - Information Request - December 12, 2023', attaching the letter and the issued order"
+  },
+  {
+   "label": "E",
+   "file": "doc-wpnq9r.pdf",
+   "kind": "email",
+   "date": "2023-12-18",
+   "author": "Caroline Descours (Goodmans)",
+   "recipients": [
+    "The Respondents"
+   ],
+   "description": "Goodmans' December 18, 2023 8:56 a.m. email to the Respondents",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto as Exhibit “E”, is a copy of email correspondence sent by Caroline\nDescours of Goodmans, counsel to FTI, to the Respondents on December 18, 2023"
+    }
+   ],
+   "content_check": "Five pages: email from Caroline Descours, Monday December 18, 2023 8:56 AM, to Brent Sawadsky, Andrew Tymko, Lakshmi Suresh, John Salmas and others"
+  },
+  {
+   "label": "F",
+   "file": "doc-v6qha7.pdf",
+   "kind": "email",
+   "date": "2023-12-21",
+   "author": "John Salmas (Dentons)",
+   "recipients": [
+    "Paul Bishop (FTI)",
+    "Caroline Descours"
+   ],
+   "description": "John Salmas's December 21, 2023 11:03 a.m. email to FTI attaching Dentons' December 21 invoice",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto as Exhibit “F”, is a copy of email correspondence sent by John Salmas of\nDentons, counsel for the Respondents, to FTI on December 21, 2023"
+    }
+   ],
+   "content_check": "Four pages: email from John Salmas, Thursday December 21, 2023 11:03 AM, 'Dentons Canada Invoice', attaching invoice #3812165 for matter 585367-000019"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2023-11-30", "precision": "day", "description": "Dentons issued invoice #3812165 to the Respondents", "paragraphs": [4], "quote": "a November 30 invoice #3812165 issued by Dentons to the Respondents", "exhibits": ["C"]},
-  {"id": "e2", "date": "2023-12-11", "precision": "day", "description": "The Court granted the Information Officer Order appointing FTI as information officer", "paragraphs": [2], "quote": "the Information Officer Order granted on December 11, 2023.", "exhibits": ["A"]},
-  {"id": "e3", "date": "2023-12-12", "precision": "day", "description": "Goodmans sent the Respondents the Information Officer Letter requesting information, with the Order", "paragraphs": [2], "quote": "a letter dated December 12, 2023 (the “Information Officer Letter”) requesting", "exhibits": ["A"]},
-  {"id": "e4", "date": "2023-12-13", "precision": "day", "description": "Brent Sawadsky sought approval of expenses owing, sending a wages spreadsheet", "paragraphs": [3], "quote": "dated December 13, 2023 at 9:58 a.m., seeking approval", "exhibits": ["B"]},
-  {"id": "e5", "date": "2023-12-13", "precision": "day", "description": "John Salmas sent Goodmans and FTI the Dentons invoice", "paragraphs": [4], "quote": "on December 13, 2023, at 11:12 a.m.", "exhibits": ["C"]},
-  {"id": "e6", "date": "2023-12-15", "precision": "day", "description": "Goodmans followed up on the Information Officer Letter requests", "paragraphs": [5], "quote": "on December 15, 2023, at 12:41 p.m., in\nconnection with the requests detailed in the Information Officer Letter.", "exhibits": ["D"]},
-  {"id": "e7", "date": "2023-12-18", "precision": "day", "description": "Goodmans emailed the Respondents again", "paragraphs": [6], "quote": "to the Respondents on December 18, 2023, at 8:56", "exhibits": ["E"]},
-  {"id": "e8", "date": "2023-12-21", "precision": "day", "description": "John Salmas sent FTI Dentons' December 21 invoice", "paragraphs": [7], "quote": "to FTI on December 21, 2023, at 11:03 a.m.", "exhibits": ["F"]}
- ],
- "referenced_not_attached": [],
- "notes": "All six exhibits are near-identical email printouts from the same thread, distinguishable by date, time and sender."
+  {
+   "id": "e1",
+   "date": "2023-11-30",
+   "precision": "day",
+   "description": "Dentons issued invoice #3812165 to the Respondents",
+   "paragraphs": [
+    4
+   ],
+   "quote": "a November 30 invoice #3812165 issued by Dentons to the Respondents",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2023-12-11",
+   "precision": "day",
+   "description": "The Court granted the Information Officer Order appointing FTI as information officer",
+   "paragraphs": [
+    2
+   ],
+   "quote": "the Information Officer Order granted on December 11, 2023.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2023-12-12",
+   "precision": "day",
+   "description": "Goodmans sent the Respondents the Information Officer Letter requesting information, with the Order",
+   "paragraphs": [
+    2
+   ],
+   "quote": "a letter dated December 12, 2023 (the “Information Officer Letter”) requesting",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2023-12-13",
+   "precision": "day",
+   "description": "Brent Sawadsky sought approval of expenses owing, sending a wages spreadsheet",
+   "paragraphs": [
+    3
+   ],
+   "quote": "dated December 13, 2023 at 9:58 a.m., seeking approval",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2023-12-13",
+   "precision": "day",
+   "description": "John Salmas sent Goodmans and FTI the Dentons invoice",
+   "paragraphs": [
+    4
+   ],
+   "quote": "on December 13, 2023, at 11:12 a.m.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2023-12-15",
+   "precision": "day",
+   "description": "Goodmans followed up on the Information Officer Letter requests",
+   "paragraphs": [
+    5
+   ],
+   "quote": "on December 15, 2023, at 12:41 p.m., in\nconnection with the requests detailed in the Information Officer Letter.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2023-12-18",
+   "precision": "day",
+   "description": "Goodmans emailed the Respondents again",
+   "paragraphs": [
+    6
+   ],
+   "quote": "to the Respondents on December 18, 2023, at 8:56",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2023-12-21",
+   "precision": "day",
+   "description": "John Salmas sent FTI Dentons' December 21 invoice",
+   "paragraphs": [
+    7
+   ],
+   "quote": "to FTI on December 21, 2023, at 11:03 a.m.",
+   "exhibits": [
+    "F"
+   ]
+  }
+ ]
 }

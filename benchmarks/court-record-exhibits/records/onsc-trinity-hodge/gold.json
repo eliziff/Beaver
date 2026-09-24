@@ -9,38 +9,418 @@
  "deponent": "Matthew Hodge",
  "deponent_role": "Public health and preventive medicine and emergency physician; former co-lead for Epidemiology & Surveillance at Public Health Ontario",
  "sworn_date": "2021-07-02",
+ "referenced_not_attached": [
+  "Affidavits of Dr. Warren, Dr. Schabas and Dr. Kettner (responded to)",
+  "Other sources cited only in footnotes without exhibit letters"
+ ],
+ "leak_waivers": [],
+ "notes": "Most exhibits are cited in footnotes; the paragraph cited is the one whose page carries the footnote as the paragraph finder assigns it. Several web printouts (D, E, K, P, Q, R) have font-encoded text layers that do not extract.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-u89g82.pdf", "kind": "other", "date": null, "author": "Matthew Hodge", "recipients": [], "description": "His curriculum vitae", "references": [{"paragraph": 4, "quote": "My curriculum vitae is attached to this affidavit as Exhibit \"A\"."}], "content_check": "2 pages: CV of Matthew Hodge, MDCM, PhD, CCFP(EM), FRCPC"},
-  {"label": "B", "file": "doc-jnadrt.pdf", "kind": "court_filing", "date": null, "author": "Matthew Hodge", "recipients": [], "description": "His signed Acknowledgment of Expert's Duty", "references": [{"paragraph": 5, "quote": "My signed Acknowledgment of Expert's Duty is attached to this Affidavit as Exhibit \"B\"."}], "content_check": "2 pages with no usable text layer: Form 53 Acknowledgment of Expert's Duty"},
-  {"label": "C", "file": "doc-fvd3up.pdf", "kind": "report", "date": "2013-03", "author": "Ontario Ministry of Health and Long-Term Care, Emergency Management Branch", "recipients": [], "description": "Ontario's Health Plan for an Influenza Pandemic (March 2013)", "references": [{"paragraph": 9, "quote": "Ontario, Ministry of Health and Long-Term Care, Emergency Management Branch"}], "content_check": "35 pages: 'Ontario Health Plan for an Influenza Pandemic, Chapter 1: Introduction, March, 2013'"},
-  {"label": "D", "file": "doc-vygtyv.pdf", "kind": "webpage", "date": "2020-10-12", "author": "World Health Organization", "recipients": [], "description": "WHO Q&A page 'Coronavirus disease (COVID-19)' (October 12, 2020)", "references": [{"paragraph": 13, "quote": "World Health Organization, \"Coronavirus disease (COVID-19)\" (October 12, 2020)"}], "content_check": "3 pages of a web printout with an unreadable text layer (font-encoded)"},
-  {"label": "E", "file": "doc-zts77d.pdf", "kind": "webpage", "date": "2021-06-24", "author": "Public Health Ontario", "recipients": [], "description": "Public Health Ontario 'Ontario COVID-19 Data Tool' summary tab, accessed June 24, 2021", "references": [{"paragraph": 13, "quote": "Public Health Ontario, \"Ontario COVID-19 Data Tool\""}], "content_check": "4 pages of a web printout with an unreadable text layer"},
-  {"label": "F", "file": "doc-gj59ma.pdf", "kind": "webpage", "date": "2021-06-29", "author": "Government of Canada", "recipients": [], "description": "'COVID-19 Daily Epidemiology Update' (June 29, 2021)", "references": [{"paragraph": 13, "quote": "Canada, \"COVID-19 Daily Epidemiology Update\" (June 29, 2021)"}], "content_check": "19 pages: 'COVID-19 daily epidemiology update, Updated: June 29, 2021, 7 pm EST'"},
-  {"label": "G", "file": "doc-mw2ba8.pdf", "kind": "webpage", "date": "2021-06-30", "author": "World Health Organization", "recipients": [], "description": "WHO Coronavirus (COVID-19) Dashboard (June 30, 2021)", "references": [{"paragraph": 13, "quote": "World Health Organization, \"WHO Coronavirus (COVID-19) Dashboard\" (June 30, 2021)"}], "content_check": "1 page, image only: WHO dashboard printout"},
-  {"label": "H", "file": "doc-x93ceh.pdf", "kind": "report", "date": "2021-03-29", "author": "Tuite AR, Fisman DN, Odutayo A, et al. (Ontario COVID-19 Science Advisory Table)", "recipients": [], "description": "Science brief 'COVID-19 hospitalizations, ICU admissions and deaths associated with the new variants of concern'", "references": [{"paragraph": 15, "quote": "Tuite AR, Fisman DN, Odutayo A, et al."}], "content_check": "10 pages: Ontario Science Table brief dated March 29, 2021 by Tuite, Fisman, Odutayo et al."},
-  {"label": "I", "file": "doc-4e7eqe.pdf", "kind": "report", "date": "2021-06-23", "author": "Public Health Ontario", "recipients": [], "description": "Weekly Epidemiological Summary: SARS-CoV-2 Whole Genome Sequencing in Ontario, June 23, 2021", "references": [{"paragraph": 15, "quote": "Weekly Epidemiological Summary: SARS-CoV-2 Whole Genome"}], "content_check": "17 pages: PHO 'SARS-CoV-2 Whole Genome Sequencing in Ontario' weekly epidemiological summary"},
-  {"label": "J", "file": "doc-uej9xt.pdf", "kind": "report", "date": "2021-05-21", "author": "Public Health Ontario", "recipients": [], "description": "'Synthesis: COVID-19 Transmission Through Large Respiratory Droplets and Aerosols - What We Know So Far' (May 21, 2021)", "references": [{"paragraph": 19, "quote": "Public Health Ontario, \"Synthesis: COVID-19 Transmission Through Large Respiratory"}], "content_check": "25 pages: PHO synthesis on transmission through droplets and aerosols"},
-  {"label": "K", "file": "doc-bhpyg7.pdf", "kind": "webpage", "date": "2021-04-30", "author": "World Health Organization", "recipients": [], "description": "WHO Q&A 'Coronavirus disease (COVID-19): How is it transmitted?'", "references": [{"paragraph": 22, "quote": "World Health Organization, \"Coronavirus disease (COVID-19): How is it transmitted?\""}], "content_check": "4 pages of a web printout with an unreadable text layer"},
-  {"label": "L", "file": "doc-gurywh.pdf", "kind": "other", "date": null, "author": "World Health Organization", "recipients": [], "description": "WHO poster 'Avoid the Three Cs'", "references": [{"paragraph": 22, "quote": "World Health Organization, \"Avoid the Three Cs\""}], "content_check": "1 page: WHO 'Avoid the Three Cs' infographic (no usable text layer)"},
-  {"label": "M", "file": "doc-h7t7es.pdf", "kind": "report", "date": "2020", "author": "Valentyn Stadnytskyi et al.", "recipients": [], "description": "PNAS article 'The airborne lifetime of small speech droplets and their potential importance in SARS-CoV-2 transmission'", "references": [{"paragraph": 24, "quote": "Valentyn Stadnytskyi et al"}], "content_check": "3 pages: the Stadnytskyi et al. PNAS brief report"},
-  {"label": "N", "file": "doc-3hdq9q.pdf", "kind": "report", "date": "2021-03-31", "author": "Sarah A. Buchan et al.", "recipients": [], "description": "Pre-print 'Increased household secondary attack rates with Variant of Concern SARS-CoV-2 index cases'", "references": [{"paragraph": 24, "quote": "Sarah A. Buchan et al."}, {"paragraph": 56, "quote": "supra note 28"}], "content_check": "11 pages: Buchan et al. medRxiv pre-print on household secondary attack rates"},
-  {"label": "O", "file": "doc-hfbz7c.pdf", "kind": "report", "date": "2019", "author": "Sima Asadi et al.", "recipients": [], "description": "Scientific Reports article 'Aerosol emission and superemission during human speech increase with voice loudness'", "references": [{"paragraph": 29, "quote": "Sima Asadi et al."}], "content_check": "10 pages: Scientific Reports (2019) 9:2348 article by Asadi et al."},
-  {"label": "P", "file": "doc-shjek4.pdf", "kind": "webpage", "date": "2021-07-01", "author": "Government of Ontario", "recipients": [], "description": "'Reopening Ontario' web page, accessed July 1, 2021", "references": [{"paragraph": 44, "quote": "Ontario, \"Reopening Ontario\""}], "content_check": "16 pages of a web printout with an unreadable text layer"},
-  {"label": "Q", "file": "doc-tfxd3n.pdf", "kind": "webpage", "date": null, "author": "City of Toronto", "recipients": [], "description": "City of Toronto page 'Programs & Services for Tuberculosis (TB)'", "references": [{"paragraph": 47, "quote": "City of Toronto, \"Programs & Services for Tuberculosis (TB)\""}], "content_check": "4 pages of a web printout with an unreadable text layer"},
-  {"label": "R", "file": "doc-zguaa5.pdf", "kind": "webpage", "date": "2021-06-27", "author": "Public Health Ontario", "recipients": [], "description": "Public Health Ontario 'Ontario COVID-19 Data Tool' (regional tab), accessed June 27, 2021", "references": [{"paragraph": 58, "quote": "Public Health Ontario, \"Ontario COVID-19 Data Tool\""}], "content_check": "3 pages of a web printout with an unreadable text layer"}
+  {
+   "label": "A",
+   "file": "doc-u89g82.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Matthew Hodge",
+   "recipients": [],
+   "description": "His curriculum vitae",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "My curriculum vitae is attached to this affidavit as Exhibit \"A\"."
+    }
+   ],
+   "content_check": "2 pages: CV of Matthew Hodge, MDCM, PhD, CCFP(EM), FRCPC"
+  },
+  {
+   "label": "B",
+   "file": "doc-jnadrt.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Matthew Hodge",
+   "recipients": [],
+   "description": "His signed Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "My signed Acknowledgment of Expert's Duty is attached to this Affidavit as Exhibit \"B\"."
+    }
+   ],
+   "content_check": "2 pages with no usable text layer: Form 53 Acknowledgment of Expert's Duty"
+  },
+  {
+   "label": "C",
+   "file": "doc-fvd3up.pdf",
+   "kind": "report",
+   "date": "2013-03",
+   "author": "Ontario Ministry of Health and Long-Term Care, Emergency Management Branch",
+   "recipients": [],
+   "description": "Ontario's Health Plan for an Influenza Pandemic (March 2013)",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Ontario, Ministry of Health and Long-Term Care, Emergency Management Branch"
+    }
+   ],
+   "content_check": "35 pages: 'Ontario Health Plan for an Influenza Pandemic, Chapter 1: Introduction, March, 2013'"
+  },
+  {
+   "label": "D",
+   "file": "doc-vygtyv.pdf",
+   "kind": "webpage",
+   "date": "2020-10-12",
+   "author": "World Health Organization",
+   "recipients": [],
+   "description": "WHO Q&A page 'Coronavirus disease (COVID-19)' (October 12, 2020)",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "World Health Organization, \"Coronavirus disease (COVID-19)\" (October 12, 2020)"
+    }
+   ],
+   "content_check": "3 pages of a web printout with an unreadable text layer (font-encoded)"
+  },
+  {
+   "label": "E",
+   "file": "doc-zts77d.pdf",
+   "kind": "webpage",
+   "date": "2021-06-24",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "Public Health Ontario 'Ontario COVID-19 Data Tool' summary tab, accessed June 24, 2021",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Public Health Ontario, \"Ontario COVID-19 Data Tool\""
+    }
+   ],
+   "content_check": "4 pages of a web printout with an unreadable text layer"
+  },
+  {
+   "label": "F",
+   "file": "doc-gj59ma.pdf",
+   "kind": "webpage",
+   "date": "2021-06-29",
+   "author": "Government of Canada",
+   "recipients": [],
+   "description": "'COVID-19 Daily Epidemiology Update' (June 29, 2021)",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Canada, \"COVID-19 Daily Epidemiology Update\" (June 29, 2021)"
+    }
+   ],
+   "content_check": "19 pages: 'COVID-19 daily epidemiology update, Updated: June 29, 2021, 7 pm EST'"
+  },
+  {
+   "label": "G",
+   "file": "doc-mw2ba8.pdf",
+   "kind": "webpage",
+   "date": "2021-06-30",
+   "author": "World Health Organization",
+   "recipients": [],
+   "description": "WHO Coronavirus (COVID-19) Dashboard (June 30, 2021)",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "World Health Organization, \"WHO Coronavirus (COVID-19) Dashboard\" (June 30, 2021)"
+    }
+   ],
+   "content_check": "1 page, image only: WHO dashboard printout"
+  },
+  {
+   "label": "H",
+   "file": "doc-x93ceh.pdf",
+   "kind": "report",
+   "date": "2021-03-29",
+   "author": "Tuite AR, Fisman DN, Odutayo A, et al. (Ontario COVID-19 Science Advisory Table)",
+   "recipients": [],
+   "description": "Science brief 'COVID-19 hospitalizations, ICU admissions and deaths associated with the new variants of concern'",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Tuite AR, Fisman DN, Odutayo A, et al."
+    }
+   ],
+   "content_check": "10 pages: Ontario Science Table brief dated March 29, 2021 by Tuite, Fisman, Odutayo et al."
+  },
+  {
+   "label": "I",
+   "file": "doc-4e7eqe.pdf",
+   "kind": "report",
+   "date": "2021-06-23",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "Weekly Epidemiological Summary: SARS-CoV-2 Whole Genome Sequencing in Ontario, June 23, 2021",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Weekly Epidemiological Summary: SARS-CoV-2 Whole Genome"
+    }
+   ],
+   "content_check": "17 pages: PHO 'SARS-CoV-2 Whole Genome Sequencing in Ontario' weekly epidemiological summary"
+  },
+  {
+   "label": "J",
+   "file": "doc-uej9xt.pdf",
+   "kind": "report",
+   "date": "2021-05-21",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "'Synthesis: COVID-19 Transmission Through Large Respiratory Droplets and Aerosols - What We Know So Far' (May 21, 2021)",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Public Health Ontario, \"Synthesis: COVID-19 Transmission Through Large Respiratory"
+    }
+   ],
+   "content_check": "25 pages: PHO synthesis on transmission through droplets and aerosols"
+  },
+  {
+   "label": "K",
+   "file": "doc-bhpyg7.pdf",
+   "kind": "webpage",
+   "date": "2021-04-30",
+   "author": "World Health Organization",
+   "recipients": [],
+   "description": "WHO Q&A 'Coronavirus disease (COVID-19): How is it transmitted?'",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "World Health Organization, \"Coronavirus disease (COVID-19): How is it transmitted?\""
+    }
+   ],
+   "content_check": "4 pages of a web printout with an unreadable text layer"
+  },
+  {
+   "label": "L",
+   "file": "doc-gurywh.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "World Health Organization",
+   "recipients": [],
+   "description": "WHO poster 'Avoid the Three Cs'",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "World Health Organization, \"Avoid the Three Cs\""
+    }
+   ],
+   "content_check": "1 page: WHO 'Avoid the Three Cs' infographic (no usable text layer)"
+  },
+  {
+   "label": "M",
+   "file": "doc-h7t7es.pdf",
+   "kind": "report",
+   "date": "2020",
+   "author": "Valentyn Stadnytskyi et al.",
+   "recipients": [],
+   "description": "PNAS article 'The airborne lifetime of small speech droplets and their potential importance in SARS-CoV-2 transmission'",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Valentyn Stadnytskyi et al"
+    }
+   ],
+   "content_check": "3 pages: the Stadnytskyi et al. PNAS brief report"
+  },
+  {
+   "label": "N",
+   "file": "doc-3hdq9q.pdf",
+   "kind": "report",
+   "date": "2021-03-31",
+   "author": "Sarah A. Buchan et al.",
+   "recipients": [],
+   "description": "Pre-print 'Increased household secondary attack rates with Variant of Concern SARS-CoV-2 index cases'",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Sarah A. Buchan et al."
+    },
+    {
+     "paragraph": 56,
+     "quote": "supra note 28"
+    }
+   ],
+   "content_check": "11 pages: Buchan et al. medRxiv pre-print on household secondary attack rates"
+  },
+  {
+   "label": "O",
+   "file": "doc-hfbz7c.pdf",
+   "kind": "report",
+   "date": "2019",
+   "author": "Sima Asadi et al.",
+   "recipients": [],
+   "description": "Scientific Reports article 'Aerosol emission and superemission during human speech increase with voice loudness'",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Sima Asadi et al."
+    }
+   ],
+   "content_check": "10 pages: Scientific Reports (2019) 9:2348 article by Asadi et al."
+  },
+  {
+   "label": "P",
+   "file": "doc-shjek4.pdf",
+   "kind": "webpage",
+   "date": "2021-07-01",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "'Reopening Ontario' web page, accessed July 1, 2021",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "Ontario, \"Reopening Ontario\""
+    }
+   ],
+   "content_check": "16 pages of a web printout with an unreadable text layer"
+  },
+  {
+   "label": "Q",
+   "file": "doc-tfxd3n.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "City of Toronto",
+   "recipients": [],
+   "description": "City of Toronto page 'Programs & Services for Tuberculosis (TB)'",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "City of Toronto, \"Programs & Services for Tuberculosis (TB)\""
+    }
+   ],
+   "content_check": "4 pages of a web printout with an unreadable text layer"
+  },
+  {
+   "label": "R",
+   "file": "doc-zguaa5.pdf",
+   "kind": "webpage",
+   "date": "2021-06-27",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "Public Health Ontario 'Ontario COVID-19 Data Tool' (regional tab), accessed June 27, 2021",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "Public Health Ontario, \"Ontario COVID-19 Data Tool\""
+    }
+   ],
+   "content_check": "3 pages of a web printout with an unreadable text layer"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1995", "precision": "year", "description": "Hodge obtained a PhD in Epidemiology & Biostatistics from McGill (MD 1996)", "paragraphs": [2], "quote": "I graduated with an MD (1996) and PhD (Epidemiology & Biostatistics, 1995) from McGill", "exhibits": ["A"]},
-  {"id": "e2", "date": "2000", "precision": "year", "description": "He completed PHPM specialty training at the University of Toronto", "paragraphs": [2], "quote": "completed PHPM specialty training at the University of Toronto in 2000", "exhibits": ["A"]},
-  {"id": "e3", "date": "2020-03-17", "precision": "day", "description": "Ontario declared an emergency in response to the pandemic; Hodge then spent six months assisting Peel Public Health", "paragraphs": [3], "quote": "Following the province's declaration of an emergency in response to the Pandemic on March 17, 2020", "exhibits": []},
-  {"id": "e4", "date": "2020-10", "precision": "month", "description": "He joined Public Health Ontario", "paragraphs": [1], "quote": "I joined Public Health Ontario", "exhibits": []},
-  {"id": "e5", "date": "2020-11", "precision": "range", "description": "He was co-lead for Epidemiology & Surveillance at PHO from November 2020 until April 9, 2021", "paragraphs": [1], "quote": "until April 9, 2021", "exhibits": []},
-  {"id": "e6", "date": "2021-04-12", "precision": "day", "description": "Niagara region's highest daily new case count (200 cases)", "paragraphs": [56], "quote": "(200 cases, April 12, 2021)", "exhibits": ["N"]},
-  {"id": "e7", "date": "2021-06-18", "precision": "day", "description": "By June 18, 2021 Ontario health units had reported 59 outbreaks at places of worship with 526 cases", "paragraphs": [28], "quote": "Through June 18, 2021, Ontario's 34 local public health units reported 59 outbreaks", "exhibits": []},
-  {"id": "e8", "date": "2021-06-24", "precision": "day", "description": "Cumulative Ontario COVID-19 counts as of June 24, 2021: 543,571 cases, 27,643 hospitalizations, 9,101 deaths", "paragraphs": [12], "quote": "as of June 24, 2021 (Ontario)", "exhibits": ["E", "F", "G"]},
-  {"id": "e9", "date": "2021-07-02", "precision": "day", "description": "Hodge affirmed the expert affidavit", "paragraphs": [5], "quote": "I have been asked to provide an expert opinion", "exhibits": ["B"]}
- ],
- "referenced_not_attached": ["Affidavits of Dr. Warren, Dr. Schabas and Dr. Kettner (responded to)", "Other sources cited only in footnotes without exhibit letters"],
- "leak_waivers": [],
- "notes": "Most exhibits are cited in footnotes; the paragraph cited is the one whose page carries the footnote as the paragraph finder assigns it. Several web printouts (D, E, K, P, Q, R) have font-encoded text layers that do not extract."
+  {
+   "id": "e1",
+   "date": "1995",
+   "precision": "year",
+   "description": "Hodge obtained a PhD in Epidemiology & Biostatistics from McGill (MD 1996)",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I graduated with an MD (1996) and PhD (Epidemiology & Biostatistics, 1995) from McGill",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2000",
+   "precision": "year",
+   "description": "He completed PHPM specialty training at the University of Toronto",
+   "paragraphs": [
+    2
+   ],
+   "quote": "completed PHPM specialty training at the University of Toronto in 2000",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2020-03-17",
+   "precision": "day",
+   "description": "Ontario declared an emergency in response to the pandemic; Hodge then spent six months assisting Peel Public Health",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Following the province's declaration of an emergency in response to the Pandemic on March 17, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2020-10",
+   "precision": "month",
+   "description": "He joined Public Health Ontario",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I joined Public Health Ontario",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2020-11",
+   "precision": "range",
+   "description": "He was co-lead for Epidemiology & Surveillance at PHO from November 2020 until April 9, 2021",
+   "paragraphs": [
+    1
+   ],
+   "quote": "until April 9, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2021-04-12",
+   "precision": "day",
+   "description": "Niagara region's highest daily new case count (200 cases)",
+   "paragraphs": [
+    56
+   ],
+   "quote": "(200 cases, April 12, 2021)",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2021-06-18",
+   "precision": "day",
+   "description": "By June 18, 2021 Ontario health units had reported 59 outbreaks at places of worship with 526 cases",
+   "paragraphs": [
+    28
+   ],
+   "quote": "Through June 18, 2021, Ontario's 34 local public health units reported 59 outbreaks",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2021-06-24",
+   "precision": "day",
+   "description": "Cumulative Ontario COVID-19 counts as of June 24, 2021: 543,571 cases, 27,643 hospitalizations, 9,101 deaths",
+   "paragraphs": [
+    12
+   ],
+   "quote": "as of June 24, 2021 (Ontario)",
+   "exhibits": [
+    "E",
+    "F",
+    "G"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2021-07-02",
+   "precision": "day",
+   "description": "Hodge affirmed the expert affidavit",
+   "paragraphs": [
+    5
+   ],
+   "quote": "I have been asked to provide an expert opinion",
+   "exhibits": [
+    "B"
+   ]
+  }
+ ]
 }

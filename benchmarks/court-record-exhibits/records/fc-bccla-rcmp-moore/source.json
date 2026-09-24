@@ -1,0 +1,19 @@
+{
+ "url": "https://bccla.org/wp-content/uploads/2021/04/2020-11-17-Affidavit-of-Trudy-Moore.pdf",
+ "landing_url": "https://bccla.org/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1347-20",
+ "document_title": "Affidavit of Trudy Moore affirmed November 17, 2020, British Columbia Civil Liberties Association v. RCMP Commissioner Brenda Lucki et al. (application for mandamus re CRCC complaint)",
+ "retrieved": "2026-09-23",
+ "record_id": "fc-bccla-rcmp-moore",
+ "source_file": "lb-2020-11-17-affidavit-of-trudy-moore.pdf",
+ "page_range": [
+  1,
+  49
+ ],
+ "source_sha256": "acd8ceec34e136fb9167bc0daf1f6aa84f33876be0002e204d54cf444a1eda8d",
+ "source_pages": 49,
+ "covers": "A=4,B=10,C=12,D=15,E=18,F=21,G=23,H=25,I=28,J=31,K=34,L=37,M=41,N=43,O=46,P=48"
+}

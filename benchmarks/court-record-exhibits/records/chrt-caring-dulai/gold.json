@@ -1,0 +1,342 @@
+{
+ "record_id": "chrt-caring-dulai",
+ "court": "Canadian Human Rights Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "T1340/7008",
+ "subject": "human_rights",
+ "family": "fncfcs-chrt-t1340",
+ "proceeding": "First Nations Child and Family Caring Society of Canada and Assembly of First Nations v. Attorney General of Canada: National Children's Chiefs Commission motion for interested party status (Chiefs of Ontario's evidence)",
+ "document": "Affidavit of Summer Dulai affirmed February 2, 2026",
+ "deponent": "Summer Dulai",
+ "deponent_role": "Legal assistant, Olthuis Kleer Townshend LLP (counsel for Chiefs of Ontario)",
+ "sworn_date": "2026-02-02",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-wy4puh.pdf",
+   "kind": "letter",
+   "date": "2025-02-10",
+   "author": "CHRT Registry Officer, for the Panel",
+   "recipients": [
+    "Parties"
+   ],
+   "description": "Tribunal letter on behalf of the Panel to the parties",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "On February 10, 2025, the Registry Officer of the Canadian Human Rights Tribunal"
+    }
+   ],
+   "content_check": "Tribunal letter dated February 10, 2025 'Dear Parties', Re: FNCFCS et al. v. AGC, T1340/7008, with distribution list"
+  },
+  {
+   "label": "B",
+   "file": "doc-y7ydee.pdf",
+   "kind": "letter",
+   "date": "2025-04-24",
+   "author": "Peter Mantas (Fasken), counsel for the AFN",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "AFN counsel letter to the Tribunal",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "On April 24, 2025, Peter Mantas, counsel for the Assembly of First Nations"
+    }
+   ],
+   "content_check": "Fasken letter dated April 24, 2025 from Peter N. Mantas to Judy Dubois, CHRT Registry"
+  },
+  {
+   "label": "C",
+   "file": "doc-jw3fxt.pdf",
+   "kind": "letter",
+   "date": "2025-09-25",
+   "author": "Sarah Clarke, counsel for the Caring Society",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Caring Society counsel letter to the Tribunal enclosing will-say statements",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "On September 25, 2025, Sarah Clarke, counsel for the First Nations Child and Family"
+    }
+   ],
+   "content_check": "Letter dated September 25, 2025 to Judy Dubois enclosing will say statements of Fallon, Neu and Kaur, signed Sarah Clarke"
+  },
+  {
+   "label": "D",
+   "file": "doc-8umkep.pdf",
+   "kind": "letter",
+   "date": "2025-09-25",
+   "author": "Justin Safayeni (Stockwoods), counsel for Chippewas of Georgina Island and Taykwa Tagamou Nation",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Letter to the Tribunal from counsel for Chippewas of Georgina Island and Taykwa Tagamou Nation",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "On September 25, 2025, Justin Safayeni, counsel for Chippewas of Georgina Island First"
+    }
+   ],
+   "content_check": "Stockwoods letter dated September 25, 2025 from Justin Safayeni to the CHRT registry"
+  },
+  {
+   "label": "E",
+   "file": "doc-rkybbn.pdf",
+   "kind": "letter",
+   "date": "2025-09-22",
+   "author": "Sarah Clarke, counsel for the Caring Society",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Caring Society's September 2025 CHRT 80 update letter",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "On September 22, 2025, Sarah Clarke, counsel for the Caring Society, sent a letter to the"
+    }
+   ],
+   "content_check": "Letter dated September 22, 2025 to Judy Dubois re 2025 CHRT 80 implementation update"
+  },
+  {
+   "label": "F",
+   "file": "doc-dg4hvd.pdf",
+   "kind": "report",
+   "date": "2025-10-16",
+   "author": "Sarah Clarke, counsel for the Caring Society",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Caring Society Report to the CHRT (October 2025) with enclosing email",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "On October 16, 2025, Sarah Clarke, counsel for the Caring Society, sent a document titled"
+    }
+   ],
+   "content_check": "Page 1 image-only Outlook email from Sarah Clarke Thu 10/16/2025 'Monthly Update - 2025 CHRT 80'; then 'Caring Society Report to the Canadian Human Rights Tribunal' October 16 and resources sheet"
+  },
+  {
+   "label": "G",
+   "file": "doc-kfefgd.pdf",
+   "kind": "report",
+   "date": "2025-11-21",
+   "author": "David Taylor, counsel for the Caring Society",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Caring Society Update to the CHRT (November 2025) with enclosing email",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "On November 21, 2025, David Taylor, counsel for the Caring Society, sent a document titled"
+    }
+   ],
+   "content_check": "Page 1 image-only Outlook email from David Taylor Fri 11/21/2025 'Caring Society November Report'; then 'Caring Society Update to the CHRT November 2025'"
+  },
+  {
+   "label": "H",
+   "file": "doc-jef6p2.pdf",
+   "kind": "letter",
+   "date": "2025-12-22",
+   "author": "Peter Mantas (Fasken), counsel for the AFN",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "AFN counsel letter to the Tribunal (with attached Bisson letter)",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "On December 22, 2025, Peter Mantas, counsel for the AFN, sent a letter to the Tribunal"
+    }
+   ],
+   "content_check": "Fasken letter dated December 22, 2025 from Peter Mantas to the CHRT, followed by AFN letterhead letter of December 22"
+  },
+  {
+   "label": "I",
+   "file": "doc-be5qa4.pdf",
+   "kind": "webpage",
+   "date": "2025-12-22",
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "NCCC press release on the Loving Justice National Plan",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A copy of this press release is attached as Exhibit “I”"
+    }
+   ],
+   "content_check": "Image-only: ourchildrenourway.ca page 'Update: Now available - Loving Justice National Plan & Dr. C. Blackstock Affidavit', NCCC, dated December 22, 2025"
+  },
+  {
+   "label": "J",
+   "file": "doc-6rz4h8.pdf",
+   "kind": "report",
+   "date": "2026-01-29",
+   "author": "David Taylor, counsel for the Caring Society",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Caring Society Report on implementation of 2025 CHRT 80 (January 2026) with enclosing email",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "On January 29, 2026, David Taylor, counsel for the Caring Society, sent a document titled"
+    }
+   ],
+   "content_check": "Page 1 image-only Outlook email from David Taylor Thu 1/29/2026 'Caring Society January Report'; then report dated 2026-01-29"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Tribunal Registry sends a letter on behalf of the Panel to the parties",
+   "date": "2025-02-10",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On February 10, 2025, the Registry Officer of the Canadian Human Rights Tribunal",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "AFN counsel writes to the Tribunal",
+   "date": "2025-04-24",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On April 24, 2025, Peter Mantas, counsel for the Assembly of First Nations",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Caring Society counsel writes to the Tribunal",
+   "date": "2025-09-25",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On September 25, 2025, Sarah Clarke, counsel for the First Nations Child and Family",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Counsel for Georgina Island and Taykwa Tagamou write to the Tribunal",
+   "date": "2025-09-25",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On September 25, 2025, Justin Safayeni, counsel for Chippewas of Georgina Island First",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Caring Society sends its September 2025 CHRT 80 update",
+   "date": "2025-09-22",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On September 22, 2025, Sarah Clarke, counsel for the Caring Society, sent a letter to the",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Caring Society sends its October 2025 report",
+   "date": "2025-10-16",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On October 16, 2025, Sarah Clarke, counsel for the Caring Society, sent a document titled",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Caring Society sends its November 2025 update",
+   "date": "2025-11-21",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On November 21, 2025, David Taylor, counsel for the Caring Society, sent a document titled",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "AFN counsel writes to the Tribunal",
+   "date": "2025-12-22",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On December 22, 2025, Peter Mantas, counsel for the AFN, sent a letter to the Tribunal",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "NCCC publishes the Loving Justice National Plan press release",
+   "date": "2025-12-22",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On December 22, 2025, the National Children’s Chiefs Commission published a press release",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Caring Society sends its January 2026 report",
+   "date": "2026-01-29",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On January 29, 2026, David Taylor, counsel for the Caring Society, sent a document titled",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Deponent retrieves the NCCC press release from ourchildrenourway.ca",
+   "date": "2026-01-27",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On January 27, 2026, I retrieved a",
+   "exhibits": [
+    "I"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Letter of Andrew Bisson attached to the AFN's December 22, 2025 letter is inside Exhibit H"
+ ]
+}

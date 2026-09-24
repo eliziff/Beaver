@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/onsc-bill7-carpenter/notice-of-application.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Notice-of-Application-April-12-2023.pdf",
+  "title": "Notice of Application (Charter), April 12, 2023",
+  "kind": "court_filing",
+  "relation": "originating process of this application"
+ },
+ {
+  "file": "raw/matter/onsc-bill7-carpenter/respondent-factum.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Factum-Respondent-HMKRO-02-AUG-2024.pdf",
+  "title": "Factum of the Respondent His Majesty in right of Ontario, August 2, 2024",
+  "kind": "court_filing",
+  "relation": "respondent's argument relying on this affidavit"
+ }
+]

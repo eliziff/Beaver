@@ -1,0 +1,48 @@
+{
+ "record_id": "chrt-caring-bisson",
+ "affidavit_pages": [
+  1,
+  2,
+  3
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-s9aaes.pdf",
+   "source_pages": [
+    5,
+    6,
+    7
+   ],
+   "cover_page": 4,
+   "stamp_page": null,
+   "text_chars": 6714
+  },
+  {
+   "label": "B",
+   "file": "doc-epq4j8.pdf",
+   "source_pages": [
+    9,
+    10
+   ],
+   "cover_page": 8,
+   "stamp_page": null,
+   "text_chars": 5145
+  },
+  {
+   "label": "C",
+   "file": "doc-u8cra6.pdf",
+   "source_pages": [
+    12,
+    13,
+    14
+   ],
+   "cover_page": 11,
+   "stamp_page": null,
+   "text_chars": 9228
+  }
+ ],
+ "leak_audit": []
+}

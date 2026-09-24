@@ -9,50 +9,540 @@
  "deponent": "James Common",
  "deponent_role": "Proposed representative applicant; retired Hudson's Bay Company employee and Dumai Plan member",
  "sworn_date": "2026-06-05",
+ "referenced_not_attached": [
+  "HBC Plan Wind-Up Report dated April 30, 2026 (Drake affidavit)",
+  "January 1, 2018 HBC Plan text restatement",
+  "Segal report to Koskie Minsky"
+ ],
+ "leak_waivers": [],
+ "notes": "Every cover in the posted record reads 'Exhibit \"A\"' (a copying error), so covers A-K were given with --covers from the record's index. Exhibit E's face date (September 16, 2009) differs from the affidavit's 'August 20, 2009'; paragraph 38 dates the FSRA notice October 20, 2025 while calling it 'dated September 8, 2025'.",
+ "subject": "class_action",
  "exhibits": [
-  {"label": "A", "file": "doc-6mfnrk.pdf", "kind": "court_order", "date": "2005-04-28", "author": "Justice Cullity, Ontario Superior Court of Justice", "recipients": [], "description": "Certification order in Sutherland v. Hudson's Bay Company", "references": [{"paragraph": 14, "quote": "A copy of that certification\norder is attached hereto as Exhibit \"A\"."}], "content_check": "6 scanned pages: 'Schedule C' order of Justice Cullity dated the 28th day of April, 2005 certifying Sutherland and Scott v. The Hudson's Bay Company Limited et al. (02-CV-233990CP)"},
-  {"label": "B", "file": "doc-k5vtnu.pdf", "kind": "court_order", "date": "2007-07-31", "author": "Ontario Superior Court of Justice (trial judge)", "recipients": [], "description": "Trial decision in Sutherland (2007)", "references": [{"paragraph": 15, "quote": "Copies of the decision and order of Sutherland (2007) are attached hereto as Exhibits"}], "content_check": "82 scanned pages: reasons in 02-CV-233990CP dated 20070731, heard January-February 2007"},
-  {"label": "C", "file": "doc-r2d928.pdf", "kind": "court_order", "date": "2007-07-31", "author": "Ontario Superior Court of Justice (trial judge)", "recipients": [], "description": "Trial order in Sutherland (2007)", "references": [{"paragraph": 15, "quote": "Copies of the decision and order of Sutherland (2007) are attached hereto as Exhibits"}], "content_check": "4 scanned pages: judgment/order in Sutherland v. Hudson's Bay Company"},
-  {"label": "D", "file": "doc-7sbepp.pdf", "kind": "court_order", "date": "2011-09-22", "author": "Court of Appeal for Ontario (Gillese, MacFarland and Rouleau JJ.A.)", "recipients": [], "description": "Ontario Court of Appeal decision of September 22, 2011 in Sutherland (2011)", "references": [{"paragraph": 15, "quote": "is attached hereto as Exhibit \"D\"."}], "content_check": "45 pages: Sutherland v. Hudson's Bay Company, 2011 ONCA 606, dated 20110922, docket C47636"},
-  {"label": "E", "file": "doc-d4rvvy.pdf", "kind": "court_order", "date": "2009-09-16", "author": "Justice Cullity, Ontario Superior Court of Justice", "recipients": [], "description": "Court order approving the settlement of the plaintiffs' appeal, described as dated August 20, 2009", "references": [{"paragraph": 22, "quote": "Attached hereto as Exhibit"}], "content_check": "3 scanned pages: judgment of Justice Cullity dated the 16th day of September, 2009 approving a settlement, motion heard June 25, 2009 (the affidavit's 'August 20, 2009' does not match the face of the order)"},
-  {"label": "F", "file": "doc-zc9f3j.pdf", "kind": "court_order", "date": "2012-05-17", "author": "Supreme Court of Canada", "recipients": [], "description": "Supreme Court of Canada order denying HBC leave to appeal, May 17, 2012", "references": [{"paragraph": 24, "quote": "A copy of the Supreme\nCourt leave denial order dated May 17, 2012 is attached hereto as Exhibit \"F\"."}], "content_check": "2 pages: SCC judgment on leave No. 34532, May 17, 2012, McLachlin C.J. and Rothstein and Moldaver JJ."},
-  {"label": "G", "file": "doc-kn7mk9.pdf", "kind": "letter", "date": "2025-04-03", "author": "Financial Services Regulatory Authority of Ontario", "recipients": ["TELUS Health (Canada) Ltd."], "description": "FSRA Administrator Appointment Confirmation Letter of April 3, 2025", "references": [{"paragraph": 27, "quote": "Confirmation Letter of FSRA, dated April 3, 2025, is attached hereto as Exhibit \"G\"."}], "content_check": "1 page: FSRA letter from 25 Sheppard Avenue West confirming the administrator appointment"},
-  {"label": "H", "file": "doc-8ns9pz.pdf", "kind": "financial_statement", "date": "2024-12-31", "author": "HBC Pension Plan administrator", "recipients": ["James Common"], "description": "His 2024 Annual Dumai Pension Statement as of December 31, 2024", "references": [{"paragraph": 33, "quote": "is attached hereto as Exhibit \"H\"."}], "content_check": "2 scanned pages: annual pension statement"},
-  {"label": "I", "file": "doc-s7wsce.pdf", "kind": "notice", "date": "2025-09-08", "author": "Chief Executive Officer, Financial Services Regulatory Authority of Ontario", "recipients": ["Hudson's Bay Company Pension Plan"], "description": "FSRA Notice of Intended Decision to wind up the HBC Plan", "references": [{"paragraph": 38, "quote": "as Exhibit \"I\" is a copy of the Notice of Intended Decision to wind up the Plan dated September"}], "content_check": "3 pages: notice under the Pension Benefits Act ss. 69 and 89 in the matter of the Hudson's Bay Company Pension Plan"},
-  {"label": "J", "file": "doc-f9pvaj.pdf", "kind": "letter", "date": "2025-11-11", "author": "TELUS Health", "recipients": ["All HBC Plan members"], "description": "Letter from Telus to all HBC Plan members of November 11, 2025 about the wind-up", "references": [{"paragraph": 38, "quote": "as Exhibit \"J\" a copy of a letter sent by Telus to all HBC Plan members"}], "content_check": "3 pages: letter dated November 11, 2025 re Hudson's Bay Company Pension Plan (FSRA Registration Number 0291419)"},
-  {"label": "K", "file": "doc-yy9s9m.pdf", "kind": "court_filing", "date": null, "author": "Koskie Minsky LLP (proposed class counsel)", "recipients": [], "description": "Litigation plan", "references": [{"paragraph": 58, "quote": "Attached hereto as Exhibit \"K\" is a"}], "content_check": "9 pages: 'Litigation Plan' under the Scott and Common v. TELUS Health style of cause"}
+  {
+   "label": "A",
+   "file": "doc-6mfnrk.pdf",
+   "kind": "court_order",
+   "date": "2005-04-28",
+   "author": "Justice Cullity, Ontario Superior Court of Justice",
+   "recipients": [],
+   "description": "Certification order in Sutherland v. Hudson's Bay Company",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of that certification\norder is attached hereto as Exhibit \"A\"."
+    }
+   ],
+   "content_check": "6 scanned pages: 'Schedule C' order of Justice Cullity dated the 28th day of April, 2005 certifying Sutherland and Scott v. The Hudson's Bay Company Limited et al. (02-CV-233990CP)"
+  },
+  {
+   "label": "B",
+   "file": "doc-k5vtnu.pdf",
+   "kind": "court_order",
+   "date": "2007-07-31",
+   "author": "Ontario Superior Court of Justice (trial judge)",
+   "recipients": [],
+   "description": "Trial decision in Sutherland (2007)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Copies of the decision and order of Sutherland (2007) are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "82 scanned pages: reasons in 02-CV-233990CP dated 20070731, heard January-February 2007"
+  },
+  {
+   "label": "C",
+   "file": "doc-r2d928.pdf",
+   "kind": "court_order",
+   "date": "2007-07-31",
+   "author": "Ontario Superior Court of Justice (trial judge)",
+   "recipients": [],
+   "description": "Trial order in Sutherland (2007)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Copies of the decision and order of Sutherland (2007) are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "4 scanned pages: judgment/order in Sutherland v. Hudson's Bay Company"
+  },
+  {
+   "label": "D",
+   "file": "doc-7sbepp.pdf",
+   "kind": "court_order",
+   "date": "2011-09-22",
+   "author": "Court of Appeal for Ontario (Gillese, MacFarland and Rouleau JJ.A.)",
+   "recipients": [],
+   "description": "Ontario Court of Appeal decision of September 22, 2011 in Sutherland (2011)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "is attached hereto as Exhibit \"D\"."
+    }
+   ],
+   "content_check": "45 pages: Sutherland v. Hudson's Bay Company, 2011 ONCA 606, dated 20110922, docket C47636"
+  },
+  {
+   "label": "E",
+   "file": "doc-d4rvvy.pdf",
+   "kind": "court_order",
+   "date": "2009-09-16",
+   "author": "Justice Cullity, Ontario Superior Court of Justice",
+   "recipients": [],
+   "description": "Court order approving the settlement of the plaintiffs' appeal, described as dated August 20, 2009",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "3 scanned pages: judgment of Justice Cullity dated the 16th day of September, 2009 approving a settlement, motion heard June 25, 2009 (the affidavit's 'August 20, 2009' does not match the face of the order)"
+  },
+  {
+   "label": "F",
+   "file": "doc-zc9f3j.pdf",
+   "kind": "court_order",
+   "date": "2012-05-17",
+   "author": "Supreme Court of Canada",
+   "recipients": [],
+   "description": "Supreme Court of Canada order denying HBC leave to appeal, May 17, 2012",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "A copy of the Supreme\nCourt leave denial order dated May 17, 2012 is attached hereto as Exhibit \"F\"."
+    }
+   ],
+   "content_check": "2 pages: SCC judgment on leave No. 34532, May 17, 2012, McLachlin C.J. and Rothstein and Moldaver JJ."
+  },
+  {
+   "label": "G",
+   "file": "doc-kn7mk9.pdf",
+   "kind": "letter",
+   "date": "2025-04-03",
+   "author": "Financial Services Regulatory Authority of Ontario",
+   "recipients": [
+    "TELUS Health (Canada) Ltd."
+   ],
+   "description": "FSRA Administrator Appointment Confirmation Letter of April 3, 2025",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Confirmation Letter of FSRA, dated April 3, 2025, is attached hereto as Exhibit \"G\"."
+    }
+   ],
+   "content_check": "1 page: FSRA letter from 25 Sheppard Avenue West confirming the administrator appointment"
+  },
+  {
+   "label": "H",
+   "file": "doc-8ns9pz.pdf",
+   "kind": "financial_statement",
+   "date": "2024-12-31",
+   "author": "HBC Pension Plan administrator",
+   "recipients": [
+    "James Common"
+   ],
+   "description": "His 2024 Annual Dumai Pension Statement as of December 31, 2024",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "is attached hereto as Exhibit \"H\"."
+    }
+   ],
+   "content_check": "2 scanned pages: annual pension statement"
+  },
+  {
+   "label": "I",
+   "file": "doc-s7wsce.pdf",
+   "kind": "notice",
+   "date": "2025-09-08",
+   "author": "Chief Executive Officer, Financial Services Regulatory Authority of Ontario",
+   "recipients": [
+    "Hudson's Bay Company Pension Plan"
+   ],
+   "description": "FSRA Notice of Intended Decision to wind up the HBC Plan",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "as Exhibit \"I\" is a copy of the Notice of Intended Decision to wind up the Plan dated September"
+    }
+   ],
+   "content_check": "3 pages: notice under the Pension Benefits Act ss. 69 and 89 in the matter of the Hudson's Bay Company Pension Plan"
+  },
+  {
+   "label": "J",
+   "file": "doc-f9pvaj.pdf",
+   "kind": "letter",
+   "date": "2025-11-11",
+   "author": "TELUS Health",
+   "recipients": [
+    "All HBC Plan members"
+   ],
+   "description": "Letter from Telus to all HBC Plan members of November 11, 2025 about the wind-up",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "as Exhibit \"J\" a copy of a letter sent by Telus to all HBC Plan members"
+    }
+   ],
+   "content_check": "3 pages: letter dated November 11, 2025 re Hudson's Bay Company Pension Plan (FSRA Registration Number 0291419)"
+  },
+  {
+   "label": "K",
+   "file": "doc-yy9s9m.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Koskie Minsky LLP (proposed class counsel)",
+   "recipients": [],
+   "description": "Litigation plan",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "Attached hereto as Exhibit \"K\" is a"
+    }
+   ],
+   "content_check": "9 pages: 'Litigation Plan' under the Scott and Common v. TELUS Health style of cause"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1971", "precision": "year", "description": "Simpsons started the Simpsons Plan as a DB pension plan", "paragraphs": [6], "quote": "the Simpsons Plan was commenced by Simpsons in 1971", "exhibits": []},
-  {"id": "e2", "date": "1976", "precision": "year", "description": "Simpsons made the plan contributory", "paragraphs": [6], "quote": "In 1976, Simpsons amended the Simpsons Plan to require the employee members to contribute", "exhibits": []},
-  {"id": "e3", "date": "1978", "precision": "year", "description": "HBC acquired Simpsons and became administrator of the Simpsons Plan", "paragraphs": [2, 8], "quote": "In 1978, HBC acquired Simpsons", "exhibits": []},
-  {"id": "e4", "date": "1980-04-24", "precision": "day", "description": "Common began working at Simpsons' Queen and Yonge store", "paragraphs": [2], "quote": "I started my retail career on April 24, 1980", "exhibits": []},
-  {"id": "e5", "date": "1988-01-01", "precision": "day", "description": "HBC closed Simpsons Plan membership to existing members", "paragraphs": [10], "quote": "as of January 1, 1988, HBC amended the Simpsons Plan to limit its membership", "exhibits": []},
-  {"id": "e6", "date": "1994-01-01", "precision": "day", "description": "HBC added Zellers employees with a DC component funded from surplus and renamed the plan the Dumai Pension Plan", "paragraphs": [11, 12], "quote": "as of January 1, 1994, HBC amended the Simpsons Plan to introduce Zellers Inc.", "exhibits": []},
-  {"id": "e7", "date": "1998-01-01", "precision": "day", "description": "HBC added Kmart employees with a DC component funded from surplus", "paragraphs": [13], "quote": "as of January 1, 1998, HBC amended the Dumai Plan again to introduce Kmart Canada Co.", "exhibits": []},
-  {"id": "e8", "date": "2004-04-30", "precision": "day", "description": "Co-applicant John Scott retired", "paragraphs": [50], "quote": "He advises that he retired on April 30, 2004.", "exhibits": []},
-  {"id": "e9", "date": "2005-04-28", "precision": "day", "description": "Sutherland v. Hudson's Bay Company was certified as a class proceeding", "paragraphs": [14, 51], "quote": "which was certified by Court Order dated April 28, 2005", "exhibits": ["A"]},
-  {"id": "e10", "date": "2006-12-31", "precision": "day", "description": "Dumai Plan actuarial valuation showed a going-concern surplus of $161,170,000", "paragraphs": [19], "quote": "as of December 31, 2006", "exhibits": ["B"]},
-  {"id": "e11", "date": "2007-07-31", "precision": "day", "description": "Trial judgment in Sutherland (2007): members entitled to surplus on wind-up; HBC not a beneficiary", "paragraphs": [15, 16, 17, 18], "quote": "The judgment in that certified class proceeding, Sutherland v Hudson's Bay Company", "exhibits": ["B", "C"]},
-  {"id": "e12", "date": "2009-01-01", "precision": "day", "description": "FSCO approved the merger of HBC's pension plans into the HBC Plan effective January 1, 2009", "paragraphs": [30], "quote": "effective January 1, 2009", "exhibits": []},
-  {"id": "e13", "date": "2009-09-16", "precision": "day", "description": "Settlement of the plaintiffs' appeal approved by the court", "paragraphs": [22], "quote": "The settlement was approved by the Court", "exhibits": ["E"]},
-  {"id": "e14", "date": "2011-09-22", "precision": "day", "description": "Court of Appeal dismissed HBC's cross-appeal in Sutherland (2011)", "paragraphs": [15, 23], "quote": "decision of the Ontario Court of Appeal dated September\n22, 2011", "exhibits": ["D"]},
-  {"id": "e15", "date": "2012-05-17", "precision": "day", "description": "The Supreme Court of Canada denied HBC leave to appeal", "paragraphs": [24], "quote": "Leave was denied.", "exhibits": ["F"]},
-  {"id": "e16", "date": "2018-01-01", "precision": "day", "description": "HBC restated the HBC Plan text with a Wind-Up Surplus Provision reverting surplus to HBC", "paragraphs": [36], "quote": "in the January 1, 2018 restatement of the HBC Plan text", "exhibits": []},
-  {"id": "e17", "date": "2018-03-29", "precision": "day", "description": "Common retired", "paragraphs": [2, 49], "quote": "I retired on March 29, 2018", "exhibits": []},
-  {"id": "e18", "date": "2022-09", "precision": "month", "description": "Telus acquired LifeWorks (formerly Morneau Shepell)", "paragraphs": [29], "quote": "In September 2022, Telus acquired Life Works", "exhibits": []},
-  {"id": "e19", "date": "2024-01-01", "precision": "day", "description": "His pension statement showed about $167.03M surplus in the HBC trust fund", "paragraphs": [33], "quote": "as at January 1, 2024, there is approximately $167.03M in surplus assets", "exhibits": ["H"]},
-  {"id": "e20", "date": "2025-03-07", "precision": "day", "description": "HBC obtained CCAA protection and later liquidated", "paragraphs": [37], "quote": "On March 7, 2025, HBC was insolvent and obtained protection from its creditors", "exhibits": []},
-  {"id": "e21", "date": "2025-04-03", "precision": "day", "description": "FSRA's CEO replaced HBC with Telus as administrator of the HBC Plan", "paragraphs": [27], "quote": "on April 3, 2025, the CEO of the Financial Services Regulatory Authority", "exhibits": ["G"]},
-  {"id": "e22", "date": "2025-06-09", "precision": "day", "description": "The applicants' Notice of Application was issued", "paragraphs": [55], "quote": "Notice of Application issued on June 9, 2025", "exhibits": []},
-  {"id": "e23", "date": "2025-09-01", "precision": "day", "description": "Wind-up date of the HBC Plan", "paragraphs": [21, 38], "quote": "HBC Plan wind up date of September 1, 2025", "exhibits": ["I"]},
-  {"id": "e24", "date": "2025-10-20", "precision": "day", "description": "FSRA's CEO issued a Notice of Intended Decision to wind up the HBC Plan (the notice itself is dated September 8, 2025)", "paragraphs": [38], "quote": "On October 20, 2025, the CEO of FSRA issued a Notice of Intended Decision", "exhibits": ["I"]},
-  {"id": "e25", "date": "2025-11-11", "precision": "day", "description": "Telus wrote to all HBC Plan members about the wind-up", "paragraphs": [38], "quote": "dated November 11, 2025", "exhibits": ["J"]},
-  {"id": "e26", "date": "2026-04-30", "precision": "day", "description": "Telus's Wind-Up Report for the HBC Plan (attached to the Drake affidavit)", "paragraphs": [34], "quote": "A copy of the Wind-Up Report dated April 30, 2026 is attached to the Affidavit of Robert Drake", "exhibits": []},
-  {"id": "e27", "date": null, "precision": "undated", "description": "Segal reviewed the Wind-Up Report and estimated about $168M surplus attributable to the Dumai Plan", "paragraphs": [35], "quote": "the actuary retained by KM (The Segal Company)", "exhibits": []},
-  {"id": "e28", "date": "2026-06-05", "precision": "day", "description": "Common swore the affidavit remotely", "paragraphs": [59], "quote": "on June 5, 2026, in accordance with O. Reg. 431/20", "exhibits": []}
- ],
- "referenced_not_attached": ["HBC Plan Wind-Up Report dated April 30, 2026 (Drake affidavit)", "January 1, 2018 HBC Plan text restatement", "Segal report to Koskie Minsky"],
- "leak_waivers": [],
- "notes": "Every cover in the posted record reads 'Exhibit \"A\"' (a copying error), so covers A-K were given with --covers from the record's index. Exhibit E's face date (September 16, 2009) differs from the affidavit's 'August 20, 2009'; paragraph 38 dates the FSRA notice October 20, 2025 while calling it 'dated September 8, 2025'."
+  {
+   "id": "e1",
+   "date": "1971",
+   "precision": "year",
+   "description": "Simpsons started the Simpsons Plan as a DB pension plan",
+   "paragraphs": [
+    6
+   ],
+   "quote": "the Simpsons Plan was commenced by Simpsons in 1971",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "1976",
+   "precision": "year",
+   "description": "Simpsons made the plan contributory",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In 1976, Simpsons amended the Simpsons Plan to require the employee members to contribute",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "1978",
+   "precision": "year",
+   "description": "HBC acquired Simpsons and became administrator of the Simpsons Plan",
+   "paragraphs": [
+    2,
+    8
+   ],
+   "quote": "In 1978, HBC acquired Simpsons",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "1980-04-24",
+   "precision": "day",
+   "description": "Common began working at Simpsons' Queen and Yonge store",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I started my retail career on April 24, 1980",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "1988-01-01",
+   "precision": "day",
+   "description": "HBC closed Simpsons Plan membership to existing members",
+   "paragraphs": [
+    10
+   ],
+   "quote": "as of January 1, 1988, HBC amended the Simpsons Plan to limit its membership",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "1994-01-01",
+   "precision": "day",
+   "description": "HBC added Zellers employees with a DC component funded from surplus and renamed the plan the Dumai Pension Plan",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "as of January 1, 1994, HBC amended the Simpsons Plan to introduce Zellers Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "1998-01-01",
+   "precision": "day",
+   "description": "HBC added Kmart employees with a DC component funded from surplus",
+   "paragraphs": [
+    13
+   ],
+   "quote": "as of January 1, 1998, HBC amended the Dumai Plan again to introduce Kmart Canada Co.",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2004-04-30",
+   "precision": "day",
+   "description": "Co-applicant John Scott retired",
+   "paragraphs": [
+    50
+   ],
+   "quote": "He advises that he retired on April 30, 2004.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2005-04-28",
+   "precision": "day",
+   "description": "Sutherland v. Hudson's Bay Company was certified as a class proceeding",
+   "paragraphs": [
+    14,
+    51
+   ],
+   "quote": "which was certified by Court Order dated April 28, 2005",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2006-12-31",
+   "precision": "day",
+   "description": "Dumai Plan actuarial valuation showed a going-concern surplus of $161,170,000",
+   "paragraphs": [
+    19
+   ],
+   "quote": "as of December 31, 2006",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2007-07-31",
+   "precision": "day",
+   "description": "Trial judgment in Sutherland (2007): members entitled to surplus on wind-up; HBC not a beneficiary",
+   "paragraphs": [
+    15,
+    16,
+    17,
+    18
+   ],
+   "quote": "The judgment in that certified class proceeding, Sutherland v Hudson's Bay Company",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2009-01-01",
+   "precision": "day",
+   "description": "FSCO approved the merger of HBC's pension plans into the HBC Plan effective January 1, 2009",
+   "paragraphs": [
+    30
+   ],
+   "quote": "effective January 1, 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2009-09-16",
+   "precision": "day",
+   "description": "Settlement of the plaintiffs' appeal approved by the court",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The settlement was approved by the Court",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2011-09-22",
+   "precision": "day",
+   "description": "Court of Appeal dismissed HBC's cross-appeal in Sutherland (2011)",
+   "paragraphs": [
+    15,
+    23
+   ],
+   "quote": "decision of the Ontario Court of Appeal dated September\n22, 2011",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2012-05-17",
+   "precision": "day",
+   "description": "The Supreme Court of Canada denied HBC leave to appeal",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Leave was denied.",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2018-01-01",
+   "precision": "day",
+   "description": "HBC restated the HBC Plan text with a Wind-Up Surplus Provision reverting surplus to HBC",
+   "paragraphs": [
+    36
+   ],
+   "quote": "in the January 1, 2018 restatement of the HBC Plan text",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2018-03-29",
+   "precision": "day",
+   "description": "Common retired",
+   "paragraphs": [
+    2,
+    49
+   ],
+   "quote": "I retired on March 29, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2022-09",
+   "precision": "month",
+   "description": "Telus acquired LifeWorks (formerly Morneau Shepell)",
+   "paragraphs": [
+    29
+   ],
+   "quote": "In September 2022, Telus acquired Life Works",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2024-01-01",
+   "precision": "day",
+   "description": "His pension statement showed about $167.03M surplus in the HBC trust fund",
+   "paragraphs": [
+    33
+   ],
+   "quote": "as at January 1, 2024, there is approximately $167.03M in surplus assets",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2025-03-07",
+   "precision": "day",
+   "description": "HBC obtained CCAA protection and later liquidated",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On March 7, 2025, HBC was insolvent and obtained protection from its creditors",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2025-04-03",
+   "precision": "day",
+   "description": "FSRA's CEO replaced HBC with Telus as administrator of the HBC Plan",
+   "paragraphs": [
+    27
+   ],
+   "quote": "on April 3, 2025, the CEO of the Financial Services Regulatory Authority",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2025-06-09",
+   "precision": "day",
+   "description": "The applicants' Notice of Application was issued",
+   "paragraphs": [
+    55
+   ],
+   "quote": "Notice of Application issued on June 9, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "date": "2025-09-01",
+   "precision": "day",
+   "description": "Wind-up date of the HBC Plan",
+   "paragraphs": [
+    21,
+    38
+   ],
+   "quote": "HBC Plan wind up date of September 1, 2025",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2025-10-20",
+   "precision": "day",
+   "description": "FSRA's CEO issued a Notice of Intended Decision to wind up the HBC Plan (the notice itself is dated September 8, 2025)",
+   "paragraphs": [
+    38
+   ],
+   "quote": "On October 20, 2025, the CEO of FSRA issued a Notice of Intended Decision",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e25",
+   "date": "2025-11-11",
+   "precision": "day",
+   "description": "Telus wrote to all HBC Plan members about the wind-up",
+   "paragraphs": [
+    38
+   ],
+   "quote": "dated November 11, 2025",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": "2026-04-30",
+   "precision": "day",
+   "description": "Telus's Wind-Up Report for the HBC Plan (attached to the Drake affidavit)",
+   "paragraphs": [
+    34
+   ],
+   "quote": "A copy of the Wind-Up Report dated April 30, 2026 is attached to the Affidavit of Robert Drake",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "date": null,
+   "precision": "undated",
+   "description": "Segal reviewed the Wind-Up Report and estimated about $168M surplus attributable to the Dumai Plan",
+   "paragraphs": [
+    35
+   ],
+   "quote": "the actuary retained by KM (The Segal Company)",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "date": "2026-06-05",
+   "precision": "day",
+   "description": "Common swore the affidavit remotely",
+   "paragraphs": [
+    59
+   ],
+   "quote": "on June 5, 2026, in accordance with O. Reg. 431/20",
+   "exhibits": []
+  }
+ ]
 }

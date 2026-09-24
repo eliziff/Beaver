@@ -9,6 +9,15 @@
  "deponent": "Wesley Parris",
  "deponent_role": "Chief Executive Officer of the NOI Applicants",
  "sworn_date": "2025-09-29",
+ "referenced_not_attached": [
+  "Notices of Intention to Make a Proposal",
+  "Proposal Trustee's second report with the consolidated cash flow"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Exhibit A is itself an affidavit whose text mentions its own Exhibit A (the NOIs); that is genuine content, not a stamp. Exhibits C and D are both titled 'Order Granting Provisional Relief' and differ mainly in date and joint-administration status.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -214,13 +223,5 @@
    "quote": "worked with KPMG, in its capacity as financial advisor to the NOI Applicants",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Notices of Intention to Make a Proposal",
-  "Proposal Trustee's second report with the consolidated cash flow"
- ],
- "leak_waivers": [
-  "A"
- ],
- "notes": "Exhibit A is itself an affidavit whose text mentions its own Exhibit A (the NOIs); that is genuine content, not a stamp. Exhibits C and D are both titled 'Order Granting Provisional Relief' and differ mainly in date and joint-administration status."
+ ]
 }

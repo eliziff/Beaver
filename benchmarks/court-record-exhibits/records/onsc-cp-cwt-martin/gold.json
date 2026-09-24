@@ -9,139 +9,862 @@
  "deponent": "Bronwyn M. Martin",
  "deponent_role": "Lawyer with Moodie Mair Walker LLP, class counsel",
  "sworn_date": "2022-12-23",
+ "referenced_not_attached": [
+  "OSC Disciplinary Decision regarding Verbeek (July 26, 2005)",
+  "Order of Justice Boswell (August 19, 2008)",
+  "Justice MacKinnon's leave decision",
+  "Settlement Approval Hearing Notice order of November 10, 2022",
+  "Terranet search for Brian Verbeek",
+  "Edimax Inc. search (no results)"
+ ],
+ "notes": "The record index says sworn December 6, 2022, but the affidavit heading and jurat say December 23, 2022 (affirmed remotely from Antigonish, NS). Paragraph 33 uses 'Exhibit F' for both the costs reasons and the Certification Order; the file holds the Order. Exhibits B, C, D, O and P are image-only.",
+ "subject": "class_action",
  "exhibits": [
-  {"label": "A", "file": "doc-3emy8h.pdf", "kind": "agreement", "date": "2022-12", "author": "CWT Subclass and Canadian Western Trust Company", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-3emy8h.pdf",
+   "kind": "agreement",
+   "date": "2022-12",
+   "author": "CWT Subclass and Canadian Western Trust Company",
+   "recipients": [],
    "description": "The CWT Settlement Agreement between the CWT Subclass and Canadian Western Trust",
-   "references": [{"paragraph": 2, "quote": "I have attached and marked as Exhibit “A” a true copy of the CWT Settlement Agreement"}],
-   "content_check": "34-page settlement agreement styled in 01-B2684 with a McMillan (LEGAL_) document number, between the CWT Subclass and Canadian Western Trust Company"},
-  {"label": "B", "file": "doc-wzpsxt.pdf", "kind": "agreement", "date": "2022-11-30", "author": "Jean Duval for the Beauregard Subclass and Rene Beauregard", "recipients": [],
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "I have attached and marked as Exhibit “A” a true copy of the CWT Settlement Agreement"
+    }
+   ],
+   "content_check": "34-page settlement agreement styled in 01-B2684 with a McMillan (LEGAL_) document number, between the CWT Subclass and Canadian Western Trust Company"
+  },
+  {
+   "label": "B",
+   "file": "doc-wzpsxt.pdf",
+   "kind": "agreement",
+   "date": "2022-11-30",
+   "author": "Jean Duval for the Beauregard Subclass and Rene Beauregard",
+   "recipients": [],
    "description": "The Beauregard Settlement Agreement dated November 30, 2022",
-   "references": [{"paragraph": 2, "quote": "attached and marked as Exhibit “B” a true copy of the  Beauregard Settlement Agreement"}],
-   "content_check": "44 image-only pages: 'Settlement Agreement between Jean Duval, in his capacity as representative plaintiff for the Beauregard Subclass and Rene Beauregard', signature page with Ian Mair"},
-  {"label": "C", "file": "doc-5u2p4s.pdf", "kind": "court_order", "date": "2011-09-15", "author": "Justice Lauwers", "recipients": [],
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "attached and marked as Exhibit “B” a true copy of the  Beauregard Settlement Agreement"
+    }
+   ],
+   "content_check": "44 image-only pages: 'Settlement Agreement between Jean Duval, in his capacity as representative plaintiff for the Beauregard Subclass and Rene Beauregard', signature page with Ian Mair"
+  },
+  {
+   "label": "C",
+   "file": "doc-5u2p4s.pdf",
+   "kind": "court_order",
+   "date": "2011-09-15",
+   "author": "Justice Lauwers",
+   "recipients": [],
    "description": "Justice Lauwers's reasons of September 15, 2011 granting leave to issue the Fresh as Amended Statement of Claim",
-   "references": [{"paragraph": 20, "quote": "a true copy of the reasons of Justice Lauwers, dated September 15, 2011"}],
-   "content_check": "20 image-only pages: Ivany et al. v. Financiere Telco Inc. et al., 2011 ONSC 2785, Barrie, date 20110915, Reasons for Decision of Lauwers J., heard May 4, 2011"},
-  {"label": "D", "file": "doc-qvxj3j.pdf", "kind": "court_filing", "date": "2012-07-25", "author": "Moodie Mair Walker LLP for the plaintiffs", "recipients": ["Defendants"],
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "a true copy of the reasons of Justice Lauwers, dated September 15, 2011"
+    }
+   ],
+   "content_check": "20 image-only pages: Ivany et al. v. Financiere Telco Inc. et al., 2011 ONSC 2785, Barrie, date 20110915, Reasons for Decision of Lauwers J., heard May 4, 2011"
+  },
+  {
+   "label": "D",
+   "file": "doc-qvxj3j.pdf",
+   "kind": "court_filing",
+   "date": "2012-07-25",
+   "author": "Moodie Mair Walker LLP for the plaintiffs",
+   "recipients": [
+    "Defendants"
+   ],
    "description": "The Fresh as Amended Statement of Claim, issued July 25, 2012",
-   "references": [{"paragraph": 21, "quote": "A true copy of the Fresh as Amended Statement of Claim is attached"}],
-   "content_check": "43 image-only pages headed 'Fresh as Amended Statement of Claim', Court File No. 01-B2684"},
-  {"label": "E", "file": "doc-jbat4m.pdf", "kind": "court_order", "date": "2013-05-23", "author": "Justice Lauwers", "recipients": [],
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "A true copy of the Fresh as Amended Statement of Claim is attached"
+    }
+   ],
+   "content_check": "43 image-only pages headed 'Fresh as Amended Statement of Claim', Court File No. 01-B2684"
+  },
+  {
+   "label": "E",
+   "file": "doc-jbat4m.pdf",
+   "kind": "court_order",
+   "date": "2013-05-23",
+   "author": "Justice Lauwers",
+   "recipients": [],
    "description": "The Revised Reasons for Decision of Justice Lauwers dated May 23, 2013, conditionally certifying the action as a class proceeding",
-   "references": [{"paragraph": 27, "quote": "a true copy of the Revised Reasons for Decision of Justice Lauwers, dated May 23,"}],
-   "content_check": "35 pages: Ivany et al. v. Financiere Telco Inc., 2013 ONSC 6347, Barrie, date 20130503, corrigenda 20130523"},
-  {"label": "F", "file": "doc-wmatpk.pdf", "kind": "court_order", "date": "2013-10-04", "author": "Justice Lauwers", "recipients": [],
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "a true copy of the Revised Reasons for Decision of Justice Lauwers, dated May 23,"
+    }
+   ],
+   "content_check": "35 pages: Ivany et al. v. Financiere Telco Inc., 2013 ONSC 6347, Barrie, date 20130503, corrigenda 20130523"
+  },
+  {
+   "label": "F",
+   "file": "doc-wmatpk.pdf",
+   "kind": "court_order",
+   "date": "2013-10-04",
+   "author": "Justice Lauwers",
+   "recipients": [],
    "description": "The October 4, 2013 reasons of Justice Lauwers on costs and the Certification Order issued October 4, 2013 (paragraph 33 labels both Exhibit F)",
-   "references": [{"paragraph": 33, "quote": "and have attached and marked as Exhibit “F” to  my affidavit a true copy of the Order of Justice Lauwers issued on October 4,"}],
-   "content_check": "23-page Order of Justice Lauwers dated Friday October 4, 2013 (certified common issues, notice, $82,500 costs each from CWT and Dundee) with Schedules A (materials), B (Notice of Certification) and C (Litigation Plan); no separate costs reasons are in the file"},
-  {"label": "G", "file": "doc-tsndhq.pdf", "kind": "court_filing", "date": "2014-02-04", "author": "Canadian Western Trust Company (McMillan LLP)", "recipients": ["Plaintiffs"],
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "and have attached and marked as Exhibit “F” to  my affidavit a true copy of the Order of Justice Lauwers issued on October 4,"
+    }
+   ],
+   "content_check": "23-page Order of Justice Lauwers dated Friday October 4, 2013 (certified common issues, notice, $82,500 costs each from CWT and Dundee) with Schedules A (materials), B (Notice of Certification) and C (Litigation Plan); no separate costs reasons are in the file"
+  },
+  {
+   "label": "G",
+   "file": "doc-tsndhq.pdf",
+   "kind": "court_filing",
+   "date": "2014-02-04",
+   "author": "Canadian Western Trust Company (McMillan LLP)",
+   "recipients": [
+    "Plaintiffs"
+   ],
    "description": "CWT's Statement of Defence and Crossclaim served February 4, 2014",
-   "references": [{"paragraph": 40, "quote": "true copy of the CWT Statement of Defence and Crossclaim is attached and  marked as Exhibit"}],
-   "content_check": "21 pages, largely image-only, headed Statement of Defence in 01-B2684 (proceeding under the Class Proceedings Act)"},
-  {"label": "H", "file": "doc-bd9v6x.pdf", "kind": "court_order", "date": "2017-09-05", "author": "Justice Mullins", "recipients": [],
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "true copy of the CWT Statement of Defence and Crossclaim is attached and  marked as Exhibit"
+    }
+   ],
+   "content_check": "21 pages, largely image-only, headed Statement of Defence in 01-B2684 (proceeding under the Class Proceedings Act)"
+  },
+  {
+   "label": "H",
+   "file": "doc-bd9v6x.pdf",
+   "kind": "court_order",
+   "date": "2017-09-05",
+   "author": "Justice Mullins",
+   "recipients": [],
    "description": "Justice Mullins's order of September 5, 2017 approving the Dundee settlement",
-   "references": [{"paragraph": 55, "quote": "A true copy of Justice Mullins Order is attached and marked as  Exhibit"}],
-   "content_check": "46-page scanned order of the Honourable Justice Mullins in 01-B2684 with a court seal (OCR text noisy)"},
-  {"label": "I", "file": "doc-xvz2ny.pdf", "kind": "notice", "date": null, "author": "Class counsel", "recipients": ["CWT Subclass"],
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "A true copy of Justice Mullins Order is attached and marked as  Exhibit"
+    }
+   ],
+   "content_check": "46-page scanned order of the Honourable Justice Mullins in 01-B2684 with a court seal (OCR text noisy)"
+  },
+  {
+   "label": "I",
+   "file": "doc-xvz2ny.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class counsel",
+   "recipients": [
+    "CWT Subclass"
+   ],
    "description": "Proposed settlement approval notice for the CWT Settlement",
-   "references": [{"paragraph": 88, "quote": "substantially in the form attached to my affidavit as Exhibit “I” and “J”"}],
-   "content_check": "Four-page 'Notice of Settlement Approval' addressed 'To members of the CWT Subclass'"},
-  {"label": "J", "file": "doc-skkcpv.pdf", "kind": "notice", "date": null, "author": "Class counsel", "recipients": ["Beauregard Subclass"],
+   "references": [
+    {
+     "paragraph": 88,
+     "quote": "substantially in the form attached to my affidavit as Exhibit “I” and “J”"
+    }
+   ],
+   "content_check": "Four-page 'Notice of Settlement Approval' addressed 'To members of the CWT Subclass'"
+  },
+  {
+   "label": "J",
+   "file": "doc-skkcpv.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Class counsel",
+   "recipients": [
+    "Beauregard Subclass"
+   ],
    "description": "Proposed settlement approval notice for the Beauregard Settlement",
-   "references": [{"paragraph": 88, "quote": "substantially in the form attached to my affidavit as Exhibit “I” and “J”"}],
-   "content_check": "Three-page 'Notice of Settlement Approval' addressed 'To members of the Beauregard Subclass'"},
-  {"label": "K", "file": "doc-c2rzc4.pdf", "kind": "other", "date": null, "author": "RicePoint Administration Inc.", "recipients": [],
+   "references": [
+    {
+     "paragraph": 88,
+     "quote": "substantially in the form attached to my affidavit as Exhibit “I” and “J”"
+    }
+   ],
+   "content_check": "Three-page 'Notice of Settlement Approval' addressed 'To members of the Beauregard Subclass'"
+  },
+  {
+   "label": "K",
+   "file": "doc-c2rzc4.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "RicePoint Administration Inc.",
+   "recipients": [],
    "description": "Outline of RicePoint's class action administration experience",
-   "references": [{"paragraph": 90, "quote": "An outline of  RicePoint’s class action administration experience is attached to my affidavit"}],
-   "content_check": "Two-page 'RicePoint Class Action Services Resume' (more than 160 settlements administered)"},
-  {"label": "L", "file": "doc-5amuw6.pdf", "kind": "invoice", "date": null, "author": "RicePoint Administration Inc.", "recipients": ["Moodie Mair Walker LLP"],
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "An outline of  RicePoint’s class action administration experience is attached to my affidavit"
+    }
+   ],
+   "content_check": "Two-page 'RicePoint Class Action Services Resume' (more than 160 settlements administered)"
+  },
+  {
+   "label": "L",
+   "file": "doc-5amuw6.pdf",
+   "kind": "invoice",
+   "date": null,
+   "author": "RicePoint Administration Inc.",
+   "recipients": [
+    "Moodie Mair Walker LLP"
+   ],
    "description": "RicePoint's Administration Services Estimate ($77,600 plus taxes and disbursements)",
-   "references": [{"paragraph": 92, "quote": "A true copy  of the Administration Services Estimate is attached and marked as Exhibit"}],
-   "content_check": "Six-page cost estimate: case duration 12 months, estimated 52 claims, project set-up $31,225, noticing $25,711"},
-  {"label": "M", "file": "doc-b6q73j.pdf", "kind": "court_filing", "date": null, "author": "Class counsel", "recipients": [],
+   "references": [
+    {
+     "paragraph": 92,
+     "quote": "A true copy  of the Administration Services Estimate is attached and marked as Exhibit"
+    }
+   ],
+   "content_check": "Six-page cost estimate: case duration 12 months, estimated 52 claims, project set-up $31,225, noticing $25,711"
+  },
+  {
+   "label": "M",
+   "file": "doc-b6q73j.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Class counsel",
+   "recipients": [],
    "description": "The proposed Distribution Protocol for the CWT and Beauregard settlements",
-   "references": [{"paragraph": 95, "quote": "MMW requests that the Court approve the Distribution Protocol  attached to this affidavit as Exhibit"}],
-   "content_check": "12-page Distribution Protocol in 01-B2684 naming RicePoint as Administrator, with claim form"},
-  {"label": "N", "file": "doc-yck4kj.pdf", "kind": "spreadsheet", "date": null, "author": "Moodie Mair Walker LLP", "recipients": [],
+   "references": [
+    {
+     "paragraph": 95,
+     "quote": "MMW requests that the Court approve the Distribution Protocol  attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "12-page Distribution Protocol in 01-B2684 naming RicePoint as Administrator, with claim form"
+  },
+  {
+   "label": "N",
+   "file": "doc-yck4kj.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Moodie Mair Walker LLP",
+   "recipients": [],
    "description": "Breakdown of the lawyers who worked on the claim against CWT and Beauregard and the time spent",
-   "references": [{"paragraph": 102, "quote": "A breakdown of the lawyers who have worked on the claim against  CWT and Beauregard, and the time spent is attached and marked as Exhibit"}],
-   "content_check": "Six-page Bill of Costs with statement of experience (Ian Mair, Vern Rogers, Michael Kealy, Robin Moodie, Rebecca Dervaitis, Bronwyn Martin...) and hours"},
-  {"label": "O", "file": "doc-2may3m.pdf", "kind": "agreement", "date": "2007-06-30", "author": "David Ivany and Moodie Mair Harley & Walker LLP", "recipients": [],
+   "references": [
+    {
+     "paragraph": 102,
+     "quote": "A breakdown of the lawyers who have worked on the claim against  CWT and Beauregard, and the time spent is attached and marked as Exhibit"
+    }
+   ],
+   "content_check": "Six-page Bill of Costs with statement of experience (Ian Mair, Vern Rogers, Michael Kealy, Robin Moodie, Rebecca Dervaitis, Bronwyn Martin...) and hours"
+  },
+  {
+   "label": "O",
+   "file": "doc-2may3m.pdf",
+   "kind": "agreement",
+   "date": "2007-06-30",
+   "author": "David Ivany and Moodie Mair Harley & Walker LLP",
+   "recipients": [],
    "description": "Contingency Fee Retainer Agreement with David Ivany dated June 30, 2007",
-   "references": [{"paragraph": 108, "quote": "True copies of the Retainer Agreements are attached  and marked as Exhibits"}],
-   "content_check": "Two image-only pages: 'Retainer Agreement' in which David Ivany retains Moodie Mair Harley & Walker LLP on a contingency basis"},
-  {"label": "P", "file": "doc-c8nqvc.pdf", "kind": "agreement", "date": "2008-03", "author": "Jean Duval and Moodie Mair Harley & Walker LLP", "recipients": [],
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "True copies of the Retainer Agreements are attached  and marked as Exhibits"
+    }
+   ],
+   "content_check": "Two image-only pages: 'Retainer Agreement' in which David Ivany retains Moodie Mair Harley & Walker LLP on a contingency basis"
+  },
+  {
+   "label": "P",
+   "file": "doc-c8nqvc.pdf",
+   "kind": "agreement",
+   "date": "2008-03",
+   "author": "Jean Duval and Moodie Mair Harley & Walker LLP",
+   "recipients": [],
    "description": "Contingency Fee Retainer Agreement with Jean Duval dated March 2008",
-   "references": [{"paragraph": 108, "quote": "True copies of the Retainer Agreements are attached  and marked as Exhibits"}],
-   "content_check": "Four image-only pages: 'Retainer Agreement' in which Jean Duval retains Moodie Mair Harley & Walker LLP"},
-  {"label": "Q", "file": "doc-cqs27u.pdf", "kind": "email", "date": "2022-12-14", "author": "Remissa Hirji (Class Proceedings Fund)", "recipients": ["Bronwyn Martin"],
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "True copies of the Retainer Agreements are attached  and marked as Exhibits"
+    }
+   ],
+   "content_check": "Four image-only pages: 'Retainer Agreement' in which Jean Duval retains Moodie Mair Harley & Walker LLP"
+  },
+  {
+   "label": "Q",
+   "file": "doc-cqs27u.pdf",
+   "kind": "email",
+   "date": "2022-12-14",
+   "author": "Remissa Hirji (Class Proceedings Fund)",
+   "recipients": [
+    "Bronwyn Martin"
+   ],
    "description": "Email from Remissa Hirji of the Class Proceedings Fund dated December 14, 2022 confirming the Fund's levy amounts",
-   "references": [{"paragraph": 119, "quote": "email from Remissa Hirji, Director and Counsel of the Class Proceedings Fund  dated December 14, 2022"}],
-   "content_check": "Email from Remissa Hirji (lawfoundation.on.ca), December 14, 2022 3:35 pm, to Bronwyn Martin, 'RE: Ivany v. Dundee Financiere Telco Inc. et al. // CPC 009-12'"},
-  {"label": "R", "file": "doc-37p5ew.pdf", "kind": "public_record", "date": "2022-11-30", "author": "Registraire des entreprises du Québec", "recipients": [],
+   "references": [
+    {
+     "paragraph": 119,
+     "quote": "email from Remissa Hirji, Director and Counsel of the Class Proceedings Fund  dated December 14, 2022"
+    }
+   ],
+   "content_check": "Email from Remissa Hirji (lawfoundation.on.ca), December 14, 2022 3:35 pm, to Bronwyn Martin, 'RE: Ivany v. Dundee Financiere Telco Inc. et al. // CPC 009-12'"
+  },
+  {
+   "label": "R",
+   "file": "doc-37p5ew.pdf",
+   "kind": "public_record",
+   "date": "2022-11-30",
+   "author": "Registraire des entreprises du Québec",
+   "recipients": [],
    "description": "Corporate profile search result for Via Net Technologie Inc. dated November 30, 2022",
-   "references": [{"paragraph": 125, "quote": "ran a  corporate profile search for Via Net Technologie Inc."}],
-   "content_check": "Quebec enterprise register 'Etat des informations' for NEQ 1148748479, 9080-4832 Québec Inc. / Via Net Technologie Inc."},
-  {"label": "S", "file": "doc-j5525g.pdf", "kind": "public_record", "date": "2022-11-30", "author": "Registraire des entreprises du Québec", "recipients": [],
+   "references": [
+    {
+     "paragraph": 125,
+     "quote": "ran a  corporate profile search for Via Net Technologie Inc."
+    }
+   ],
+   "content_check": "Quebec enterprise register 'Etat des informations' for NEQ 1148748479, 9080-4832 Québec Inc. / Via Net Technologie Inc."
+  },
+  {
+   "label": "S",
+   "file": "doc-j5525g.pdf",
+   "kind": "public_record",
+   "date": "2022-11-30",
+   "author": "Registraire des entreprises du Québec",
+   "recipients": [],
    "description": "Corporate profile search result for Intermax Technologies Inc. dated November 30, 2022",
-   "references": [{"paragraph": 126, "quote": "ran a corporate profile search for  Intermax Technologies Inc."}],
-   "content_check": "Quebec enterprise register extract for NEQ 1148762090, 9080-6746 Québec Inc. / Intermax Technologie"},
-  {"label": "T", "file": "doc-3v87bh.pdf", "kind": "public_record", "date": "2022-11-30", "author": "Ontario Ministry of Public and Business Service Delivery", "recipients": [],
+   "references": [
+    {
+     "paragraph": 126,
+     "quote": "ran a corporate profile search for  Intermax Technologies Inc."
+    }
+   ],
+   "content_check": "Quebec enterprise register extract for NEQ 1148762090, 9080-6746 Québec Inc. / Intermax Technologie"
+  },
+  {
+   "label": "T",
+   "file": "doc-3v87bh.pdf",
+   "kind": "public_record",
+   "date": "2022-11-30",
+   "author": "Ontario Ministry of Public and Business Service Delivery",
+   "recipients": [],
    "description": "Corporate profile search result for Vox Technologie Inc. dated November 30, 2022",
-   "references": [{"paragraph": 127, "quote": "ran a corporate profile search for  Vox Technologie Inc."}],
-   "content_check": "Ontario Profile Report for Vox Technologie Inc. as of November 30, 2022, OCN 1394728, Inactive - Cancelled by C.T."},
-  {"label": "U", "file": "doc-tfj4zy.pdf", "kind": "public_record", "date": "2022-11-30", "author": "Ontario Ministry of Public and Business Service Delivery", "recipients": [],
+   "references": [
+    {
+     "paragraph": 127,
+     "quote": "ran a corporate profile search for  Vox Technologie Inc."
+    }
+   ],
+   "content_check": "Ontario Profile Report for Vox Technologie Inc. as of November 30, 2022, OCN 1394728, Inactive - Cancelled by C.T."
+  },
+  {
+   "label": "U",
+   "file": "doc-tfj4zy.pdf",
+   "kind": "public_record",
+   "date": "2022-11-30",
+   "author": "Ontario Ministry of Public and Business Service Delivery",
+   "recipients": [],
    "description": "Corporate profile search result for The Verbeek Group Corp. dated November 30, 2022",
-   "references": [{"paragraph": 128, "quote": "ran a corporate profile search for  The Verbeek Group Corp."}],
-   "content_check": "Ontario Profile Report for The Verbeek Group Corp. as of November 30, 2022, OCN 1332697, Inactive - Cancelled by C.T."},
-  {"label": "V", "file": "doc-r4sgtc.pdf", "kind": "public_record", "date": "2022-11-30", "author": "Registraire des entreprises du Québec", "recipients": [],
+   "references": [
+    {
+     "paragraph": 128,
+     "quote": "ran a corporate profile search for  The Verbeek Group Corp."
+    }
+   ],
+   "content_check": "Ontario Profile Report for The Verbeek Group Corp. as of November 30, 2022, OCN 1332697, Inactive - Cancelled by C.T."
+  },
+  {
+   "label": "V",
+   "file": "doc-r4sgtc.pdf",
+   "kind": "public_record",
+   "date": "2022-11-30",
+   "author": "Registraire des entreprises du Québec",
+   "recipients": [],
    "description": "Corporate profile search result for Financiere Telco Inc. dated November 30, 2022",
-   "references": [{"paragraph": 129, "quote": "ran a corporate profile search for  Financiere Telco Inc."}],
-   "content_check": "Quebec enterprise register extract for NEQ 1147394499, Financière Telco Inc., Laval"},
-  {"label": "W", "file": "doc-pe3hcn.pdf", "kind": "public_record", "date": "2022-11-30", "author": "Registraire des entreprises du Québec", "recipients": [],
+   "references": [
+    {
+     "paragraph": 129,
+     "quote": "ran a corporate profile search for  Financiere Telco Inc."
+    }
+   ],
+   "content_check": "Quebec enterprise register extract for NEQ 1147394499, Financière Telco Inc., Laval"
+  },
+  {
+   "label": "W",
+   "file": "doc-pe3hcn.pdf",
+   "kind": "public_record",
+   "date": "2022-11-30",
+   "author": "Registraire des entreprises du Québec",
+   "recipients": [],
    "description": "Corporate profile search result for CFM Consultant Financement Multiple Inc.",
-   "references": [{"paragraph": 130, "quote": "ran a corporate profile search for  CFM Consultant Financement Multiple Inc."}],
-   "content_check": "Quebec enterprise register extract for NEQ 1148515910, CFM Consultant Financement Multiple Inc. / MFC Multiple Financing Consultant"}
+   "references": [
+    {
+     "paragraph": 130,
+     "quote": "ran a corporate profile search for  CFM Consultant Financement Multiple Inc."
+    }
+   ],
+   "content_check": "Quebec enterprise register extract for NEQ 1148515910, CFM Consultant Financement Multiple Inc. / MFC Multiple Financing Consultant"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1999-08-27", "end_date": "2000-05-01", "precision": "range", "description": "About 216 class members opened accounts with Dundee while Verbeek was a registered representative", "paragraphs": [13], "quote": "Approximately 216 class members  opened accounts with Dundee between August 27, 1999 and May  1, 2000", "exhibits": []},
-  {"id": "e2", "date": "2000-06-13", "end_date": "2000-09-22", "precision": "range", "description": "About 84 class members opened trust accounts with CWT", "paragraphs": [13], "quote": "Approximately 84 class members opened  trust accounts with CWT between June 13, 2000 and September  22, 2000", "exhibits": []},
-  {"id": "e3", "precision": "undated", "description": "The OSC prosecuted Verbeek and banned him from the securities industry; class members' retirement savings invested in CCPCs were lost", "paragraphs": [6, 7, 8], "quote": "The Ontario Securities Commission (“OSC”) prosecuted Verbeek for his  role", "exhibits": []},
-  {"id": "e4", "date": "2001-05-24", "precision": "day", "description": "David Ivany commenced the action", "paragraphs": [9], "quote": "This action was commenced by David Ivany on May 24, 2001", "exhibits": []},
-  {"id": "e5", "date": "2007-06-30", "precision": "day", "description": "MMW entered a contingency fee retainer agreement with Ivany", "paragraphs": [108], "quote": "MMW entered into a Contingency Fee Retainer agreement with Mr.  Ivany and Mr. Duval on June 30, 2007 and March 2008", "exhibits": ["O"]},
-  {"id": "e6", "date": "2007-08", "precision": "month", "description": "MMW obtained the OSC's investigation and prosecution materials on Verbeek", "paragraphs": [42], "quote": "In August 2007, MMW obtained materials from the OSC", "exhibits": []},
-  {"id": "e7", "date": "2007-10-26", "precision": "day", "description": "The Statement of Claim was amended (unopposed)", "paragraphs": [18], "quote": "The Statement of Claim was amended on October 26, 2007", "exhibits": []},
-  {"id": "e8", "date": "2008-02", "precision": "month", "description": "MMW, approached by Keating in 2007, was formally retained", "paragraphs": [11], "quote": "was formally retained in February 2008", "exhibits": []},
-  {"id": "e9", "date": "2008-03", "precision": "month", "description": "MMW entered a contingency fee retainer agreement with Duval", "paragraphs": [108], "quote": "on June 30, 2007 and March 2008, respectively", "exhibits": ["P"]},
-  {"id": "e10", "date": "2008-08-19", "precision": "day", "description": "Abernot and Duval were added as plaintiffs by order of Justice Boswell; the claim was amended again", "paragraphs": [12, 18], "quote": "added as plaintiffs on  August 19, 2008, pursuant to the Order of Justice Boswell", "exhibits": []},
-  {"id": "e11", "date": "2009-09-18", "precision": "approximate", "description": "The plaintiffs served their certification motion record", "paragraphs": [22], "quote": "We served our motion record for the Certification Motion on or about  September 18, 2009", "exhibits": []},
-  {"id": "e12", "date": "2009-12-14", "end_date": "2010-03-26", "precision": "range", "description": "Cross-examinations on the certification affidavits (Baker, Thomas, Ivany, Abernot, Duval, Moodie, Beauregard)", "paragraphs": [24], "quote": "After exchanging motion records, cross-examinations were held as  follows", "exhibits": []},
-  {"id": "e13", "date": "2011-05-04", "precision": "day", "description": "Opposed motion to issue a Fresh as Amended Statement of Claim heard by Justice Lauwers", "paragraphs": [19], "quote": "On May 4, 2011, a motion was brought to issue a Fresh as Amended  Statement of Claim", "exhibits": ["C"]},
-  {"id": "e14", "date": "2011-09-15", "precision": "day", "description": "Justice Lauwers granted leave to issue the Fresh as Amended Statement of Claim", "paragraphs": [20], "quote": "Justice Lauwers granted leave to issue the Fresh as Amended  Statement of Claim", "exhibits": ["C"]},
-  {"id": "e15", "date": "2012-04-30", "precision": "day", "description": "Plaintiffs answered undertakings (position on refusals May 7, 2012); the June 2012 refusals motion was vacated", "paragraphs": [26], "quote": "We provided answers to undertakings  on April 30, 2012", "exhibits": []},
-  {"id": "e16", "date": "2012-07-25", "precision": "day", "description": "The Fresh as Amended Statement of Claim was issued", "paragraphs": [21], "quote": "The Fresh as Amended Statement of Claim was issued on July 25,  2012", "exhibits": ["D"]},
-  {"id": "e17", "date": "2012-09", "precision": "month", "description": "Verbeek and the other non-responding defendants were noted in default", "paragraphs": [13, 123], "quote": "He was noted in default in  September 2012", "exhibits": []},
-  {"id": "e18", "date": "2012-10", "precision": "month", "description": "MMW was notified that the Class Proceedings Fund would support disbursements and indemnify adverse costs", "paragraphs": [49], "quote": "in October 2012  MMW was notified that it would receive financial support", "exhibits": []},
-  {"id": "e19", "date": "2012-10-04", "end_date": "2012-10-05", "precision": "range", "description": "Certification Motion heard before Justice Lauwers", "paragraphs": [27], "quote": "The Certification Motion proceeded before Justice Lauwers on October  4 and 5, 2012", "exhibits": []},
-  {"id": "e20", "precision": "undated", "description": "Before the Certification Motion, Beauregard offered to settle for his $250,000 E&O policy limits plus costs; the offer was accepted subject to court approval", "paragraphs": [28], "quote": "Prior to the Certification Motion, Beauregard offered to settle", "exhibits": ["B"]},
-  {"id": "e21", "date": "2013-05-23", "precision": "day", "description": "Revised reasons conditionally certifying the action as a class proceeding", "paragraphs": [27], "quote": "Revised Reasons for Decision of Justice Lauwers, dated May 23,", "exhibits": ["E"]},
-  {"id": "e22", "date": "2013-08-01", "end_date": "2013-09-09", "precision": "range", "description": "Attendances before Justice Lauwers to finalize the common questions, litigation plan and notice; costs submissions heard September 9", "paragraphs": [31, 33], "quote": "required attendances before Justice Lauwers on August  1, 2013 and September 9, 2013", "exhibits": []},
-  {"id": "e23", "date": "2013-10-04", "precision": "day", "description": "Justice Lauwers released costs reasons ($165,000 shared by Dundee and CWT) and issued the Certification Order", "paragraphs": [33], "quote": "On October 4, 2013 he released his decision and  reasons on costs", "exhibits": ["F"]},
-  {"id": "e24", "date": "2013-11-06", "precision": "day", "description": "CWT moved for leave to appeal certification; Justice MacKinnon dismissed it with $15,000 costs", "paragraphs": [37, 38], "quote": "On November 6, 2013 CWT brought a motion for leave to appeal the  certification decision", "exhibits": []},
-  {"id": "e25", "date": "2014-02-04", "precision": "day", "description": "CWT served its Statement of Defence and Crossclaim", "paragraphs": [39, 40], "quote": "CWT served its Statement of Defence and Crossclaim on February 4,  2014", "exhibits": ["G"]},
-  {"id": "e26", "date": "2015-03-04", "precision": "day", "description": "First mediation with Dundee and CWT before the Hon. Douglas Cunningham; no settlement", "paragraphs": [51], "quote": "On March 4, 2015, the plaintiffs attended a mediation with Dundee and  CWT", "exhibits": []},
-  {"id": "e27", "date": "2016-09-15", "precision": "day", "description": "Second mediation with Dundee before Paul Torrie settled the Dundee claim", "paragraphs": [53, 54], "quote": "a second mediation, which was held on  September 15, 2016", "exhibits": []},
-  {"id": "e28", "date": "2017-09-05", "precision": "day", "description": "Justice Mullins approved the Dundee settlement, RicePoint as administrator and class counsel fees", "paragraphs": [55, 56], "quote": "The Dundee settlement was approved by Justice Mullins on September  5, 2017", "exhibits": ["H"]},
-  {"id": "e29", "date": "2018", "precision": "year", "description": "Beauregard died without assets other than his insurance policy", "paragraphs": [76], "quote": "Beauregard passed away in 2018 without any assets", "exhibits": []},
-  {"id": "e30", "date": "2021-12-14", "precision": "day", "description": "Mediation with CWT and Beauregard before the Hon. Todd Archibald reached settlements ($515,000 from CWT; $250,000 plus costs from Beauregard)", "paragraphs": [57, 58], "quote": "On December 14, 2021, the plaintiffs attended a mediation with CWT  and Beauregard", "exhibits": ["A", "B"]},
-  {"id": "e31", "date": "2022-11-10", "precision": "day", "description": "The Court approved the Settlement Approval Hearing Notice, which was mailed to the subclasses", "paragraphs": [85], "quote": "On November 10, 2022, the Court approved the Settlement Approval  Hearing Notice", "exhibits": []},
-  {"id": "e32", "date": "2022-11-30", "precision": "day", "description": "Beauregard Settlement Agreement dated", "paragraphs": [2], "quote": "set out in the settlement agreement dated November 30, 2022", "exhibits": ["B"]},
-  {"id": "e33", "date": "2022-11-30", "precision": "day", "description": "Terranet search for Verbeek found no Ontario property; corporate searches showed the defaulting corporate defendants long inactive", "paragraphs": [124, 125, 126, 127, 128, 129, 130], "quote": "On November 30, 2022, I conducted a Terranet search for Brian  Verbeek", "exhibits": ["R", "S", "T", "U", "V", "W"]},
-  {"id": "e34", "date": "2022-12-14", "precision": "day", "description": "The Class Proceedings Fund confirmed its levy amounts by email", "paragraphs": [119], "quote": "The Class Proceedings Fund has been advised of these amounts", "exhibits": ["Q"]},
-  {"id": "e35", "date": "2022-12-21", "precision": "day", "description": "Martin sent Ivany the final CWT agreement", "paragraphs": [80], "quote": "On December 21, 2022 I provided David Ivany with the final version of  the CWT agreement", "exhibits": ["A"]},
-  {"id": "e36", "date": "2022-12-22", "precision": "day", "description": "Martin reviewed the changes with Ivany, who supported the final CWT agreement", "paragraphs": [82], "quote": "On December 22, 2022 I spoke with Mr. Ivany about the final version", "exhibits": ["A"]},
-  {"id": "e37", "precision": "undated", "description": "No objections received; 23 hearing notices returned undelivered", "paragraphs": [86, 87], "quote": "MMW has received 23 returned letters", "exhibits": []}
- ],
- "referenced_not_attached": ["OSC Disciplinary Decision regarding Verbeek (July 26, 2005)", "Order of Justice Boswell (August 19, 2008)", "Justice MacKinnon's leave decision", "Settlement Approval Hearing Notice order of November 10, 2022", "Terranet search for Brian Verbeek", "Edimax Inc. search (no results)"],
- "notes": "The record index says sworn December 6, 2022, but the affidavit heading and jurat say December 23, 2022 (affirmed remotely from Antigonish, NS). Paragraph 33 uses 'Exhibit F' for both the costs reasons and the Certification Order; the file holds the Order. Exhibits B, C, D, O and P are image-only."
+  {
+   "id": "e1",
+   "date": "1999-08-27",
+   "end_date": "2000-05-01",
+   "precision": "range",
+   "description": "About 216 class members opened accounts with Dundee while Verbeek was a registered representative",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Approximately 216 class members  opened accounts with Dundee between August 27, 1999 and May  1, 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2000-06-13",
+   "end_date": "2000-09-22",
+   "precision": "range",
+   "description": "About 84 class members opened trust accounts with CWT",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Approximately 84 class members opened  trust accounts with CWT between June 13, 2000 and September  22, 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "precision": "undated",
+   "description": "The OSC prosecuted Verbeek and banned him from the securities industry; class members' retirement savings invested in CCPCs were lost",
+   "paragraphs": [
+    6,
+    7,
+    8
+   ],
+   "quote": "The Ontario Securities Commission (“OSC”) prosecuted Verbeek for his  role",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2001-05-24",
+   "precision": "day",
+   "description": "David Ivany commenced the action",
+   "paragraphs": [
+    9
+   ],
+   "quote": "This action was commenced by David Ivany on May 24, 2001",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2007-06-30",
+   "precision": "day",
+   "description": "MMW entered a contingency fee retainer agreement with Ivany",
+   "paragraphs": [
+    108
+   ],
+   "quote": "MMW entered into a Contingency Fee Retainer agreement with Mr.  Ivany and Mr. Duval on June 30, 2007 and March 2008",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2007-08",
+   "precision": "month",
+   "description": "MMW obtained the OSC's investigation and prosecution materials on Verbeek",
+   "paragraphs": [
+    42
+   ],
+   "quote": "In August 2007, MMW obtained materials from the OSC",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2007-10-26",
+   "precision": "day",
+   "description": "The Statement of Claim was amended (unopposed)",
+   "paragraphs": [
+    18
+   ],
+   "quote": "The Statement of Claim was amended on October 26, 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2008-02",
+   "precision": "month",
+   "description": "MMW, approached by Keating in 2007, was formally retained",
+   "paragraphs": [
+    11
+   ],
+   "quote": "was formally retained in February 2008",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2008-03",
+   "precision": "month",
+   "description": "MMW entered a contingency fee retainer agreement with Duval",
+   "paragraphs": [
+    108
+   ],
+   "quote": "on June 30, 2007 and March 2008, respectively",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2008-08-19",
+   "precision": "day",
+   "description": "Abernot and Duval were added as plaintiffs by order of Justice Boswell; the claim was amended again",
+   "paragraphs": [
+    12,
+    18
+   ],
+   "quote": "added as plaintiffs on  August 19, 2008, pursuant to the Order of Justice Boswell",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2009-09-18",
+   "precision": "approximate",
+   "description": "The plaintiffs served their certification motion record",
+   "paragraphs": [
+    22
+   ],
+   "quote": "We served our motion record for the Certification Motion on or about  September 18, 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2009-12-14",
+   "end_date": "2010-03-26",
+   "precision": "range",
+   "description": "Cross-examinations on the certification affidavits (Baker, Thomas, Ivany, Abernot, Duval, Moodie, Beauregard)",
+   "paragraphs": [
+    24
+   ],
+   "quote": "After exchanging motion records, cross-examinations were held as  follows",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2011-05-04",
+   "precision": "day",
+   "description": "Opposed motion to issue a Fresh as Amended Statement of Claim heard by Justice Lauwers",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On May 4, 2011, a motion was brought to issue a Fresh as Amended  Statement of Claim",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2011-09-15",
+   "precision": "day",
+   "description": "Justice Lauwers granted leave to issue the Fresh as Amended Statement of Claim",
+   "paragraphs": [
+    20
+   ],
+   "quote": "Justice Lauwers granted leave to issue the Fresh as Amended  Statement of Claim",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2012-04-30",
+   "precision": "day",
+   "description": "Plaintiffs answered undertakings (position on refusals May 7, 2012); the June 2012 refusals motion was vacated",
+   "paragraphs": [
+    26
+   ],
+   "quote": "We provided answers to undertakings  on April 30, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2012-07-25",
+   "precision": "day",
+   "description": "The Fresh as Amended Statement of Claim was issued",
+   "paragraphs": [
+    21
+   ],
+   "quote": "The Fresh as Amended Statement of Claim was issued on July 25,  2012",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2012-09",
+   "precision": "month",
+   "description": "Verbeek and the other non-responding defendants were noted in default",
+   "paragraphs": [
+    13,
+    123
+   ],
+   "quote": "He was noted in default in  September 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2012-10",
+   "precision": "month",
+   "description": "MMW was notified that the Class Proceedings Fund would support disbursements and indemnify adverse costs",
+   "paragraphs": [
+    49
+   ],
+   "quote": "in October 2012  MMW was notified that it would receive financial support",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2012-10-04",
+   "end_date": "2012-10-05",
+   "precision": "range",
+   "description": "Certification Motion heard before Justice Lauwers",
+   "paragraphs": [
+    27
+   ],
+   "quote": "The Certification Motion proceeded before Justice Lauwers on October  4 and 5, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "precision": "undated",
+   "description": "Before the Certification Motion, Beauregard offered to settle for his $250,000 E&O policy limits plus costs; the offer was accepted subject to court approval",
+   "paragraphs": [
+    28
+   ],
+   "quote": "Prior to the Certification Motion, Beauregard offered to settle",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e21",
+   "date": "2013-05-23",
+   "precision": "day",
+   "description": "Revised reasons conditionally certifying the action as a class proceeding",
+   "paragraphs": [
+    27
+   ],
+   "quote": "Revised Reasons for Decision of Justice Lauwers, dated May 23,",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2013-08-01",
+   "end_date": "2013-09-09",
+   "precision": "range",
+   "description": "Attendances before Justice Lauwers to finalize the common questions, litigation plan and notice; costs submissions heard September 9",
+   "paragraphs": [
+    31,
+    33
+   ],
+   "quote": "required attendances before Justice Lauwers on August  1, 2013 and September 9, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "date": "2013-10-04",
+   "precision": "day",
+   "description": "Justice Lauwers released costs reasons ($165,000 shared by Dundee and CWT) and issued the Certification Order",
+   "paragraphs": [
+    33
+   ],
+   "quote": "On October 4, 2013 he released his decision and  reasons on costs",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2013-11-06",
+   "precision": "day",
+   "description": "CWT moved for leave to appeal certification; Justice MacKinnon dismissed it with $15,000 costs",
+   "paragraphs": [
+    37,
+    38
+   ],
+   "quote": "On November 6, 2013 CWT brought a motion for leave to appeal the  certification decision",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "date": "2014-02-04",
+   "precision": "day",
+   "description": "CWT served its Statement of Defence and Crossclaim",
+   "paragraphs": [
+    39,
+    40
+   ],
+   "quote": "CWT served its Statement of Defence and Crossclaim on February 4,  2014",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": "2015-03-04",
+   "precision": "day",
+   "description": "First mediation with Dundee and CWT before the Hon. Douglas Cunningham; no settlement",
+   "paragraphs": [
+    51
+   ],
+   "quote": "On March 4, 2015, the plaintiffs attended a mediation with Dundee and  CWT",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "date": "2016-09-15",
+   "precision": "day",
+   "description": "Second mediation with Dundee before Paul Torrie settled the Dundee claim",
+   "paragraphs": [
+    53,
+    54
+   ],
+   "quote": "a second mediation, which was held on  September 15, 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "date": "2017-09-05",
+   "precision": "day",
+   "description": "Justice Mullins approved the Dundee settlement, RicePoint as administrator and class counsel fees",
+   "paragraphs": [
+    55,
+    56
+   ],
+   "quote": "The Dundee settlement was approved by Justice Mullins on September  5, 2017",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e29",
+   "date": "2018",
+   "precision": "year",
+   "description": "Beauregard died without assets other than his insurance policy",
+   "paragraphs": [
+    76
+   ],
+   "quote": "Beauregard passed away in 2018 without any assets",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "date": "2021-12-14",
+   "precision": "day",
+   "description": "Mediation with CWT and Beauregard before the Hon. Todd Archibald reached settlements ($515,000 from CWT; $250,000 plus costs from Beauregard)",
+   "paragraphs": [
+    57,
+    58
+   ],
+   "quote": "On December 14, 2021, the plaintiffs attended a mediation with CWT  and Beauregard",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e31",
+   "date": "2022-11-10",
+   "precision": "day",
+   "description": "The Court approved the Settlement Approval Hearing Notice, which was mailed to the subclasses",
+   "paragraphs": [
+    85
+   ],
+   "quote": "On November 10, 2022, the Court approved the Settlement Approval  Hearing Notice",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "date": "2022-11-30",
+   "precision": "day",
+   "description": "Beauregard Settlement Agreement dated",
+   "paragraphs": [
+    2
+   ],
+   "quote": "set out in the settlement agreement dated November 30, 2022",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e33",
+   "date": "2022-11-30",
+   "precision": "day",
+   "description": "Terranet search for Verbeek found no Ontario property; corporate searches showed the defaulting corporate defendants long inactive",
+   "paragraphs": [
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130
+   ],
+   "quote": "On November 30, 2022, I conducted a Terranet search for Brian  Verbeek",
+   "exhibits": [
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W"
+   ]
+  },
+  {
+   "id": "e34",
+   "date": "2022-12-14",
+   "precision": "day",
+   "description": "The Class Proceedings Fund confirmed its levy amounts by email",
+   "paragraphs": [
+    119
+   ],
+   "quote": "The Class Proceedings Fund has been advised of these amounts",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e35",
+   "date": "2022-12-21",
+   "precision": "day",
+   "description": "Martin sent Ivany the final CWT agreement",
+   "paragraphs": [
+    80
+   ],
+   "quote": "On December 21, 2022 I provided David Ivany with the final version of  the CWT agreement",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e36",
+   "date": "2022-12-22",
+   "precision": "day",
+   "description": "Martin reviewed the changes with Ivany, who supported the final CWT agreement",
+   "paragraphs": [
+    82
+   ],
+   "quote": "On December 22, 2022 I spoke with Mr. Ivany about the final version",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e37",
+   "precision": "undated",
+   "description": "No objections received; 23 hearing notices returned undelivered",
+   "paragraphs": [
+    86,
+    87
+   ],
+   "quote": "MMW has received 23 returned letters",
+   "exhibits": []
+  }
+ ]
 }

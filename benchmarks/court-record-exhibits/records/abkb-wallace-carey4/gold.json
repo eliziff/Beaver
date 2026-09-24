@@ -9,6 +9,14 @@
  "deponent": "Patrick Carey",
  "deponent_role": "Sole director of Carey Management Inc., Wallace & Carey Inc. and Loudon Bros Limited",
  "sworn_date": "2024-05-21",
+ "referenced_not_attached": [
+  "Affidavit No. 1 of Brian M. Birnie sworn June 21, 2023",
+  "Monitor's Tenth Report",
+  "INS Order",
+  "Sale Agreement and TSA"
+ ],
+ "notes": "The affidavit dates the Stay Dismissal Order December 12, 2024; the order itself and the Court of Appeal order show December 12, 2023, so e14 uses 2023.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -405,12 +413,5 @@
    "quote": "CMI has had preliminary discussions with the Monitor and certain key stakeholders",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Affidavit No. 1 of Brian M. Birnie sworn June 21, 2023",
-  "Monitor's Tenth Report",
-  "INS Order",
-  "Sale Agreement and TSA"
- ],
- "notes": "The affidavit dates the Stay Dismissal Order December 12, 2024; the order itself and the Court of Appeal order show December 12, 2023, so e14 uses 2023."
+ ]
 }

@@ -1,0 +1,1145 @@
+{
+ "record_id": "fc-ibh-langlois",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1417-18",
+ "subject": "class_action",
+ "family": "ibh-percival",
+ "proceeding": "Percival, McKay, McKay and Watts v. His Majesty the King (Indian Boarding Homes certified class proceeding): motion to approve the settlement agreement and class counsel fees",
+ "document": "Affidavit of Léa Lemay Langlois affirmed July 21, 2023 (filed July 24, 2023)",
+ "deponent": "Léa Lemay Langlois",
+ "deponent_role": "Lawyer at Dionne Schulze, Quebec Subclass Counsel",
+ "sworn_date": "2023-07-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-crcv3c.pdf",
+   "kind": "notice",
+   "date": null,
+   "author": "Picard class action claims administration",
+   "recipients": [],
+   "description": "Claims notice in the Picard fuel-tax class action showing the payout to registered Indians",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "as appears from Exhibit A"
+    }
+   ],
+   "content_check": "Notice 'Fuel tax paid by Indians on reserve in Quebec', Picard v. AGQ, Superior Court no 200-06-000088-073, on eligibility to file a claim"
+  },
+  {
+   "label": "B",
+   "file": "doc-nuugh3.pdf",
+   "kind": "court_order",
+   "date": "2023-06-15",
+   "author": "Superior Court of Quebec (Justice Sylvain Lussier)",
+   "recipients": [],
+   "description": "Superior Court order authorizing Femmes Autochtones du Quebec et Isabelle Paille as a class action",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "order from the Superior Court of Quebec authorizing the proceeding as a class action attached as Exhibit B"
+    }
+   ],
+   "content_check": "Image-only: Cour superieure judgment 500-06-001005-194, 15 juin 2023, Femmes Autochtones du Quebec inc. et Isabelle Paille c. PGC, on the application for authorization"
+  },
+  {
+   "label": "C",
+   "file": "doc-kz9rku.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Application for authorization to institute a class action in James Jonah (provincial day schools)",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "application for authorization to institute a class action attached as Exhibit C"
+    }
+   ],
+   "content_check": "Cour superieure, action collective 500-06-000999-199, James Jonah c. PGC et PGQ"
+  },
+  {
+   "label": "D",
+   "file": "doc-rjut24.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Application for authorization in Femmes Autochtones du Quebec et Lucie Grenier (Indian registration)",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Indian Act (application for authorization to institute a class action attached as"
+    }
+   ],
+   "content_check": "Cour superieure (Chambre des actions collectives) 500-06-001128-210, Femmes Autochtones du Quebec inc. et Lucie Grenier"
+  },
+  {
+   "label": "E",
+   "file": "doc-7jfeww.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Application for authorization in U.T. et M.X. c. CISSS de Lanaudiere (sterilization of Atikamekw women)",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "hospital, awaiting judgement on authorization (application for authorization to institute a class action attached as Exhibit E)"
+    }
+   ],
+   "content_check": "Cour superieure, district de Joliette 705-06-000011-214, U.T. et M.X. c. CISSS de Lanaudiere et al."
+  },
+  {
+   "label": "F",
+   "file": "doc-9ufvaa.pdf",
+   "kind": "court_order",
+   "date": "2019-06-28",
+   "author": "Federal Court (Justice Strickland)",
+   "recipients": [],
+   "description": "Consent order certifying the action as a class proceeding",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "The action was certified as a class proceeding on consent order from the Federal Court dated June 28, 2019, attached as Exhibit F"
+    }
+   ],
+   "content_check": "Federal Court order dated 20190628, T-1417-18, Madam Justice Strickland, class proceeding"
+  },
+  {
+   "label": "G",
+   "file": "doc-njc5r2.pdf",
+   "kind": "agreement",
+   "date": "2022-12-07",
+   "author": "Parties to Percival v. HMK",
+   "recipients": [],
+   "description": "Agreement in Principle reached by the parties",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "The parties reached an Agreement in Principle on December 7, 2022, attached as Exhibit G"
+    }
+   ],
+   "content_check": "Image-only: 'Agreement in Principle', Federal Court T-1417-18, preamble referring to the dispute resolution conference November 14-16 and December 6-7, 2022"
+  },
+  {
+   "label": "H",
+   "file": "doc-3rcyhg.pdf",
+   "kind": "agreement",
+   "date": "2023-06-14",
+   "author": "Parties to Percival v. HMK",
+   "recipients": [],
+   "description": "Final settlement agreement",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "On June 14, 2023, the parties signed a final settlement agreement, attached as Exhibit H"
+    }
+   ],
+   "content_check": "129 pages: 'Settlement Agreement', Federal Court T-1417-18, with recitals and schedules"
+  },
+  {
+   "label": "I",
+   "file": "doc-pygzda.pdf",
+   "kind": "other",
+   "date": "2014-07-22",
+   "author": "IAP adjudicator Robert Neron",
+   "recipients": [],
+   "description": "IAP hearing decision rejecting Anne Smith's claim",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "as appears from his decision dated July 22, 2014, produced as Exhibit I"
+    }
+   ],
+   "content_check": "Independent Assessment Process decision E5442-10-D-15429 (Bishop Horden Hall and Fort George), received August 24, 2014, redacted"
+  },
+  {
+   "label": "J",
+   "file": "doc-jd756j.pdf",
+   "kind": "other",
+   "date": "2015-02-23",
+   "author": "Deputy Chief Adjudicator Rodger Linka",
+   "recipients": [],
+   "description": "IAP review decision upholding the hearing decision",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "decision by Deputy Chief Adjudicator Rodger Linka, dated February 23, 2015, produced as"
+    }
+   ],
+   "content_check": "IRS Adjudication Secretariat IAP review decision, file E5442-10-D-15429, received February 23, 2015"
+  },
+  {
+   "label": "K",
+   "file": "doc-u2q9r2.pdf",
+   "kind": "other",
+   "date": "2016-05-23",
+   "author": "Adjudicator Anne Wallace",
+   "recipients": [],
+   "description": "IAP re-review decision upholding the rejection",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "The decision to reject Anne's claim was upheld a second time, in the Re-Review decision of Adjudicator Anne Wallace, dated May 23, 2016, produced as Exhibit K"
+    }
+   ],
+   "content_check": "Notice of re-review decision dated June 20, 2016 to David Schulze, file E5442-10-D-15429, enclosing the re-review decision"
+  },
+  {
+   "label": "L",
+   "file": "doc-mhez7j.pdf",
+   "kind": "court_filing",
+   "date": "2016-09-21",
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Anne Smith's application for a class action and for the status of representative",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "As appears from Exhibit L, an application for a class action and to obtain the status of representative was therefore filed in Québec Superior Court on September 21, 2016"
+    }
+   ],
+   "content_check": "Image-only: Superior Court Class Action 500-06-000812-160, Anne Smith v. Attorney General of Canada, application for authorization (art. 571 C.C.P.)"
+  },
+  {
+   "label": "M",
+   "file": "doc-dza97w.pdf",
+   "kind": "court_filing",
+   "date": "2017-05-29",
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Amended application redefining the class to include Mistassini",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "As appears from Exhibit M, on May 29, 2017, Anne Smith's application was therefore amended"
+    }
+   ],
+   "content_check": "Superior Court 500-06-000812-160, Anne Smith v. AGC, Amended application for authorization to institute a class action"
+  },
+  {
+   "label": "N",
+   "file": "doc-x3j4ex.pdf",
+   "kind": "court_filing",
+   "date": "2017-12-08",
+   "author": "Attorney General of Canada",
+   "recipients": [],
+   "description": "Evidence filed by the Attorney General of Canada in response to the authorization application",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "On December 8, 2017, the Attorney General of Canada filed what it considered relevant evidence to respond to the application to authorize Anne Smith's class action, as appears from Exhibit N"
+    }
+   ],
+   "content_check": "138 pages: Justice Canada email notification transmission slip to Dionne Schulze followed by the AGC's exhibits (PGC-)"
+  },
+  {
+   "label": "O",
+   "file": "doc-n6w4v7.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Wiichihiiwewin Centre",
+   "recipients": [],
+   "description": "Wiichihiiwewin Centre web page describing its services",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "and family dynamics, as appears from Exhibit O"
+    }
+   ],
+   "content_check": "Wiichihiiwewin Centre website (wwcentre.ca) programs page"
+  },
+  {
+   "label": "P",
+   "file": "doc-nvqvux.pdf",
+   "kind": "corporate_record",
+   "date": "2018-09",
+   "author": "Registraire des entreprises du Quebec",
+   "recipients": [],
+   "description": "Letters patent incorporating the Wiichihiiwewin Centre",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "to incorporate the organization in September 2018, as appears from Exhibit P"
+    }
+   ],
+   "content_check": "Letters patent (Quebec Companies Act Part III); text layer is font-garbled French"
+  },
+  {
+   "label": "Q",
+   "file": "doc-5nt2a4.pdf",
+   "kind": "corporate_record",
+   "date": null,
+   "author": "Wiichihiiwewin Centre of Waskaganish",
+   "recipients": [],
+   "description": "WWC general by-law with a category of honorary membership",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "as appears from Exhibit Q"
+    }
+   ],
+   "content_check": "General By-law, Wiichihiiwewin Centre of Waskaganish"
+  },
+  {
+   "label": "R",
+   "file": "doc-b468uf.pdf",
+   "kind": "letter",
+   "date": "2021-07-08",
+   "author": "Canada Revenue Agency, Charities Directorate",
+   "recipients": [],
+   "description": "Notification of WWC's registration as a charity",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "including in registering as a charity, as appears from Exhibit R"
+    }
+   ],
+   "content_check": "Image-only: CRA letter 'Subject: Notification of registration as a charity for Wiichihiiwewin Centre of Waskaganish', dated Jul 8, 2021"
+  },
+  {
+   "label": "S",
+   "file": "doc-vag7gj.pdf",
+   "kind": "court_filing",
+   "date": "2018-10-19",
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Third amended (re-amended) application naming WWC as representative",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "As appears from Exhibit S, on October 19, 2018, the application to authorize a class action was amended a third time"
+    }
+   ],
+   "content_check": "Superior Court 500-06-000812-160, Wiichihiiwewin Centre of Waskaganish ... application"
+  },
+  {
+   "label": "T",
+   "file": "doc-nmc6sn.pdf",
+   "kind": "report",
+   "date": "1981-11",
+   "author": "George Ross / DIAND",
+   "recipients": [],
+   "description": "DIAND document describing the Private Home Placement program",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "as appears from Exhibit T"
+    }
+   ],
+   "content_check": "'Indian Control of Indian Education Status Report 1980-81', George Ross, November 1981"
+  },
+  {
+   "label": "U",
+   "file": "doc-5gq5z7.pdf",
+   "kind": "transcript",
+   "date": null,
+   "author": "Superior Court examination",
+   "recipients": [],
+   "description": "Examination of David Cheechoo as a WWC director by the Attorney General's lawyers",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "its lawyers examined David Cheechoo in his capacity as one of WWC's directors to establish the organization's ability to represent the class, as appears from Exhibit U"
+    }
+   ],
+   "content_check": "Pre-trial examination deposition of David Cheechoo, Anne Smith v. AGC, 500-06-000812-160"
+  },
+  {
+   "label": "V",
+   "file": "doc-bkj9m6.pdf",
+   "kind": "court_order",
+   "date": "2021-04-01",
+   "author": "Superior Court of Quebec (Justice Sylvain Lussier)",
+   "recipients": [],
+   "description": "Judgment suspending the WWC and Anne Smith proceedings",
+   "references": [
+    {
+     "paragraph": 66,
+     "quote": "currently suspended, as appears from Exhibit V"
+    }
+   ],
+   "content_check": "Image-only: Cour superieure judgment 1er avril 2021, 500-06-000812-160, WWC & Anne Smith c. PGC, 'Jugement (sur la demande pour disjonction et suspension de l'action collective)'"
+  },
+  {
+   "label": "W",
+   "file": "doc-58mph2.pdf",
+   "kind": "letter",
+   "date": "2019-09-12",
+   "author": "Justice Sylvain Lussier",
+   "recipients": [],
+   "description": "Justice Lussier's letter confirming the suspension of WWC and Anne Smith by consent",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "confirmed by Justice Lussier on September 12, 2019, as appears from"
+    }
+   ],
+   "content_check": "Image-only: letter of Justice Sylvain Lussier dated 12 septembre 2019 to Me Nancy Bonsaint, Objet: Anne Smith c. PGC 500-06-000812-160"
+  },
+  {
+   "label": "X",
+   "file": "doc-jd4tx3.pdf",
+   "kind": "report",
+   "date": "2023-05",
+   "author": "Joan Holmes & Associates Inc.",
+   "recipients": [],
+   "description": "Historical report on the Federal Indian Boarding Homes Policy",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "as appears from Exhibit X"
+    }
+   ],
+   "content_check": "192 pages: 'Federal Indian Boarding Homes Policy Final Report', Joan Holmes & Associates for CIRNAC, May 2023"
+  },
+  {
+   "label": "Y",
+   "file": "doc-buny9y.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "IDSSA parties",
+   "recipients": [],
+   "description": "IDSSA Schedule K list of federal Indian day schools",
+   "references": [
+    {
+     "paragraph": 92,
+     "quote": "as appears from Exhibit Y"
+    }
+   ],
+   "content_check": "'Schedule K - List of Federal Indian Day Schools' table by province with opening and closing dates"
+  },
+  {
+   "label": "Z",
+   "file": "doc-sybgwt.pdf",
+   "kind": "report",
+   "date": "2022-01-14",
+   "author": "Melanie Vincent, Gestion MV Management",
+   "recipients": [],
+   "description": "Survey of 100 band councils on transfer of control",
+   "references": [
+    {
+     "paragraph": 95,
+     "quote": "Vincent could only produce information for only a single community in Québec on transfer of control over the placement of local students in boarding homes, as appears from Exhibit Z"
+    }
+   ],
+   "content_check": "'Survey of 100 Band Councils in the Context of the Boarding Homes Class Action', joint expert report"
+  },
+  {
+   "label": "AA",
+   "file": "doc-6qv8bs.pdf",
+   "kind": "court_order",
+   "date": "2020-06-17",
+   "author": "Federal Court (Justice Phelan)",
+   "recipients": [],
+   "description": "IDSSA payment protocol order for claimants with individual counsel",
+   "references": [
+    {
+     "paragraph": 100,
+     "quote": "that provided the payment protocol for IDSSA claimants who retained individual counsel, as appears from Exhibit AA"
+    }
+   ],
+   "content_check": "Federal Court 2020 FC 701, T-2169-16, June 17, 2020, McLean v. Canada, Justice Phelan"
+  },
+  {
+   "label": "BB",
+   "file": "doc-u6e5hg.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Federal Court",
+   "recipients": [],
+   "description": "Recorded entries showing the case management conferences",
+   "references": [
+    {
+     "paragraph": 103,
+     "quote": "settlement discussions, as appears from Exhibit BB"
+    }
+   ],
+   "content_check": "Federal Court 'Recorded Entry Information: T-1417-18' docket listing"
+  },
+  {
+   "label": "CC",
+   "file": "doc-crwkv6.pdf",
+   "kind": "letter",
+   "date": "2022-11-22",
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Correspondence informing the Cree Nation Government of the litigation status",
+   "references": [
+    {
+     "paragraph": 115,
+     "quote": "to inform them of the status of the litigation and the settlement negotiations, as appears from Exhibit CC"
+    }
+   ],
+   "content_check": "Image-only: Dionne Schulze letter dated November 22, 2022 to Cree Nation Government, Re: Reginald Percival et al. v. Her Majesty the Queen (T-1417-18)"
+  },
+  {
+   "label": "DD",
+   "file": "doc-2tvmvw.pdf",
+   "kind": "spreadsheet",
+   "date": "2023-07-11",
+   "author": "Dionne Schulze",
+   "recipients": [],
+   "description": "Summary of the firm's disbursements totalling $41,794.46",
+   "references": [
+    {
+     "paragraph": 118,
+     "quote": "is attached as Exhibit DD"
+    }
+   ],
+   "content_check": "Dionne Schulze 'Projet de facture au 11-07-2023', file 5100-009 Percival v. HMQ (T-1417-18)"
+  },
+  {
+   "label": "EE",
+   "file": "doc-yc3mbp.pdf",
+   "kind": "report",
+   "date": "2023-07-18",
+   "author": "Rose Victoria Adams",
+   "recipients": [],
+   "description": "Framework for outreach, assistance and support for Quebec subclass members",
+   "references": [
+    {
+     "paragraph": 128,
+     "quote": "Rose Victoria Adams prepared a framework for outreach, assistance, and support specifically for Quebec subclass members, attached as Exhibit EE"
+    }
+   ],
+   "content_check": "Memo dated 2023-07-18 from Rose Victoria Adams to David Schulze, Re: Quebec-Specific Framework for Outreach, Assistance and Support"
+  },
+  {
+   "label": "FF",
+   "file": "doc-wsqsq2.pdf",
+   "kind": "contract",
+   "date": "2021-08",
+   "author": "Kenneth Weistche and Dionne Schulze",
+   "recipients": [],
+   "description": "Weistche's written retainer with Dionne Schulze",
+   "references": [
+    {
+     "paragraph": 137,
+     "quote": "Kenneth Weistche signed a written retainer with Dionne Schulze in August 2021, which is Exhibit FF"
+    }
+   ],
+   "content_check": "Image-only: 'Professional Mandate and Retainer' between Kenneth Weistche and Dionne Schulze general partnership"
+  },
+  {
+   "label": "GG",
+   "file": "doc-wznwc2.pdf",
+   "kind": "letter",
+   "date": "2021-04-21",
+   "author": "Services Quebec / MESS",
+   "recipients": [],
+   "description": "Ministry letter confirming the planned amendment to the Individual and Family Assistance Regulation",
+   "references": [
+    {
+     "paragraph": 153,
+     "quote": "appears from Exhibit GG"
+    }
+   ],
+   "content_check": "Services Quebec letter dated 21 avril 2021 to Me Lea Lemay Langlois, Objet: Demande d'ajout a l'article 135 du Reglement sur l'aide aux personnes"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Dionne Schulze first meets Anne Smith about her IAP claim",
+   "date": "2012-02",
+   "precision": "month",
+   "paragraphs": [
+    27
+   ],
+   "quote": "Lawyers from Dionne Schulze met in February 2012 with the client now known as",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "DIAND begins billeting children with families in Fort George",
+   "date": "1972",
+   "precision": "year",
+   "paragraphs": [
+    30
+   ],
+   "quote": "DIAND began billeting children with families in Fort George in the fall of 1972",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Anne Smith signs her IAP application; filed August 31",
+   "date": "2012-08-23",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "On August 23, 2012, Anne Smith signed an IAP application, which Dionne Schulze filed on August 31st",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "IAP hearing of Anne Smith's claim",
+   "date": "2014-02-28",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "On February 28, 2014, an IAP hearing took place",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Adjudicator Neron rejects the claim",
+   "date": "2014-07-22",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "his decision dated July 22, 2014",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Review decision upholds the rejection",
+   "date": "2015-02-23",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "Deputy Chief Adjudicator Rodger Linka, dated February 23, 2015",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "David Schulze meets Anne Smith about a civil action",
+   "date": "2016-02",
+   "precision": "month",
+   "paragraphs": [
+    46
+   ],
+   "quote": "David Schulze had met with Anne Smith in February 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Re-review decision of Adjudicator Wallace",
+   "date": "2016-05-23",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "Adjudicator Anne Wallace, dated May 23, 2016",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Re-review decision communicated to Dionne Schulze",
+   "date": "2016-06-21",
+   "precision": "day",
+   "paragraphs": [
+    45
+   ],
+   "quote": "Since Adjudicator Wallace's re-review decision was communicated to Dionne Schulze on June 21, 2016",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Anne Smith class action application filed in Quebec Superior Court",
+   "date": "2016-09-21",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "filed in Québec Superior Court on September 21, 2016",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Application amended to add Mistassini",
+   "date": "2017-05-29",
+   "precision": "day",
+   "paragraphs": [
+    53
+   ],
+   "quote": "on May 29, 2017, Anne Smith's application was therefore amended",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Attorney General of Canada files its evidence",
+   "date": "2017-12-08",
+   "precision": "day",
+   "paragraphs": [
+    54
+   ],
+   "quote": "On December 8, 2017, the Attorney General of Canada filed what it considered relevant evidence",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Anne Smith says she cannot continue as representative",
+   "date": "2018-04",
+   "precision": "month",
+   "paragraphs": [
+    58
+   ],
+   "quote": "In April 2018, she informed us that she could not continue as representative plaintiff",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Percival action filed by Klein Lawyers in Federal Court",
+   "date": "2018-07-24",
+   "precision": "day",
+   "paragraphs": [
+    67
+   ],
+   "quote": "filed by Klein Lawyers on behalf of Reg Percival before this Court on July 24, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "WWC incorporated",
+   "date": "2018-09",
+   "precision": "month",
+   "paragraphs": [
+    61
+   ],
+   "quote": "to incorporate the organization in September 2018",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Firms agree on a national class with a Quebec Subclass",
+   "date": "2018-09-20",
+   "precision": "day",
+   "paragraphs": [
+    68
+   ],
+   "quote": "After discussions in September 20, 2018, the two firms rapidly agreed",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Application amended a third time to name WWC",
+   "date": "2018-10-19",
+   "precision": "day",
+   "paragraphs": [
+    62
+   ],
+   "quote": "on October 19, 2018, the application to authorize a class action was amended a third time",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "WWC director David Cheechoo examined by Canada",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    64
+   ],
+   "quote": "its lawyers examined David Cheechoo in his capacity as one of WWC's directors",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Parties' lawyers begin meeting (about 20 meetings)",
+   "date": "2019-02",
+   "precision": "month",
+   "paragraphs": [
+    78
+   ],
+   "quote": "beginning in February 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Dionne Schulze asks Kenneth Weistche to be Quebec representative plaintiff",
+   "date": "2019-04",
+   "precision": "month",
+   "paragraphs": [
+    71
+   ],
+   "quote": "in April 2019, Dionne Schulze asked Kenneth Weistche of Waskaganish to take on the role of Québec representative plaintiff",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Weistche's first affidavit sworn",
+   "date": "2019-05-01",
+   "precision": "day",
+   "paragraphs": [
+    73
+   ],
+   "quote": "Maryse Décarie-Daigneault worked with Kenneth to prepare his May 1, 2019 affidavit",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Consent certification motion filed; amended June 10",
+   "date": "2019-05-03",
+   "precision": "day",
+   "paragraphs": [
+    73
+   ],
+   "quote": "filed on May 3 and amended June 10, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Federal Court certifies the class proceeding on consent",
+   "date": "2019-06-28",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "consent order from the Federal Court dated June 28, 2019",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Justice Lussier confirms suspension of the WWC and Anne Smith proceedings",
+   "date": "2019-09-12",
+   "precision": "day",
+   "paragraphs": [
+    69
+   ],
+   "quote": "confirmed by Justice Lussier on September 12, 2019",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Gorham draft class-size report",
+   "date": "2020-01-08",
+   "precision": "day",
+   "paragraphs": [
+    86
+   ],
+   "quote": "In his draft report of January 8, 2020, Mr. Gorham estimated",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "description": "Federal Court order on IDSSA payment protocol",
+   "date": "2020-06-17",
+   "precision": "day",
+   "paragraphs": [
+    100
+   ],
+   "quote": "this Court's order of June 17, 2020",
+   "exhibits": [
+    "AA"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Amended art. 2926.1 CCQ takes effect",
+   "date": "2020-06-12",
+   "precision": "day",
+   "paragraphs": [
+    131
+   ],
+   "quote": "the most recent amendment to art. 2926.1 of the Civil Code of Québec took effect on June 12, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Briefing note to AFN executive committee",
+   "date": "2021-03",
+   "precision": "month",
+   "paragraphs": [
+    115
+   ],
+   "quote": "David Schulze prepared a briefing note for the executive committee of the Assembly of First Nations in March 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Briefing note to AFNQL Chiefs' Assembly",
+   "date": "2021-04",
+   "precision": "month",
+   "paragraphs": [
+    115
+   ],
+   "quote": "a similar briefing note was prepared for the Chiefs' Assembly of the Assembly of First Nations Québec – Labrador in April 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Quebec ministry confirms planned social-assistance amendment",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    153
+   ],
+   "quote": "the province intends to amend the Individual and Family Assistance Regulation",
+   "exhibits": [
+    "GG"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "WWC registered as a charity",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    61
+   ],
+   "quote": "including in registering as a charity",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "WWC and Anne Smith proceedings suspended",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    66
+   ],
+   "quote": "currently suspended, as appears from Exhibit V",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Interview of the chief who signed the BCR",
+   "date": "2021-07-08",
+   "precision": "day",
+   "paragraphs": [
+    93
+   ],
+   "quote": "the signatory chief told David Schulze in an interview on July 8, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "description": "Weistche signs his retainer with Dionne Schulze",
+   "date": "2021-08",
+   "precision": "month",
+   "paragraphs": [
+    137
+   ],
+   "quote": "Kenneth Weistche signed a written retainer with Dionne Schulze in August 2021",
+   "exhibits": [
+    "FF"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "Vincent survey report of band councils",
+   "date": "2022-01-14",
+   "precision": "day",
+   "paragraphs": [
+    95
+   ],
+   "quote": "in her report of January 14, 2022",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "Canada announces a mandate to negotiate a settlement",
+   "date": "2022-08",
+   "precision": "month",
+   "paragraphs": [
+    105
+   ],
+   "quote": "it was only in August 2022 that counsel for Canada informed Class Counsel and Quebec Subclass Counsel that they had a formal mandate",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "description": "Case management conferences held",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    103
+   ],
+   "quote": "the parties participated in at least ten case management conferences",
+   "exhibits": [
+    "BB"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "Counsel keep the Cree Nation Government informed",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    115
+   ],
+   "quote": "were in regular contact with the Cree Nation Government (CNG)",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "Dispute resolution conference before Justice Strickland",
+   "date": "2022-11-14",
+   "precision": "range",
+   "paragraphs": [
+    106,
+    211
+   ],
+   "quote": "took place before Justice Strickland on November 14 to 16 and December 6 to 7, 2022",
+   "exhibits": [],
+   "end_date": "2022-12-07"
+  },
+  {
+   "id": "e40",
+   "description": "Counsel meet Dr. Matthew Coon Come about the agreement-in-principle",
+   "date": "2022-12",
+   "precision": "month",
+   "paragraphs": [
+    115
+   ],
+   "quote": "in December 2022, Quebec Subclass Counsel and Class Counsel met with",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "description": "Agreement in Principle reached",
+   "date": "2022-12-07",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "The parties reached an Agreement in Principle on December 7, 2022",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "Briefing note to AFN executive on negotiations",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    115
+   ],
+   "quote": "Rose Victoria Adams prepared another briefing note for the AFN executive in March 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e43",
+   "description": "Eric Khan of CA2 Inc. appointed joint notice expert",
+   "date": "2023-03",
+   "precision": "month",
+   "paragraphs": [
+    117
+   ],
+   "quote": "the appointment in March 2023 of Eric Khan of CA2 Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "description": "Grand Chief Gull-Masty writes to the ministers",
+   "date": "2023-05",
+   "precision": "month",
+   "paragraphs": [
+    115
+   ],
+   "quote": "in May 2023, Grand Chief Mandy Gull-Masty wrote personally to the",
+   "exhibits": []
+  },
+  {
+   "id": "e45",
+   "description": "Final settlement agreement signed",
+   "date": "2023-06-14",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On June 14, 2023, the parties signed a final settlement agreement",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e46",
+   "description": "About 380 class members have contacted the firm",
+   "date": "2023-07-18",
+   "precision": "day",
+   "paragraphs": [
+    112
+   ],
+   "quote": "as of July 18, 2023, approximately 380 had contacted the firm",
+   "exhibits": []
+  },
+  {
+   "id": "e47",
+   "description": "Firm's disbursements summarized",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    118
+   ],
+   "quote": "in the total amount of $41,794.46",
+   "exhibits": [
+    "DD"
+   ]
+  },
+  {
+   "id": "e48",
+   "description": "Outreach framework prepared",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    128
+   ],
+   "quote": "Rose Victoria Adams prepared a framework for outreach",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e49",
+   "description": "Holmes historical report commissioned by Canada",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    82
+   ],
+   "quote": "Canada also commissioned a historical report by the firm of Joan Holmes & Associates",
+   "exhibits": [
+    "X"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Picard approval order",
+  "IAP fee review decisions (omitted for confidentiality)",
+  "Gorham draft actuarial report of January 8, 2020",
+  "Summary of time attached to Aden Klein's affidavit",
+  "Dispute resolution brief",
+  "Weistche May 1, 2019 affidavit"
+ ]
+}

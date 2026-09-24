@@ -9,24 +9,205 @@
  "deponent": "Cindy Blackstock",
  "deponent_role": "Executive Director, First Nations Child and Family Caring Society of Canada",
  "sworn_date": "2026-07-27",
+ "referenced_not_attached": [
+  "CPAC video archives of the ministers panel and Day 3 session"
+ ],
+ "leak_waivers": [],
+ "notes": "The source file name says 27-JUL-2027; the jurat reads July 27, 2026.",
+ "family": "fncfcs-chrt-t1340",
+ "subject": "human_rights",
  "exhibits": [
-  {"label": "A", "file": "doc-v9f7w6.pdf", "kind": "other", "date": "2026-07-15", "author": "Cindy Blackstock and Chief Pauline Frost", "recipients": [], "description": "Slide deck Blackstock and Chief Frost presented at the AFN AGA plenary on long-term reform", "references": [{"paragraph": 5, "quote": "A true copy of the slide deck that Chief Frost and I presented during the plenary session is \nattached to my affidavit as Exhibit “A”."}], "content_check": "17 slides 'AFN Plenary Session - July 15, 2026, Permanently ending Canada's discrimination in First Nations Child and Family Services (Outside Ontario)'"},
-  {"label": "B", "file": "doc-m6v7j3.pdf", "kind": "minutes", "date": "2026-07-15", "author": "Aiden McGrath, BC Assembly of First Nations", "recipients": ["Cindy Blackstock"], "description": "BCAFN notes of the questions put to Minister Gull-Masty at the BC caucus session and her answers", "references": [{"paragraph": 7, "quote": "A true copy of the notes I received on July \n15, 2026 is attached to my affidavit as Exhibit “B”."}], "content_check": "Four pages 'AFN AGA 2026 Notes from BC Caucus Session, July 15, 2026, Presentation from Minister Mandy Gull-Masty'"},
-  {"label": "C", "file": "doc-7menmq.pdf", "kind": "transcript", "date": "2026-07-16", "author": "Caring Society (transcription of CPAC video)", "recipients": [], "description": "Transcription of portions of Minister Gull-Masty's remarks at the AGA ministers panel", "references": [{"paragraph": 9, "quote": "Attached to my affidavit as Exhibit “C” is a true copy of a transcription of portions of \nMinister Gull-Masty’s remarks during the ministerial panel"}], "content_check": "Two pages 'AFN 2026 Annual General Assembly: Ministers Panel 2 - July 16, 2026 - Public Record - CPAC.ca' with timestamped remarks"},
-  {"label": "D", "file": "doc-bt7s7j.pdf", "kind": "transcript", "date": "2026-07-16", "author": "Caring Society (transcription of CPAC video)", "recipients": [], "description": "Transcription of the remarks of Chiefs Frost, Phillips and Powder supporting the resolutions", "references": [{"paragraph": 11, "quote": "Attached to my affidavit as Exhibit “D” is a true copy of a transcription of the remarks of \nthe three chiefs who spoke in favour of the resolutions"}], "content_check": "Three pages 'Assembly of First Nations' 2026 Annual General Assembly - Day 3' with CPAC link and timestamped remarks of Chief Pauline Frost"},
-  {"label": "E", "file": "doc-8dn3g7.pdf", "kind": "letter", "date": "2026-07-24", "author": "Chief Pauline Frost and Cindy Blackstock", "recipients": ["Prime Minister Mark Carney"], "description": "Joint July 24, 2026 letter to Prime Minister Carney on long-term reform", "references": [{"paragraph": 12, "quote": "A true copy of Chief Frost’s and my July 24, 2026 letter is attached to my \naffidavit as Exhibit “E”."}], "content_check": "Three-page letter dated July 24, 2026 to the Right Honourable Mark Carney, 'Re: Immediate steps required to implement Tribunal- and First Nations...'"}
+  {
+   "label": "A",
+   "file": "doc-v9f7w6.pdf",
+   "kind": "other",
+   "date": "2026-07-15",
+   "author": "Cindy Blackstock and Chief Pauline Frost",
+   "recipients": [],
+   "description": "Slide deck Blackstock and Chief Frost presented at the AFN AGA plenary on long-term reform",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A true copy of the slide deck that Chief Frost and I presented during the plenary session is \nattached to my affidavit as Exhibit “A”."
+    }
+   ],
+   "content_check": "17 slides 'AFN Plenary Session - July 15, 2026, Permanently ending Canada's discrimination in First Nations Child and Family Services (Outside Ontario)'"
+  },
+  {
+   "label": "B",
+   "file": "doc-m6v7j3.pdf",
+   "kind": "minutes",
+   "date": "2026-07-15",
+   "author": "Aiden McGrath, BC Assembly of First Nations",
+   "recipients": [
+    "Cindy Blackstock"
+   ],
+   "description": "BCAFN notes of the questions put to Minister Gull-Masty at the BC caucus session and her answers",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A true copy of the notes I received on July \n15, 2026 is attached to my affidavit as Exhibit “B”."
+    }
+   ],
+   "content_check": "Four pages 'AFN AGA 2026 Notes from BC Caucus Session, July 15, 2026, Presentation from Minister Mandy Gull-Masty'"
+  },
+  {
+   "label": "C",
+   "file": "doc-7menmq.pdf",
+   "kind": "transcript",
+   "date": "2026-07-16",
+   "author": "Caring Society (transcription of CPAC video)",
+   "recipients": [],
+   "description": "Transcription of portions of Minister Gull-Masty's remarks at the AGA ministers panel",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached to my affidavit as Exhibit “C” is a true copy of a transcription of portions of \nMinister Gull-Masty’s remarks during the ministerial panel"
+    }
+   ],
+   "content_check": "Two pages 'AFN 2026 Annual General Assembly: Ministers Panel 2 - July 16, 2026 - Public Record - CPAC.ca' with timestamped remarks"
+  },
+  {
+   "label": "D",
+   "file": "doc-bt7s7j.pdf",
+   "kind": "transcript",
+   "date": "2026-07-16",
+   "author": "Caring Society (transcription of CPAC video)",
+   "recipients": [],
+   "description": "Transcription of the remarks of Chiefs Frost, Phillips and Powder supporting the resolutions",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached to my affidavit as Exhibit “D” is a true copy of a transcription of the remarks of \nthe three chiefs who spoke in favour of the resolutions"
+    }
+   ],
+   "content_check": "Three pages 'Assembly of First Nations' 2026 Annual General Assembly - Day 3' with CPAC link and timestamped remarks of Chief Pauline Frost"
+  },
+  {
+   "label": "E",
+   "file": "doc-8dn3g7.pdf",
+   "kind": "letter",
+   "date": "2026-07-24",
+   "author": "Chief Pauline Frost and Cindy Blackstock",
+   "recipients": [
+    "Prime Minister Mark Carney"
+   ],
+   "description": "Joint July 24, 2026 letter to Prime Minister Carney on long-term reform",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A true copy of Chief Frost’s and my July 24, 2026 letter is attached to my \naffidavit as Exhibit “E”."
+    }
+   ],
+   "content_check": "Three-page letter dated July 24, 2026 to the Right Honourable Mark Carney, 'Re: Immediate steps required to implement Tribunal- and First Nations...'"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2026-07-14", "end_date": "2026-07-16", "precision": "range", "description": "Blackstock attended the 2026 AFN Annual General Assembly in Ottawa", "paragraphs": [3], "quote": "which was held in Ottawa from July 14-16, 2026", "exhibits": []},
-  {"id": "e2", "date": "2026-07-15", "precision": "approximate", "description": "Blackstock presented on a plenary panel with Regional Chief Verreault-Paul and Chief Frost", "paragraphs": [4, 5], "quote": "I presented on a panel during a plenary session regarding \nlong-term reform", "exhibits": ["A"]},
-  {"id": "e3", "date": "2026-07-15", "precision": "day", "description": "Minister Gull-Masty attended a BC caucus session and answered questions", "paragraphs": [6], "quote": "attended one \nsuch session on July 15, 2026, at which I was present", "exhibits": ["B"]},
-  {"id": "e4", "date": "2026-07-15", "precision": "day", "description": "Blackstock received and reviewed BCAFN's notes of the session", "paragraphs": [7], "quote": "On July 15, 2026, I received notes from Aiden McGrath", "exhibits": ["B"]},
-  {"id": "e5", "date": "2026-07-16", "precision": "day", "description": "Minister Gull-Masty spoke on the ministerial panel", "paragraphs": [8, 9], "quote": "Minister Gull-Masty also addressed a plenary session at the 2026 AFN AGA as part of a \nministerial question-and-answer panel.", "exhibits": ["C"]},
-  {"id": "e6", "date": "2026-07-16", "precision": "day", "description": "First Nations in Assembly passed three FNCFS resolutions in an omnibus resolution", "paragraphs": [10, 11], "quote": "On July 16, 2026, First Nations in Assembly passed three resolutions", "exhibits": ["D"]},
-  {"id": "e7", "date": "2026-07-24", "precision": "day", "description": "BCAFN approved including its notes with the affidavit", "paragraphs": [7], "quote": "On July 24, 2026, I received confirmation from Matthew Norris", "exhibits": ["B"]},
-  {"id": "e8", "date": "2026-07-24", "precision": "day", "description": "Frost and Blackstock wrote jointly to Prime Minister Carney", "paragraphs": [12], "quote": "On July 24, 2026, Chief Frost and I wrote jointly to the Right Honourable Mark Carney", "exhibits": ["E"]}
- ],
- "referenced_not_attached": ["CPAC video archives of the ministers panel and Day 3 session"],
- "leak_waivers": [],
- "notes": "The source file name says 27-JUL-2027; the jurat reads July 27, 2026."
+  {
+   "id": "e1",
+   "date": "2026-07-14",
+   "end_date": "2026-07-16",
+   "precision": "range",
+   "description": "Blackstock attended the 2026 AFN Annual General Assembly in Ottawa",
+   "paragraphs": [
+    3
+   ],
+   "quote": "which was held in Ottawa from July 14-16, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2026-07-15",
+   "precision": "approximate",
+   "description": "Blackstock presented on a plenary panel with Regional Chief Verreault-Paul and Chief Frost",
+   "paragraphs": [
+    4,
+    5
+   ],
+   "quote": "I presented on a panel during a plenary session regarding \nlong-term reform",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2026-07-15",
+   "precision": "day",
+   "description": "Minister Gull-Masty attended a BC caucus session and answered questions",
+   "paragraphs": [
+    6
+   ],
+   "quote": "attended one \nsuch session on July 15, 2026, at which I was present",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2026-07-15",
+   "precision": "day",
+   "description": "Blackstock received and reviewed BCAFN's notes of the session",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On July 15, 2026, I received notes from Aiden McGrath",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2026-07-16",
+   "precision": "day",
+   "description": "Minister Gull-Masty spoke on the ministerial panel",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "Minister Gull-Masty also addressed a plenary session at the 2026 AFN AGA as part of a \nministerial question-and-answer panel.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2026-07-16",
+   "precision": "day",
+   "description": "First Nations in Assembly passed three FNCFS resolutions in an omnibus resolution",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "On July 16, 2026, First Nations in Assembly passed three resolutions",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2026-07-24",
+   "precision": "day",
+   "description": "BCAFN approved including its notes with the affidavit",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On July 24, 2026, I received confirmation from Matthew Norris",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2026-07-24",
+   "precision": "day",
+   "description": "Frost and Blackstock wrote jointly to Prime Minister Carney",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On July 24, 2026, Chief Frost and I wrote jointly to the Right Honourable Mark Carney",
+   "exhibits": [
+    "E"
+   ]
+  }
+ ]
 }

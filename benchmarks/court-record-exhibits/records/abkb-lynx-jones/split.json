@@ -1,0 +1,61 @@
+{
+ "record_id": "abkb-lynx-jones",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-23ydkf.pdf",
+   "source_pages": [
+    7
+   ],
+   "cover_page": 6,
+   "stamp_page": null,
+   "text_chars": 47
+  },
+  {
+   "label": "2",
+   "file": "doc-9nkbjq.pdf",
+   "source_pages": [
+    9,
+    10
+   ],
+   "cover_page": 8,
+   "stamp_page": null,
+   "text_chars": 1494
+  },
+  {
+   "label": "3",
+   "file": "doc-3x36g9.pdf",
+   "source_pages": [
+    12,
+    13
+   ],
+   "cover_page": 11,
+   "stamp_page": null,
+   "text_chars": 2726
+  },
+  {
+   "label": "4",
+   "file": "doc-juzze5.pdf",
+   "source_pages": [
+    15,
+    16
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 3358
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-23ydkf.pdf"
+ ]
+}

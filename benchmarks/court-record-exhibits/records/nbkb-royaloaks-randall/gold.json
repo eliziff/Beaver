@@ -1,0 +1,662 @@
+{
+ "record_id": "nbkb-royaloaks-randall",
+ "court": "Court of King's Bench of New Brunswick (in Bankruptcy and Insolvency), Judicial District of Saint John",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "SJM 44 2024",
+ "subject": "insolvency",
+ "proceeding": "Application by CWB Maxium Financial Inc. under s. 243 BIA and the Judicature Act for the appointment of Deloitte Restructuring Inc. as receiver of Royal Oaks Golf Club Inc.",
+ "document": "Affidavit of Rod Randall sworn March 9, 2024",
+ "deponent": "Rod Randall",
+ "deponent_role": "Assistant Vice President and Manager, Special Asset Management Unit, CWB Maxium Financial Inc. (applicant secured lender)",
+ "sworn_date": "2024-03-09",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-jtu4bz.pdf",
+   "kind": "public_record",
+   "date": "2017-12-11",
+   "author": "Service New Brunswick Corporate Affairs Registry",
+   "recipients": [],
+   "description": "New Brunswick Corporate Profile of Royal Oaks",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A true copy of the New Brunswick Corporate Profile is attached hereto as Exhibit \"A\""
+    }
+   ],
+   "content_check": "2 pages: SNB Corporate Affairs Registry printout (transaction dated 2017-12-11) for Royal Oaks Golf Club Inc."
+  },
+  {
+   "label": "B",
+   "file": "doc-n5ypgu.pdf",
+   "kind": "contract",
+   "date": "2012-11-23",
+   "author": "633003 N.B. Inc.",
+   "recipients": [
+    "Maxium Financial Services Inc."
+   ],
+   "description": "Promissory Note for the 2012 $2,150,000 loan to 633003 N.B. Inc.",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A true copy of the Promissory Note is attached hereto as Exhibit \"B\""
+    }
+   ],
+   "content_check": "3 pages: Fixed Rate Promissory Note, $2,150,000, 633003 N.B. Inc. to Maxium Financial Services Inc., dated November 23, 2012; last page is an image-only green tab sheet lettered C (the next exhibit's divider)"
+  },
+  {
+   "label": "C",
+   "file": "doc-74w7fy.pdf",
+   "kind": "public_record",
+   "date": "2012-11-05",
+   "author": "633003 N.B. Inc.",
+   "recipients": [
+    "Maxium Financial Services Inc."
+   ],
+   "description": "Collateral Mortgage and Assignment of Rents registered against the Property",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Collateral Mortgage and Assignment of Rents dated November 5, 2012"
+    }
+   ],
+   "content_check": "4 pages: NB Land Titles Form 15.1 Collateral Mortgage, PIDs 70344148, 70327937, 70488663, mortgagor 633003 N.B. Inc., mortgagee Maxium Financial Services Inc., with assignment of rents"
+  },
+  {
+   "label": "D",
+   "file": "doc-xbjqwk.pdf",
+   "kind": "public_record",
+   "date": "2024-01-12",
+   "author": "New Brunswick Personal Property Registry",
+   "recipients": [],
+   "description": "Personal Property Security Act registration of the General Security Agreement",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "A true copy of the Personal Property Security Act registration is attached hereto as Exhibit \"D\""
+    }
+   ],
+   "content_check": "2 pages: NB PPRS verification statement, renewal registration 39448840 of 2024-01-12, original registration 21978853"
+  },
+  {
+   "label": "E",
+   "file": "doc-padyz6.pdf",
+   "kind": "contract",
+   "date": "2017-12-13",
+   "author": "Royal Oaks Golf Club Inc.",
+   "recipients": [
+    "1951584 Ontario Inc. (formerly Maxium Financial Services Inc.)"
+   ],
+   "description": "The 2017 Promissory Note for the further $2,150,000 loan",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A true copy of the Promissory Note is attached hereto as Exhibit \"E\""
+    }
+   ],
+   "content_check": "4 pages: Fixed-rate promissory note, $2,150,000, Royal Oaks Golf Club Inc. to 1951584 Ontario Inc. (formerly Maxium), OCR-noisy scan"
+  },
+  {
+   "label": "F",
+   "file": "doc-2tpfz7.pdf",
+   "kind": "agreement",
+   "date": "2017-12-13",
+   "author": "Royal Oaks Golf Club Inc.",
+   "recipients": [
+    "1951584 Ontario Inc. (formerly Maxium Financial Services Inc.)"
+   ],
+   "description": "General Security Agreement dated December 13, 2017",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "General Security Agreement dated December 13, 2017, a true copy \nof which is attached hereto as Exhibit \"F"
+    }
+   ],
+   "content_check": "5 pages: 1951584 Ontario Inc. General Security Agreement, customer Royal Oaks Golf Club Inc.; last page is the image-only F1 tab divider"
+  },
+  {
+   "label": "F1",
+   "file": "doc-kmzny5.pdf",
+   "kind": "public_record",
+   "date": "2024-01-12",
+   "author": "New Brunswick Personal Property Registry",
+   "recipients": [],
+   "description": "PPSA registration of the 2017 General Security Agreement",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "It was registered pursuant \nto the Personal Property Security Act, a true copy of which is \nattached hereto as Exhibit \"Fl\""
+    }
+   ],
+   "content_check": "2 pages: NB PPRS verification statement, renewal 39448857 of 2024-01-12, original registration 29997038"
+  },
+  {
+   "label": "G",
+   "file": "doc-ghb983.pdf",
+   "kind": "agreement",
+   "date": "2017-12-13",
+   "author": "Patrick Miniutti",
+   "recipients": [
+    "1951584 Ontario Inc."
+   ],
+   "description": "Guarantee signed by Patrick Miniutti",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Guarantee signed by Patrick Miniutti dated December 13, 2017, a \ntrue copy of which is attached hereto as Exhibit \"G\""
+    }
+   ],
+   "content_check": "1 page: 1951584 Ontario Inc. guarantee of Royal Oaks Golf Club Inc.'s obligations (poor OCR)"
+  },
+  {
+   "label": "H",
+   "file": "doc-kb2x75.pdf",
+   "kind": "agreement",
+   "date": "2017-12-13",
+   "author": "Esmond Cloutier",
+   "recipients": [
+    "1951584 Ontario Inc."
+   ],
+   "description": "Guarantee signed by Esmond Cloutier",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Guarantee signed by Esmond Cloutier dated December 13, 2017, a \ntrue copy of which is attached hereto as Exhibit \"H\""
+    }
+   ],
+   "content_check": "2 pages: 1951584 Ontario Inc. guarantee form for Royal Oaks Golf Club Inc.; second page is an image-only green tab sheet lettered I"
+  },
+  {
+   "label": "I",
+   "file": "doc-uutbej.pdf",
+   "kind": "agreement",
+   "date": "2017-12-13",
+   "author": "Ron Hrynyk",
+   "recipients": [
+    "1951584 Ontario Inc."
+   ],
+   "description": "Guarantee signed by Ron Hrynyk",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Guarantee signed by Ron Hrynyk dated December 13, 2017, a true \ncopy of which is attached hereto as Exhibit \"I\""
+    }
+   ],
+   "content_check": "1 page: guarantee form of 1951584 Ontario Inc. for Royal Oaks Golf Club Inc. (very poor OCR)"
+  },
+  {
+   "label": "J",
+   "file": "doc-dcqdd2.pdf",
+   "kind": "agreement",
+   "date": "2017",
+   "author": "1951584 Ontario Inc.",
+   "recipients": [
+    "Sunset CRE Investments I LLP",
+    "TW1 Oaks Inc.",
+    "Royal Oaks Golf Club Inc."
+   ],
+   "description": "Postponement Agreements of Sunset CRE Investments and TW1 Oaks Inc.",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached hereto as Exhibit \"J\" are true copied of the Postponement Agreements"
+    }
+   ],
+   "content_check": "9 pages: Subordination Agreement (with Postponement) among 1951584 Ontario Inc. (senior lender), Sunset CRE Investments I LLP and Royal Oaks Golf Club Inc., 2017, and a second postponement"
+  },
+  {
+   "label": "K",
+   "file": "doc-px6taq.pdf",
+   "kind": "agreement",
+   "date": "2023",
+   "author": "CWB Maxium Financial Inc.",
+   "recipients": [
+    "Royal Oaks Golf Club Inc."
+   ],
+   "description": "Amending Agreements to the Promissory Note",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached hereto as Exhibit \"K\" are true copies of the Amending \nAgreements"
+    }
+   ],
+   "content_check": "4 pages: Amending Agreements between Royal Oaks Golf Club Inc. and CWB Maxium Financial Inc. amending Promissory Note M1-4"
+  },
+  {
+   "label": "L",
+   "file": "doc-tcghfq.pdf",
+   "kind": "letter",
+   "date": "2023-10-13",
+   "author": "BoyneClarke LLP (for CWB)",
+   "recipients": [
+    "Royal Oaks Golf Club Inc."
+   ],
+   "description": "Demand arrears letter on the Collateral Mortgage with BIA s. 244 notice",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Demand Arrears Letter dated October 13, 2023, regarding \nthe Collateral Mortgage, together with a Notice pursuant to \nsection 244 of the Bankruptcy and Insolvency Act., a true \ncopy which is attached hereto as Exhibit \"L\""
+    }
+   ],
+   "content_check": "3 pages: BoyneClarke letter of October 13, 2023 to Royal Oaks Golf Club Inc. (633003 N.B. Inc.) by regular and registered mail"
+  },
+  {
+   "label": "M",
+   "file": "doc-3fc7n9.pdf",
+   "kind": "letter",
+   "date": "2023-10-13",
+   "author": "BoyneClarke LLP (for CWB)",
+   "recipients": [
+    "Royal Oaks Golf Club Inc."
+   ],
+   "description": "Demand letter on the 2017 General Security Agreement with Notice to Enforce Security under the PPSA",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Demand Letter dated October 13, 2023, regarding the 2017 \nGeneral Security Agreement together with a Notice to \nEnforce Security pursuant to the Personal Property Security \nAct, a true copy of which is attached hereto as Exhibit \"M\""
+    }
+   ],
+   "content_check": "3 pages: BoyneClarke letter of October 13, 2023 to Royal Oaks Golf Club Inc."
+  },
+  {
+   "label": "N",
+   "file": "doc-cphwzv.pdf",
+   "kind": "letter",
+   "date": "2023-10-13",
+   "author": "BoyneClarke LLP (for CWB)",
+   "recipients": [
+    "Estate of Patrick Miniutti",
+    "Ronald Hrynyk",
+    "Esmond Clouthier",
+    "Ms. Clouthier"
+   ],
+   "description": "Copy of the demand letters sent to the guarantors",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "true copies \nof which are attached hereto as Exhibits \"N\" and \"0\" respectively"
+    }
+   ],
+   "content_check": "5 pages: BoyneClarke letter of October 13, 2023 to the Estate of Patrick Minuitti, Ronald Hrynyk and others"
+  },
+  {
+   "label": "O",
+   "file": "doc-2egq3y.pdf",
+   "kind": "letter",
+   "date": "2023-10-13",
+   "author": "BoyneClarke LLP (for CWB)",
+   "recipients": [
+    "Estate of Patrick Miniutti",
+    "Ronald Hrynyk",
+    "Esmond Clouthier",
+    "Ms. Clouthier"
+   ],
+   "description": "Copy of the second demand letter sent to the guarantors",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "true copies \nof which are attached hereto as Exhibits \"N\" and \"0\" respectively"
+    }
+   ],
+   "content_check": "5 pages: BoyneClarke letter of October 13, 2023 (regular mail) to the Estate of Patrick Minuitti, Ronald Hrynyk, Esmond Clouthier and others"
+  },
+  {
+   "label": "P",
+   "file": "doc-5wsmun.pdf",
+   "kind": "court_filing",
+   "date": "2023-12-04",
+   "author": "TW1 Oaks Inc.",
+   "recipients": [
+    "HR Corporate Strategies Ltd.",
+    "Walter Steven Lunn",
+    "Royal Oaks Golf Club Inc."
+   ],
+   "description": "TW1's Notice of Application in the Judicial District of Moncton seeking a forced share sale",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "a true \ncopy of which is attached hereto as Exhibit \"P\""
+    }
+   ],
+   "content_check": "9 pages: Notice of Application (Form 16D), TW1 Oaks Inc. v HR Corporate Strategies Ltd., Walter Steven Lunn and Royal Oaks Golf Club Inc., ss. 141 and 166 NB Business Corporations Act; last page is the image-only Q tab sheet"
+  },
+  {
+   "label": "Q",
+   "file": "doc-9tt58k.pdf",
+   "kind": "court_order",
+   "date": "2024-02-14",
+   "author": "Justice Maya Hamou, Court of King's Bench of New Brunswick",
+   "recipients": [],
+   "description": "Written reasons of Justice Hamou dismissing the Notice of Application",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "A true copy of the written \nreasons of Madam Justice Hamou is attached hereto as Exhibit \"Q\""
+    }
+   ],
+   "content_check": "16 pages: decision, TW1 Oaks Inc. v Royal Oaks Golf Club Inc. et al., 2024 NBKB 026, MM-286-2023, heard February 2, 2024"
+  },
+  {
+   "label": "R",
+   "file": "doc-gqzayh.pdf",
+   "kind": "letter",
+   "date": "2024-02-23",
+   "author": "Canadian Western Bank",
+   "recipients": [
+    "Deloitte Restructuring Inc."
+   ],
+   "description": "CWB's letter appointing Deloitte as private receiver",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "a true copy of the appointment letter is attached hereto as Exhibit \"R\""
+    }
+   ],
+   "content_check": "3 pages: letter dated February 23, 2024 to Deloitte Restructuring Inc. (James Foran) re borrowings of Royal Oaks from CWB, aggregate indebtedness $2,052,114.29 (dated Feb 23 although the affidavit says the appointment was Feb 16)"
+  },
+  {
+   "label": "S",
+   "file": "doc-snctp4.pdf",
+   "kind": "public_record",
+   "date": "2024",
+   "author": "Service New Brunswick Land Titles",
+   "recipients": [],
+   "description": "Certificates of Registered Ownership for the Property",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached hereto as Exhibit \"S\" are true copies of the Certificates of Registered Ownership \nfor the Property"
+    }
+   ],
+   "content_check": "12 pages: NB Land Titles Form 47 Certificates of Registered Ownership for PIDs including 70488663, owner Royal Oaks Golf Club Inc."
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Royal Oaks incorporated",
+   "date": "2007-07-18",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Royal Oaks was incorporated on July 18, 2007",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Collateral mortgage and assignment of rents signed in favour of CWB (Maxium)",
+   "date": "2012-11-05",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Collateral Mortgage and Assignment of Rents dated November 5, \n2012",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "633003 N.B. Inc. approved for a $2,150,000 loan and signs promissory note",
+   "date": "2012-11-23",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On or about November 23, 2012 633003 N.B. Inc. applied to CWB and was approved for \na loan in the amount of $2,150,000.00",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Collateral mortgage registered against the Property",
+   "date": "2012-11-23",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "more particularly described as PID Nos. 70344148; 70327937 and \n70488663 on November 23, 2012 as document no. 32193048",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "General Security Agreement given and registered under the PPSA",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "A General Security Agreement.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "633003 N.B. Inc. changes its name to Royal Oaks",
+   "date": "2015-05-01",
+   "precision": "approximate",
+   "paragraphs": [
+    7
+   ],
+   "quote": "633003 N.B. Inc. changed its name to Royal Oaks on or about May 1, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Royal Oaks approved for further $2,150,000 loan for capital improvements (2017 Promissory Note)",
+   "date": "2017-12-13",
+   "precision": "day",
+   "paragraphs": [
+    9,
+    10
+   ],
+   "quote": "On or about December 13, 2017, Royal Oaks applied to CWB and was approved for a \nfurther loan in the amount of $2,150,000.00",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "2017 General Security Agreement signed and registered under the PPSA",
+   "date": "2017-12-13",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "General Security Agreement dated December 13, 2017",
+   "exhibits": [
+    "F",
+    "F1"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Guarantees signed by Miniutti, Cloutier and Hrynyk",
+   "date": "2017-12-13",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Guarantee signed by Patrick Miniutti dated December 13, 2017",
+   "exhibits": [
+    "G",
+    "H",
+    "I"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Sunset CRE Investments and TW1 Oaks Inc. execute postponement agreements",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    12,
+    14
+   ],
+   "quote": "it executed a \nPostponement Agreement in favour of Royal Oaks",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Miniutti ceases to be President of Royal Oaks",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    16
+   ],
+   "quote": "He is no longer the President of Royal Oaks",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Promissory Note amended four times (Sept 2020 to July 2023)",
+   "date": "2020-09-15",
+   "precision": "range",
+   "paragraphs": [
+    18
+   ],
+   "quote": "The Promissory Note was amended on September 15, 2020, January 18, 2023, May 19, \n2023, and July 15, 2023",
+   "exhibits": [
+    "K"
+   ],
+   "end_date": "2023-07-15"
+  },
+  {
+   "id": "e13",
+   "description": "Royal Oaks defaults under its security",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    19
+   ],
+   "quote": "Royal Oaks defaulted under the terms and conditions of its various security outlined herein",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Amount owing to CWB is $1,904,896.28",
+   "date": "2023-09-22",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "The amount owing on September 22, 2023 to CWB was in the sum of $1,904,896.28",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "CWB sends demand letters and BIA s. 244 / PPSA enforcement notices to Royal Oaks",
+   "date": "2023-10-13",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On October 13, 2023, CWB forwarded the following demands and notices to Royal Oaks \nby regular and registered mail",
+   "exhibits": [
+    "L",
+    "M"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Demand letters also sent to the Cloutiers, the Miniutti estate and Hrynyk",
+   "date": "2023-10-13",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On October 13, 2023, the letters were also forwarded by regular and registered mail to the \nfollowing",
+   "exhibits": [
+    "N",
+    "O"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Default not cured",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    23
+   ],
+   "quote": "The default was not cured",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "TW1 files Notice of Application seeking to compel sale of HR's shares",
+   "date": "2023-12-04",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "filed a Notice of Application on December 4, 2023",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "CWB's lawyer advises of shareholder dispute between HR and TW1",
+   "date": "2023-12-04",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "I am advised by Joshua J. Santimaw, lawyer for the CWB on December 4, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Notice of Application heard by Justice Hamou",
+   "date": "2024-02-02",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "The Notice of Application was heard by Madam Justice Maya Hamou on February 2, 2024",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Notice of Application dismissed on procedural grounds",
+   "date": "2024-02-14",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "dismissed on procedural grounds on February 14, 2024",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "CWB appoints Deloitte as private receiver",
+   "date": "2024-02-16",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "CWB appointed Deloitte Restructuring Inc. as private receiver on February 16, \n2024",
+   "exhibits": [
+    "R"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "CWB's motion seeking the appointment of Deloitte as Receiver"
+ ]
+}

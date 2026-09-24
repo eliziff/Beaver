@@ -154,6 +154,8 @@ def main():
     ap.add_argument("--pages"); ap.add_argument("--meta"); ap.add_argument("--out")
     ap.add_argument("--ocr-affidavit", action="store_true", help="OCR image-only affidavit pages into affidavit.txt")
     ap.add_argument("--covers", help="A=9,B=15: whole-page exhibit covers read by eye (handwritten or scanned labels)")
+    ap.add_argument("--relabel", help="IT=U: fix a misread stamp label without turning its page into a whole-page cover")
+    ap.add_argument("--drop", help="1143,1178: source pages left out of every file (a cover the source repeats inside its exhibit)")
     a = ap.parse_args()
     root = a.out or os.path.join(os.environ["LOCALAPPDATA"], "OpenLegalData", "benchmarks", "court-record-exhibits", "records")
     out_dir = os.path.join(root, a.record_id)
@@ -188,6 +190,8 @@ def main():
     if a.covers:
         covers = [(l.strip().upper(), int(n) - 1, True) for l, n in (c.split("=") for c in a.covers.split(","))]
         dividers -= {p for _, p, _ in covers}
+    if a.drop:
+        dividers |= {int(n) - 1 for n in a.drop.split(",")}
     if not covers and tabs:
         covers = tabs
         dividers -= {p for _, p, _ in tabs}
@@ -210,6 +214,9 @@ def main():
         (a0, _, _), (l, p, w), (b0, _, _) = covers[i - 1:i + 2]
         if l.isdigit() and len(a0) == len(b0) == 1 and a0.isalpha() and ord(b0) - ord(a0) == 2:
             covers[i] = (chr(ord(a0) + 1), p, w)
+    if a.relabel:
+        fix = dict(c.split("=") for c in a.relabel.split(","))
+        covers = [(fix.get(l, l), p, w) for l, p, w in covers]
 
     body =[p for p in range(first, covers[0][1]) if p not in dividers]
     exhibits = []
@@ -262,6 +269,10 @@ def main():
         meta["affidavit_ocr"] = True
     if a.covers:
         meta["covers"] = a.covers
+    if a.drop:
+        meta["drop"] = a.drop
+    if a.relabel:
+        meta["relabel"] = a.relabel
     json.dump(meta, open(os.path.join(out_dir, "source.json"), "w", encoding="utf-8"), indent=1)
     print(json.dumps({"record": a.record_id, "affidavit_pages": len(body), "exhibits": [(e["label"], e["file"], len(e["source_pages"])) for e in split],
                       "scanned_pages": len(scanned), "leaks": len(audit)}, indent=None))

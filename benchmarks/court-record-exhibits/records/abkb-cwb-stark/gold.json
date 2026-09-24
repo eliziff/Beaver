@@ -9,51 +9,622 @@
  "deponent": "Cory Stark",
  "deponent_role": "Assistant Vice President, Special Asset Management, Canadian Western Bank",
  "sworn_date": "2024-04-17",
+ "referenced_not_attached": [
+  "Letter from the CAA on the Borrower's payment obligations (required but never provided)"
+ ],
+ "leak_waivers": [],
+ "notes": "The text layer places paragraph numbers after the paragraph on the last page; paragraph numbers follow the printed sequence.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-wxrfna.pdf", "kind": "corporate_record", "date": "2023-04-27", "author": "Alberta Corporate Registry", "recipients": [], "description": "Alberta Corporate Registry search on the Borrower", "references": [{"paragraph": 4, "quote": "Attached hereto and marked as Exhibit “A” is a true copy of an Alberta \nCorporate Registry search on the Borrower."}], "content_check": "Image-only four-page Government of Alberta Corporation/Non-Profit Search for 2004639 ALBERTA LTD., dated 2023/04/27, requested by McLennan Ross"},
-  {"label": "B", "file": "doc-tjzvnr.pdf", "kind": "report", "date": "2023-05-30", "author": "Newmark Valuation & Advisory; 2004639 Alberta Ltd.", "recipients": [], "description": "Excerpts of an independent appraisal of the office building and of the Borrower's occupancy and vacancy report (values redacted)", "references": [{"paragraph": 5, "quote": "An excerpt of an \nindependent appraisal of the office building and an excerpt of the Borrower’s occupancy and \nvacancy report are attached hereto and marked as Exhibit “B” (Values Redacted)."}], "content_check": "Eight pages beginning with a Newmark Valuation & Advisory appraisal report cover for Airport Corporate Centre, 1601 Airport Road NE, Calgary"},
-  {"label": "C", "file": "doc-pdeh5y.pdf", "kind": "agreement", "date": "2017-03-23", "author": "Canadian Western Bank", "recipients": ["2004639 Alberta Ltd.", "the Guarantors"], "description": "The March 23, 2017 commitment letter and its amending letters", "references": [{"paragraph": 6, "quote": "Attached hereto and marked, collectively, \nas Exhibit “C” is a true copy of the commitment letter and amendments thereto."}], "content_check": "28-page CWB commitment letter dated March 23, 2017 to 2004639 Alberta Ltd., Edmonton, with later amendments"},
-  {"label": "D", "file": "doc-8r4dkq.pdf", "kind": "financial_statement", "date": "2024-03-15", "author": "Canadian Western Bank", "recipients": [], "description": "Payout statements for the two loans as at March 15, 2024", "references": [{"paragraph": 7, "quote": "copies of payout statements are attached hereto and marked, collectively, as Exhibit “D”"}], "content_check": "Two mostly image 'Payout Statement' pages dated 15 March 2024 for 2004639 Alberta Ltd., loan 101008003484, total $18,279,642.24"},
-  {"label": "E", "file": "doc-yd3u7b.pdf", "kind": "agreement", "date": "2017-04-06", "author": "2004639 Alberta Ltd.", "recipients": ["Canadian Western Bank"], "description": "General Security Agreement executed April 6, 2017", "references": [{"paragraph": 8, "quote": "A General Security Agreement executed April 6, 2017 (the “GSA”), a true copy of which is \nattached hereto and marked as Exhibit “E”"}], "content_check": "18-page CWB Form 1100 'GENERAL SECURITY AGREEMENT', Red Deer branch"},
-  {"label": "F", "file": "doc-szpp86.pdf", "kind": "public_record", "date": "2017-04-06", "author": "Alberta Land Titles; 2004639 Alberta Ltd.", "recipients": [], "description": "Excerpt of a Land Titles search of the Lands and the Mortgage of Lease", "references": [{"paragraph": 8, "quote": "Search of the Lands and the entirety of the Mortgage of Lease are attached hereto and \nmarked as Exhibit “F”"}, {"paragraph": 25, "quote": "(see Exhibit \"F\")"}], "content_check": "22 pages beginning with a Land Title Certificate for Plan 9210847 Block A"},
-  {"label": "G", "file": "doc-seygv6.pdf", "kind": "agreement", "date": "2017-04-03", "author": "Calgary Airport Authority, 2004639 Alberta Ltd. and Canadian Western Bank", "recipients": [], "description": "Leasehold Mortgage Tri-Party Agreement effective April 3, 2017", "references": [{"paragraph": 8, "quote": "a true copy of which is attached hereto and marked as \nExhibit “G”"}], "content_check": "Image-only 27 pages headed 'LEASEHOLD MORTGAGE TRI-PARTY AGREEMENT' among The Calgary Airport Authority, 2004639 Alberta Ltd. and Canadian Western Bank"},
-  {"label": "H", "file": "doc-g6q3gw.pdf", "kind": "agreement", "date": "2017-04-06", "author": "2004639 Alberta Ltd.", "recipients": ["Canadian Western Bank"], "description": "General Assignment of Rents and Leases executed April 6, 2017", "references": [{"paragraph": 8, "quote": "by which the Borrower \nassigned to CWB all rents due or accruing from the Lands, a true copy of which is attached \nhereto and marked as Exhibit “H”"}], "content_check": "Five-page 'GENERAL ASSIGNMENT OF LEASES AND RENTS' by 2004639 Alberta Ltd., 2017"},
-  {"label": "I", "file": "doc-2c59b4.pdf", "kind": "agreement", "date": "2017-04-06", "author": "2004639 Alberta Ltd.", "recipients": ["Canadian Western Bank"], "description": "Environmental Agreement and Indemnity dated April 6, 2017", "references": [{"paragraph": 8, "quote": "An Environmental Agreement and Indemnity dated April 6, 2017, a true copy of which is \nattached hereto and marked as Exhibit “I”"}], "content_check": "15-page CWB 'ENVIRONMENTAL AGREEMENT AND INDEMNITY'"},
-  {"label": "J", "file": "doc-3e7bp5.pdf", "kind": "public_record", "date": null, "author": "Alberta Personal Property Registry; Land Titles", "recipients": [], "description": "Personal Property Registry search and excerpts of a Land Titles search on the Borrower and the Lands", "references": [{"paragraph": 9, "quote": "attached hereto and marked as Exhibit “J” is a true copy of a two-page Personal Property Registry \nsearch"}], "content_check": "14 pages beginning 'Exact Result(s) Only Found' PPR search report"},
-  {"label": "K", "file": "doc-g9j4zv.pdf", "kind": "agreement", "date": "2018-04-10", "author": "2004639 Alberta Ltd.", "recipients": ["Canadian Western Bank"], "description": "Demand Note executed April 10, 2018", "references": [{"paragraph": 10, "quote": "On April 10, 2018, the Borrower executed a Demand Note affirming its obligations with respect to \nthe Debt, a true copy of which is attached hereto and marked as Exhibit “K”"}], "content_check": "One-page CWB 'DEMAND NOTE FOR VALUE' dated 10 April 2018, Red Deer"},
-  {"label": "L", "file": "doc-fbqzfw.pdf", "kind": "letter", "date": "2023-04-28", "author": "Charles P. Russell, K.C., McLennan Ross LLP for CWB", "recipients": ["2004639 Alberta Ltd."], "description": "CWB's April 28, 2023 demand letter with Notice of Intention to Enforce Security", "references": [{"paragraph": 13, "quote": "Attached hereto and marked as Exhibit “L” is a true copy of such \nletter and Notice of Intention to Enforce Security."}], "content_check": "Four-page McLennan Ross letter from Charles P. Russell, K.C., file 20230779, with a BIA s. 244 notice"},
-  {"label": "M", "file": "doc-tdsemq.pdf", "kind": "agreement", "date": "2023-06-15", "author": "Canadian Western Bank, 2004639 Alberta Ltd. and the Guarantors", "recipients": [], "description": "The Forbearance Agreement of June 15, 2023 with its three schedules", "references": [{"paragraph": 14, "quote": "Attached hereto and marked as Exhibit “M” is a true copy of the Forbearance Agreement, and its \nthree schedules."}], "content_check": "63-page agreement 'MADE EFFECTIVE THE __ DAY OF JUNE, 2023' between Canadian Western Bank and 2004639 Alberta Ltd."},
-  {"label": "N", "file": "doc-g6pp5h.pdf", "kind": "email_chain", "date": "2024", "author": "Cory Stark (CWB)", "recipients": ["2004639 Alberta Ltd."], "description": "Email exchanges negotiating extension of forbearance and payment terms and guidance on marketing the assets", "references": [{"paragraph": 16, "quote": "Attached hereto and marked as Exhibit “N” are true copies of email exchanges"}, {"paragraph": 18, "quote": "See Exhibit “N” for an example of such correspondence"}], "content_check": "Nine pages of emails with Cory Stark's CWB signature block (Special Asset Management Unit, Edmonton)"},
-  {"label": "O", "file": "doc-y48498.pdf", "kind": "agreement", "date": "2024-02-13", "author": "Canadian Western Bank, 2004639 Alberta Ltd. and the Guarantors", "recipients": [], "description": "The Forbearance Amending Agreement extending forbearance to February 29, 2024", "references": [{"paragraph": 17, "quote": "Attached hereto and marked as Exhibit \n“O” is a true copy of the “Forbearance Amending Agreement.”"}], "content_check": "24-page 'FORBEARANCE AMENDING AGREEMENT' made effective February 2024"},
-  {"label": "P", "file": "doc-wga2dh.pdf", "kind": "email_chain", "date": "2024-02-28", "author": "Cory Stark (CWB)", "recipients": ["Navin Sidhu"], "description": "Email exchange requesting an explanation of the Borrower's non-compliance and demanding rectification", "references": [{"paragraph": 20, "quote": "A true copy of the email exchange is attached hereto and \nmarked as Exhibit “P”."}], "content_check": "Three-page chain including Cory Stark's email of Wednesday, February 28, 2024 4:41 PM to Navin Sidhu"},
-  {"label": "Q", "file": "doc-ravvnk.pdf", "kind": "email_chain", "date": "2024-02-29", "author": "Cory Stark (CWB)", "recipients": ["Jessey Nijjar", "Danny Nijjar", "Navin Sidhu"], "description": "Exchange advising of the expiry of forbearance and asking for justification and a plan", "references": [{"paragraph": 21, "quote": "A true copy of this exchange is attached \nhereto and marked as Exhibit “Q”."}], "content_check": "Five-page chain topped by Cory Stark's email of Thursday, February 29, 2024 4:26 PM to jesseynijjar@gmail.com (the affidavit dates the advice February 21, 2024)"},
-  {"label": "R", "file": "doc-843jk6.pdf", "kind": "agreement", "date": "2017-04-03", "author": "Calgary Airport Authority, Simplex Realty Corp. and 2004639 Alberta Ltd.", "recipients": [], "description": "Tri-Party Agreement among the CAA, Simplex and the Borrower effective April 3, 2017", "references": [{"paragraph": 24, "quote": "A\ntrue copy of the Tri-Party Agreement between the CM, \nSimplex, and the Borrower, effective April\n3, 2017 is attached hereto and marked as Exhibit \"R\"."}], "content_check": "Nine-page 'TRI-PARTY AGREEMENT' made as of the 3rd day of April, 2017 among The Calgary Airport Authority and others"},
-  {"label": "S", "file": "doc-vq48ud.pdf", "kind": "agreement", "date": "2023-06-12", "author": "2004639 Alberta Ltd., Calgary Airport Authority and Simplex", "recipients": [], "description": "Mortgage of Lease Extension and Standstill Agreement showing Simplex owed $2,903,992 to the CAA", "references": [{"paragraph": 25, "quote": "A true copy\nof a Mortgage of Lease Extension and Standstill Agreement indicating such is attached hereto and\nmarked as Exhibit \"S\"."}], "content_check": "Five-page 'MORTGAGE OF LEASE EXTENSION AND STANDSTILL AGREEMENT' made June 12, 2023 between 2004639 Alberta Ltd. (Tenant) and others"},
-  {"label": "T", "file": "doc-xywmhm.pdf", "kind": "court_filing", "date": null, "author": "FTI Consulting Canada Inc.", "recipients": [], "description": "FTI's consent to act as receiver and manager", "references": [{"paragraph": 26, "quote": "attached hereto and marked as Exhibit \"T\" is  a true copy of a Consent to Act."}], "content_check": "One-page Form 10 (Rule 3.25) in court file 2401 03935, Court of King's Bench of Alberta"}
+  {
+   "label": "A",
+   "file": "doc-wxrfna.pdf",
+   "kind": "corporate_record",
+   "date": "2023-04-27",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Alberta Corporate Registry search on the Borrower",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached hereto and marked as Exhibit “A” is a true copy of an Alberta \nCorporate Registry search on the Borrower."
+    }
+   ],
+   "content_check": "Image-only four-page Government of Alberta Corporation/Non-Profit Search for 2004639 ALBERTA LTD., dated 2023/04/27, requested by McLennan Ross"
+  },
+  {
+   "label": "B",
+   "file": "doc-tjzvnr.pdf",
+   "kind": "report",
+   "date": "2023-05-30",
+   "author": "Newmark Valuation & Advisory; 2004639 Alberta Ltd.",
+   "recipients": [],
+   "description": "Excerpts of an independent appraisal of the office building and of the Borrower's occupancy and vacancy report (values redacted)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "An excerpt of an \nindependent appraisal of the office building and an excerpt of the Borrower’s occupancy and \nvacancy report are attached hereto and marked as Exhibit “B” (Values Redacted)."
+    }
+   ],
+   "content_check": "Eight pages beginning with a Newmark Valuation & Advisory appraisal report cover for Airport Corporate Centre, 1601 Airport Road NE, Calgary"
+  },
+  {
+   "label": "C",
+   "file": "doc-pdeh5y.pdf",
+   "kind": "agreement",
+   "date": "2017-03-23",
+   "author": "Canadian Western Bank",
+   "recipients": [
+    "2004639 Alberta Ltd.",
+    "the Guarantors"
+   ],
+   "description": "The March 23, 2017 commitment letter and its amending letters",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto and marked, collectively, \nas Exhibit “C” is a true copy of the commitment letter and amendments thereto."
+    }
+   ],
+   "content_check": "28-page CWB commitment letter dated March 23, 2017 to 2004639 Alberta Ltd., Edmonton, with later amendments"
+  },
+  {
+   "label": "D",
+   "file": "doc-8r4dkq.pdf",
+   "kind": "financial_statement",
+   "date": "2024-03-15",
+   "author": "Canadian Western Bank",
+   "recipients": [],
+   "description": "Payout statements for the two loans as at March 15, 2024",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "copies of payout statements are attached hereto and marked, collectively, as Exhibit “D”"
+    }
+   ],
+   "content_check": "Two mostly image 'Payout Statement' pages dated 15 March 2024 for 2004639 Alberta Ltd., loan 101008003484, total $18,279,642.24"
+  },
+  {
+   "label": "E",
+   "file": "doc-yd3u7b.pdf",
+   "kind": "agreement",
+   "date": "2017-04-06",
+   "author": "2004639 Alberta Ltd.",
+   "recipients": [
+    "Canadian Western Bank"
+   ],
+   "description": "General Security Agreement executed April 6, 2017",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "A General Security Agreement executed April 6, 2017 (the “GSA”), a true copy of which is \nattached hereto and marked as Exhibit “E”"
+    }
+   ],
+   "content_check": "18-page CWB Form 1100 'GENERAL SECURITY AGREEMENT', Red Deer branch"
+  },
+  {
+   "label": "F",
+   "file": "doc-szpp86.pdf",
+   "kind": "public_record",
+   "date": "2017-04-06",
+   "author": "Alberta Land Titles; 2004639 Alberta Ltd.",
+   "recipients": [],
+   "description": "Excerpt of a Land Titles search of the Lands and the Mortgage of Lease",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Search of the Lands and the entirety of the Mortgage of Lease are attached hereto and \nmarked as Exhibit “F”"
+    },
+    {
+     "paragraph": 25,
+     "quote": "(see Exhibit \"F\")"
+    }
+   ],
+   "content_check": "22 pages beginning with a Land Title Certificate for Plan 9210847 Block A"
+  },
+  {
+   "label": "G",
+   "file": "doc-seygv6.pdf",
+   "kind": "agreement",
+   "date": "2017-04-03",
+   "author": "Calgary Airport Authority, 2004639 Alberta Ltd. and Canadian Western Bank",
+   "recipients": [],
+   "description": "Leasehold Mortgage Tri-Party Agreement effective April 3, 2017",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "a true copy of which is attached hereto and marked as \nExhibit “G”"
+    }
+   ],
+   "content_check": "Image-only 27 pages headed 'LEASEHOLD MORTGAGE TRI-PARTY AGREEMENT' among The Calgary Airport Authority, 2004639 Alberta Ltd. and Canadian Western Bank"
+  },
+  {
+   "label": "H",
+   "file": "doc-g6q3gw.pdf",
+   "kind": "agreement",
+   "date": "2017-04-06",
+   "author": "2004639 Alberta Ltd.",
+   "recipients": [
+    "Canadian Western Bank"
+   ],
+   "description": "General Assignment of Rents and Leases executed April 6, 2017",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "by which the Borrower \nassigned to CWB all rents due or accruing from the Lands, a true copy of which is attached \nhereto and marked as Exhibit “H”"
+    }
+   ],
+   "content_check": "Five-page 'GENERAL ASSIGNMENT OF LEASES AND RENTS' by 2004639 Alberta Ltd., 2017"
+  },
+  {
+   "label": "I",
+   "file": "doc-2c59b4.pdf",
+   "kind": "agreement",
+   "date": "2017-04-06",
+   "author": "2004639 Alberta Ltd.",
+   "recipients": [
+    "Canadian Western Bank"
+   ],
+   "description": "Environmental Agreement and Indemnity dated April 6, 2017",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "An Environmental Agreement and Indemnity dated April 6, 2017, a true copy of which is \nattached hereto and marked as Exhibit “I”"
+    }
+   ],
+   "content_check": "15-page CWB 'ENVIRONMENTAL AGREEMENT AND INDEMNITY'"
+  },
+  {
+   "label": "J",
+   "file": "doc-3e7bp5.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Alberta Personal Property Registry; Land Titles",
+   "recipients": [],
+   "description": "Personal Property Registry search and excerpts of a Land Titles search on the Borrower and the Lands",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "attached hereto and marked as Exhibit “J” is a true copy of a two-page Personal Property Registry \nsearch"
+    }
+   ],
+   "content_check": "14 pages beginning 'Exact Result(s) Only Found' PPR search report"
+  },
+  {
+   "label": "K",
+   "file": "doc-g9j4zv.pdf",
+   "kind": "agreement",
+   "date": "2018-04-10",
+   "author": "2004639 Alberta Ltd.",
+   "recipients": [
+    "Canadian Western Bank"
+   ],
+   "description": "Demand Note executed April 10, 2018",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "On April 10, 2018, the Borrower executed a Demand Note affirming its obligations with respect to \nthe Debt, a true copy of which is attached hereto and marked as Exhibit “K”"
+    }
+   ],
+   "content_check": "One-page CWB 'DEMAND NOTE FOR VALUE' dated 10 April 2018, Red Deer"
+  },
+  {
+   "label": "L",
+   "file": "doc-fbqzfw.pdf",
+   "kind": "letter",
+   "date": "2023-04-28",
+   "author": "Charles P. Russell, K.C., McLennan Ross LLP for CWB",
+   "recipients": [
+    "2004639 Alberta Ltd."
+   ],
+   "description": "CWB's April 28, 2023 demand letter with Notice of Intention to Enforce Security",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Attached hereto and marked as Exhibit “L” is a true copy of such \nletter and Notice of Intention to Enforce Security."
+    }
+   ],
+   "content_check": "Four-page McLennan Ross letter from Charles P. Russell, K.C., file 20230779, with a BIA s. 244 notice"
+  },
+  {
+   "label": "M",
+   "file": "doc-tdsemq.pdf",
+   "kind": "agreement",
+   "date": "2023-06-15",
+   "author": "Canadian Western Bank, 2004639 Alberta Ltd. and the Guarantors",
+   "recipients": [],
+   "description": "The Forbearance Agreement of June 15, 2023 with its three schedules",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached hereto and marked as Exhibit “M” is a true copy of the Forbearance Agreement, and its \nthree schedules."
+    }
+   ],
+   "content_check": "63-page agreement 'MADE EFFECTIVE THE __ DAY OF JUNE, 2023' between Canadian Western Bank and 2004639 Alberta Ltd."
+  },
+  {
+   "label": "N",
+   "file": "doc-g6pp5h.pdf",
+   "kind": "email_chain",
+   "date": "2024",
+   "author": "Cory Stark (CWB)",
+   "recipients": [
+    "2004639 Alberta Ltd."
+   ],
+   "description": "Email exchanges negotiating extension of forbearance and payment terms and guidance on marketing the assets",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached hereto and marked as Exhibit “N” are true copies of email exchanges"
+    },
+    {
+     "paragraph": 18,
+     "quote": "See Exhibit “N” for an example of such correspondence"
+    }
+   ],
+   "content_check": "Nine pages of emails with Cory Stark's CWB signature block (Special Asset Management Unit, Edmonton)"
+  },
+  {
+   "label": "O",
+   "file": "doc-y48498.pdf",
+   "kind": "agreement",
+   "date": "2024-02-13",
+   "author": "Canadian Western Bank, 2004639 Alberta Ltd. and the Guarantors",
+   "recipients": [],
+   "description": "The Forbearance Amending Agreement extending forbearance to February 29, 2024",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached hereto and marked as Exhibit \n“O” is a true copy of the “Forbearance Amending Agreement.”"
+    }
+   ],
+   "content_check": "24-page 'FORBEARANCE AMENDING AGREEMENT' made effective February 2024"
+  },
+  {
+   "label": "P",
+   "file": "doc-wga2dh.pdf",
+   "kind": "email_chain",
+   "date": "2024-02-28",
+   "author": "Cory Stark (CWB)",
+   "recipients": [
+    "Navin Sidhu"
+   ],
+   "description": "Email exchange requesting an explanation of the Borrower's non-compliance and demanding rectification",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A true copy of the email exchange is attached hereto and \nmarked as Exhibit “P”."
+    }
+   ],
+   "content_check": "Three-page chain including Cory Stark's email of Wednesday, February 28, 2024 4:41 PM to Navin Sidhu"
+  },
+  {
+   "label": "Q",
+   "file": "doc-ravvnk.pdf",
+   "kind": "email_chain",
+   "date": "2024-02-29",
+   "author": "Cory Stark (CWB)",
+   "recipients": [
+    "Jessey Nijjar",
+    "Danny Nijjar",
+    "Navin Sidhu"
+   ],
+   "description": "Exchange advising of the expiry of forbearance and asking for justification and a plan",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "A true copy of this exchange is attached \nhereto and marked as Exhibit “Q”."
+    }
+   ],
+   "content_check": "Five-page chain topped by Cory Stark's email of Thursday, February 29, 2024 4:26 PM to jesseynijjar@gmail.com (the affidavit dates the advice February 21, 2024)"
+  },
+  {
+   "label": "R",
+   "file": "doc-843jk6.pdf",
+   "kind": "agreement",
+   "date": "2017-04-03",
+   "author": "Calgary Airport Authority, Simplex Realty Corp. and 2004639 Alberta Ltd.",
+   "recipients": [],
+   "description": "Tri-Party Agreement among the CAA, Simplex and the Borrower effective April 3, 2017",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "A\ntrue copy of the Tri-Party Agreement between the CM, \nSimplex, and the Borrower, effective April\n3, 2017 is attached hereto and marked as Exhibit \"R\"."
+    }
+   ],
+   "content_check": "Nine-page 'TRI-PARTY AGREEMENT' made as of the 3rd day of April, 2017 among The Calgary Airport Authority and others"
+  },
+  {
+   "label": "S",
+   "file": "doc-vq48ud.pdf",
+   "kind": "agreement",
+   "date": "2023-06-12",
+   "author": "2004639 Alberta Ltd., Calgary Airport Authority and Simplex",
+   "recipients": [],
+   "description": "Mortgage of Lease Extension and Standstill Agreement showing Simplex owed $2,903,992 to the CAA",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "A true copy\nof a Mortgage of Lease Extension and Standstill Agreement indicating such is attached hereto and\nmarked as Exhibit \"S\"."
+    }
+   ],
+   "content_check": "Five-page 'MORTGAGE OF LEASE EXTENSION AND STANDSTILL AGREEMENT' made June 12, 2023 between 2004639 Alberta Ltd. (Tenant) and others"
+  },
+  {
+   "label": "T",
+   "file": "doc-xywmhm.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [],
+   "description": "FTI's consent to act as receiver and manager",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "attached hereto and marked as Exhibit \"T\" is  a true copy of a Consent to Act."
+    }
+   ],
+   "content_check": "One-page Form 10 (Rule 3.25) in court file 2401 03935, Court of King's Bench of Alberta"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2017-03-23", "precision": "day", "description": "CWB issued the commitment letter to the Borrower and Guarantors", "paragraphs": [6], "quote": "Pursuant to a commitment letter dated March 23, 2017", "exhibits": ["C"]},
-  {"id": "e2", "date": "2017-04-03", "precision": "day", "description": "Leasehold Mortgage Tri-Party Agreement and CAA-Simplex-Borrower Tri-Party Agreement took effect", "paragraphs": [8, 24], "quote": "A Leasehold Mortgage Tri-Party Agreement between the CAA, the Borrower, and CWB, \neffective April 3, 2017", "exhibits": ["G", "R"]},
-  {"id": "e3", "date": "2017-04-06", "precision": "day", "description": "Borrower executed the GSA, Mortgage of Lease, Assignment of Rents and Environmental Indemnity", "paragraphs": [8], "quote": "A General Security Agreement executed April 6, 2017", "exhibits": ["E", "F", "H", "I"]},
-  {"id": "e4", "date": "2018-04-10", "precision": "day", "description": "Borrower executed a Demand Note", "paragraphs": [10], "quote": "On April 10, 2018, the Borrower executed a Demand Note", "exhibits": ["K"]},
-  {"id": "e5", "date": "2018-04-12", "precision": "day", "description": "Commitment letter amended (also May 4, 2021, July 7, 2021 and May 12, 2022)", "paragraphs": [6], "quote": "as amended by letters including those \ndated April 12, 2018, May 4, 2021, July 7, 2021 and May 12, 2022", "exhibits": ["C"]},
-  {"id": "e6", "date": null, "precision": "undated", "description": "Security registered in Alberta", "paragraphs": [9], "quote": "The Security has been registered in accordance with the laws of the Province of Alberta", "exhibits": ["J"]},
-  {"id": "e7", "date": null, "precision": "undated", "description": "Borrower defaulted through poor operating results and missed payments", "paragraphs": [12], "quote": "The Borrower has defaulted in the terms of the Commitment Letter and the Security", "exhibits": []},
-  {"id": "e8", "date": "2023-04-28", "precision": "day", "description": "CWB served a demand and Notice of Intention to Enforce Security", "paragraphs": [13], "quote": "On April 28, 2023, CWB served a demand for payment of the Loans on the Borrower", "exhibits": ["L"]},
-  {"id": "e9", "date": "2023-05-30", "precision": "day", "description": "Independent appraisal effective May 30, 2023 reported 64.5% vacancy", "paragraphs": [5], "quote": "An independent appraisal effective May 30, 2023 reports a vacancy rate of 64.5%.", "exhibits": ["B"]},
-  {"id": "e10", "date": "2023-06-12", "precision": "day", "description": "Simplex owed $2,903,992 to the CAA under the Mortgage of Lease; standstill agreement", "paragraphs": [25], "quote": "As\nat June 12, 2023, Simplex owed $2,903,992 to the CM under the Mortgage of Lease.", "exhibits": ["S"]},
-  {"id": "e11", "date": "2023-06-15", "precision": "day", "description": "CWB, the Borrower and Guarantors executed the Forbearance Agreement to November 30, 2023", "paragraphs": [14], "quote": "On June 15, 2023, CWB, the Borrower, and the Guarantors executed a Forbearance Agreement", "exhibits": ["M"]},
-  {"id": "e12", "date": "2023-11-30", "precision": "day", "description": "Forbearance Term expired; CWB postponed enforcement and negotiated by email", "paragraphs": [16], "quote": "Following the expiration of the Forbearance Term on November 30, 2023, CWB chose to postpone \nenforcement", "exhibits": ["N"]},
-  {"id": "e13", "date": "2024-01-31", "precision": "day", "description": "Borrower reported a 51.6% vacancy rate", "paragraphs": [5], "quote": "As at January 31, 2024, the Borrower reports a vacancy rate of 51.6%.", "exhibits": ["B"]},
-  {"id": "e14", "date": "2024-02-13", "precision": "day", "description": "Forbearance Amending Agreement extended forbearance to February 29, 2024", "paragraphs": [17], "quote": "On February 13, 2024, CWB, the Borrower, and the Guarantors executed a Forbearance Amending \nAgreement", "exhibits": ["O"]},
-  {"id": "e15", "date": "2024-02", "precision": "month", "description": "CWB asked for an explanation of non-compliance and demanded rectification", "paragraphs": [20], "quote": "CWB requested an explanation \nregarding the Borrower’s noncompliance", "exhibits": ["P"]},
-  {"id": "e16", "date": "2024-02-21", "precision": "day", "description": "CWB advised of the upcoming expiry and asked for justification and a realistic plan", "paragraphs": [21], "quote": "On February 21, 2024, CWB advised the Borrower of the upcoming expiration of the Forbearance \nAmending Agreement", "exhibits": ["Q"]},
-  {"id": "e17", "date": "2024-02-29", "precision": "day", "description": "Borrower failed to make the agreed $285,000 payment at the end of forbearance", "paragraphs": [19], "quote": "failing to make an agreed-upon payment of $285,000 at the end of the term of the Forbearance \nAmending Agreement", "exhibits": []},
-  {"id": "e18", "date": "2024-03-15", "precision": "day", "description": "Debt owed to CWB totalled $18,304,868.53", "paragraphs": [7], "quote": "As at March 15, 2024, the amounts owed by the \nBorrower to CWB are as follows", "exhibits": ["D"]},
-  {"id": "e19", "date": null, "precision": "undated", "description": "CWB sued the Guarantors in a separate action (2403 04355)", "paragraphs": [11], "quote": "CWB has filed a separate \naction at the Court of King’s Bench of Alberta with a matter number of 2403 04355", "exhibits": []},
-  {"id": "e20", "date": null, "precision": "undated", "description": "FTI agreed to act as receiver and manager", "paragraphs": [26], "quote": "FTI Consulting Canada Inc. has agreed to act in such capacity", "exhibits": ["T"]}
- ],
- "referenced_not_attached": ["Letter from the CAA on the Borrower's payment obligations (required but never provided)"],
- "leak_waivers": [],
- "notes": "The text layer places paragraph numbers after the paragraph on the last page; paragraph numbers follow the printed sequence."
+  {
+   "id": "e1",
+   "date": "2017-03-23",
+   "precision": "day",
+   "description": "CWB issued the commitment letter to the Borrower and Guarantors",
+   "paragraphs": [
+    6
+   ],
+   "quote": "Pursuant to a commitment letter dated March 23, 2017",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2017-04-03",
+   "precision": "day",
+   "description": "Leasehold Mortgage Tri-Party Agreement and CAA-Simplex-Borrower Tri-Party Agreement took effect",
+   "paragraphs": [
+    8,
+    24
+   ],
+   "quote": "A Leasehold Mortgage Tri-Party Agreement between the CAA, the Borrower, and CWB, \neffective April 3, 2017",
+   "exhibits": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2017-04-06",
+   "precision": "day",
+   "description": "Borrower executed the GSA, Mortgage of Lease, Assignment of Rents and Environmental Indemnity",
+   "paragraphs": [
+    8
+   ],
+   "quote": "A General Security Agreement executed April 6, 2017",
+   "exhibits": [
+    "E",
+    "F",
+    "H",
+    "I"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2018-04-10",
+   "precision": "day",
+   "description": "Borrower executed a Demand Note",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On April 10, 2018, the Borrower executed a Demand Note",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2018-04-12",
+   "precision": "day",
+   "description": "Commitment letter amended (also May 4, 2021, July 7, 2021 and May 12, 2022)",
+   "paragraphs": [
+    6
+   ],
+   "quote": "as amended by letters including those \ndated April 12, 2018, May 4, 2021, July 7, 2021 and May 12, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": null,
+   "precision": "undated",
+   "description": "Security registered in Alberta",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The Security has been registered in accordance with the laws of the Province of Alberta",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": null,
+   "precision": "undated",
+   "description": "Borrower defaulted through poor operating results and missed payments",
+   "paragraphs": [
+    12
+   ],
+   "quote": "The Borrower has defaulted in the terms of the Commitment Letter and the Security",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2023-04-28",
+   "precision": "day",
+   "description": "CWB served a demand and Notice of Intention to Enforce Security",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On April 28, 2023, CWB served a demand for payment of the Loans on the Borrower",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2023-05-30",
+   "precision": "day",
+   "description": "Independent appraisal effective May 30, 2023 reported 64.5% vacancy",
+   "paragraphs": [
+    5
+   ],
+   "quote": "An independent appraisal effective May 30, 2023 reports a vacancy rate of 64.5%.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2023-06-12",
+   "precision": "day",
+   "description": "Simplex owed $2,903,992 to the CAA under the Mortgage of Lease; standstill agreement",
+   "paragraphs": [
+    25
+   ],
+   "quote": "As\nat June 12, 2023, Simplex owed $2,903,992 to the CM under the Mortgage of Lease.",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2023-06-15",
+   "precision": "day",
+   "description": "CWB, the Borrower and Guarantors executed the Forbearance Agreement to November 30, 2023",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On June 15, 2023, CWB, the Borrower, and the Guarantors executed a Forbearance Agreement",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2023-11-30",
+   "precision": "day",
+   "description": "Forbearance Term expired; CWB postponed enforcement and negotiated by email",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Following the expiration of the Forbearance Term on November 30, 2023, CWB chose to postpone \nenforcement",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2024-01-31",
+   "precision": "day",
+   "description": "Borrower reported a 51.6% vacancy rate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "As at January 31, 2024, the Borrower reports a vacancy rate of 51.6%.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2024-02-13",
+   "precision": "day",
+   "description": "Forbearance Amending Agreement extended forbearance to February 29, 2024",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On February 13, 2024, CWB, the Borrower, and the Guarantors executed a Forbearance Amending \nAgreement",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2024-02",
+   "precision": "month",
+   "description": "CWB asked for an explanation of non-compliance and demanded rectification",
+   "paragraphs": [
+    20
+   ],
+   "quote": "CWB requested an explanation \nregarding the Borrower’s noncompliance",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2024-02-21",
+   "precision": "day",
+   "description": "CWB advised of the upcoming expiry and asked for justification and a realistic plan",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On February 21, 2024, CWB advised the Borrower of the upcoming expiration of the Forbearance \nAmending Agreement",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2024-02-29",
+   "precision": "day",
+   "description": "Borrower failed to make the agreed $285,000 payment at the end of forbearance",
+   "paragraphs": [
+    19
+   ],
+   "quote": "failing to make an agreed-upon payment of $285,000 at the end of the term of the Forbearance \nAmending Agreement",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2024-03-15",
+   "precision": "day",
+   "description": "Debt owed to CWB totalled $18,304,868.53",
+   "paragraphs": [
+    7
+   ],
+   "quote": "As at March 15, 2024, the amounts owed by the \nBorrower to CWB are as follows",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": null,
+   "precision": "undated",
+   "description": "CWB sued the Guarantors in a separate action (2403 04355)",
+   "paragraphs": [
+    11
+   ],
+   "quote": "CWB has filed a separate \naction at the Court of King’s Bench of Alberta with a matter number of 2403 04355",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": null,
+   "precision": "undated",
+   "description": "FTI agreed to act as receiver and manager",
+   "paragraphs": [
+    26
+   ],
+   "quote": "FTI Consulting Canada Inc. has agreed to act in such capacity",
+   "exhibits": [
+    "T"
+   ]
+  }
+ ]
 }

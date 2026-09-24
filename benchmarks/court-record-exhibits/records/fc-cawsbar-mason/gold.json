@@ -9,37 +9,381 @@
  "deponent": "Heather Mason",
  "deponent_role": "Founding member and Chair of the Board of Directors of Canadian Women's Sex-Based Rights (CAWSBAR); formerly incarcerated at Grand Valley Institution",
  "sworn_date": "2025-12-05",
+ "referenced_not_attached": [
+  "Affidavit of Marty Moore in support of the motion",
+  "Women's Human Rights Campaign's Declaration on Women's Sex-Based Rights",
+  "Statements taken from female inmates by counsel"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit is Tab 2 of the motion record (PDF pages 7-71). Exhibit B is fully redacted. The files behind the H and I covers contain the writings chart and the appearances chart respectively, the reverse of the affidavit's descriptions.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-csfg7a.pdf", "kind": "corporate_record", "date": "2024-06", "author": "Corporations Canada", "recipients": ["CAWSBAR"], "description": "CAWSBAR's Certificate of Incorporation", "references": [{"paragraph": 3, "quote": "Attached as Exhibit “A” is a copy of CAWSBAR’s Certificate of Incorporation."}], "content_check": "6 pages: certificate followed by Form 4001 Articles of Incorporation under the Canada Not-for-profit Corporations Act"},
-  {"label": "B", "file": "doc-4tka3z.pdf", "kind": "public_record", "date": null, "author": "Royal Canadian Mounted Police", "recipients": ["Heather Mason"], "description": "Her criminal record provided by the RCMP", "references": [{"paragraph": 6, "quote": "Attached as Exhibit “B” is copy of my"}], "content_check": "3 pages, fully blacked out by redaction in the public copy"},
-  {"label": "C", "file": "doc-3pyb9c.pdf", "kind": "letter", "date": "2021-06-02", "author": "21 formerly incarcerated women including Heather Mason", "recipients": ["CAEFS Executive Director and Board of Directors"], "description": "Letter to the CAEFS Board documenting the events of the 2019 annual general meeting", "references": [{"paragraph": 16, "quote": "copy of that letter is attached as Exhibit “C”."}], "content_check": "4 pages: open letter dated June 2, 2021 by email to the Canadian Association of Elizabeth Fry Societies"},
-  {"label": "D", "file": "doc-k4jxzj.pdf", "kind": "webpage", "date": "2025-12-04", "author": "CAWSBAR", "recipients": [], "description": "CAWSBAR's position statement from its website", "references": [{"paragraph": 20, "quote": "A copy of that position statement is attached as Exhibit “D”."}], "content_check": "3 pages: cawsbar.ca 'Position Statement' printed 12/4/25"},
-  {"label": "E", "file": "doc-efmgy4.pdf", "kind": "chart", "date": null, "author": "CAWSBAR", "recipients": [], "description": "Chart summarizing the protests CAWSBAR has organized", "references": [{"paragraph": 26, "quote": "Attached as Exhibit “E” is a chart summarizing the numerous protests"}], "content_check": "2 pages: numbered table of protests with date and location, starting 2021-03-06 at Grand Valley Institute for Women"},
-  {"label": "F", "file": "doc-esempy.pdf", "kind": "photograph", "date": "2025-10-29", "author": "CAWSBAR", "recipients": [], "description": "Photograph of the protest outside CSC's Central Ontario District Women's Supervision Unit in Toronto on October 29, 2025", "references": [{"paragraph": 26, "quote": "Attached as Exhibit “F” is a picture of our protest outside"}], "content_check": "1 page: photo of protesters with signs outside 415 building"},
-  {"label": "G", "file": "doc-cepj4h.pdf", "kind": "photograph", "date": "2023-09", "author": "CAWSBAR", "recipients": [], "description": "Photograph of the banner drop in Calgary in September 2023", "references": [{"paragraph": 27, "quote": "Attached as Exhibit “G” is a picture of our banner drop in Calgary"}], "content_check": "1 page: photograph (no text layer)"},
-  {"label": "H", "file": "doc-wpr36k.pdf", "kind": "chart", "date": null, "author": "Heather Mason", "recipients": [], "description": "Chart summarizing her podcast and news appearances (host, video title, URL)", "references": [{"paragraph": 28, "quote": "Attached as Exhibit “H”"}], "content_check": "2 pages: table of publications with date, document, publisher/platform, title and URL, starting 2019-12-05 'Women are Human' article - this is a writings chart, the content the affidavit ascribes to Exhibit I (H and I appear swapped)"},
-  {"label": "I", "file": "doc-ptywp4.pdf", "kind": "chart", "date": null, "author": "Heather Mason", "recipients": [], "description": "Chart summarizing her writings", "references": [{"paragraph": 29, "quote": "Attached as Exhibit “I” is a chart summarizing my writings."}], "content_check": "4 pages: table of videos with date, host, video title and URL, starting 2019-12-09 Megan Murphy - this is the appearances chart the affidavit ascribes to Exhibit H (H and I appear swapped)"},
-  {"label": "J", "file": "doc-cfkm8c.pdf", "kind": "report", "date": "2021-06-22", "author": "Heather Mason", "recipients": ["House of Commons Standing Committee on Public Safety and National Security"], "description": "Her written brief to the Standing Committee on Public Safety and National Security", "references": [{"paragraph": 30, "quote": "Exhibit “J” is a copy of the submitted brief."}], "content_check": "18 pages: brief dated June 22, 2021 submitted by Heather Mason on sexual violence reports in federal prisons"}
+  {
+   "label": "A",
+   "file": "doc-csfg7a.pdf",
+   "kind": "corporate_record",
+   "date": "2024-06",
+   "author": "Corporations Canada",
+   "recipients": [
+    "CAWSBAR"
+   ],
+   "description": "CAWSBAR's Certificate of Incorporation",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit “A” is a copy of CAWSBAR’s Certificate of Incorporation."
+    }
+   ],
+   "content_check": "6 pages: certificate followed by Form 4001 Articles of Incorporation under the Canada Not-for-profit Corporations Act"
+  },
+  {
+   "label": "B",
+   "file": "doc-4tka3z.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Royal Canadian Mounted Police",
+   "recipients": [
+    "Heather Mason"
+   ],
+   "description": "Her criminal record provided by the RCMP",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit “B” is copy of my"
+    }
+   ],
+   "content_check": "3 pages, fully blacked out by redaction in the public copy"
+  },
+  {
+   "label": "C",
+   "file": "doc-3pyb9c.pdf",
+   "kind": "letter",
+   "date": "2021-06-02",
+   "author": "21 formerly incarcerated women including Heather Mason",
+   "recipients": [
+    "CAEFS Executive Director and Board of Directors"
+   ],
+   "description": "Letter to the CAEFS Board documenting the events of the 2019 annual general meeting",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "copy of that letter is attached as Exhibit “C”."
+    }
+   ],
+   "content_check": "4 pages: open letter dated June 2, 2021 by email to the Canadian Association of Elizabeth Fry Societies"
+  },
+  {
+   "label": "D",
+   "file": "doc-k4jxzj.pdf",
+   "kind": "webpage",
+   "date": "2025-12-04",
+   "author": "CAWSBAR",
+   "recipients": [],
+   "description": "CAWSBAR's position statement from its website",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A copy of that position statement is attached as Exhibit “D”."
+    }
+   ],
+   "content_check": "3 pages: cawsbar.ca 'Position Statement' printed 12/4/25"
+  },
+  {
+   "label": "E",
+   "file": "doc-efmgy4.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "CAWSBAR",
+   "recipients": [],
+   "description": "Chart summarizing the protests CAWSBAR has organized",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached as Exhibit “E” is a chart summarizing the numerous protests"
+    }
+   ],
+   "content_check": "2 pages: numbered table of protests with date and location, starting 2021-03-06 at Grand Valley Institute for Women"
+  },
+  {
+   "label": "F",
+   "file": "doc-esempy.pdf",
+   "kind": "photograph",
+   "date": "2025-10-29",
+   "author": "CAWSBAR",
+   "recipients": [],
+   "description": "Photograph of the protest outside CSC's Central Ontario District Women's Supervision Unit in Toronto on October 29, 2025",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached as Exhibit “F” is a picture of our protest outside"
+    }
+   ],
+   "content_check": "1 page: photo of protesters with signs outside 415 building"
+  },
+  {
+   "label": "G",
+   "file": "doc-cepj4h.pdf",
+   "kind": "photograph",
+   "date": "2023-09",
+   "author": "CAWSBAR",
+   "recipients": [],
+   "description": "Photograph of the banner drop in Calgary in September 2023",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached as Exhibit “G” is a picture of our banner drop in Calgary"
+    }
+   ],
+   "content_check": "1 page: photograph (no text layer)"
+  },
+  {
+   "label": "H",
+   "file": "doc-wpr36k.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Heather Mason",
+   "recipients": [],
+   "description": "Chart summarizing her podcast and news appearances (host, video title, URL)",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Attached as Exhibit “H”"
+    }
+   ],
+   "content_check": "2 pages: table of publications with date, document, publisher/platform, title and URL, starting 2019-12-05 'Women are Human' article - this is a writings chart, the content the affidavit ascribes to Exhibit I (H and I appear swapped)"
+  },
+  {
+   "label": "I",
+   "file": "doc-ptywp4.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Heather Mason",
+   "recipients": [],
+   "description": "Chart summarizing her writings",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached as Exhibit “I” is a chart summarizing my writings."
+    }
+   ],
+   "content_check": "4 pages: table of videos with date, host, video title and URL, starting 2019-12-09 Megan Murphy - this is the appearances chart the affidavit ascribes to Exhibit H (H and I appear swapped)"
+  },
+  {
+   "label": "J",
+   "file": "doc-cfkm8c.pdf",
+   "kind": "report",
+   "date": "2021-06-22",
+   "author": "Heather Mason",
+   "recipients": [
+    "House of Commons Standing Committee on Public Safety and National Security"
+   ],
+   "description": "Her written brief to the Standing Committee on Public Safety and National Security",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Exhibit “J” is a copy of the submitted brief."
+    }
+   ],
+   "content_check": "18 pages: brief dated June 22, 2021 submitted by Heather Mason on sexual violence reports in federal prisons"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2014", "precision": "range", "description": "Her involvement in the criminal justice system began in 2014 and ended with release from GVI in 2018; convictions 2014-2016", "paragraphs": [6, 7], "quote": "My involvement in the criminal justice system began in 2014", "exhibits": ["B"]},
-  {"id": "e2", "date": "2015", "precision": "year", "description": "While in a provincial jail she first saw a male inmate housed in a women's facility, who looked at her during a strip search", "paragraphs": [9], "quote": "I first became aware that male inmates were being transferred to women’s correctional facilities in the year 2015", "exhibits": []},
-  {"id": "e3", "date": "2017", "precision": "year", "description": "Final conviction and 784-day sentence; transferred to Grand Valley Institution; stopped using fentanyl", "paragraphs": [7, 8], "quote": "Following my final conviction in 2017, I received a sentence of 784 days", "exhibits": ["B"]},
-  {"id": "e4", "date": "2018", "precision": "year", "description": "Released from GVI, she began volunteering with CAEFS", "paragraphs": [13], "quote": "Following my release from GVI in 2018, I began volunteer work", "exhibits": []},
-  {"id": "e5", "date": "2019-05-31", "precision": "range", "description": "CAEFS 2019 AGM (May 31 - June 2): a woman's account of harassment was met with silence and CAEFS adopted an 'inclusion' position", "paragraphs": [16], "quote": "the CAEFS’ 2019 annual general meeting held May 31 - June 2", "exhibits": ["C"]},
-  {"id": "e6", "date": "2019-11", "precision": "month", "description": "She resigned from her CAEFS volunteer position", "paragraphs": [17], "quote": "I ultimately resigned from my volunteer position at CAEFS in November of 2019", "exhibits": []},
-  {"id": "e7", "date": "2019-12", "precision": "month", "description": "CAWSBAR was founded as an unincorporated association", "paragraphs": [2, 18], "quote": "CAWSBAR was founded in December of 2019.", "exhibits": []},
-  {"id": "e8", "date": "2021-06-02", "precision": "day", "description": "21 formerly incarcerated women sent a letter to the CAEFS Board", "paragraphs": [16], "quote": "A letter documenting these events was eventually sent to the CAEFS Board of Directors on June 2, 2021", "exhibits": ["C"]},
-  {"id": "e9", "date": "2021-06-22", "precision": "day", "description": "She submitted a brief to the House of Commons Standing Committee on Public Safety and National Security", "paragraphs": [30], "quote": "On June 22, 2021, I submitted a written brief", "exhibits": ["J"]},
-  {"id": "e10", "date": "2023", "precision": "year", "description": "CAWSBAR organized five highway 'banner drops' in Toronto, Ottawa and Calgary", "paragraphs": [27], "quote": "we organized a number of “banner drops” in 2023", "exhibits": ["G"]},
-  {"id": "e11", "date": "2023-09", "precision": "month", "description": "Banner drop in Calgary", "paragraphs": [27], "quote": "banner drop in Calgary in", "exhibits": ["G"]},
-  {"id": "e12", "date": "2024-06", "precision": "month", "description": "CAWSBAR was incorporated as a non-profit corporation and Mason became Chair", "paragraphs": [3], "quote": "In June of 2024 CAWSBAR was formally incorporated as a non-profit corporation.", "exhibits": ["A"]},
-  {"id": "e13", "date": "2024", "precision": "year", "description": "CAWSBAR began an annual International Women's Day conference (Toronto 2024, Calgary 2025)", "paragraphs": [21], "quote": "Since 2024 CAWSBAR has held an annual conference", "exhibits": []},
-  {"id": "e14", "date": "2025-10-29", "precision": "day", "description": "CAWSBAR protest outside CSC's Central Ontario District Women's Supervision Unit in Toronto", "paragraphs": [26], "quote": "October 29, 2025", "exhibits": ["F"]},
-  {"id": "e15", "date": null, "precision": "undated", "description": "Charter Advocates Canada agreed to represent CAWSBAR pro bono", "paragraphs": [35], "quote": "which has agreed to take CAWSBAR on as a client in this matter on a pro bono basis", "exhibits": []},
-  {"id": "e16", "date": "2025-12-05", "precision": "day", "description": "Mason swore the affidavit remotely", "paragraphs": [43], "quote": "on the 5th day of December, 2025", "exhibits": []}
- ],
- "referenced_not_attached": ["Affidavit of Marty Moore in support of the motion", "Women's Human Rights Campaign's Declaration on Women's Sex-Based Rights", "Statements taken from female inmates by counsel"],
- "leak_waivers": [],
- "notes": "Affidavit is Tab 2 of the motion record (PDF pages 7-71). Exhibit B is fully redacted. The files behind the H and I covers contain the writings chart and the appearances chart respectively, the reverse of the affidavit's descriptions."
+  {
+   "id": "e1",
+   "date": "2014",
+   "precision": "range",
+   "description": "Her involvement in the criminal justice system began in 2014 and ended with release from GVI in 2018; convictions 2014-2016",
+   "paragraphs": [
+    6,
+    7
+   ],
+   "quote": "My involvement in the criminal justice system began in 2014",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2015",
+   "precision": "year",
+   "description": "While in a provincial jail she first saw a male inmate housed in a women's facility, who looked at her during a strip search",
+   "paragraphs": [
+    9
+   ],
+   "quote": "I first became aware that male inmates were being transferred to women’s correctional facilities in the year 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2017",
+   "precision": "year",
+   "description": "Final conviction and 784-day sentence; transferred to Grand Valley Institution; stopped using fentanyl",
+   "paragraphs": [
+    7,
+    8
+   ],
+   "quote": "Following my final conviction in 2017, I received a sentence of 784 days",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2018",
+   "precision": "year",
+   "description": "Released from GVI, she began volunteering with CAEFS",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Following my release from GVI in 2018, I began volunteer work",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2019-05-31",
+   "precision": "range",
+   "description": "CAEFS 2019 AGM (May 31 - June 2): a woman's account of harassment was met with silence and CAEFS adopted an 'inclusion' position",
+   "paragraphs": [
+    16
+   ],
+   "quote": "the CAEFS’ 2019 annual general meeting held May 31 - June 2",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2019-11",
+   "precision": "month",
+   "description": "She resigned from her CAEFS volunteer position",
+   "paragraphs": [
+    17
+   ],
+   "quote": "I ultimately resigned from my volunteer position at CAEFS in November of 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2019-12",
+   "precision": "month",
+   "description": "CAWSBAR was founded as an unincorporated association",
+   "paragraphs": [
+    2,
+    18
+   ],
+   "quote": "CAWSBAR was founded in December of 2019.",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2021-06-02",
+   "precision": "day",
+   "description": "21 formerly incarcerated women sent a letter to the CAEFS Board",
+   "paragraphs": [
+    16
+   ],
+   "quote": "A letter documenting these events was eventually sent to the CAEFS Board of Directors on June 2, 2021",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2021-06-22",
+   "precision": "day",
+   "description": "She submitted a brief to the House of Commons Standing Committee on Public Safety and National Security",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On June 22, 2021, I submitted a written brief",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2023",
+   "precision": "year",
+   "description": "CAWSBAR organized five highway 'banner drops' in Toronto, Ottawa and Calgary",
+   "paragraphs": [
+    27
+   ],
+   "quote": "we organized a number of “banner drops” in 2023",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2023-09",
+   "precision": "month",
+   "description": "Banner drop in Calgary",
+   "paragraphs": [
+    27
+   ],
+   "quote": "banner drop in Calgary in",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2024-06",
+   "precision": "month",
+   "description": "CAWSBAR was incorporated as a non-profit corporation and Mason became Chair",
+   "paragraphs": [
+    3
+   ],
+   "quote": "In June of 2024 CAWSBAR was formally incorporated as a non-profit corporation.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2024",
+   "precision": "year",
+   "description": "CAWSBAR began an annual International Women's Day conference (Toronto 2024, Calgary 2025)",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Since 2024 CAWSBAR has held an annual conference",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2025-10-29",
+   "precision": "day",
+   "description": "CAWSBAR protest outside CSC's Central Ontario District Women's Supervision Unit in Toronto",
+   "paragraphs": [
+    26
+   ],
+   "quote": "October 29, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": null,
+   "precision": "undated",
+   "description": "Charter Advocates Canada agreed to represent CAWSBAR pro bono",
+   "paragraphs": [
+    35
+   ],
+   "quote": "which has agreed to take CAWSBAR on as a client in this matter on a pro bono basis",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2025-12-05",
+   "precision": "day",
+   "description": "Mason swore the affidavit remotely",
+   "paragraphs": [
+    43
+   ],
+   "quote": "on the 5th day of December, 2025",
+   "exhibits": []
+  }
+ ]
 }

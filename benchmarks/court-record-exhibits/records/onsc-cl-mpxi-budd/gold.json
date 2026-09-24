@@ -9,30 +9,160 @@
  "deponent": "Jeremy Budd",
  "deponent_role": "Executive Vice President, Corporate Secretary and General Counsel of MPX International Corporation, and director of each Applicant",
  "sworn_date": "2022-10-18",
+ "referenced_not_attached": [
+  "October 13 Affidavit",
+  "Initial Order and DIP Term Sheet",
+  "Revised Cash Flow Projection (Monitor's Third Report)",
+  "Reverse Vesting Transaction share purchase agreement"
+ ],
+ "notes": "The affidavit says the order is to be sought on October 17, 2022, while the draft orders are dated October 21, 2022. Exhibit A leaves the day of execution blank.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-nmxtmz.pdf", "kind": "agreement", "date": "2022-10-17", "author": "MPXI and the other Borrowers and the DIP Lenders", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-nmxtmz.pdf",
+   "kind": "agreement",
+   "date": "2022-10-17",
+   "author": "MPXI and the other Borrowers and the DIP Lenders",
+   "recipients": [],
    "description": "The DIP Amendment: First Amendment to the DIP Term Sheet entered into October 17, 2022, under which the DIP Lenders advance an additional $450,000",
-   "references": [{"paragraph": 9, "quote": "A copy of the DIP Amendment is attached hereto as Exhibit"}],
-   "content_check": "16-page 'First Amending Agreement' 'entered into October ____, 2022' (day blank) among MPX International Corporation and affiliated Borrowers and the lenders, reciting the July 25, 2022 initial order; signature pages image-only"},
-  {"label": "B", "file": "doc-66g6gu.pdf", "kind": "court_order", "date": "2022-10-21", "author": "Draft for Justice Cavanagh", "recipients": [],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of the DIP Amendment is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "16-page 'First Amending Agreement' 'entered into October ____, 2022' (day blank) among MPX International Corporation and affiliated Borrowers and the lenders, reciting the July 25, 2022 initial order; signature pages image-only"
+  },
+  {
+   "label": "B",
+   "file": "doc-66g6gu.pdf",
+   "kind": "court_order",
+   "date": "2022-10-21",
+   "author": "Draft for Justice Cavanagh",
+   "recipients": [],
    "description": "The proposed Stay Extension, DIP Amendment and Fee Approval Order",
-   "references": [{"paragraph": 12, "quote": "A copy of the proposed Stay Extension, DIP Amendment and Fee Approval Order is attached \nhereto as Exhibit"}],
-   "content_check": "Five-page draft order 'ORDER (Stay Extension, DIP Amendment & Fee Approval)' before Justice Cavanagh, dated Friday the 21st day of October, 2022"},
-  {"label": "C", "file": "doc-y9x8d2.pdf", "kind": "court_order", "date": "2022-10-21", "author": "Applicants' counsel", "recipients": [],
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of the proposed Stay Extension, DIP Amendment and Fee Approval Order is attached \nhereto as Exhibit"
+    }
+   ],
+   "content_check": "Five-page draft order 'ORDER (Stay Extension, DIP Amendment & Fee Approval)' before Justice Cavanagh, dated Friday the 21st day of October, 2022"
+  },
+  {
+   "label": "C",
+   "file": "doc-y9x8d2.pdf",
+   "kind": "court_order",
+   "date": "2022-10-21",
+   "author": "Applicants' counsel",
+   "recipients": [],
    "description": "Blackline comparing the Stay Extension and Fee Approval Order served October 13, 2022 with the Stay Extension, DIP Amendment and Fee Approval Order now sought",
-   "references": [{"paragraph": 12, "quote": "A blackline comparison between the Stay Extension and Fee Approval \nOrder served on October 13, 2022"}],
-   "content_check": "Six-page blackline of the same draft order (judge's name line blank, tracked insertions for the DIP Amendment and the $3,120,000 charge)"}
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A blackline comparison between the Stay Extension and Fee Approval \nOrder served on October 13, 2022"
+    }
+   ],
+   "content_check": "Six-page blackline of the same draft order (judge's name line blank, tracked insertions for the DIP Amendment and the $3,120,000 charge)"
+  }
  ],
  "events": [
-  {"id": "e1", "precision": "undated", "description": "The Initial Order authorized the DIP credit facility, approved the DIP Term Sheet and granted a DIP Lenders' Charge of up to $1,200,000", "paragraphs": [5], "quote": "Pursuant to the Initial Order, the Court authorized and empowered the Applicants to obtain", "exhibits": []},
-  {"id": "e2", "date": "2022-08-05", "precision": "day", "description": "The Amended and Restated Initial Order increased the DIP Lenders' Charge to $2,670,000", "paragraphs": [4, 6], "quote": "Amended and Restated Initial Order dated August 5, 2022", "exhibits": []},
-  {"id": "e3", "date": "2022-10-13", "precision": "day", "description": "Budd swore the October 13 Affidavit and the Stay Extension and Fee Approval Order was served", "paragraphs": [3, 11], "quote": "I swear this affidavit further to my affidavit sworn October 13, 2022", "exhibits": ["C"]},
-  {"id": "e4", "precision": "undated", "description": "The Applicants, the Monitor and the DIP Lenders determined more funding was needed for Salus Bioceutical and to close the sales; the Revised Cash Flow Projection was prepared", "paragraphs": [7, 8], "quote": "the MPXI \nEntities will require additional funding under the DIP Term Sheet", "exhibits": []},
-  {"id": "e5", "date": "2022-10-16", "precision": "day", "description": "MPXI signed a share purchase agreement with a Qualified Bidder for Canveda's shares, to be implemented by reverse vesting order", "paragraphs": [16], "quote": "On October 16, 2022, MPXI entered into a share purchase \nagreement with a Qualified Bidder", "exhibits": []},
-  {"id": "e6", "date": "2022-10-17", "precision": "day", "description": "The DIP Lenders' steering committee entered into the DIP Amendment for an additional $450,000", "paragraphs": [9, 10], "quote": "First Amendment to the DIP Term Sheet entered into on \nOctober 17, 2022", "exhibits": ["A"]},
-  {"id": "e7", "precision": "undated", "description": "$350,000 expected to be advanced to Salus Bioceutical before the motion's return", "paragraphs": [9], "quote": "$350,000 will be advanced to Salus Bioceutical to fund its operations", "exhibits": []},
-  {"id": "e8", "date": "2022-12-16", "precision": "day", "description": "Requested end of the extended Stay Period and outside maturity date of the Credit Facility", "paragraphs": [3, 10], "quote": "extending the Stay Period to \nand including December 16, 2022", "exhibits": ["B"]}
- ],
- "referenced_not_attached": ["October 13 Affidavit", "Initial Order and DIP Term Sheet", "Revised Cash Flow Projection (Monitor's Third Report)", "Reverse Vesting Transaction share purchase agreement"],
- "notes": "The affidavit says the order is to be sought on October 17, 2022, while the draft orders are dated October 21, 2022. Exhibit A leaves the day of execution blank."
+  {
+   "id": "e1",
+   "precision": "undated",
+   "description": "The Initial Order authorized the DIP credit facility, approved the DIP Term Sheet and granted a DIP Lenders' Charge of up to $1,200,000",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Pursuant to the Initial Order, the Court authorized and empowered the Applicants to obtain",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2022-08-05",
+   "precision": "day",
+   "description": "The Amended and Restated Initial Order increased the DIP Lenders' Charge to $2,670,000",
+   "paragraphs": [
+    4,
+    6
+   ],
+   "quote": "Amended and Restated Initial Order dated August 5, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2022-10-13",
+   "precision": "day",
+   "description": "Budd swore the October 13 Affidavit and the Stay Extension and Fee Approval Order was served",
+   "paragraphs": [
+    3,
+    11
+   ],
+   "quote": "I swear this affidavit further to my affidavit sworn October 13, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "precision": "undated",
+   "description": "The Applicants, the Monitor and the DIP Lenders determined more funding was needed for Salus Bioceutical and to close the sales; the Revised Cash Flow Projection was prepared",
+   "paragraphs": [
+    7,
+    8
+   ],
+   "quote": "the MPXI \nEntities will require additional funding under the DIP Term Sheet",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2022-10-16",
+   "precision": "day",
+   "description": "MPXI signed a share purchase agreement with a Qualified Bidder for Canveda's shares, to be implemented by reverse vesting order",
+   "paragraphs": [
+    16
+   ],
+   "quote": "On October 16, 2022, MPXI entered into a share purchase \nagreement with a Qualified Bidder",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2022-10-17",
+   "precision": "day",
+   "description": "The DIP Lenders' steering committee entered into the DIP Amendment for an additional $450,000",
+   "paragraphs": [
+    9,
+    10
+   ],
+   "quote": "First Amendment to the DIP Term Sheet entered into on \nOctober 17, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "precision": "undated",
+   "description": "$350,000 expected to be advanced to Salus Bioceutical before the motion's return",
+   "paragraphs": [
+    9
+   ],
+   "quote": "$350,000 will be advanced to Salus Bioceutical to fund its operations",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2022-12-16",
+   "precision": "day",
+   "description": "Requested end of the extended Stay Period and outside maturity date of the Credit Facility",
+   "paragraphs": [
+    3,
+    10
+   ],
+   "quote": "extending the Stay Period to \nand including December 16, 2022",
+   "exhibits": [
+    "B"
+   ]
+  }
+ ]
 }

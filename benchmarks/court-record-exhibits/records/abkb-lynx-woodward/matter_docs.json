@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/abkb-lynx-woodward/lynx-bench-brief.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/Bench Brief of Lynx Air - Trust Fund Distribution Application - June 24, 2024 (excluding authorities).pdf",
+  "title": "Bench Brief of Lynx Air, trust fund distribution application, June 24, 2024",
+  "kind": "court_filing",
+  "relation": "Lynx Air's brief on the same applications"
+ },
+ {
+  "file": "raw/matter/abkb-lynx-woodward/abkb-2024-514.pdf",
+  "url": "https://cfcanada.fticonsulting.com/lynxair/docs/2024abkb0514.pdf",
+  "title": "Reasons for Decision, 2024 ABKB 514",
+  "kind": "court_order",
+  "relation": "decision on the applications this affidavit answered"
+ }
+]

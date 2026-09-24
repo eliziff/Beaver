@@ -1,0 +1,928 @@
+{
+ "record_id": "mbkb-356assiniboine-page",
+ "court": "Court of King's Bench of Manitoba, Winnipeg Centre",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 23-01-43781",
+ "subject": "insolvency",
+ "proceeding": "Motion by PricewaterhouseCoopers Inc. as court-appointed receiver of Bridging Finance Inc. for the appointment of Deloitte Restructuring Inc. as receiver of 356 Assiniboine Avenue Ltd. and related Dakota Plains Wahpeton Oyate entities (BIA s. 243; CKB Act s. 55)",
+ "document": "Affidavit of Graham Page sworn March 19, 2024",
+ "deponent": "Graham Page",
+ "deponent_role": "Senior Vice President, PricewaterhouseCoopers Inc. (Bridging Receiver, moving party)",
+ "sworn_date": "2024-03-19",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-3ny6mn.pdf",
+   "kind": "court_order",
+   "date": "2021-04-30",
+   "author": "Ontario Superior Court of Justice (Commercial List)",
+   "recipients": [],
+   "description": "The Appointment Orders (April 30, May 3 and May 14, 2021) appointing PwC as Bridging Receiver",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Copies of the Appointment Orders are attached hereto as Exhibit “A”"
+    }
+   ],
+   "content_check": "29 pages: OSC v. Bridging Finance Inc. et al., CV-21-00661458-00CL, order of Justice Hainey dated April 30, 2021, and the further orders"
+  },
+  {
+   "label": "B",
+   "file": "doc-8h7b55.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Corporate profile report for 356 Assiniboine Avenue Ltd.",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of the corporate profile report in respect of 356 is attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "2 pages: Manitoba Companies Office File Summary, registry no. 10037584, as of 20-Feb-2024"
+  },
+  {
+   "label": "C",
+   "file": "doc-wndxgb.pdf",
+   "kind": "agreement",
+   "date": "2019-05-25",
+   "author": "Dakota Plains First Nation GP Co. Ltd. / 356 Assiniboine Avenue Ltd.",
+   "recipients": [],
+   "description": "Trust Declaration under which 356 holds the Real Property as bare trustee",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A copy of the Trust Declaration is attached hereto as Exhibit “C”"
+    }
+   ],
+   "content_check": "5 pages: Declaration of Bare Trust and Agency Agreement effective 25 May 2019"
+  },
+  {
+   "label": "D",
+   "file": "doc-pc5sc9.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Land Titles Registry",
+   "recipients": [],
+   "description": "Status of Title for the Real Property",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Status of Title dated February 20, 2024, which demonstrates that 356 is the sole registered owner"
+    }
+   ],
+   "content_check": "3 pages: Manitoba Status of Title 3008070/1, 356 Assiniboine Avenue Ltd. registered owner of Lot 241 Block 2 Plan 129"
+  },
+  {
+   "label": "E",
+   "file": "doc-4bd5xr.pdf",
+   "kind": "agreement",
+   "date": "2019",
+   "author": "Dakota Plains First Nation / Fusion Capital Corporation",
+   "recipients": [],
+   "description": "The undated Development Agreement retaining Fusion Capital as project manager",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A copy of the Development Agreement is attached hereto as Exhibit “E”"
+    }
+   ],
+   "content_check": "7 pages: Development Agreement made the __ day of __ 2019 between Dakota Plains First Nation (owner) and Fusion Capital Corporation (developer)"
+  },
+  {
+   "label": "F",
+   "file": "doc-xjvtxb.pdf",
+   "kind": "letter",
+   "date": "2024-01-04",
+   "author": "Donald (Orville) Smoke, 356 Assiniboine Avenue",
+   "recipients": [
+    "Ross Ransby, Fusion Capital Corporation"
+   ],
+   "description": "The Termination Letter ending Fusion Capital's management services",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "A copy of the Termination Letter is attached hereto as Exhibit “F”"
+    }
+   ],
+   "content_check": "2 pages: letter dated January 4, 2024 to Fusion Capital Corporation, attention Ross Ransby, re termination"
+  },
+  {
+   "label": "G",
+   "file": "doc-gt4btp.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Limited partnership report for Pursuits LP",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "A copy of the limited partnership report for Pursuits LP is attached as Exhibit “G”"
+    }
+   ],
+   "content_check": "2 pages: File Summary 10040328, Dakota Plains Wahpeton Oyate Active Pursuits Limited Partnership, as of 20-Feb-2024"
+  },
+  {
+   "label": "H",
+   "file": "doc-xfv36w.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Corporate profile report for ManagementCo",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "ManagementCo is attached as Exhibit “H”"
+    }
+   ],
+   "content_check": "2 pages: File Summary 10040000, Dakota Plains Wahpeton Oyate Management Co. Ltd."
+  },
+  {
+   "label": "I",
+   "file": "doc-3vkcku.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Corporate profile report for DevelopmentCo",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "A copy of the corporate profile report for DevelopmentCo is attached as Exhibit “I”"
+    }
+   ],
+   "content_check": "2 pages: File Summary 10037131, Dakota Plains Wahpeton Oyate Economics Development Corporation"
+  },
+  {
+   "label": "J",
+   "file": "doc-2kprpd.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Limited partnership report for Real Estate LP",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "A copy of the limited partnership report for Real Estate LP is attached as Exhibit “J”"
+    }
+   ],
+   "content_check": "2 pages: File Summary 10040237, Dakota Plains Wahpeton Oyate Real Estate Limited Partnership"
+  },
+  {
+   "label": "K",
+   "file": "doc-det3p6.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Manitoba Companies Office",
+   "recipients": [],
+   "description": "Corporate profile report for Real Estate GP",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "A copy of the corporate profile report for Real Estate GP is attached as Exhibit “K”"
+    }
+   ],
+   "content_check": "2 pages: File Summary 10037133, Dakota Plains Wahpeton Oyate Real Estate GP Co. Ltd."
+  },
+  {
+   "label": "L",
+   "file": "doc-zkyvy9.pdf",
+   "kind": "agreement",
+   "date": "2019-03-22",
+   "author": "Bridging Finance Inc.",
+   "recipients": [
+    "Dakota Plains First Nation"
+   ],
+   "description": "The Term Sheet for the $5,550,000 Loan",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "A copy of the Term Sheet is attached hereto as Exhibit “L”"
+    }
+   ],
+   "content_check": "3 pages: Bridging Finance Inc. term sheet, borrower Dakota Plains, bridge financing"
+  },
+  {
+   "label": "M",
+   "file": "doc-2cp9r8.pdf",
+   "kind": "contract",
+   "date": "2019-05-22",
+   "author": "Dakota Plains First Nation and the other Borrower Parties",
+   "recipients": [
+    "Bridging Finance Inc."
+   ],
+   "description": "The demand grid promissory note (the Note)",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "promissory note dated May 22, 2019, executed by Dakota Plains and"
+    }
+   ],
+   "content_check": "4 pages: Bridging Finance Inc. Demand Grid Promissory Note dated May 22, 2019"
+  },
+  {
+   "label": "N",
+   "file": "doc-bsn5pm.pdf",
+   "kind": "agreement",
+   "date": "2020-05-22",
+   "author": "Bridging Finance Inc.",
+   "recipients": [
+    "Dakota Plains First Nation"
+   ],
+   "description": "Amending agreement extending maturity to May 22, 2021",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "A copy of the amending agreement is attached hereto as Exhibit “N”"
+    }
+   ],
+   "content_check": "4 pages: letter agreement dated as of May 22, 2020 from Bridging Finance Inc. as agent to Dakota Plains First Nation, attention Chief Orville Smoke, re the credit facility (poor OCR)"
+  },
+  {
+   "label": "O",
+   "file": "doc-62sj33.pdf",
+   "kind": "minutes",
+   "date": "2019-05-21",
+   "author": "Chief and Council of Dakota Plains First Nation",
+   "recipients": [],
+   "description": "Band council resolution approving the Loan",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "A copy of the BCR is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "1 page: Indian and Northern Affairs Canada Band Council Resolution form"
+  },
+  {
+   "label": "P",
+   "file": "doc-m3hsf9.pdf",
+   "kind": "other",
+   "date": "2019-05-21",
+   "author": "Dakota Plains First Nation",
+   "recipients": [
+    "Bridging Finance Inc."
+   ],
+   "description": "Waiver of Indian Act s. 89 rights",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "A copy of the Waiver is attached hereto as Exhibit “P”"
+    }
+   ],
+   "content_check": "1 page: Waiver of Rights of Dakota Plains First Nation in favour of Bridging Finance Inc. as agent"
+  },
+  {
+   "label": "Q",
+   "file": "doc-xtyy9k.pdf",
+   "kind": "letter",
+   "date": "2019-05-28",
+   "author": "Duboff Edwards Haight & Schachter Law Corporation (Samuel A. Goszer)",
+   "recipients": [
+    "Bridging Finance Inc.",
+    "Chaitons LLP"
+   ],
+   "description": "The Duboff Edwards Legal Opinion",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "A copy of the Duboff Edwards Legal Opinion is attached hereto as Exhibit “Q”"
+    }
+   ],
+   "content_check": "5 pages: Duboff Edwards Haight & Schachter opinion letter dated 28 May 2019, file 190275-1902"
+  },
+  {
+   "label": "R",
+   "file": "doc-pbdk95.pdf",
+   "kind": "other",
+   "date": "2019-05-22",
+   "author": "The Borrower Parties",
+   "recipients": [
+    "Bridging Finance Inc.",
+    "Chaitons LLP"
+   ],
+   "description": "All the irrevocable Directions re funds from the Trust Account",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "Copies of all the Directions are attached"
+    }
+   ],
+   "content_check": "12 pages: Bridging Finance Inc. Irrevocable Directions re Funds to BFI and Chaitons LLP, first dated May 22, 2019"
+  },
+  {
+   "label": "S",
+   "file": "doc-mjqfcu.pdf",
+   "kind": "agreement",
+   "date": "2019-05-21",
+   "author": "The Receivership Defendants",
+   "recipients": [
+    "Bridging Finance Inc."
+   ],
+   "description": "The General Security Agreements",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "Copies of the General Security Agreements are attached hereto as Exhibit “S”"
+    }
+   ],
+   "content_check": "24 pages: Security Agreements dated 21 May 2019 to Bridging Finance Inc. as agent, first debtor 356 Assiniboine Avenue Ltd."
+  },
+  {
+   "label": "T",
+   "file": "doc-ycptxp.pdf",
+   "kind": "public_record",
+   "date": "2019-05-31",
+   "author": "356 Assiniboine Avenue Ltd.",
+   "recipients": [
+    "Bridging Finance Inc."
+   ],
+   "description": "The Mortgage registered as Instrument No. 5071157/1 with charge terms",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A copy of the Mortgage, with its charge terms, is attached hereto as"
+    }
+   ],
+   "content_check": "8 pages: Manitoba Property Registry mortgage 5071157/1 registered 2019-05-31, mortgagor 356 Assiniboine Avenue Ltd."
+  },
+  {
+   "label": "U",
+   "file": "doc-rts88n.pdf",
+   "kind": "agreement",
+   "date": "2019-05-21",
+   "author": "356, Real Estate GP and Real Estate LP",
+   "recipients": [
+    "Bridging Finance Inc."
+   ],
+   "description": "The Subordination Agreement",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "A copy of the Subordination Agreement is attached here to"
+    }
+   ],
+   "content_check": "3 pages: Subordination Agreement, Bridging Finance Inc. loan to Dakota Plains First Nation"
+  },
+  {
+   "label": "V",
+   "file": "doc-3av5w2.pdf",
+   "kind": "public_record",
+   "date": "2024-02-20",
+   "author": "Teranet Manitoba Personal Property Registry",
+   "recipients": [],
+   "description": "Certified PPSA searches against the Receivership Defendants",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "Copies of certified PPSA searches in respect of the Receivership Defendants current as of February 20, 2024"
+    }
+   ],
+   "content_check": "52 pages: Teranet Manitoba business debtor search results dated 2024-02-20, beginning with Active Pursuits LP"
+  },
+  {
+   "label": "W",
+   "file": "doc-cmsdag.pdf",
+   "kind": "email",
+   "date": "2023-09-25",
+   "author": "Thornton Grout Finnigan LLP (Adam Driedger, for the Bridging Receiver)",
+   "recipients": [
+    "Myers LLP (Devon C. Mazur, for the Borrower Parties)"
+   ],
+   "description": "Email confirming the BIA notice period expired without extension",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "A copy of this email is attached hereto as Exhibit “W”"
+    }
+   ],
+   "content_check": "1 page: email of Monday, September 25, 2023 from Adam Driedger to Alexander Overton and dmazur@myersfirm.com, 'With Prejudice - Indebtedness of Dakota Plains First Nation et al to Bridging Finance Inc.'"
+  },
+  {
+   "label": "X",
+   "file": "doc-bcnuh4.pdf",
+   "kind": "court_filing",
+   "date": "2023-11-07",
+   "author": "PricewaterhouseCoopers Inc. (Bridging Receiver)",
+   "recipients": [],
+   "description": "The Statement of Claim",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "A copy of the Statement of Claim is attached as Exhibit “X”"
+    }
+   ],
+   "content_check": "13 pages: Statement of Claim, King's Bench Winnipeg Centre, PwC v. Dakota Plains First Nation et al."
+  },
+  {
+   "label": "Y",
+   "file": "doc-gwhsh6.pdf",
+   "kind": "email_chain",
+   "date": "2023-11-22",
+   "author": "Thornton Grout Finnigan LLP (Adam Driedger, for the Bridging Receiver)",
+   "recipients": [
+    "Myers LLP (Devon C. Mazur, for the Borrower Parties)"
+   ],
+   "description": "Email chain on the Borrowers' request for an extension to January 15, 2024",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "A copy of this email chain is attached hereto as Exhibit “Y”"
+    }
+   ],
+   "content_check": "3 pages: email chain, top message Adam Driedger Wednesday, November 22, 2023 re Ct File No. CI 23-01-43781 (affidavit dates the request November 17)"
+  },
+  {
+   "label": "Z",
+   "file": "doc-gvt694.pdf",
+   "kind": "email",
+   "date": "2024-01-12",
+   "author": "Myers LLP (Devon C. Mazur, for the Borrower Parties)",
+   "recipients": [
+    "Thornton Grout Finnigan LLP (Adam Driedger, for the Bridging Receiver)"
+   ],
+   "description": "Email requesting a further extension to February 16, 2024",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "A copy of this email is attached hereto as Exhibit “Z”"
+    }
+   ],
+   "content_check": "4 pages: email from Devon C. Mazur, Friday, January 12, 2024, to Adam Driedger and Alexander Overton"
+  },
+  {
+   "label": "AA",
+   "file": "doc-stt7sn.pdf",
+   "kind": "letter",
+   "date": "2024-01-22",
+   "author": "Thornton Grout Finnigan LLP (Adam Driedger, for the Bridging Receiver)",
+   "recipients": [
+    "Myers LLP"
+   ],
+   "description": "The January Letter setting conditions for a further extension",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "A copy of the January Letter is attached hereto as Exhibit “AA”"
+    }
+   ],
+   "content_check": "4 pages: TGF letter dated January 22, 2024, private & confidential via email, to Myers LLP"
+  },
+  {
+   "label": "BB",
+   "file": "doc-fq3rc8.pdf",
+   "kind": "court_filing",
+   "date": "2024-02-02",
+   "author": "The Borrower Parties",
+   "recipients": [],
+   "description": "The Statement of Defence",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "A copy of the Statement of Defence is attached"
+    }
+   ],
+   "content_check": "18 pages: Statement of Defence, File No. CI23-01-43781, King's Bench Winnipeg Centre"
+  },
+  {
+   "label": "CC",
+   "file": "doc-vw32v3.pdf",
+   "kind": "email_chain",
+   "date": "2024-02-26",
+   "author": "Glenn Fleetwood, BDO",
+   "recipients": [
+    "Meagan Binder",
+    "Graham Page"
+   ],
+   "description": "Email chain in which BDO advised Fusion no longer manages the Wellness Centre",
+   "references": [
+    {
+     "paragraph": 66,
+     "quote": "A copy of this email chain is attached hereto as Exhibit “CC”"
+    }
+   ],
+   "content_check": "5 pages: email chain, top message Glenn Fleetwood (BDO), Monday, February 26, 2024, 'RE: [EXT] Dakota Plains'"
+  },
+  {
+   "label": "DD",
+   "file": "doc-7kn7ex.pdf",
+   "kind": "court_filing",
+   "date": "2024",
+   "author": "Deloitte Restructuring Inc.",
+   "recipients": [],
+   "description": "Deloitte's consent to act as Receiver",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "A copy of Deloitte’s consent to act as Receiver is attached as Exhibit “DD”"
+    }
+   ],
+   "content_check": "2 pages: consent to act as receiver in File No. CI 23-01-43781"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "PwC appointed Bridging Receiver by the Ontario Court (April 30, May 3 and May 14, 2021 orders)",
+   "date": "2021-04-30",
+   "precision": "range",
+   "paragraphs": [
+    5
+   ],
+   "quote": "PwC was appointed as the Bridging Receiver",
+   "exhibits": [
+    "A"
+   ],
+   "end_date": "2021-05-14"
+  },
+  {
+   "id": "e2",
+   "description": "Term Sheet for the $5,550,000 Loan issued to Dakota Plains",
+   "date": "2019-03-22",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "made available pursuant to a term sheet dated March 22, 2019",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Band council resolution ratifies the Loan",
+   "date": "2019-05-21",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "By band council resolution dated as of May 21, 2019",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Dakota Plains waives Indian Act s. 89 rights in favour of BFI",
+   "date": "2019-05-21",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "the Indian Act, R.S.C. 1985, c. I-5 (the “Indian Act”) dated May 21, 2019",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Receivership Defendants grant General Security Agreements",
+   "date": "2019-05-21",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "a separate general security agreement, each dated May 21, 2019",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Subordination Agreement executed in favour of Bridging",
+   "date": "2019-05-21",
+   "precision": "day",
+   "paragraphs": [
+    43
+   ],
+   "quote": "subordination agreement in favour of Bridging dated May 21,2019",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Demand grid promissory note executed by the Borrower Parties",
+   "date": "2019-05-22",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "promissory note dated May 22, 2019, executed by Dakota Plains and",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Loan fully advanced into the Chaitons trust account; Directions issued for disbursements",
+   "date": "2019-05-22",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "by Chaitons LLP (counsel for Bridging in connection with the Loan) on May 22, 2019",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Trust Declaration: 356 holds the Real Property as bare trustee",
+   "date": "2019-05-25",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "in accordance with a trust agreement dated May 25, 2019",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Duboff Edwards legal opinion delivered",
+   "date": "2019-05-28",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "provided Bridging and its counsel with an opinion dated May 28, 2019",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Mortgage registered on title as Instrument No. 5071157/1",
+   "date": "2019-05-31",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "The Mortgage was registered on title to the Real Property on May 31,2019",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Fusion Capital retained under the Development Agreement for the Wellness Centre renovation",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    20
+   ],
+   "quote": "Pursuant to an undated development agreement between Fusion Capital Corporation",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Loan funds disbursed from the trust account per the Directions (May 2019 to April 2021)",
+   "date": "2019-05-22",
+   "precision": "range",
+   "paragraphs": [
+    38
+   ],
+   "quote": "Pursuant to the Directions, certain amounts of the Loan were expressly directed to specific parties",
+   "exhibits": [
+    "R"
+   ],
+   "end_date": "2021-04-23"
+  },
+  {
+   "id": "e14",
+   "description": "Maturity extended to May 22, 2021 by amending agreement",
+   "date": "2020-05-22",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "The maturity date of the Loan was extended from May 22, 2020 to May 22, 2021 by amending agreement dated May 22, 2020",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Real Estate GP makes periodic loan payments totalling $165,000",
+   "date": "2022-04-01",
+   "precision": "range",
+   "paragraphs": [
+    40
+   ],
+   "quote": "made regular interest and/or principal payments in respect of the Loan between April 1, 2022 and April 13",
+   "exhibits": [],
+   "end_date": "2023-04-13"
+  },
+  {
+   "id": "e16",
+   "description": "No payments since April 13, 2023",
+   "date": "2023-04-13",
+   "precision": "day",
+   "paragraphs": [
+    50
+   ],
+   "quote": "The Borrower Parties have failed to make any payments in reduction of the Loan since April 13, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Bridging Receiver requests Financial Reporting; Borrowers provide only partial reporting and no proposal",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    52,
+    53,
+    54
+   ],
+   "quote": "The Bridging Receiver made multiple requests for the Financial Reporting from the Borrower Parties by email and telephone",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Demand Letters and BIA s. 244 Notices delivered to the Borrower Parties",
+   "date": "2023-08-22",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "On August 22, 2023, the Bridging Receiver delivered demand letters",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "BIA 10-day notice period expires",
+   "date": "2023-09-01",
+   "precision": "day",
+   "paragraphs": [
+    57
+   ],
+   "quote": "The statutory 10-day notice period under the BIA Notices expired on September 1, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Receiver's email confirming the notice period had expired",
+   "date": "2023-09-25",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "By email dated September 25, 2023, the Bridging Receiver confirmed",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Statement of Claim issued",
+   "date": "2023-11-07",
+   "precision": "day",
+   "paragraphs": [
+    59
+   ],
+   "quote": "On November 7, 2023, the Bridging Receiver issued a Statement of",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Borrowers request extension to January 15, 2024 to defend; Receiver agrees",
+   "date": "2023-11-17",
+   "precision": "day",
+   "paragraphs": [
+    61
+   ],
+   "quote": "By email dated November 17, 2023, the Borrower Parties requested",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Termination Letter ending Fusion Capital's management, effective January 31, 2024",
+   "date": "2024-01-04",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "terminated, effective January 31, 2024, pursuant to a letter dated January 4, 2024",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Borrowers request further extension to February 16, 2024",
+   "date": "2024-01-12",
+   "precision": "day",
+   "paragraphs": [
+    62
+   ],
+   "quote": "By email dated January 12, 2024, the Borrower Parties requested an",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "January Letter sets conditions for a further extension",
+   "date": "2024-01-22",
+   "precision": "day",
+   "paragraphs": [
+    63
+   ],
+   "quote": "By letter to the Borrower Parties dated January 22, 2024",
+   "exhibits": [
+    "AA"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Borrowers serve Statement of Defence",
+   "date": "2024-02-02",
+   "precision": "day",
+   "paragraphs": [
+    65
+   ],
+   "quote": "served their Statement of Defence on February 2, 2024",
+   "exhibits": [
+    "BB"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Corporate, title and PPSA searches of the Receivership Defendants",
+   "date": "2024-02-20",
+   "precision": "day",
+   "paragraphs": [
+    18,
+    46
+   ],
+   "quote": "current as of February 20, 2024",
+   "exhibits": [
+    "B",
+    "D",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "V"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "BDO advises Fusion no longer manages the Wellness Centre; Ramon Merino Jr. managing",
+   "date": "2024-02-22",
+   "precision": "range",
+   "paragraphs": [
+    21,
+    66
+   ],
+   "quote": "By emails dated February 22 and 26, 2024, I was advised by BDO",
+   "exhibits": [
+    "CC"
+   ],
+   "end_date": "2024-02-26"
+  },
+  {
+   "id": "e29",
+   "description": "Indebtedness reaches $11,228,727",
+   "date": "2024-02-29",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "the total amount owing by the Borrower Parties under the Loan",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "Deloitte consents to act as Receiver",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    68
+   ],
+   "quote": "Deloitte has consented to act as the Receiver",
+   "exhibits": [
+    "DD"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Demand Letters and BIA Notices of August 22, 2023",
+  "Notice of Motion with draft Receivership Order (Schedule A)",
+  "Bridging Receiver's reports to the Ontario Court"
+ ]
+}

@@ -85,5 +85,11 @@
    "text_chars": 5609
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-338sym.pdf",
+  "doc-3pynkk.pdf",
+  "doc-42adaa.pdf",
+  "doc-zr5vfc.pdf"
+ ]
 }

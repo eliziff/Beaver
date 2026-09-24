@@ -1,0 +1,63 @@
+{
+ "record_id": "mbkb-genesus-herman",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-7b43at.pdf",
+   "source_pages": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 8903
+  },
+  {
+   "label": "B",
+   "file": "doc-qyenjx.pdf",
+   "source_pages": [
+    15
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 2304
+  },
+  {
+   "label": "C",
+   "file": "doc-2rnwcd.pdf",
+   "source_pages": [
+    17,
+    18
+   ],
+   "cover_page": 16,
+   "stamp_page": null,
+   "text_chars": 1677
+  },
+  {
+   "label": "D",
+   "file": "doc-kqxg38.pdf",
+   "source_pages": [
+    20,
+    21
+   ],
+   "cover_page": 19,
+   "stamp_page": null,
+   "text_chars": 3163
+  }
+ ],
+ "leak_audit": []
+}

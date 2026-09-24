@@ -1,0 +1,781 @@
+{
+ "record_id": "nlsc-kami-nagra",
+ "court": "Supreme Court of Newfoundland and Labrador (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NL",
+ "court_file": "",
+ "subject": "insolvency",
+ "proceeding": "Application by Sprott Private Resource Lending (Collector), LP for the appointment of a receiver and manager over The Kami Mine Limited Partnership, Kami General Partner Limited and Alderon Iron Ore Corp. (BIA s. 243)",
+ "document": "Affidavit of Narinder Nagra sworn May 26, 2020",
+ "deponent": "Narinder Nagra",
+ "deponent_role": "Managing Partner, Sprott Private Resource Lending (Collector), LP (applicant secured lender)",
+ "sworn_date": "2020-05-26",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-r8rzh4.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Ontario Ministry of Government Services",
+   "recipients": [],
+   "description": "Ontario Limited Partnerships Report for Kami LP",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "respect of Kami LP is attached as Exhibit \"1\""
+    }
+   ],
+   "content_check": "3 pages: Ontario MGS Limited Partnerships Report produced 2020/05/01"
+  },
+  {
+   "label": "2",
+   "file": "doc-wex2ra.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Ontario Ministry of Government Services",
+   "recipients": [],
+   "description": "Ontario Corporate Profile Report for Kami GP",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "respect of Kami GP is attached as Exhibit \"2\""
+    }
+   ],
+   "content_check": "6 pages: Ontario MGS Corporation Profile Report produced 2020/05/01"
+  },
+  {
+   "label": "3",
+   "file": "doc-gj3uy6.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "BC Company Summary for Alderon",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "respect of Alderon is attached as Exhibit \"3\""
+    }
+   ],
+   "content_check": "3 pages: BC Registry Services company summary for Alderon Iron Ore Corp., searched May 01, 2020"
+  },
+  {
+   "label": "4",
+   "file": "doc-axexvg.pdf",
+   "kind": "agreement",
+   "date": "2018-06-20",
+   "author": "Sprott Private Resource Lending (Collector), LP",
+   "recipients": [
+    "The Kami Mine Limited Partnership",
+    "Kami General Partner Limited",
+    "Alderon Iron Ore Corp."
+   ],
+   "description": "The Loan Agreement (credit agreement of June 20, 2018)",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of the Loan Agreement is attached as Exhibit \"4\""
+    }
+   ],
+   "content_check": "100 pages: Credit Agreement dated as of June 20, 2018 among Kami LP (borrower), Alderon and Kami GP (guarantors) and Sprott (lender). The posted record contains the agreement twice; the second copy (from page 51) has its repeated Exhibit \"4\" cover page dropped (--drop 74)"
+  },
+  {
+   "label": "5",
+   "file": "doc-uphke7.pdf",
+   "kind": "contract",
+   "date": "2018-07-10",
+   "author": "The Kami Mine Limited Partnership",
+   "recipients": [
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Promissory Note of July 10, 2018 for USD 14,000,000",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A copy of the Promissory Note is attached as Exhibit \"5\""
+    }
+   ],
+   "content_check": "1 page: Promissory Note made as of July 2018 by The Kami Mine Limited Partnership in connection with the credit agreement"
+  },
+  {
+   "label": "6",
+   "file": "doc-tthu2g.pdf",
+   "kind": "agreement",
+   "date": "2018-07-10",
+   "author": "Kami General Partner Limited and Alderon Iron Ore Corp.",
+   "recipients": [
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Guarantee by Kami GP and Alderon",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of the Guarantee is attached as Exhibit \"6\""
+    }
+   ],
+   "content_check": "17 pages: Guarantee made as of July 10, 2018 to Sprott Private Resource Lending (Collector), LP"
+  },
+  {
+   "label": "7",
+   "file": "doc-wcwdqv.pdf",
+   "kind": "agreement",
+   "date": "2018-07-10",
+   "author": "Kami LP and Kami GP",
+   "recipients": [
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Debenture over the Mining Project and personal property",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the Debenture is attached as Exhibit \"7\""
+    }
+   ],
+   "content_check": "41 pages: Debenture, holder Sprott Private Resource Lending (Collector) LP"
+  },
+  {
+   "label": "8",
+   "file": "doc-hv6nmj.pdf",
+   "kind": "agreement",
+   "date": "2018-07-10",
+   "author": "Alderon Iron Ore Corp.",
+   "recipients": [
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Alderon's General Security Agreement",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A \ncopy of the GSA is attached as Exhibit \"8\""
+    }
+   ],
+   "content_check": "14 pages: General Security Agreement made as of July 10, 2018 between Alderon Iron Ore Corp. and Sprott"
+  },
+  {
+   "label": "9",
+   "file": "doc-727rdf.pdf",
+   "kind": "agreement",
+   "date": "2018-07-10",
+   "author": "Kami LP, Kami GP and Alderon",
+   "recipients": [
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Assignment of Material Contracts",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the \nAssignment of Material Contracts is attached as Exhibit \"9\""
+    }
+   ],
+   "content_check": "12 pages: Assignment of Material Contracts made as of July 10, 2018"
+  },
+  {
+   "label": "10",
+   "file": "doc-7wyxke.pdf",
+   "kind": "agreement",
+   "date": "2020-01-08",
+   "author": "The Kami Mine Limited Partnership",
+   "recipients": [
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Assignment and Pledge of Accounts over the BMO account",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the Assignment of Pledge \nAccounts is attached as Exhibit \"10\""
+    }
+   ],
+   "content_check": "3 pages: Assignment and Pledge of Accounts dated as of January 8, 2020 by Kami LP in favour of Sprott"
+  },
+  {
+   "label": "11",
+   "file": "doc-e9n3gk.pdf",
+   "kind": "agreement",
+   "date": "2020-01-06",
+   "author": "Bank of Montreal",
+   "recipients": [
+    "The Kami Mine Limited Partnership",
+    "Sprott Private Resource Lending (Collector), LP"
+   ],
+   "description": "Blocked Account Agreement among Kami LP, the Lender and BMO",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the Blocked Account \nAgreement is attached as Exhibit \"11\""
+    }
+   ],
+   "content_check": "10 pages: Blocked Account Agreement made as of January 6, 2020 among Bank of Montreal, Kami LP and Sprott (affidavit says January 8)"
+  },
+  {
+   "label": "12",
+   "file": "doc-7ze4ey.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "BC Personal Property Registry",
+   "recipients": [],
+   "description": "BC PPR search for Kami LP",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "searches of the British Columbia Personal Property Registry for Kami LP"
+    }
+   ],
+   "content_check": "3 pages: BC Personal Property Registry search, business name The Kami Mine Partnership, May 01, 2020"
+  },
+  {
+   "label": "13",
+   "file": "doc-tbvqqt.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "BC Personal Property Registry",
+   "recipients": [],
+   "description": "BC PPR search for Kami GP",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "are attached as Exhibit \"12\" Exhibit \"13\" and \nExhibit \"14\" respectively"
+    }
+   ],
+   "content_check": "4 pages: BC PPR search, business name Kami General Partner Limited, May 01, 2020"
+  },
+  {
+   "label": "14",
+   "file": "doc-q3f9ct.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "BC Personal Property Registry",
+   "recipients": [],
+   "description": "BC PPR search for Alderon",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "are attached as Exhibit \"12\" Exhibit \"13\" and \nExhibit \"14\" respectively"
+    }
+   ],
+   "content_check": "3 pages: BC PPR search, business name Alderon Iron Ore Corp., May 01, 2020"
+  },
+  {
+   "label": "15",
+   "file": "doc-hwbms9.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Newfoundland and Labrador Personal Property Registry",
+   "recipients": [],
+   "description": "NL PPR search for Kami LP",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "searches of the Newfoundland and Labrador Personal Property Registry for Kami LP"
+    }
+   ],
+   "content_check": "5 pages: NL PPRS Search Result Report 19816921"
+  },
+  {
+   "label": "16",
+   "file": "doc-pbej3b.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Newfoundland and Labrador Personal Property Registry",
+   "recipients": [],
+   "description": "NL PPR search for Kami GP",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "are attached as Exhibit \"15\" Exhibit \"16\" \nand Exhibit \"17\" respectively"
+    }
+   ],
+   "content_check": "5 pages: NL PPRS Search Result Report 19816683"
+  },
+  {
+   "label": "17",
+   "file": "doc-vufrq4.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Newfoundland and Labrador Personal Property Registry",
+   "recipients": [],
+   "description": "NL PPR search for Alderon",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "are attached as Exhibit \"15\" Exhibit \"16\" \nand Exhibit \"17\" respectively"
+    }
+   ],
+   "content_check": "2 pages: NL PPRS Search Result Report 19816688"
+  },
+  {
+   "label": "18",
+   "file": "doc-4hbzw7.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Ontario Personal Property Security Registration System",
+   "recipients": [],
+   "description": "Ontario PPR search for Kami LP",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "searches of the Ontario Personal Property Registry for Kami LP"
+    }
+   ],
+   "content_check": "4 pages: Ontario PPSA business debtor search results ID 1698017, 01MAY2020"
+  },
+  {
+   "label": "19",
+   "file": "doc-xsf36c.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Ontario Personal Property Security Registration System",
+   "recipients": [],
+   "description": "Ontario PPR search for Kami GP",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "are attached as Exhibit \"18\" Exhibit \"19\", and Exhibit \"20\""
+    }
+   ],
+   "content_check": "4 pages: Ontario PPSA search results ID 1697997, 01MAY2020"
+  },
+  {
+   "label": "20",
+   "file": "doc-9ujk3w.pdf",
+   "kind": "public_record",
+   "date": "2020-05-01",
+   "author": "Ontario Personal Property Security Registration System",
+   "recipients": [],
+   "description": "Ontario PPR search for Alderon",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "are attached as Exhibit \"18\" Exhibit \"19\", and Exhibit \"20\""
+    }
+   ],
+   "content_check": "4 pages: Ontario PPSA search results ID 1697998"
+  },
+  {
+   "label": "21",
+   "file": "doc-bbwjhx.pdf",
+   "kind": "letter",
+   "date": "2020-05-19",
+   "author": "Progressive Searching Limited",
+   "recipients": [
+    "Cox & Palmer"
+   ],
+   "description": "Search of the NL Registry of Deeds and Companies showing the Lender's registered Security",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of the results of a search of the \nregistry is attached as Exhibit \"21\""
+    }
+   ],
+   "content_check": "2 pages: Progressive Searching Limited letter of 2020-05-19 to Cox & Palmer re property of Kami LP, Kami GP and Alderon"
+  },
+  {
+   "label": "22",
+   "file": "doc-v9q7mk.pdf",
+   "kind": "public_record",
+   "date": "2020-05-13",
+   "author": "Newfoundland and Labrador Judgment Enforcement Registry",
+   "recipients": [],
+   "description": "NL Judgment Enforcement Registry search for Kami LP",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Searches of the searches of the Newfoundland and Labrador Judgment Enforcement \nRegistry for Kami LP"
+    }
+   ],
+   "content_check": "1 page: JER enterprise search, transaction 994403, May-13-2020"
+  },
+  {
+   "label": "23",
+   "file": "doc-6hwqk5.pdf",
+   "kind": "public_record",
+   "date": "2020-05-13",
+   "author": "Newfoundland and Labrador Judgment Enforcement Registry",
+   "recipients": [],
+   "description": "NL Judgment Enforcement Registry search for Kami GP",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "are attached as xhibit \"22\" Exhibit \n\"23\", and Exhibit \"24\" respectively"
+    }
+   ],
+   "content_check": "1 page: JER enterprise search, transaction 994404, May-13-2020"
+  },
+  {
+   "label": "24",
+   "file": "doc-nuwrf7.pdf",
+   "kind": "public_record",
+   "date": "2020-05-13",
+   "author": "Newfoundland and Labrador Judgment Enforcement Registry",
+   "recipients": [],
+   "description": "NL Judgment Enforcement Registry search for Alderon",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "are attached as xhibit \"22\" Exhibit \n\"23\", and Exhibit \"24\" respectively"
+    }
+   ],
+   "content_check": "1 page: JER enterprise search, transaction 994405, May-13-2020"
+  },
+  {
+   "label": "25",
+   "file": "doc-gk9vfy.pdf",
+   "kind": "agreement",
+   "date": "2020-01-08",
+   "author": "Sprott Private Resource Lending (Collector), LP",
+   "recipients": [
+    "The Kami Mine Limited Partnership",
+    "Kami General Partner Limited",
+    "Alderon Iron Ore Corp."
+   ],
+   "description": "First Forbearance Agreement",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of the First Forbearance Agreement is attached as Exhibit \"25\""
+    }
+   ],
+   "content_check": "14 pages: Forbearance and Extension Agreement made as of January 8, 2020"
+  },
+  {
+   "label": "26",
+   "file": "doc-49um2b.pdf",
+   "kind": "agreement",
+   "date": "2020-02-14",
+   "author": "Sprott Private Resource Lending (Collector), LP",
+   "recipients": [
+    "The Kami Mine Limited Partnership",
+    "Kami General Partner Limited",
+    "Alderon Iron Ore Corp."
+   ],
+   "description": "Second (amended and restated) Forbearance Agreement",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of the Second Forbearance \nAgreement is attached as Exhibit \"26\""
+    }
+   ],
+   "content_check": "15 pages: Amended and Restated Forbearance and Extension Agreement made as of February 14, 2020"
+  },
+  {
+   "label": "27",
+   "file": "doc-jy3wjp.pdf",
+   "kind": "letter",
+   "date": "2020-04-24",
+   "author": "Dentons Canada LLP (for the Lender)",
+   "recipients": [
+    "The Kami Mine Limited Partnership"
+   ],
+   "description": "Demand and BIA s. 244 NOI to Kami LP",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Copies of these demands and \nNOls are attached as Exhibit \"27\" and Exhibit \"28\" respectively"
+    }
+   ],
+   "content_check": "5 pages: Dentons letter of April 24, 2020 to The Kami Mine Limited Partnership (demand) with notice of intention to enforce security"
+  },
+  {
+   "label": "28",
+   "file": "doc-v5p3zp.pdf",
+   "kind": "letter",
+   "date": "2020-04-24",
+   "author": "Dentons Canada LLP (for the Lender)",
+   "recipients": [
+    "Kami General Partner Limited"
+   ],
+   "description": "Demand and BIA s. 244 NOI to Kami GP",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Copies of these demands and \nNOls are attached as Exhibit \"27\" and Exhibit \"28\" respectively"
+    }
+   ],
+   "content_check": "4 pages: Dentons letter of April 24, 2020 to Kami General Partner Limited re its guarantee, with notice"
+  },
+  {
+   "label": "29",
+   "file": "doc-kpdwgs.pdf",
+   "kind": "letter",
+   "date": "2020-04-28",
+   "author": "Dentons Canada LLP (for the Lender)",
+   "recipients": [
+    "Alderon Iron Ore Corp."
+   ],
+   "description": "Demand and NOI to Alderon",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A copy \nof this demand and NOI are attached as Exhibit \"29\""
+    }
+   ],
+   "content_check": "4 pages: Dentons letter of April 28, 2020 to Alderon Iron Ore Corp. re its guarantee, with notice of intention to enforce security"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Credit agreement: Lender makes USD 14M term loan available to Kami LP",
+   "date": "2018-06-20",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Pursuant to a credit agreement dated June 20, 2018",
+   "exhibits": [
+    "4"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Kami LP gives promissory note for USD 14M",
+   "date": "2018-07-10",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Kami LP further provided the Lender with a promissory note dated July 10, 2018",
+   "exhibits": [
+    "5"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Kami GP and Alderon guarantee Kami LP's obligations",
+   "date": "2018-07-10",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "pursuant to a \nguarantee dated July 10, 2018",
+   "exhibits": [
+    "6"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Kami LP and Kami GP grant Debenture",
+   "date": "2018-07-10",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "pursuant to a Debenture dated July 10, 2018",
+   "exhibits": [
+    "7"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Alderon grants GSA",
+   "date": "2018-07-10",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "pursuant to a General Security Agreement dated July 10, 2018",
+   "exhibits": [
+    "8"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Assignment of Material Contracts granted",
+   "date": "2018-07-10",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "pursuant to an Assignment of Material Contracts \ndated July 10, 2018",
+   "exhibits": [
+    "9"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Assignment and Pledge of Accounts over BMO account",
+   "date": "2020-01-08",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Assignment and Pledge of Accounts \nagreement dated January 8, 2020",
+   "exhibits": [
+    "10"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Blocked Account Agreement with BMO",
+   "date": "2020-01-08",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Blocked Account Agreement dated January 8, \n2020",
+   "exhibits": [
+    "11"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Lender registers security in BC, NL and Ontario PPRs",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    14
+   ],
+   "quote": "The Lender made registrations against the Credit Parties in the Personal Property \nRegistries of British Columbia, Newfoundland and Labrador, and Ontario",
+   "exhibits": [
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Lender registers Security in NL Registry of Deeds and Companies",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    15
+   ],
+   "quote": "The Lender duly and properly registered its Security in the Registry of Deeds and \nCompanies for Newfoundland and Labrador",
+   "exhibits": [
+    "21"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Judgment Enforcement Registry searches",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Searches of the searches of the Newfoundland and Labrador Judgment Enforcement \nRegistry",
+   "exhibits": [
+    "22",
+    "23",
+    "24"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "First Forbearance Agreement",
+   "date": "2020-01-08",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "a Forbearance and Extension Agreement dated January 8, 2020",
+   "exhibits": [
+    "25"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Second (amended and restated) Forbearance Agreement",
+   "date": "2020-02-14",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "an Amended and Restated Forbearance and Extension Agreement dated \nFebruary 14, 2020",
+   "exhibits": [
+    "26"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Credit Parties fail to repay amounts due",
+   "date": "2020-03-31",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "failing to repay \namounts owing to the Lender on March 31, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Demands and NOIs issued to Kami LP and Kami GP",
+   "date": "2020-04-24",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On April 24, 2020 the Lender, through its legal counsel, issued demands to Kami LP \nand Kami GP",
+   "exhibits": [
+    "27",
+    "28"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Demand and NOI issued to Alderon",
+   "date": "2020-04-28",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On April 28, 2020 the Lender, through its legal counsel, issued demand to Alderon",
+   "exhibits": [
+    "29"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Credit Parties fail to pay the Indebtedness",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    21
+   ],
+   "quote": "each of the Credit Parties have failed or neglected to \npay",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Indebtedness totals USD 13,856,007.85",
+   "date": "2020-05-20",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "As of May 20, 2020, the total indebtedness due and owing to the Lender",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Directors and management of the Credit Parties resign; no active operations",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    25
+   ],
+   "quote": "all of the directors and management of the Credit Parties have \nresigned",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Prior Sales Process for the Mining Project yields one firm offer but no sale",
+   "date": "2019",
+   "precision": "range",
+   "paragraphs": [
+    27
+   ],
+   "quote": "throughout 2019 and 2020, the Credit Parties retained professional advisors \nand engaged in extensive efforts to market and sell the Mining Project",
+   "exhibits": [],
+   "end_date": "2020"
+  }
+ ],
+ "referenced_not_attached": [
+  "Lender's application to appoint a receiver"
+ ]
+}

@@ -9,6 +9,14 @@
  "deponent": "[redacted] (respondent's research expert)",
  "deponent_role": "University of Ottawa professor and University Research Chair in Medication Abortion Studies, sexual and reproductive health researcher",
  "sworn_date": "2025-04-25",
+ "referenced_not_attached": [
+  "Her 2020 expert affidavit in van Hee v. Ontario (CV-19-80325)"
+ ],
+ "leak_waivers": [
+  "F"
+ ],
+ "notes": "Deponent names are redacted throughout the public copy. Exhibit A is entirely blacked out. Covers given with --covers so the nested affidavit in Exhibit F keeps its own exhibits. Leak waiver F: Exhibit F is itself an affidavit whose own Exhibit A-C covers (sworn January 17, 2024/2025) remain inside it; they are its content, not this affidavit's covers.",
+ "subject": "charter",
  "exhibits": [
   {
    "label": "A",
@@ -287,12 +295,5 @@
    "quote": "this 25th\nday of April, 2025",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Her 2020 expert affidavit in van Hee v. Ontario (CV-19-80325)"
- ],
- "leak_waivers": [
-  "F"
- ],
- "notes": "Deponent names are redacted throughout the public copy. Exhibit A is entirely blacked out. Covers given with --covers so the nested affidavit in Exhibit F keeps its own exhibits. Leak waiver F: Exhibit F is itself an affidavit whose own Exhibit A-C covers (sworn January 17, 2024/2025) remain inside it; they are its content, not this affidavit's covers."
+ ]
 }

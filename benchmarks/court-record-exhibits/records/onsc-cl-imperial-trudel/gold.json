@@ -9,29 +9,279 @@
  "deponent": "Philippe H. Trudel",
  "deponent_role": "Founding partner, Trudel Johnston & Lesperance, one of the Quebec Class Counsel",
  "sworn_date": "2025-01-22",
+ "referenced_not_attached": [
+  "QCAP Motion Record filed January 13, 2025",
+  "Affidavit of Philippe H. Trudel dated January 12, 2025 with the Objection Chart (Schedule C)"
+ ],
+ "leak_waivers": [],
+ "notes": "Solemn declaration before a Quebec commissioner, filed on the Ontario Commercial List. Paragraph 15 calls the Exhibit E objector 'J.R.' although paragraph 13 and the exhibit say J.B.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-twbf8g.pdf", "kind": "letter", "date": "2025-01-19", "author": "R.M. (potential Blais Class Member)", "recipients": ["Quebec Class Counsel"], "description": "R.M.'s written objection to the Quebec Class Counsel Fee, in French with an English translation", "references": [{"paragraph": 8, "quote": "R.M. provided a written objection on January 19, 2025. The original French \nversion, as well as an English translation thereof, are attached hereto as Exhibit \"A\"."}, {"paragraph": 9, "quote": "As appears from Exhibit \"A\", R.M. argues that the hourly rates"}], "content_check": "Nine pages headed 'Opposition a la Demande pour l'approbation des honoraires des avocats des groupes au Quebec' by a Thetford Mines resident (name redacted), with translation"},
-  {"label": "B", "file": "doc-pbhhkj.pdf", "kind": "email", "date": "2025-01-21", "author": "Andre Lesperance (Quebec Class Counsel)", "recipients": ["R.M."], "description": "Class Counsel's response to R.M., in French with an English translation", "references": [{"paragraph": 10, "quote": "we provided a response to R.M. on January 21, \n2025. The original French version of our response, together with an English translation \nthereof, are attached hereto as Exhibit \"B\"."}, {"paragraph": 11, "quote": "As appears from Exhibit \"B\", and for comparative purposes"}], "content_check": "Two-page email from Andre Lesperance dated Tue, Jan 21, 2025, subject 'Retroaction a votre opposition'"},
-  {"label": "C", "file": "doc-vzw88p.pdf", "kind": "email_chain", "date": "2025-01-20", "author": "Raymond Wagner", "recipients": ["Andre Lesperance"], "description": "Exchange of emails between Andre Lesperance and Raymond Wagner confirming Wagner & Associates' hourly rates", "references": [{"paragraph": 11, "quote": "Based \non an exchange of emails between Andre Lesperance and Raymond Wagner on January \n20, 2025, attached hereto as Exhibit \"C\""}], "content_check": "One-page email from Ray Wagner to Andre Lesperance, Monday January 20, 2025, 'I confirm the factual statements about...' (OCR-garbled header)"},
-  {"label": "D", "file": "doc-x3ggdu.pdf", "kind": "letter", "date": "2025-01-14", "author": "L.C. (potential Blais Class Member)", "recipients": ["Quebec Class Counsel"], "description": "L.C.'s objection, in French with an English translation", "references": [{"paragraph": 13, "quote": "one from L.C. on January 14, 2025, \nthe original French version of which, together with an English translation thereof, are \nattached hereto as Exhibit \"D\""}, {"paragraph": 14, "quote": "As appears from Exhibit \"D\", L.C. blames the governments"}], "content_check": "One page 'Objection received from L.C. on January 14, 2025' blaming corrupt governments"},
-  {"label": "E", "file": "doc-hsdzw5.pdf", "kind": "letter", "date": "2025-01-21", "author": "J.B. (potential Blais Class Member)", "recipients": ["Quebec Class Counsel"], "description": "J.B.'s objection questioning the fee's impact on individual recovery, in French with an English translation", "references": [{"paragraph": 13, "quote": "another from J.B., on January 21, 2025, the original \nFrench version of which, together with an English translation thereof, are attached hereto \nas Exhibit\"E\"."}, {"paragraph": 15, "quote": "As appears from Exhibit \"E\", J.R. objects"}], "content_check": "Five pages 'Objection received from J.B. on January 21, 2025' thanking counsel and asking how the fee was determined"}
+  {
+   "label": "A",
+   "file": "doc-twbf8g.pdf",
+   "kind": "letter",
+   "date": "2025-01-19",
+   "author": "R.M. (potential Blais Class Member)",
+   "recipients": [
+    "Quebec Class Counsel"
+   ],
+   "description": "R.M.'s written objection to the Quebec Class Counsel Fee, in French with an English translation",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "R.M. provided a written objection on January 19, 2025. The original French \nversion, as well as an English translation thereof, are attached hereto as Exhibit \"A\"."
+    },
+    {
+     "paragraph": 9,
+     "quote": "As appears from Exhibit \"A\", R.M. argues that the hourly rates"
+    }
+   ],
+   "content_check": "Nine pages headed 'Opposition a la Demande pour l'approbation des honoraires des avocats des groupes au Quebec' by a Thetford Mines resident (name redacted), with translation"
+  },
+  {
+   "label": "B",
+   "file": "doc-pbhhkj.pdf",
+   "kind": "email",
+   "date": "2025-01-21",
+   "author": "Andre Lesperance (Quebec Class Counsel)",
+   "recipients": [
+    "R.M."
+   ],
+   "description": "Class Counsel's response to R.M., in French with an English translation",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "we provided a response to R.M. on January 21, \n2025. The original French version of our response, together with an English translation \nthereof, are attached hereto as Exhibit \"B\"."
+    },
+    {
+     "paragraph": 11,
+     "quote": "As appears from Exhibit \"B\", and for comparative purposes"
+    }
+   ],
+   "content_check": "Two-page email from Andre Lesperance dated Tue, Jan 21, 2025, subject 'Retroaction a votre opposition'"
+  },
+  {
+   "label": "C",
+   "file": "doc-vzw88p.pdf",
+   "kind": "email_chain",
+   "date": "2025-01-20",
+   "author": "Raymond Wagner",
+   "recipients": [
+    "Andre Lesperance"
+   ],
+   "description": "Exchange of emails between Andre Lesperance and Raymond Wagner confirming Wagner & Associates' hourly rates",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Based \non an exchange of emails between Andre Lesperance and Raymond Wagner on January \n20, 2025, attached hereto as Exhibit \"C\""
+    }
+   ],
+   "content_check": "One-page email from Ray Wagner to Andre Lesperance, Monday January 20, 2025, 'I confirm the factual statements about...' (OCR-garbled header)"
+  },
+  {
+   "label": "D",
+   "file": "doc-x3ggdu.pdf",
+   "kind": "letter",
+   "date": "2025-01-14",
+   "author": "L.C. (potential Blais Class Member)",
+   "recipients": [
+    "Quebec Class Counsel"
+   ],
+   "description": "L.C.'s objection, in French with an English translation",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "one from L.C. on January 14, 2025, \nthe original French version of which, together with an English translation thereof, are \nattached hereto as Exhibit \"D\""
+    },
+    {
+     "paragraph": 14,
+     "quote": "As appears from Exhibit \"D\", L.C. blames the governments"
+    }
+   ],
+   "content_check": "One page 'Objection received from L.C. on January 14, 2025' blaming corrupt governments"
+  },
+  {
+   "label": "E",
+   "file": "doc-hsdzw5.pdf",
+   "kind": "letter",
+   "date": "2025-01-21",
+   "author": "J.B. (potential Blais Class Member)",
+   "recipients": [
+    "Quebec Class Counsel"
+   ],
+   "description": "J.B.'s objection questioning the fee's impact on individual recovery, in French with an English translation",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "another from J.B., on January 21, 2025, the original \nFrench version of which, together with an English translation thereof, are attached hereto \nas Exhibit\"E\"."
+    },
+    {
+     "paragraph": 15,
+     "quote": "As appears from Exhibit \"E\", J.R. objects"
+    }
+   ],
+   "content_check": "Five pages 'Objection received from J.B. on January 21, 2025' thanking counsel and asking how the fee was determined"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1998", "precision": "year", "description": "The two Quebec Class Actions were instituted on behalf of Quebec smokers", "paragraphs": [2], "quote": "two class action lawsuits \ninstituted in Quebec in 1998", "exhibits": []},
-  {"id": "e2", "date": "2024-12-23", "precision": "day", "description": "The QCAP Notice was sent to over 64,500 people", "paragraphs": [12], "quote": "The QCAP Notice was sent to over 64,500 people on December 23, 2024.", "exhibits": []},
-  {"id": "e3", "date": "2025-01-12", "precision": "day", "description": "The deponent's earlier affidavit set out the Objection Chart of outstanding objections", "paragraphs": [5], "quote": "In my affidavit dated January 12, 2025, which was included as Tab 3 to the QCAP \nMotion Record", "exhibits": []},
-  {"id": "e4", "date": "2025-01-13", "precision": "day", "description": "Quebec Class Counsel filed the QCAP Motion Record for approval of the Quebec Class Counsel Fee", "paragraphs": [3], "quote": "On January 13, 2025, Quebec Class Counsel filed a Motion Record", "exhibits": []},
-  {"id": "e5", "date": null, "precision": "undated", "description": "Objection #3 on the Objection Chart was withdrawn after discussions", "paragraphs": [6], "quote": "objection # 3 on the Objection \nChart has been withdrawn", "exhibits": []},
-  {"id": "e6", "date": "2025-01-14", "precision": "day", "description": "L.C. submitted an objection", "paragraphs": [13], "quote": "one from L.C. on January 14, 2025", "exhibits": ["D"]},
-  {"id": "e7", "date": "2025-01-19", "precision": "day", "description": "R.M. provided a written objection arguing for lower hourly rates and a 4 to 4.5 multiple", "paragraphs": [7, 8, 9], "quote": "R.M. provided a written objection on January 19, 2025.", "exhibits": ["A"]},
-  {"id": "e8", "date": "2025-01-20", "precision": "day", "description": "Andre Lesperance and Raymond Wagner exchanged emails confirming the PCC Representative Counsel's hourly rates", "paragraphs": [11], "quote": "an exchange of emails between Andre Lesperance and Raymond Wagner on January \n20, 2025", "exhibits": ["C"]},
-  {"id": "e9", "date": "2025-01-21", "precision": "day", "description": "Class Counsel responded to R.M.", "paragraphs": [10], "quote": "we provided a response to R.M. on January 21, \n2025", "exhibits": ["B"]},
-  {"id": "e10", "date": "2025-01-21", "precision": "day", "description": "J.B. submitted an objection", "paragraphs": [13, 15], "quote": "another from J.B., on January 21, 2025", "exhibits": ["E"]},
-  {"id": "e11", "date": "2025-01-21", "precision": "day", "description": "Deadline for potential Blais Class Members to register objections", "paragraphs": [12], "quote": "was January 21, 2025 at 5 pm", "exhibits": []},
-  {"id": "e12", "date": "2025-01-21", "precision": "day", "description": "75,140 persons were registered on the QCAP Website, 43,647 of them putative Blais Class Members", "paragraphs": [18, 19, 20], "quote": "As at January 21 , 2025, there were 75,140 persons registered", "exhibits": []},
-  {"id": "e13", "date": "2025-01-29", "precision": "day", "description": "Sanction Hearing at which the fee motion is returnable is to commence", "paragraphs": [3], "quote": "returnable at the \nSanction Hearing commencing on January 29, 2025", "exhibits": []}
- ],
- "referenced_not_attached": ["QCAP Motion Record filed January 13, 2025", "Affidavit of Philippe H. Trudel dated January 12, 2025 with the Objection Chart (Schedule C)"],
- "leak_waivers": [],
- "notes": "Solemn declaration before a Quebec commissioner, filed on the Ontario Commercial List. Paragraph 15 calls the Exhibit E objector 'J.R.' although paragraph 13 and the exhibit say J.B."
+  {
+   "id": "e1",
+   "date": "1998",
+   "precision": "year",
+   "description": "The two Quebec Class Actions were instituted on behalf of Quebec smokers",
+   "paragraphs": [
+    2
+   ],
+   "quote": "two class action lawsuits \ninstituted in Quebec in 1998",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2024-12-23",
+   "precision": "day",
+   "description": "The QCAP Notice was sent to over 64,500 people",
+   "paragraphs": [
+    12
+   ],
+   "quote": "The QCAP Notice was sent to over 64,500 people on December 23, 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2025-01-12",
+   "precision": "day",
+   "description": "The deponent's earlier affidavit set out the Objection Chart of outstanding objections",
+   "paragraphs": [
+    5
+   ],
+   "quote": "In my affidavit dated January 12, 2025, which was included as Tab 3 to the QCAP \nMotion Record",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2025-01-13",
+   "precision": "day",
+   "description": "Quebec Class Counsel filed the QCAP Motion Record for approval of the Quebec Class Counsel Fee",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On January 13, 2025, Quebec Class Counsel filed a Motion Record",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": null,
+   "precision": "undated",
+   "description": "Objection #3 on the Objection Chart was withdrawn after discussions",
+   "paragraphs": [
+    6
+   ],
+   "quote": "objection # 3 on the Objection \nChart has been withdrawn",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2025-01-14",
+   "precision": "day",
+   "description": "L.C. submitted an objection",
+   "paragraphs": [
+    13
+   ],
+   "quote": "one from L.C. on January 14, 2025",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2025-01-19",
+   "precision": "day",
+   "description": "R.M. provided a written objection arguing for lower hourly rates and a 4 to 4.5 multiple",
+   "paragraphs": [
+    7,
+    8,
+    9
+   ],
+   "quote": "R.M. provided a written objection on January 19, 2025.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2025-01-20",
+   "precision": "day",
+   "description": "Andre Lesperance and Raymond Wagner exchanged emails confirming the PCC Representative Counsel's hourly rates",
+   "paragraphs": [
+    11
+   ],
+   "quote": "an exchange of emails between Andre Lesperance and Raymond Wagner on January \n20, 2025",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2025-01-21",
+   "precision": "day",
+   "description": "Class Counsel responded to R.M.",
+   "paragraphs": [
+    10
+   ],
+   "quote": "we provided a response to R.M. on January 21, \n2025",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2025-01-21",
+   "precision": "day",
+   "description": "J.B. submitted an objection",
+   "paragraphs": [
+    13,
+    15
+   ],
+   "quote": "another from J.B., on January 21, 2025",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2025-01-21",
+   "precision": "day",
+   "description": "Deadline for potential Blais Class Members to register objections",
+   "paragraphs": [
+    12
+   ],
+   "quote": "was January 21, 2025 at 5 pm",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2025-01-21",
+   "precision": "day",
+   "description": "75,140 persons were registered on the QCAP Website, 43,647 of them putative Blais Class Members",
+   "paragraphs": [
+    18,
+    19,
+    20
+   ],
+   "quote": "As at January 21 , 2025, there were 75,140 persons registered",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2025-01-29",
+   "precision": "day",
+   "description": "Sanction Hearing at which the fee motion is returnable is to commence",
+   "paragraphs": [
+    3
+   ],
+   "quote": "returnable at the \nSanction Hearing commencing on January 29, 2025",
+   "exhibits": []
+  }
+ ]
 }

@@ -9,58 +9,718 @@
  "deponent": "David McKeown",
  "deponent_role": "Associate Chief Medical Officer of Health, Ontario Ministry of Health; former Medical Officer of Health for Toronto",
  "sworn_date": "2022-11-22",
+ "referenced_not_attached": [
+  "Affidavits of the applicant's experts",
+  "O. Reg. 364/20 and 264/21"
+ ],
+ "leak_waivers": [],
+ "notes": "Expert affidavit with exhibits cited in footnotes; paragraph numbers are those the footnotes fall under in the paragraph finder. Exhibit dates follow the affidavit's descriptions. Heading says affirmed November 22, 2022; jurat reads 2021.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-qzz6g7.pdf", "kind": "report", "date": "2022-11-07", "author": "Health Canada", "recipients": [], "description": "COVID-19 epidemiology update dated November 7, 2022", "references": [{"paragraph": 8, "quote": "is the COVID-19 epidemiology updated published by Health Canada dated November 7,"}], "content_check": "29 pages: 'COVID-19 epidemiology update' of cases, hospitalizations and deaths"},
-  {"label": "B", "file": "doc-42cmeb.pdf", "kind": "webpage", "date": "2022-10-29", "author": "Public Health Ontario", "recipients": [], "description": "PHO web page summarizing Ontario COVID-19 cases, hospitalizations and deaths as of October 29, 2022", "references": [{"paragraph": 8, "quote": "is a copy of a webpage from Public Health Ontario that summarizes COVID-19"}], "content_check": "4 pages: 'Ontario COVID-19 Data Tool' printed 11/8/22"},
-  {"label": "C", "file": "doc-jp4f8f.pdf", "kind": "webpage", "date": "2021-05-13", "author": "World Health Organization", "recipients": [], "description": "WHO Q&A 'Coronavirus disease (COVID-19): What happens to people who get COVID-19?'", "references": [{"paragraph": 8, "quote": "World Health Organization"}], "content_check": "5 pages: WHO Q&A dated 13 May 2021"},
-  {"label": "D", "file": "doc-tdujm5.pdf", "kind": "webpage", "date": "2022-09-01", "author": "U.S. Centers for Disease Control", "recipients": [], "description": "CDC web page dated September 1, 2022 on long-term effects of COVID-19", "references": [{"paragraph": 11, "quote": "is a copy of a website from the Center for Disease Control"}], "content_check": "5 pages: CDC 'Long COVID or Post-COVID Conditions' printed 11/17/22"},
-  {"label": "E", "file": "doc-4muedw.pdf", "kind": "report", "date": "2020-12-01", "author": "Public Health Ontario", "recipients": [], "description": "PHO synthesis 'COVID-19 Routes of Transmission - What We Know So Far' (December 1, 2020)", "references": [{"paragraph": 11, "quote": "is a document dated December 1, 2020, from PHO entitled"}], "content_check": "44 pages: PHO synthesis on routes of transmission, 12/01/2020"},
-  {"label": "F", "file": "doc-hauz78.pdf", "kind": "report", "date": "2021-05-21", "author": "Public Health Ontario", "recipients": [], "description": "PHO synthesis on transmission through large respiratory droplets and aerosols (May 21, 2021)", "references": [{"paragraph": 17, "quote": "is a document dated May 21, 2021, from PHO entitled"}], "content_check": "25 pages: PHO synthesis dated 20/05/21"},
-  {"label": "G", "file": "doc-ct5p6r.pdf", "kind": "report", "date": "2020-05-22", "author": "Public Health Ontario", "recipients": [], "description": "PHO synopsis on asymptomatic infection and transmission (May 22, 2020)", "references": [{"paragraph": 17, "quote": "is a document dated May 22, 2020, from PHO entitled"}], "content_check": "PHO 'What We Know So Far About Asymptomatic Infection and Asymptomatic Transmission'"},
-  {"label": "H", "file": "doc-9hap7f.pdf", "kind": "report", "date": "2020-09-14", "author": "Public Health Ontario", "recipients": [], "description": "PHO synthesis 'Wearing Masks in Public and COVID-19' (September 14, 2020)", "references": [{"paragraph": 17, "quote": "is a document dated September 14, 2020, from PHO entitled"}], "content_check": "PHO synthesis on masks, 09/14/2020"},
-  {"label": "I", "file": "doc-dnmupb.pdf", "kind": "report", "date": "2021-02-02", "author": "Public Health Ontario", "recipients": [], "description": "PHO review of a rapid review on effective non-medical face masks (February 2, 2021)", "references": [{"paragraph": 21, "quote": "is a document dated February 2, 2021 from PHO entitled"}], "content_check": "PHO 'Review of Rapid review on the characteristics of effective non-medical face masks'"},
-  {"label": "J", "file": "doc-wammub.pdf", "kind": "report", "date": "2020-12-01", "author": "World Health Organization", "recipients": [], "description": "WHO interim guidance 'Mask use in the context of COVID-19' (December 1, 2020)", "references": [{"paragraph": 21, "quote": "document dated December 1, 2020, from the WHO entitled"}], "content_check": "WHO interim guidance, 1 December 2020"},
-  {"label": "K", "file": "doc-ubv78a.pdf", "kind": "chart", "date": null, "author": "Critical Care Information System (Ontario)", "recipients": [], "description": "Table of COVID-19 cases in ICU and ICU occupancy in Ontario", "references": [{"paragraph": 27, "quote": "is a table showing the number of COVID-19 cases in ICU and ICU occupancy"}], "content_check": "'COVID cases in ICU and ICU occupancy', data source CCIS/CritiCALL"},
-  {"label": "L", "file": "doc-aadd4h.pdf", "kind": "report", "date": "2021-05-31", "author": "Public Health Ontario", "recipients": [], "description": "PHO fact sheet 'Comparing SARS-CoV-2 Variants of Concern (VOCs) as of May 31, 2021'", "references": [{"paragraph": 29, "quote": "is a publication by PHO entitled"}], "content_check": "3 pages: PHO fact sheet comparing VOCs as of May 31, 2021"},
-  {"label": "M", "file": "doc-a2trpp.pdf", "kind": "report", "date": "2021-05-26", "author": "Public Health Ontario", "recipients": [], "description": "PHO publication of May 26, 2021 on the B.1.617 variant", "references": [{"paragraph": 29, "quote": "is a publication by PHO dated May 26, 2021, entitled"}], "content_check": "21 pages: 'COVID-19 B.1.617 Variant of Concern - What We Know So Far', 05/26/2021"},
-  {"label": "N", "file": "doc-nfnwkn.pdf", "kind": "report", "date": "2021-09-20", "author": "Public Health Ontario", "recipients": [], "description": "PHO evidence brief 'COVID-19 Delta: Risk Assessment and Implications for Practice'", "references": [{"paragraph": 29, "quote": "COVID-19 Delta: Risk Assessment and Implications"}], "content_check": "PHO evidence brief, September 20, 2021 update"},
-  {"label": "O", "file": "doc-b6apjj.pdf", "kind": "public_record", "date": "2020-12-21", "author": "Government of Ontario", "recipients": [], "description": "Press release of December 21, 2020 announcing a provincewide shutdown", "references": [{"paragraph": 34, "quote": "is a press release dated December 21, 2020"}], "content_check": "News release 'Ontario Announces Provincewide Shutdown to Stop Spread of COVID-19 and Save Lives'"},
-  {"label": "P", "file": "doc-s6y4m4.pdf", "kind": "public_record", "date": "2021-01-12", "author": "Government of Ontario", "recipients": [], "description": "Press release of January 12, 2021 declaring a second provincial emergency", "references": [{"paragraph": 34, "quote": "is a press release dated January 12, 2021"}], "content_check": "News release 'Ontario Declares Second Provincial Emergency to Address COVID-19 Crisis and Save Lives'"},
-  {"label": "Q", "file": "doc-g2vhyt.pdf", "kind": "public_record", "date": "2021-02-19", "author": "Government of Ontario", "recipients": [], "description": "Press release of February 19, 2021 extending the stay-at-home order in Toronto, Peel and North Bay-Parry Sound", "references": [{"paragraph": 38, "quote": "is a press release dated February 19, 2021"}], "content_check": "News release 'Stay-at-Home Order Extended in Toronto and Peel Public Health Regions...'"},
-  {"label": "R", "file": "doc-3z86xv.pdf", "kind": "public_record", "date": null, "author": "Government of Ontario", "recipients": [], "description": "Press release activating the emergency brake in Thunder Bay and Simcoe-Muskoka", "references": [{"paragraph": 38, "quote": "Toronto and Peel Public Health Regions Along with North Bay-Parry Sound"}], "content_check": "News release 'Ontario Activates Emergency Brake in Thunder Bay District Health Unit and Simcoe-Muskoka District Health Unit'"},
-  {"label": "S", "file": "doc-m5ycx8.pdf", "kind": "public_record", "date": "2021-03-05", "author": "Government of Ontario", "recipients": [], "description": "Press release of March 5, 2021 returning Toronto, Peel and North Bay-Parry Sound to the framework", "references": [{"paragraph": 38, "quote": "is a press release dated March 5, 2021,"}], "content_check": "News release 'Toronto, Peel and North Bay-Parry Sound Public Health Regions Returning to Strengthened COVID-19 Response Framework'"},
-  {"label": "T", "file": "doc-vhuapy.pdf", "kind": "public_record", "date": "2021-03-11", "author": "Government of Ontario", "recipients": [], "description": "Press release of March 11, 2021 activating the emergency brake in Sudbury", "references": [{"paragraph": 38, "quote": "is a press release dated March 11, 2021"}], "content_check": "News release 'Ontario Activates Emergency Brake in Sudbury Public Health Region'"},
-  {"label": "U", "file": "doc-akgbtk.pdf", "kind": "public_record", "date": "2021-02-12", "author": "Government of Ontario", "recipients": [], "description": "Press release of February 12, 2021 returning 27 public health regions to the framework", "references": [{"paragraph": 38, "quote": "is a press release dated February 12, 2021"}], "content_check": "News release 'Ontario Returning 27 Public Health Regions to Strengthened COVID-19 Response Framework'"},
-  {"label": "V", "file": "doc-x98vmy.pdf", "kind": "report", "date": "2021-04-01", "author": "Ontario COVID-19 Science Advisory and Modelling Consensus Tables", "recipients": [], "description": "Update on COVID-19 Projections dated April 1, 2021", "references": [{"paragraph": 42, "quote": "is an Update on COVID-19 Projections dated April 1, 2021"}], "content_check": "Slide deck 'Update on COVID-19 Projections', April 1, 2021"},
-  {"label": "W", "file": "doc-3mcw9h.pdf", "kind": "report", "date": "2021-04-16", "author": "Ontario COVID-19 Science Advisory and Modelling Consensus Tables", "recipients": [], "description": "Update on COVID-19 Projections dated April 16, 2021", "references": [{"paragraph": 42, "quote": "is an Update on COVID-19 Projections dated April 16, 2021"}], "content_check": "Slide deck 'Update on COVID-19 Projections', April 16, 2021"},
-  {"label": "X", "file": "doc-fhr3nj.pdf", "kind": "chart", "date": null, "author": "Government of Ontario", "recipients": [], "description": "Graph from the Ontario COVID-19 website of patients hospitalized", "references": [{"paragraph": 42, "quote": "is a graph from the Ontario COVID-19 website showing the number of patients"}], "content_check": "Image-only graph page (no text layer)"},
-  {"label": "Y", "file": "doc-qd33xn.pdf", "kind": "chart", "date": null, "author": "Public Health Ontario", "recipients": [], "description": "Graph of the percentage of COVID-19 cases associated with a VOC", "references": [{"paragraph": 43, "quote": "is a graph summarizing the percentage of COVID-19 associated with a VOC"}], "content_check": "Graph of specimens and weekly percent positivity by variant (font-encoded text)"},
-  {"label": "Z", "file": "doc-t3h4ms.pdf", "kind": "report", "date": "2021-07-03", "author": "Public Health Ontario", "recipients": [], "description": "PHO daily epidemiological summary dated July 3, 2021", "references": [{"paragraph": 46, "quote": "is the daily epidemiological summary from PHO dated July 3, 2021"}], "content_check": "'COVID-19 in Ontario: January 15, 2020 to July 3, 2021' daily epidemiological summary"},
-  {"label": "AA", "file": "doc-kw7cpb.pdf", "kind": "report", "date": "2021", "author": "CMAJ", "recipients": [], "description": "Early-released CMAJ article 'The mobility gap: estimating mobility thresholds required to control SARS-CoV-2 in Canada'", "references": [{"paragraph": 53, "quote": "is an early-released article of the Canadian Medical Association Journal"}], "content_check": "CMAJ Research article 'The mobility gap...', 2021"},
-  {"label": "BB", "file": "doc-szggtc.pdf", "kind": "public_record", "date": "2021-04-01", "author": "Government of Ontario", "recipients": [], "description": "Press release of April 1, 2021 implementing a provincewide emergency brake", "references": [{"paragraph": 60, "quote": "is a press release dated April 1, 2021"}], "content_check": "News release 'Ontario Implements Provincewide Emergency Brake'"},
-  {"label": "CC", "file": "doc-4wbnsr.pdf", "kind": "public_record", "date": "2021-04-07", "author": "Government of Ontario", "recipients": [], "description": "Press release of April 7, 2021 enacting a provincial emergency and stay-at-home order", "references": [{"paragraph": 62, "quote": "is a press release dated April 7, 2021"}], "content_check": "News release 'Ontario Enacts Provincial Emergency and Stay-at-Home Order'"},
-  {"label": "DD", "file": "doc-amkkqn.pdf", "kind": "public_record", "date": "2020-11-03", "author": "Government of Ontario", "recipients": [], "description": "Press release of November 3, 2020 releasing the COVID-19 response framework", "references": [{"paragraph": 71, "quote": "is a press release dated November 3, 2020"}], "content_check": "News release (font-encoded text layer)"},
-  {"label": "EE", "file": "doc-gzwca4.pdf", "kind": "public_record", "date": "2021-06-01", "author": "Government of Ontario", "recipients": [], "description": "Press release of June 1, 2021 maintaining restrictions as the stay-at-home order expired", "references": [{"paragraph": 76, "quote": "is a press release dated June 1, 2021"}], "content_check": "News release 'Ontario Maintains COVID-19 Restrictions as Stay-at-Home Order is Set to Expire'"},
-  {"label": "FF", "file": "doc-f5uxjp.pdf", "kind": "public_record", "date": "2021-07-09", "author": "Government of Ontario", "recipients": [], "description": "Press release of July 9, 2021 moving to Step Three of the Roadmap to Reopen", "references": [{"paragraph": 77, "quote": "is a press release dated July 9, 2021"}], "content_check": "News release 'Ontario Moving to Step Three of Roadmap to Reopen on July 16'"}
+  {
+   "label": "A",
+   "file": "doc-qzz6g7.pdf",
+   "kind": "report",
+   "date": "2022-11-07",
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "COVID-19 epidemiology update dated November 7, 2022",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "is the COVID-19 epidemiology updated published by Health Canada dated November 7,"
+    }
+   ],
+   "content_check": "29 pages: 'COVID-19 epidemiology update' of cases, hospitalizations and deaths"
+  },
+  {
+   "label": "B",
+   "file": "doc-42cmeb.pdf",
+   "kind": "webpage",
+   "date": "2022-10-29",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO web page summarizing Ontario COVID-19 cases, hospitalizations and deaths as of October 29, 2022",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "is a copy of a webpage from Public Health Ontario that summarizes COVID-19"
+    }
+   ],
+   "content_check": "4 pages: 'Ontario COVID-19 Data Tool' printed 11/8/22"
+  },
+  {
+   "label": "C",
+   "file": "doc-jp4f8f.pdf",
+   "kind": "webpage",
+   "date": "2021-05-13",
+   "author": "World Health Organization",
+   "recipients": [],
+   "description": "WHO Q&A 'Coronavirus disease (COVID-19): What happens to people who get COVID-19?'",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "World Health Organization"
+    }
+   ],
+   "content_check": "5 pages: WHO Q&A dated 13 May 2021"
+  },
+  {
+   "label": "D",
+   "file": "doc-tdujm5.pdf",
+   "kind": "webpage",
+   "date": "2022-09-01",
+   "author": "U.S. Centers for Disease Control",
+   "recipients": [],
+   "description": "CDC web page dated September 1, 2022 on long-term effects of COVID-19",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "is a copy of a website from the Center for Disease Control"
+    }
+   ],
+   "content_check": "5 pages: CDC 'Long COVID or Post-COVID Conditions' printed 11/17/22"
+  },
+  {
+   "label": "E",
+   "file": "doc-4muedw.pdf",
+   "kind": "report",
+   "date": "2020-12-01",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO synthesis 'COVID-19 Routes of Transmission - What We Know So Far' (December 1, 2020)",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "is a document dated December 1, 2020, from PHO entitled"
+    }
+   ],
+   "content_check": "44 pages: PHO synthesis on routes of transmission, 12/01/2020"
+  },
+  {
+   "label": "F",
+   "file": "doc-hauz78.pdf",
+   "kind": "report",
+   "date": "2021-05-21",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO synthesis on transmission through large respiratory droplets and aerosols (May 21, 2021)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "is a document dated May 21, 2021, from PHO entitled"
+    }
+   ],
+   "content_check": "25 pages: PHO synthesis dated 20/05/21"
+  },
+  {
+   "label": "G",
+   "file": "doc-ct5p6r.pdf",
+   "kind": "report",
+   "date": "2020-05-22",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO synopsis on asymptomatic infection and transmission (May 22, 2020)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "is a document dated May 22, 2020, from PHO entitled"
+    }
+   ],
+   "content_check": "PHO 'What We Know So Far About Asymptomatic Infection and Asymptomatic Transmission'"
+  },
+  {
+   "label": "H",
+   "file": "doc-9hap7f.pdf",
+   "kind": "report",
+   "date": "2020-09-14",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO synthesis 'Wearing Masks in Public and COVID-19' (September 14, 2020)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "is a document dated September 14, 2020, from PHO entitled"
+    }
+   ],
+   "content_check": "PHO synthesis on masks, 09/14/2020"
+  },
+  {
+   "label": "I",
+   "file": "doc-dnmupb.pdf",
+   "kind": "report",
+   "date": "2021-02-02",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO review of a rapid review on effective non-medical face masks (February 2, 2021)",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "is a document dated February 2, 2021 from PHO entitled"
+    }
+   ],
+   "content_check": "PHO 'Review of Rapid review on the characteristics of effective non-medical face masks'"
+  },
+  {
+   "label": "J",
+   "file": "doc-wammub.pdf",
+   "kind": "report",
+   "date": "2020-12-01",
+   "author": "World Health Organization",
+   "recipients": [],
+   "description": "WHO interim guidance 'Mask use in the context of COVID-19' (December 1, 2020)",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "document dated December 1, 2020, from the WHO entitled"
+    }
+   ],
+   "content_check": "WHO interim guidance, 1 December 2020"
+  },
+  {
+   "label": "K",
+   "file": "doc-ubv78a.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Critical Care Information System (Ontario)",
+   "recipients": [],
+   "description": "Table of COVID-19 cases in ICU and ICU occupancy in Ontario",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "is a table showing the number of COVID-19 cases in ICU and ICU occupancy"
+    }
+   ],
+   "content_check": "'COVID cases in ICU and ICU occupancy', data source CCIS/CritiCALL"
+  },
+  {
+   "label": "L",
+   "file": "doc-aadd4h.pdf",
+   "kind": "report",
+   "date": "2021-05-31",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO fact sheet 'Comparing SARS-CoV-2 Variants of Concern (VOCs) as of May 31, 2021'",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "is a publication by PHO entitled"
+    }
+   ],
+   "content_check": "3 pages: PHO fact sheet comparing VOCs as of May 31, 2021"
+  },
+  {
+   "label": "M",
+   "file": "doc-a2trpp.pdf",
+   "kind": "report",
+   "date": "2021-05-26",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO publication of May 26, 2021 on the B.1.617 variant",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "is a publication by PHO dated May 26, 2021, entitled"
+    }
+   ],
+   "content_check": "21 pages: 'COVID-19 B.1.617 Variant of Concern - What We Know So Far', 05/26/2021"
+  },
+  {
+   "label": "N",
+   "file": "doc-nfnwkn.pdf",
+   "kind": "report",
+   "date": "2021-09-20",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO evidence brief 'COVID-19 Delta: Risk Assessment and Implications for Practice'",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "COVID-19 Delta: Risk Assessment and Implications"
+    }
+   ],
+   "content_check": "PHO evidence brief, September 20, 2021 update"
+  },
+  {
+   "label": "O",
+   "file": "doc-b6apjj.pdf",
+   "kind": "public_record",
+   "date": "2020-12-21",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of December 21, 2020 announcing a provincewide shutdown",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "is a press release dated December 21, 2020"
+    }
+   ],
+   "content_check": "News release 'Ontario Announces Provincewide Shutdown to Stop Spread of COVID-19 and Save Lives'"
+  },
+  {
+   "label": "P",
+   "file": "doc-s6y4m4.pdf",
+   "kind": "public_record",
+   "date": "2021-01-12",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of January 12, 2021 declaring a second provincial emergency",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "is a press release dated January 12, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Declares Second Provincial Emergency to Address COVID-19 Crisis and Save Lives'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-g2vhyt.pdf",
+   "kind": "public_record",
+   "date": "2021-02-19",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of February 19, 2021 extending the stay-at-home order in Toronto, Peel and North Bay-Parry Sound",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "is a press release dated February 19, 2021"
+    }
+   ],
+   "content_check": "News release 'Stay-at-Home Order Extended in Toronto and Peel Public Health Regions...'"
+  },
+  {
+   "label": "R",
+   "file": "doc-3z86xv.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release activating the emergency brake in Thunder Bay and Simcoe-Muskoka",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Toronto and Peel Public Health Regions Along with North Bay-Parry Sound"
+    }
+   ],
+   "content_check": "News release 'Ontario Activates Emergency Brake in Thunder Bay District Health Unit and Simcoe-Muskoka District Health Unit'"
+  },
+  {
+   "label": "S",
+   "file": "doc-m5ycx8.pdf",
+   "kind": "public_record",
+   "date": "2021-03-05",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of March 5, 2021 returning Toronto, Peel and North Bay-Parry Sound to the framework",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "is a press release dated March 5, 2021,"
+    }
+   ],
+   "content_check": "News release 'Toronto, Peel and North Bay-Parry Sound Public Health Regions Returning to Strengthened COVID-19 Response Framework'"
+  },
+  {
+   "label": "T",
+   "file": "doc-vhuapy.pdf",
+   "kind": "public_record",
+   "date": "2021-03-11",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of March 11, 2021 activating the emergency brake in Sudbury",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "is a press release dated March 11, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Activates Emergency Brake in Sudbury Public Health Region'"
+  },
+  {
+   "label": "U",
+   "file": "doc-akgbtk.pdf",
+   "kind": "public_record",
+   "date": "2021-02-12",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of February 12, 2021 returning 27 public health regions to the framework",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "is a press release dated February 12, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Returning 27 Public Health Regions to Strengthened COVID-19 Response Framework'"
+  },
+  {
+   "label": "V",
+   "file": "doc-x98vmy.pdf",
+   "kind": "report",
+   "date": "2021-04-01",
+   "author": "Ontario COVID-19 Science Advisory and Modelling Consensus Tables",
+   "recipients": [],
+   "description": "Update on COVID-19 Projections dated April 1, 2021",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "is an Update on COVID-19 Projections dated April 1, 2021"
+    }
+   ],
+   "content_check": "Slide deck 'Update on COVID-19 Projections', April 1, 2021"
+  },
+  {
+   "label": "W",
+   "file": "doc-3mcw9h.pdf",
+   "kind": "report",
+   "date": "2021-04-16",
+   "author": "Ontario COVID-19 Science Advisory and Modelling Consensus Tables",
+   "recipients": [],
+   "description": "Update on COVID-19 Projections dated April 16, 2021",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "is an Update on COVID-19 Projections dated April 16, 2021"
+    }
+   ],
+   "content_check": "Slide deck 'Update on COVID-19 Projections', April 16, 2021"
+  },
+  {
+   "label": "X",
+   "file": "doc-fhr3nj.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Graph from the Ontario COVID-19 website of patients hospitalized",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "is a graph from the Ontario COVID-19 website showing the number of patients"
+    }
+   ],
+   "content_check": "Image-only graph page (no text layer)"
+  },
+  {
+   "label": "Y",
+   "file": "doc-qd33xn.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "Graph of the percentage of COVID-19 cases associated with a VOC",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "is a graph summarizing the percentage of COVID-19 associated with a VOC"
+    }
+   ],
+   "content_check": "Graph of specimens and weekly percent positivity by variant (font-encoded text)"
+  },
+  {
+   "label": "Z",
+   "file": "doc-t3h4ms.pdf",
+   "kind": "report",
+   "date": "2021-07-03",
+   "author": "Public Health Ontario",
+   "recipients": [],
+   "description": "PHO daily epidemiological summary dated July 3, 2021",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "is the daily epidemiological summary from PHO dated July 3, 2021"
+    }
+   ],
+   "content_check": "'COVID-19 in Ontario: January 15, 2020 to July 3, 2021' daily epidemiological summary"
+  },
+  {
+   "label": "AA",
+   "file": "doc-kw7cpb.pdf",
+   "kind": "report",
+   "date": "2021",
+   "author": "CMAJ",
+   "recipients": [],
+   "description": "Early-released CMAJ article 'The mobility gap: estimating mobility thresholds required to control SARS-CoV-2 in Canada'",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "is an early-released article of the Canadian Medical Association Journal"
+    }
+   ],
+   "content_check": "CMAJ Research article 'The mobility gap...', 2021"
+  },
+  {
+   "label": "BB",
+   "file": "doc-szggtc.pdf",
+   "kind": "public_record",
+   "date": "2021-04-01",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of April 1, 2021 implementing a provincewide emergency brake",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "is a press release dated April 1, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Implements Provincewide Emergency Brake'"
+  },
+  {
+   "label": "CC",
+   "file": "doc-4wbnsr.pdf",
+   "kind": "public_record",
+   "date": "2021-04-07",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of April 7, 2021 enacting a provincial emergency and stay-at-home order",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "is a press release dated April 7, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Enacts Provincial Emergency and Stay-at-Home Order'"
+  },
+  {
+   "label": "DD",
+   "file": "doc-amkkqn.pdf",
+   "kind": "public_record",
+   "date": "2020-11-03",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of November 3, 2020 releasing the COVID-19 response framework",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "is a press release dated November 3, 2020"
+    }
+   ],
+   "content_check": "News release (font-encoded text layer)"
+  },
+  {
+   "label": "EE",
+   "file": "doc-gzwca4.pdf",
+   "kind": "public_record",
+   "date": "2021-06-01",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of June 1, 2021 maintaining restrictions as the stay-at-home order expired",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "is a press release dated June 1, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Maintains COVID-19 Restrictions as Stay-at-Home Order is Set to Expire'"
+  },
+  {
+   "label": "FF",
+   "file": "doc-f5uxjp.pdf",
+   "kind": "public_record",
+   "date": "2021-07-09",
+   "author": "Government of Ontario",
+   "recipients": [],
+   "description": "Press release of July 9, 2021 moving to Step Three of the Roadmap to Reopen",
+   "references": [
+    {
+     "paragraph": 77,
+     "quote": "is a press release dated July 9, 2021"
+    }
+   ],
+   "content_check": "News release 'Ontario Moving to Step Three of Roadmap to Reopen on July 16'"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2016", "precision": "year", "description": "After 12 years as Toronto's Medical Officer of Health, McKeown was appointed ACMOH", "paragraphs": [2], "quote": "Prior to being appointed ACMOH in 2016", "exhibits": []},
-  {"id": "e2", "date": "2020-03", "precision": "range", "description": "He served as ACMOH from March 2020 to November 2021 and from April 2022", "paragraphs": [1], "quote": "from March 2020 to November 2021", "exhibits": []},
-  {"id": "e3", "date": "2020-11-03", "precision": "day", "description": "Ontario released its COVID-19 response framework", "paragraphs": [71], "quote": "is a press release dated November 3, 2020", "exhibits": ["DD"]},
-  {"id": "e4", "date": "2020-12-21", "precision": "day", "description": "Ontario announced a provincewide shutdown", "paragraphs": [34], "quote": "is a press release dated December 21, 2020", "exhibits": ["O"]},
-  {"id": "e5", "date": "2021-01-12", "precision": "day", "description": "Ontario declared a second provincial emergency", "paragraphs": [34], "quote": "is a press release dated January 12, 2021", "exhibits": ["P"]},
-  {"id": "e6", "date": "2021-02-12", "precision": "day", "description": "27 public health regions returned to the response framework", "paragraphs": [38], "quote": "is a press release dated February 12, 2021", "exhibits": ["U"]},
-  {"id": "e7", "date": "2021-02-19", "precision": "day", "description": "Stay-at-home order extended in Toronto, Peel and North Bay-Parry Sound", "paragraphs": [38], "quote": "is a press release dated February 19, 2021", "exhibits": ["Q"]},
-  {"id": "e8", "date": "2021-03-05", "precision": "day", "description": "Toronto, Peel and North Bay-Parry Sound returned to the framework", "paragraphs": [38], "quote": "is a press release dated March 5, 2021,", "exhibits": ["S"]},
-  {"id": "e9", "date": "2021-03-11", "precision": "day", "description": "Emergency brake activated in Sudbury", "paragraphs": [38], "quote": "is a press release dated March 11, 2021", "exhibits": ["T"]},
-  {"id": "e10", "date": "2021-04-01", "precision": "day", "description": "Provincewide emergency brake; Science Table projections update", "paragraphs": [42, 60], "quote": "is a press release dated April 1, 2021", "exhibits": ["BB", "V"]},
-  {"id": "e11", "date": "2021-04-07", "precision": "day", "description": "Provincial emergency and stay-at-home order enacted", "paragraphs": [62], "quote": "is a press release dated April 7, 2021", "exhibits": ["CC"]},
-  {"id": "e12", "date": "2021-04-16", "precision": "day", "description": "Science Table projections update", "paragraphs": [42], "quote": "is an Update on COVID-19 Projections dated April 16, 2021", "exhibits": ["W"]},
-  {"id": "e13", "date": "2021-06-01", "precision": "day", "description": "Ontario maintained restrictions as the stay-at-home order expired", "paragraphs": [76], "quote": "is a press release dated June 1, 2021", "exhibits": ["EE"]},
-  {"id": "e14", "date": "2021-07-09", "precision": "day", "description": "Ontario announced the move to Step Three of the Roadmap on July 16", "paragraphs": [77], "quote": "is a press release dated July 9, 2021", "exhibits": ["FF"]},
-  {"id": "e15", "date": "2022-11-22", "precision": "day", "description": "McKeown affirmed the affidavit remotely (jurat misprints the year as 2021)", "paragraphs": [1], "quote": "I am the Associate Chief Medical Officer of Health", "exhibits": []}
- ],
- "referenced_not_attached": ["Affidavits of the applicant's experts", "O. Reg. 364/20 and 264/21"],
- "leak_waivers": [],
- "notes": "Expert affidavit with exhibits cited in footnotes; paragraph numbers are those the footnotes fall under in the paragraph finder. Exhibit dates follow the affidavit's descriptions. Heading says affirmed November 22, 2022; jurat reads 2021."
+  {
+   "id": "e1",
+   "date": "2016",
+   "precision": "year",
+   "description": "After 12 years as Toronto's Medical Officer of Health, McKeown was appointed ACMOH",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Prior to being appointed ACMOH in 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2020-03",
+   "precision": "range",
+   "description": "He served as ACMOH from March 2020 to November 2021 and from April 2022",
+   "paragraphs": [
+    1
+   ],
+   "quote": "from March 2020 to November 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2020-11-03",
+   "precision": "day",
+   "description": "Ontario released its COVID-19 response framework",
+   "paragraphs": [
+    71
+   ],
+   "quote": "is a press release dated November 3, 2020",
+   "exhibits": [
+    "DD"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2020-12-21",
+   "precision": "day",
+   "description": "Ontario announced a provincewide shutdown",
+   "paragraphs": [
+    34
+   ],
+   "quote": "is a press release dated December 21, 2020",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2021-01-12",
+   "precision": "day",
+   "description": "Ontario declared a second provincial emergency",
+   "paragraphs": [
+    34
+   ],
+   "quote": "is a press release dated January 12, 2021",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2021-02-12",
+   "precision": "day",
+   "description": "27 public health regions returned to the response framework",
+   "paragraphs": [
+    38
+   ],
+   "quote": "is a press release dated February 12, 2021",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2021-02-19",
+   "precision": "day",
+   "description": "Stay-at-home order extended in Toronto, Peel and North Bay-Parry Sound",
+   "paragraphs": [
+    38
+   ],
+   "quote": "is a press release dated February 19, 2021",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2021-03-05",
+   "precision": "day",
+   "description": "Toronto, Peel and North Bay-Parry Sound returned to the framework",
+   "paragraphs": [
+    38
+   ],
+   "quote": "is a press release dated March 5, 2021,",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2021-03-11",
+   "precision": "day",
+   "description": "Emergency brake activated in Sudbury",
+   "paragraphs": [
+    38
+   ],
+   "quote": "is a press release dated March 11, 2021",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2021-04-01",
+   "precision": "day",
+   "description": "Provincewide emergency brake; Science Table projections update",
+   "paragraphs": [
+    42,
+    60
+   ],
+   "quote": "is a press release dated April 1, 2021",
+   "exhibits": [
+    "BB",
+    "V"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2021-04-07",
+   "precision": "day",
+   "description": "Provincial emergency and stay-at-home order enacted",
+   "paragraphs": [
+    62
+   ],
+   "quote": "is a press release dated April 7, 2021",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2021-04-16",
+   "precision": "day",
+   "description": "Science Table projections update",
+   "paragraphs": [
+    42
+   ],
+   "quote": "is an Update on COVID-19 Projections dated April 16, 2021",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2021-06-01",
+   "precision": "day",
+   "description": "Ontario maintained restrictions as the stay-at-home order expired",
+   "paragraphs": [
+    76
+   ],
+   "quote": "is a press release dated June 1, 2021",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2021-07-09",
+   "precision": "day",
+   "description": "Ontario announced the move to Step Three of the Roadmap on July 16",
+   "paragraphs": [
+    77
+   ],
+   "quote": "is a press release dated July 9, 2021",
+   "exhibits": [
+    "FF"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2022-11-22",
+   "precision": "day",
+   "description": "McKeown affirmed the affidavit remotely (jurat misprints the year as 2021)",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I am the Associate Chief Medical Officer of Health",
+   "exhibits": []
+  }
+ ]
 }

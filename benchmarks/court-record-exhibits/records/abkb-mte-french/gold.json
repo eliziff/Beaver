@@ -9,6 +9,13 @@
  "deponent": "Russell French",
  "deponent_role": "Managing Director, Special Situations, Fiera Private Debt Fund GP Inc. (the applicant lender)",
  "sworn_date": "2026-06-25",
+ "referenced_not_attached": [
+  "Exhibits K-Z (assignment of insurance, MLG GP and Hillcore Industrial guarantees and pledges, 2026 ATB Commitment, Priority Agreement, PPR searches, financial statements, tax returns, default notices, demands, KPMG consent, interim financing term sheet): posted in parts 2-4 of the affidavit",
+  "KPMG Pre-Filing Report"
+ ],
+ "leak_waivers": [],
+ "notes": "Source is part 1 of 4 of the affidavit as posted by KPMG; only exhibits A-J are in this record. Exhibit D is image-only.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -453,11 +460,5 @@
    "quote": "July 7, 2026",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Exhibits K-Z (assignment of insurance, MLG GP and Hillcore Industrial guarantees and pledges, 2026 ATB Commitment, Priority Agreement, PPR searches, financial statements, tax returns, default notices, demands, KPMG consent, interim financing term sheet): posted in parts 2-4 of the affidavit",
-  "KPMG Pre-Filing Report"
- ],
- "leak_waivers": [],
- "notes": "Source is part 1 of 4 of the affidavit as posted by KPMG; only exhibits A-J are in this record. Exhibit D is image-only."
+ ]
 }

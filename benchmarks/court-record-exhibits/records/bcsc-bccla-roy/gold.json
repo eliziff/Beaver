@@ -9,29 +9,263 @@
  "deponent": "Robert Roy",
  "deponent_role": "Father of Christopher Roy, who died after being found hanging in a segregation cell at Matsqui Institution",
  "sworn_date": "2017-06-20",
+ "referenced_not_attached": [
+  "Photographs of Christopher Roy's segregation cell (seen by the deponent)"
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibit covers are scanned stamps on the first page of each exhibit; split removed the typed identification but a partial image of the commissioner's stamp remains on Exhibit A page 1.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-j872vv.pdf", "kind": "public_record", "date": "2015-11-13", "author": "Correctional Service Canada, Access to Information and Privacy Division", "recipients": ["Robert Roy"], "description": "Redacted CSC and other documents received in response to his FOI request, under the response dated November 13, 2015", "references": [{"paragraph": 13, "quote": "Attached as Exhibit A to this my affidavit is a\nredacted true copy ofCSC and other documents received by me after November 13,2015"}], "content_check": "105 pages opening with CSC's letter to Robert Roy on file A-2015-00247 answering his Access to Information request received August 11, 2015; a scanned commissioner's stamp image remains on page 1"},
-  {"label": "B", "file": "doc-srnvp4.pdf", "kind": "public_record", "date": "2015-11-18", "author": "Office of the Correctional Investigator", "recipients": ["Robert Roy"], "description": "Redacted CSC and other documents received in response to his FOI requests, under the response dated November 18, 2015", "references": [{"paragraph": 14, "quote": "Attached as Exhibit B to this my affidavit is a redacted true copy of CSC and\nother documents received by me after November 18, 2015"}], "content_check": "104 pages opening with the Office of the Correctional Investigator's letter of November 18, 2015 to Robert Roy, file P-2015-00007"},
-  {"label": "C", "file": "doc-zz4nqf.pdf", "kind": "other", "date": "2016-07-11", "author": "Bibhas D. Vaze, counsel to Robert Roy", "recipients": ["BC Coroners Service inquest"], "description": "The 'Will Say' he prepared and provided at the coroner's inquest in July 2016", "references": [{"paragraph": 17, "quote": "Attached as Exhibit C to this my affidavit is a true copy of the \"Will\nSay\" which I prepared and provided at the inquest in July of2016."}], "content_check": "Four-page 'Will Say of Robert Roy', dated July 11, 2016, for the inquest beginning July 18, 2016"},
-  {"label": "D", "file": "doc-m3gyka.pdf", "kind": "public_record", "date": "2016-07", "author": "BC Coroners Service (inquest jury)", "recipients": [], "description": "The findings of the jury at the inquest into Christopher Roy's death", "references": [{"paragraph": 17, "quote": "Attached as Exhibit D to this my affidavit is a true copy\nof the findings of the jury"}], "content_check": "Four-page 'Verdict at Coroners Inquest, Findings and Recommendations' under the BC Coroners Act, file 2015-0378"}
+  {
+   "label": "A",
+   "file": "doc-j872vv.pdf",
+   "kind": "public_record",
+   "date": "2015-11-13",
+   "author": "Correctional Service Canada, Access to Information and Privacy Division",
+   "recipients": [
+    "Robert Roy"
+   ],
+   "description": "Redacted CSC and other documents received in response to his FOI request, under the response dated November 13, 2015",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Attached as Exhibit A to this my affidavit is a\nredacted true copy ofCSC and other documents received by me after November 13,2015"
+    }
+   ],
+   "content_check": "105 pages opening with CSC's letter to Robert Roy on file A-2015-00247 answering his Access to Information request received August 11, 2015; a scanned commissioner's stamp image remains on page 1"
+  },
+  {
+   "label": "B",
+   "file": "doc-srnvp4.pdf",
+   "kind": "public_record",
+   "date": "2015-11-18",
+   "author": "Office of the Correctional Investigator",
+   "recipients": [
+    "Robert Roy"
+   ],
+   "description": "Redacted CSC and other documents received in response to his FOI requests, under the response dated November 18, 2015",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit B to this my affidavit is a redacted true copy of CSC and\nother documents received by me after November 18, 2015"
+    }
+   ],
+   "content_check": "104 pages opening with the Office of the Correctional Investigator's letter of November 18, 2015 to Robert Roy, file P-2015-00007"
+  },
+  {
+   "label": "C",
+   "file": "doc-zz4nqf.pdf",
+   "kind": "other",
+   "date": "2016-07-11",
+   "author": "Bibhas D. Vaze, counsel to Robert Roy",
+   "recipients": [
+    "BC Coroners Service inquest"
+   ],
+   "description": "The 'Will Say' he prepared and provided at the coroner's inquest in July 2016",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached as Exhibit C to this my affidavit is a true copy of the \"Will\nSay\" which I prepared and provided at the inquest in July of2016."
+    }
+   ],
+   "content_check": "Four-page 'Will Say of Robert Roy', dated July 11, 2016, for the inquest beginning July 18, 2016"
+  },
+  {
+   "label": "D",
+   "file": "doc-m3gyka.pdf",
+   "kind": "public_record",
+   "date": "2016-07",
+   "author": "BC Coroners Service (inquest jury)",
+   "recipients": [],
+   "description": "The findings of the jury at the inquest into Christopher Roy's death",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached as Exhibit D to this my affidavit is a true copy\nof the findings of the jury"
+    }
+   ],
+   "content_check": "Four-page 'Verdict at Coroners Inquest, Findings and Recommendations' under the BC Coroners Act, file 2015-0378"
+  }
  ],
  "events": [
-  {"id": "e1", "date": null, "precision": "undated", "description": "Christopher Roy was diagnosed with ADHD around age nine or ten and later attended a boarding school", "paragraphs": [4, 5], "quote": "he was assessed\nas having\nAttention-Deficit-Hyperactive\nDisorder", "exhibits": []},
-  {"id": "e2", "date": null, "precision": "undated", "description": "Around age 30, Christopher developed a drug addiction while working in the oil industry and his marriage ended", "paragraphs": [7], "quote": "while working in the oil patch Chris began to abuse\ndrugs", "exhibits": []},
-  {"id": "e3", "date": "2013", "precision": "approximate", "description": "The family learned Christopher was in a federal penitentiary in Mission after a break and enter", "paragraphs": [8], "quote": "In the fall of2013\nwe became aware that Chris was in a federal penitentiary", "exhibits": []},
-  {"id": "e4", "date": "2015-03", "precision": "month", "description": "Christopher was released on statutory release and parole to a Victoria halfway house and treatment", "paragraphs": [9], "quote": "Chris was released from jail on statutory release and parole in March of 20 15", "exhibits": []},
-  {"id": "e5", "date": "2015-04", "precision": "approximate", "description": "Christopher relapsed, returned to federal custody at Matsqui Institution and was placed in segregation", "paragraphs": [10], "quote": "By approximately\nthe beginning\nof April of2015,\nChris disappeared", "exhibits": ["A", "B"]},
-  {"id": "e6", "date": "2015-05", "precision": "approximate", "description": "By the second week of May Christopher stopped all contact with family and friends", "paragraphs": [11], "quote": "by the second week of May\nhe stopped all contact", "exhibits": []},
-  {"id": "e7", "date": "2015-06-01", "precision": "day", "description": "Christopher was found hanging in his segregation cell and removed from the institution unconscious", "paragraphs": [1, 10], "quote": "found hanging by his neck from the ceiling\nof his segregation/solitary\nconfinement\njail cell at Matsqui", "exhibits": ["A", "B", "D"]},
-  {"id": "e8", "date": "2015-06-02", "precision": "day", "description": "The Matsqui chaplain told the deponent Christopher had been taken to hospital in Abbotsford", "paragraphs": [12], "quote": "On or about June 2, 2015, I was informed Chris had been taken to hospital", "exhibits": []},
-  {"id": "e9", "date": "2015-06-03", "precision": "day", "description": "Christopher died at Abbotsford Regional Hospital", "paragraphs": [1], "quote": "passed\naway at Abbotsford\nRegional Hospital on June 3, 2015", "exhibits": ["D"]},
-  {"id": "e10", "date": "2015-08", "precision": "month", "description": "The deponent made FOI requests for documents about his son's death", "paragraphs": [13], "quote": "In August of2015\nI made Freedom of Information (\"FOI\") requests", "exhibits": ["A", "B"]},
-  {"id": "e11", "date": "2015-11-13", "precision": "day", "description": "First response to the FOI requests, with documents", "paragraphs": [13], "quote": "I received the\nfirst response to such requests, dated November 13, 2015", "exhibits": ["A"]},
-  {"id": "e12", "date": "2015-11-18", "precision": "day", "description": "Further response to the FOI requests, with documents", "paragraphs": [14], "quote": "I received a further response to my FOI requests,\ndated November 18, 2015", "exhibits": ["B"]},
-  {"id": "e13", "date": "2016-07", "precision": "month", "description": "Coroner's inquest; the deponent testified and gave a Will Say, and the jury ruled the death a suicide with recommendations on segregation", "paragraphs": [3, 17], "quote": "At that inquest, the\njury ruled that my son's death was a suicide", "exhibits": ["C", "D"]},
-  {"id": "e14", "date": null, "precision": "undated", "description": "The deponent learned that CSC staff assessing suicide risk were not registered psychologists and that Christopher had been told he would go to Kent Institution hours before self-harm", "paragraphs": [15], "quote": "were not registered psychologists at all", "exhibits": ["A", "B"]}
- ],
- "referenced_not_attached": ["Photographs of Christopher Roy's segregation cell (seen by the deponent)"],
- "leak_waivers": [],
- "notes": "Exhibit covers are scanned stamps on the first page of each exhibit; split removed the typed identification but a partial image of the commissioner's stamp remains on Exhibit A page 1."
+  {
+   "id": "e1",
+   "date": null,
+   "precision": "undated",
+   "description": "Christopher Roy was diagnosed with ADHD around age nine or ten and later attended a boarding school",
+   "paragraphs": [
+    4,
+    5
+   ],
+   "quote": "he was assessed\nas having\nAttention-Deficit-Hyperactive\nDisorder",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": null,
+   "precision": "undated",
+   "description": "Around age 30, Christopher developed a drug addiction while working in the oil industry and his marriage ended",
+   "paragraphs": [
+    7
+   ],
+   "quote": "while working in the oil patch Chris began to abuse\ndrugs",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2013",
+   "precision": "approximate",
+   "description": "The family learned Christopher was in a federal penitentiary in Mission after a break and enter",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In the fall of2013\nwe became aware that Chris was in a federal penitentiary",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2015-03",
+   "precision": "month",
+   "description": "Christopher was released on statutory release and parole to a Victoria halfway house and treatment",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Chris was released from jail on statutory release and parole in March of 20 15",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2015-04",
+   "precision": "approximate",
+   "description": "Christopher relapsed, returned to federal custody at Matsqui Institution and was placed in segregation",
+   "paragraphs": [
+    10
+   ],
+   "quote": "By approximately\nthe beginning\nof April of2015,\nChris disappeared",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2015-05",
+   "precision": "approximate",
+   "description": "By the second week of May Christopher stopped all contact with family and friends",
+   "paragraphs": [
+    11
+   ],
+   "quote": "by the second week of May\nhe stopped all contact",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2015-06-01",
+   "precision": "day",
+   "description": "Christopher was found hanging in his segregation cell and removed from the institution unconscious",
+   "paragraphs": [
+    1,
+    10
+   ],
+   "quote": "found hanging by his neck from the ceiling\nof his segregation/solitary\nconfinement\njail cell at Matsqui",
+   "exhibits": [
+    "A",
+    "B",
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2015-06-02",
+   "precision": "day",
+   "description": "The Matsqui chaplain told the deponent Christopher had been taken to hospital in Abbotsford",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On or about June 2, 2015, I was informed Chris had been taken to hospital",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2015-06-03",
+   "precision": "day",
+   "description": "Christopher died at Abbotsford Regional Hospital",
+   "paragraphs": [
+    1
+   ],
+   "quote": "passed\naway at Abbotsford\nRegional Hospital on June 3, 2015",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2015-08",
+   "precision": "month",
+   "description": "The deponent made FOI requests for documents about his son's death",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In August of2015\nI made Freedom of Information (\"FOI\") requests",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2015-11-13",
+   "precision": "day",
+   "description": "First response to the FOI requests, with documents",
+   "paragraphs": [
+    13
+   ],
+   "quote": "I received the\nfirst response to such requests, dated November 13, 2015",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2015-11-18",
+   "precision": "day",
+   "description": "Further response to the FOI requests, with documents",
+   "paragraphs": [
+    14
+   ],
+   "quote": "I received a further response to my FOI requests,\ndated November 18, 2015",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2016-07",
+   "precision": "month",
+   "description": "Coroner's inquest; the deponent testified and gave a Will Say, and the jury ruled the death a suicide with recommendations on segregation",
+   "paragraphs": [
+    3,
+    17
+   ],
+   "quote": "At that inquest, the\njury ruled that my son's death was a suicide",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": null,
+   "precision": "undated",
+   "description": "The deponent learned that CSC staff assessing suicide risk were not registered psychologists and that Christopher had been told he would go to Kent Institution hours before self-harm",
+   "paragraphs": [
+    15
+   ],
+   "quote": "were not registered psychologists at all",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  }
+ ]
 }

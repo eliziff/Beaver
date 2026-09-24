@@ -171,5 +171,8 @@
    "text_chars": 8
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-6u639z.pdf"
+ ]
 }

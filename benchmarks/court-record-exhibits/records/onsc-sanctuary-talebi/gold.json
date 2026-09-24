@@ -9,6 +9,12 @@
  "deponent": "Sahar Talebi",
  "deponent_role": "Deponent for the applicants (background evidence on the City's and Province's COVID-19 shelter response)",
  "sworn_date": "2020-05-04",
+ "referenced_not_attached": [
+  "City daily shelter occupancy open dataset"
+ ],
+ "leak_waivers": [],
+ "notes": "103 exhibits (A to YYYY). Covers given with --covers: the cover for T reads 'S' and the cover for IIII reads 'IiII'. Descriptions are the affidavit's own identifying sentences; events are the affidavit's dated statements, generated from its text and linked to the exhibits cited from that sentence up to the next dated sentence. TTTT is a placeholder page ('appended separately as an electronic Exhibit'). 2 of max 3 for CV-20-640061 (with onsc-sanctuary-mendelsohnaviv).",
+ "subject": "charter",
  "exhibits": [
   {
    "label": "A",
@@ -168,7 +174,10 @@
      "quote": "page describing the approval process are attached hereto as Exhibits “J”"
     }
    ],
-   "content_check": "4 pages: 4/18/2020 24-Hour Respite Site Standards – City of Toronto https://www.toronto.ca/community-people/community-partners/24-hour-resp"
+   "content_check": "4 pages: 4/18/2020 24-Hour Respite Site Standards – City of Toronto https://www.toronto.ca/community-people/community-partners/24-hour-resp",
+   "same_text_as": [
+    "K"
+   ]
   },
   {
    "label": "K",
@@ -184,7 +193,10 @@
      "quote": "he approval process are attached hereto as Exhibits “J” and “K”"
     }
    ],
-   "content_check": "4 pages: 4/18/2020 24-Hour Respite Site Standards – City of Toronto https://www.toronto.ca/community-people/community-partners/24-hour-resp"
+   "content_check": "4 pages: 4/18/2020 24-Hour Respite Site Standards – City of Toronto https://www.toronto.ca/community-people/community-partners/24-hour-resp",
+   "same_text_as": [
+    "J"
+   ]
   },
   {
    "label": "L",
@@ -488,7 +500,10 @@
      "quote": "77/20 is attached hereto as Exhibit “DD”"
     }
    ],
-   "content_check": "2 pages: 4/30/2020 O. Reg. 77/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - WORK DEPLOYMENT MEASURES IN LONG-TERM CARE H… https://www.o"
+   "content_check": "2 pages: 4/30/2020 O. Reg. 77/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - WORK DEPLOYMENT MEASURES IN LONG-TERM CARE H… https://www.o",
+   "same_text_as": [
+    "GG"
+   ]
   },
   {
    "label": "EE",
@@ -536,7 +551,10 @@
      "quote": "77/20 is attached hereto as Exhibit “GG”"
     }
    ],
-   "content_check": "2 pages: 5/2/2020 O. Reg. 77/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - WORK DEPLOYMENT MEASURES IN LONG-TERM CARE HO… https://www.o"
+   "content_check": "2 pages: 5/2/2020 O. Reg. 77/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - WORK DEPLOYMENT MEASURES IN LONG-TERM CARE HO… https://www.o",
+   "same_text_as": [
+    "DD"
+   ]
   },
   {
    "label": "HH",
@@ -1096,7 +1114,10 @@
      "quote": "A copy of the Fact Sheet is attached hereto as Exhibit “PPP”"
     }
    ],
-   "content_check": "8 pages: April 8, 2020 COVID-19 Interim Guidance for Homelessness Service Settings Homelessness service settings that provide temporary hou"
+   "content_check": "8 pages: April 8, 2020 COVID-19 Interim Guidance for Homelessness Service Settings Homelessness service settings that provide temporary hou",
+   "same_text_as": [
+    "QQQ"
+   ]
   },
   {
    "label": "QQQ",
@@ -1112,7 +1133,10 @@
      "quote": "A copy of the Fact Sheet is attached hereto as Exhibit “QQQ”"
     }
    ],
-   "content_check": "8 pages: April 8, 2020 COVID-19 Interim Guidance for Homelessness Service Settings Homelessness service settings that provide temporary hou"
+   "content_check": "8 pages: April 8, 2020 COVID-19 Interim Guidance for Homelessness Service Settings Homelessness service settings that provide temporary hou",
+   "same_text_as": [
+    "PPP"
+   ]
   },
   {
    "label": "RRR",
@@ -2548,10 +2572,5 @@
    "quote": "AFFIRMED BEFORE ME, via video conference, at the City of Toronto, in the Province of Ontario on May 4, 2020.",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "City daily shelter occupancy open dataset"
- ],
- "leak_waivers": [],
- "notes": "103 exhibits (A to YYYY). Covers given with --covers: the cover for T reads 'S' and the cover for IIII reads 'IiII'. Descriptions are the affidavit's own identifying sentences; events are the affidavit's dated statements, generated from its text and linked to the exhibits cited from that sentence up to the next dated sentence. TTTT is a placeholder page ('appended separately as an electronic Exhibit'). 2 of max 3 for CV-20-640061 (with onsc-sanctuary-mendelsohnaviv)."
+ ]
 }

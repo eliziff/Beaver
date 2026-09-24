@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/onsc-bill7-meadus/notice-of-application.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Notice-of-Application-April-12-2023.pdf",
+  "title": "Notice of Application (Charter), April 12, 2023",
+  "kind": "court_filing",
+  "relation": "originating process of this application"
+ },
+ {
+  "file": "raw/matter/onsc-bill7-meadus/summary-of-evidence.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Summary-of-Evidence-Affidavits-April-12-2023.pdf",
+  "title": "OHC summary of evidence affidavits, April 12, 2023",
+  "kind": "other",
+  "relation": "applicant's public summary of the evidence"
+ }
+]

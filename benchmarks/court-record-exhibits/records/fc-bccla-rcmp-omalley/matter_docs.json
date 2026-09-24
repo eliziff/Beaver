@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/fc-bccla-rcmp-omalley/notice-of-application.pdf",
+  "url": "https://bccla.org/wp-content/uploads/2020/11/Notice-of-Application-T-1347-20.pdf",
+  "title": "Notice of Application T-1347-20 (BCCLA v. RCMP Commissioner)",
+  "kind": "court_filing",
+  "relation": "originating application"
+ },
+ {
+  "file": "raw/matter/fc-bccla-rcmp-omalley/omalley-cross.pdf",
+  "url": "https://bccla.org/wp-content/uploads/2021/04/2021-02-26-OMalley-cross-examination-transcript.pdf",
+  "title": "Cross-examination of Michael O'Malley, February 26, 2021",
+  "kind": "transcript",
+  "relation": "later cross-examination on this affidavit"
+ }
+]

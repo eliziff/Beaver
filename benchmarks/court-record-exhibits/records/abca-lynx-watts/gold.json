@@ -1,0 +1,614 @@
+{
+ "record_id": "abca-lynx-watts",
+ "court": "Court of Appeal of Alberta",
+ "court_level": "appellate",
+ "jurisdiction": "AB",
+ "court_file": "2401-0244AC (appeal); trial court file 2401-02664 (Calgary)",
+ "subject": "insolvency",
+ "family": "lynx-air",
+ "proceeding": "Application by the Edmonton, Halifax, Calgary, Vancouver and Winnipeg airport authorities for permission to appeal Greater Toronto Airports Authority v Lynx Air Holdings Corporation, 2024 ABKB 514 (trust treatment of unremitted Airport Improvement Fees in the Lynx Air CCAA)",
+ "document": "Affidavit of Jessica Watts sworn September 16, 2024",
+ "deponent": "Jessica Watts",
+ "deponent_role": "Legal assistant, Stikeman Elliott LLP (counsel to the applicant Airport Authorities)",
+ "sworn_date": "2024-09-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-aaafx2.pdf",
+   "kind": "report",
+   "date": "2024-02-28",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
+   "description": "The Monitor's First Report on Lynx",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "marked as Exhibit “A”"
+    }
+   ],
+   "content_check": "43 pages: First Report of FTI Consulting Canada Inc. as Monitor of Lynx Air Holdings Corporation and 1263343 Alberta Inc., February 28, 2024"
+  },
+  {
+   "label": "B",
+   "file": "doc-f2pd6v.pdf",
+   "kind": "report",
+   "date": "2024-03-27",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
+   "description": "The Monitor's Second Report on Lynx",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "marked as Exhibit “B”"
+    }
+   ],
+   "content_check": "35 pages: Second Report of FTI Consulting Canada Inc. as Monitor, March 27, 2024"
+  },
+  {
+   "label": "C",
+   "file": "doc-qag8ws.pdf",
+   "kind": "report",
+   "date": "2024-04-11",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
+   "description": "The Monitor's Third Report on Lynx",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "marked as Exhibit “C”"
+    }
+   ],
+   "content_check": "49 pages: Third Report of FTI Consulting Canada Inc. as Monitor, April 11, 2024"
+  },
+  {
+   "label": "D",
+   "file": "doc-banapk.pdf",
+   "kind": "report",
+   "date": "2024-05-15",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
+   "description": "The Monitor's Fourth Report on Lynx",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "marked as Exhibit “D”"
+    }
+   ],
+   "content_check": "32 pages: Fourth Report of FTI Consulting Canada Inc. as Monitor, May 15, 2024"
+  },
+  {
+   "label": "E",
+   "file": "doc-k4mj2w.pdf",
+   "kind": "court_filing",
+   "date": "2024-05-24",
+   "author": "Stikeman Elliott LLP for the Airport Authorities",
+   "recipients": [],
+   "description": "The Airport Authorities' Application regarding the treatment of Airport Improvement Fees",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "marked as Exhibit “E”"
+    }
+   ],
+   "content_check": "9 pages: application of Edmonton, Halifax, Calgary, Vancouver and Winnipeg airport authorities in action 2401-02664, returnable June 24, 2024"
+  },
+  {
+   "label": "F",
+   "file": "doc-vf2vak.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-23",
+   "author": "Jennifer Pon",
+   "recipients": [],
+   "description": "The affidavit of Jennifer Pon filed in the Action",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "marked as Exhibit “F”"
+    }
+   ],
+   "content_check": "85 pages: affidavit of the Chief Financial Officer of The Calgary Airport Authority (CAA) on the MOA and Lynx's AIF, with its own exhibits, filed stamp June 24, 2024"
+  },
+  {
+   "label": "G",
+   "file": "doc-6tpwz6.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-23",
+   "author": "Diana Vuong",
+   "recipients": [],
+   "description": "The affidavit of Diana Vuong filed in the Action",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "marked as Exhibit “G”"
+    }
+   ],
+   "content_check": "163 pages: affidavit for the Vancouver Airport Authority in action 2401-02664 with its own Exhibits A onward"
+  },
+  {
+   "label": "H",
+   "file": "doc-na9x7y.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-23",
+   "author": "Leslie Kwasny",
+   "recipients": [],
+   "description": "The affidavit of Leslie Kwasny filed in the Action",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "marked as Exhibit “H”"
+    }
+   ],
+   "content_check": "85 pages: affidavit for the Edmonton Regional Airports Authority (ERAA) on the MOA and Lynx's AIF, with its own exhibits"
+  },
+  {
+   "label": "I",
+   "file": "doc-3hkv46.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-23",
+   "author": "Paul Brigley",
+   "recipients": [],
+   "description": "The affidavit of Paul Brigley filed in the Action",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "marked as Exhibit “I”"
+    }
+   ],
+   "content_check": "92 pages: Affidavit of Paul Brigley sworn May 23, 2024 (Halifax International Airports Authority) with its Exhibits A-D"
+  },
+  {
+   "label": "J",
+   "file": "doc-xvasu8.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-23",
+   "author": "Nicole Stefaniuk",
+   "recipients": [],
+   "description": "The affidavit of Nicole Stefaniuk filed in the Action",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "marked as Exhibit “J”"
+    }
+   ],
+   "content_check": "108 pages: affidavit of the Chief Financial Officer of Winnipeg Airports Authority Inc. (WAA) with its own exhibits"
+  },
+  {
+   "label": "K",
+   "file": "doc-bcf3p8.pdf",
+   "kind": "court_filing",
+   "date": "2024-05-28",
+   "author": "TYR LLP for the Greater Toronto Airports Authority",
+   "recipients": [],
+   "description": "The GTAA Application regarding the treatment of AIF",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "marked as Exhibit “K”"
+    }
+   ],
+   "content_check": "14 pages: application of the Greater Toronto Airports Authority in action 2401-02664, returnable June 24, 2024"
+  },
+  {
+   "label": "L",
+   "file": "doc-puqd84.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-24",
+   "author": "Jason Boyd",
+   "recipients": [],
+   "description": "The affidavit of Jason Boyd filed in the Action",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "marked as Exhibit “L”"
+    }
+   ],
+   "content_check": "211 pages: Affidavit of Jason Boyd sworn May 24, 2024 (GTAA) with its Exhibits A-Q"
+  },
+  {
+   "label": "M",
+   "file": "doc-ay5jyv.pdf",
+   "kind": "affidavit",
+   "date": "2024-05-31",
+   "author": "Michael Woodward",
+   "recipients": [],
+   "description": "The affidavit of Michael Woodward filed in the Action",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "marked as Exhibit “M”"
+    }
+   ],
+   "content_check": "153 pages: Public Affidavit of Michael Woodward sworn May 31, 2024 in response to the trust-claim applications, with its Exhibits A-Q"
+  },
+  {
+   "label": "N",
+   "file": "doc-nvmesq.pdf",
+   "kind": "court_filing",
+   "date": "2024-06-11",
+   "author": "Stikeman Elliott LLP for the Airport Authorities",
+   "recipients": [],
+   "description": "The Airport Authorities' brief in support of their application",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "marked as Exhibit “N”"
+    }
+   ],
+   "content_check": "22 pages: brief of law of the Airport Authorities for the June 24, 2024 application"
+  },
+  {
+   "label": "O",
+   "file": "doc-j8bcrw.pdf",
+   "kind": "court_filing",
+   "date": "2024-06-10",
+   "author": "TYR LLP for the Greater Toronto Airports Authority",
+   "recipients": [],
+   "description": "The GTAA's unfiled brief in support of the GTAA Application",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "marked as Exhibit “O”"
+    }
+   ],
+   "content_check": "21 pages: Brief of the Greater Toronto Airports Authority, application before Justice Romaine on June 24, 2024"
+  },
+  {
+   "label": "P",
+   "file": "doc-cj98k7.pdf",
+   "kind": "court_filing",
+   "date": "2024-06-18",
+   "author": "Osler, Hoskin & Harcourt LLP for Lynx Air",
+   "recipients": [],
+   "description": "Lynx's unfiled brief in respect of both applications",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "marked as Exhibit “P”"
+    }
+   ],
+   "content_check": "33 pages: Bench Brief of the Respondents (Lynx Air), application before Justice Romaine on June 24, 2024; styled in both the GTAA and Airport Authorities applications"
+  },
+  {
+   "label": "Q",
+   "file": "doc-guc4ff.pdf",
+   "kind": "report",
+   "date": "2024-06-21",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
+   "description": "The Monitor's Fifth Report on Lynx",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "marked as Exhibit “Q”"
+    }
+   ],
+   "content_check": "32 pages: Fifth Report of FTI Consulting Canada Inc. as Monitor, June 21, 2024"
+  },
+  {
+   "label": "R",
+   "file": "doc-7nmx8r.pdf",
+   "kind": "court_order",
+   "date": "2024-08-26",
+   "author": "Court of King's Bench of Alberta (Justice B.E. Romaine)",
+   "recipients": [],
+   "description": "The Reasons for Decision, 2024 ABKB 514 (the Decision)",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "marked as Exhibit “R”"
+    }
+   ],
+   "content_check": "11 pages: Greater Toronto Airports Authority v Lynx Air Holdings Corporation, 2024 ABKB 514, Reasons for Decision of Justice B.E. Romaine (header date misprinted 20210826)"
+  },
+  {
+   "label": "S",
+   "file": "doc-m44e38.pdf",
+   "kind": "report",
+   "date": "2024-09-09",
+   "author": "FTI Consulting Canada Inc. (Monitor)",
+   "recipients": [],
+   "description": "The Monitor's Sixth Report on Lynx",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "marked as Exhibit “S”"
+    }
+   ],
+   "content_check": "32 pages: Sixth Report of FTI Consulting Canada Inc. as Monitor, September 9, 2024"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CCAA proceedings of Lynx in action 2401-02664",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    1
+   ],
+   "quote": "Court of King’s Bench of Alberta Action No. 2401-02664",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Monitor files its First Report",
+   "date": "2024-02-28",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On February 28, 2024, FTI Consulting, Inc. (“FTI\") filed its First Report of the Monitor",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Monitor files its Second Report",
+   "date": "2024-03-27",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On March 27, 2024, FTI filed its Second Report of the Monitor",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Monitor files its Third Report",
+   "date": "2024-04-11",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On April 11,2024, FTI filed its Third Report of the Monitor",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Monitor files its Fourth Report",
+   "date": "2024-05-15",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On May 15, 2024, FTI filed its Fourth Report of the Monitor",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Airport Authorities file their AIF application",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "the Airport Authorities filed an application (the “Airport Authorities’ \nApplication”)",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Pon affidavit (Calgary Airport Authority) filed",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "an affidavit affirmed by Jennifer Pon was filed in the Action",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Vuong affidavit (Vancouver Airport Authority) filed",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "an affidavit affirmed by Diana Vuong was filed in the Action",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Kwasny affidavit (Edmonton Regional Airports Authority) filed",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "an affidavit affirmed by Leslie Kwasny was filed in the Action",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Brigley affidavit (Halifax) filed",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "an affidavit sworn by Paul Brigley was filed in the Action",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Stefaniuk affidavit (Winnipeg) filed",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "an affidavit affirmed by Nicole Stefaniuk was filed in the Action",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "GTAA files its AIF application",
+   "date": "2024-05-28",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On May 28, 2024, the Greater Toronto Airports Authority (the “GTAA”) filed an application",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Boyd affidavit (GTAA) filed",
+   "date": "2024-05-28",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "an affidavit sworn by Jason Boyd was filed in the Action",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Woodward affidavit (Lynx) filed",
+   "date": "2024-05-31",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On June 3, 2024, an affidavit sworn by Michael Woodward was filed in the Action",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Airport Authorities file their brief",
+   "date": "2024-06-11",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On June 11, 2024, the Airport Authorities filed a brief in support",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "GTAA serves its unfiled brief",
+   "date": "2024-06-10",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "On June 10, 2024, the GTAA served an unfiled brief",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Lynx serves its unfiled brief",
+   "date": "2024-06-18",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On June 18, 2024, Lynx served an unfiled brief",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Monitor files its Fifth Report",
+   "date": "2024-06-21",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On June 21, 2024, FTI filed its Fifth Report of the Monitor",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Justice Romaine issues the Decision, 2024 ABKB 514",
+   "date": "2024-08-26",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On August 26, 2024, the Honourable Justice B.E. Romaine issued Reasons for Decision",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Monitor files its Sixth Report",
+   "date": "2024-09-09",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On September 9, 2024, FTI filed its Sixth Report of the Monitor",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "FTI granted an order extending Lynx's CCAA proceedings to January 31, 2025",
+   "date": "2024-09-13",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "on September 13, 2024, FTI was granted an order extending Lynx’s CCAA \nproceedings until January 31, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Watts swears the affidavit for the Airport Authorities' application for permission to appeal the Decision",
+   "date": "2024-09-16",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "I make this affidavit in support of the Airport Authorities' application for permission to appeal the \nDecision",
+   "exhibits": [
+    "R"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Order of September 13, 2024 extending the CCAA proceedings to January 31, 2025"
+ ],
+ "leak_waivers": [
+  "G",
+  "I",
+  "L",
+  "M"
+ ],
+ "notes": "The text layer lists paragraph numbers apart from their text; paragraph numbers follow the printed page. The posted record repeats the Exhibit P and Q covers after each exhibit's first page (source pages 1143 and 1178), dropped with --drop; covers given with --covers because Exhibits G, I, L and M are affidavits with their own exhibit covers (the waived leaks are those inner covers). Exhibits I, L and M are the same affidavits as records abkb-lynx-brigley, abkb-lynx-boyd and abkb-lynx-woodward (family lynx-air). Filing events for F-J use the filing date May 24, 2024 and L May 28, 2024; exhibit dates are swearing dates."
+}

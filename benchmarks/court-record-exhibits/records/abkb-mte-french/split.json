@@ -356,5 +356,8 @@
    "text_chars": 38525
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-zdacqr.pdf"
+ ]
 }

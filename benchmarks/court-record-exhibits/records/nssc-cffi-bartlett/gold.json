@@ -9,41 +9,257 @@
  "deponent": "Brittany Bartlett",
  "deponent_role": "Vice President and Chief Financial Officer of the Applicant CFFI Ventures Inc.; director of Cormorant Utility Services Limited",
  "sworn_date": "2026-06-05",
+ "referenced_not_attached": [
+  "Second Scott Affidavit (June 2, 2026)",
+  "Hugh Affidavit (June 3, 2026)",
+  "Bartlett affidavits of February 14, March 11, March 20 and May 15, 2026",
+  "ARCA",
+  "SISP Side Letter"
+ ],
+ "notes": "Pairs with nssc-cffi-scott (same proceeding): this is CFFI's rebuttal. The affidavit's OCR renders SAF as 'SAP' in places and some paragraph numbers with commas.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-4m8kpk.pdf", "kind": "email_chain", "date": "2025-10-30", "author": "Michael Scott", "recipients": ["Stan Spavold", "Brittany Bartlett"],
+  {
+   "label": "A",
+   "file": "doc-4m8kpk.pdf",
+   "kind": "email_chain",
+   "date": "2025-10-30",
+   "author": "Michael Scott",
+   "recipients": [
+    "Stan Spavold",
+    "Brittany Bartlett"
+   ],
    "description": "Michael Scott's October 30, 2025 email to Stan Spavold, copied to Bartlett, welcoming her appointment as a Cormorant director",
-   "references": [{"paragraph": 8, "quote": "true copy of which"}],
-   "content_check": "Email from Michael Scott, Thursday October 30, 2025 7:09 PM, to Stan Spavold cc Brittany Bartlett, 'RE: Cormorant': 'confident Brittany will be a great addition to the Board', replying to Spavold's 2:34 PM notice of the board change"},
-  {"label": "B", "file": "doc-ngdhu3.pdf", "kind": "email_chain", "date": "2026-05-21", "author": "Robert Chadwick (Goodmans), counsel to SAF, and Stephen Kingston (McInnes Cooper), counsel to CFFI", "recipients": [],
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "true copy of which"
+    }
+   ],
+   "content_check": "Email from Michael Scott, Thursday October 30, 2025 7:09 PM, to Stan Spavold cc Brittany Bartlett, 'RE: Cormorant': 'confident Brittany will be a great addition to the Board', replying to Spavold's 2:34 PM notice of the board change"
+  },
+  {
+   "label": "B",
+   "file": "doc-ngdhu3.pdf",
+   "kind": "email_chain",
+   "date": "2026-05-21",
+   "author": "Robert Chadwick (Goodmans), counsel to SAF, and Stephen Kingston (McInnes Cooper), counsel to CFFI",
+   "recipients": [],
    "description": "Email chain in which SAF's counsel commented on the SISP, CFFI's counsel Kingston responded, and SAF's counsel stated his disagreement",
-   "references": [{"paragraph": 12, "quote": "attached hereto as Exhibit"}],
-   "content_check": "Five-page chain 'CFFI - Cormorant Sale Process', topped by Robert Chadwick's Thursday May 21, 2026 7:01 PM email to Stephen Kingston ('We disagree with the below') with interlineated point-by-point comments"},
-  {"label": "C", "file": "doc-97tfr6.pdf", "kind": "court_filing", "date": "2026-06", "author": "CFFI Ventures Inc.", "recipients": [],
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Five-page chain 'CFFI - Cormorant Sale Process', topped by Robert Chadwick's Thursday May 21, 2026 7:01 PM email to Stephen Kingston ('We disagree with the below') with interlineated point-by-point comments"
+  },
+  {
+   "label": "C",
+   "file": "doc-97tfr6.pdf",
+   "kind": "court_filing",
+   "date": "2026-06",
+   "author": "CFFI Ventures Inc.",
+   "recipients": [],
    "description": "CFFI's revised SISP accepting certain of the revisions SAF requested to the previously served SISP",
-   "references": [{"paragraph": 13, "quote": "is a true copy of CFFI's revised SISP, which"}],
-   "content_check": "Seven-page 'Sale and Investment Solicitation Process' (poor OCR), reciting the March 13, 2026 Initial Order and an anticipated June 9, 2026 SISP Order, with an NOI deadline of July 21, 2026"},
-  {"label": "D", "file": "doc-e97m8s.pdf", "kind": "letter", "date": "2026-04-20", "author": "Davies Ward Phillips & Vineberg LLP (Natasha MacParland), counsel to Brendan Paddick; McInnes Cooper (Stephen Kingston), counsel to CFFI", "recipients": ["McInnes Cooper (Stephen Kingston, Ben Pryde)", "Natasha MacParland"],
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "is a true copy of CFFI's revised SISP, which"
+    }
+   ],
+   "content_check": "Seven-page 'Sale and Investment Solicitation Process' (poor OCR), reciting the March 13, 2026 Initial Order and an anticipated June 9, 2026 SISP Order, with an NOI deadline of July 21, 2026"
+  },
+  {
+   "label": "D",
+   "file": "doc-e97m8s.pdf",
+   "kind": "letter",
+   "date": "2026-04-20",
+   "author": "Davies Ward Phillips & Vineberg LLP (Natasha MacParland), counsel to Brendan Paddick; McInnes Cooper (Stephen Kingston), counsel to CFFI",
+   "recipients": [
+    "McInnes Cooper (Stephen Kingston, Ben Pryde)",
+    "Natasha MacParland"
+   ],
    "description": "Correspondence between Kingston and Paddick's counsel regarding the NFA Stay",
-   "references": [{"paragraph": 20, "quote": "copies of those letters are attached hereto as Exhibit"}],
-   "content_check": "Davies letter of April 20, 2026 asking CFFI to remove Cormorant and OpenScreen from the Non-Filing Affiliates, and McInnes Cooper's April 24, 2026 reply"}
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "copies of those letters are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Davies letter of April 20, 2026 asking CFFI to remove Cormorant and OpenScreen from the Non-Filing Affiliates, and McInnes Cooper's April 24, 2026 reply"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2025-10-14", "precision": "day", "description": "Bartlett was appointed to Cormorant's board in replacement of John Risley", "paragraphs": [7], "quote": "effective October 14, 2025", "exhibits": ["A"]},
-  {"id": "e2", "date": "2025-10-30", "precision": "day", "description": "Scott emailed Stan Spavold welcoming Bartlett's appointment", "paragraphs": [8], "quote": "as indicated in his email message to Stan Spavoid (copied to me) dated October 30, 2025", "exhibits": ["A"]},
-  {"id": "e3", "precision": "undated", "description": "SAF executed ARCA amendments, including one extending maturity to January 4, 2027", "paragraphs": [8], "quote": "including an amendment that extended", "exhibits": []},
-  {"id": "e4", "date": "2026-02-14", "precision": "day", "description": "Bartlett's first affidavit in the proceeding (later ones March 11, March 20 and May 15, 2026)", "paragraphs": [5], "quote": "should be read in conjunction with my Affidavits sworn", "exhibits": []},
-  {"id": "e5", "date": "2026-03-20", "precision": "day", "description": "First Scott Affidavit sworn, without alleging a change-of-control breach", "paragraphs": [10], "quote": "March 20, 2026 (the \"First Scott Affidavit\")", "exhibits": []},
-  {"id": "e6", "precision": "undated", "description": "Kingston exchanged correspondence with Paddick's counsel on the NFA Stay", "paragraphs": [20], "quote": "correspondence with Mr. Paddick's legal counsel regarding the NFA Stay", "exhibits": ["D"]},
-  {"id": "e7", "precision": "undated", "description": "SAF's counsel and CFFI's counsel exchanged emails on the proposed SISP, SAF counsel disagreeing with CFFI's position", "paragraphs": [11, 12], "quote": "is a true copy of an email chain between himself and SAP", "exhibits": ["B"]},
-  {"id": "e8", "date": "2026-05-26", "precision": "day", "description": "SAF's legal counsel emailed CFFI's legal counsel (referred to in the Second Scott Affidavit)", "paragraphs": [11], "quote": "by SAP's legal counsel to CFFI's legal counsel on May 26, 2026", "exhibits": []},
-  {"id": "e9", "date": "2026-05-31", "precision": "day", "description": "Outstanding principal owed by Cormorant to SAF was about $28.5 million, with interest up to date", "paragraphs": [14], "quote": "As of May 31, 2026 the outstanding principal", "exhibits": []},
-  {"id": "e10", "date": "2026-06-02", "precision": "day", "description": "Michael Scott swore the Second Scott Affidavit", "paragraphs": [5], "quote": "This Affidavit is sworn in rebuttal to the Affidavit of Michael Scott sworn herein on June 2,", "exhibits": []},
-  {"id": "e11", "date": "2026-06-03", "precision": "day", "description": "Richard Hugh swore the Hugh Affidavit", "paragraphs": [5], "quote": "the Affidavit of Richard Hugh sworn on June 3,", "exhibits": []},
-  {"id": "e12", "precision": "undated", "description": "CFFI revised its SISP to accept certain of SAF's requested revisions", "paragraphs": [13], "quote": "the SISP and comments", "exhibits": ["C"]},
-  {"id": "e13", "date": "2026-07-31", "precision": "approximate", "description": "Expected completion of a Cormorant real property sale reducing its SAF debt by about $4 million", "paragraphs": [15], "quote": "which is expected to be completed on or about July 31. 2026", "exhibits": []},
-  {"id": "e14", "precision": "undated", "description": "CFFI's CCAA filing automatically accelerated the SAF debt as an Event of Default under the ARCA", "paragraphs": [19], "quote": "This acceleration", "exhibits": []},
-  {"id": "e15", "precision": "undated", "description": "Cormorant's new senior management began a revised two-to-three-year value strategy", "paragraphs": [21], "quote": "new senior management team has", "exhibits": []}
- ],
- "referenced_not_attached": ["Second Scott Affidavit (June 2, 2026)", "Hugh Affidavit (June 3, 2026)", "Bartlett affidavits of February 14, March 11, March 20 and May 15, 2026", "ARCA", "SISP Side Letter"],
- "notes": "Pairs with nssc-cffi-scott (same proceeding): this is CFFI's rebuttal. The affidavit's OCR renders SAF as 'SAP' in places and some paragraph numbers with commas."
+  {
+   "id": "e1",
+   "date": "2025-10-14",
+   "precision": "day",
+   "description": "Bartlett was appointed to Cormorant's board in replacement of John Risley",
+   "paragraphs": [
+    7
+   ],
+   "quote": "effective October 14, 2025",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2025-10-30",
+   "precision": "day",
+   "description": "Scott emailed Stan Spavold welcoming Bartlett's appointment",
+   "paragraphs": [
+    8
+   ],
+   "quote": "as indicated in his email message to Stan Spavoid (copied to me) dated October 30, 2025",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "precision": "undated",
+   "description": "SAF executed ARCA amendments, including one extending maturity to January 4, 2027",
+   "paragraphs": [
+    8
+   ],
+   "quote": "including an amendment that extended",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2026-02-14",
+   "precision": "day",
+   "description": "Bartlett's first affidavit in the proceeding (later ones March 11, March 20 and May 15, 2026)",
+   "paragraphs": [
+    5
+   ],
+   "quote": "should be read in conjunction with my Affidavits sworn",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2026-03-20",
+   "precision": "day",
+   "description": "First Scott Affidavit sworn, without alleging a change-of-control breach",
+   "paragraphs": [
+    10
+   ],
+   "quote": "March 20, 2026 (the \"First Scott Affidavit\")",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "precision": "undated",
+   "description": "Kingston exchanged correspondence with Paddick's counsel on the NFA Stay",
+   "paragraphs": [
+    20
+   ],
+   "quote": "correspondence with Mr. Paddick's legal counsel regarding the NFA Stay",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "precision": "undated",
+   "description": "SAF's counsel and CFFI's counsel exchanged emails on the proposed SISP, SAF counsel disagreeing with CFFI's position",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "is a true copy of an email chain between himself and SAP",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2026-05-26",
+   "precision": "day",
+   "description": "SAF's legal counsel emailed CFFI's legal counsel (referred to in the Second Scott Affidavit)",
+   "paragraphs": [
+    11
+   ],
+   "quote": "by SAP's legal counsel to CFFI's legal counsel on May 26, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2026-05-31",
+   "precision": "day",
+   "description": "Outstanding principal owed by Cormorant to SAF was about $28.5 million, with interest up to date",
+   "paragraphs": [
+    14
+   ],
+   "quote": "As of May 31, 2026 the outstanding principal",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2026-06-02",
+   "precision": "day",
+   "description": "Michael Scott swore the Second Scott Affidavit",
+   "paragraphs": [
+    5
+   ],
+   "quote": "This Affidavit is sworn in rebuttal to the Affidavit of Michael Scott sworn herein on June 2,",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2026-06-03",
+   "precision": "day",
+   "description": "Richard Hugh swore the Hugh Affidavit",
+   "paragraphs": [
+    5
+   ],
+   "quote": "the Affidavit of Richard Hugh sworn on June 3,",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "precision": "undated",
+   "description": "CFFI revised its SISP to accept certain of SAF's requested revisions",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the SISP and comments",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2026-07-31",
+   "precision": "approximate",
+   "description": "Expected completion of a Cormorant real property sale reducing its SAF debt by about $4 million",
+   "paragraphs": [
+    15
+   ],
+   "quote": "which is expected to be completed on or about July 31. 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "precision": "undated",
+   "description": "CFFI's CCAA filing automatically accelerated the SAF debt as an Event of Default under the ARCA",
+   "paragraphs": [
+    19
+   ],
+   "quote": "This acceleration",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "precision": "undated",
+   "description": "Cormorant's new senior management began a revised two-to-three-year value strategy",
+   "paragraphs": [
+    21
+   ],
+   "quote": "new senior management team has",
+   "exhibits": []
+  }
+ ]
 }

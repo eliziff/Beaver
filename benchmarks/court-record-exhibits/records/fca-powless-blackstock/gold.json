@@ -9,58 +9,478 @@
  "deponent": "Cindy Blackstock",
  "deponent_role": "Executive Director of the proposed intervener, the First Nations Child and Family Caring Society of Canada",
  "sworn_date": "2025-09-05",
+ "referenced_not_attached": [
+  "Wen:De We Are Coming to the Light of Day (2005)",
+  "Earlier versions of the Jordan's Principle Concerns Document",
+  "Written Representations of the proposed intervener"
+ ],
+ "notes": "The CV (Exhibit A) supports the affidavit's biographical dates.",
+ "subject": "administrative",
  "exhibits": [
-  {"label": "A", "file": "doc-9xckxs.pdf", "kind": "other", "date": null, "author": "Cindy Blackstock", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-9xckxs.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Cindy Blackstock",
+   "recipients": [],
    "description": "Blackstock's curriculum vitae",
-   "references": [{"paragraph": 7, "quote": "A copy of my curriculum vitae is attached hereto"}],
-   "content_check": "55-page CV headed 'Cindy Blackstock (Gitxsan First Nation), Executive Director, First Nations Child & Family Caring Society of Canada', opening with an academic record of 4 degrees and 21 honorary doctorates"},
-  {"label": "B", "file": "doc-j7gzxh.pdf", "kind": "report", "date": "2021-04", "author": "First Nations Child and Family Caring Society of Canada", "recipients": [],
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A copy of my curriculum vitae is attached hereto"
+    }
+   ],
+   "content_check": "55-page CV headed 'Cindy Blackstock (Gitxsan First Nation), Executive Director, First Nations Child & Family Caring Society of Canada', opening with an academic record of 4 degrees and 21 honorary doctorates"
+  },
+  {
+   "label": "B",
+   "file": "doc-j7gzxh.pdf",
+   "kind": "report",
+   "date": "2021-04",
+   "author": "First Nations Child and Family Caring Society of Canada",
+   "recipients": [],
    "description": "The April 2021 Jordan's Principle Concerns Document documenting Canada's non-compliance with the Tribunal's Jordan's Principle orders",
-   "references": [{"paragraph": 16, "quote": "The April 2021 Jordan's Principle Concerns Document is"}],
-   "content_check": "45-page Caring Society document 'Concerns with ISC's Compliance with CHRT Orders on Jordan's Principle, Updated April 2021', with a table of contents starting at Immediate Remedies / Substantive Equality"},
-  {"label": "C", "file": "doc-y6seeq.pdf", "kind": "report", "date": "2022-03-31", "author": "Naiomi Metallic, Hadley Friedland and Shelby Thomas", "recipients": [],
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "The April 2021 Jordan's Principle Concerns Document is"
+    }
+   ],
+   "content_check": "45-page Caring Society document 'Concerns with ISC's Compliance with CHRT Orders on Jordan's Principle, Updated April 2021', with a table of contents starting at Immediate Remedies / Substantive Equality"
+  },
+  {
+   "label": "C",
+   "file": "doc-y6seeq.pdf",
+   "kind": "report",
+   "date": "2022-03-31",
+   "author": "Naiomi Metallic, Hadley Friedland and Shelby Thomas",
+   "recipients": [],
    "description": "The 2022 expert report 'Doing Better for Indigenous Children and Families: Jordan's Principle Accountability Mechanisms Report' proposing a complaints mechanism",
-   "references": [{"paragraph": 20, "quote": "Children and Families: Jordan's Principle Accountability Mechanisms Report"}],
-   "content_check": "82-page report downloaded from Schulich Law Scholars (Dalhousie), dated 3-31-2022, by Naiomi Metallic, Hadley Friedland and Shelby Thomas, ending with its Conclusion"}
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Children and Families: Jordan's Principle Accountability Mechanisms Report"
+    }
+   ],
+   "content_check": "82-page report downloaded from Schulich Law Scholars (Dalhousie), dated 3-31-2022, by Naiomi Metallic, Hadley Friedland and Shelby Thomas, ending with its Conclusion"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1987", "end_date": "1995", "precision": "range", "description": "Blackstock was a senior social worker with the Province of British Columbia", "paragraphs": [5], "quote": "senior social worker with the Province of British Columbia (1987-1995)", "exhibits": ["A"]},
-  {"id": "e2", "date": "1995", "end_date": "1999", "precision": "range", "description": "Blackstock was Assistant to the Social Development Director for the Squamish First Nation", "paragraphs": [5], "quote": "to the Social Development Director for the Squamish First Nation (1995-1999)", "exhibits": ["A"]},
-  {"id": "e3", "date": "1998", "precision": "year", "description": "The Caring Society was founded", "paragraphs": [9], "quote": "First founded in 1998, the Caring Society is a national non-profit organization", "exhibits": []},
-  {"id": "e4", "date": "1999", "end_date": "2002", "precision": "range", "description": "Blackstock was Executive Director of the Caring for First Nations Children Society in BC", "paragraphs": [5], "quote": "Caring for First Nations Children Society in British Columbia (1999-2002)", "exhibits": ["A"]},
-  {"id": "e5", "date": "2002", "precision": "year", "description": "Blackstock became Executive Director of the Caring Society", "paragraphs": [1], "quote": "have held this position", "exhibits": ["A"]},
-  {"id": "e6", "date": "2005", "precision": "year", "description": "Jordan River Anderson died after over two years in hospital while governments disputed payment; Jordan's Principle first published in the Caring Society's Wen:De report", "paragraphs": [10, 13, 38], "quote": "Jordan sadly passed away in 2005 before ever getting a chance to go home", "exhibits": []},
-  {"id": "e7", "date": "2007-12-12", "precision": "day", "description": "Parliament unanimously adopted Jordan's Principle (Motion 296), with Blackstock and Jordan's family attending", "paragraphs": [14], "quote": "On December 12, 2007, I accompanied Jordan's", "exhibits": []},
-  {"id": "e8", "date": "2007", "precision": "year", "description": "The Caring Society and the AFN began litigating the discrimination complaint against Canada", "paragraphs": [39], "quote": "Since 2007, the Caring Society and the AFN have successfully litigated a", "exhibits": []},
-  {"id": "e9", "date": "2009", "precision": "year", "description": "The UNCRC adopted General Comment 11 on Indigenous children, drafted with the Indigenous Sub-Group Blackstock convened", "paragraphs": [34], "quote": "The General Comment was adopted by the", "exhibits": []},
-  {"id": "e10", "date": "2010", "precision": "approximate", "description": "Canada began monitoring Blackstock's social media and movements", "paragraphs": [41], "quote": "This monitoring began in or about 2010", "exhibits": []},
-  {"id": "e11", "date": "2013-10-29", "precision": "day", "description": "The Privacy Commissioner found the federal government breached Blackstock's Privacy Act rights", "paragraphs": [41], "quote": "found, on October 29, 2013, that the federal government breached my rights under the", "exhibits": []},
-  {"id": "e12", "date": "2013", "end_date": "2014", "precision": "range", "description": "Hearings on the merits of the Complaint", "paragraphs": [42], "quote": "The hearings on the merits of the Complaint were held in 2013 and 2014", "exhibits": []},
-  {"id": "e13", "date": "2014-07-11", "precision": "day", "description": "Canada discontinued its appeal in Pictou Landing Band Council before the hearing", "paragraphs": [36], "quote": "Canada discontinued its appeal on July 11, 2014", "exhibits": []},
-  {"id": "e14", "date": "2015-06-05", "precision": "day", "description": "The Tribunal awarded Blackstock $20,000 for Canada's retaliatory conduct", "paragraphs": [41], "quote": "as detailed in the Tribunal's June 5, 2015 decision awarding me $20,000", "exhibits": []},
-  {"id": "e15", "date": "2016", "precision": "year", "description": "The Tribunal's Merits Decision found Canada discriminated in child and family services funding and in its narrow approach to Jordan's Principle", "paragraphs": [43], "quote": "In a historic decision issued in 2016, the Tribunal found that Canada", "exhibits": []},
-  {"id": "e16", "date": "2017", "precision": "year", "description": "The Tribunal made orders setting out a clear approach to Jordan's Principle (2017 CHRT 14, 2017 CHRT 35)", "paragraphs": [20, 45], "quote": "requestors was meant to be time limited after the Tribunal made orders in 2017", "exhibits": []},
-  {"id": "e17", "date": "2018", "precision": "year", "description": "The Caring Society created the Jordan's Principle Concerns Document, later updated through April 2021 and again in June 2023", "paragraphs": [16], "quote": "We documented Canada's non-compliance in a 2018 document titled", "exhibits": ["B"]},
-  {"id": "e18", "date": "2018-11", "precision": "month", "description": "The Jordan's Principle Operations Committee, co-chaired by Canada, became operational", "paragraphs": [19], "quote": "This group has been operational since November 2018", "exhibits": []},
-  {"id": "e19", "date": "2018", "precision": "year", "description": "Canada's non-compliance was linked to the deaths of three children", "paragraphs": [43], "quote": "Canada's non- compliance was linked to the deaths of three children in", "exhibits": []},
-  {"id": "e20", "date": "2021", "precision": "year", "description": "The Caring Society, the AFN and Canada developed the Back-to-Basics Approach", "paragraphs": [17], "quote": "engaged with Canada to develop the Back-to-Basics Approach in 2021", "exhibits": []},
-  {"id": "e21", "date": "2021-12-31", "precision": "day", "description": "The Caring Society signed the Agreement-in-Principle on long-term reform with an appended Jordan's Principle Workplan", "paragraphs": [18], "quote": "On December 31, 2021, the Caring Society signed the Agreement-in-Principle", "exhibits": []},
-  {"id": "e22", "date": "2022", "precision": "year", "description": "The Jordan's Principle Accountability Mechanisms Report proposed a complaints mechanism that Canada did not establish", "paragraphs": [20], "quote": "mechanism as proposed in an expert report in 2022", "exhibits": ["C"]},
-  {"id": "e23", "date": "2022-05-11", "precision": "day", "description": "The Caring Society was granted leave to intervene in the Manitoba Court of King's Bench judicial reviews", "paragraphs": [36], "quote": "On May 11, 2022, the Caring Society was granted leave to intervene at the", "exhibits": []},
-  {"id": "e24", "date": "2022-10-05", "precision": "day", "description": "The Caring Society was granted leave to intervene at the CHRT in Dominique v. Public Safety Canada", "paragraphs": [36], "quote": "On October 5, 2022, the Caring Society was granted leave to intervene at", "exhibits": []},
-  {"id": "e25", "date": "2022", "end_date": "2023", "precision": "range", "description": "The Caring Society observed consistent problems in Canada's handling of Jordan's Principle requests, including a backlog of over 100,000 requests", "paragraphs": [21], "quote": "Throughout 2022 and 2023, the Caring Society observed consistent issues", "exhibits": []},
-  {"id": "e26", "date": "2023-01", "end_date": "2025-05", "precision": "range", "description": "The Caring Society raised over 420 Jordan's Principle cases with ISC, about 40% resolved", "paragraphs": [22], "quote": "Between January 2023 and May 2025 alone, the Caring Society has raised over", "exhibits": []},
-  {"id": "e27", "date": "2023-05-31", "precision": "day", "description": "The Caring Society funded two children to attend a memorial potlatch after ISC failed to determine the request", "paragraphs": [24], "quote": "On May 31, 2023, I directed the Caring Society staff to extend", "exhibits": []},
-  {"id": "e28", "date": "2023-08-18", "precision": "day", "description": "The Caring Society issued emergency supports to a family fleeing wildfire", "paragraphs": [24], "quote": "On August 18, 2023, I directed the Caring Society staff to issue emergency", "exhibits": []},
-  {"id": "e29", "date": "2023-11-06", "precision": "day", "description": "The Caring Society transferred supports to a family fleeing domestic violence", "paragraphs": [24], "quote": "On November 6, 2023, the Caring Society transferred immediate", "exhibits": []},
-  {"id": "e30", "date": "2023-12-12", "precision": "day", "description": "The Caring Society brought a non-compliance motion on Jordan's Principle before the Tribunal", "paragraphs": [46], "quote": "More recently, on December 12, 2023, the Caring Society brought a non", "exhibits": []},
-  {"id": "e31", "date": "2024-03", "precision": "month", "description": "Blackstock repeatedly urged Canada to determine a northwestern Ontario First Nation's group request; a three-year-old child died while it was under review", "paragraphs": [23], "quote": "In March 2024, the Caring Society directly advocated for Canada to determine a", "exhibits": []},
-  {"id": "e32", "date": "2024-12-13", "precision": "day", "description": "The Caring Society extended urgent funding to another family fleeing domestic violence", "paragraphs": [24], "quote": "On December 13, 2024 I directed the Caring Society to extend urgent", "exhibits": []},
-  {"id": "e33", "date": "2025-01-29", "precision": "day", "description": "The Tribunal issued full reasons on the non-compliance motion (2025 CHRT 6); Canada later discontinued its judicial review", "paragraphs": [46], "quote": "Tribunal issued its full reasons on the Caring Society's motion on January 29, 2025", "exhibits": []},
-  {"id": "e34", "date": "2025-02-05", "precision": "day", "description": "The Caring Society extended travel support for a Manitoba child's cancer treatment at SickKids after ISC's denial", "paragraphs": [24], "quote": "On February 5, 2025, the Caring Society extended compassionate travel", "exhibits": []},
-  {"id": "e35", "precision": "undated", "description": "The Caring Society and the AFN wrote a joint letter to the Deputy Minister about the child's needs, which went unanswered", "paragraphs": [24], "quote": "The Caring Society and the AFN wrote a joint letter to the Deputy", "exhibits": []},
-  {"id": "e36", "precision": "undated", "description": "Blackstock visited the hospital where Jordan spent his life with Jordan's family in the week before affirming", "paragraphs": [12], "quote": "This past week I had the deep honour of joining them on a visit to the", "exhibits": []}
- ],
- "referenced_not_attached": ["Wen:De We Are Coming to the Light of Day (2005)", "Earlier versions of the Jordan's Principle Concerns Document", "Written Representations of the proposed intervener"],
- "notes": "The CV (Exhibit A) supports the affidavit's biographical dates."
+  {
+   "id": "e1",
+   "date": "1987",
+   "end_date": "1995",
+   "precision": "range",
+   "description": "Blackstock was a senior social worker with the Province of British Columbia",
+   "paragraphs": [
+    5
+   ],
+   "quote": "senior social worker with the Province of British Columbia (1987-1995)",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "1995",
+   "end_date": "1999",
+   "precision": "range",
+   "description": "Blackstock was Assistant to the Social Development Director for the Squamish First Nation",
+   "paragraphs": [
+    5
+   ],
+   "quote": "to the Social Development Director for the Squamish First Nation (1995-1999)",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "1998",
+   "precision": "year",
+   "description": "The Caring Society was founded",
+   "paragraphs": [
+    9
+   ],
+   "quote": "First founded in 1998, the Caring Society is a national non-profit organization",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "1999",
+   "end_date": "2002",
+   "precision": "range",
+   "description": "Blackstock was Executive Director of the Caring for First Nations Children Society in BC",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Caring for First Nations Children Society in British Columbia (1999-2002)",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2002",
+   "precision": "year",
+   "description": "Blackstock became Executive Director of the Caring Society",
+   "paragraphs": [
+    1
+   ],
+   "quote": "have held this position",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2005",
+   "precision": "year",
+   "description": "Jordan River Anderson died after over two years in hospital while governments disputed payment; Jordan's Principle first published in the Caring Society's Wen:De report",
+   "paragraphs": [
+    10,
+    13,
+    38
+   ],
+   "quote": "Jordan sadly passed away in 2005 before ever getting a chance to go home",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2007-12-12",
+   "precision": "day",
+   "description": "Parliament unanimously adopted Jordan's Principle (Motion 296), with Blackstock and Jordan's family attending",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On December 12, 2007, I accompanied Jordan's",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2007",
+   "precision": "year",
+   "description": "The Caring Society and the AFN began litigating the discrimination complaint against Canada",
+   "paragraphs": [
+    39
+   ],
+   "quote": "Since 2007, the Caring Society and the AFN have successfully litigated a",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2009",
+   "precision": "year",
+   "description": "The UNCRC adopted General Comment 11 on Indigenous children, drafted with the Indigenous Sub-Group Blackstock convened",
+   "paragraphs": [
+    34
+   ],
+   "quote": "The General Comment was adopted by the",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2010",
+   "precision": "approximate",
+   "description": "Canada began monitoring Blackstock's social media and movements",
+   "paragraphs": [
+    41
+   ],
+   "quote": "This monitoring began in or about 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2013-10-29",
+   "precision": "day",
+   "description": "The Privacy Commissioner found the federal government breached Blackstock's Privacy Act rights",
+   "paragraphs": [
+    41
+   ],
+   "quote": "found, on October 29, 2013, that the federal government breached my rights under the",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2013",
+   "end_date": "2014",
+   "precision": "range",
+   "description": "Hearings on the merits of the Complaint",
+   "paragraphs": [
+    42
+   ],
+   "quote": "The hearings on the merits of the Complaint were held in 2013 and 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2014-07-11",
+   "precision": "day",
+   "description": "Canada discontinued its appeal in Pictou Landing Band Council before the hearing",
+   "paragraphs": [
+    36
+   ],
+   "quote": "Canada discontinued its appeal on July 11, 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2015-06-05",
+   "precision": "day",
+   "description": "The Tribunal awarded Blackstock $20,000 for Canada's retaliatory conduct",
+   "paragraphs": [
+    41
+   ],
+   "quote": "as detailed in the Tribunal's June 5, 2015 decision awarding me $20,000",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2016",
+   "precision": "year",
+   "description": "The Tribunal's Merits Decision found Canada discriminated in child and family services funding and in its narrow approach to Jordan's Principle",
+   "paragraphs": [
+    43
+   ],
+   "quote": "In a historic decision issued in 2016, the Tribunal found that Canada",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2017",
+   "precision": "year",
+   "description": "The Tribunal made orders setting out a clear approach to Jordan's Principle (2017 CHRT 14, 2017 CHRT 35)",
+   "paragraphs": [
+    20,
+    45
+   ],
+   "quote": "requestors was meant to be time limited after the Tribunal made orders in 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2018",
+   "precision": "year",
+   "description": "The Caring Society created the Jordan's Principle Concerns Document, later updated through April 2021 and again in June 2023",
+   "paragraphs": [
+    16
+   ],
+   "quote": "We documented Canada's non-compliance in a 2018 document titled",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2018-11",
+   "precision": "month",
+   "description": "The Jordan's Principle Operations Committee, co-chaired by Canada, became operational",
+   "paragraphs": [
+    19
+   ],
+   "quote": "This group has been operational since November 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2018",
+   "precision": "year",
+   "description": "Canada's non-compliance was linked to the deaths of three children",
+   "paragraphs": [
+    43
+   ],
+   "quote": "Canada's non- compliance was linked to the deaths of three children in",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2021",
+   "precision": "year",
+   "description": "The Caring Society, the AFN and Canada developed the Back-to-Basics Approach",
+   "paragraphs": [
+    17
+   ],
+   "quote": "engaged with Canada to develop the Back-to-Basics Approach in 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2021-12-31",
+   "precision": "day",
+   "description": "The Caring Society signed the Agreement-in-Principle on long-term reform with an appended Jordan's Principle Workplan",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On December 31, 2021, the Caring Society signed the Agreement-in-Principle",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": "2022",
+   "precision": "year",
+   "description": "The Jordan's Principle Accountability Mechanisms Report proposed a complaints mechanism that Canada did not establish",
+   "paragraphs": [
+    20
+   ],
+   "quote": "mechanism as proposed in an expert report in 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2022-05-11",
+   "precision": "day",
+   "description": "The Caring Society was granted leave to intervene in the Manitoba Court of King's Bench judicial reviews",
+   "paragraphs": [
+    36
+   ],
+   "quote": "On May 11, 2022, the Caring Society was granted leave to intervene at the",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "date": "2022-10-05",
+   "precision": "day",
+   "description": "The Caring Society was granted leave to intervene at the CHRT in Dominique v. Public Safety Canada",
+   "paragraphs": [
+    36
+   ],
+   "quote": "On October 5, 2022, the Caring Society was granted leave to intervene at",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "date": "2022",
+   "end_date": "2023",
+   "precision": "range",
+   "description": "The Caring Society observed consistent problems in Canada's handling of Jordan's Principle requests, including a backlog of over 100,000 requests",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Throughout 2022 and 2023, the Caring Society observed consistent issues",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "date": "2023-01",
+   "end_date": "2025-05",
+   "precision": "range",
+   "description": "The Caring Society raised over 420 Jordan's Principle cases with ISC, about 40% resolved",
+   "paragraphs": [
+    22
+   ],
+   "quote": "Between January 2023 and May 2025 alone, the Caring Society has raised over",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "date": "2023-05-31",
+   "precision": "day",
+   "description": "The Caring Society funded two children to attend a memorial potlatch after ISC failed to determine the request",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On May 31, 2023, I directed the Caring Society staff to extend",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "date": "2023-08-18",
+   "precision": "day",
+   "description": "The Caring Society issued emergency supports to a family fleeing wildfire",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On August 18, 2023, I directed the Caring Society staff to issue emergency",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "date": "2023-11-06",
+   "precision": "day",
+   "description": "The Caring Society transferred supports to a family fleeing domestic violence",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On November 6, 2023, the Caring Society transferred immediate",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "date": "2023-12-12",
+   "precision": "day",
+   "description": "The Caring Society brought a non-compliance motion on Jordan's Principle before the Tribunal",
+   "paragraphs": [
+    46
+   ],
+   "quote": "More recently, on December 12, 2023, the Caring Society brought a non",
+   "exhibits": []
+  },
+  {
+   "id": "e31",
+   "date": "2024-03",
+   "precision": "month",
+   "description": "Blackstock repeatedly urged Canada to determine a northwestern Ontario First Nation's group request; a three-year-old child died while it was under review",
+   "paragraphs": [
+    23
+   ],
+   "quote": "In March 2024, the Caring Society directly advocated for Canada to determine a",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "date": "2024-12-13",
+   "precision": "day",
+   "description": "The Caring Society extended urgent funding to another family fleeing domestic violence",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On December 13, 2024 I directed the Caring Society to extend urgent",
+   "exhibits": []
+  },
+  {
+   "id": "e33",
+   "date": "2025-01-29",
+   "precision": "day",
+   "description": "The Tribunal issued full reasons on the non-compliance motion (2025 CHRT 6); Canada later discontinued its judicial review",
+   "paragraphs": [
+    46
+   ],
+   "quote": "Tribunal issued its full reasons on the Caring Society's motion on January 29, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "date": "2025-02-05",
+   "precision": "day",
+   "description": "The Caring Society extended travel support for a Manitoba child's cancer treatment at SickKids after ISC's denial",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On February 5, 2025, the Caring Society extended compassionate travel",
+   "exhibits": []
+  },
+  {
+   "id": "e35",
+   "precision": "undated",
+   "description": "The Caring Society and the AFN wrote a joint letter to the Deputy Minister about the child's needs, which went unanswered",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The Caring Society and the AFN wrote a joint letter to the Deputy",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "precision": "undated",
+   "description": "Blackstock visited the hospital where Jordan spent his life with Jordan's family in the week before affirming",
+   "paragraphs": [
+    12
+   ],
+   "quote": "This past week I had the deep honour of joining them on a visit to the",
+   "exhibits": []
+  }
+ ]
 }

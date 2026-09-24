@@ -370,5 +370,16 @@
    "text_chars": 4229
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-bhpyg7.pdf",
+  "doc-gurywh.pdf",
+  "doc-jnadrt.pdf",
+  "doc-mw2ba8.pdf",
+  "doc-shjek4.pdf",
+  "doc-tfxd3n.pdf",
+  "doc-vygtyv.pdf",
+  "doc-zguaa5.pdf",
+  "doc-zts77d.pdf"
+ ]
 }

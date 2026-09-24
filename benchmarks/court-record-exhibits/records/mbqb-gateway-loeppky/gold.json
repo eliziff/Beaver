@@ -9,40 +9,402 @@
  "deponent": "Carla Loeppky",
  "deponent_role": "Director and Lead Epidemiologist, Epidemiology and Surveillance Unit, Manitoba Health, Seniors and Active Living",
  "sworn_date": "2021-03-04",
+ "referenced_not_attached": [
+  "Manitoba's agent-based COVID-19 model designed by Dr. Luiz Guidolin",
+  "Reports for First Nations leadership, correctional facilities, healthcare workers and schools"
+ ],
+ "leak_waivers": [],
+ "notes": "Posted by JCCF as a standalone file. Exhibit G is also discussed with Exhibit F pages 50-51 in paragraph 20.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-2s2c72.pdf", "kind": "other", "date": null, "author": "Carla Loeppky", "recipients": [], "description": "Her curriculum vitae", "references": [{"paragraph": 2, "quote": "My curriculum vitae is attached as Exhibit A."}], "content_check": "10 pages: CV of Carla D. Loeppky, PhD, Director and Lead Epidemiologist"},
-  {"label": "B", "file": "doc-5jjfya.pdf", "kind": "report", "date": "2021-01-14", "author": "Manitoba Health, Seniors and Active Living, Epidemiology and Surveillance", "recipients": ["Internal government and regional health authority users"], "description": "Situational report for January 14, 2021", "references": [{"paragraph": 8, "quote": "Attached hereto and marked as Exhibit Bis a copy of the\nsituational report for January 14, 2021."}], "content_check": "33 pages: 'COVID-19: MHSAL Epidemiological Situation Report', internal use only, as of 14JAN21"},
-  {"label": "C", "file": "doc-x949fc.pdf", "kind": "report", "date": "2021-01-11", "author": "Manitoba Epidemiology & Surveillance", "recipients": [], "description": "Severe outcomes report for January 11, 2021", "references": [{"paragraph": 9, "quote": "Attached hereto and marked as Exhibit\nC is a copy of the severe outcomes report for January 11, 2021."}], "content_check": "11 pages: 'Demographic and Clinical Characteristics of COVID-19 Cases with a Severe Outcome in Manitoba: March 12 - January 11, 2021'"},
-  {"label": "D", "file": "doc-dp247d.pdf", "kind": "report", "date": "2020-11-01", "author": "Manitoba Epidemiology & Surveillance", "recipients": [], "description": "Initial report on impacts of the pandemic on Manitoba health indicators, based on data from January 1, 2019 to August 31, 2020", "references": [{"paragraph": 12, "quote": "August 31, 2020 is attached as Exhibit D."}], "content_check": "44 pages: 'Impacts of COVID-19 Public Health Measures on Various Health Indicators in Manitoba', dated November 1, 2020"},
-  {"label": "E", "file": "doc-8deduw.pdf", "kind": "report", "date": "2020-10-15", "author": "Manitoba Epidemiology and Surveillance Unit", "recipients": ["Dr. Brent Roussin", "Government officials"], "description": "Unit report for October 15, 2020 sent to Dr. Roussin and other officials", "references": [{"paragraph": 16, "quote": "The Unit report for\nOctober 15, 2020 which was sent to Dr. Roussin and other government officials is attached as\nExhibit E."}], "content_check": "36 slides: Manitoba 'COVID Response Update' deck with case numbers and highlights"},
-  {"label": "F", "file": "doc-mqd34t.pdf", "kind": "report", "date": "2020-11-10", "author": "Carla Loeppky and Dr. Luiz Guidolin", "recipients": ["Dr. Brent Roussin", "Health and government officials"], "description": "Epidemiology and modelling report presented on November 10, 2020", "references": [{"paragraph": 17, "quote": "The report is attached as Exhibit"}], "content_check": "53 slides: 'COVID Response Update - Confidential' deck on Manitoba's worst-in-Canada active case rate, with modelling scenarios"},
-  {"label": "G", "file": "doc-ytu3k7.pdf", "kind": "report", "date": "2021-01-21", "author": "Manitoba Epidemiology and Surveillance Unit", "recipients": [], "description": "Report on Manitoba's COVID-19 cases to January 21, 2021, with revised model", "references": [{"paragraph": 20, "quote": "The report regarding Manitoba's COVID-19 cases to January 21, 2021 is attached as\nExhibit G."}], "content_check": "25 slides: 'COVID Response Update' stating weekly cases have decreased since November 12, 2020"},
-  {"label": "H", "file": "doc-hx3tjn.pdf", "kind": "report", "date": "2021-03-02", "author": "C. Loeppky, X. Bjornsson, S. Leggett", "recipients": [], "description": "Summary of the province's most recent COVID-19 statistics", "references": [{"paragraph": 21, "quote": "A summary of the province's most recent COVID-19 statistics is attached as Exhibit H."}], "content_check": "16 pages: 'COVID-19 Epidemiological Information' dated March 2, 2021 with daily case charts"}
+  {
+   "label": "A",
+   "file": "doc-2s2c72.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Carla Loeppky",
+   "recipients": [],
+   "description": "Her curriculum vitae",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "My curriculum vitae is attached as Exhibit A."
+    }
+   ],
+   "content_check": "10 pages: CV of Carla D. Loeppky, PhD, Director and Lead Epidemiologist"
+  },
+  {
+   "label": "B",
+   "file": "doc-5jjfya.pdf",
+   "kind": "report",
+   "date": "2021-01-14",
+   "author": "Manitoba Health, Seniors and Active Living, Epidemiology and Surveillance",
+   "recipients": [
+    "Internal government and regional health authority users"
+   ],
+   "description": "Situational report for January 14, 2021",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto and marked as Exhibit Bis a copy of the\nsituational report for January 14, 2021."
+    }
+   ],
+   "content_check": "33 pages: 'COVID-19: MHSAL Epidemiological Situation Report', internal use only, as of 14JAN21"
+  },
+  {
+   "label": "C",
+   "file": "doc-x949fc.pdf",
+   "kind": "report",
+   "date": "2021-01-11",
+   "author": "Manitoba Epidemiology & Surveillance",
+   "recipients": [],
+   "description": "Severe outcomes report for January 11, 2021",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto and marked as Exhibit\nC is a copy of the severe outcomes report for January 11, 2021."
+    }
+   ],
+   "content_check": "11 pages: 'Demographic and Clinical Characteristics of COVID-19 Cases with a Severe Outcome in Manitoba: March 12 - January 11, 2021'"
+  },
+  {
+   "label": "D",
+   "file": "doc-dp247d.pdf",
+   "kind": "report",
+   "date": "2020-11-01",
+   "author": "Manitoba Epidemiology & Surveillance",
+   "recipients": [],
+   "description": "Initial report on impacts of the pandemic on Manitoba health indicators, based on data from January 1, 2019 to August 31, 2020",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "August 31, 2020 is attached as Exhibit D."
+    }
+   ],
+   "content_check": "44 pages: 'Impacts of COVID-19 Public Health Measures on Various Health Indicators in Manitoba', dated November 1, 2020"
+  },
+  {
+   "label": "E",
+   "file": "doc-8deduw.pdf",
+   "kind": "report",
+   "date": "2020-10-15",
+   "author": "Manitoba Epidemiology and Surveillance Unit",
+   "recipients": [
+    "Dr. Brent Roussin",
+    "Government officials"
+   ],
+   "description": "Unit report for October 15, 2020 sent to Dr. Roussin and other officials",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "The Unit report for\nOctober 15, 2020 which was sent to Dr. Roussin and other government officials is attached as\nExhibit E."
+    }
+   ],
+   "content_check": "36 slides: Manitoba 'COVID Response Update' deck with case numbers and highlights"
+  },
+  {
+   "label": "F",
+   "file": "doc-mqd34t.pdf",
+   "kind": "report",
+   "date": "2020-11-10",
+   "author": "Carla Loeppky and Dr. Luiz Guidolin",
+   "recipients": [
+    "Dr. Brent Roussin",
+    "Health and government officials"
+   ],
+   "description": "Epidemiology and modelling report presented on November 10, 2020",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "The report is attached as Exhibit"
+    }
+   ],
+   "content_check": "53 slides: 'COVID Response Update - Confidential' deck on Manitoba's worst-in-Canada active case rate, with modelling scenarios"
+  },
+  {
+   "label": "G",
+   "file": "doc-ytu3k7.pdf",
+   "kind": "report",
+   "date": "2021-01-21",
+   "author": "Manitoba Epidemiology and Surveillance Unit",
+   "recipients": [],
+   "description": "Report on Manitoba's COVID-19 cases to January 21, 2021, with revised model",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "The report regarding Manitoba's COVID-19 cases to January 21, 2021 is attached as\nExhibit G."
+    }
+   ],
+   "content_check": "25 slides: 'COVID Response Update' stating weekly cases have decreased since November 12, 2020"
+  },
+  {
+   "label": "H",
+   "file": "doc-hx3tjn.pdf",
+   "kind": "report",
+   "date": "2021-03-02",
+   "author": "C. Loeppky, X. Bjornsson, S. Leggett",
+   "recipients": [],
+   "description": "Summary of the province's most recent COVID-19 statistics",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "A summary of the province's most recent COVID-19 statistics is attached as Exhibit H."
+    }
+   ],
+   "content_check": "16 pages: 'COVID-19 Epidemiological Information' dated March 2, 2021 with daily case charts"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2009", "precision": "year", "description": "Loeppky obtained her PhD in Community Health Sciences and became an Assistant Professor at the University of Manitoba", "paragraphs": [2], "quote": "I have a PhD. from the University of Manitoba in Community Health Sciences, obtained in\n2009", "exhibits": ["A"]},
-  {"id": "e2", "date": "2011", "precision": "range", "description": "She was a senior epidemiologist with Manitoba Health from 2011 to 2013", "paragraphs": [2], "quote": "Prior to that I was a senior epidemiologist with\nManitoba Health from 2011-2013.", "exhibits": ["A"]},
-  {"id": "e3", "date": "2013", "precision": "year", "description": "She became Director and Lead Epidemiologist of the Epidemiology and Surveillance Unit", "paragraphs": [2], "quote": "I have held this position since 2013.", "exhibits": ["A"]},
-  {"id": "e4", "date": "2020-08", "precision": "month", "description": "Church service cluster in Prairie Mountain Health: twelve cases out of about fifteen attendees", "paragraphs": [14], "quote": "Prairie Mountain Health - August 2020 - Church service", "exhibits": []},
-  {"id": "e5", "date": "2020-09", "precision": "month", "description": "Church choir practice cluster in the Winnipeg Regional Health Authority: four cases", "paragraphs": [14], "quote": "Winnipeg Regional Health Authority - September 2020 - Church choir practice", "exhibits": []},
-  {"id": "e6", "date": "2020-10", "precision": "month", "description": "Church service cluster in Interlake Eastern RHA in mid-October: fourteen cases, one death", "paragraphs": [14], "quote": "Interlake Eastern Regional Health Authority - October 2020 - Church service", "exhibits": []},
-  {"id": "e7", "date": "2020-10-15", "precision": "day", "description": "The Unit's October 15, 2020 report was sent to Dr. Roussin and other officials", "paragraphs": [16], "quote": "The Unit report for\nOctober 15, 2020 which was sent to Dr. Roussin", "exhibits": ["E"]},
-  {"id": "e8", "date": "2020-10-19", "precision": "range", "description": "For the week of October 19-24, 2020 modelling projected 217-1,299 new cases; actual was 1,038", "paragraphs": [16], "quote": "Manitoba's actual new case count for that week was 1,038", "exhibits": []},
-  {"id": "e9", "date": "2020-10", "precision": "approximate", "description": "Late October to early November 2020 Winnipeg cluster (services, band practice, meeting): fourteen cases, two deaths", "paragraphs": [14], "quote": "Late October to early November 2020- Services,\nband practice and a meeting", "exhibits": []},
-  {"id": "e10", "date": "2020-10", "precision": "approximate", "description": "Steinbach-area church cluster of nineteen individuals, late October through November 2020", "paragraphs": [14], "quote": "Southern Health - Late October through November, 2020 - Church activities", "exhibits": []},
-  {"id": "e11", "date": "2020-11-01", "precision": "range", "description": "Winnipeg cluster from church services, volunteer activities and a meeting, November 1-15, 2020", "paragraphs": [14], "quote": "November 1-15, 2020 - Church services", "exhibits": []},
-  {"id": "e12", "date": "2020-11-08", "precision": "day", "description": "A church service attended by 45-67 people within the November cluster", "paragraphs": [14], "quote": "The church\nservice on November 8th was attended by between 45-67 people.", "exhibits": []},
-  {"id": "e13", "date": "2020-11", "precision": "month", "description": "November 2020 clusters from a choir practice, a funeral, and a First Nation funeral and wake", "paragraphs": [14], "quote": "Winnipeg Regional Health Authority - November 2020 - Choir practice", "exhibits": []},
-  {"id": "e14", "date": "2020-11-10", "precision": "day", "description": "Loeppky and Dr. Guidolin presented an epidemiology and modelling report to Dr. Roussin; only 8 ICU beds were available", "paragraphs": [17], "quote": "On November I 0, 2020, Dr. Guidolin and I presented an epidemiology and modelling report", "exhibits": ["F"]},
-  {"id": "e15", "date": "2020-11-12", "precision": "day", "description": "The whole province was put under Level Red (critical) restrictions; weekly cases have declined since", "paragraphs": [20], "quote": "decreasing since November 12, 2020", "exhibits": ["G"]},
-  {"id": "e16", "date": "2020-12-10", "precision": "day", "description": "By December 10, 2020 Manitoba had 478 deaths, at the high end of the projection", "paragraphs": [18], "quote": "Manitoba had experienced 478 deaths", "exhibits": ["F"]},
-  {"id": "e17", "date": "2021-01-11", "precision": "day", "description": "As of January 11, 2021 Manitoba had 741 deaths, 1,841 hospitalizations and 350 ICU admissions", "paragraphs": [9], "quote": "Manitoba\nhad 741 deaths from COVID-19", "exhibits": ["C"]},
-  {"id": "e18", "date": "2021-01-14", "precision": "day", "description": "Daily situational report for January 14, 2021", "paragraphs": [8], "quote": "situational report for January 14, 2021", "exhibits": ["B"]},
-  {"id": "e19", "date": "2021-01-21", "precision": "day", "description": "Report on cases to January 21, 2021 with revised model", "paragraphs": [20], "quote": "Manitoba's COVID-19 cases to January 21, 2021", "exhibits": ["G"]},
-  {"id": "e20", "date": "2021-02", "precision": "month", "description": "Northern First Nation funeral, wake and birthday party led to fifty-four infections and over 300 cases on the reserve", "paragraphs": [14], "quote": "Northern Health Region - First Nation Reserve - February 2021- Funeral and wake", "exhibits": []},
-  {"id": "e21", "date": "2021-03-04", "precision": "day", "description": "Loeppky affirmed the affidavit in Winnipeg", "paragraphs": [23], "quote": "I make this affidavit bona fide.", "exhibits": []}
- ],
- "referenced_not_attached": ["Manitoba's agent-based COVID-19 model designed by Dr. Luiz Guidolin", "Reports for First Nations leadership, correctional facilities, healthcare workers and schools"],
- "leak_waivers": [],
- "notes": "Posted by JCCF as a standalone file. Exhibit G is also discussed with Exhibit F pages 50-51 in paragraph 20."
+  {
+   "id": "e1",
+   "date": "2009",
+   "precision": "year",
+   "description": "Loeppky obtained her PhD in Community Health Sciences and became an Assistant Professor at the University of Manitoba",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have a PhD. from the University of Manitoba in Community Health Sciences, obtained in\n2009",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2011",
+   "precision": "range",
+   "description": "She was a senior epidemiologist with Manitoba Health from 2011 to 2013",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Prior to that I was a senior epidemiologist with\nManitoba Health from 2011-2013.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2013",
+   "precision": "year",
+   "description": "She became Director and Lead Epidemiologist of the Epidemiology and Surveillance Unit",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have held this position since 2013.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2020-08",
+   "precision": "month",
+   "description": "Church service cluster in Prairie Mountain Health: twelve cases out of about fifteen attendees",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Prairie Mountain Health - August 2020 - Church service",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2020-09",
+   "precision": "month",
+   "description": "Church choir practice cluster in the Winnipeg Regional Health Authority: four cases",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Winnipeg Regional Health Authority - September 2020 - Church choir practice",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2020-10",
+   "precision": "month",
+   "description": "Church service cluster in Interlake Eastern RHA in mid-October: fourteen cases, one death",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Interlake Eastern Regional Health Authority - October 2020 - Church service",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2020-10-15",
+   "precision": "day",
+   "description": "The Unit's October 15, 2020 report was sent to Dr. Roussin and other officials",
+   "paragraphs": [
+    16
+   ],
+   "quote": "The Unit report for\nOctober 15, 2020 which was sent to Dr. Roussin",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2020-10-19",
+   "precision": "range",
+   "description": "For the week of October 19-24, 2020 modelling projected 217-1,299 new cases; actual was 1,038",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Manitoba's actual new case count for that week was 1,038",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2020-10",
+   "precision": "approximate",
+   "description": "Late October to early November 2020 Winnipeg cluster (services, band practice, meeting): fourteen cases, two deaths",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Late October to early November 2020- Services,\nband practice and a meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2020-10",
+   "precision": "approximate",
+   "description": "Steinbach-area church cluster of nineteen individuals, late October through November 2020",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Southern Health - Late October through November, 2020 - Church activities",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2020-11-01",
+   "precision": "range",
+   "description": "Winnipeg cluster from church services, volunteer activities and a meeting, November 1-15, 2020",
+   "paragraphs": [
+    14
+   ],
+   "quote": "November 1-15, 2020 - Church services",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2020-11-08",
+   "precision": "day",
+   "description": "A church service attended by 45-67 people within the November cluster",
+   "paragraphs": [
+    14
+   ],
+   "quote": "The church\nservice on November 8th was attended by between 45-67 people.",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2020-11",
+   "precision": "month",
+   "description": "November 2020 clusters from a choir practice, a funeral, and a First Nation funeral and wake",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Winnipeg Regional Health Authority - November 2020 - Choir practice",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2020-11-10",
+   "precision": "day",
+   "description": "Loeppky and Dr. Guidolin presented an epidemiology and modelling report to Dr. Roussin; only 8 ICU beds were available",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On November I 0, 2020, Dr. Guidolin and I presented an epidemiology and modelling report",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2020-11-12",
+   "precision": "day",
+   "description": "The whole province was put under Level Red (critical) restrictions; weekly cases have declined since",
+   "paragraphs": [
+    20
+   ],
+   "quote": "decreasing since November 12, 2020",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2020-12-10",
+   "precision": "day",
+   "description": "By December 10, 2020 Manitoba had 478 deaths, at the high end of the projection",
+   "paragraphs": [
+    18
+   ],
+   "quote": "Manitoba had experienced 478 deaths",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2021-01-11",
+   "precision": "day",
+   "description": "As of January 11, 2021 Manitoba had 741 deaths, 1,841 hospitalizations and 350 ICU admissions",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Manitoba\nhad 741 deaths from COVID-19",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2021-01-14",
+   "precision": "day",
+   "description": "Daily situational report for January 14, 2021",
+   "paragraphs": [
+    8
+   ],
+   "quote": "situational report for January 14, 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": "2021-01-21",
+   "precision": "day",
+   "description": "Report on cases to January 21, 2021 with revised model",
+   "paragraphs": [
+    20
+   ],
+   "quote": "Manitoba's COVID-19 cases to January 21, 2021",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2021-02",
+   "precision": "month",
+   "description": "Northern First Nation funeral, wake and birthday party led to fifty-four infections and over 300 cases on the reserve",
+   "paragraphs": [
+    14
+   ],
+   "quote": "Northern Health Region - First Nation Reserve - February 2021- Funeral and wake",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2021-03-04",
+   "precision": "day",
+   "description": "Loeppky affirmed the affidavit in Winnipeg",
+   "paragraphs": [
+    23
+   ],
+   "quote": "I make this affidavit bona fide.",
+   "exhibits": []
+  }
+ ]
 }

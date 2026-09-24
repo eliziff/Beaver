@@ -9,22 +9,190 @@
  "deponent": "Alec Hoy",
  "deponent_role": "Associate, Cassels Brock & Blackwell LLP, counsel to the proposed Foreign Representative and the Canadian Debtors",
  "sworn_date": "2024-03-25",
+ "referenced_not_attached": [
+  "Affidavit of Douglas D. Clark sworn March 25, 2024",
+  "First affidavit of Alec Hoy sworn March 25, 2024 with the U.S. motion materials",
+  "Chapter 11 petitions"
+ ],
+ "leak_waivers": [
+  "D"
+ ],
+ "notes": "Short Part IV recognition affidavit; all exhibits are U.S. Chapter 11 first-day orders. D's leak is the order's own reference to an exhibit of the underlying motion.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-hd22ta.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Foreign Representative Order authorizing CURO Group Holdings Corp. to act as foreign representative", "references": [{"paragraph": 5, "quote": "Order (I) Authorizing CURO Group Holdings \nCorp. to Act as Foreign Representative and (II) Granting Related Relief; attached \nhereto as Exhibit \"A\""}], "content_check": "Three-page order, Case No. 24-90165 (MI), authorizing CURO Group Holdings Corp. to act as foreign representative"},
-  {"label": "B", "file": "doc-8ktdfh.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Joint Administration Order directing joint administration of the Chapter 11 cases", "references": [{"paragraph": 5, "quote": "Order (I) Directing Joint Administration of Chapter 11 \nCases and (II) Granting Related Relief; attached hereto as Exhibit \"B\""}], "content_check": "Eleven-page order captioned with each debtor's case (Covington Credit of Texas, CURO Group Holdings Corp., ...) directing joint administration"},
-  {"label": "C", "file": "doc-5xq7q2.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Interim Cash Management Order authorizing the Debtors to continue their cash management system and bank accounts", "references": [{"paragraph": 5, "quote": "Interim Order (I) Authorizing the Debtors to (A) \nContinue to Operate their Cash Management System"}], "content_check": "29-page interim order, Re: Docket No. 14, on the cash management system"},
-  {"label": "D", "file": "doc-tqdczw.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Interim Securitization Order authorizing certain Debtors to continue selling and servicing consumer loan receivables", "references": [{"paragraph": 5, "quote": "Interim Order (I) Authorizing Certain Debtors to \nContinue Selling and Servicing Consumer Loan Receivables"}], "content_check": "36-page interim order, Re: Docket No. 53, on the securitization facilities; its text refers to an exhibit D of the underlying motion"},
-  {"label": "E", "file": "doc-9mxu8v.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Wages Order authorizing payment of prepetition employee wages and continuation of benefit programs", "references": [{"paragraph": 5, "quote": "Order (I) Authorizing, But Not Directing, the Debtors to (A) Pay \nPrepetition Employee Wages"}], "content_check": "Five-page order, Re: Docket No. 17, on prepetition wages"},
-  {"label": "F", "file": "doc-6yeenw.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Interim Taxes Order authorizing payment of certain taxes and fees", "references": [{"paragraph": 5, "quote": "Interim Order (I) Authorizing, Payment of Certain Taxes and Fees \nand (II) Granting Related Relief; attached hereto as Exhibit \"F\""}], "content_check": "Five-page interim order, Re: Docket No. 18, on payment of taxes"},
-  {"label": "G", "file": "doc-3g2fv7.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Insurance Order authorizing continued insurance coverage and the surety bond and LOC program", "references": [{"paragraph": 5, "quote": "(III) Granting Related Relief; attached hereto as Exhibit \"G\""}], "content_check": "20-page order, Re: Docket No. 21, on continuing insurance coverage"},
-  {"label": "H", "file": "doc-nnkxrx.pdf", "kind": "court_order", "date": "2024-03-25", "author": "U.S. Bankruptcy Court, Southern District of Texas", "recipients": [], "description": "Customer Programs Order authorizing the Debtors to honor prepetition customer obligations and continue customer programs", "references": [{"paragraph": 5, "quote": "Requirements and (III) Granting Related Relief; attached hereto as Exhibit \"H\""}], "content_check": "Five-page order on honoring customer obligations; the caption reads 'Related Docket No. ___'"}
+  {
+   "label": "A",
+   "file": "doc-hd22ta.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Foreign Representative Order authorizing CURO Group Holdings Corp. to act as foreign representative",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Order (I) Authorizing CURO Group Holdings \nCorp. to Act as Foreign Representative and (II) Granting Related Relief; attached \nhereto as Exhibit \"A\""
+    }
+   ],
+   "content_check": "Three-page order, Case No. 24-90165 (MI), authorizing CURO Group Holdings Corp. to act as foreign representative"
+  },
+  {
+   "label": "B",
+   "file": "doc-8ktdfh.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Joint Administration Order directing joint administration of the Chapter 11 cases",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Order (I) Directing Joint Administration of Chapter 11 \nCases and (II) Granting Related Relief; attached hereto as Exhibit \"B\""
+    }
+   ],
+   "content_check": "Eleven-page order captioned with each debtor's case (Covington Credit of Texas, CURO Group Holdings Corp., ...) directing joint administration"
+  },
+  {
+   "label": "C",
+   "file": "doc-5xq7q2.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Interim Cash Management Order authorizing the Debtors to continue their cash management system and bank accounts",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Interim Order (I) Authorizing the Debtors to (A) \nContinue to Operate their Cash Management System"
+    }
+   ],
+   "content_check": "29-page interim order, Re: Docket No. 14, on the cash management system"
+  },
+  {
+   "label": "D",
+   "file": "doc-tqdczw.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Interim Securitization Order authorizing certain Debtors to continue selling and servicing consumer loan receivables",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Interim Order (I) Authorizing Certain Debtors to \nContinue Selling and Servicing Consumer Loan Receivables"
+    }
+   ],
+   "content_check": "36-page interim order, Re: Docket No. 53, on the securitization facilities; its text refers to an exhibit D of the underlying motion"
+  },
+  {
+   "label": "E",
+   "file": "doc-9mxu8v.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Wages Order authorizing payment of prepetition employee wages and continuation of benefit programs",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Order (I) Authorizing, But Not Directing, the Debtors to (A) Pay \nPrepetition Employee Wages"
+    }
+   ],
+   "content_check": "Five-page order, Re: Docket No. 17, on prepetition wages"
+  },
+  {
+   "label": "F",
+   "file": "doc-6yeenw.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Interim Taxes Order authorizing payment of certain taxes and fees",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Interim Order (I) Authorizing, Payment of Certain Taxes and Fees \nand (II) Granting Related Relief; attached hereto as Exhibit \"F\""
+    }
+   ],
+   "content_check": "Five-page interim order, Re: Docket No. 18, on payment of taxes"
+  },
+  {
+   "label": "G",
+   "file": "doc-3g2fv7.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Insurance Order authorizing continued insurance coverage and the surety bond and LOC program",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "(III) Granting Related Relief; attached hereto as Exhibit \"G\""
+    }
+   ],
+   "content_check": "20-page order, Re: Docket No. 21, on continuing insurance coverage"
+  },
+  {
+   "label": "H",
+   "file": "doc-nnkxrx.pdf",
+   "kind": "court_order",
+   "date": "2024-03-25",
+   "author": "U.S. Bankruptcy Court, Southern District of Texas",
+   "recipients": [],
+   "description": "Customer Programs Order authorizing the Debtors to honor prepetition customer obligations and continue customer programs",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Requirements and (III) Granting Related Relief; attached hereto as Exhibit \"H\""
+    }
+   ],
+   "content_check": "Five-page order on honoring customer obligations; the caption reads 'Related Docket No. ___'"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2024-03-25", "precision": "day", "description": "The U.S. Bankruptcy Court granted the Foreign Representative, Joint Administration, Cash Management, Interim Securitization, Wages, Taxes, Insurance and Customer Programs orders", "paragraphs": [5], "quote": "on March 25, 2024, the U.S. Bankruptcy Court granted the following \norders", "exhibits": ["A", "B", "C", "D", "E", "F", "G", "H"]},
-  {"id": "e2", "date": "2024-03-25", "precision": "day", "description": "The deponent's earlier affidavit attached the motion materials for the U.S. orders", "paragraphs": [4], "quote": "Copies of the motion materials were attached to \nmy Affidavit sworn March 25, 2024.", "exhibits": []},
-  {"id": "e3", "date": null, "precision": "undated", "description": "Certified copies of the Foreign Representative Order and the Petitions will be requested from the U.S. Bankruptcy Court", "paragraphs": [6], "quote": "will be requested from \nthe U.S. Bankruptcy Court", "exhibits": ["A"]}
- ],
- "referenced_not_attached": ["Affidavit of Douglas D. Clark sworn March 25, 2024", "First affidavit of Alec Hoy sworn March 25, 2024 with the U.S. motion materials", "Chapter 11 petitions"],
- "leak_waivers": ["D"],
- "notes": "Short Part IV recognition affidavit; all exhibits are U.S. Chapter 11 first-day orders. D's leak is the order's own reference to an exhibit of the underlying motion."
+  {
+   "id": "e1",
+   "date": "2024-03-25",
+   "precision": "day",
+   "description": "The U.S. Bankruptcy Court granted the Foreign Representative, Joint Administration, Cash Management, Interim Securitization, Wages, Taxes, Insurance and Customer Programs orders",
+   "paragraphs": [
+    5
+   ],
+   "quote": "on March 25, 2024, the U.S. Bankruptcy Court granted the following \norders",
+   "exhibits": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2024-03-25",
+   "precision": "day",
+   "description": "The deponent's earlier affidavit attached the motion materials for the U.S. orders",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Copies of the motion materials were attached to \nmy Affidavit sworn March 25, 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": null,
+   "precision": "undated",
+   "description": "Certified copies of the Foreign Representative Order and the Petitions will be requested from the U.S. Bankruptcy Court",
+   "paragraphs": [
+    6
+   ],
+   "quote": "will be requested from \nthe U.S. Bankruptcy Court",
+   "exhibits": [
+    "A"
+   ]
+  }
+ ]
 }

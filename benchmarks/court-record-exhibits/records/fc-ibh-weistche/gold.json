@@ -1,0 +1,250 @@
+{
+ "record_id": "fc-ibh-weistche",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1417-18",
+ "subject": "class_action",
+ "family": "ibh-percival",
+ "proceeding": "Percival, McKay, McKay and Watts v. His Majesty the King (Indian Boarding Homes certified class proceeding): motion to approve the settlement agreement and class counsel fees",
+ "document": "Affidavit of Kenneth Weistche sworn July 21, 2023 (filed July 24, 2023)",
+ "deponent": "Kenneth Weistche",
+ "deponent_role": "Court-appointed Representative Plaintiff for the Quebec Subclass",
+ "sworn_date": "2023-07-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-7pabc5.pdf",
+   "kind": "letter",
+   "date": "2023-05-29",
+   "author": "Grand Chief Mandy Gull, Grand Council of the Crees (Eeyou Istchee) / Cree Nation Government",
+   "recipients": [
+    "Hon. Marc Miller",
+    "Hon. Patty Hajdu"
+   ],
+   "description": "Letter from the Cree Nation Government's Grand Chief to Ministers Miller and Hajdu expressing satisfaction with key components of the Agreement and concerns about support for Class Members",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "to raise concerns about availability of adequate support for Class Members, as appears from Exhibit A"
+    }
+   ],
+   "content_check": "3 pages: GCC(EI)/Cree Nation Government letterhead letter dated May 29, 2023 to Ministers Miller and Hajdu, Re: Boarding homes class action (Percival v. Canada, T-1417-18)"
+  },
+  {
+   "label": "B",
+   "file": "doc-dyx9sg.pdf",
+   "kind": "webpage",
+   "date": "2023-01-03",
+   "author": "Crown-Indigenous Relations and Northern Affairs Canada",
+   "recipients": [],
+   "description": "Press release announcing the Agreement-in-Principle, quoting the deponent",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "I was quoted in the press release announcing the Agreement-in-Principle on January 3, 2023, attached as Exhibit B"
+    }
+   ],
+   "content_check": "6 pages: Canada.ca news release 'Agreement-in-Principle reached to resolve Percival class action lawsuit', January 3, 2023, printed 14/07/2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-g5p28m.pdf",
+   "kind": "webpage",
+   "date": "2023-06-29",
+   "author": "Crown-Indigenous Relations and Northern Affairs Canada",
+   "recipients": [],
+   "description": "Press release announcing the Settlement Agreement, quoting the deponent",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "the press release announcing the Settlement Agreement on June 29, 2023, attached as Exhibit C"
+    }
+   ],
+   "content_check": "6 pages: Canada.ca news release 'Final agreement reached to resolve Percival class action', June 29, 2023, printed 14/07/2023"
+  },
+  {
+   "label": "D",
+   "file": "doc-bdcsky.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "JBCCS - Cree Radio Network",
+   "recipients": [],
+   "description": "Cree Radio Network segment in which the deponent discussed the Agreement",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "I have discussed the Agreement at the Cree Radio Network, as appears from Exhibit D"
+    }
+   ],
+   "content_check": "2 pages: SoundCloud page 'Kenneth Weistche' by JBCCS - Cree Radio Network, printed 14/07/2023"
+  },
+  {
+   "label": "E",
+   "file": "doc-pe366k.pdf",
+   "kind": "other",
+   "date": "2023-03-24",
+   "author": "Ben Powless, The Nation",
+   "recipients": [],
+   "description": "In-depth interview with the deponent about the Agreement-in-Principle published in the Cree magazine The Nation",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "I did an in-depth interview about the Agreement-in-Principle with the Cree magazine The Nation, 'published on March 24, 2023, attached as Exhibit. E"
+    }
+   ],
+   "content_check": "3 pages: The Nation magazine pages dated March 24, 2023 incl. article 'A Living Hell' on the boarding homes agreement in principle, by Ben Powless"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent swears his first affidavit in the proceeding",
+   "date": "2019-05-01",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "This affidavit is further to my affidavit sworn May 1, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Deponent attends the mediation before Justice Strickland in Toronto",
+   "date": "2022-11-14",
+   "end_date": "2022-12-07",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I attended the mediation in Toronto before Madam Justice Strickland on November 14-16, and December 6-7, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Deponent speaks to Grand Chief Mandy Gull about the settlement negotiations",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    14
+   ],
+   "quote": "I spoke personally to Grand Chief Mandy Gull of the Cree Nation Government (\"CNG\") about the settlement negotiations",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Grand Chief Gull writes to Ministers Miller and Hajdu about the Agreement and support for Class Members",
+   "date": "2023-05-29",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "She eventually sent a letter to Marc Miller, Minister of Crown-Indigenous Relations",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Matthew Coon Come meets with counsel and reports to the GCC on the Agreement-in-Principle",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Mr. Coon Come met with counsel and reported to the GCC on the Agreement-in-Principle",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Press release announces the Agreement-in-Principle, quoting the deponent",
+   "date": "2023-01-03",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "I was quoted in the press release announcing the Agreement-in-Principle on January 3, 2023",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Press release announces the Settlement Agreement, quoting the deponent",
+   "date": "2023-06-29",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "the press release announcing the Settlement Agreement on June 29, 2023",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Deponent discusses the Agreement on the Cree Radio Network",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    16
+   ],
+   "quote": "I have discussed the Agreement at the Cree Radio Network",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "The Nation publishes the deponent's interview about the Agreement-in-Principle",
+   "date": "2023-03-24",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "The Nation, 'published on March 24, 2023",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Anne Smith proposed class action in the Quebec Superior Court is suspended to reach an agreement in this proceeding",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    17
+   ],
+   "quote": "the Anne Smith proposed class action was suspended in order to reach an agreement in this proceeding",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Deponent's lawyers meet representatives of the Wiichihiiwewin Centre, who express satisfaction with the Settlement Agreement",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    17
+   ],
+   "quote": "my lawyers have met with representatives from the Wiichihiiwewin Centre, who expressed satisfaction with",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Deponent retains Dionne Schulze on a contingency fee basis",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    19
+   ],
+   "quote": "I retained Dionne Schulze on a contingency fee basis",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "First Affidavit of Kenneth Weistche sworn May 1, 2019",
+  "Settlement Agreement",
+  "Contingency fee agreement with Dionne Schulze",
+  "Briefing notes requested for Cree leadership"
+ ]
+}

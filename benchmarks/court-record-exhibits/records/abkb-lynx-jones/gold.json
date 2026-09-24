@@ -1,0 +1,221 @@
+{
+ "record_id": "abkb-lynx-jones",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2401-02664 (Calgary)",
+ "subject": "insolvency",
+ "family": "lynx-air",
+ "proceeding": "In the matter of the compromise or arrangement of Lynx Air Holdings Corporation and 1263343 Alberta Inc. dba Lynx Air (CCAA); Flair Airlines' position on the proposed sale and investment solicitation process",
+ "document": "Affidavit of Stephen Jones affirmed February 29, 2024 (filed March 4, 2024)",
+ "deponent": "Stephen Jones",
+ "deponent_role": "Chief Executive Officer, Flair Airlines Ltd.",
+ "sworn_date": "2024-02-29",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-23ydkf.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Flair Airlines Ltd.",
+   "recipients": [],
+   "description": "Flair's flight route map",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto and marked as Exhibit \"1\" is \na true copy of Flair's flight route map."
+    }
+   ],
+   "content_check": "1 page, image with garbled text layer: route map of airport codes (YVR, YYC, YEG, YYZ, LAX, CUN...) joined by purple flight lines"
+  },
+  {
+   "label": "2",
+   "file": "doc-9nkbjq.pdf",
+   "kind": "public_record",
+   "date": "2023-11-15",
+   "author": "Alberta Corporate Registration System",
+   "recipients": [
+    "Bennett Jones LLP"
+   ],
+   "description": "Alberta corporate registry search for Flair",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached \nhereto and marked as Exhibits \"2\" and \"3\" are true copies of Alberta and British Columbia \ncorporate registry searches in respect of Flair."
+    }
+   ],
+   "content_check": "2 pages: Government of Alberta Corporation/Non-Profit Search, date of search 2023/11/15, provided by Bennett Jones LLP (Calgary)"
+  },
+  {
+   "label": "3",
+   "file": "doc-3x36g9.pdf",
+   "kind": "public_record",
+   "date": "2023-11-15",
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "British Columbia corporate registry search for Flair",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached \nhereto and marked as Exhibits \"2\" and \"3\" are true copies of Alberta and British Columbia \ncorporate registry searches in respect of Flair."
+    }
+   ],
+   "content_check": "2 pages: BC Company Summary for Flair Airlines Ltd., searched November 15, 2023"
+  },
+  {
+   "label": "4",
+   "file": "doc-juzze5.pdf",
+   "kind": "letter",
+   "date": "2024-02-29",
+   "author": "Kelsey Meyer, Bennett Jones LLP (for Flair)",
+   "recipients": [
+    "Randal Van de Mosselaer, Osler (counsel to Lynx)",
+    "counsel to the Monitor"
+   ],
+   "description": "Flair's February 29, 2024 correspondence asking to be confirmed as a Pre-Qualified Known Potential Bidder in the SISP",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached hereto as \nExhibit \"4\" is a copy of this correspondence."
+    }
+   ],
+   "content_check": "2 pages: Bennett Jones letter dated February 29, 2024 by email from Kelsey Meyer to Randal Van de Mosselaer (Osler)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Flair obtains its passenger licence and begins commercial flights",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "In 2018, Flair obtained its passenger license and began \noffering commercial flights",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Flair restructures its C-Suite after the COVID-19 outbreak",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In 2020, following the outbreak of the COVID-19 pandemic, Flair restructured its C-\nSuite",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Flair relaunches its passenger line as an ultra-low-cost carrier",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In 2021, the airline re-launched its passenger \nline utilizing a ULCC model.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Flair adds two aircraft, then eight more",
+   "date": "2021-05",
+   "precision": "month",
+   "paragraphs": [
+    6
+   ],
+   "quote": "In May 2021, two \nadditional aircraft were added",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Flair carries 4.5 million passengers with a 98.2% completion factor",
+   "date": "2023",
+   "precision": "year",
+   "paragraphs": [
+    7
+   ],
+   "quote": "During 2023, Flair transported 4.5",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Flair and Lynx Air Holdings enter a Term Sheet for the Flair Transaction",
+   "date": "2024-01-11",
+   "precision": "day",
+   "paragraphs": [
+    12,
+    13
+   ],
+   "quote": "on January \n11, 2024, Flair and Lynx Air Holdings Corporation entered into a Term Sheet",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Lynx files for CCAA protection (First Woodward Affidavit sworn)",
+   "date": "2024-02-22",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Affidavit of Michael Woodward, \nsworn February 22, 2024 (the \"First Woodward Affidavit\")",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Lynx ceases operations",
+   "date": "2024-02-25",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "prior to Lynx ceasing operations on February 25, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Second Woodward Affidavit proposes the SISP limited to pre-qualified bidders",
+   "date": "2024-02-28",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    17
+   ],
+   "quote": "Affidavit of Michael Woodward sworn February 28, \n2024 (the \"Second Woodward Affidavit\")",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Flair writes to counsel for Lynx and the Monitor asking to be a Pre-Qualified Known Potential Bidder",
+   "date": "2024-02-29",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On February 29, 2024, Flair wrote to counsel for each of Lynx and the Monitor",
+   "exhibits": [
+    "4"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Neither Lynx nor the Monitor has confirmed Flair's participation",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    19
+   ],
+   "quote": "To date, neither Lynx nor the Monitor have confirmed that Flair will be a Pre-Qualified \nKnown Potential Bidder",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Michael Woodward sworn February 22, 2024, Exhibits 11-16 (Flair Transaction)",
+  "Affidavit of Michael Woodward sworn February 28, 2024",
+  "First Report of the Monitor",
+  "Term Sheet of January 11, 2024",
+  "Exhibits 11 to 16 of the first Woodward affidavit"
+ ],
+ "leak_waivers": [],
+ "notes": "Numeric exhibit labels. Exhibit 1 is an image with a garbled text layer. Family lynx-air."
+}

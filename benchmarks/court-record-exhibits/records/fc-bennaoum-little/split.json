@@ -651,5 +651,8 @@
    "text_chars": 38356
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-vdm9k8.pdf"
+ ]
 }

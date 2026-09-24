@@ -1,0 +1,147 @@
+{
+ "record_id": "abkb-lynx-brigley",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-etj85v.pdf",
+   "source_pages": [
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73
+   ],
+   "cover_page": 6,
+   "stamp_page": null,
+   "text_chars": 94269
+  },
+  {
+   "label": "B",
+   "file": "doc-vqqwwq.pdf",
+   "source_pages": [
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81
+   ],
+   "cover_page": 74,
+   "stamp_page": null,
+   "text_chars": 17030
+  },
+  {
+   "label": "C",
+   "file": "doc-w3xwwx.pdf",
+   "source_pages": [
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91
+   ],
+   "cover_page": 82,
+   "stamp_page": null,
+   "text_chars": 11313
+  },
+  {
+   "label": "D",
+   "file": "doc-ja7qh7.pdf",
+   "source_pages": [
+    93
+   ],
+   "cover_page": 92,
+   "stamp_page": null,
+   "text_chars": 1221,
+   "redact_text": [
+    "Exhibit D"
+   ]
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "D",
+   "file": "doc-ja7qh7",
+   "text": "[page 1] HIAA Affidavit - Lynx as of May 23, 2024 Exhibit D - Lynx unremitted AIF Fees AIF Invoice # Invoice Description"
+  }
+ ],
+ "ocr_files": [
+  "doc-w3xwwx.pdf"
+ ]
+}

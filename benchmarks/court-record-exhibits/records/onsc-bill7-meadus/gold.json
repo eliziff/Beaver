@@ -1,0 +1,676 @@
+{
+ "record_id": "onsc-bill7-meadus",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022)",
+ "document": "Affidavit of Jane E. Meadus affirmed April 11, 2023",
+ "deponent": "Jane E. Meadus",
+ "deponent_role": "Staff Lawyer and Institutional Advocate, Advocacy Centre for the Elderly (co-applicant)",
+ "sworn_date": "2023-04-11",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-rja8vh.pdf",
+   "kind": "other",
+   "date": "2023-01",
+   "author": "Jane E. Meadus",
+   "recipients": [],
+   "description": "Meadus's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Curriculum Vitae as Exhibit A"
+    }
+   ],
+   "content_check": "22 pages: CV of Jane E. Meadus dated January 2023 (McMaster B.A. 1984, Ottawa LL.B. 1991, called 1993)"
+  },
+  {
+   "label": "B",
+   "file": "doc-vr9mu8.pdf",
+   "kind": "report",
+   "date": "2014",
+   "author": "Jane E. Meadus",
+   "recipients": [],
+   "description": "Article 'Waiting for placement: Discharge from hospital to long-term care in Ontario', Healthcare Management Forum 2014",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "(attached hereto as Exhibit B)"
+    }
+   ],
+   "content_check": "4 pages: article 'Waiting for placement: Discharge from hospital to long-term care in Ontario' by Jane E. Meadus"
+  },
+  {
+   "label": "C",
+   "file": "doc-v9nmzd.pdf",
+   "kind": "report",
+   "date": "2014-02",
+   "author": "Jane E. Meadus, Advocacy Centre for the Elderly",
+   "recipients": [],
+   "description": "ACE paper 'Discharge from Hospital to Long-Term Care: Issues in Ontario', amended 2014",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "is attached hereto as Exhibit C"
+    }
+   ],
+   "content_check": "13 pages: 'Discharge from Hospital to Long-Term Care: Issues in Ontario', Jane E. Meadus, ACE, updated February 2014"
+  },
+  {
+   "label": "D",
+   "file": "doc-wtvc35.pdf",
+   "kind": "notice",
+   "date": "2011-02-23",
+   "author": "Ruth Hawkins, Assistant Deputy Minister (A), Ontario Ministry of Health and Long-Term Care",
+   "recipients": [],
+   "description": "February 23, 2011 memorandum that hospitals had no authority for a first-available-bed policy",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "(attached hereto as Exhibit D)"
+    }
+   ],
+   "content_check": "3 pages: image only: memorandum to LHIN CEOs from Ruth Hawkins dated February 23, 2011, re Crisis Designation and First Available Bed Policy (Erie St. Clair LHIN)"
+  },
+  {
+   "label": "E",
+   "file": "doc-m3aaky.pdf",
+   "kind": "notice",
+   "date": "2013-01-09",
+   "author": "Catherine Brown, Assistant Deputy Minister, Ontario Ministry of Health and Long-Term Care",
+   "recipients": [],
+   "description": "January 9, 2013 Ministry memo clarifying that hospital patients cannot be forced into the community",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "(attached hereto as Exhibit E)"
+    }
+   ],
+   "content_check": "3 pages: image only: memorandum to LHIN CEOs from Catherine Brown dated JAN 09 2013, subject 'The Home First Philosophy'"
+  },
+  {
+   "label": "F",
+   "file": "doc-ywmah8.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Jane E. Meadus",
+   "recipients": [],
+   "description": "Meadus's summary of how waiting list categories work under the FLTCA",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "I have attached hereto as Exhibit F my summary"
+    }
+   ],
+   "content_check": "12 pages: 'Waiting List Categories and Criteria under the Fixing Long-Term Care Act' summary"
+  },
+  {
+   "label": "G",
+   "file": "doc-72r5hn.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Jane E. Meadus",
+   "recipients": [],
+   "description": "Meadus's summary of pandemic changes to long-term care admissions from March 2020",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "which I have summarized in Exhibit G hereto"
+    }
+   ],
+   "content_check": "2 pages: 'Regulatory and Other Changes to Long-Term Care Home Admissions under the LTCHA during COVID-19 Pandemic' (O. Reg. 82/20 of March 24, 2020 onward)"
+  },
+  {
+   "label": "H",
+   "file": "doc-mpvvff.pdf",
+   "kind": "report",
+   "date": "2021-04-30",
+   "author": "Ontario's Long-Term Care COVID-19 Commission (Marrocco, Coke, Kitts)",
+   "recipients": [],
+   "description": "Final Report of the Long-Term Care COVID-19 Commission, April 30, 2021",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "(attached hereto as Exhibit H)"
+    }
+   ],
+   "content_check": "322 pages: Ontario's Long-Term Care COVID-19 Commission Final Report, April 30, 2021"
+  },
+  {
+   "label": "I",
+   "file": "doc-sg988z.pdf",
+   "kind": "other",
+   "date": "2010-12-07",
+   "author": "Ontario Ministry of Health and Long-Term Care",
+   "recipients": [],
+   "description": "Material on adapting the US Quality Indicator Survey into Ontario's Resident Quality Inspection",
+   "references": [
+    {
+     "paragraph": 70,
+     "quote": "(see Exhibit I attached hereto"
+    }
+   ],
+   "content_check": "13 pages: image only: slides 'Long-Term Care Homes: The Long-Term Care Quality Inspection Program for Ontario', presentation to the Ontario Nurses Association, December 7, 2010"
+  },
+  {
+   "label": "J",
+   "file": "doc-jwqs9g.pdf",
+   "kind": "other",
+   "date": "2021-12-15",
+   "author": "Ministry of Long-Term Care",
+   "recipients": [],
+   "description": "Material on ending the co-payment waiver for hospital patients as of December 15, 2021",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "(see Exhibit J attached hereto)"
+    }
+   ],
+   "content_check": "2 pages: 'Co-payment Waiver Program Winddown Key Messages and Q&As'"
+  },
+  {
+   "label": "K",
+   "file": "doc-88nd3f.pdf",
+   "kind": "letter",
+   "date": "2021-10-26",
+   "author": "Hon. Rod Phillips, Minister of Long-Term Care",
+   "recipients": [],
+   "description": "Minister Phillips's October 26, 2021 announcement of the Proactive Inspections Program",
+   "references": [
+    {
+     "paragraph": 80,
+     "quote": "(attached hereto as Exhibit K)"
+    }
+   ],
+   "content_check": "1 pages: image only: letter to long-term care home licensees dated October 26, 2021, re Proactive Inspections Program, signed Rod Phillips"
+  },
+  {
+   "label": "L",
+   "file": "doc-zqeumm.pdf",
+   "kind": "notice",
+   "date": "2022-08-18",
+   "author": "Director, Long-Term Care Inspections Branch, Ministry of Long-Term Care",
+   "recipients": [],
+   "description": "Material replacing the 31 inspection protocols with 23 inspection guides",
+   "references": [
+    {
+     "paragraph": 80,
+     "quote": "(attached hereto as Exhibit L)"
+    }
+   ],
+   "content_check": "2 pages: memorandum to Long-Term Care Home Licensees dated August 18, 2022 from the Director, Long-Term Care Inspections Branch"
+  },
+  {
+   "label": "M",
+   "file": "doc-tjtvq8.pdf",
+   "kind": "other",
+   "date": "2021-11-03",
+   "author": "Ministry of Long-Term Care",
+   "recipients": [],
+   "description": "Material setting the goal of proactive inspections in every home by end of 2024",
+   "references": [
+    {
+     "paragraph": 80,
+     "quote": "(attached hereto as Exhibit M)"
+    }
+   ],
+   "content_check": "6 pages: 'Proactive Compliance Inspections Webinar November 3rd, 2021 Questions and Answers'"
+  },
+  {
+   "label": "N",
+   "file": "doc-45vww6.pdf",
+   "kind": "email_chain",
+   "date": "2020-10-29",
+   "author": "Jane Meadus (ACE) and Wendy Lewis (MLTC)",
+   "recipients": [],
+   "description": "Meadus's October-November 2020 correspondence with Wendy Lewis on the absence of a maximum level of care in LTC",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "Attached hereto as Exhibit N is my email correspondence with Wendy Lewis"
+    }
+   ],
+   "content_check": "3 pages: email from Jane Meadus to Wendy Lewis sent October 29, 2020, subject 'Question re Eligibility criteria for long-term care homes', with reply"
+  },
+  {
+   "label": "O",
+   "file": "doc-9vhxsh.pdf",
+   "kind": "other",
+   "date": "2022-09",
+   "author": "Ministry of Long-Term Care",
+   "recipients": [],
+   "description": "The Field Guide for HCCSS placement co-ordinators on admitting ALC patients",
+   "references": [
+    {
+     "paragraph": 93,
+     "quote": "is attached hereto as Exhibit O"
+    }
+   ],
+   "content_check": "22 pages: 'Admissions to Long-Term Care Homes for Alternate Level of Care Patients from Public Hospitals: Field Guidance to Home and Community Care Support Services Placement Co-ordinators'"
+  },
+  {
+   "label": "P",
+   "file": "doc-8vb2vd.pdf",
+   "kind": "other",
+   "date": "2022-09",
+   "author": "Ministry of Long-Term Care",
+   "recipients": [],
+   "description": "Government material stating that the patient is placed in priority status on the wait list",
+   "references": [
+    {
+     "paragraph": 105,
+     "quote": "(attached hereto as Exhibit P)"
+    }
+   ],
+   "content_check": "5 pages: 'Fact Sheet - Bill 7: More Beds, Better Care Act, 2022' (Royal Assent August 31, 2022; in force September 21, 2022)"
+  },
+  {
+   "label": "Q",
+   "file": "doc-t9r96w.pdf",
+   "kind": "notice",
+   "date": "2022-09-14",
+   "author": "Nancy Matthews, Catherine Zahn and Matthew Anderson (Deputy Ministers and Ontario Health)",
+   "recipients": [],
+   "description": "Memo to the health sector on the purpose of the Bill 7 regulations",
+   "references": [
+    {
+     "paragraph": 106,
+     "quote": "(attached hereto as Exhibit Q)"
+    }
+   ],
+   "content_check": "6 pages: memorandum dated September 14, 2022 to Health System Partners, re Bill 7 Implementation"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "ACE begins operating, first Canadian legal clinic for older adults",
+   "date": "1984",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "ACE has been operating since 1984",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Meadus called to the Bar",
+   "date": "1993",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I was called to the Bar in 1993.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Government establishes centralized Placement Co-ordination Services",
+   "date": "1994",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "in 1994, the Government established a province-wide centralized placement system",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Meadus starts at ACE",
+   "date": "1995-10",
+   "precision": "month",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I commenced my employment at ACE in October, 1995.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Placement Co-ordination Services become the 43 CCACs",
+   "date": "1997",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "In 1997 the Placement Co-ordination Services became the 43",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Long-Term Care Homes Act, 2007 comes into force; inspection reports posted online",
+   "date": "2010-07-01",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    39
+   ],
+   "quote": "On July 1, 2010, the Long-Term Care Homes Act, 2007 (“LTCHA”) came into force",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Ministry presents the Long-Term Care Quality Inspection Program (RQI)",
+   "date": "2010-12-07",
+   "precision": "day",
+   "paragraphs": [
+    70
+   ],
+   "quote": "adapt the Quality Indictor Survey used in the United States for Ontario",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Erie St. Clair LHIN announces a first available bed policy with $600/day co-payment",
+   "date": "2011-02-15",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "on February 15, 2011, the Erie St. Clair LHIN sent out a press release",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Ministry memo says hospitals have no authority for first-available-bed charges",
+   "date": "2011-02-23",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Memorandum dated February 23, 2011 from Ruth Hawkins",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Ministry clarifies patients eligible for LTC cannot be forced into the community",
+   "date": "2013-01-09",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On January 9, 2013, the Ministry of Health and Long-Term Care again had to clarify",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "ACE amalgamates its articles into Discharge from Hospital to Long-Term Care: Issues in Ontario (amended 2014)",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In 2013, these articles were amalgamated into one document",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Meadus publishes 'Waiting for placement' in Healthcare Management Forum",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "published in Healthcare Management Forum in 2014",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "CCACs transitioned into the 14 LHINs",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "In 2017, the CCACs were transitioned into the 14 existing",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Pandemic changes to LTC admissions begin",
+   "date": "2020-03",
+   "precision": "month",
+   "paragraphs": [
+    63
+   ],
+   "quote": "implemented starting in March 2020",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Meadus asks the Ministry whether there is a maximum level of care; told there is no cap",
+   "date": "2020-10-29",
+   "precision": "range",
+   "paragraphs": [
+    82
+   ],
+   "quote": "October 29, 2020 and November 3, 2020",
+   "exhibits": [
+    "N"
+   ],
+   "end_date": "2020-11-03"
+  },
+  {
+   "id": "e16",
+   "description": "LHINs begin operating as Home and Community Care Support Services",
+   "date": "2021-04-01",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On April 1, 2021, the LHINs began operating under the business name",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Long-Term Care COVID-19 Commission Final Report",
+   "date": "2021-04-30",
+   "precision": "day",
+   "paragraphs": [
+    64,
+    65,
+    66,
+    67,
+    68,
+    71,
+    72,
+    73,
+    74
+   ],
+   "quote": "Final Report, dated April 30, 2021",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Meadus appointed to the National Long-Term Care Services Standard Technical Committee",
+   "date": "2021-06",
+   "precision": "month",
+   "paragraphs": [
+    3
+   ],
+   "quote": "In June 2021, I was appointed as a member of the National Long-Term Care Services Standard Technical Committee.",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Minister Phillips announces the Proactive Inspections Program",
+   "date": "2021-10-26",
+   "precision": "day",
+   "paragraphs": [
+    80
+   ],
+   "quote": "On October 26, 2021, Minister of Long-Term Care Rod Phillips announced a new Proactive Inspections Program",
+   "exhibits": [
+    "K",
+    "L",
+    "M"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Bill 37 introduced to replace the LTCHA with the FLTCA",
+   "date": "2021-10-28",
+   "precision": "day",
+   "paragraphs": [
+    76
+   ],
+   "quote": "On October 28, 2021, the Minister of Long-Term Care introduced Bill 37",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Co-payment waiver for hospital patients ends",
+   "date": "2021-12-15",
+   "precision": "day",
+   "paragraphs": [
+    78
+   ],
+   "quote": "this waiver was no longer offered as of December 15, 2021",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Fixing Long-Term Care Act, 2021 comes into force",
+   "date": "2022-04-11",
+   "precision": "day",
+   "paragraphs": [
+    17,
+    79
+   ],
+   "quote": "The FLTCA came into force on April 11, 2022.",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Bill 7 introduced by Minister Calandra",
+   "date": "2022-08-18",
+   "precision": "day",
+   "paragraphs": [
+    85
+   ],
+   "quote": "On August 18, 2022, the Minister of Long-Term Care Paul Calandra introduced Bill 7",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Legislative debate on Bill 7",
+   "date": "2022-08-23",
+   "precision": "day",
+   "paragraphs": [
+    104
+   ],
+   "quote": "During the legislative debates on Bill 7, on August 23, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Bill 7 receives Royal Assent after five days of debate",
+   "date": "2022-08-31",
+   "precision": "day",
+   "paragraphs": [
+    90
+   ],
+   "quote": "received Royal Assent on August 31, 2022",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Regulations and Field Guide released at a press conference after the legislature adjourns",
+   "date": "2022-09-14",
+   "precision": "day",
+   "paragraphs": [
+    91,
+    93
+   ],
+   "quote": "held a press conference at 3:00 PM on September 14, 2022",
+   "exhibits": [
+    "O",
+    "Q"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Bill 7 and O. Reg. 485/22 take effect",
+   "date": "2022-09-21",
+   "precision": "day",
+   "paragraphs": [
+    97
+   ],
+   "quote": "which was September 21, 2022",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "$400 daily hospital charge under O. Reg. 486/22 takes effect",
+   "date": "2022-11-21",
+   "precision": "day",
+   "paragraphs": [
+    98
+   ],
+   "quote": "did not come into effect for 60 days (November 21, 2022)",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Only 15 proactive inspections held",
+   "date": "2022-04-11",
+   "precision": "range",
+   "paragraphs": [
+    80
+   ],
+   "quote": "from April 11 to December 31, 2022, only 15 proactive inspections have been held",
+   "exhibits": [],
+   "end_date": "2022-12-31"
+  },
+  {
+   "id": "e30",
+   "description": "National long-term care standards published",
+   "date": "2023-01-31",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "The National Standards were published on January 31, 2023.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Placement Co-ordination Services Manual (1994)",
+  "Ontario 'Choosing a long-term care home' guide and checklist",
+  "O. Reg. 485/22 and 486/22",
+  "Legislative debates of February 22, 2011 and August 22-23, 2022"
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibits D, E, I and K are image-only. Musyj (onsc-bill7-musyj) answers paragraphs 83 and 87 of this affidavit. Family ohc-bill7-charter."
+}

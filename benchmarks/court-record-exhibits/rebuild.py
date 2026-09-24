@@ -16,6 +16,7 @@ import hashlib, json, os, shutil, subprocess, sys
 import fitz
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from split import clean_copy, cover_label, record_folios, text_of
+from ocr_exhibits import read
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(os.environ["LOCALAPPDATA"], "OpenLegalData", "benchmarks", "court-record-exhibits")
@@ -62,6 +63,9 @@ def rebuild(rid, backup):
         redact = {q: list(folios.get(q, [])) for q in pages}
         if ex.get("stamp_page"):
             redact.setdefault(ex["stamp_page"] - 1, []).extend(cover_label(src[ex["stamp_page"] - 1])[2])
+        for s in ex.get("redact_text", []):  # a label printed in the document's own title ("Exhibit D - ...")
+            for q in pages:
+                redact[q] = redact.get(q, []) + src[q].search_for(s)
         clean_copy(src, pages, redact).save(os.path.join(out, "files", ex["file"]), garbage=4, deflate=True)
     for name in ("gold.json", "split.json", "source.json", "matter_docs.json"):
         if os.path.exists(os.path.join(rec, name)):
@@ -74,7 +78,10 @@ def rebuild(rid, backup):
             shutil.copyfile(b, os.path.join(out, rel)); restored += 1
         else:
             d = doc or fitz.open(os.path.join(out, rel.replace(".txt", ".pdf")))
-            open(os.path.join(out, rel), "w", encoding="utf-8").write(text_of(d))
+            text = text_of(d)
+            if os.path.basename(rel).replace(".txt", ".pdf") in split.get("ocr_files", []):  # the same pages ocr_exhibits.py read
+                text = read(d, force=len(text.split()) < 40)[0]
+            open(os.path.join(out, rel), "w", encoding="utf-8").write(text)
     md = os.path.join(rec, "matter_docs.json")
     missing = 0
     for m in json.load(open(md, encoding="utf-8")) if os.path.exists(md) else []:

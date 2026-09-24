@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/mbkb-356assiniboine-page/notice-of-motion.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/en-ca-insolv-356Assiniboine-NoticeofMotion.pdf",
+  "title": "Notice of Motion for the Receivership Order",
+  "kind": "court_filing",
+  "relation": "the motion this affidavit supports"
+ },
+ {
+  "file": "raw/matter/mbkb-356assiniboine-page/first-report-of-receiver.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/en-ca-insolv-356Assiniboine-FirstReportoftheReceiver.pdf",
+  "title": "First Report of the Receiver (Deloitte)",
+  "kind": "report",
+  "relation": "later report in the same receivership"
+ },
+ {
+  "file": "raw/matter/mbkb-356assiniboine-page/avo-distribution-discharge-2024-12-31.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/en-ca-insolv-356Assiniboine-TheApprovalandVestingDistributionandDischargeOrder-December312024.pdf",
+  "title": "Approval and Vesting, Distribution and Discharge Order, December 31, 2024",
+  "kind": "court_order",
+  "relation": "later order in the same receivership"
+ }
+]

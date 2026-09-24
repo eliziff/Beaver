@@ -9,32 +9,299 @@
  "deponent": "Manish Sharma",
  "deponent_role": "Director of the petitioners; founder and owner of the Square Nine Group",
  "sworn_date": "2025-11-10",
+ "referenced_not_attached": [
+  "Cameron Stephens' demand and Notice of Intention to Enforce Security",
+  "Cameron Stephens' receivership petition"
+ ],
+ "leak_waivers": [],
+ "notes": "Covers are OCR-garbled on B and E, so all covers were given with --covers. Paragraph 10 prints as '1 o.' in the text layer, so Exhibit A's reference is attributed to paragraph 9 by the paragraph finder.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-n4dutu.pdf", "kind": "financial_statement", "date": "2025-08-31", "author": "Square Nine King George Development Ltd.", "recipients": [], "description": "Draft unaudited balance sheet of Square Nine King George as of August 31, 2025", "references": [{"paragraph": 9, "quote": "Attached hereto and marked as Exhibit \"A\" to this Affidavit, is a true copy of the unaudited balance sheet"}], "content_check": "2 pages: balance sheet of 'Square nine King George Developments Inc.' (assets, liabilities)"},
-  {"label": "B", "file": "doc-w7yynp.pdf", "kind": "financial_statement", "date": "2025-07-31", "author": "Square Nine Builders Inc.", "recipients": [], "description": "Unaudited balance sheet of Square Nine Builders as of July 31, 2025", "references": [{"paragraph": 11, "quote": "Attached hereto and marked as Exhibit \"B\" to this Affidavit, is a true copy of the unaudited balance sheet"}], "content_check": "2 pages: balance sheet of Squarenine Builders Inc."},
-  {"label": "C", "file": "doc-n5hasj.pdf", "kind": "spreadsheet", "date": null, "author": "Square Nine Group management with FTI Consulting", "recipients": [], "description": "13-week cash flow projection", "references": [{"paragraph": 12, "quote": "Attached hereto and marked as Exhibit \"C\" to this Affidavit is a true copy of the Cash-Flow Statement."}], "content_check": "1 page: 'Cash Flow Statement for the 13-week period ending February 06, 2026' for both petitioners"},
-  {"label": "D", "file": "doc-pbcjer.pdf", "kind": "report", "date": "2025-05-15", "author": "Altus Group", "recipients": [], "description": "Table of remaining residential units and appraised values, with Altus Group valuation reports as at May 15, 2025", "references": [{"paragraph": 15, "quote": "Attached hereto and marked collectively as Exhibit \"D\" to this Affidavit is a table summarizing"}], "content_check": "192 pages: unit/appraisal value table followed by appraisal reports (partly scanned)"},
-  {"label": "E", "file": "doc-pmnaxm.pdf", "kind": "contract", "date": "2025-09-19", "author": "Square Nine King George Development Ltd. and purchaser", "recipients": [], "description": "Contract of purchase and sale for the Belvedere's five commercial units, with addendum", "references": [{"paragraph": 23, "quote": "Attached hereto and marked as Exhibit \"E\" to this Affidavit is true copy of that contract"}], "content_check": "10 pages: 'Commercial Contract of Purchase and Sale' dated for reference September 19, 2025"},
-  {"label": "F", "file": "doc-jrn4z4.pdf", "kind": "court_filing", "date": "2025-11-10", "author": "FTI Consulting Canada Inc.", "recipients": [], "description": "FTI Consulting's executed consent to act as Monitor", "references": [{"paragraph": 26, "quote": "Attached hereto and marked as Exhibit \"F\" to this Affidavit is true copy of FTI Consulting"}], "content_check": "1 page: consent to act under the CCAA style of cause for Square Nine King George Development Ltd. and Square Nine Builders Inc., dated November 10, 2025, signed by Tom Powell"},
-  {"label": "G", "file": "doc-53s9fb.pdf", "kind": "agreement", "date": "2025-11-06", "author": "Pillar Capital Corp.", "recipients": ["FTI Consulting (Attn: Mike Clark)", "Petitioners"], "description": "Executed DIP facility term sheet with Pillar Capital Corp. dated November 6, 2025", "references": [{"paragraph": 29, "quote": "a copy of which is attached as Exhibit \"G\" to this Affidavit."}], "content_check": "3 pages: letter dated November 6, 2025 to FTI Consulting 'Re: Term Sheet - Debtor in Possession Facility' of CDN $700,000"}
+  {
+   "label": "A",
+   "file": "doc-n4dutu.pdf",
+   "kind": "financial_statement",
+   "date": "2025-08-31",
+   "author": "Square Nine King George Development Ltd.",
+   "recipients": [],
+   "description": "Draft unaudited balance sheet of Square Nine King George as of August 31, 2025",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto and marked as Exhibit \"A\" to this Affidavit, is a true copy of the unaudited balance sheet"
+    }
+   ],
+   "content_check": "2 pages: balance sheet of 'Square nine King George Developments Inc.' (assets, liabilities)"
+  },
+  {
+   "label": "B",
+   "file": "doc-w7yynp.pdf",
+   "kind": "financial_statement",
+   "date": "2025-07-31",
+   "author": "Square Nine Builders Inc.",
+   "recipients": [],
+   "description": "Unaudited balance sheet of Square Nine Builders as of July 31, 2025",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached hereto and marked as Exhibit \"B\" to this Affidavit, is a true copy of the unaudited balance sheet"
+    }
+   ],
+   "content_check": "2 pages: balance sheet of Squarenine Builders Inc."
+  },
+  {
+   "label": "C",
+   "file": "doc-n5hasj.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Square Nine Group management with FTI Consulting",
+   "recipients": [],
+   "description": "13-week cash flow projection",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached hereto and marked as Exhibit \"C\" to this Affidavit is a true copy of the Cash-Flow Statement."
+    }
+   ],
+   "content_check": "1 page: 'Cash Flow Statement for the 13-week period ending February 06, 2026' for both petitioners"
+  },
+  {
+   "label": "D",
+   "file": "doc-pbcjer.pdf",
+   "kind": "report",
+   "date": "2025-05-15",
+   "author": "Altus Group",
+   "recipients": [],
+   "description": "Table of remaining residential units and appraised values, with Altus Group valuation reports as at May 15, 2025",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached hereto and marked collectively as Exhibit \"D\" to this Affidavit is a table summarizing"
+    }
+   ],
+   "content_check": "192 pages: unit/appraisal value table followed by appraisal reports (partly scanned)"
+  },
+  {
+   "label": "E",
+   "file": "doc-pmnaxm.pdf",
+   "kind": "contract",
+   "date": "2025-09-19",
+   "author": "Square Nine King George Development Ltd. and purchaser",
+   "recipients": [],
+   "description": "Contract of purchase and sale for the Belvedere's five commercial units, with addendum",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Attached hereto and marked as Exhibit \"E\" to this Affidavit is true copy of that contract"
+    }
+   ],
+   "content_check": "10 pages: 'Commercial Contract of Purchase and Sale' dated for reference September 19, 2025"
+  },
+  {
+   "label": "F",
+   "file": "doc-jrn4z4.pdf",
+   "kind": "court_filing",
+   "date": "2025-11-10",
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [],
+   "description": "FTI Consulting's executed consent to act as Monitor",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached hereto and marked as Exhibit \"F\" to this Affidavit is true copy of FTI Consulting"
+    }
+   ],
+   "content_check": "1 page: consent to act under the CCAA style of cause for Square Nine King George Development Ltd. and Square Nine Builders Inc., dated November 10, 2025, signed by Tom Powell"
+  },
+  {
+   "label": "G",
+   "file": "doc-53s9fb.pdf",
+   "kind": "agreement",
+   "date": "2025-11-06",
+   "author": "Pillar Capital Corp.",
+   "recipients": [
+    "FTI Consulting (Attn: Mike Clark)",
+    "Petitioners"
+   ],
+   "description": "Executed DIP facility term sheet with Pillar Capital Corp. dated November 6, 2025",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "a copy of which is attached as Exhibit \"G\" to this Affidavit."
+    }
+   ],
+   "content_check": "3 pages: letter dated November 6, 2025 to FTI Consulting 'Re: Term Sheet - Debtor in Possession Facility' of CDN $700,000"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2008", "precision": "year", "description": "Sharma founded the Square Nine Group", "paragraphs": [5], "quote": "I founded the Square Nine Group in 2008", "exhibits": []},
-  {"id": "e2", "date": "2009", "precision": "year", "description": "Hilltop Green townhomes completed (later projects Sage 2013, Union 2018, Element 1 2020, Alto 2023)", "paragraphs": [5], "quote": "completed in 2009", "exhibits": []},
-  {"id": "e3", "date": "2025-02-21", "precision": "day", "description": "Construction of the Belvedere was substantially completed", "paragraphs": [2], "quote": "Construction of the Belvedere was substantially completed around February 21, 2025", "exhibits": []},
-  {"id": "e4", "date": "2025-03-18", "precision": "day", "description": "The Belvedere received occupancy permits", "paragraphs": [2], "quote": "it received occupancy permits on March 18, 2025", "exhibits": []},
-  {"id": "e5", "date": "2025-05-15", "precision": "day", "description": "Altus Group valued the remaining residential units (appraised at $27,365,000 as at May 16, 2025)", "paragraphs": [2, 15], "quote": "together with the valuation reports as at May 15, 2025, as prepared by Altus Group", "exhibits": ["D"]},
-  {"id": "e6", "date": "2025-05-31", "precision": "day", "description": "One-day 'flash sale' sold 38 units for about $18,500,000", "paragraphs": [23], "quote": "That sale was held on May 31, 2025, and resulted in the sale of 38 units", "exhibits": []},
-  {"id": "e7", "date": "2025-07-31", "precision": "day", "description": "Date of Square Nine Builders' balance sheet", "paragraphs": [11], "quote": "as of July 31, 2025", "exhibits": ["B"]},
-  {"id": "e8", "date": "2025-08-29", "precision": "day", "description": "Cameron Stephens demanded repayment of about $18.5M and issued a Notice of Intention to Enforce Security", "paragraphs": [21], "quote": "On August 29, 2025, Cameron Stephns made demand", "exhibits": []},
-  {"id": "e9", "date": "2025-08-31", "precision": "day", "description": "Date of Square Nine King George's draft balance sheet; intercompany indebtedness about $1,371,852.35", "paragraphs": [9, 19], "quote": "as at August 31, 2025", "exhibits": ["A"]},
-  {"id": "e10", "date": "2025-09-19", "precision": "day", "description": "Contract to sell the five commercial units for $8,100,000, completion scheduled January 21, 2026", "paragraphs": [23], "quote": "with completion scheduled for January 21, 2026", "exhibits": ["E"]},
-  {"id": "e11", "date": "2025-09-25", "precision": "day", "description": "Cameron Stephens served a petition seeking appointment of MNP Ltd. as receiver", "paragraphs": [22], "quote": "On September 25, 2025, Cameron Stephens served a petition", "exhibits": []},
-  {"id": "e12", "date": "2025-11-06", "precision": "day", "description": "The petitioners executed a $700,000 DIP term sheet with Pillar Capital Corp.", "paragraphs": [29], "quote": "Pillar Capital Corp. dated November 6, 2025", "exhibits": ["G"]},
-  {"id": "e13", "date": null, "precision": "undated", "description": "FTI Consulting consented to act as Monitor", "paragraphs": [26], "quote": "FTI Consulting has consented to be appointed monitor in these proceedings.", "exhibits": ["F"]},
-  {"id": "e14", "date": "2025-11-10", "precision": "day", "description": "Sharma affirmed the affidavit by video before a Vancouver commissioner", "paragraphs": [34, 35], "quote": "I acknowledge the solemnity of making this affidavit", "exhibits": []}
- ],
- "referenced_not_attached": ["Cameron Stephens' demand and Notice of Intention to Enforce Security", "Cameron Stephens' receivership petition"],
- "leak_waivers": [],
- "notes": "Covers are OCR-garbled on B and E, so all covers were given with --covers. Paragraph 10 prints as '1 o.' in the text layer, so Exhibit A's reference is attributed to paragraph 9 by the paragraph finder."
+  {
+   "id": "e1",
+   "date": "2008",
+   "precision": "year",
+   "description": "Sharma founded the Square Nine Group",
+   "paragraphs": [
+    5
+   ],
+   "quote": "I founded the Square Nine Group in 2008",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2009",
+   "precision": "year",
+   "description": "Hilltop Green townhomes completed (later projects Sage 2013, Union 2018, Element 1 2020, Alto 2023)",
+   "paragraphs": [
+    5
+   ],
+   "quote": "completed in 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2025-02-21",
+   "precision": "day",
+   "description": "Construction of the Belvedere was substantially completed",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Construction of the Belvedere was substantially completed around February 21, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2025-03-18",
+   "precision": "day",
+   "description": "The Belvedere received occupancy permits",
+   "paragraphs": [
+    2
+   ],
+   "quote": "it received occupancy permits on March 18, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2025-05-15",
+   "precision": "day",
+   "description": "Altus Group valued the remaining residential units (appraised at $27,365,000 as at May 16, 2025)",
+   "paragraphs": [
+    2,
+    15
+   ],
+   "quote": "together with the valuation reports as at May 15, 2025, as prepared by Altus Group",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2025-05-31",
+   "precision": "day",
+   "description": "One-day 'flash sale' sold 38 units for about $18,500,000",
+   "paragraphs": [
+    23
+   ],
+   "quote": "That sale was held on May 31, 2025, and resulted in the sale of 38 units",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2025-07-31",
+   "precision": "day",
+   "description": "Date of Square Nine Builders' balance sheet",
+   "paragraphs": [
+    11
+   ],
+   "quote": "as of July 31, 2025",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2025-08-29",
+   "precision": "day",
+   "description": "Cameron Stephens demanded repayment of about $18.5M and issued a Notice of Intention to Enforce Security",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On August 29, 2025, Cameron Stephns made demand",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2025-08-31",
+   "precision": "day",
+   "description": "Date of Square Nine King George's draft balance sheet; intercompany indebtedness about $1,371,852.35",
+   "paragraphs": [
+    9,
+    19
+   ],
+   "quote": "as at August 31, 2025",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2025-09-19",
+   "precision": "day",
+   "description": "Contract to sell the five commercial units for $8,100,000, completion scheduled January 21, 2026",
+   "paragraphs": [
+    23
+   ],
+   "quote": "with completion scheduled for January 21, 2026",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2025-09-25",
+   "precision": "day",
+   "description": "Cameron Stephens served a petition seeking appointment of MNP Ltd. as receiver",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On September 25, 2025, Cameron Stephens served a petition",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2025-11-06",
+   "precision": "day",
+   "description": "The petitioners executed a $700,000 DIP term sheet with Pillar Capital Corp.",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Pillar Capital Corp. dated November 6, 2025",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": null,
+   "precision": "undated",
+   "description": "FTI Consulting consented to act as Monitor",
+   "paragraphs": [
+    26
+   ],
+   "quote": "FTI Consulting has consented to be appointed monitor in these proceedings.",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2025-11-10",
+   "precision": "day",
+   "description": "Sharma affirmed the affidavit by video before a Vancouver commissioner",
+   "paragraphs": [
+    34,
+    35
+   ],
+   "quote": "I acknowledge the solemnity of making this affidavit",
+   "exhibits": []
+  }
+ ]
 }

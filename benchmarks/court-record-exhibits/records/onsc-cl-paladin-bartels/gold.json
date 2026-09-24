@@ -9,56 +9,361 @@
  "deponent": "Patrick J. Bartels Jr.",
  "deponent_role": "Plan Administrator under the Endo Chapter 11 Plan and sole director of the Canadian Debtors",
  "sworn_date": "2025-11-21",
+ "referenced_not_attached": [
+  "Confirmation Order [Docket No. 3960]",
+  "Purchase and Sale Agreement (PSA)",
+  "Seventh Report of the Information Officer and fee affidavits",
+  "Minutes of settlement with the CRA",
+  "Settlement agreement with Revenue Québec",
+  "First Supplemental Order"
+ ],
+ "leak_waivers": [
+  "A",
+  "B"
+ ],
+ "notes": "Leak-audit hits are internal references inside Exhibit A (an affidavit citing its own exhibits) and Exhibit B (the Plan citing exhibits to other filings). Exhibit C is largely image-only. The Plan's March 18, 2024 date comes from the record index.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-hrzffh.pdf", "kind": "affidavit", "date": "2024-04-05", "author": "Daniel Vas", "recipients": [],
+  {
+   "label": "A",
+   "file": "doc-hrzffh.pdf",
+   "kind": "affidavit",
+   "date": "2024-04-05",
+   "author": "Daniel Vas",
+   "recipients": [],
    "description": "The Fifth Vas Affidavit sworn April 5, 2024 (without exhibits), describing the Chapter 11 Cases, the stakeholder resolutions and the Plan and Plan Transaction",
-   "references": [{"paragraph": 7, "quote": "A copy of the Fifth Vas Affidavit (without exhibits) is \nattached hereto as Exhibit"}],
-   "content_check": "63-page affidavit in CV-22-00685631-00CL by Daniel Vas; its text cites its own exhibits (e.g. the Confirmation Order as its Exhibit A), which are the leak-audit hits"},
-  {"label": "B", "file": "doc-7rjctq.pdf", "kind": "court_filing", "date": "2024-03-18", "author": "Skadden, Arps, Slate, Meagher & Flom LLP for the Debtors", "recipients": [],
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A copy of the Fifth Vas Affidavit (without exhibits) is \nattached hereto as Exhibit"
+    }
+   ],
+   "content_check": "63-page affidavit in CV-22-00685631-00CL by Daniel Vas; its text cites its own exhibits (e.g. the Confirmation Order as its Exhibit A), which are the leak-audit hits"
+  },
+  {
+   "label": "B",
+   "file": "doc-7rjctq.pdf",
+   "kind": "court_filing",
+   "date": "2024-03-18",
+   "author": "Skadden, Arps, Slate, Meagher & Flom LLP for the Debtors",
+   "recipients": [],
    "description": "The Plan (Fourth Amended Joint Chapter 11 Plan of Reorganization of Endo International plc and its Affiliated Debtors) confirmed by the Bankruptcy Court",
-   "references": [{"paragraph": 10, "quote": "A copy of the Plan is attached hereto as Exhibit"}],
-   "content_check": "241-page 'Fourth Amended Joint Chapter 11 Plan of Reorganization of Endo International plc and its Affiliated Debtors', SDNY Case No. 22-22549 (JLG); it cites exhibits of other filings (leak-audit hits)"},
-  {"label": "C", "file": "doc-33xh8h.pdf", "kind": "court_order", "date": "2024-04-16", "author": "Ontario Superior Court of Justice (Chief Justice Morawetz)", "recipients": [],
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A copy of the Plan is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "241-page 'Fourth Amended Joint Chapter 11 Plan of Reorganization of Endo International plc and its Affiliated Debtors', SDNY Case No. 22-22549 (JLG); it cites exhibits of other filings (leak-audit hits)"
+  },
+  {
+   "label": "C",
+   "file": "doc-33xh8h.pdf",
+   "kind": "court_order",
+   "date": "2024-04-16",
+   "author": "Ontario Superior Court of Justice (Chief Justice Morawetz)",
+   "recipients": [],
    "description": "The Plan Recognition Order of April 16, 2024 recognizing the Confirmation Order in Canada, dismissing Canadian Litigation and authorizing termination and bankruptcy steps",
-   "references": [{"paragraph": 11, "quote": "a copy of which is \nattached hereto as Exhibit"}],
-   "content_check": "88 pages, largely image-only: Plan Recognition Order of Chief Justice Morawetz dated Tuesday April 16, 2024 (electronically issued 16-Apr-2024), followed by schedules including published-notice lists"},
-  {"label": "D", "file": "doc-rssgpb.pdf", "kind": "notice", "date": "2024-04-23", "author": "Skadden, Arps, Slate, Meagher & Flom LLP for the Debtors", "recipients": [],
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "a copy of which is \nattached hereto as Exhibit"
+    }
+   ],
+   "content_check": "88 pages, largely image-only: Plan Recognition Order of Chief Justice Morawetz dated Tuesday April 16, 2024 (electronically issued 16-Apr-2024), followed by schedules including published-notice lists"
+  },
+  {
+   "label": "D",
+   "file": "doc-rssgpb.pdf",
+   "kind": "notice",
+   "date": "2024-04-23",
+   "author": "Skadden, Arps, Slate, Meagher & Flom LLP for the Debtors",
+   "recipients": [],
    "description": "Notice filed by the Debtors in the Chapter 11 Cases confirming that the Plan's Effective Date occurred",
-   "references": [{"paragraph": 12, "quote": "is a notice \nfiled by the Debtors in the Chapter 11 Cases confirming the occurrence of the Effective Date"}],
-   "content_check": "Three-page SDNY Doc 4212 filed 04/23/24: 'Notice of (I) Entry of Confirmation Order, (II) Occurrence of Effective Date, and (III) the Administrative Expense Claims Bar Date'"},
-  {"label": "E", "file": "doc-wt7n9v.pdf", "kind": "agreement", "date": "2024-06-05", "author": "Endo International plc and debtor affiliates, Patrick J. Bartels Jr. and Endo, Inc.", "recipients": [],
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "is a notice \nfiled by the Debtors in the Chapter 11 Cases confirming the occurrence of the Effective Date"
+    }
+   ],
+   "content_check": "Three-page SDNY Doc 4212 filed 04/23/24: 'Notice of (I) Entry of Confirmation Order, (II) Occurrence of Effective Date, and (III) the Administrative Expense Claims Bar Date'"
+  },
+  {
+   "label": "E",
+   "file": "doc-wt7n9v.pdf",
+   "kind": "agreement",
+   "date": "2024-06-05",
+   "author": "Endo International plc and debtor affiliates, Patrick J. Bartels Jr. and Endo, Inc.",
+   "recipients": [],
    "description": "The Amended Plan Administrator Agreement dated as of June 5, 2024",
-   "references": [{"paragraph": 16, "quote": "Attached hereto as Exhibit “E” is a copy of the Amended Plan Administrator"}],
-   "content_check": "35-page execution version 'Amended Plan Administrator Agreement' made the 5 day of June, 2024 between the Debtors, Patrick J. Bartels Jr. as Plan Administrator and Endo, Inc."},
-  {"label": "F", "file": "doc-pjh8sj.pdf", "kind": "court_order", "date": "2024-12-05", "author": "United States Bankruptcy Court for the Southern District of New York", "recipients": [],
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached hereto as Exhibit “E” is a copy of the Amended Plan Administrator"
+    }
+   ],
+   "content_check": "35-page execution version 'Amended Plan Administrator Agreement' made the 5 day of June, 2024 between the Debtors, Patrick J. Bartels Jr. as Plan Administrator and Endo, Inc."
+  },
+  {
+   "label": "F",
+   "file": "doc-pjh8sj.pdf",
+   "kind": "court_order",
+   "date": "2024-12-05",
+   "author": "United States Bankruptcy Court for the Southern District of New York",
+   "recipients": [],
    "description": "The Bankruptcy Court's December 5, 2024 order closing certain Chapter 11 Cases, including Paladin Holdings'",
-   "references": [{"paragraph": 24, "quote": "a copy of which is attached hereto as Exhibit"}],
-   "content_check": "Six-page SDNY order re Docket No. 4686: 'Order (I) Closing Certain Chapter 11 Cases; (II) Granting Final Decrees ...; (III) Amending Caption of Remaining Cases' with a schedule of debtors"}
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "a copy of which is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Six-page SDNY order re Docket No. 4686: 'Order (I) Closing Certain Chapter 11 Cases; (II) Granting Final Decrees ...; (III) Amending Caption of Remaining Cases' with a schedule of debtors"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2022-08-16", "precision": "day", "description": "Endo Parent and affiliates, including the Canadian Debtors, commenced Chapter 11 Cases in the SDNY", "paragraphs": [3], "quote": "On August 16, \n2022, Endo Parent and certain of its affiliates", "exhibits": []},
-  {"id": "e2", "date": "2022-08-19", "precision": "day", "description": "The Court recognized the Chapter 11 Cases as a foreign main proceeding and appointed KSV as Information Officer", "paragraphs": [5], "quote": "pursuant to an Initial Recognition Order (Foreign Main Proceeding) of the Court granted", "exhibits": []},
-  {"id": "e3", "precision": "undated", "description": "Mediation and negotiated resolutions produced a Plan supported by over 99.9% of voting parties", "paragraphs": [6], "quote": "with over \n99.9% of voting parties by both amount and value voting in favour of the Plan", "exhibits": []},
-  {"id": "e4", "date": "2024-03-22", "precision": "day", "description": "The Bankruptcy Court granted the Confirmation Order confirming the Plan", "paragraphs": [10], "quote": "On March 22, 2024, the Bankruptcy Court granted the Confirmation Order", "exhibits": ["B", "D"]},
-  {"id": "e5", "date": "2024-04-05", "precision": "day", "description": "Daniel Vas swore the Fifth Vas Affidavit", "paragraphs": [7], "quote": "sworn on April 5, 2024 (the “Fifth Vas Affidavit”)", "exhibits": ["A"]},
-  {"id": "e6", "date": "2024-04-16", "precision": "day", "description": "The Court granted the Plan Recognition Order on Paladin's motion", "paragraphs": [11], "quote": "On April 16, 2024, on a motion brought by Paladin in its capacity as Foreign", "exhibits": ["C"]},
-  {"id": "e7", "date": "2024-04-23", "precision": "day", "description": "The Plan was implemented (Effective Date) and substantially all Canadian Debtor assets were transferred to the Canada Buyer, Paladin Pharma Inc.", "paragraphs": [12, 13, 21], "quote": "The Plan was implemented and the “Effective Date” (as defined in the Plan) occurred on", "exhibits": ["D"]},
-  {"id": "e8", "date": "2024-06-05", "precision": "day", "description": "The Amended Plan Administrator Agreement was made", "paragraphs": [16], "quote": "Amended Plan Administrator Agreement dated as of June 5, 2024", "exhibits": ["E"]},
-  {"id": "e9", "date": "2024-12-05", "precision": "day", "description": "The Bankruptcy Court closed the Chapter 11 Case of Paladin Holdings", "paragraphs": [24], "quote": "The Chapter 11 Case of Paladin Holdings was closed pursuant to an order", "exhibits": ["F"]},
-  {"id": "e10", "date": "2025-03-11", "precision": "day", "description": "Knight Therapeutics announced a definitive agreement to acquire the Canada Buyer's business", "paragraphs": [25], "quote": "Subsequently, on March 11, 2025, Knight Therapeutics Inc.", "exhibits": []},
-  {"id": "e11", "date": "2025-03-13", "precision": "day", "description": "New Endo announced a definitive merger agreement with Mallinckrodt", "paragraphs": [26], "quote": "On March 13, 2025, New Endo", "exhibits": []},
-  {"id": "e12", "date": "2025-06", "precision": "month", "description": "Paladin resolved its disputed tax matters with the CRA by minutes of settlement", "paragraphs": [31], "quote": "In June 2025, Paladin achieved a resolution with the CRA", "exhibits": []},
-  {"id": "e13", "date": "2025-06-16", "precision": "day", "description": "Livio Di Francesco resigned as a director of Paladin and Paladin Holdings", "paragraphs": [19], "quote": "resigned \nas a director of each of Paladin and Paladin Holdings effective June 16, 2025", "exhibits": []},
-  {"id": "e14", "date": "2025-06-17", "precision": "day", "description": "Knight completed its acquisition of the Canada Buyer's business", "paragraphs": [25], "quote": "Knight’s \nacquisition of the business of the Canada Buyer was completed on June 17, 2025", "exhibits": []},
-  {"id": "e15", "date": "2025-08-01", "precision": "day", "description": "The New Endo and Mallinckrodt merger closed", "paragraphs": [26], "quote": "The transaction closed on August 1, 2025", "exhibits": []},
-  {"id": "e16", "date": "2025-08", "precision": "month", "description": "Paladin resolved its disputed tax matters with Revenue Québec, expected to yield a refund of about CAD$1.1 million", "paragraphs": [32], "quote": "In August 2025, Paladin achieved a resolution with RQ", "exhibits": []},
-  {"id": "e17", "date": "2025-09-19", "precision": "day", "description": "Annie Belanger ceased to serve as Paladin's Tax Director", "paragraphs": [28], "quote": "who served as the Tax Director of Paladin until September 19", "exhibits": []},
-  {"id": "e18", "precision": "undated", "description": "Paladin and Paladin Holdings filed corporate income tax returns for the year ended December 31, 2024", "paragraphs": [29], "quote": "Each of Paladin and Paladin Holdings has filed its corporate income tax return for the", "exhibits": []},
-  {"id": "e19", "precision": "undated", "description": "Some Canadian Litigation was discontinued or dismissed against the Debtors; efforts continue for the rest", "paragraphs": [36], "quote": "Certain of the actions have been \ndiscontinued or dismissed as against the applicable Debtors to date", "exhibits": []},
-  {"id": "e20", "date": "2025-12-31", "precision": "day", "description": "Planned deadline to terminate the Recognition Proceedings and assign the Canadian Debtors into bankruptcy", "paragraphs": [14, 37], "quote": "assign the Canadian Debtors into bankruptcy by no later than December 31, 2025", "exhibits": []},
-  {"id": "e21", "precision": "undated", "description": "After the Plan Recognition Order the Canadian Debtors pursued Health Canada licence transfers, product listing agreement transfers and conveyancing to the Canada Buyer", "paragraphs": [20], "quote": "filing applications with Health Canada for the transfer to the Canada Buyer of", "exhibits": []}
- ],
- "referenced_not_attached": ["Confirmation Order [Docket No. 3960]", "Purchase and Sale Agreement (PSA)", "Seventh Report of the Information Officer and fee affidavits", "Minutes of settlement with the CRA", "Settlement agreement with Revenue Québec", "First Supplemental Order"],
- "leak_waivers": ["A", "B"],
- "notes": "Leak-audit hits are internal references inside Exhibit A (an affidavit citing its own exhibits) and Exhibit B (the Plan citing exhibits to other filings). Exhibit C is largely image-only. The Plan's March 18, 2024 date comes from the record index."
+  {
+   "id": "e1",
+   "date": "2022-08-16",
+   "precision": "day",
+   "description": "Endo Parent and affiliates, including the Canadian Debtors, commenced Chapter 11 Cases in the SDNY",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On August 16, \n2022, Endo Parent and certain of its affiliates",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2022-08-19",
+   "precision": "day",
+   "description": "The Court recognized the Chapter 11 Cases as a foreign main proceeding and appointed KSV as Information Officer",
+   "paragraphs": [
+    5
+   ],
+   "quote": "pursuant to an Initial Recognition Order (Foreign Main Proceeding) of the Court granted",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "precision": "undated",
+   "description": "Mediation and negotiated resolutions produced a Plan supported by over 99.9% of voting parties",
+   "paragraphs": [
+    6
+   ],
+   "quote": "with over \n99.9% of voting parties by both amount and value voting in favour of the Plan",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2024-03-22",
+   "precision": "day",
+   "description": "The Bankruptcy Court granted the Confirmation Order confirming the Plan",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On March 22, 2024, the Bankruptcy Court granted the Confirmation Order",
+   "exhibits": [
+    "B",
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2024-04-05",
+   "precision": "day",
+   "description": "Daniel Vas swore the Fifth Vas Affidavit",
+   "paragraphs": [
+    7
+   ],
+   "quote": "sworn on April 5, 2024 (the “Fifth Vas Affidavit”)",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2024-04-16",
+   "precision": "day",
+   "description": "The Court granted the Plan Recognition Order on Paladin's motion",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On April 16, 2024, on a motion brought by Paladin in its capacity as Foreign",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2024-04-23",
+   "precision": "day",
+   "description": "The Plan was implemented (Effective Date) and substantially all Canadian Debtor assets were transferred to the Canada Buyer, Paladin Pharma Inc.",
+   "paragraphs": [
+    12,
+    13,
+    21
+   ],
+   "quote": "The Plan was implemented and the “Effective Date” (as defined in the Plan) occurred on",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2024-06-05",
+   "precision": "day",
+   "description": "The Amended Plan Administrator Agreement was made",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Amended Plan Administrator Agreement dated as of June 5, 2024",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2024-12-05",
+   "precision": "day",
+   "description": "The Bankruptcy Court closed the Chapter 11 Case of Paladin Holdings",
+   "paragraphs": [
+    24
+   ],
+   "quote": "The Chapter 11 Case of Paladin Holdings was closed pursuant to an order",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2025-03-11",
+   "precision": "day",
+   "description": "Knight Therapeutics announced a definitive agreement to acquire the Canada Buyer's business",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Subsequently, on March 11, 2025, Knight Therapeutics Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2025-03-13",
+   "precision": "day",
+   "description": "New Endo announced a definitive merger agreement with Mallinckrodt",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On March 13, 2025, New Endo",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2025-06",
+   "precision": "month",
+   "description": "Paladin resolved its disputed tax matters with the CRA by minutes of settlement",
+   "paragraphs": [
+    31
+   ],
+   "quote": "In June 2025, Paladin achieved a resolution with the CRA",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2025-06-16",
+   "precision": "day",
+   "description": "Livio Di Francesco resigned as a director of Paladin and Paladin Holdings",
+   "paragraphs": [
+    19
+   ],
+   "quote": "resigned \nas a director of each of Paladin and Paladin Holdings effective June 16, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2025-06-17",
+   "precision": "day",
+   "description": "Knight completed its acquisition of the Canada Buyer's business",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Knight’s \nacquisition of the business of the Canada Buyer was completed on June 17, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2025-08-01",
+   "precision": "day",
+   "description": "The New Endo and Mallinckrodt merger closed",
+   "paragraphs": [
+    26
+   ],
+   "quote": "The transaction closed on August 1, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2025-08",
+   "precision": "month",
+   "description": "Paladin resolved its disputed tax matters with Revenue Québec, expected to yield a refund of about CAD$1.1 million",
+   "paragraphs": [
+    32
+   ],
+   "quote": "In August 2025, Paladin achieved a resolution with RQ",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2025-09-19",
+   "precision": "day",
+   "description": "Annie Belanger ceased to serve as Paladin's Tax Director",
+   "paragraphs": [
+    28
+   ],
+   "quote": "who served as the Tax Director of Paladin until September 19",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "precision": "undated",
+   "description": "Paladin and Paladin Holdings filed corporate income tax returns for the year ended December 31, 2024",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Each of Paladin and Paladin Holdings has filed its corporate income tax return for the",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "precision": "undated",
+   "description": "Some Canadian Litigation was discontinued or dismissed against the Debtors; efforts continue for the rest",
+   "paragraphs": [
+    36
+   ],
+   "quote": "Certain of the actions have been \ndiscontinued or dismissed as against the applicable Debtors to date",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2025-12-31",
+   "precision": "day",
+   "description": "Planned deadline to terminate the Recognition Proceedings and assign the Canadian Debtors into bankruptcy",
+   "paragraphs": [
+    14,
+    37
+   ],
+   "quote": "assign the Canadian Debtors into bankruptcy by no later than December 31, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "precision": "undated",
+   "description": "After the Plan Recognition Order the Canadian Debtors pursued Health Canada licence transfers, product listing agreement transfers and conveyancing to the Canada Buyer",
+   "paragraphs": [
+    20
+   ],
+   "quote": "filing applications with Health Canada for the transfer to the Canada Buyer of",
+   "exhibits": []
+  }
+ ]
 }

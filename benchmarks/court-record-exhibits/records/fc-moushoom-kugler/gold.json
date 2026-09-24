@@ -9,6 +9,16 @@
  "deponent": "Robert Kugler",
  "deponent_role": "Partner, Kugler Kandestin LLP; class counsel",
  "sworn_date": "2023-10-16",
+ "referenced_not_attached": [
+  "Colish Affidavit of September 2, 2022",
+  "Affidavits of Kim Blanchette, Joelle Gott and Dean Janvier (October 2023)",
+  "Dr. Lucyna Lach expert report",
+  "ISC Database",
+  "Non-Class Counsel Legal Professionals Protocol motion"
+ ],
+ "leak_waivers": [],
+ "notes": "Tab 7 of the Sotos second supplementary motion record (source pages 175-840). Exhibit K is image-only. 3 of max 3 for this proceeding (with fc-moushoom-blackstock and fc-moushoom-meawasige).",
+ "subject": "class_action",
  "exhibits": [
   {
    "label": "A",
@@ -395,14 +405,5 @@
     "J"
    ]
   }
- ],
- "referenced_not_attached": [
-  "Colish Affidavit of September 2, 2022",
-  "Affidavits of Kim Blanchette, Joelle Gott and Dean Janvier (October 2023)",
-  "Dr. Lucyna Lach expert report",
-  "ISC Database",
-  "Non-Class Counsel Legal Professionals Protocol motion"
- ],
- "leak_waivers": [],
- "notes": "Tab 7 of the Sotos second supplementary motion record (source pages 175-840). Exhibit K is image-only. 3 of max 3 for this proceeding (with fc-moushoom-blackstock and fc-moushoom-meawasige)."
+ ]
 }

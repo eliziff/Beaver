@@ -182,5 +182,8 @@
    "text_chars": 4373
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-jrwau2.pdf"
+ ]
 }

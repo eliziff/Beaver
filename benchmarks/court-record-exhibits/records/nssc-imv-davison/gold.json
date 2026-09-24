@@ -9,42 +9,392 @@
  "deponent": "Brittany Davison",
  "deponent_role": "Chief Accounting Officer and acting Chief Financial Officer, IMV Inc.",
  "sworn_date": "2023-09-01",
+ "referenced_not_attached": [
+  "Initial Order, ARIO, Claims Process Order, Extension Order and Second Extension Order",
+  "Stonegate Teaser",
+  "Monitor's Fourth Report",
+  "Venture Loan and Security Agreement dated December 17, 2021",
+  "Independent security opinion"
+ ],
+ "leak_waivers": [],
+ "notes": "The affidavit's last page is an index naming each exhibit's subject; it is part of the affidavit. Exhibit A is image-only.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-7tn283.pdf", "kind": "court_order", "date": "2023-05-05", "author": "Supreme Court of Nova Scotia (Schedule C to the ARIO)", "recipients": [], "description": "The SISP Procedures approved as Schedule C to the Amended and Restated Initial Order", "references": [{"paragraph": 18, "quote": "Attached to my Affidavit as Exhibit A is a copy of the SISP Procedures."}], "content_check": "Image-only 23 pages headed 'PROCEDURES OF THE SALE AND INVESTMENT SOLICITATION PROCESS IMV INC. ET AL.' with recitals on the May 1, 2023 initial order (Hfx No. 523334)"},
-  {"label": "B", "file": "doc-rkf57m.pdf", "kind": "agreement", "date": "2023-09-01", "author": "IMV Inc., Immunovaccine Technologies Inc. and Horizon Technology Finance Corporation", "recipients": [], "description": "The Agreement of Purchase and Sale dated September 1, 2023 between Horizon as purchaser and IMV Inc. and IVT as vendors", "references": [{"paragraph": 29, "quote": "Attached to my Affidavit as Exhibit B is a copy of the Purchase Agreement."}], "content_check": "95-page 'AGREEMENT OF PURCHASE AND SALE September 1, 2023' between IMV Inc. and Immunovaccine Technologies Inc. (Vendors) and Horizon Technology Finance Corporation, as Collateral Agent (Purchaser)"},
-  {"label": "C", "file": "doc-akb3uy.pdf", "kind": "public_record", "date": "2023-04-27", "author": "Nova Scotia Personal Property Registry; Quebec RPMRR", "recipients": [], "description": "The Secured Lenders' financing statements at the Nova Scotia PPSA registry and the certified extract of the Quebec Register of personal and movable real rights", "references": [{"paragraph": 38, "quote": "Attached to my Affidavit as Exhibit C is a copy of the financing statements filed by the \nSecured Lenders"}], "content_check": "21 pages beginning with a Nova Scotia PPRS Search Result Report for debtor IMV Inc., searched 2023-04-27 11:49"}
+  {
+   "label": "A",
+   "file": "doc-7tn283.pdf",
+   "kind": "court_order",
+   "date": "2023-05-05",
+   "author": "Supreme Court of Nova Scotia (Schedule C to the ARIO)",
+   "recipients": [],
+   "description": "The SISP Procedures approved as Schedule C to the Amended and Restated Initial Order",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached to my Affidavit as Exhibit A is a copy of the SISP Procedures."
+    }
+   ],
+   "content_check": "Image-only 23 pages headed 'PROCEDURES OF THE SALE AND INVESTMENT SOLICITATION PROCESS IMV INC. ET AL.' with recitals on the May 1, 2023 initial order (Hfx No. 523334)"
+  },
+  {
+   "label": "B",
+   "file": "doc-rkf57m.pdf",
+   "kind": "agreement",
+   "date": "2023-09-01",
+   "author": "IMV Inc., Immunovaccine Technologies Inc. and Horizon Technology Finance Corporation",
+   "recipients": [],
+   "description": "The Agreement of Purchase and Sale dated September 1, 2023 between Horizon as purchaser and IMV Inc. and IVT as vendors",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached to my Affidavit as Exhibit B is a copy of the Purchase Agreement."
+    }
+   ],
+   "content_check": "95-page 'AGREEMENT OF PURCHASE AND SALE September 1, 2023' between IMV Inc. and Immunovaccine Technologies Inc. (Vendors) and Horizon Technology Finance Corporation, as Collateral Agent (Purchaser)"
+  },
+  {
+   "label": "C",
+   "file": "doc-akb3uy.pdf",
+   "kind": "public_record",
+   "date": "2023-04-27",
+   "author": "Nova Scotia Personal Property Registry; Quebec RPMRR",
+   "recipients": [],
+   "description": "The Secured Lenders' financing statements at the Nova Scotia PPSA registry and the certified extract of the Quebec Register of personal and movable real rights",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Attached to my Affidavit as Exhibit C is a copy of the financing statements filed by the \nSecured Lenders"
+    }
+   ],
+   "content_check": "21 pages beginning with a Nova Scotia PPRS Search Result Report for debtor IMV Inc., searched 2023-04-27 11:49"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2014-02", "precision": "month", "description": "Davison joined IMV's finance group", "paragraphs": [2], "quote": "since joining the company in \nFebruary 2014", "exhibits": []},
-  {"id": "e2", "date": "2022-01-01", "precision": "day", "description": "Davison became Senior Vice-President Finance", "paragraphs": [2], "quote": "I held the position of Senior Vice-President Finance since \nJanuary 1, 2022", "exhibits": []},
-  {"id": "e3", "date": "2022-03-31", "precision": "day", "description": "Davison became acting CFO", "paragraphs": [2], "quote": "have been the acting Chief Financial Officer since \nMarch 31, 2022", "exhibits": []},
-  {"id": "e4", "date": "2022-09-15", "precision": "day", "description": "Davison became Chief Accounting Officer", "paragraphs": [2], "quote": "have held this position since \nSeptember 15, 2022", "exhibits": []},
-  {"id": "e5", "date": "2021-12-17", "precision": "day", "description": "IMV entered the Venture Loan and Security Agreement with the Secured Lenders", "paragraphs": [36], "quote": "IMV is party to a Venture Loan and Security Agreement dated as of December 17, 2021", "exhibits": []},
-  {"id": "e6", "date": "2023-03", "precision": "month", "description": "IMV engaged Stonegate to explore strategic alternatives after its share price declined", "paragraphs": [11], "quote": "In March 2023, following an unexpected decline in its share price", "exhibits": []},
-  {"id": "e7", "date": "2023-03", "precision": "approximate", "description": "Stonegate sent its teaser to about 880 parties on three occasions and followed up", "paragraphs": [13, 14], "quote": "Stonegate sent the Stonegate Teaser to \napproximately 880 potentially interested parties", "exhibits": []},
-  {"id": "e8", "date": "2023-05-01", "precision": "day", "description": "Applicants obtained CCAA protection under the Initial Order; FTI appointed Monitor", "paragraphs": [5], "quote": "On May 1, 2023, the Applicants obtained protection under the CCAA pursuant to an initial \norder", "exhibits": ["A"]},
-  {"id": "e9", "date": "2023-05-01", "precision": "day", "description": "IMV terminated 30 employees", "paragraphs": [46], "quote": "termination of the employment of 30 employees on May 1, 2023", "exhibits": []},
-  {"id": "e10", "date": "2023-05-04", "precision": "day", "description": "One employee resigned", "paragraphs": [47], "quote": "one (1) employee resigned on May 4, 2023", "exhibits": []},
-  {"id": "e11", "date": "2023-05-05", "precision": "day", "description": "Court granted the ARIO approving the SISP", "paragraphs": [6, 18], "quote": "On May 5, 2023, the Court granted an Amended and Restated Initial Order", "exhibits": ["A"]},
-  {"id": "e12", "date": "2023-05-09", "precision": "day", "description": "Court granted the Claims Process Order", "paragraphs": [7], "quote": "On May 9, 2023, the Court granted a Claims Process Order", "exhibits": []},
-  {"id": "e13", "date": "2023-05-15", "precision": "day", "description": "Monitor sent the SISP teaser to 575 potential bidders and published notices", "paragraphs": [21, 22], "quote": "I am informed that the Teaser was sent to 575 potential bidders", "exhibits": ["A"]},
-  {"id": "e14", "date": "2023-06-19", "precision": "day", "description": "LOI deadline; multiple LOIs received", "paragraphs": [23], "quote": "Multiple LOIs were \nreceived by this deadline", "exhibits": ["A"]},
-  {"id": "e15", "date": "2023-06-30", "precision": "approximate", "description": "Monitor and IMV determined the Qualified Bidders", "paragraphs": [24], "quote": "made the determination \nas to which of the Prospective Bidders were Qualified Bidders", "exhibits": []},
-  {"id": "e16", "date": "2023-07-10", "precision": "day", "description": "Bid deadline; two bids received, neither for the going concern", "paragraphs": [25], "quote": "The Monitor received two (2) bids in \naccordance with the SISP Procedures by the Bid Deadline.", "exhibits": []},
-  {"id": "e17", "date": "2023-07-17", "precision": "day", "description": "Court granted the Extension Order", "paragraphs": [8], "quote": "On July 17, 2023, the Court granted an Extension Order", "exhibits": []},
-  {"id": "e18", "date": "2023-07-31", "precision": "day", "description": "IMV terminated 8 employees and its Chief Scientific Officer", "paragraphs": [46], "quote": "termination of the employment of 8 employees on July 31, 2023", "exhibits": []},
-  {"id": "e19", "date": "2023-08-04", "precision": "day", "description": "IMV terminated six employees", "paragraphs": [46], "quote": "termination of the employment of six (6) employees on August 4, 2023", "exhibits": []},
-  {"id": "e20", "date": "2023-08-11", "precision": "day", "description": "IMV terminated three employees", "paragraphs": [46], "quote": "termination of the employment of three (3) employees on August 11, 2023", "exhibits": []},
-  {"id": "e21", "date": "2023-08-17", "precision": "day", "description": "Court granted the Second Extension Order", "paragraphs": [9], "quote": "On August 17, 2023, the Court granted a Second Extension Order", "exhibits": []},
-  {"id": "e22", "date": "2023-08-18", "precision": "day", "description": "IMV terminated one employee and its CEO", "paragraphs": [46], "quote": "termination of the employment of one (1) employee and IMV’s Chief Executive \nOfficer effective on August 18, 2023", "exhibits": []},
-  {"id": "e23", "date": "2023-08-23", "precision": "day", "description": "Collateral Agent submitted a credit bid, determined the Successful Bid", "paragraphs": [27, 28], "quote": "On August 23, 2023, the Collateral Agent submitted a Credit Bid to the Monitor", "exhibits": []},
-  {"id": "e24", "date": null, "precision": "undated", "description": "One of the two initial bidders rescinded its bid", "paragraphs": [32], "quote": "one of the two initial bidders \nrescinded its bid", "exhibits": []},
-  {"id": "e25", "date": "2023-08-30", "precision": "day", "description": "IMV indebted to the Secured Lenders for about US$27,005,157", "paragraphs": [37], "quote": "As at August 30, 2023, IMV is indebted towards the Secured Lenders", "exhibits": ["C"]},
-  {"id": "e26", "date": null, "precision": "undated", "description": "Monitor obtained an independent security opinion", "paragraphs": [39], "quote": "the Monitor has obtained an \nindependent security opinion", "exhibits": []},
-  {"id": "e27", "date": "2023-09-01", "precision": "day", "description": "Horizon and IMV entered the Purchase Agreement for the Intellectual Property at US$15,000,000", "paragraphs": [10, 29, 31], "quote": "the Agreement of Purchase and Sale dated \nSeptember 1, 2023", "exhibits": ["B"]},
-  {"id": "e28", "date": "2023-09-01", "precision": "day", "description": "Terminations of three more employees effective on the date of the affidavit", "paragraphs": [48], "quote": "the termination employment of three (3) employees will be \neffective on the date of this Affidavit", "exhibits": []}
- ],
- "referenced_not_attached": ["Initial Order, ARIO, Claims Process Order, Extension Order and Second Extension Order", "Stonegate Teaser", "Monitor's Fourth Report", "Venture Loan and Security Agreement dated December 17, 2021", "Independent security opinion"],
- "leak_waivers": [],
- "notes": "The affidavit's last page is an index naming each exhibit's subject; it is part of the affidavit. Exhibit A is image-only."
+  {
+   "id": "e1",
+   "date": "2014-02",
+   "precision": "month",
+   "description": "Davison joined IMV's finance group",
+   "paragraphs": [
+    2
+   ],
+   "quote": "since joining the company in \nFebruary 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2022-01-01",
+   "precision": "day",
+   "description": "Davison became Senior Vice-President Finance",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I held the position of Senior Vice-President Finance since \nJanuary 1, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2022-03-31",
+   "precision": "day",
+   "description": "Davison became acting CFO",
+   "paragraphs": [
+    2
+   ],
+   "quote": "have been the acting Chief Financial Officer since \nMarch 31, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2022-09-15",
+   "precision": "day",
+   "description": "Davison became Chief Accounting Officer",
+   "paragraphs": [
+    2
+   ],
+   "quote": "have held this position since \nSeptember 15, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2021-12-17",
+   "precision": "day",
+   "description": "IMV entered the Venture Loan and Security Agreement with the Secured Lenders",
+   "paragraphs": [
+    36
+   ],
+   "quote": "IMV is party to a Venture Loan and Security Agreement dated as of December 17, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2023-03",
+   "precision": "month",
+   "description": "IMV engaged Stonegate to explore strategic alternatives after its share price declined",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In March 2023, following an unexpected decline in its share price",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2023-03",
+   "precision": "approximate",
+   "description": "Stonegate sent its teaser to about 880 parties on three occasions and followed up",
+   "paragraphs": [
+    13,
+    14
+   ],
+   "quote": "Stonegate sent the Stonegate Teaser to \napproximately 880 potentially interested parties",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2023-05-01",
+   "precision": "day",
+   "description": "Applicants obtained CCAA protection under the Initial Order; FTI appointed Monitor",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On May 1, 2023, the Applicants obtained protection under the CCAA pursuant to an initial \norder",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2023-05-01",
+   "precision": "day",
+   "description": "IMV terminated 30 employees",
+   "paragraphs": [
+    46
+   ],
+   "quote": "termination of the employment of 30 employees on May 1, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2023-05-04",
+   "precision": "day",
+   "description": "One employee resigned",
+   "paragraphs": [
+    47
+   ],
+   "quote": "one (1) employee resigned on May 4, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2023-05-05",
+   "precision": "day",
+   "description": "Court granted the ARIO approving the SISP",
+   "paragraphs": [
+    6,
+    18
+   ],
+   "quote": "On May 5, 2023, the Court granted an Amended and Restated Initial Order",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2023-05-09",
+   "precision": "day",
+   "description": "Court granted the Claims Process Order",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On May 9, 2023, the Court granted a Claims Process Order",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2023-05-15",
+   "precision": "day",
+   "description": "Monitor sent the SISP teaser to 575 potential bidders and published notices",
+   "paragraphs": [
+    21,
+    22
+   ],
+   "quote": "I am informed that the Teaser was sent to 575 potential bidders",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2023-06-19",
+   "precision": "day",
+   "description": "LOI deadline; multiple LOIs received",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Multiple LOIs were \nreceived by this deadline",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2023-06-30",
+   "precision": "approximate",
+   "description": "Monitor and IMV determined the Qualified Bidders",
+   "paragraphs": [
+    24
+   ],
+   "quote": "made the determination \nas to which of the Prospective Bidders were Qualified Bidders",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2023-07-10",
+   "precision": "day",
+   "description": "Bid deadline; two bids received, neither for the going concern",
+   "paragraphs": [
+    25
+   ],
+   "quote": "The Monitor received two (2) bids in \naccordance with the SISP Procedures by the Bid Deadline.",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2023-07-17",
+   "precision": "day",
+   "description": "Court granted the Extension Order",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On July 17, 2023, the Court granted an Extension Order",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2023-07-31",
+   "precision": "day",
+   "description": "IMV terminated 8 employees and its Chief Scientific Officer",
+   "paragraphs": [
+    46
+   ],
+   "quote": "termination of the employment of 8 employees on July 31, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2023-08-04",
+   "precision": "day",
+   "description": "IMV terminated six employees",
+   "paragraphs": [
+    46
+   ],
+   "quote": "termination of the employment of six (6) employees on August 4, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2023-08-11",
+   "precision": "day",
+   "description": "IMV terminated three employees",
+   "paragraphs": [
+    46
+   ],
+   "quote": "termination of the employment of three (3) employees on August 11, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2023-08-17",
+   "precision": "day",
+   "description": "Court granted the Second Extension Order",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On August 17, 2023, the Court granted a Second Extension Order",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": "2023-08-18",
+   "precision": "day",
+   "description": "IMV terminated one employee and its CEO",
+   "paragraphs": [
+    46
+   ],
+   "quote": "termination of the employment of one (1) employee and IMV’s Chief Executive \nOfficer effective on August 18, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "date": "2023-08-23",
+   "precision": "day",
+   "description": "Collateral Agent submitted a credit bid, determined the Successful Bid",
+   "paragraphs": [
+    27,
+    28
+   ],
+   "quote": "On August 23, 2023, the Collateral Agent submitted a Credit Bid to the Monitor",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "date": null,
+   "precision": "undated",
+   "description": "One of the two initial bidders rescinded its bid",
+   "paragraphs": [
+    32
+   ],
+   "quote": "one of the two initial bidders \nrescinded its bid",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "date": "2023-08-30",
+   "precision": "day",
+   "description": "IMV indebted to the Secured Lenders for about US$27,005,157",
+   "paragraphs": [
+    37
+   ],
+   "quote": "As at August 30, 2023, IMV is indebted towards the Secured Lenders",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": null,
+   "precision": "undated",
+   "description": "Monitor obtained an independent security opinion",
+   "paragraphs": [
+    39
+   ],
+   "quote": "the Monitor has obtained an \nindependent security opinion",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "date": "2023-09-01",
+   "precision": "day",
+   "description": "Horizon and IMV entered the Purchase Agreement for the Intellectual Property at US$15,000,000",
+   "paragraphs": [
+    10,
+    29,
+    31
+   ],
+   "quote": "the Agreement of Purchase and Sale dated \nSeptember 1, 2023",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e28",
+   "date": "2023-09-01",
+   "precision": "day",
+   "description": "Terminations of three more employees effective on the date of the affidavit",
+   "paragraphs": [
+    48
+   ],
+   "quote": "the termination employment of three (3) employees will be \neffective on the date of this Affidavit",
+   "exhibits": []
+  }
+ ]
 }

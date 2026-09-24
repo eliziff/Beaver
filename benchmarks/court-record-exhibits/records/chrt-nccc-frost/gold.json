@@ -9,119 +9,1642 @@
  "deponent": "Chief Pauline Frost",
  "deponent_role": "Chief of Vuntut Gwitchin First Nation; Chair, National Children's Chiefs Commission",
  "sworn_date": "2025-11-20",
+ "referenced_not_attached": [
+  "2016 CHRT 2, 2018 CHRT 4 and 2025 CHRT 80 decisions",
+  "AFN letter to the Tribunal of March 31, 2025 retracting the March 24 letter",
+  "Recordings of the October 2025 webinars"
+ ],
+ "leak_waivers": [],
+ "notes": "Paragraph 64 dates the joint letter 'July 28, 2024'; Exhibit FF and the context show July 28, 2025. The source PDF has a few damaged font streams (MuPDF warnings) that do not affect the text.",
+ "family": "fncfcs-chrt-t1340",
+ "subject": "human_rights",
  "exhibits": [
-  {"label": "A", "file": "doc-4xjvuf.pdf", "kind": "minutes", "date": "2006-12-07", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 53/2006 approving the joint AFN-Caring Society complaint", "references": [{"paragraph": 9, "quote": "A \ncopy of Resolution No. 53/2006 is attached as Exhibit “A”."}], "content_check": "Two-page certified AFN Special Chiefs Assembly Resolution no. 53/2006, December 5-7, 2006, Ottawa, 'First Nations Child & Family Services'"},
-  {"label": "B", "file": "doc-ksxs3x.pdf", "kind": "agreement", "date": "2018-03-02", "author": "Caring Society, AFN, CHRC, Canada, COO and NAN", "recipients": [], "description": "The Consultation Protocol dated March 2, 2018 establishing the CCCW", "references": [{"paragraph": 14, "quote": "A copy of the Consultation \nProtocol, dated March 2, 2018, is attached as Exhibit “B”."}], "content_check": "Image-only 15-page consultation protocol"},
-  {"label": "C", "file": "doc-k7d4um.pdf", "kind": "webpage", "date": "2021-12-31", "author": "Indigenous Services Canada", "recipients": [], "description": "ISC's summary of the December 31, 2021 Agreement-in-Principle", "references": [{"paragraph": 15, "quote": "A copy of a summary of the AIP prepared by \nIndigenous Services Canada is attached as Exhibit “C”."}], "content_check": "16-page Canada.ca Indigenous Services Canada printout on the final settlement agreement on compensation and agreements-in-principle"},
-  {"label": "D", "file": "doc-7vgcwt.pdf", "kind": "minutes", "date": "2022-12-08", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 40/2022 directing evidence- and policy-based options for long-term reform of Jordan's Principle", "references": [{"paragraph": 16, "quote": "A copy of Resolution No. 40/2022 is attached as Exhibit \n“D”."}], "content_check": "Image-only three-page AFN resolution"},
-  {"label": "E", "file": "doc-xcz56d.pdf", "kind": "agreement", "date": "2024-07-11", "author": "Canada, AFN, COO and NAN", "recipients": [], "description": "The Draft Final Agreement on long-term reform of FNCFS released July 11, 2024", "references": [{"paragraph": 18, "quote": "A copy of the Draft Final Agreement is attached as Exhibit “E”."}], "content_check": "202-page 'Recommended Draft for Review FINAL AGREEMENT ON LONG-TERM REFORM OF THE FIRST NATIONS CHILD AND FAMILY SERVICES PROGRAM'"},
-  {"label": "F", "file": "doc-f8dqkk.pdf", "kind": "report", "date": "2024-09-17", "author": "Assembly of First Nations", "recipients": [], "description": "AFN 'First Nations Child and Family Services Long-Term Reform Regional Engagement Summary'", "references": [{"paragraph": 23, "quote": "“First Nations Child and \nFamily Services Long-Term Reform Regional Engagement Summary,” a copy of which is attached \nas Exhibit “F”"}], "content_check": "Six-page draft 'First Nations Child and Family Services Long-Term Reform Regional Engagement Summary'"},
-  {"label": "G", "file": "doc-3x7vth.pdf", "kind": "minutes", "date": "2024-10-18", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 60/2024 rejecting the Draft Final Agreement and establishing the NCCC", "references": [{"paragraph": 24, "quote": "In Resolutions No. 60/2024 and 61/2024, copies of which are attached as Exhibits \n“G” and “H”"}], "content_check": "Five-page certified Special Chiefs Assembly Resolution no. 60/2024, October 16-18, 2024, Calgary"},
-  {"label": "H", "file": "doc-65vrqf.pdf", "kind": "minutes", "date": "2024-10-18", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 61/2024 directing further negotiations to amend the Draft Final Agreement", "references": [{"paragraph": 24, "quote": "In Resolutions No. 60/2024 and 61/2024, copies of which are attached as Exhibits \n“G” and “H”"}], "content_check": "Three-page certified Resolution no. 61/2024, October 16-18, 2024, Calgary"},
-  {"label": "I", "file": "doc-h5vztk.pdf", "kind": "minutes", "date": "2024-12-05", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 88/2024", "references": [{"paragraph": 25, "quote": "Resolutions Nos. 88/2024, 89/2024, and 90/2024, copies of which are attached as Exhibits “I”, “J”, and “K”"}], "content_check": "Four-page certified Resolution no. 88/2024, December 3-5, 2024, Ottawa"},
-  {"label": "J", "file": "doc-966v94.pdf", "kind": "minutes", "date": "2024-12-05", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 89/2024 approving the NCCC terms of reference in principle", "references": [{"paragraph": 25, "quote": "Resolutions Nos. 88/2024, 89/2024, and 90/2024, copies of which are attached as Exhibits “I”, “J”, and “K”"}], "content_check": "Five-page certified Resolution no. 89/2024, December 3-5, 2024, Ottawa"},
-  {"label": "K", "file": "doc-8bavs9.pdf", "kind": "minutes", "date": "2024-12-05", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 90/2024", "references": [{"paragraph": 25, "quote": "Resolutions Nos. 88/2024, 89/2024, and 90/2024, copies of which are attached as Exhibits “I”, “J”, and “K”"}], "content_check": "Three-page certified Resolution no. 90/2024, December 3-5, 2024, Ottawa"},
-  {"label": "L", "file": "doc-ezzebb.pdf", "kind": "minutes", "date": "2024-12-05", "author": "AFN First Nations-in-Assembly", "recipients": [], "description": "Resolution No. 87/2024 on inclusion of the Dene Nation First Nations of the Northwest Territories", "references": [{"paragraph": 30, "quote": "A copy of First \nNations-in-Assembly Resolution No. 87/2024 is attached as Exhibit “L”."}], "content_check": "Two-page certified Resolution no. 87/2024, December 3-5, 2024, Ottawa"},
-  {"label": "M", "file": "doc-zcerkp.pdf", "kind": "corporate_record", "date": "2025-01-23", "author": "National Children's Chiefs Commission", "recipients": [], "description": "The NCCC terms of reference", "references": [{"paragraph": 33, "quote": "A copy of the NCCC terms of \nreference is attached as Exhibit “M”."}], "content_check": "Ten-page 'TERMS OF REFERENCE' marked 'Approved by NCCC January 23, 2025, Subject to approval by First Nations-in-Assembly'"},
-  {"label": "N", "file": "doc-qvmwsh.pdf", "kind": "minutes", "date": "2025-01-03", "author": "National Children's Chiefs Commission", "recipients": [], "description": "NCCC Resolution 05/2025 'Interim NCCC Administration'", "references": [{"paragraph": 34, "quote": "A copy of \nNCCC Resolution 05/2025 “Interim NCCC Administration” is attached as Exhibit “N”."}], "content_check": "One page: 'Resolution 05/2025: Interim NCCC Administration'"},
-  {"label": "O", "file": "doc-8s6sdn.pdf", "kind": "report", "date": "2025-08-01", "author": "National Children's Chiefs Commission", "recipients": ["First Nations-in-Assembly"], "description": "NCCC Progress Report dated August 1, 2025", "references": [{"paragraph": 39, "quote": "A \ncopy of the NCCC Progress Report, dated August 1, 2025, is attached as Exhibit “O”."}], "content_check": "Ten-page 'National Children's Chiefs Commission Progress Report - August 1, 2025'"},
-  {"label": "P", "file": "doc-nppjc4.pdf", "kind": "minutes", "date": "2025-09-03", "author": "AFN Annual General Assembly", "recipients": [], "description": "Draft Resolution 52 approving the NCCC Terms of Reference", "references": [{"paragraph": 39, "quote": "by passing Draft Resolution 52, a copy of which is attached as Exhibit “P”."}], "content_check": "Three-page 'DRAFT RESOLUTION #52/2025, AFN Annual General Assembly, September 3-5, 2025, Winnipeg'"},
-  {"label": "Q", "file": "doc-aufunt.pdf", "kind": "letter", "date": "2025-01-06", "author": "Paul Vickery, Department of Justice Canada", "recipients": ["Assembly of First Nations (Stuart Wuttke, Adam Williamson)"], "description": "Justice Canada's January 6, 2025 letter that Canada would negotiate only with COO and NAN", "references": [{"paragraph": 42, "quote": "A copy of the letter from P. Vickery to the AFN, dated January \n6, 2025, is attached as Exhibit “Q”."}], "content_check": "Image-only one-page Department of Justice letter dated January 6, 2025 to Stuart Wuttke and Adam Williamson, 'Re: Long-Term Reform of the First Nations Child and Family Services Program', signed Paul Vickery"},
-  {"label": "R", "file": "doc-zbj8em.pdf", "kind": "letter", "date": "2025-01-15", "author": "AFN Regional Chiefs", "recipients": ["AFN National Chief Cindy Woodhouse"], "description": "Letter from the AFN Regional Chiefs to National Chief Woodhouse on the NCCC's role", "references": [{"paragraph": 45, "quote": "A copy of the Letter \nfrom the AFN Regional Chiefs to AFN National Chief Cindy Woodhouse, dated January 15, 2025, \nis attached as Exhibit “R”."}], "content_check": "Image-only three-page letter dated January 15, 2025 on regional organization letterheads to National Chief Cindy Woodhouse"},
-  {"label": "S", "file": "doc-26njku.pdf", "kind": "letter", "date": "2025-01-22", "author": "Scott A. Smith, Aird & Berlis LLP for the NCCC", "recipients": ["Paul Vickery (Justice Canada)"], "description": "NCCC counsel's January 22, 2025 letter informing Canada of the NCCC's mandate", "references": [{"paragraph": 48, "quote": "A copy of the Letter from S. \nSmith to P. Vickery, dated January 22, 2025, is attached as Exhibit “S”."}], "content_check": "Two-page letter from Scott A. Smith (Aird & Berlis) dated January 22, 2025"},
-  {"label": "T", "file": "doc-r6ve73.pdf", "kind": "letter", "date": "2025-01-24", "author": "Chief Pauline Frost", "recipients": ["Prime Minister Justin Trudeau", "Minister Gary Anandasangaree", "Minister Patty Hajdu"], "description": "Frost's January 24, 2025 letter to the Prime Minister and Ministers", "references": [{"paragraph": 49, "quote": "A copy of my letter to the Right Honourable Justin \nTrudeau et al, dated January 24, 2025, is attached as Exhibit “T”."}], "content_check": "Three-page letter dated January 24, 2025, sent by e-mail to the Right Honourable Justin Trudeau"},
-  {"label": "U", "file": "doc-7k4z9y.pdf", "kind": "letter", "date": "2025-01-24", "author": "Paul Vickery, Department of Justice Canada", "recipients": ["Stuart Wuttke et al. (AFN counsel)"], "description": "Vickery's January 24, 2025 letter asking whether Mr. Smith acts for the AFN", "references": [{"paragraph": 50, "quote": "A copy of the letter from P. Vickery to S. Wuttke et al, \ndated January 24, 2025, is attached as Exhibit “U”."}], "content_check": "One-page letter from Justice Canada's Civil Litigation Section, National Litigation Sector, 50 O'Connor Street"},
-  {"label": "V", "file": "doc-8fngew.pdf", "kind": "letter", "date": "2025-01-28", "author": "Adam Williamson, AFN", "recipients": ["Paul Vickery"], "description": "AFN counsel's January 28, 2025 response that Mr. Smith does not act for the AFN", "references": [{"paragraph": 51, "quote": "A \ncopy of the letter from A. Williamson to P. Vickery, dated January 28, 2025, is attached as Exhibit \n“V”."}], "content_check": "One-page Assembly of First Nations letter, 50 O'Connor Street, Suite 200"},
-  {"label": "W", "file": "doc-nstf3c.pdf", "kind": "letter", "date": "2025-01-29", "author": "Andrew Bisson, AFN CEO", "recipients": ["Deputy Minister Gina Wilson"], "description": "AFN CEO's January 29, 2025 letter explaining the NCCC and seeking to fund it", "references": [{"paragraph": 52, "quote": "A copy of the letter \nfrom A. Bisson to Deputy Minister Gina Wilson, dated January 29, 2025, is attached as Exhibit \n“W”."}], "content_check": "Two-page letter on AFN head office (Akwesasne) letterhead"},
-  {"label": "X", "file": "doc-rmg3fy.pdf", "kind": "letter", "date": "2025-01-31", "author": "AFN National Chief Cindy Woodhouse", "recipients": ["AFN Regional Chiefs"], "description": "National Chief Woodhouse's January 31, 2025 reply agreeing with the Regional Chiefs on the NCCC's role", "references": [{"paragraph": 54, "quote": "A copy of the letter from \nAFN National Chief Cindy Woodhouse to AFN Regional Chiefs, dated January 31, 2025, is \nattached as Exhibit “X”."}], "content_check": "Three-page letter on AFN letterhead, 50 O'Connor Street, Suite 200"},
-  {"label": "Y", "file": "doc-zwdfps.pdf", "kind": "letter", "date": "2025-02-14", "author": "Dayna Anderson, Department of Justice Canada", "recipients": ["Scott Smith"], "description": "Justice Canada's February 14, 2025 letter declining to meet with the NCCC", "references": [{"paragraph": 55, "quote": "A copy of the letter from D. Anderson \nto S. Smith, dated February 14, 2025, is attached as Exhibit “Y”."}], "content_check": "One-page letter from Justice Canada's Prairie Regional Office (Winnipeg), National Litigation Sector"},
-  {"label": "Z", "file": "doc-urt3c9.pdf", "kind": "letter", "date": "2025-02-21", "author": "Chief Pauline Frost", "recipients": ["Prime Minister Justin Trudeau", "Minister Gary Anandasangaree", "Minister Patty Hajdu"], "description": "Frost's February 21, 2025 follow-up letter with a table of outstanding issues", "references": [{"paragraph": 57, "quote": "A copy of my letter to the \nRight Honourable Justin Trudeau et al, dated February 21, 2025, is attached as Exhibit “Z”."}], "content_check": "Two-page letter dated February 21, 2025, sent by e-mail to the Right Honourable Justin Trudeau"},
-  {"label": "AA", "file": "doc-ufntx6.pdf", "kind": "letter", "date": "2025-02-25", "author": "Minister Patty Hajdu", "recipients": ["Chief Pauline Frost"], "description": "Minister Hajdu's February 25, 2025 response urging the NCCC to work with the AFN", "references": [{"paragraph": 58, "quote": "A \ncopy of the letter from the Honourable Patty Hajdu to me, dated February 25, 2025, is attached as \nExhibit “AA”."}], "content_check": "Two-page letter addressed to Chief Pauline Frost, National Children's Chiefs Committee, Our Children Our Way Secretariat"},
-  {"label": "BB", "file": "doc-hq9jsj.pdf", "kind": "letter", "date": "2025-03-04", "author": "AFN National Chief Cindy Woodhouse", "recipients": ["Minister Patty Hajdu"], "description": "National Chief Woodhouse's March 4, 2025 letter supporting the NCCC", "references": [{"paragraph": 59, "quote": "A copy of the letter from AFN National Chief Cindy Woodhouse to the Honourable Patty Hajdu, \ndated March 4, 2025, is attached as Exhibit “BB”."}], "content_check": "Two-page letter on AFN letterhead"},
-  {"label": "CC", "file": "doc-ckmb3x.pdf", "kind": "letter", "date": "2025-03-19", "author": "Chief Pauline Frost", "recipients": ["Prime Minister Mark Carney"], "description": "Frost's March 19, 2025 letter to Prime Minister Carney", "references": [{"paragraph": 60, "quote": "A copy of my letter to the \nRight Honourable Mark Carney, dated March 19, 2025, is attached as Exhibit “CC”."}], "content_check": "Two-page letter dated March 19, 2025 sent by e-mail to the Right Honourable Mark Carney"},
-  {"label": "DD", "file": "doc-2kn2xa.pdf", "kind": "letter", "date": "2025-06-04", "author": "Chief Pauline Frost", "recipients": ["Minister Mandy Gull-Masty"], "description": "Frost's June 4, 2025 letter to Minister Gull-Masty", "references": [{"paragraph": 62, "quote": "A copy of my letter to the Honourable Mandy Gull-Masty, dated June 4, \n2025, is attached as Exhibit “DD”"}], "content_check": "Two-page letter dated June 04, 2025 to the Honourable Mandy Gull-Masty"},
-  {"label": "EE", "file": "doc-7abuv7.pdf", "kind": "letter", "date": "2025-07-04", "author": "Chief Pauline Frost", "recipients": ["Minister Mandy Gull-Masty"], "description": "Frost's July 4, 2025 letter inviting the Minister to the NCCC's July meeting", "references": [{"paragraph": 63, "quote": "A \ncopy of my letter to the Honourable Mandy Gull-Masty, dated July 4, 2025, is attached as Exhibit \n“EE”."}], "content_check": "Two-page letter dated July 04, 2025 to the Honourable Mandy Gull-Masty"},
-  {"label": "FF", "file": "doc-4r82y7.pdf", "kind": "letter", "date": "2025-07-28", "author": "Chief Pauline Frost, Regional Chief Joanna Bernard and Cindy Blackstock", "recipients": ["Prime Minister Mark Carney", "Minister Mandy Gull-Masty"], "description": "July 28, 2025 joint letter urging good-faith negotiations", "references": [{"paragraph": 64, "quote": "of my letter to the Right Honourable Mark Carney and the Honourable Mandy Gull-Masty, dated \nJuly 28, 2025, is attached as Exhibit “FF”."}], "content_check": "Two-page letter dated July 28, 2025 to the Right Honourable Mark Carney"},
-  {"label": "GG", "file": "doc-9qu23u.pdf", "kind": "letter", "date": "2025-07-30", "author": "Minister Mandy Gull-Masty", "recipients": ["Chief Pauline Frost"], "description": "Minister Gull-Masty's July 30, 2025 letter to Frost", "references": [{"paragraph": 65, "quote": "A copy of the letter from the Honourable Mandy Gull-Masty \nto me, dated July 30, 2025, is attached as Exhibit “GG”."}], "content_check": "Two-page letter addressed to Chief Pauline Frost, Chair, National Children's Chiefs Commission"},
-  {"label": "HH", "file": "doc-jpau2s.pdf", "kind": "letter", "date": "2025-07-29", "author": "Chief Pauline Frost", "recipients": ["Minister Mandy Gull-Masty", "Deputy Minister Gina Wilson"], "description": "Frost's July 29, 2025 letter following up the Tribunal's request that Canada meet the NCCC", "references": [{"paragraph": 67, "quote": "A copy of my letter to the Honourable Mandy Gull-Masty and Deputy \nMinister Gina Wilson, dated July 29, 2025, is attached as Exhibit “HH”."}], "content_check": "One-page letter dated July 29, 2025, by email, to the Honourable Mandy Gull-Masty"},
-  {"label": "II", "file": "doc-4py8t3.pdf", "kind": "letter", "date": "2025-08-21", "author": "Chief Pauline Frost, Regional Chief Bernard and Cindy Blackstock", "recipients": ["Minister Mandy Gull-Masty"], "description": "August 21, 2025 letter requesting a follow-up meeting", "references": [{"paragraph": 70, "quote": "A copy of my letter to the Honourable Mandy Gull-Masty, dated \nAugust 21, 2025, is attached as Exhibit “II”."}], "content_check": "One-page letter dated August 21, 2025, by email, to the Honourable Mandy Gull-Masty"},
-  {"label": "JJ", "file": "doc-wgasr6.pdf", "kind": "letter", "date": "2025-08-29", "author": "Dayna Anderson, Department of Justice Canada", "recipients": ["Canadian Human Rights Tribunal"], "description": "Canada's August 29, 2025 letter to the Tribunal responding to 2025 CHRT 80", "references": [{"paragraph": 74, "quote": "A copy of the letter from D. Anderson to the CHRT, dated \nAugust 29, 2025, is attached as Exhibit “JJ”."}], "content_check": "Six-page letter marked 'DRAFT' from Justice Canada's Prairie Regional Office (Winnipeg)"},
-  {"label": "KK", "file": "doc-c5hwtd.pdf", "kind": "letter", "date": "2025-09-11", "author": "Chief Pauline Frost", "recipients": ["Prime Minister Mark Carney", "Minister Mandy Gull-Masty"], "description": "Frost's September 11, 2025 letter responding to Canada's concerns", "references": [{"paragraph": 75, "quote": "A copy of my letter to the Right Honourable Mark Carney and the Honourable Mandy Gull-Masty, \ndated September 11, 2025, is attached as Exhibit “KK”."}], "content_check": "Two-page letter dated September 11, 2025 to the Right Honourable Mark Carney"},
-  {"label": "LL", "file": "doc-v9ukcz.pdf", "kind": "letter", "date": "2025-09-16", "author": "Chief Pauline Frost", "recipients": ["Minister Mandy Gull-Masty"], "description": "Frost's September 16, 2025 letter to Minister Gull-Masty", "references": [{"paragraph": 76, "quote": "copies of which letters are attached as Exhibit “LL” and “MM”, respectively"}], "content_check": "Two-page letter dated September 16, 2025 to the Honourable Mandy Gull-Masty"},
-  {"label": "MM", "file": "doc-7m4bha.pdf", "kind": "letter", "date": "2025-10-06", "author": "Chief Pauline Frost", "recipients": ["Minister Mandy Gull-Masty"], "description": "Frost's October 6, 2025 letter requesting a formal meeting", "references": [{"paragraph": 76, "quote": "copies of which letters are attached as Exhibit “LL” and “MM”, respectively"}], "content_check": "One-page letter dated October 6, 2025, by email, to the Honourable Mandy Gull-Masty"},
-  {"label": "NN", "file": "doc-hkcjw9.pdf", "kind": "webpage", "date": null, "author": "National Children's Chiefs Commission", "recipients": [], "description": "Printout of the NCCC 'Engagement: CHRT 80' webpage", "references": [{"paragraph": 78, "quote": "A copy of a printout of \nthat webpage is attached as Exhibit “NN”."}], "content_check": "Five-page NCCC web printout with menu 'Home NCCC Timeline Events & Transparency Engagement: CHRT 80'"},
-  {"label": "OO", "file": "doc-xneeb9.pdf", "kind": "other", "date": null, "author": "National Children's Chiefs Commission", "recipients": [], "description": "Backgrounders on the status of the proceeding and 2025 CHRT 80", "references": [{"paragraph": 78, "quote": "copies of which are attached as Exhibit “OO”"}], "content_check": "Image-only three pages of backgrounder material"},
-  {"label": "PP", "file": "doc-2g2n4r.pdf", "kind": "chart", "date": "2025-10", "author": "National Children's Chiefs Commission", "recipients": [], "description": "Chart summarizing the NCCC engagement process", "references": [{"paragraph": 78, "quote": "a chart summarizing the engagement process that will be followed by the NCCC, \nwhich is attached as Exhibit “PP”"}], "content_check": "Image-only one-page flow chart 'First Nations Child & Family Services Long Term Reform Engagement Plan: Developing a Plan by December 22nd 2025'"},
-  {"label": "QQ", "file": "doc-5z3t78.pdf", "kind": "other", "date": null, "author": "National Children's Chiefs Commission", "recipients": [], "description": "Fillable online feedback forms", "references": [{"paragraph": 78, "quote": "fillable online feedback forms, copies of which at attached as Exhibit “QQ”"}], "content_check": "35 pages of online form printouts, mostly image"},
-  {"label": "RR", "file": "doc-pcj9ta.pdf", "kind": "other", "date": null, "author": "National Children's Chiefs Commission", "recipients": [], "description": "Engagement session toolkit for First Nations and agencies", "references": [{"paragraph": 78, "quote": "an engagement session toolkit for First Nations and agencies, a copy of which is \nattached as Exhibit “RR”"}], "content_check": "Image-only one-page toolkit"},
-  {"label": "SS", "file": "doc-swcvfp.pdf", "kind": "letter", "date": "2024-12-09", "author": "Stuart Wuttke, AFN", "recipients": ["Canadian Human Rights Tribunal"], "description": "AFN's December 9, 2024 letter that it was not in a position to move forward", "references": [{"paragraph": 83, "quote": "A copy the letter from S. Wuttke to the Tribunal, dated \nDecember 9, 2024, is attached as Exhibit “SS”."}], "content_check": "Three-page letter on AFN letterhead, 50 O'Connor Street"},
-  {"label": "TT", "file": "doc-tvx2gc.pdf", "kind": "letter", "date": "2025-03-24", "author": "Adam Williamson, AFN", "recipients": ["Canadian Human Rights Tribunal"], "description": "AFN's March 24, 2025 letter that the NCCC was formed to advance new negotiation mandates", "references": [{"paragraph": 83, "quote": "A copy of the letter from A Williamson to the Tribunal, dated March 24, 2025, is \nattached as Exhibit “TT”."}], "content_check": "Four-page letter on AFN letterhead"},
-  {"label": "UU", "file": "doc-w6h3qd.pdf", "kind": "letter", "date": "2025-04-04", "author": "Andrew Bisson, AFN CEO", "recipients": ["Canadian Human Rights Tribunal"], "description": "AFN CEO's April 4, 2025 letter confirming the March 24 letter was sent with instructions", "references": [{"paragraph": 83, "quote": "a subsequent letter from AFN CEO A. Bisson sent on April 4, 2025, \na copy of which is attached as Exhibit “UU”"}], "content_check": "One-page letter on AFN head office (Akwesasne) letterhead"},
-  {"label": "VV", "file": "doc-hea8h4.pdf", "kind": "letter", "date": "2025-04-24", "author": "Peter N. Mantas, Fasken, AFN counsel", "recipients": ["CHRT Registry"], "description": "AFN counsel Mantas's April 24, 2025 letter to the Tribunal", "references": [{"paragraph": 83, "quote": "Further confirmation to this effect was provided in \na letter from AFN legal counsel Peter Mantas to the Tribunal on April 24, 2025"}], "content_check": "Two-page letter dated April 24, 2025 by email to Registry.Office@chrt-tcdp.gc.ca from Peter N. Mantas"},
-  {"label": "WW", "file": "doc-j9zbnv.pdf", "kind": "letter", "date": "2025-05-08", "author": "Peter N. Mantas for the AFN", "recipients": ["CHRT Registry"], "description": "AFN's May 8, 2025 letter taking no position on interested party motions", "references": [{"paragraph": 84, "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"}], "content_check": "Three-page letter dated May 8, 2025 to the CHRT Registry from Peter N. Mantas"},
-  {"label": "XX", "file": "doc-hyq9my.pdf", "kind": "letter", "date": "2025-06-04", "author": "Peter N. Mantas for the AFN", "recipients": ["CHRT Registry"], "description": "AFN's June 4, 2025 letter taking no position on the COO-NAN amended joint notice of motion", "references": [{"paragraph": 84, "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"}], "content_check": "Two-page letter dated June 4, 2025 to the CHRT Registry"},
-  {"label": "YY", "file": "doc-n9ku9b.pdf", "kind": "letter", "date": "2025-06-16", "author": "Peter N. Mantas for the AFN", "recipients": ["CHRT Registry"], "description": "AFN's June 16, 2025 letter taking no position on interested party motions", "references": [{"paragraph": 84, "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"}], "content_check": "Two-page letter dated June 16, 2025 to the CHRT Registry"},
-  {"label": "ZZ", "file": "doc-cn5cue.pdf", "kind": "letter", "date": "2025-09-25", "author": "Peter N. Mantas for the AFN", "recipients": ["CHRT Registry"], "description": "AFN's September 25, 2025 letter taking no position on the Ontario-specific agreement approval motion", "references": [{"paragraph": 84, "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"}], "content_check": "Two-page letter dated September 25, 2025 to the CHRT Registry"}
+  {
+   "label": "A",
+   "file": "doc-4xjvuf.pdf",
+   "kind": "minutes",
+   "date": "2006-12-07",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 53/2006 approving the joint AFN-Caring Society complaint",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A \ncopy of Resolution No. 53/2006 is attached as Exhibit “A”."
+    }
+   ],
+   "content_check": "Two-page certified AFN Special Chiefs Assembly Resolution no. 53/2006, December 5-7, 2006, Ottawa, 'First Nations Child & Family Services'"
+  },
+  {
+   "label": "B",
+   "file": "doc-ksxs3x.pdf",
+   "kind": "agreement",
+   "date": "2018-03-02",
+   "author": "Caring Society, AFN, CHRC, Canada, COO and NAN",
+   "recipients": [],
+   "description": "The Consultation Protocol dated March 2, 2018 establishing the CCCW",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of the Consultation \nProtocol, dated March 2, 2018, is attached as Exhibit “B”."
+    }
+   ],
+   "content_check": "Image-only 15-page consultation protocol"
+  },
+  {
+   "label": "C",
+   "file": "doc-k7d4um.pdf",
+   "kind": "webpage",
+   "date": "2021-12-31",
+   "author": "Indigenous Services Canada",
+   "recipients": [],
+   "description": "ISC's summary of the December 31, 2021 Agreement-in-Principle",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of a summary of the AIP prepared by \nIndigenous Services Canada is attached as Exhibit “C”."
+    }
+   ],
+   "content_check": "16-page Canada.ca Indigenous Services Canada printout on the final settlement agreement on compensation and agreements-in-principle"
+  },
+  {
+   "label": "D",
+   "file": "doc-7vgcwt.pdf",
+   "kind": "minutes",
+   "date": "2022-12-08",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 40/2022 directing evidence- and policy-based options for long-term reform of Jordan's Principle",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "A copy of Resolution No. 40/2022 is attached as Exhibit \n“D”."
+    }
+   ],
+   "content_check": "Image-only three-page AFN resolution"
+  },
+  {
+   "label": "E",
+   "file": "doc-xcz56d.pdf",
+   "kind": "agreement",
+   "date": "2024-07-11",
+   "author": "Canada, AFN, COO and NAN",
+   "recipients": [],
+   "description": "The Draft Final Agreement on long-term reform of FNCFS released July 11, 2024",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A copy of the Draft Final Agreement is attached as Exhibit “E”."
+    }
+   ],
+   "content_check": "202-page 'Recommended Draft for Review FINAL AGREEMENT ON LONG-TERM REFORM OF THE FIRST NATIONS CHILD AND FAMILY SERVICES PROGRAM'"
+  },
+  {
+   "label": "F",
+   "file": "doc-f8dqkk.pdf",
+   "kind": "report",
+   "date": "2024-09-17",
+   "author": "Assembly of First Nations",
+   "recipients": [],
+   "description": "AFN 'First Nations Child and Family Services Long-Term Reform Regional Engagement Summary'",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "“First Nations Child and \nFamily Services Long-Term Reform Regional Engagement Summary,” a copy of which is attached \nas Exhibit “F”"
+    }
+   ],
+   "content_check": "Six-page draft 'First Nations Child and Family Services Long-Term Reform Regional Engagement Summary'"
+  },
+  {
+   "label": "G",
+   "file": "doc-3x7vth.pdf",
+   "kind": "minutes",
+   "date": "2024-10-18",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 60/2024 rejecting the Draft Final Agreement and establishing the NCCC",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "In Resolutions No. 60/2024 and 61/2024, copies of which are attached as Exhibits \n“G” and “H”"
+    }
+   ],
+   "content_check": "Five-page certified Special Chiefs Assembly Resolution no. 60/2024, October 16-18, 2024, Calgary"
+  },
+  {
+   "label": "H",
+   "file": "doc-65vrqf.pdf",
+   "kind": "minutes",
+   "date": "2024-10-18",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 61/2024 directing further negotiations to amend the Draft Final Agreement",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "In Resolutions No. 60/2024 and 61/2024, copies of which are attached as Exhibits \n“G” and “H”"
+    }
+   ],
+   "content_check": "Three-page certified Resolution no. 61/2024, October 16-18, 2024, Calgary"
+  },
+  {
+   "label": "I",
+   "file": "doc-h5vztk.pdf",
+   "kind": "minutes",
+   "date": "2024-12-05",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 88/2024",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Resolutions Nos. 88/2024, 89/2024, and 90/2024, copies of which are attached as Exhibits “I”, “J”, and “K”"
+    }
+   ],
+   "content_check": "Four-page certified Resolution no. 88/2024, December 3-5, 2024, Ottawa"
+  },
+  {
+   "label": "J",
+   "file": "doc-966v94.pdf",
+   "kind": "minutes",
+   "date": "2024-12-05",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 89/2024 approving the NCCC terms of reference in principle",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Resolutions Nos. 88/2024, 89/2024, and 90/2024, copies of which are attached as Exhibits “I”, “J”, and “K”"
+    }
+   ],
+   "content_check": "Five-page certified Resolution no. 89/2024, December 3-5, 2024, Ottawa"
+  },
+  {
+   "label": "K",
+   "file": "doc-8bavs9.pdf",
+   "kind": "minutes",
+   "date": "2024-12-05",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 90/2024",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Resolutions Nos. 88/2024, 89/2024, and 90/2024, copies of which are attached as Exhibits “I”, “J”, and “K”"
+    }
+   ],
+   "content_check": "Three-page certified Resolution no. 90/2024, December 3-5, 2024, Ottawa"
+  },
+  {
+   "label": "L",
+   "file": "doc-ezzebb.pdf",
+   "kind": "minutes",
+   "date": "2024-12-05",
+   "author": "AFN First Nations-in-Assembly",
+   "recipients": [],
+   "description": "Resolution No. 87/2024 on inclusion of the Dene Nation First Nations of the Northwest Territories",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "A copy of First \nNations-in-Assembly Resolution No. 87/2024 is attached as Exhibit “L”."
+    }
+   ],
+   "content_check": "Two-page certified Resolution no. 87/2024, December 3-5, 2024, Ottawa"
+  },
+  {
+   "label": "M",
+   "file": "doc-zcerkp.pdf",
+   "kind": "corporate_record",
+   "date": "2025-01-23",
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "The NCCC terms of reference",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "A copy of the NCCC terms of \nreference is attached as Exhibit “M”."
+    }
+   ],
+   "content_check": "Ten-page 'TERMS OF REFERENCE' marked 'Approved by NCCC January 23, 2025, Subject to approval by First Nations-in-Assembly'"
+  },
+  {
+   "label": "N",
+   "file": "doc-qvmwsh.pdf",
+   "kind": "minutes",
+   "date": "2025-01-03",
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "NCCC Resolution 05/2025 'Interim NCCC Administration'",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "A copy of \nNCCC Resolution 05/2025 “Interim NCCC Administration” is attached as Exhibit “N”."
+    }
+   ],
+   "content_check": "One page: 'Resolution 05/2025: Interim NCCC Administration'"
+  },
+  {
+   "label": "O",
+   "file": "doc-8s6sdn.pdf",
+   "kind": "report",
+   "date": "2025-08-01",
+   "author": "National Children's Chiefs Commission",
+   "recipients": [
+    "First Nations-in-Assembly"
+   ],
+   "description": "NCCC Progress Report dated August 1, 2025",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A \ncopy of the NCCC Progress Report, dated August 1, 2025, is attached as Exhibit “O”."
+    }
+   ],
+   "content_check": "Ten-page 'National Children's Chiefs Commission Progress Report - August 1, 2025'"
+  },
+  {
+   "label": "P",
+   "file": "doc-nppjc4.pdf",
+   "kind": "minutes",
+   "date": "2025-09-03",
+   "author": "AFN Annual General Assembly",
+   "recipients": [],
+   "description": "Draft Resolution 52 approving the NCCC Terms of Reference",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "by passing Draft Resolution 52, a copy of which is attached as Exhibit “P”."
+    }
+   ],
+   "content_check": "Three-page 'DRAFT RESOLUTION #52/2025, AFN Annual General Assembly, September 3-5, 2025, Winnipeg'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-aufunt.pdf",
+   "kind": "letter",
+   "date": "2025-01-06",
+   "author": "Paul Vickery, Department of Justice Canada",
+   "recipients": [
+    "Assembly of First Nations (Stuart Wuttke, Adam Williamson)"
+   ],
+   "description": "Justice Canada's January 6, 2025 letter that Canada would negotiate only with COO and NAN",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "A copy of the letter from P. Vickery to the AFN, dated January \n6, 2025, is attached as Exhibit “Q”."
+    }
+   ],
+   "content_check": "Image-only one-page Department of Justice letter dated January 6, 2025 to Stuart Wuttke and Adam Williamson, 'Re: Long-Term Reform of the First Nations Child and Family Services Program', signed Paul Vickery"
+  },
+  {
+   "label": "R",
+   "file": "doc-zbj8em.pdf",
+   "kind": "letter",
+   "date": "2025-01-15",
+   "author": "AFN Regional Chiefs",
+   "recipients": [
+    "AFN National Chief Cindy Woodhouse"
+   ],
+   "description": "Letter from the AFN Regional Chiefs to National Chief Woodhouse on the NCCC's role",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "A copy of the Letter \nfrom the AFN Regional Chiefs to AFN National Chief Cindy Woodhouse, dated January 15, 2025, \nis attached as Exhibit “R”."
+    }
+   ],
+   "content_check": "Image-only three-page letter dated January 15, 2025 on regional organization letterheads to National Chief Cindy Woodhouse"
+  },
+  {
+   "label": "S",
+   "file": "doc-26njku.pdf",
+   "kind": "letter",
+   "date": "2025-01-22",
+   "author": "Scott A. Smith, Aird & Berlis LLP for the NCCC",
+   "recipients": [
+    "Paul Vickery (Justice Canada)"
+   ],
+   "description": "NCCC counsel's January 22, 2025 letter informing Canada of the NCCC's mandate",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "A copy of the Letter from S. \nSmith to P. Vickery, dated January 22, 2025, is attached as Exhibit “S”."
+    }
+   ],
+   "content_check": "Two-page letter from Scott A. Smith (Aird & Berlis) dated January 22, 2025"
+  },
+  {
+   "label": "T",
+   "file": "doc-r6ve73.pdf",
+   "kind": "letter",
+   "date": "2025-01-24",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Prime Minister Justin Trudeau",
+    "Minister Gary Anandasangaree",
+    "Minister Patty Hajdu"
+   ],
+   "description": "Frost's January 24, 2025 letter to the Prime Minister and Ministers",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "A copy of my letter to the Right Honourable Justin \nTrudeau et al, dated January 24, 2025, is attached as Exhibit “T”."
+    }
+   ],
+   "content_check": "Three-page letter dated January 24, 2025, sent by e-mail to the Right Honourable Justin Trudeau"
+  },
+  {
+   "label": "U",
+   "file": "doc-7k4z9y.pdf",
+   "kind": "letter",
+   "date": "2025-01-24",
+   "author": "Paul Vickery, Department of Justice Canada",
+   "recipients": [
+    "Stuart Wuttke et al. (AFN counsel)"
+   ],
+   "description": "Vickery's January 24, 2025 letter asking whether Mr. Smith acts for the AFN",
+   "references": [
+    {
+     "paragraph": 50,
+     "quote": "A copy of the letter from P. Vickery to S. Wuttke et al, \ndated January 24, 2025, is attached as Exhibit “U”."
+    }
+   ],
+   "content_check": "One-page letter from Justice Canada's Civil Litigation Section, National Litigation Sector, 50 O'Connor Street"
+  },
+  {
+   "label": "V",
+   "file": "doc-8fngew.pdf",
+   "kind": "letter",
+   "date": "2025-01-28",
+   "author": "Adam Williamson, AFN",
+   "recipients": [
+    "Paul Vickery"
+   ],
+   "description": "AFN counsel's January 28, 2025 response that Mr. Smith does not act for the AFN",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "A \ncopy of the letter from A. Williamson to P. Vickery, dated January 28, 2025, is attached as Exhibit \n“V”."
+    }
+   ],
+   "content_check": "One-page Assembly of First Nations letter, 50 O'Connor Street, Suite 200"
+  },
+  {
+   "label": "W",
+   "file": "doc-nstf3c.pdf",
+   "kind": "letter",
+   "date": "2025-01-29",
+   "author": "Andrew Bisson, AFN CEO",
+   "recipients": [
+    "Deputy Minister Gina Wilson"
+   ],
+   "description": "AFN CEO's January 29, 2025 letter explaining the NCCC and seeking to fund it",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "A copy of the letter \nfrom A. Bisson to Deputy Minister Gina Wilson, dated January 29, 2025, is attached as Exhibit \n“W”."
+    }
+   ],
+   "content_check": "Two-page letter on AFN head office (Akwesasne) letterhead"
+  },
+  {
+   "label": "X",
+   "file": "doc-rmg3fy.pdf",
+   "kind": "letter",
+   "date": "2025-01-31",
+   "author": "AFN National Chief Cindy Woodhouse",
+   "recipients": [
+    "AFN Regional Chiefs"
+   ],
+   "description": "National Chief Woodhouse's January 31, 2025 reply agreeing with the Regional Chiefs on the NCCC's role",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "A copy of the letter from \nAFN National Chief Cindy Woodhouse to AFN Regional Chiefs, dated January 31, 2025, is \nattached as Exhibit “X”."
+    }
+   ],
+   "content_check": "Three-page letter on AFN letterhead, 50 O'Connor Street, Suite 200"
+  },
+  {
+   "label": "Y",
+   "file": "doc-zwdfps.pdf",
+   "kind": "letter",
+   "date": "2025-02-14",
+   "author": "Dayna Anderson, Department of Justice Canada",
+   "recipients": [
+    "Scott Smith"
+   ],
+   "description": "Justice Canada's February 14, 2025 letter declining to meet with the NCCC",
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "A copy of the letter from D. Anderson \nto S. Smith, dated February 14, 2025, is attached as Exhibit “Y”."
+    }
+   ],
+   "content_check": "One-page letter from Justice Canada's Prairie Regional Office (Winnipeg), National Litigation Sector"
+  },
+  {
+   "label": "Z",
+   "file": "doc-urt3c9.pdf",
+   "kind": "letter",
+   "date": "2025-02-21",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Prime Minister Justin Trudeau",
+    "Minister Gary Anandasangaree",
+    "Minister Patty Hajdu"
+   ],
+   "description": "Frost's February 21, 2025 follow-up letter with a table of outstanding issues",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "A copy of my letter to the \nRight Honourable Justin Trudeau et al, dated February 21, 2025, is attached as Exhibit “Z”."
+    }
+   ],
+   "content_check": "Two-page letter dated February 21, 2025, sent by e-mail to the Right Honourable Justin Trudeau"
+  },
+  {
+   "label": "AA",
+   "file": "doc-ufntx6.pdf",
+   "kind": "letter",
+   "date": "2025-02-25",
+   "author": "Minister Patty Hajdu",
+   "recipients": [
+    "Chief Pauline Frost"
+   ],
+   "description": "Minister Hajdu's February 25, 2025 response urging the NCCC to work with the AFN",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "A \ncopy of the letter from the Honourable Patty Hajdu to me, dated February 25, 2025, is attached as \nExhibit “AA”."
+    }
+   ],
+   "content_check": "Two-page letter addressed to Chief Pauline Frost, National Children's Chiefs Committee, Our Children Our Way Secretariat"
+  },
+  {
+   "label": "BB",
+   "file": "doc-hq9jsj.pdf",
+   "kind": "letter",
+   "date": "2025-03-04",
+   "author": "AFN National Chief Cindy Woodhouse",
+   "recipients": [
+    "Minister Patty Hajdu"
+   ],
+   "description": "National Chief Woodhouse's March 4, 2025 letter supporting the NCCC",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "A copy of the letter from AFN National Chief Cindy Woodhouse to the Honourable Patty Hajdu, \ndated March 4, 2025, is attached as Exhibit “BB”."
+    }
+   ],
+   "content_check": "Two-page letter on AFN letterhead"
+  },
+  {
+   "label": "CC",
+   "file": "doc-ckmb3x.pdf",
+   "kind": "letter",
+   "date": "2025-03-19",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Prime Minister Mark Carney"
+   ],
+   "description": "Frost's March 19, 2025 letter to Prime Minister Carney",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "A copy of my letter to the \nRight Honourable Mark Carney, dated March 19, 2025, is attached as Exhibit “CC”."
+    }
+   ],
+   "content_check": "Two-page letter dated March 19, 2025 sent by e-mail to the Right Honourable Mark Carney"
+  },
+  {
+   "label": "DD",
+   "file": "doc-2kn2xa.pdf",
+   "kind": "letter",
+   "date": "2025-06-04",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "Frost's June 4, 2025 letter to Minister Gull-Masty",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "A copy of my letter to the Honourable Mandy Gull-Masty, dated June 4, \n2025, is attached as Exhibit “DD”"
+    }
+   ],
+   "content_check": "Two-page letter dated June 04, 2025 to the Honourable Mandy Gull-Masty"
+  },
+  {
+   "label": "EE",
+   "file": "doc-7abuv7.pdf",
+   "kind": "letter",
+   "date": "2025-07-04",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "Frost's July 4, 2025 letter inviting the Minister to the NCCC's July meeting",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "A \ncopy of my letter to the Honourable Mandy Gull-Masty, dated July 4, 2025, is attached as Exhibit \n“EE”."
+    }
+   ],
+   "content_check": "Two-page letter dated July 04, 2025 to the Honourable Mandy Gull-Masty"
+  },
+  {
+   "label": "FF",
+   "file": "doc-4r82y7.pdf",
+   "kind": "letter",
+   "date": "2025-07-28",
+   "author": "Chief Pauline Frost, Regional Chief Joanna Bernard and Cindy Blackstock",
+   "recipients": [
+    "Prime Minister Mark Carney",
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "July 28, 2025 joint letter urging good-faith negotiations",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "of my letter to the Right Honourable Mark Carney and the Honourable Mandy Gull-Masty, dated \nJuly 28, 2025, is attached as Exhibit “FF”."
+    }
+   ],
+   "content_check": "Two-page letter dated July 28, 2025 to the Right Honourable Mark Carney"
+  },
+  {
+   "label": "GG",
+   "file": "doc-9qu23u.pdf",
+   "kind": "letter",
+   "date": "2025-07-30",
+   "author": "Minister Mandy Gull-Masty",
+   "recipients": [
+    "Chief Pauline Frost"
+   ],
+   "description": "Minister Gull-Masty's July 30, 2025 letter to Frost",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "A copy of the letter from the Honourable Mandy Gull-Masty \nto me, dated July 30, 2025, is attached as Exhibit “GG”."
+    }
+   ],
+   "content_check": "Two-page letter addressed to Chief Pauline Frost, Chair, National Children's Chiefs Commission"
+  },
+  {
+   "label": "HH",
+   "file": "doc-jpau2s.pdf",
+   "kind": "letter",
+   "date": "2025-07-29",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Minister Mandy Gull-Masty",
+    "Deputy Minister Gina Wilson"
+   ],
+   "description": "Frost's July 29, 2025 letter following up the Tribunal's request that Canada meet the NCCC",
+   "references": [
+    {
+     "paragraph": 67,
+     "quote": "A copy of my letter to the Honourable Mandy Gull-Masty and Deputy \nMinister Gina Wilson, dated July 29, 2025, is attached as Exhibit “HH”."
+    }
+   ],
+   "content_check": "One-page letter dated July 29, 2025, by email, to the Honourable Mandy Gull-Masty"
+  },
+  {
+   "label": "II",
+   "file": "doc-4py8t3.pdf",
+   "kind": "letter",
+   "date": "2025-08-21",
+   "author": "Chief Pauline Frost, Regional Chief Bernard and Cindy Blackstock",
+   "recipients": [
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "August 21, 2025 letter requesting a follow-up meeting",
+   "references": [
+    {
+     "paragraph": 70,
+     "quote": "A copy of my letter to the Honourable Mandy Gull-Masty, dated \nAugust 21, 2025, is attached as Exhibit “II”."
+    }
+   ],
+   "content_check": "One-page letter dated August 21, 2025, by email, to the Honourable Mandy Gull-Masty"
+  },
+  {
+   "label": "JJ",
+   "file": "doc-wgasr6.pdf",
+   "kind": "letter",
+   "date": "2025-08-29",
+   "author": "Dayna Anderson, Department of Justice Canada",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "Canada's August 29, 2025 letter to the Tribunal responding to 2025 CHRT 80",
+   "references": [
+    {
+     "paragraph": 74,
+     "quote": "A copy of the letter from D. Anderson to the CHRT, dated \nAugust 29, 2025, is attached as Exhibit “JJ”."
+    }
+   ],
+   "content_check": "Six-page letter marked 'DRAFT' from Justice Canada's Prairie Regional Office (Winnipeg)"
+  },
+  {
+   "label": "KK",
+   "file": "doc-c5hwtd.pdf",
+   "kind": "letter",
+   "date": "2025-09-11",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Prime Minister Mark Carney",
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "Frost's September 11, 2025 letter responding to Canada's concerns",
+   "references": [
+    {
+     "paragraph": 75,
+     "quote": "A copy of my letter to the Right Honourable Mark Carney and the Honourable Mandy Gull-Masty, \ndated September 11, 2025, is attached as Exhibit “KK”."
+    }
+   ],
+   "content_check": "Two-page letter dated September 11, 2025 to the Right Honourable Mark Carney"
+  },
+  {
+   "label": "LL",
+   "file": "doc-v9ukcz.pdf",
+   "kind": "letter",
+   "date": "2025-09-16",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "Frost's September 16, 2025 letter to Minister Gull-Masty",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "copies of which letters are attached as Exhibit “LL” and “MM”, respectively"
+    }
+   ],
+   "content_check": "Two-page letter dated September 16, 2025 to the Honourable Mandy Gull-Masty"
+  },
+  {
+   "label": "MM",
+   "file": "doc-7m4bha.pdf",
+   "kind": "letter",
+   "date": "2025-10-06",
+   "author": "Chief Pauline Frost",
+   "recipients": [
+    "Minister Mandy Gull-Masty"
+   ],
+   "description": "Frost's October 6, 2025 letter requesting a formal meeting",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "copies of which letters are attached as Exhibit “LL” and “MM”, respectively"
+    }
+   ],
+   "content_check": "One-page letter dated October 6, 2025, by email, to the Honourable Mandy Gull-Masty"
+  },
+  {
+   "label": "NN",
+   "file": "doc-hkcjw9.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "Printout of the NCCC 'Engagement: CHRT 80' webpage",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "A copy of a printout of \nthat webpage is attached as Exhibit “NN”."
+    }
+   ],
+   "content_check": "Five-page NCCC web printout with menu 'Home NCCC Timeline Events & Transparency Engagement: CHRT 80'"
+  },
+  {
+   "label": "OO",
+   "file": "doc-xneeb9.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "Backgrounders on the status of the proceeding and 2025 CHRT 80",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "copies of which are attached as Exhibit “OO”"
+    }
+   ],
+   "content_check": "Image-only three pages of backgrounder material"
+  },
+  {
+   "label": "PP",
+   "file": "doc-2g2n4r.pdf",
+   "kind": "chart",
+   "date": "2025-10",
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "Chart summarizing the NCCC engagement process",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "a chart summarizing the engagement process that will be followed by the NCCC, \nwhich is attached as Exhibit “PP”"
+    }
+   ],
+   "content_check": "Image-only one-page flow chart 'First Nations Child & Family Services Long Term Reform Engagement Plan: Developing a Plan by December 22nd 2025'"
+  },
+  {
+   "label": "QQ",
+   "file": "doc-5z3t78.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "Fillable online feedback forms",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "fillable online feedback forms, copies of which at attached as Exhibit “QQ”"
+    }
+   ],
+   "content_check": "35 pages of online form printouts, mostly image"
+  },
+  {
+   "label": "RR",
+   "file": "doc-pcj9ta.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "National Children's Chiefs Commission",
+   "recipients": [],
+   "description": "Engagement session toolkit for First Nations and agencies",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "an engagement session toolkit for First Nations and agencies, a copy of which is \nattached as Exhibit “RR”"
+    }
+   ],
+   "content_check": "Image-only one-page toolkit"
+  },
+  {
+   "label": "SS",
+   "file": "doc-swcvfp.pdf",
+   "kind": "letter",
+   "date": "2024-12-09",
+   "author": "Stuart Wuttke, AFN",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "AFN's December 9, 2024 letter that it was not in a position to move forward",
+   "references": [
+    {
+     "paragraph": 83,
+     "quote": "A copy the letter from S. Wuttke to the Tribunal, dated \nDecember 9, 2024, is attached as Exhibit “SS”."
+    }
+   ],
+   "content_check": "Three-page letter on AFN letterhead, 50 O'Connor Street"
+  },
+  {
+   "label": "TT",
+   "file": "doc-tvx2gc.pdf",
+   "kind": "letter",
+   "date": "2025-03-24",
+   "author": "Adam Williamson, AFN",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "AFN's March 24, 2025 letter that the NCCC was formed to advance new negotiation mandates",
+   "references": [
+    {
+     "paragraph": 83,
+     "quote": "A copy of the letter from A Williamson to the Tribunal, dated March 24, 2025, is \nattached as Exhibit “TT”."
+    }
+   ],
+   "content_check": "Four-page letter on AFN letterhead"
+  },
+  {
+   "label": "UU",
+   "file": "doc-w6h3qd.pdf",
+   "kind": "letter",
+   "date": "2025-04-04",
+   "author": "Andrew Bisson, AFN CEO",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
+   "description": "AFN CEO's April 4, 2025 letter confirming the March 24 letter was sent with instructions",
+   "references": [
+    {
+     "paragraph": 83,
+     "quote": "a subsequent letter from AFN CEO A. Bisson sent on April 4, 2025, \na copy of which is attached as Exhibit “UU”"
+    }
+   ],
+   "content_check": "One-page letter on AFN head office (Akwesasne) letterhead"
+  },
+  {
+   "label": "VV",
+   "file": "doc-hea8h4.pdf",
+   "kind": "letter",
+   "date": "2025-04-24",
+   "author": "Peter N. Mantas, Fasken, AFN counsel",
+   "recipients": [
+    "CHRT Registry"
+   ],
+   "description": "AFN counsel Mantas's April 24, 2025 letter to the Tribunal",
+   "references": [
+    {
+     "paragraph": 83,
+     "quote": "Further confirmation to this effect was provided in \na letter from AFN legal counsel Peter Mantas to the Tribunal on April 24, 2025"
+    }
+   ],
+   "content_check": "Two-page letter dated April 24, 2025 by email to Registry.Office@chrt-tcdp.gc.ca from Peter N. Mantas"
+  },
+  {
+   "label": "WW",
+   "file": "doc-j9zbnv.pdf",
+   "kind": "letter",
+   "date": "2025-05-08",
+   "author": "Peter N. Mantas for the AFN",
+   "recipients": [
+    "CHRT Registry"
+   ],
+   "description": "AFN's May 8, 2025 letter taking no position on interested party motions",
+   "references": [
+    {
+     "paragraph": 84,
+     "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"
+    }
+   ],
+   "content_check": "Three-page letter dated May 8, 2025 to the CHRT Registry from Peter N. Mantas"
+  },
+  {
+   "label": "XX",
+   "file": "doc-hyq9my.pdf",
+   "kind": "letter",
+   "date": "2025-06-04",
+   "author": "Peter N. Mantas for the AFN",
+   "recipients": [
+    "CHRT Registry"
+   ],
+   "description": "AFN's June 4, 2025 letter taking no position on the COO-NAN amended joint notice of motion",
+   "references": [
+    {
+     "paragraph": 84,
+     "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"
+    }
+   ],
+   "content_check": "Two-page letter dated June 4, 2025 to the CHRT Registry"
+  },
+  {
+   "label": "YY",
+   "file": "doc-n9ku9b.pdf",
+   "kind": "letter",
+   "date": "2025-06-16",
+   "author": "Peter N. Mantas for the AFN",
+   "recipients": [
+    "CHRT Registry"
+   ],
+   "description": "AFN's June 16, 2025 letter taking no position on interested party motions",
+   "references": [
+    {
+     "paragraph": 84,
+     "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"
+    }
+   ],
+   "content_check": "Two-page letter dated June 16, 2025 to the CHRT Registry"
+  },
+  {
+   "label": "ZZ",
+   "file": "doc-cn5cue.pdf",
+   "kind": "letter",
+   "date": "2025-09-25",
+   "author": "Peter N. Mantas for the AFN",
+   "recipients": [
+    "CHRT Registry"
+   ],
+   "description": "AFN's September 25, 2025 letter taking no position on the Ontario-specific agreement approval motion",
+   "references": [
+    {
+     "paragraph": 84,
+     "quote": "are attached as Exhibits “WW”, “XX”, “YY”, and “ZZ”, respectively"
+    }
+   ],
+   "content_check": "Two-page letter dated September 25, 2025 to the CHRT Registry"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2016", "precision": "year", "description": "Frost elected MLA for Vuntut Gwitchin (served to 2021, including as Minister)", "paragraphs": [2], "quote": "That year, I ran for and was elected their \nMember of the Legislative Assembly", "exhibits": []},
-  {"id": "e2", "date": "2022-11", "precision": "month", "description": "Frost elected Chief of Vuntut Gwitchin", "paragraphs": [3], "quote": "In November 2022, I was honoured to be elected Chief of Vuntut Gwitchin", "exhibits": []},
-  {"id": "e3", "date": "2006-12-07", "precision": "day", "description": "First Nations-in-Assembly passed Resolution 53/2006 approving the joint complaint", "paragraphs": [9], "quote": "On December 7, 2006, the First Nations-in-Assembly", "exhibits": ["A"]},
-  {"id": "e4", "date": "2007", "precision": "year", "description": "AFN and Caring Society filed the complaint", "paragraphs": [10], "quote": "the AFN and the Caring Society filed \nthe complaint with the CHRT in 2007", "exhibits": []},
-  {"id": "e5", "date": "2016-01-26", "precision": "day", "description": "Tribunal issued the Merits Decision, 2016 CHRT 2", "paragraphs": [10, 11], "quote": "on January 26, \n2016, this Tribunal issued its decision on the merits", "exhibits": []},
-  {"id": "e6", "date": "2018-02-01", "precision": "day", "description": "Tribunal found Canada non-compliant and ordered consultation (2018 CHRT 4)", "paragraphs": [12, 13], "quote": "About two years later on February 1, 2018", "exhibits": []},
-  {"id": "e7", "date": "2018-03-02", "precision": "day", "description": "Parties executed the Consultation Protocol establishing the CCCW", "paragraphs": [14], "quote": "On March 2, 2018, the Caring Society, the AFN, the CHRC, Canada, COO, and NAN \nexecuted a Consultation Protocol", "exhibits": ["B"]},
-  {"id": "e8", "date": "2018", "end_date": "2020", "precision": "range", "description": "Parties participated in the CCCW", "paragraphs": [15], "quote": "Between 2018 and 2020, the Caring Society, AFN, the CHRC, Canada, COO, and NAN \nparticipated in the CCCW.", "exhibits": []},
-  {"id": "e9", "date": "2021-12-31", "precision": "day", "description": "Agreement-in-Principle reached after fall 2021 negotiations", "paragraphs": [15], "quote": "This resulted in the December 31, 2021, \nAgreement-in-Principle", "exhibits": ["C"]},
-  {"id": "e10", "date": "2022-12-08", "precision": "day", "description": "First Nations-in-Assembly passed Resolution 40/2022", "paragraphs": [16], "quote": "on December 8, 2022, the First Nations-in-Assembly passed Resolution \nNo. 40/2022", "exhibits": ["D"]},
-  {"id": "e11", "date": "2023-12", "precision": "month", "description": "Caring Society withdrew from the AIP negotiation process to bring a non-compliance motion", "paragraphs": [17], "quote": "in \nDecember 2023, the Caring Society withdrew from the negotiation process", "exhibits": []},
-  {"id": "e12", "date": "2024-07-11", "precision": "day", "description": "Canada, AFN, COO and NAN released the Draft Final Agreement", "paragraphs": [18], "quote": "On July 11, 2024, Canada, AFN, COO, and NAN released the Draft Final Agreement", "exhibits": ["E"]},
-  {"id": "e13", "date": "2024-08-01", "precision": "day", "description": "Frost attended the Yukon consultation sessions on August 1 and 20, 2024", "paragraphs": [22], "quote": "I also attended the only two Draft Final Agreement consultation sessions held in Yukon \n(both virtual) on August 1 and 20, 2024.", "exhibits": []},
-  {"id": "e14", "date": "2024-09-17", "precision": "day", "description": "AFN published the Regional Engagement Summary", "paragraphs": [23], "quote": "On September 17, 2024, the AFN published a document", "exhibits": ["F"]},
-  {"id": "e15", "date": "2024-10-16", "end_date": "2024-10-18", "precision": "range", "description": "Special Chiefs Assembly rejected the Draft Final Agreement and established the NCCC", "paragraphs": [24, 26], "quote": "On October 16-18, 2024, I attended the Special Chiefs Assembly in Calgary, Alberta", "exhibits": ["G", "H"]},
-  {"id": "e16", "date": "2024-12-05", "precision": "day", "description": "First Nations-in-Assembly passed Resolutions 87-90/2024, approving the NCCC terms of reference in principle", "paragraphs": [25, 30, 33], "quote": "On December 5, 2024, in Resolution No. 89/2024 the First Nations-in-Assembly approved \nthe NCCC terms of reference, in principle", "exhibits": ["I", "J", "K", "L"]},
-  {"id": "e17", "date": "2024-12-09", "precision": "day", "description": "AFN wrote to the Tribunal that it was not in a position to move forward", "paragraphs": [83], "quote": "on December 9, 2024, the AFN wrote to the Tribunal", "exhibits": ["SS"]},
-  {"id": "e18", "date": "2024-12", "precision": "month", "description": "NCCC began holding videoconference meetings", "paragraphs": [34], "quote": "The NCCC began holding meetings by videoconference in December 2024.", "exhibits": []},
-  {"id": "e19", "date": "2025-01-03", "precision": "day", "description": "NCCC meeting selected Frost as Chair and appointed Our Children Our Way Society for administration", "paragraphs": [34], "quote": "On January 3, \n2025, the NCCC held a meeting by videoconference.", "exhibits": ["N"]},
-  {"id": "e20", "date": "2025-01-06", "precision": "day", "description": "Justice Canada wrote that Canada would negotiate only with COO and NAN", "paragraphs": [42], "quote": "On January 6, 2025, legal counsel Paul Vickery wrote on behalf of Department of Justice \nCanada to the AFN", "exhibits": ["Q"]},
-  {"id": "e21", "date": "2025-01-15", "precision": "day", "description": "AFN Regional Chiefs wrote to National Chief Woodhouse on the NCCC's role", "paragraphs": [44, 45], "quote": "on January 15, 2025, the Regional Chiefs of the AFN wrote to AFN National \nChief Cindy Woodhouse", "exhibits": ["R"]},
-  {"id": "e22", "date": "2025-01-20", "precision": "approximate", "description": "NCCC met in person over the week of January 20, 2025 and approved its terms of reference", "paragraphs": [5, 34], "quote": "The NCCC then met in person several times over the \nweek of January 20", "exhibits": ["M"]},
-  {"id": "e23", "date": "2025-01-21", "precision": "day", "description": "AFN Executive Committee directed the AFN to secure funding for the NCCC", "paragraphs": [52], "quote": "[o]n January 21, 2025, the AFN Executive Committee passed a \nmotion directing the AFN to secure funding to support the NCCC", "exhibits": ["W"]},
-  {"id": "e24", "date": "2025-01-22", "precision": "day", "description": "NCCC counsel Scott Smith wrote to Vickery about the NCCC's mandate", "paragraphs": [47, 48], "quote": "On January 22, \n2025, NCCC legal counsel Scott Smith wrote on behalf of NCCC to Mr. Vickery", "exhibits": ["S"]},
-  {"id": "e25", "date": "2025-01-24", "precision": "day", "description": "Frost wrote to PM Trudeau and Ministers; Vickery asked AFN counsel whether Smith acted for AFN", "paragraphs": [49, 50], "quote": "on January 24, 2025, I wrote to then-Prime Minister \nJustin Trudeau", "exhibits": ["T", "U"]},
-  {"id": "e26", "date": "2025-01-28", "precision": "day", "description": "AFN counsel responded that Smith does not act for the AFN", "paragraphs": [51], "quote": "On January 28, 2025, Adam Williamson, Senior In-House Counsel for the AFN, responded", "exhibits": ["V"]},
-  {"id": "e27", "date": "2025-01-29", "precision": "day", "description": "AFN CEO wrote to Deputy Minister Wilson explaining the NCCC", "paragraphs": [52], "quote": "On January 29, 2025, Andrew \nBisson, AFN Chief Executive Officer, wrote to Deputy Minister Gina Wilson", "exhibits": ["W"]},
-  {"id": "e28", "date": "2025-01-31", "precision": "day", "description": "National Chief Woodhouse replied agreeing on the NCCC's role", "paragraphs": [53, 54], "quote": "The position of the AFN with respect to the NCCC was further solidified on January 31, \n2025", "exhibits": ["X"]},
-  {"id": "e29", "date": "2025-02-14", "precision": "day", "description": "Justice Canada declined to meet with the NCCC", "paragraphs": [55], "quote": "on February 14, 2025, legal counsel Dayna Anderson wrote on behalf of \nDepartment of Justice Canada to Mr. Smith", "exhibits": ["Y"]},
-  {"id": "e30", "date": "2025-02-21", "precision": "day", "description": "Frost wrote again to PM Trudeau with a table of outstanding issues", "paragraphs": [57], "quote": "On February 21, 2025, I wrote again to the then-Prime Minister Trudeau", "exhibits": ["Z"]},
-  {"id": "e31", "date": "2025-02-25", "precision": "day", "description": "Minister Hajdu responded urging the NCCC to work with the AFN", "paragraphs": [58], "quote": "On February 25, 2025, Minister Hajdu responded by letter", "exhibits": ["AA"]},
-  {"id": "e32", "date": "2025-03-04", "precision": "day", "description": "National Chief Woodhouse wrote to Minister Hajdu supporting the NCCC", "paragraphs": [59], "quote": "On March 4, 2025, AFN National Chief \nWoodhouse wrote to Minister Hajdu", "exhibits": ["BB"]},
-  {"id": "e33", "date": "2025-03-14", "precision": "day", "description": "Mark Carney elected Liberal leader", "paragraphs": [60], "quote": "Prime Minister Mark Carney was elected the leader of the Liberal Party of Canada on \nMarch 14, 2025.", "exhibits": []},
-  {"id": "e34", "date": "2025-03-19", "precision": "day", "description": "Frost wrote to PM Carney; no response", "paragraphs": [60], "quote": "On March 19, 2025, I wrote to Prime Minister Carney", "exhibits": ["CC"]},
-  {"id": "e35", "date": "2025-03-24", "precision": "day", "description": "AFN wrote to the Tribunal about the NCCC (retracted March 31; confirmed April 4 and April 24)", "paragraphs": [83], "quote": "On March 24, 2025, the AFN wrote to this Tribunal", "exhibits": ["TT", "UU", "VV"]},
-  {"id": "e36", "date": "2025-04-28", "precision": "day", "description": "Federal election", "paragraphs": [61], "quote": "The federal election took place on April 28, 2025.", "exhibits": []},
-  {"id": "e37", "date": "2025-05-08", "precision": "day", "description": "AFN wrote taking no position on interested party motions (also June 4, June 16, September 25, 2025)", "paragraphs": [84], "quote": "on May 8, 2025, AFN wrote to this Tribunal advising it \ntook no position", "exhibits": ["WW", "XX", "YY", "ZZ"]},
-  {"id": "e38", "date": "2025-05-13", "precision": "day", "description": "Mandy Gull-Masty became Minister of Indigenous Services", "paragraphs": [61], "quote": "On May 13, 2025, Minister Mandy Gull-\nMasty replaced Minister Hajdu", "exhibits": []},
-  {"id": "e39", "date": "2025-06-04", "precision": "day", "description": "Frost wrote to Minister Gull-Masty inviting a meeting", "paragraphs": [62], "quote": "On June 4, 2025, I wrote to Minister Gull-Masty.", "exhibits": ["DD"]},
-  {"id": "e40", "date": "2025-07-04", "precision": "day", "description": "Frost again wrote inviting the Minister to the July 15-17 meeting; she did not attend", "paragraphs": [63], "quote": "On July 4, 2025, I again wrote to Minister Gull-Masty", "exhibits": ["EE"]},
-  {"id": "e41", "date": "2025-07-25", "precision": "day", "description": "Tribunal case management conference asked Canada to meet the NCCC", "paragraphs": [67], "quote": "On July 25, 2025, this Tribunal convened a case management conference", "exhibits": []},
-  {"id": "e42", "date": "2025-07-28", "precision": "day", "description": "Frost, Bernard and Blackstock wrote to PM Carney and Minister Gull-Masty (the affidavit's text says 2024)", "paragraphs": [64], "quote": "On July 28, 2024, having not received a response to my earlier letters", "exhibits": ["FF"]},
-  {"id": "e43", "date": "2025-07-29", "precision": "day", "description": "Frost wrote to the Minister and Deputy Minister following up the Tribunal's request", "paragraphs": [67], "quote": "On July 29, 2025", "exhibits": ["HH"]},
-  {"id": "e44", "date": "2025-07-30", "precision": "day", "description": "Minister Gull-Masty wrote to Frost without the requested commitment", "paragraphs": [65], "quote": "Minister Gull-Masty wrote to me on July 30, 2025.", "exhibits": ["GG"]},
-  {"id": "e45", "date": "2025-08-01", "precision": "day", "description": "NCCC published its first progress report", "paragraphs": [39], "quote": "on August 1, \n2025, the NCCC published its first progress report", "exhibits": ["O"]},
-  {"id": "e46", "date": "2025-08-11", "precision": "day", "description": "Frost met Deputy Minister Wilson and Associate Deputy Minister Kovacevic", "paragraphs": [68], "quote": "On August 11, 2025, I met with Deputy Minister Wilson and Associate Deputy \nMinister Michelle Kovacevic", "exhibits": []},
-  {"id": "e47", "date": "2025-08-18", "precision": "day", "description": "Frost met Minister Gull-Masty on an introductory basis", "paragraphs": [68], "quote": "On August 18, 2025, Minister Gull-Masty and I met on a preliminary, introductory \nbasis.", "exhibits": []},
-  {"id": "e48", "date": "2025-08-20", "precision": "day", "description": "Tribunal released 2025 CHRT 80; NCCC began implementing its directions", "paragraphs": [71, 77], "quote": "on August 20, 2025, it delivered its decision reported at 2025 \nCHRT 80", "exhibits": []},
-  {"id": "e49", "date": "2025-08-21", "precision": "day", "description": "Frost, Bernard and Blackstock requested a follow-up meeting; no response", "paragraphs": [70], "quote": "On August 21, 2025, I—along with Regional Chief Bernard and Dr. Cindy Blackstock—\nsent a letter to Minister Gull-Masty", "exhibits": ["II"]},
-  {"id": "e50", "date": "2025-08-29", "precision": "day", "description": "Canada wrote to the Tribunal seeking clarification and more time", "paragraphs": [73, 74], "quote": "On August 29, 2025, Canada wrote to the CHRT in accordance with the above directions.", "exhibits": ["JJ"]},
-  {"id": "e51", "date": "2025-09-03", "precision": "day", "description": "First Nations-in-Assembly approved the NCCC Terms of Reference (Draft Resolution 52)", "paragraphs": [39], "quote": "On \nSeptember 3, 2025, the First Nations-in-Assembly formally approved the NCCC’s Terms of \nReference", "exhibits": ["P", "M"]},
-  {"id": "e52", "date": "2025-09-11", "precision": "day", "description": "Frost wrote to PM Carney and Minister Gull-Masty addressing Canada's concerns", "paragraphs": [75], "quote": "On September 11, 2025, I wrote to Prime Minster Carney", "exhibits": ["KK"]},
-  {"id": "e53", "date": "2025-09-16", "precision": "day", "description": "Frost wrote to Minister Gull-Masty (and again on October 6, 2025)", "paragraphs": [76], "quote": "I also wrote to Minister Gull-Masty directly on September 16, 2025, and October 6, 2025", "exhibits": ["LL", "MM"]},
-  {"id": "e54", "date": null, "precision": "undated", "description": "NCCC set up the 'Engagement: CHRT 80' webpage with backgrounders, chart, forms and toolkit", "paragraphs": [78], "quote": "The NCCC set up a webpage entitled “Engagement: CHRT 80.”", "exhibits": ["NN", "OO", "PP", "QQ", "RR"]},
-  {"id": "e55", "date": "2025-10-03", "precision": "day", "description": "NCCC and Caring Society hosted national webinars on October 3 and 24, 2025", "paragraphs": [79], "quote": "hosted two national webinars on \nOctober 3 and 24, 2025", "exhibits": []},
-  {"id": "e56", "date": "2025-10-06", "precision": "day", "description": "NCCC began distributing engagement documents", "paragraphs": [79], "quote": "On October 6, 2025, the NCCC started widely distributing engagement documents", "exhibits": []}
- ],
- "referenced_not_attached": ["2016 CHRT 2, 2018 CHRT 4 and 2025 CHRT 80 decisions", "AFN letter to the Tribunal of March 31, 2025 retracting the March 24 letter", "Recordings of the October 2025 webinars"],
- "leak_waivers": [],
- "notes": "Paragraph 64 dates the joint letter 'July 28, 2024'; Exhibit FF and the context show July 28, 2025. The source PDF has a few damaged font streams (MuPDF warnings) that do not affect the text."
+  {
+   "id": "e1",
+   "date": "2016",
+   "precision": "year",
+   "description": "Frost elected MLA for Vuntut Gwitchin (served to 2021, including as Minister)",
+   "paragraphs": [
+    2
+   ],
+   "quote": "That year, I ran for and was elected their \nMember of the Legislative Assembly",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2022-11",
+   "precision": "month",
+   "description": "Frost elected Chief of Vuntut Gwitchin",
+   "paragraphs": [
+    3
+   ],
+   "quote": "In November 2022, I was honoured to be elected Chief of Vuntut Gwitchin",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2006-12-07",
+   "precision": "day",
+   "description": "First Nations-in-Assembly passed Resolution 53/2006 approving the joint complaint",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On December 7, 2006, the First Nations-in-Assembly",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2007",
+   "precision": "year",
+   "description": "AFN and Caring Society filed the complaint",
+   "paragraphs": [
+    10
+   ],
+   "quote": "the AFN and the Caring Society filed \nthe complaint with the CHRT in 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2016-01-26",
+   "precision": "day",
+   "description": "Tribunal issued the Merits Decision, 2016 CHRT 2",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "on January 26, \n2016, this Tribunal issued its decision on the merits",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2018-02-01",
+   "precision": "day",
+   "description": "Tribunal found Canada non-compliant and ordered consultation (2018 CHRT 4)",
+   "paragraphs": [
+    12,
+    13
+   ],
+   "quote": "About two years later on February 1, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2018-03-02",
+   "precision": "day",
+   "description": "Parties executed the Consultation Protocol establishing the CCCW",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On March 2, 2018, the Caring Society, the AFN, the CHRC, Canada, COO, and NAN \nexecuted a Consultation Protocol",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2018",
+   "end_date": "2020",
+   "precision": "range",
+   "description": "Parties participated in the CCCW",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Between 2018 and 2020, the Caring Society, AFN, the CHRC, Canada, COO, and NAN \nparticipated in the CCCW.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2021-12-31",
+   "precision": "day",
+   "description": "Agreement-in-Principle reached after fall 2021 negotiations",
+   "paragraphs": [
+    15
+   ],
+   "quote": "This resulted in the December 31, 2021, \nAgreement-in-Principle",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2022-12-08",
+   "precision": "day",
+   "description": "First Nations-in-Assembly passed Resolution 40/2022",
+   "paragraphs": [
+    16
+   ],
+   "quote": "on December 8, 2022, the First Nations-in-Assembly passed Resolution \nNo. 40/2022",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2023-12",
+   "precision": "month",
+   "description": "Caring Society withdrew from the AIP negotiation process to bring a non-compliance motion",
+   "paragraphs": [
+    17
+   ],
+   "quote": "in \nDecember 2023, the Caring Society withdrew from the negotiation process",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2024-07-11",
+   "precision": "day",
+   "description": "Canada, AFN, COO and NAN released the Draft Final Agreement",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On July 11, 2024, Canada, AFN, COO, and NAN released the Draft Final Agreement",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2024-08-01",
+   "precision": "day",
+   "description": "Frost attended the Yukon consultation sessions on August 1 and 20, 2024",
+   "paragraphs": [
+    22
+   ],
+   "quote": "I also attended the only two Draft Final Agreement consultation sessions held in Yukon \n(both virtual) on August 1 and 20, 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2024-09-17",
+   "precision": "day",
+   "description": "AFN published the Regional Engagement Summary",
+   "paragraphs": [
+    23
+   ],
+   "quote": "On September 17, 2024, the AFN published a document",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2024-10-16",
+   "end_date": "2024-10-18",
+   "precision": "range",
+   "description": "Special Chiefs Assembly rejected the Draft Final Agreement and established the NCCC",
+   "paragraphs": [
+    24,
+    26
+   ],
+   "quote": "On October 16-18, 2024, I attended the Special Chiefs Assembly in Calgary, Alberta",
+   "exhibits": [
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2024-12-05",
+   "precision": "day",
+   "description": "First Nations-in-Assembly passed Resolutions 87-90/2024, approving the NCCC terms of reference in principle",
+   "paragraphs": [
+    25,
+    30,
+    33
+   ],
+   "quote": "On December 5, 2024, in Resolution No. 89/2024 the First Nations-in-Assembly approved \nthe NCCC terms of reference, in principle",
+   "exhibits": [
+    "I",
+    "J",
+    "K",
+    "L"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2024-12-09",
+   "precision": "day",
+   "description": "AFN wrote to the Tribunal that it was not in a position to move forward",
+   "paragraphs": [
+    83
+   ],
+   "quote": "on December 9, 2024, the AFN wrote to the Tribunal",
+   "exhibits": [
+    "SS"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2024-12",
+   "precision": "month",
+   "description": "NCCC began holding videoconference meetings",
+   "paragraphs": [
+    34
+   ],
+   "quote": "The NCCC began holding meetings by videoconference in December 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2025-01-03",
+   "precision": "day",
+   "description": "NCCC meeting selected Frost as Chair and appointed Our Children Our Way Society for administration",
+   "paragraphs": [
+    34
+   ],
+   "quote": "On January 3, \n2025, the NCCC held a meeting by videoconference.",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2025-01-06",
+   "precision": "day",
+   "description": "Justice Canada wrote that Canada would negotiate only with COO and NAN",
+   "paragraphs": [
+    42
+   ],
+   "quote": "On January 6, 2025, legal counsel Paul Vickery wrote on behalf of Department of Justice \nCanada to the AFN",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e21",
+   "date": "2025-01-15",
+   "precision": "day",
+   "description": "AFN Regional Chiefs wrote to National Chief Woodhouse on the NCCC's role",
+   "paragraphs": [
+    44,
+    45
+   ],
+   "quote": "on January 15, 2025, the Regional Chiefs of the AFN wrote to AFN National \nChief Cindy Woodhouse",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2025-01-20",
+   "precision": "approximate",
+   "description": "NCCC met in person over the week of January 20, 2025 and approved its terms of reference",
+   "paragraphs": [
+    5,
+    34
+   ],
+   "quote": "The NCCC then met in person several times over the \nweek of January 20",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2025-01-21",
+   "precision": "day",
+   "description": "AFN Executive Committee directed the AFN to secure funding for the NCCC",
+   "paragraphs": [
+    52
+   ],
+   "quote": "[o]n January 21, 2025, the AFN Executive Committee passed a \nmotion directing the AFN to secure funding to support the NCCC",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2025-01-22",
+   "precision": "day",
+   "description": "NCCC counsel Scott Smith wrote to Vickery about the NCCC's mandate",
+   "paragraphs": [
+    47,
+    48
+   ],
+   "quote": "On January 22, \n2025, NCCC legal counsel Scott Smith wrote on behalf of NCCC to Mr. Vickery",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e25",
+   "date": "2025-01-24",
+   "precision": "day",
+   "description": "Frost wrote to PM Trudeau and Ministers; Vickery asked AFN counsel whether Smith acted for AFN",
+   "paragraphs": [
+    49,
+    50
+   ],
+   "quote": "on January 24, 2025, I wrote to then-Prime Minister \nJustin Trudeau",
+   "exhibits": [
+    "T",
+    "U"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": "2025-01-28",
+   "precision": "day",
+   "description": "AFN counsel responded that Smith does not act for the AFN",
+   "paragraphs": [
+    51
+   ],
+   "quote": "On January 28, 2025, Adam Williamson, Senior In-House Counsel for the AFN, responded",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e27",
+   "date": "2025-01-29",
+   "precision": "day",
+   "description": "AFN CEO wrote to Deputy Minister Wilson explaining the NCCC",
+   "paragraphs": [
+    52
+   ],
+   "quote": "On January 29, 2025, Andrew \nBisson, AFN Chief Executive Officer, wrote to Deputy Minister Gina Wilson",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e28",
+   "date": "2025-01-31",
+   "precision": "day",
+   "description": "National Chief Woodhouse replied agreeing on the NCCC's role",
+   "paragraphs": [
+    53,
+    54
+   ],
+   "quote": "The position of the AFN with respect to the NCCC was further solidified on January 31, \n2025",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e29",
+   "date": "2025-02-14",
+   "precision": "day",
+   "description": "Justice Canada declined to meet with the NCCC",
+   "paragraphs": [
+    55
+   ],
+   "quote": "on February 14, 2025, legal counsel Dayna Anderson wrote on behalf of \nDepartment of Justice Canada to Mr. Smith",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e30",
+   "date": "2025-02-21",
+   "precision": "day",
+   "description": "Frost wrote again to PM Trudeau with a table of outstanding issues",
+   "paragraphs": [
+    57
+   ],
+   "quote": "On February 21, 2025, I wrote again to the then-Prime Minister Trudeau",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e31",
+   "date": "2025-02-25",
+   "precision": "day",
+   "description": "Minister Hajdu responded urging the NCCC to work with the AFN",
+   "paragraphs": [
+    58
+   ],
+   "quote": "On February 25, 2025, Minister Hajdu responded by letter",
+   "exhibits": [
+    "AA"
+   ]
+  },
+  {
+   "id": "e32",
+   "date": "2025-03-04",
+   "precision": "day",
+   "description": "National Chief Woodhouse wrote to Minister Hajdu supporting the NCCC",
+   "paragraphs": [
+    59
+   ],
+   "quote": "On March 4, 2025, AFN National Chief \nWoodhouse wrote to Minister Hajdu",
+   "exhibits": [
+    "BB"
+   ]
+  },
+  {
+   "id": "e33",
+   "date": "2025-03-14",
+   "precision": "day",
+   "description": "Mark Carney elected Liberal leader",
+   "paragraphs": [
+    60
+   ],
+   "quote": "Prime Minister Mark Carney was elected the leader of the Liberal Party of Canada on \nMarch 14, 2025.",
+   "exhibits": []
+  },
+  {
+   "id": "e34",
+   "date": "2025-03-19",
+   "precision": "day",
+   "description": "Frost wrote to PM Carney; no response",
+   "paragraphs": [
+    60
+   ],
+   "quote": "On March 19, 2025, I wrote to Prime Minister Carney",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e35",
+   "date": "2025-03-24",
+   "precision": "day",
+   "description": "AFN wrote to the Tribunal about the NCCC (retracted March 31; confirmed April 4 and April 24)",
+   "paragraphs": [
+    83
+   ],
+   "quote": "On March 24, 2025, the AFN wrote to this Tribunal",
+   "exhibits": [
+    "TT",
+    "UU",
+    "VV"
+   ]
+  },
+  {
+   "id": "e36",
+   "date": "2025-04-28",
+   "precision": "day",
+   "description": "Federal election",
+   "paragraphs": [
+    61
+   ],
+   "quote": "The federal election took place on April 28, 2025.",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "date": "2025-05-08",
+   "precision": "day",
+   "description": "AFN wrote taking no position on interested party motions (also June 4, June 16, September 25, 2025)",
+   "paragraphs": [
+    84
+   ],
+   "quote": "on May 8, 2025, AFN wrote to this Tribunal advising it \ntook no position",
+   "exhibits": [
+    "WW",
+    "XX",
+    "YY",
+    "ZZ"
+   ]
+  },
+  {
+   "id": "e38",
+   "date": "2025-05-13",
+   "precision": "day",
+   "description": "Mandy Gull-Masty became Minister of Indigenous Services",
+   "paragraphs": [
+    61
+   ],
+   "quote": "On May 13, 2025, Minister Mandy Gull-\nMasty replaced Minister Hajdu",
+   "exhibits": []
+  },
+  {
+   "id": "e39",
+   "date": "2025-06-04",
+   "precision": "day",
+   "description": "Frost wrote to Minister Gull-Masty inviting a meeting",
+   "paragraphs": [
+    62
+   ],
+   "quote": "On June 4, 2025, I wrote to Minister Gull-Masty.",
+   "exhibits": [
+    "DD"
+   ]
+  },
+  {
+   "id": "e40",
+   "date": "2025-07-04",
+   "precision": "day",
+   "description": "Frost again wrote inviting the Minister to the July 15-17 meeting; she did not attend",
+   "paragraphs": [
+    63
+   ],
+   "quote": "On July 4, 2025, I again wrote to Minister Gull-Masty",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e41",
+   "date": "2025-07-25",
+   "precision": "day",
+   "description": "Tribunal case management conference asked Canada to meet the NCCC",
+   "paragraphs": [
+    67
+   ],
+   "quote": "On July 25, 2025, this Tribunal convened a case management conference",
+   "exhibits": []
+  },
+  {
+   "id": "e42",
+   "date": "2025-07-28",
+   "precision": "day",
+   "description": "Frost, Bernard and Blackstock wrote to PM Carney and Minister Gull-Masty (the affidavit's text says 2024)",
+   "paragraphs": [
+    64
+   ],
+   "quote": "On July 28, 2024, having not received a response to my earlier letters",
+   "exhibits": [
+    "FF"
+   ]
+  },
+  {
+   "id": "e43",
+   "date": "2025-07-29",
+   "precision": "day",
+   "description": "Frost wrote to the Minister and Deputy Minister following up the Tribunal's request",
+   "paragraphs": [
+    67
+   ],
+   "quote": "On July 29, 2025",
+   "exhibits": [
+    "HH"
+   ]
+  },
+  {
+   "id": "e44",
+   "date": "2025-07-30",
+   "precision": "day",
+   "description": "Minister Gull-Masty wrote to Frost without the requested commitment",
+   "paragraphs": [
+    65
+   ],
+   "quote": "Minister Gull-Masty wrote to me on July 30, 2025.",
+   "exhibits": [
+    "GG"
+   ]
+  },
+  {
+   "id": "e45",
+   "date": "2025-08-01",
+   "precision": "day",
+   "description": "NCCC published its first progress report",
+   "paragraphs": [
+    39
+   ],
+   "quote": "on August 1, \n2025, the NCCC published its first progress report",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e46",
+   "date": "2025-08-11",
+   "precision": "day",
+   "description": "Frost met Deputy Minister Wilson and Associate Deputy Minister Kovacevic",
+   "paragraphs": [
+    68
+   ],
+   "quote": "On August 11, 2025, I met with Deputy Minister Wilson and Associate Deputy \nMinister Michelle Kovacevic",
+   "exhibits": []
+  },
+  {
+   "id": "e47",
+   "date": "2025-08-18",
+   "precision": "day",
+   "description": "Frost met Minister Gull-Masty on an introductory basis",
+   "paragraphs": [
+    68
+   ],
+   "quote": "On August 18, 2025, Minister Gull-Masty and I met on a preliminary, introductory \nbasis.",
+   "exhibits": []
+  },
+  {
+   "id": "e48",
+   "date": "2025-08-20",
+   "precision": "day",
+   "description": "Tribunal released 2025 CHRT 80; NCCC began implementing its directions",
+   "paragraphs": [
+    71,
+    77
+   ],
+   "quote": "on August 20, 2025, it delivered its decision reported at 2025 \nCHRT 80",
+   "exhibits": []
+  },
+  {
+   "id": "e49",
+   "date": "2025-08-21",
+   "precision": "day",
+   "description": "Frost, Bernard and Blackstock requested a follow-up meeting; no response",
+   "paragraphs": [
+    70
+   ],
+   "quote": "On August 21, 2025, I—along with Regional Chief Bernard and Dr. Cindy Blackstock—\nsent a letter to Minister Gull-Masty",
+   "exhibits": [
+    "II"
+   ]
+  },
+  {
+   "id": "e50",
+   "date": "2025-08-29",
+   "precision": "day",
+   "description": "Canada wrote to the Tribunal seeking clarification and more time",
+   "paragraphs": [
+    73,
+    74
+   ],
+   "quote": "On August 29, 2025, Canada wrote to the CHRT in accordance with the above directions.",
+   "exhibits": [
+    "JJ"
+   ]
+  },
+  {
+   "id": "e51",
+   "date": "2025-09-03",
+   "precision": "day",
+   "description": "First Nations-in-Assembly approved the NCCC Terms of Reference (Draft Resolution 52)",
+   "paragraphs": [
+    39
+   ],
+   "quote": "On \nSeptember 3, 2025, the First Nations-in-Assembly formally approved the NCCC’s Terms of \nReference",
+   "exhibits": [
+    "P",
+    "M"
+   ]
+  },
+  {
+   "id": "e52",
+   "date": "2025-09-11",
+   "precision": "day",
+   "description": "Frost wrote to PM Carney and Minister Gull-Masty addressing Canada's concerns",
+   "paragraphs": [
+    75
+   ],
+   "quote": "On September 11, 2025, I wrote to Prime Minster Carney",
+   "exhibits": [
+    "KK"
+   ]
+  },
+  {
+   "id": "e53",
+   "date": "2025-09-16",
+   "precision": "day",
+   "description": "Frost wrote to Minister Gull-Masty (and again on October 6, 2025)",
+   "paragraphs": [
+    76
+   ],
+   "quote": "I also wrote to Minister Gull-Masty directly on September 16, 2025, and October 6, 2025",
+   "exhibits": [
+    "LL",
+    "MM"
+   ]
+  },
+  {
+   "id": "e54",
+   "date": null,
+   "precision": "undated",
+   "description": "NCCC set up the 'Engagement: CHRT 80' webpage with backgrounders, chart, forms and toolkit",
+   "paragraphs": [
+    78
+   ],
+   "quote": "The NCCC set up a webpage entitled “Engagement: CHRT 80.”",
+   "exhibits": [
+    "NN",
+    "OO",
+    "PP",
+    "QQ",
+    "RR"
+   ]
+  },
+  {
+   "id": "e55",
+   "date": "2025-10-03",
+   "precision": "day",
+   "description": "NCCC and Caring Society hosted national webinars on October 3 and 24, 2025",
+   "paragraphs": [
+    79
+   ],
+   "quote": "hosted two national webinars on \nOctober 3 and 24, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e56",
+   "date": "2025-10-06",
+   "precision": "day",
+   "description": "NCCC began distributing engagement documents",
+   "paragraphs": [
+    79
+   ],
+   "quote": "On October 6, 2025, the NCCC started widely distributing engagement documents",
+   "exhibits": []
+  }
+ ]
 }

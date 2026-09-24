@@ -9,23 +9,180 @@
  "deponent": "Larry Andrade",
  "deponent_role": "Partner, Deloitte LLP Financial Advisory; leader of Deloitte Canada's National Disputes practice; Chartered Business Valuator",
  "sworn_date": "2023-08-30",
+ "referenced_not_attached": [
+  "Further Fresh as Amended Statement of Claim",
+  "Ottawa BIA Business Survey - Convoy Protest Impacts (OCOBIA)",
+  "TD Economics provincial forecast",
+  "Statistics Canada GDP tables"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit is Tab 5 of Volume 1 of the plaintiffs' supplemental motion record (PDF pages 305-335).",
+ "subject": "class_action",
  "exhibits": [
-  {"label": "A", "file": "doc-nt8zfd.pdf", "kind": "other", "date": null, "author": "Larry Andrade", "recipients": [], "description": "His curriculum vitae", "references": [{"paragraph": 3, "quote": "My curriculum vitae is attached as Exhibit “A” to this affidavit."}], "content_check": "3 pages: Deloitte profile and CV of Larry Andrade, FCPA, FCA, CBV, CFF, CFE, MBA"},
-  {"label": "B", "file": "doc-maqhqg.pdf", "kind": "court_filing", "date": null, "author": "Larry Andrade", "recipients": [], "description": "His signed Acknowledgment of Expert's Duty", "references": [{"paragraph": 5, "quote": "A copy my signed Acknowledgment of Expert’s Duty is attached as Exhibit “B” to this affidavit."}], "content_check": "1 page: Form 53 Acknowledgment of Expert's Duty under the Zexi Li v. Barber style of cause"},
-  {"label": "C", "file": "doc-2545cy.pdf", "kind": "spreadsheet", "date": "2022-02-25", "author": "Deloitte LLP", "recipients": ["Plaintiffs' counsel"], "description": "Schedule 1 with detailed damages calculations and the publicly available information relied on", "references": [{"paragraph": 6, "quote": "outlined in Schedule 1 attached as Exhibit “C” to this affidavit."}, {"paragraph": 27, "quote": "Please refer to Schedule 1 in Exhibit “C” for the detailed calculations"}], "content_check": "4 pages: 'Ottawa Convoy Schedule 1 - Damages Quantification - Ottawa Convoy Protest Class Action, Period of Loss: January 29 to February 20, 2022'"}
+  {
+   "label": "A",
+   "file": "doc-nt8zfd.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Larry Andrade",
+   "recipients": [],
+   "description": "His curriculum vitae",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "My curriculum vitae is attached as Exhibit “A” to this affidavit."
+    }
+   ],
+   "content_check": "3 pages: Deloitte profile and CV of Larry Andrade, FCPA, FCA, CBV, CFF, CFE, MBA"
+  },
+  {
+   "label": "B",
+   "file": "doc-maqhqg.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Larry Andrade",
+   "recipients": [],
+   "description": "His signed Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy my signed Acknowledgment of Expert’s Duty is attached as Exhibit “B” to this affidavit."
+    }
+   ],
+   "content_check": "1 page: Form 53 Acknowledgment of Expert's Duty under the Zexi Li v. Barber style of cause"
+  },
+  {
+   "label": "C",
+   "file": "doc-2545cy.pdf",
+   "kind": "spreadsheet",
+   "date": "2022-02-25",
+   "author": "Deloitte LLP",
+   "recipients": [
+    "Plaintiffs' counsel"
+   ],
+   "description": "Schedule 1 with detailed damages calculations and the publicly available information relied on",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "outlined in Schedule 1 attached as Exhibit “C” to this affidavit."
+    },
+    {
+     "paragraph": 27,
+     "quote": "Please refer to Schedule 1 in Exhibit “C” for the detailed calculations"
+    }
+   ],
+   "content_check": "4 pages: 'Ottawa Convoy Schedule 1 - Damages Quantification - Ottawa Convoy Protest Class Action, Period of Loss: January 29 to February 20, 2022'"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2002", "precision": "year", "description": "Andrade received his MBA from the Schulich School of Business", "paragraphs": [3], "quote": "I received my Masters of Business Administration from the Schulich School of Business in 2002.", "exhibits": ["A"]},
-  {"id": "e2", "date": "2022-01-28", "precision": "day", "description": "Hundreds of trucks arrived in downtown Ottawa as part of the Freedom Convoy", "paragraphs": [11], "quote": "On or around January 28, 2022, hundreds of trucks arrived in downtown Ottawa", "exhibits": []},
-  {"id": "e3", "date": "2022-01-29", "precision": "day", "description": "About 400 trucks and 4,000-15,000 protesters converged to launch the protests; start of the period of loss", "paragraphs": [12, 55], "quote": "As of January 29, 2022, approximately 400 trucks", "exhibits": ["C"]},
-  {"id": "e4", "date": "2022-02-20", "precision": "day", "description": "Police cleared the main protest area, ending the 23-day period of loss", "paragraphs": [55], "quote": "continuing until February 20, 2022 when police cleared the main protest area", "exhibits": ["C"]},
-  {"id": "e5", "date": "2022-02-25", "precision": "day", "description": "Date as of which the preliminary damages estimate was prepared (not updated since)", "paragraphs": [6], "quote": "My preliminary estimate was prepared as of February 25, 2022", "exhibits": ["C"]},
-  {"id": "e6", "date": null, "precision": "undated", "description": "OCOBIA surveyed 1,073 businesses in five BIAs in the Occupation Zone; 241 responded", "paragraphs": [42, 43], "quote": "Of the 1,073 surveys issued, 241 responses were received.", "exhibits": []},
-  {"id": "e7", "date": null, "precision": "undated", "description": "Andrade spoke with Michelle Groulx of OCOBIA about the survey results", "paragraphs": [38], "quote": "I spoke with Ms. Michelle Groulx of the OCOBIA", "exhibits": []},
-  {"id": "e8", "date": "2023-10-11", "precision": "range", "description": "The court motion scheduled for October 11-12, 2023 that his affidavit supports", "paragraphs": [8], "quote": "I have been asked to assist with the Court Motion dated October 11-12, 2023.", "exhibits": []},
-  {"id": "e9", "date": "2023-08-30", "precision": "day", "description": "Andrade swore the affidavit remotely by video conference from Quebec", "paragraphs": [64], "quote": "SWORN (or Affirmed) remotely by video conference by Larry Andrade", "exhibits": []}
- ],
- "referenced_not_attached": ["Further Fresh as Amended Statement of Claim", "Ottawa BIA Business Survey - Convoy Protest Impacts (OCOBIA)", "TD Economics provincial forecast", "Statistics Canada GDP tables"],
- "leak_waivers": [],
- "notes": "Affidavit is Tab 5 of Volume 1 of the plaintiffs' supplemental motion record (PDF pages 305-335)."
+  {
+   "id": "e1",
+   "date": "2002",
+   "precision": "year",
+   "description": "Andrade received his MBA from the Schulich School of Business",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I received my Masters of Business Administration from the Schulich School of Business in 2002.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2022-01-28",
+   "precision": "day",
+   "description": "Hundreds of trucks arrived in downtown Ottawa as part of the Freedom Convoy",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On or around January 28, 2022, hundreds of trucks arrived in downtown Ottawa",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2022-01-29",
+   "precision": "day",
+   "description": "About 400 trucks and 4,000-15,000 protesters converged to launch the protests; start of the period of loss",
+   "paragraphs": [
+    12,
+    55
+   ],
+   "quote": "As of January 29, 2022, approximately 400 trucks",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2022-02-20",
+   "precision": "day",
+   "description": "Police cleared the main protest area, ending the 23-day period of loss",
+   "paragraphs": [
+    55
+   ],
+   "quote": "continuing until February 20, 2022 when police cleared the main protest area",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2022-02-25",
+   "precision": "day",
+   "description": "Date as of which the preliminary damages estimate was prepared (not updated since)",
+   "paragraphs": [
+    6
+   ],
+   "quote": "My preliminary estimate was prepared as of February 25, 2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": null,
+   "precision": "undated",
+   "description": "OCOBIA surveyed 1,073 businesses in five BIAs in the Occupation Zone; 241 responded",
+   "paragraphs": [
+    42,
+    43
+   ],
+   "quote": "Of the 1,073 surveys issued, 241 responses were received.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": null,
+   "precision": "undated",
+   "description": "Andrade spoke with Michelle Groulx of OCOBIA about the survey results",
+   "paragraphs": [
+    38
+   ],
+   "quote": "I spoke with Ms. Michelle Groulx of the OCOBIA",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2023-10-11",
+   "precision": "range",
+   "description": "The court motion scheduled for October 11-12, 2023 that his affidavit supports",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I have been asked to assist with the Court Motion dated October 11-12, 2023.",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2023-08-30",
+   "precision": "day",
+   "description": "Andrade swore the affidavit remotely by video conference from Quebec",
+   "paragraphs": [
+    64
+   ],
+   "quote": "SWORN (or Affirmed) remotely by video conference by Larry Andrade",
+   "exhibits": []
+  }
+ ]
 }

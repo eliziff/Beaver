@@ -1,0 +1,325 @@
+{
+ "record_id": "ondc-ohc-parkes",
+ "court": "Ontario Superior Court of Justice, Divisional Court",
+ "court_level": "superior_divisional",
+ "jurisdiction": "ON",
+ "court_file": "DC-24-00000007-00JR",
+ "subject": "administrative",
+ "family": "ohc-orchard-villa-jr",
+ "proceeding": "The Ontario Health Coalition and Catherine Parkes v. Ontario Minister of Long-Term Care: application for judicial review of the Director's approval of Southbridge's licence extension and 87 additional beds for Orchard Villa long-term care home",
+ "document": "Affidavit of Catherine Parkes sworn April 17, 2024",
+ "deponent": "Catherine Parkes",
+ "deponent_role": "Applicant; daughter of a former Orchard Villa resident who died in April 2020; long-term care advocate",
+ "sworn_date": "2024-04-17",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-525mmt.pdf",
+   "kind": "transcript",
+   "date": "2020-10-23",
+   "author": "Neesons Reporting",
+   "recipients": [],
+   "description": "Transcript of the Families of Orchard Villa's meeting with the Long-Term Care COVID-19 Commission",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "A transcript of that meeting is marked as Exhibit \n“A” to this affidavit."
+    }
+   ],
+   "content_check": "66 pages: transcript 'Long Term Care Covid-19 Commission Mtg., Meeting with Families of Orchard Villa on Friday, October 23, 2020' by Neesons Reporting"
+  },
+  {
+   "label": "B",
+   "file": "doc-4kngwu.pdf",
+   "kind": "email",
+   "date": "2021-06-25",
+   "author": "Catherine Parkes",
+   "recipients": [
+    "MLTC Long-Term Care Homes Licensing"
+   ],
+   "description": "Parkes's June 25, 2021 email to the MLTC on Southbridge's request for 87 extra beds and a 30-year licence extension",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "is marked as Exhibit “B” to this affidavit"
+    }
+   ],
+   "content_check": "2 pages: email from Catherine Parkes sent June 25, 2021 to LTC Homes Licensing, forwarded June 28, 2021 internally (subject FW: Project #21-026)"
+  },
+  {
+   "label": "C",
+   "file": "doc-3ve8gn.pdf",
+   "kind": "email",
+   "date": "2022-10-17",
+   "author": "Catherine Parkes",
+   "recipients": [
+    "MLTC Long-Term Care Homes Licensing"
+   ],
+   "description": "Parkes's October 17, 2022 email submission to the second consultation",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "is marked as Exhibit “C” to \nthis affidavit"
+    }
+   ],
+   "content_check": "2 pages: email from Catherine Parkes sent October 17, 2022 4:01 PM to LTC Homes Licensing, subject 'Orchard Villa - Project #23-034'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Father's care needs become urgent; placed on the LTC waiting list with Orchard Villa listed",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "In 2019, my family and I found that my father’s care was becoming urgent",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Father accepted into and moves into Orchard Villa",
+   "date": "2019-11",
+   "precision": "month",
+   "paragraphs": [
+    1,
+    2
+   ],
+   "quote": "In November \n2019 my father was accepted in to the home within days",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Father is a victim of staff-to-resident abuse in his first month; complaint to the Director of Care",
+   "date": "2019-11",
+   "precision": "approximate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "During the first month of my father’s stay at the home, he was the victim of staff-to-resident\nabuse",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Father hospitalized with acute kidney failure from dehydration",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "he was in acute kidney \nfailure due to lack of hydration",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Specialist appointment at Lakeridge Health: melanoma progression stopped",
+   "date": "2020-01",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "In January, 2020 my father and I attended a meeting with one of his medical specialists",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Orchard Villa goes into lockdown",
+   "date": "2020-03-14",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "After Orchard Villa went in to lockdown on March 14, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "COVID-19 reported at Pinecrest long-term care home in Bobcaygeon",
+   "date": "2020-03-19",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On March 19, 2020 a media report stated that COVID-19 had been detected at the \nPinecrest long-term care home",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Father's voice very weak on Parkes's birthday call; RN says fever too low for a test",
+   "date": "2020-04-11",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On April 11, 2020 I was celebrating my \nbirthday and called my father",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Brother reaches father by phone but he cannot speak",
+   "date": "2020-04-12",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "April 12, 2020 my oldest brother was the only person able to reach my father",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Parkes asks for a COVID-19 test, family access and oxygen; Director of Care says home is well staffed; oxygen refused",
+   "date": "2020-04-13",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On \nMonday, April 13, 2020 I tried calling my father several times",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Parkes sees her unresponsive father through his window; request to send him to hospital denied",
+   "date": "2020-04-14",
+   "precision": "day",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "On April 14, 2020, unable to reach my father by phone",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Father dies at Orchard Villa",
+   "date": "2020-04-15",
+   "precision": "day",
+   "paragraphs": [
+    1,
+    14,
+    15
+   ],
+   "quote": "At 12:00 p.m. on April 15, 2020 I received a phone call",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Lakeridge Health staff sent into Orchard Villa",
+   "date": "2020-04-22",
+   "precision": "day",
+   "paragraphs": [
+    16,
+    17
+   ],
+   "quote": "staff \nmembers of Lakeridge Health were not sent in to the home until April 22, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Canadian Armed Forces enter Orchard Villa; later military report names it among the five worst homes",
+   "date": "2020-04-28",
+   "precision": "day",
+   "paragraphs": [
+    16,
+    17
+   ],
+   "quote": "The Canadian \nArmed Forces also entered the home on April 28, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Father's funeral limited to ten family members",
+   "date": "2020",
+   "precision": "approximate",
+   "paragraphs": [
+    20
+   ],
+   "quote": "My father’s funeral was limited to ten family members",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Families of Orchard Villa testify before the Long-Term Care COVID-19 Commission",
+   "date": "2020-10-23",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "we \ndid participate by speaking with the commissioners for a full day on October 23, 2020",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Parkes emails the MLTC opposing Southbridge's 87 extra beds and 30-year licence extension",
+   "date": "2021-06-25",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "On June 25, 2021, I submitted an email to the MLTC",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "MLTC public teleconference consultation on the Southbridge proposal; speakers limited and lines jammed",
+   "date": "2021-07-15",
+   "precision": "day",
+   "paragraphs": [
+    24,
+    25,
+    26,
+    27,
+    28
+   ],
+   "quote": "I attended MLTC’s \npublic teleconference consultation on July 15, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Ministry notice of a further consultation after Southbridge's corporate restructuring",
+   "date": "2022",
+   "precision": "approximate",
+   "paragraphs": [
+    29
+   ],
+   "quote": "In the Fall of 2022, a notice posted the Ministry’s website",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Parkes makes a written submission to the second consultation",
+   "date": "2022-10-17",
+   "precision": "day",
+   "paragraphs": [
+    30,
+    31
+   ],
+   "quote": "a copy of my October 17, 2022 email submission",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Parkes learns the Director's approval of the Southbridge proposal was posted",
+   "date": "2023-12",
+   "precision": "month",
+   "paragraphs": [
+    32
+   ],
+   "quote": "In December 2023, I learned from Natalie Mehra that notice of the \nDirector’s decision",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Canadian Armed Forces report on five long-term care homes",
+  "Record of Decision (Tabs 88, 88DD, 94C, 94V)",
+  "Director's decision approving the Southbridge proposal"
+ ],
+ "leak_waivers": [],
+ "notes": "Taken from the applicants' application record (Tab 3, record pages 154-167). Family ohc-orchard-villa-jr with the April 2024 Mehra affidavit."
+}

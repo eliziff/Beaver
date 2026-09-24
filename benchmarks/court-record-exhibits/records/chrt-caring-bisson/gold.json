@@ -1,0 +1,150 @@
+{
+ "record_id": "chrt-caring-bisson",
+ "court": "Canadian Human Rights Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "T1340/7008",
+ "subject": "human_rights",
+ "family": "fncfcs-chrt-t1340",
+ "proceeding": "First Nations Child and Family Caring Society of Canada and Assembly of First Nations v. Attorney General of Canada: long-term reform of the FNCFS Program outside Ontario (update to the Tribunal)",
+ "document": "Affidavit of Andrew Bisson sworn July 24, 2026",
+ "deponent": "Andrew Bisson",
+ "deponent_role": "Chief Executive Officer, Assembly of First Nations",
+ "sworn_date": "2026-07-24",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-s9aaes.pdf",
+   "kind": "other",
+   "date": "2026-07",
+   "author": "Assembly of First Nations (moved by Chief Pauline Frost)",
+   "recipients": [],
+   "description": "Draft Resolution #11/2026, Minimum standards for ending Canada's discrimination in FNCFS outside Ontario",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto as Exhibit “A” to this affidavit is a true copy of the Draft Resolution"
+    }
+   ],
+   "content_check": "3 pages: AFN Draft Resolution #11/2026, AGA July 14-16, 2026, title 'Minimum standards for ending Canada's discrimination in First Nations Child & Family Services outside Ontario'"
+  },
+  {
+   "label": "B",
+   "file": "doc-epq4j8.pdf",
+   "kind": "other",
+   "date": "2026-07",
+   "author": "Assembly of First Nations (moved by Chief David Monias)",
+   "recipients": [],
+   "description": "Draft Resolution #12/2026, Clarity, Accuracy, and Respect for First Nations in Communications on Long-Term Reform",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto as Exhibit “B” to this affidavit is a true copy of the Draft Resolution"
+    }
+   ],
+   "content_check": "2 pages: AFN Draft Resolution #12/2026, title 'Clarity, Accuracy, and Respect for First Nations in Communications on Long-Term Reform'"
+  },
+  {
+   "label": "C",
+   "file": "doc-u8cra6.pdf",
+   "kind": "other",
+   "date": "2026-07",
+   "author": "Assembly of First Nations (moved by Chief Jenny Brake)",
+   "recipients": [],
+   "description": "Draft Resolution #53/2026, Long-Term Reform of the FNCFS Program: Inclusion of First Nations Members Living Off-Reserve",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto as Exhibit “C” to this affidavit is a true copy of the Draft Resolution"
+    }
+   ],
+   "content_check": "3 pages: AFN Draft Resolution #53/2026, title 'Long-Term Reform of the First Nations Child and Family Services Program: Inclusion of First Nations Members Living Off-Reserve'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "AFN Annual General Assembly held at the Rogers Convention Centre",
+   "date": "2026-07-14",
+   "end_date": "2026-07-16",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "held from July 14 to 16, 2026, at the Rogers Convention Centre in Ottawa",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "First Nations-in-Assembly unanimously adopt three resolutions on long-term FNCFS reform",
+   "date": "2026-07-16",
+   "precision": "day",
+   "paragraphs": [
+    4,
+    5
+   ],
+   "quote": "On that date, the Assembly passed three resolutions relating to national long-term reform",
+   "exhibits": [
+    "A",
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Draft Resolution #11/2026 moved by Chief Pauline Frost, seconded by Chief Justice Gruben",
+   "date": "2026-07-16",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "was moved by Chief Pauline Frost from Vuntut Gwitchin First Nation",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Draft Resolution #12/2026 moved by Chief David Monias, seconded by Chief Ira McArthur",
+   "date": "2026-07-16",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "was moved by Chief David Monias from Pimicikamak Okimawin Cree Nation",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Resolutions #11 and #12 introduced as a package moved by Wayne Christian and seconded by Chief Eddy Jules",
+   "date": "2026-07-16",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "That package was moved by Wayne Christian",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Draft Resolution #53/2026 moved by Chief Jenny Brake, seconded by Chief Betsy Kennedy",
+   "date": "2026-07-16",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "was moved by Chief Jenny Brake from Qalipu Mi’kmaq First Nation",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Signed final resolutions (pending the National Chief's signature)"
+ ]
+}

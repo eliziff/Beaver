@@ -1,0 +1,20 @@
+{
+ "url": "https://www.insolvencies.deloitte.ca/en-ca/PublishingImages/Pages/Kami-Mine/3.%20Affidavit%20of%20Narinder%20Nagra,%20sworn%20May%2026,%202020.pdf",
+ "landing_url": "https://www.insolvencies.deloitte.ca/en-ca/Pages/Kami-Mine.aspx",
+ "court": "Supreme Court of Newfoundland and Labrador (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NL",
+ "court_file": "",
+ "document_title": "Affidavit of Narinder Nagra sworn May 26, 2020 (Sprott receivership application re Kami Mine Limited Partnership, Kami General Partner Limited and Alderon Iron Ore Corp.)",
+ "retrieved": "2026-09-23",
+ "record_id": "nlsc-kami-nagra",
+ "source_file": "nlsc-3-20affidavit-20of-20narinder-20nagra-20sworn-20may-2026-202.pdf",
+ "page_range": [
+  1,
+  328
+ ],
+ "source_sha256": "7d518087b49148e98d4cb8c8c3fe1b4d33bf7186cda719cc0765676932815f08",
+ "source_pages": 328,
+ "covers": "1=8,2=12,3=19,4=23,5=125,6=127,7=145,8=187,9=202,10=215,11=219,12=230,13=234,14=239,15=243,16=249,17=255,18=258,19=263,20=268,21=273,22=276,23=278,24=280,25=282,26=297,27=313,28=319,29=324",
+ "drop": "74"
+}

@@ -11,6 +11,12 @@
  "deponent_role": "Senior Managing Director, FTI Consulting Canada Inc., former Monitor",
  "sworn_date": "2026-07-20",
  "notes": "Companion to Affidavit #1 of Lisa Hiebert (bcsc-acdc-hiebert) on the same fee application: Hiebert exhibits Fasken's invoices, Powell exhibits FTI's own. Exhibits are referenced only through the invoice table in paragraph 5; quotes come from that table.",
+ "referenced_not_attached": [
+  "Notice of Application for the Fee Approval Order",
+  "Receivership Order",
+  "Fasken's Invoices"
+ ],
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -148,10 +154,5 @@
    "quote": "Fasken's invoices that were issued for the period from April 28,2026, to July 15,2026",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Notice of Application for the Fee Approval Order",
-  "Receivership Order",
-  "Fasken's Invoices"
  ]
 }

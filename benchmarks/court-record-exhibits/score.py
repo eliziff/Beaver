@@ -14,6 +14,13 @@
       when its date agrees at the gold precision and it either cites one of
       the event's exhibit files or shares >= 30% of the event's content words.
 
+  python score.py events <predictions.json> [--embed BGE_DIR] [--threshold T]
+      Chronology creation scored by meaning: rows citing an event's files are
+      paired one-to-one with gold events by description similarity; dates do
+      not gate a match and are reported separately.
+
+Exhibits with "same_text_as" (identical files within a record) are interchangeable.
+
 Each record id resolves under the records root
 (%LOCALAPPDATA%/OpenLegalData/benchmarks/court-record-exhibits/records).
 """
@@ -41,13 +48,26 @@ def date_ok(pred, event):
     return d[:len(lo)] == lo
 
 
+def twins(g):
+    """label -> the labels whose files carry the same text (gold "same_text_as"): either assignment is right."""
+    return {e["label"]: {e["label"], *e.get("same_text_as", [])} for e in g["exhibits"]}
+
+
+def event_files(g, ev):
+    """The files an event cites, with same-text twins."""
+    files, tw = {e["label"]: e["file"] for e in g["exhibits"]}, twins(g)
+    return {files[x] for l in ev["exhibits"] for x in tw.get(l, {l}) if x in files}
+
+
 def exhibits(preds):
     total = right = 0
     for rid, mapping in preds.items():
-        g = {e["file"]: e["label"] for e in gold(rid)["exhibits"]}
+        gd = gold(rid)
+        g, tw = {e["file"]: e["label"] for e in gd["exhibits"]}, twins(gd)
         total += len(g)
-        right += sum(mapping.get(f) == lab for f, lab in g.items())
-        print(f"{rid}: {sum(mapping.get(f) == lab for f, lab in g.items())}/{len(g)}")
+        ok = sum(mapping.get(f) in tw[lab] for f, lab in g.items())
+        right += ok
+        print(f"{rid}: {ok}/{len(g)}")
     print(f"exhibit assignment accuracy {right}/{total} = {right / max(total, 1):.3f}")
 
 
@@ -66,7 +86,7 @@ def chronology(preds, with_affidavit):
             for ev in unmatched:
                 if not date_ok(row.get("date"), ev):
                     continue
-                cited = {files[l] for l in ev["exhibits"]} & set(row.get("files", []))
+                cited = event_files(g, ev) & set(row.get("files", []))
                 gw = words(ev["description"])
                 if cited or (gw and len(gw & words(row.get("description", ""))) / len(gw) >= 0.3):
                     match = ev
@@ -83,6 +103,55 @@ def chronology(preds, with_affidavit):
     print(f"chronology precision {p:.3f} recall {r:.3f} F1 {2 * p * r / max(p + r, 1e-9):.3f}")
 
 
+SUFFIX = re.compile(r"(?:ing|ed|es|s)$")
+
+
+def lexical(a, b):
+    """F1 of content-word stems: a model-free stand-in for meaning."""
+    wa, wb = ({SUFFIX.sub("", w) for w in words(t)} for t in (a, b))
+    both = len(wa & wb)
+    return 2 * both / (len(wa) + len(wb)) if both else 0.0
+
+
+def events(preds, embed_dir=None, threshold=None):
+    """Chronology creation scored by meaning. A row may match a gold event only if it cites one of
+    the event's exhibit files. Rows and events are then paired one-to-one by description similarity
+    (bge-small cosine with --embed DIR, else content-word F1). A pair counts when the similarity
+    clears the threshold. Dates never gate a match; date agreement is reported for the matched pairs."""
+    from scipy.optimize import linear_sum_assignment
+    import numpy as np
+    sim = lexical
+    if embed_dir:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from fastmatch import Embedder
+        emb, cache = Embedder(embed_dir, pooling="cls", max_len=96), {}
+        vec = lambda t: cache[t] if t in cache else cache.setdefault(t, emb.embed(t))
+        sim = lambda a, b: float(vec(a) @ vec(b))
+    threshold = threshold if threshold is not None else (0.75 if embed_dir else 0.25)
+    tp = rows_n = gold_n = dated = covered = 0
+    sims = []
+    for rid, rows in preds.items():
+        g = gold(rid)
+        evs = [e for e in g["events"] if e["exhibits"]]
+        gold_n += len(evs); rows_n += len(rows)
+        covered += sum(any(event_files(g, e) & set(r.get("files", [])) for r in rows) for e in evs)
+        if not rows or not evs:
+            continue
+        m = np.zeros((len(rows), len(evs)))
+        for i, r in enumerate(rows):
+            for j, e in enumerate(evs):
+                if event_files(g, e) & set(r.get("files", [])):
+                    m[i, j] = sim(r.get("description", ""), e["description"])
+        for i, j in zip(*linear_sum_assignment(-m)):
+            if m[i, j] >= threshold:
+                tp += 1; sims.append(m[i, j]); dated += date_ok(rows[i].get("date"), evs[j])
+    p, r = tp / max(rows_n, 1), tp / max(gold_n, 1)
+    print(f"events matched by meaning {tp} of {gold_n} gold, {rows_n} rows ({'bge-small' if embed_dir else 'lexical'} >= {threshold})")
+    print(f"evidence coverage (a row cites the event's file) {covered / max(gold_n, 1):.3f}; matched pairs: date agrees {dated / max(tp, 1):.3f}, "
+          f"mean similarity {sum(sims) / max(len(sims), 1):.3f}")
+    print(f"events precision {p:.3f} recall {r:.3f} F1 {2 * p * r / max(p + r, 1e-9):.3f}")
+
+
 def manifest(record):
     return json.load(open(os.path.join(os.path.dirname(ROOT), "haystack", record, "manifest.json"), encoding="utf-8"))["files"]
 
@@ -92,9 +161,9 @@ def haystack_exhibits(preds):
     total = right = decoys = 0
     for rid, picks in preds.items():
         files = {e["file"]: e for e in manifest(rid)}
-        labels = {e["label"] for e in files.values() if e["role"] == "exhibit"}
+        labels, tw = {e["label"] for e in files.values() if e["role"] == "exhibit"}, twins(gold(rid))
         total += len(labels)
-        right += sum(files.get(picks.get(l), {}).get("label") == l for l in labels)
+        right += sum(files.get(picks.get(l), {}).get("label") in tw.get(l, {l}) for l in labels)
         decoys += sum(files.get(f, {}).get("role", "exhibit") != "exhibit" for f in picks.values())
     print(f"haystack exhibit identification {right}/{total} = {right / max(total, 1):.3f}; distractors picked {decoys}")
 
@@ -124,6 +193,8 @@ def haystack_chronology(preds, with_affidavit):
 if __name__ == "__main__":
     task, path = sys.argv[1], sys.argv[2]
     preds = json.load(open(path, encoding="utf-8"))
+    arg = lambda n: sys.argv[sys.argv.index(n) + 1] if n in sys.argv else None
     {"exhibits": lambda: exhibits(preds), "chronology": lambda: chronology(preds, "--with-affidavit" in sys.argv),
+     "events": lambda: events(preds, arg("--embed"), float(arg("--threshold")) if arg("--threshold") else None),
      "haystack-exhibits": lambda: haystack_exhibits(preds),
      "haystack-chronology": lambda: haystack_chronology(preds, "--with-affidavit" in sys.argv)}[task]()

@@ -9,36 +9,345 @@
  "deponent": "Andrew Hall",
  "deponent_role": "Chief Executive Officer of IMV Inc. and President of the other Applicants",
  "sworn_date": "2023-04-28",
+ "referenced_not_attached": [
+  "Horizon Agreement (Venture Loan and Security Agreement dated December 17, 2021)",
+  "Proposed Monitor's pre-filing report"
+ ],
+ "notes": "The affidavit's signature page is image-only. Exhibit D is an image-only page.",
+ "subject": "insolvency",
  "exhibits": [
-  {"label": "A", "file": "doc-xx4mvv.pdf", "kind": "financial_statement", "date": "2022-03-16", "author": "IMV Inc.", "recipients": [], "description": "IMV's audited consolidated financial statements for the fiscal year ending December 31, 2021 (IMV's 2021 Financial Statements)", "references": [{"paragraph": 56, "quote": "Attached to\nmy Affidavit as Exhibit A is a copy of IMV's 2021 Financial Statements."}], "content_check": "37 pages: IMV 'Consolidated Financial Statements December 31, 2021', approved on behalf of the Board March 16, 2022"},
-  {"label": "B", "file": "doc-ymc8un.pdf", "kind": "financial_statement", "date": "2023-03-15", "author": "IMV Inc.", "recipients": [], "description": "IMV's audited consolidated financial statements for the fiscal year ending December 31, 2022, showing total liabilities of $58.5 million", "references": [{"paragraph": 59, "quote": "Attached to my Affidavit as Exhibit B is a copy of IMV's 2022 Financial\nStatements."}], "content_check": "40 pages: IMV 'Consolidated Financial Statements December 31, 2022', management's responsibility statement dated March 15, 2023"},
-  {"label": "C", "file": "doc-fv7fe2.pdf", "kind": "public_record", "date": "2023-04-27", "author": "Nova Scotia Personal Property Registry", "recipients": [], "description": "The financing statements filed by the Lenders at the Nova Scotia Personal Property Securities Register and the certified extract of the (Quebec) Register of personal and movable real rights", "references": [{"paragraph": 67, "quote": "Attached to my Affidavit as Exhibit C is a copy of the financing statements filed\nby the Lenders at the Personal Property Securities Register of Nova Scotia"}], "content_check": "18 pages beginning with a Nova Scotia PPRS Search Result Report for debtor IMV Inc., searched 2023-04-27 11:49 (Atlantic)"},
-  {"label": "D", "file": "doc-6u639z.pdf", "kind": "court_filing", "date": "2023-04-28", "author": "FTI Consulting Canada Inc. (Jeffrey Rosenberg)", "recipients": [], "description": "The Consent to Act as Monitor provided by FTI", "references": [{"paragraph": 90, "quote": "Attached to my Affidavit as Exhibit D is a\ncopy of the Consent to Act provided by FTI."}], "content_check": "One image-only page: NSSC-captioned 'Monitor's Consent' of FTI Consulting Canada Inc., dated as of April 28, 2023, signed by Jeffrey Rosenberg, Senior Managing Director"}
+  {
+   "label": "A",
+   "file": "doc-xx4mvv.pdf",
+   "kind": "financial_statement",
+   "date": "2022-03-16",
+   "author": "IMV Inc.",
+   "recipients": [],
+   "description": "IMV's audited consolidated financial statements for the fiscal year ending December 31, 2021 (IMV's 2021 Financial Statements)",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "Attached to\nmy Affidavit as Exhibit A is a copy of IMV's 2021 Financial Statements."
+    }
+   ],
+   "content_check": "37 pages: IMV 'Consolidated Financial Statements December 31, 2021', approved on behalf of the Board March 16, 2022"
+  },
+  {
+   "label": "B",
+   "file": "doc-ymc8un.pdf",
+   "kind": "financial_statement",
+   "date": "2023-03-15",
+   "author": "IMV Inc.",
+   "recipients": [],
+   "description": "IMV's audited consolidated financial statements for the fiscal year ending December 31, 2022, showing total liabilities of $58.5 million",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "Attached to my Affidavit as Exhibit B is a copy of IMV's 2022 Financial\nStatements."
+    }
+   ],
+   "content_check": "40 pages: IMV 'Consolidated Financial Statements December 31, 2022', management's responsibility statement dated March 15, 2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-fv7fe2.pdf",
+   "kind": "public_record",
+   "date": "2023-04-27",
+   "author": "Nova Scotia Personal Property Registry",
+   "recipients": [],
+   "description": "The financing statements filed by the Lenders at the Nova Scotia Personal Property Securities Register and the certified extract of the (Quebec) Register of personal and movable real rights",
+   "references": [
+    {
+     "paragraph": 67,
+     "quote": "Attached to my Affidavit as Exhibit C is a copy of the financing statements filed\nby the Lenders at the Personal Property Securities Register of Nova Scotia"
+    }
+   ],
+   "content_check": "18 pages beginning with a Nova Scotia PPRS Search Result Report for debtor IMV Inc., searched 2023-04-27 11:49 (Atlantic)"
+  },
+  {
+   "label": "D",
+   "file": "doc-6u639z.pdf",
+   "kind": "court_filing",
+   "date": "2023-04-28",
+   "author": "FTI Consulting Canada Inc. (Jeffrey Rosenberg)",
+   "recipients": [],
+   "description": "The Consent to Act as Monitor provided by FTI",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached to my Affidavit as Exhibit D is a\ncopy of the Consent to Act provided by FTI."
+    }
+   ],
+   "content_check": "One image-only page: NSSC-captioned 'Monitor's Consent' of FTI Consulting Canada Inc., dated as of April 28, 2023, signed by Jeffrey Rosenberg, Senior Managing Director"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2000-03", "precision": "month", "description": "IMV commenced operations based on Dalhousie University animal health research", "paragraphs": [7], "quote": "IMV commenced operations in March 2000", "exhibits": []},
-  {"id": "e2", "date": "2000", "end_date": "2008", "precision": "range", "description": "IMV focused its research on animal contraception", "paragraphs": [8], "quote": "From 2000 to 2008, IMV concentrated its research efforts on animal", "exhibits": []},
-  {"id": "e3", "date": "2010", "precision": "year", "description": "IMV acquired survivin peptides from Merck KGaA", "paragraphs": [9], "quote": "acquiring peptides to the tumour\nassociated antigen, survivin, from Merck KGaA in 2010", "exhibits": []},
-  {"id": "e4", "date": "2014", "precision": "year", "description": "Brittany Davison joined IMV", "paragraphs": [47], "quote": "has been with IMV since 2014", "exhibits": []},
-  {"id": "e5", "date": "2020-11", "precision": "month", "description": "Andrew Hall became Chief Business Officer", "paragraphs": [3], "quote": "Chief Business Officer since November 2020", "exhibits": []},
-  {"id": "e6", "date": "2020", "end_date": "2022", "precision": "range", "description": "IMV had net losses of $31.7M (2020), $49.6M (2021) and $51.5M (2022), with an accumulated deficit of $261.2M at December 31, 2022", "paragraphs": [52], "quote": "Since its inception, IMV has incurred significant operating losses.", "exhibits": ["A", "B"]},
-  {"id": "e7", "date": "2021-12-17", "precision": "day", "description": "IMV entered the Horizon Agreement (venture loan of up to $33.85M) and the Lenders disbursed $20.31M", "paragraphs": [13, 64, 65], "quote": "On December 17, 2021, the Lenders disbursed loans totalling an amount of $20.31 million.", "exhibits": ["C"]},
-  {"id": "e8", "date": "2021-12-31", "precision": "day", "description": "IMV's 2021 financial statements disclosed that going concern depended on raising additional funding", "paragraphs": [56], "quote": "IMV's ability to continue as a going concern was\ndependent upon raising additional funding", "exhibits": ["A"]},
-  {"id": "e9", "date": "2022-01", "precision": "month", "description": "Andrew Hall became CEO of IMV Inc.", "paragraphs": [3], "quote": "I am the Chief Executive Officer of IMV Inc. and have held this position since January 2022.", "exhibits": []},
-  {"id": "e10", "date": "2022-04", "precision": "month", "description": "IMV announced positive clinical trial results (also in February 2023)", "paragraphs": [54], "quote": "In April 2022 and February 2023, IMV announced positive results", "exhibits": []},
-  {"id": "e11", "date": "2022-06-22", "precision": "day", "description": "The Lenders disbursed the remaining $13.54M of the Venture Loan", "paragraphs": [65], "quote": "Lenders on June 22, 2022", "exhibits": []},
-  {"id": "e12", "date": "2022-09", "precision": "month", "description": "IMV completed a strategic reorganization cutting about one third of its workforce", "paragraphs": [14, 53], "quote": "In September 2022, IMV completed a strategic reorganization", "exhibits": []},
-  {"id": "e13", "date": "2022-12-31", "precision": "day", "description": "IMV's 2022 financial statements showed liabilities of $58.5M and assets with a book value of $42.45M; debts to Lenders $33.85M, ACOA $10.24M and suppliers $12.24M", "paragraphs": [59, 60, 66, 70, 79], "quote": "demonstrate that the Applicants\nhad, on a consolidated basis, total liabilities amounting to $58.5 million", "exhibits": ["B"]},
-  {"id": "e14", "date": "2023-02", "precision": "month", "description": "IMV announced positive results in a second clinical trial", "paragraphs": [54], "quote": "In April 2022 and February 2023, IMV announced positive results", "exhibits": []},
-  {"id": "e15", "date": "2023-02", "precision": "approximate", "description": "Latest 13-F filings showed Armistice (9.9%) and FTQ (7.9%) as the largest shareholders", "paragraphs": [78], "quote": "As per the latest 13-F filings dated mid-February 2023", "exhibits": []},
-  {"id": "e16", "date": "2023-03", "precision": "month", "description": "After a share price decline, IMV engaged Stonegate to review strategic alternatives", "paragraphs": [15, 57], "quote": "in March 2023 IMV engaged Stonegate", "exhibits": []},
-  {"id": "e17", "date": "2023-03-15", "precision": "day", "description": "IMV had 11,711,637 common shares outstanding and 5,447,256 shares reserved", "paragraphs": [76, 77], "quote": "As at March 15, 2023, there were 11,711,637", "exhibits": []},
-  {"id": "e18", "date": "2023-04-27", "precision": "day", "description": "PPR searches showed the Lenders' registered financing statements against IMV", "paragraphs": [67], "quote": "The Venture Loan and the obligations of IMV under the Horizon Agreement are secured by", "exhibits": ["C"]},
-  {"id": "e19", "date": "2023-04-28", "precision": "day", "description": "FTI consented to act as Monitor", "paragraphs": [90], "quote": "FTI has consented to act as Monitor for the Company", "exhibits": ["D"]},
-  {"id": "e20", "date": "2023-04-28", "precision": "day", "description": "IMV Inc. would ask the TSX for a trading halt after market close", "paragraphs": [113], "quote": "on the evening of April 28, 2023, after the closing of the markets, IMV Inc. will", "exhibits": []},
-  {"id": "e21", "date": "2023-05-12", "precision": "approximate", "description": "Severance to terminated employees was to be paid", "paragraphs": [109], "quote": "or about May 12, 2023", "exhibits": []},
-  {"id": "e22", "date": null, "precision": "undated", "description": "ACOA made available AIF Loans (up to $10.73M) and a $395,000 BDP Loan to IMV Inc. and IVT", "paragraphs": [68, 69], "quote": "ACOA has also made available to IMV Inc.", "exhibits": []}
- ],
- "referenced_not_attached": ["Horizon Agreement (Venture Loan and Security Agreement dated December 17, 2021)", "Proposed Monitor's pre-filing report"],
- "notes": "The affidavit's signature page is image-only. Exhibit D is an image-only page."
+  {
+   "id": "e1",
+   "date": "2000-03",
+   "precision": "month",
+   "description": "IMV commenced operations based on Dalhousie University animal health research",
+   "paragraphs": [
+    7
+   ],
+   "quote": "IMV commenced operations in March 2000",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2000",
+   "end_date": "2008",
+   "precision": "range",
+   "description": "IMV focused its research on animal contraception",
+   "paragraphs": [
+    8
+   ],
+   "quote": "From 2000 to 2008, IMV concentrated its research efforts on animal",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2010",
+   "precision": "year",
+   "description": "IMV acquired survivin peptides from Merck KGaA",
+   "paragraphs": [
+    9
+   ],
+   "quote": "acquiring peptides to the tumour\nassociated antigen, survivin, from Merck KGaA in 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2014",
+   "precision": "year",
+   "description": "Brittany Davison joined IMV",
+   "paragraphs": [
+    47
+   ],
+   "quote": "has been with IMV since 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2020-11",
+   "precision": "month",
+   "description": "Andrew Hall became Chief Business Officer",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Chief Business Officer since November 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2020",
+   "end_date": "2022",
+   "precision": "range",
+   "description": "IMV had net losses of $31.7M (2020), $49.6M (2021) and $51.5M (2022), with an accumulated deficit of $261.2M at December 31, 2022",
+   "paragraphs": [
+    52
+   ],
+   "quote": "Since its inception, IMV has incurred significant operating losses.",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2021-12-17",
+   "precision": "day",
+   "description": "IMV entered the Horizon Agreement (venture loan of up to $33.85M) and the Lenders disbursed $20.31M",
+   "paragraphs": [
+    13,
+    64,
+    65
+   ],
+   "quote": "On December 17, 2021, the Lenders disbursed loans totalling an amount of $20.31 million.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2021-12-31",
+   "precision": "day",
+   "description": "IMV's 2021 financial statements disclosed that going concern depended on raising additional funding",
+   "paragraphs": [
+    56
+   ],
+   "quote": "IMV's ability to continue as a going concern was\ndependent upon raising additional funding",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2022-01",
+   "precision": "month",
+   "description": "Andrew Hall became CEO of IMV Inc.",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I am the Chief Executive Officer of IMV Inc. and have held this position since January 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2022-04",
+   "precision": "month",
+   "description": "IMV announced positive clinical trial results (also in February 2023)",
+   "paragraphs": [
+    54
+   ],
+   "quote": "In April 2022 and February 2023, IMV announced positive results",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2022-06-22",
+   "precision": "day",
+   "description": "The Lenders disbursed the remaining $13.54M of the Venture Loan",
+   "paragraphs": [
+    65
+   ],
+   "quote": "Lenders on June 22, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2022-09",
+   "precision": "month",
+   "description": "IMV completed a strategic reorganization cutting about one third of its workforce",
+   "paragraphs": [
+    14,
+    53
+   ],
+   "quote": "In September 2022, IMV completed a strategic reorganization",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2022-12-31",
+   "precision": "day",
+   "description": "IMV's 2022 financial statements showed liabilities of $58.5M and assets with a book value of $42.45M; debts to Lenders $33.85M, ACOA $10.24M and suppliers $12.24M",
+   "paragraphs": [
+    59,
+    60,
+    66,
+    70,
+    79
+   ],
+   "quote": "demonstrate that the Applicants\nhad, on a consolidated basis, total liabilities amounting to $58.5 million",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2023-02",
+   "precision": "month",
+   "description": "IMV announced positive results in a second clinical trial",
+   "paragraphs": [
+    54
+   ],
+   "quote": "In April 2022 and February 2023, IMV announced positive results",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2023-02",
+   "precision": "approximate",
+   "description": "Latest 13-F filings showed Armistice (9.9%) and FTQ (7.9%) as the largest shareholders",
+   "paragraphs": [
+    78
+   ],
+   "quote": "As per the latest 13-F filings dated mid-February 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2023-03",
+   "precision": "month",
+   "description": "After a share price decline, IMV engaged Stonegate to review strategic alternatives",
+   "paragraphs": [
+    15,
+    57
+   ],
+   "quote": "in March 2023 IMV engaged Stonegate",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2023-03-15",
+   "precision": "day",
+   "description": "IMV had 11,711,637 common shares outstanding and 5,447,256 shares reserved",
+   "paragraphs": [
+    76,
+    77
+   ],
+   "quote": "As at March 15, 2023, there were 11,711,637",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2023-04-27",
+   "precision": "day",
+   "description": "PPR searches showed the Lenders' registered financing statements against IMV",
+   "paragraphs": [
+    67
+   ],
+   "quote": "The Venture Loan and the obligations of IMV under the Horizon Agreement are secured by",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": "2023-04-28",
+   "precision": "day",
+   "description": "FTI consented to act as Monitor",
+   "paragraphs": [
+    90
+   ],
+   "quote": "FTI has consented to act as Monitor for the Company",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2023-04-28",
+   "precision": "day",
+   "description": "IMV Inc. would ask the TSX for a trading halt after market close",
+   "paragraphs": [
+    113
+   ],
+   "quote": "on the evening of April 28, 2023, after the closing of the markets, IMV Inc. will",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2023-05-12",
+   "precision": "approximate",
+   "description": "Severance to terminated employees was to be paid",
+   "paragraphs": [
+    109
+   ],
+   "quote": "or about May 12, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": null,
+   "precision": "undated",
+   "description": "ACOA made available AIF Loans (up to $10.73M) and a $395,000 BDP Loan to IMV Inc. and IVT",
+   "paragraphs": [
+    68,
+    69
+   ],
+   "quote": "ACOA has also made available to IMV Inc.",
+   "exhibits": []
+  }
+ ]
 }

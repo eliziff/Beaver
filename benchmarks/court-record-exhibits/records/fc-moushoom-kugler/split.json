@@ -860,5 +860,8 @@
    "text_chars": 130
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-da3nh6.pdf"
+ ]
 }

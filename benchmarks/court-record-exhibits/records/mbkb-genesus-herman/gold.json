@@ -1,0 +1,225 @@
+{
+ "record_id": "mbkb-genesus-herman",
+ "court": "Court of King's Bench of Manitoba, Winnipeg Centre",
+ "court_level": "superior_trial",
+ "jurisdiction": "MB",
+ "court_file": "CI 24-01-45056",
+ "subject": "insolvency",
+ "family": "genesus",
+ "proceeding": "Bank of Montreal's application to appoint a receiver of Genesus Inc., Can-Am Genetics Inc. and Genesus Genetics Inc. (BIA s. 243); affidavit of an opposing judgment creditor (Sea Air International Forwarders Limited)",
+ "document": "Affidavit of Allan Herman affirmed May 29, 2024",
+ "deponent": "Allan Herman",
+ "deponent_role": "Ontario lawyer of record for Sea Air International Forwarders Limited, judgment creditor of Genesus Inc.",
+ "sworn_date": "2024-05-29",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-7b43at.pdf",
+   "kind": "court_filing",
+   "date": "2023-09-01",
+   "author": "Sea Air International Forwarders Limited",
+   "recipients": [
+    "Genesus Inc."
+   ],
+   "description": "Statement of claim in Sea Air's action against Genesus",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached hereto as Exhibit \"A\" is a true copy of the statement of claim in Sea \nAir's action against Genesus, issued September 1, 2023"
+    }
+   ],
+   "content_check": "6 pages: Ontario Superior Court statement of claim CV-23-00705416-0000, electronically issued 01-Sep-2023, Sea Air International Forwarders Limited v. Genesus Inc."
+  },
+  {
+   "label": "B",
+   "file": "doc-qyenjx.pdf",
+   "kind": "email",
+   "date": "2023-09-11",
+   "author": "Allan Herman",
+   "recipients": [
+    "Trevor Klippenstein",
+    "Jodi Nigh",
+    "Mike Van Schepdael"
+   ],
+   "description": "Herman's email sending the statement of claim to Genesus personnel",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A true copy of my email is attached hereto \nas Exhibit \"B\""
+    }
+   ],
+   "content_check": "1 page: email 'Sea Air v. Genesus' of September 11, 2023 from allan.herman@waldin.ca to Klippenstein, Nigh and Van Schepdael"
+  },
+  {
+   "label": "C",
+   "file": "doc-2rnwcd.pdf",
+   "kind": "court_order",
+   "date": "2023-10-03",
+   "author": "Ontario Superior Court of Justice",
+   "recipients": [],
+   "description": "Sea Air's default judgment against Genesus",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached hereto as Exhibit \"C\" is a true copy of Sea Air's judgment against \nGenesus"
+    }
+   ],
+   "content_check": "2 pages: judgment in CV-23-00705416-0000, electronically issued 03-Oct-2023"
+  },
+  {
+   "label": "D",
+   "file": "doc-kqxg38.pdf",
+   "kind": "letter",
+   "date": "2024-03-11",
+   "author": "Allan Herman, Waldin Barristers",
+   "recipients": [
+    "Catherine Howden, Pitblado Law (BMO's lawyers)"
+   ],
+   "description": "Letter to BMO's lawyer dated March 11, 2024",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached hereto as Exhibit \"0\" is a true copy of a letter to Catherine Howden, \nof BMO's lawyers, dated March 11, 2024"
+    }
+   ],
+   "content_check": "2 pages: Waldin Barristers letter of March 11, 2024 by email to Ms. Catherine Howden, Pitblado Law, re Sea Air (the affidavit's text layer reads the label 'D' as '0')"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "BMO financing to Genesus initiated and amended from time to time",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    7
+   ],
+   "quote": "the BMO financing was initiated in 2011 and was amended from \ntime to time",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Sea Air's unpaid invoices to Genesus",
+   "date": "2023-05-23",
+   "precision": "range",
+   "end_date": "2023-06-26",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Sea Air's unpaid invoices, that were the subject matter of its judgment, \nwere dated May 23, 30, June 6 and 26, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "BMO's demand letter and BIA notice to Genesus",
+   "date": "2023-06-16",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The demand letter and notice are dated June 16, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Farm Credit Canada's demand letter and BIA notice to Genesus",
+   "date": "2023-06-21",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The demand letter and notice are dated June \n21, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Sea Air issues its statement of claim against Genesus",
+   "date": "2023-09-01",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "issued September 1, 2023",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Statement of claim served personally and emailed to Genesus personnel",
+   "date": "2023-09-11",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "copies \nof the statement of claim were emailed to Trevor Klippenstein, Jodi Nigh and Mike \nVan Schepdael on September 11, 2023",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Sea Air obtains default judgment",
+   "date": "2023-10-03",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Sea Air obtained default judgment on October \n3, 2023",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "BMO registers collateral charges against the three Genesus properties",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "registered collateral charges against \neach of these properties",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Genesus grants BMO mortgages in exchange for a 3.5 month forbearance",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The stated consideration for the BMO mortgages was a 3.5 month \nforbearance",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Sea Air's judgment registered against three Genesus properties",
+   "date": "2023-12-15",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "These registrations were \neffected on December 15, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Herman writes to BMO's lawyer",
+   "date": "2024-03-11",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "a letter to Catherine Howden, \nof BMO's lawyers, dated March 11, 2024",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Ed Barrington filed for BMO and its Exhibits II, JJ and KK",
+  "Sea Air's certificates of judgment",
+  "BMO's mortgages / collateral charges"
+ ]
+}

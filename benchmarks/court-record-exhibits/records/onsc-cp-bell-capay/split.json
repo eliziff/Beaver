@@ -244,5 +244,13 @@
    "text_chars": 17
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-3jtcjj.pdf",
+  "doc-4pmqzm.pdf",
+  "doc-6mtwth.pdf",
+  "doc-7yxsmp.pdf",
+  "doc-94baqy.pdf",
+  "doc-stb8sd.pdf"
+ ]
 }

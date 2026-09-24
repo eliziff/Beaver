@@ -9,55 +9,621 @@
  "deponent": "Kenneth B. Baigent",
  "deponent_role": "Applicant; Senior Energy Management Specialist with the Arctic Energy Alliance, Yellowknife",
  "sworn_date": "2022-03-10",
+ "referenced_not_attached": [
+  "Interim Order Respecting Certain Requirements for Civil Aviation Due to COVID-19",
+  "NWT October 22, 2021 COVID-19 Gatherings Order",
+  "City of Yellowknife Proof of Vaccine Policy exemption"
+ ],
+ "leak_waivers": [],
+ "notes": "Affidavit is the second of several applicant affidavits in JCCF's combined PDF (pages 122-196); Exhibits E and F overlap (same email thread). Paragraph 25 dates the CPHO application November 19 and paragraph 35 November 21; the letter itself is dated November 21, 2021.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-ayuuu3.pdf", "kind": "webpage", "date": "2022-02-01", "author": "Transport Canada", "recipients": [], "description": "Printout of Transport Canada's website on the risk of COVID-19 transmission aboard aircraft", "references": [{"paragraph": 7, "quote": "Attached hereto and marked as Exhibit “A” to this my Affidavit is a printout of Transport"}], "content_check": "4 pages: Transport Canada page 'Risk of COVID-19 transmission aboard aircraft', printed 2/1/22"},
-  {"label": "B", "file": "doc-ttfhrb.pdf", "kind": "webpage", "date": "2022-02-01", "author": "Government of Canada", "recipients": [], "description": "Government of Canada website on the travel vaccination mandate", "references": [{"paragraph": 15, "quote": "Exhibit “B” to this my Affidavit is a copy of the website on the Government of Canada"}], "content_check": "5 pages: Canada.ca 'Mandatory COVID-19 vaccination requirements for federally regulated transportation employees and travellers', printed 2/1/22"},
-  {"label": "C", "file": "doc-rrdtbs.pdf", "kind": "other", "date": "2021-10-15", "author": "Christopher Reynolds, The Canadian Press (CTV News)", "recipients": [], "description": "CTV News article quoting WestJet's Andrew Gibbons that verifying vaccination records should reside with government", "references": [{"paragraph": 18, "quote": "Attached hereto and marked as Exhibit “C” to this my"}], "content_check": "3 pages: news article 'Ottawa eyes charging airport security with vaccine verification for travellers' by Christopher Reynolds"},
-  {"label": "D", "file": "doc-wxkbaw.pdf", "kind": "letter", "date": "2021-11-26", "author": "Ken Baigent", "recipients": ["Andrew Gibbons, WestJet"], "description": "His letter to WestJet asking how to request an exemption", "references": [{"paragraph": 19, "quote": "as Exhibit “D” to this my Affidavit is a copy of my letter."}], "content_check": "3 pages: letter dated November 26, 2021 to Andrew Gibbons, VP Government Relations & Regulatory Affairs, re Proof of Covid-19 Vaccination Requirement"},
-  {"label": "E", "file": "doc-fz8zqn.pdf", "kind": "email_chain", "date": "2021-11-22", "author": "Ken Baigent", "recipients": ["WestJet", "MP Michael McLeod", "Minister of Transport"], "description": "His emails from October 15 to November 22, 2021 seeking direction on applying for a religious exemption", "references": [{"paragraph": 21, "quote": "Attached hereto and marked as Exhibit “E” to this my Affidavit is"}], "content_check": "9 pages of email chain 'RE: Westjet - October 30, 2021 Covid-19 Vaccination Requirements', latest from Baigent 2021-11-22 to Wendy Nixon and Andrew Gibbons"},
-  {"label": "F", "file": "doc-d4rx8n.pdf", "kind": "email_chain", "date": "2021-11-22", "author": "Wendy Nixon, Director General, Aviation Security, Transport Canada", "recipients": ["Ken Baigent"], "description": "Correspondence containing Ms. Nixon's November 22, 2021 email on exemption processes", "references": [{"paragraph": 22, "quote": "A copy of that correspondence is attached hereto and marked as Exhibit “F”"}], "content_check": "2 pages: the same email thread of 2021-11-22 with Wendy Nixon's reply"},
-  {"label": "G", "file": "doc-m6tys6.pdf", "kind": "other", "date": "2021-12-02", "author": "Ken Baigent", "recipients": ["WestJet"], "description": "His WestJet religious exemption request application form", "references": [{"paragraph": 24, "quote": "Attached hereto and marked as Exhibit “G” to this my Affidavit is a copy of my WestJet"}], "content_check": "6 pages: WestJet 'Guest Request for Temporary Exemption: COVID-19 Non-Vaccination Based on Religious Grounds' completed for Kenneth Baigent"},
-  {"label": "H", "file": "doc-xdk3gu.pdf", "kind": "letter", "date": "2021-11-21", "author": "Ken Baigent", "recipients": ["NWT Office of the Chief Public Health Officer"], "description": "His religious exemption application to the NWT CPHO", "references": [{"paragraph": 25, "quote": "marked as Exhibit “H” to this my Affidavit is a copy of my religious exemption"}], "content_check": "3 pages: letter dated November 21, 2021 to the Office of the Chief Public Health Officer re GNWT Proof of Vaccination"},
-  {"label": "I", "file": "doc-fszgzd.pdf", "kind": "letter", "date": "2021-12-03", "author": "NWT Chief Public Health Officer", "recipients": ["Ken Baigent"], "description": "Approval letter from the NWT CPHO for his religious exemption", "references": [{"paragraph": 27, "quote": "Attached hereto and marked as Exhibit “I” to this my"}], "content_check": "2 pages: Government of the NWT exemption from proof of vaccination requirement, Issue E-3328, issued December 3, 2021, expiring March 31, 2022"},
-  {"label": "J", "file": "doc-n8grvj.pdf", "kind": "email_chain", "date": "2021-12-04", "author": "Ken Baigent", "recipients": ["WestJet"], "description": "His religious exemption request to WestJet and his updated request of December 4, 2021", "references": [{"paragraph": 27, "quote": "Attached hereto and marked as Exhibit “J”"}], "content_check": "3 pages: email 'Re: Westjet - October 30, 2021 Covid-19 Vaccination Requirements' from Ken Baigent dated 2021-12-04 to WestJet staff"},
-  {"label": "K", "file": "doc-z28wth.pdf", "kind": "other", "date": "2021-12-12", "author": "Eric Atkins, The Globe and Mail", "recipients": [], "description": "December 12, 2021 Globe and Mail article in which WestJet and Air Canada say airlines should not evaluate religious exemptions", "references": [{"paragraph": 28, "quote": "Attached hereto and marked as Exhibit “K” and “L” respectively"}], "content_check": "2 pages: Globe and Mail article 'Approving religious exemptions for vaccine rules should fall to government, airlines say', published December 12"},
-  {"label": "L", "file": "doc-rqweym.pdf", "kind": "transcript", "date": "2021-12-16", "author": "Unknown transcriber", "recipients": [], "description": "December 16, 2021 video of WestJet's Andrew Gibbons saying federal travel restrictions are not based on science and data", "references": [{"paragraph": 28, "quote": "Attached hereto and marked as Exhibit “K” and “L” respectively"}], "content_check": "3 pages: 'Transcription - WestJet says feds' non-essential travel advisory is not based on science and data', December 16, 2021"},
-  {"label": "M", "file": "doc-nbnst4.pdf", "kind": "email", "date": "2021-12-23", "author": "WestJet Regulatory Guest Relations Team", "recipients": ["Ken Baigent"], "description": "WestJet's denial of his religious exemption application", "references": [{"paragraph": 29, "quote": "Attached hereto and marked as Exhibit “M” to this my Affidavit is a"}], "content_check": "1 page: email 'Not approved for a COVID-19 Vaccine Exemption on Religious Grounds', 2021-12-23 3:53 p.m."},
-  {"label": "N", "file": "doc-2ft45b.pdf", "kind": "webpage", "date": "2021-12-29", "author": "Air Canada", "recipients": [], "description": "Air Canada 'Travel Ready' web page accessed December 29, 2021, since removed", "references": [{"paragraph": 31, "quote": "Exhibit “N” to this my affidavit."}], "content_check": "3 pages: Air Canada 'Travel Ready hub' page printed 2021-12-29 9:15 a.m."}
+  {
+   "label": "A",
+   "file": "doc-ayuuu3.pdf",
+   "kind": "webpage",
+   "date": "2022-02-01",
+   "author": "Transport Canada",
+   "recipients": [],
+   "description": "Printout of Transport Canada's website on the risk of COVID-19 transmission aboard aircraft",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto and marked as Exhibit “A” to this my Affidavit is a printout of Transport"
+    }
+   ],
+   "content_check": "4 pages: Transport Canada page 'Risk of COVID-19 transmission aboard aircraft', printed 2/1/22"
+  },
+  {
+   "label": "B",
+   "file": "doc-ttfhrb.pdf",
+   "kind": "webpage",
+   "date": "2022-02-01",
+   "author": "Government of Canada",
+   "recipients": [],
+   "description": "Government of Canada website on the travel vaccination mandate",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Exhibit “B” to this my Affidavit is a copy of the website on the Government of Canada"
+    }
+   ],
+   "content_check": "5 pages: Canada.ca 'Mandatory COVID-19 vaccination requirements for federally regulated transportation employees and travellers', printed 2/1/22"
+  },
+  {
+   "label": "C",
+   "file": "doc-rrdtbs.pdf",
+   "kind": "other",
+   "date": "2021-10-15",
+   "author": "Christopher Reynolds, The Canadian Press (CTV News)",
+   "recipients": [],
+   "description": "CTV News article quoting WestJet's Andrew Gibbons that verifying vaccination records should reside with government",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached hereto and marked as Exhibit “C” to this my"
+    }
+   ],
+   "content_check": "3 pages: news article 'Ottawa eyes charging airport security with vaccine verification for travellers' by Christopher Reynolds"
+  },
+  {
+   "label": "D",
+   "file": "doc-wxkbaw.pdf",
+   "kind": "letter",
+   "date": "2021-11-26",
+   "author": "Ken Baigent",
+   "recipients": [
+    "Andrew Gibbons, WestJet"
+   ],
+   "description": "His letter to WestJet asking how to request an exemption",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "as Exhibit “D” to this my Affidavit is a copy of my letter."
+    }
+   ],
+   "content_check": "3 pages: letter dated November 26, 2021 to Andrew Gibbons, VP Government Relations & Regulatory Affairs, re Proof of Covid-19 Vaccination Requirement"
+  },
+  {
+   "label": "E",
+   "file": "doc-fz8zqn.pdf",
+   "kind": "email_chain",
+   "date": "2021-11-22",
+   "author": "Ken Baigent",
+   "recipients": [
+    "WestJet",
+    "MP Michael McLeod",
+    "Minister of Transport"
+   ],
+   "description": "His emails from October 15 to November 22, 2021 seeking direction on applying for a religious exemption",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached hereto and marked as Exhibit “E” to this my Affidavit is"
+    }
+   ],
+   "content_check": "9 pages of email chain 'RE: Westjet - October 30, 2021 Covid-19 Vaccination Requirements', latest from Baigent 2021-11-22 to Wendy Nixon and Andrew Gibbons"
+  },
+  {
+   "label": "F",
+   "file": "doc-d4rx8n.pdf",
+   "kind": "email_chain",
+   "date": "2021-11-22",
+   "author": "Wendy Nixon, Director General, Aviation Security, Transport Canada",
+   "recipients": [
+    "Ken Baigent"
+   ],
+   "description": "Correspondence containing Ms. Nixon's November 22, 2021 email on exemption processes",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "A copy of that correspondence is attached hereto and marked as Exhibit “F”"
+    }
+   ],
+   "content_check": "2 pages: the same email thread of 2021-11-22 with Wendy Nixon's reply"
+  },
+  {
+   "label": "G",
+   "file": "doc-m6tys6.pdf",
+   "kind": "other",
+   "date": "2021-12-02",
+   "author": "Ken Baigent",
+   "recipients": [
+    "WestJet"
+   ],
+   "description": "His WestJet religious exemption request application form",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Attached hereto and marked as Exhibit “G” to this my Affidavit is a copy of my WestJet"
+    }
+   ],
+   "content_check": "6 pages: WestJet 'Guest Request for Temporary Exemption: COVID-19 Non-Vaccination Based on Religious Grounds' completed for Kenneth Baigent"
+  },
+  {
+   "label": "H",
+   "file": "doc-xdk3gu.pdf",
+   "kind": "letter",
+   "date": "2021-11-21",
+   "author": "Ken Baigent",
+   "recipients": [
+    "NWT Office of the Chief Public Health Officer"
+   ],
+   "description": "His religious exemption application to the NWT CPHO",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "marked as Exhibit “H” to this my Affidavit is a copy of my religious exemption"
+    }
+   ],
+   "content_check": "3 pages: letter dated November 21, 2021 to the Office of the Chief Public Health Officer re GNWT Proof of Vaccination"
+  },
+  {
+   "label": "I",
+   "file": "doc-fszgzd.pdf",
+   "kind": "letter",
+   "date": "2021-12-03",
+   "author": "NWT Chief Public Health Officer",
+   "recipients": [
+    "Ken Baigent"
+   ],
+   "description": "Approval letter from the NWT CPHO for his religious exemption",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached hereto and marked as Exhibit “I” to this my"
+    }
+   ],
+   "content_check": "2 pages: Government of the NWT exemption from proof of vaccination requirement, Issue E-3328, issued December 3, 2021, expiring March 31, 2022"
+  },
+  {
+   "label": "J",
+   "file": "doc-n8grvj.pdf",
+   "kind": "email_chain",
+   "date": "2021-12-04",
+   "author": "Ken Baigent",
+   "recipients": [
+    "WestJet"
+   ],
+   "description": "His religious exemption request to WestJet and his updated request of December 4, 2021",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached hereto and marked as Exhibit “J”"
+    }
+   ],
+   "content_check": "3 pages: email 'Re: Westjet - October 30, 2021 Covid-19 Vaccination Requirements' from Ken Baigent dated 2021-12-04 to WestJet staff"
+  },
+  {
+   "label": "K",
+   "file": "doc-z28wth.pdf",
+   "kind": "other",
+   "date": "2021-12-12",
+   "author": "Eric Atkins, The Globe and Mail",
+   "recipients": [],
+   "description": "December 12, 2021 Globe and Mail article in which WestJet and Air Canada say airlines should not evaluate religious exemptions",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Attached hereto and marked as Exhibit “K” and “L” respectively"
+    }
+   ],
+   "content_check": "2 pages: Globe and Mail article 'Approving religious exemptions for vaccine rules should fall to government, airlines say', published December 12"
+  },
+  {
+   "label": "L",
+   "file": "doc-rqweym.pdf",
+   "kind": "transcript",
+   "date": "2021-12-16",
+   "author": "Unknown transcriber",
+   "recipients": [],
+   "description": "December 16, 2021 video of WestJet's Andrew Gibbons saying federal travel restrictions are not based on science and data",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Attached hereto and marked as Exhibit “K” and “L” respectively"
+    }
+   ],
+   "content_check": "3 pages: 'Transcription - WestJet says feds' non-essential travel advisory is not based on science and data', December 16, 2021"
+  },
+  {
+   "label": "M",
+   "file": "doc-nbnst4.pdf",
+   "kind": "email",
+   "date": "2021-12-23",
+   "author": "WestJet Regulatory Guest Relations Team",
+   "recipients": [
+    "Ken Baigent"
+   ],
+   "description": "WestJet's denial of his religious exemption application",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached hereto and marked as Exhibit “M” to this my Affidavit is a"
+    }
+   ],
+   "content_check": "1 page: email 'Not approved for a COVID-19 Vaccine Exemption on Religious Grounds', 2021-12-23 3:53 p.m."
+  },
+  {
+   "label": "N",
+   "file": "doc-2ft45b.pdf",
+   "kind": "webpage",
+   "date": "2021-12-29",
+   "author": "Air Canada",
+   "recipients": [],
+   "description": "Air Canada 'Travel Ready' web page accessed December 29, 2021, since removed",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Exhibit “N” to this my affidavit."
+    }
+   ],
+   "content_check": "3 pages: Air Canada 'Travel Ready hub' page printed 2021-12-29 9:15 a.m."
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2012", "precision": "year", "description": "Baigent was recruited to work in Yellowknife for the Arctic Energy Alliance", "paragraphs": [3], "quote": "In 2012, I was recruited to work in Yellowknife", "exhibits": []},
-  {"id": "e2", "date": "2013", "precision": "year", "description": "His wife and son joined him in Yellowknife", "paragraphs": [3], "quote": "My wife and son joined me in Yellowknife", "exhibits": []},
-  {"id": "e3", "date": "2014", "precision": "approximate", "description": "His wife and son returned to Ontario in late 2014 to care for his mother-in-law", "paragraphs": [3], "quote": "my wife & son returned to Ontario in late 2014", "exhibits": []},
-  {"id": "e4", "date": "2015", "precision": "year", "description": "His rotational work schedule between Yellowknife and Jordan, Ontario began", "paragraphs": [5], "quote": "My rotational work schedule has continued from 2015 to the present.", "exhibits": []},
-  {"id": "e5", "date": "2020-03", "precision": "month", "description": "COVID-19 arrived and his employer had him fly back to Ontario early", "paragraphs": [6], "quote": "When Covid-19 arrived in Canada in March of 2020", "exhibits": []},
-  {"id": "e6", "date": "2020-07-06", "precision": "day", "description": "He flew back to Yellowknife", "paragraphs": [7], "quote": "I flew back to Yellowknife on July 6, 2020", "exhibits": ["A"]},
-  {"id": "e7", "date": "2020-07-06", "precision": "range", "description": "He completed eight self-isolation periods totalling 102 days between July 6, 2020 and February 22, 2022", "paragraphs": [8], "quote": "I completed eight self-isolation plans, for a total of 102 days", "exhibits": []},
-  {"id": "e8", "date": "2020-12-30", "precision": "day", "description": "COVID-19 vaccinations began in the Northwest Territories", "paragraphs": [9], "quote": "Covid-19 vaccinations in the Northwest Territories commenced on December 30, 2020", "exhibits": []},
-  {"id": "e9", "date": "2021-08-13", "precision": "day", "description": "The federal government announced planned vaccination mandates, including for travel", "paragraphs": [10, 14], "quote": "On August 13, 2021 (2 days before the federal election was called)", "exhibits": []},
-  {"id": "e10", "date": "2021-09", "precision": "month", "description": "The GNWT introduced a staff vaccination policy with a testing alternative", "paragraphs": [10], "quote": "followed suit in September to introduce a vaccination policy of Staff", "exhibits": []},
-  {"id": "e11", "date": "2021-09-20", "precision": "day", "description": "Federal election results", "paragraphs": [15], "quote": "Following the election results on September 20, 2021", "exhibits": []},
-  {"id": "e12", "date": "2021-10-06", "precision": "day", "description": "Announcement confirming domestic travel restrictions from October 30, 2021", "paragraphs": [15], "quote": "another announcement was issued on October 6, 2021", "exhibits": ["B"]},
-  {"id": "e13", "date": "2021-10", "precision": "month", "description": "He ordered rapid antigen test kits from Levitt Safety", "paragraphs": [13], "quote": "I contacted Levitt Safety in October 2021", "exhibits": []},
-  {"id": "e14", "date": "2021-10-15", "precision": "day", "description": "CTV News article quoting WestJet's Andrew Gibbons on vaccine verification", "paragraphs": [18], "quote": "I finally saw a CTV News article on October 15", "exhibits": ["C"]},
-  {"id": "e15", "date": "2021-10-15", "precision": "range", "description": "From October 15 to November 22, 2021 he repeatedly contacted WestJet, his MP and the Minister of Transport about a religious exemption", "paragraphs": [21], "quote": "From October 15", "exhibits": ["E", "D"]},
-  {"id": "e16", "date": "2021-10-30", "precision": "day", "description": "Domestic travel restrictions began (vaccination or recent negative molecular test)", "paragraphs": [15], "quote": "From October 30 through November 29, 2021, passengers could board", "exhibits": ["B"]},
-  {"id": "e17", "date": "2021-11-19", "precision": "day", "description": "He submitted a religious exemption application to the NWT CPHO (dated November 21 in paragraph 35)", "paragraphs": [25, 35], "quote": "On November 19, 2021, I completed and submitted a religious exemption application", "exhibits": ["H"]},
-  {"id": "e18", "date": "2021-11-22", "precision": "day", "description": "Wendy Nixon of Transport Canada wrote that airlines and railways would administer exemptions with forms from November 30", "paragraphs": [22], "quote": "On November 22, 2021, Wendy Nixon, Director General, Aviation Security at Transport Canada wrote", "exhibits": ["F"]},
-  {"id": "e19", "date": "2021-12", "precision": "month", "description": "Unable to fly in time, he drove 5,000 km from Yellowknife to Jordan, Ontario", "paragraphs": [23], "quote": "I would need to\ndrive 5000 km from Yellowknife, NWT to Jordan, ON", "exhibits": []},
-  {"id": "e20", "date": "2021-11-30", "precision": "day", "description": "Only fully vaccinated passengers could board; WestJet's website posted its religious exemption process", "paragraphs": [15, 24], "quote": "On November 30, 2021, and upon arrival in Ontario", "exhibits": []},
-  {"id": "e21", "date": "2021-12-02", "precision": "day", "description": "He submitted his WestJet religious exemption application", "paragraphs": [24], "quote": "I completed and submitted my application on December 2, 2021.", "exhibits": ["G"]},
-  {"id": "e22", "date": "2021-12-03", "precision": "day", "description": "The NWT CPHO approved his religious exemption", "paragraphs": [27], "quote": "On the evening of Friday, December 3, 2021, my religious exemption application was", "exhibits": ["I"]},
-  {"id": "e23", "date": "2021-12-04", "precision": "day", "description": "He updated his WestJet request with the CPHO approval letter", "paragraphs": [27], "quote": "my updated religious exemption request of December 4, 2021", "exhibits": ["J"]},
-  {"id": "e24", "date": null, "precision": "undated", "description": "The City of Yellowknife Council granted him a religious exemption from its proof-of-vaccine policy", "paragraphs": [26], "quote": "I also received a religious exemption from the City of Yellowknife Council", "exhibits": []},
-  {"id": "e25", "date": "2021-12-12", "precision": "day", "description": "Globe and Mail article: WestJet and Air Canada say airlines should not evaluate religious exemptions", "paragraphs": [28], "quote": "A December 12, 2021, article in the Globe and Mail", "exhibits": ["K"]},
-  {"id": "e26", "date": "2021-12-16", "precision": "day", "description": "Video of WestJet's Andrew Gibbons on restrictions not being based on science and data", "paragraphs": [28], "quote": "A December 16, 2021, video that includes Andrew Gibbons", "exhibits": ["L"]},
-  {"id": "e27", "date": "2021-12-23", "precision": "day", "description": "WestJet declined his religious exemption with no appeal", "paragraphs": [29], "quote": "On December 23, 2021, I received a notice from WestJet", "exhibits": ["M"]},
-  {"id": "e28", "date": "2021-12-29", "precision": "day", "description": "He accessed Air Canada's travel page stating it did not anticipate accommodating religious exemptions", "paragraphs": [30, 31], "quote": "which was accessed on December 29, 2021", "exhibits": ["N"]},
-  {"id": "e29", "date": "2022-02", "precision": "month", "description": "He drove 5,000 km back to Yellowknife in early February", "paragraphs": [32], "quote": "drive 5,000 km back to Yellowknife during early February", "exhibits": []},
-  {"id": "e30", "date": "2022-03-10", "precision": "day", "description": "Baigent swore the affidavit remotely", "paragraphs": [39], "quote": "this 10th day of March 2022", "exhibits": []}
- ],
- "referenced_not_attached": ["Interim Order Respecting Certain Requirements for Civil Aviation Due to COVID-19", "NWT October 22, 2021 COVID-19 Gatherings Order", "City of Yellowknife Proof of Vaccine Policy exemption"],
- "leak_waivers": [],
- "notes": "Affidavit is the second of several applicant affidavits in JCCF's combined PDF (pages 122-196); Exhibits E and F overlap (same email thread). Paragraph 25 dates the CPHO application November 19 and paragraph 35 November 21; the letter itself is dated November 21, 2021."
+  {
+   "id": "e1",
+   "date": "2012",
+   "precision": "year",
+   "description": "Baigent was recruited to work in Yellowknife for the Arctic Energy Alliance",
+   "paragraphs": [
+    3
+   ],
+   "quote": "In 2012, I was recruited to work in Yellowknife",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2013",
+   "precision": "year",
+   "description": "His wife and son joined him in Yellowknife",
+   "paragraphs": [
+    3
+   ],
+   "quote": "My wife and son joined me in Yellowknife",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2014",
+   "precision": "approximate",
+   "description": "His wife and son returned to Ontario in late 2014 to care for his mother-in-law",
+   "paragraphs": [
+    3
+   ],
+   "quote": "my wife & son returned to Ontario in late 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2015",
+   "precision": "year",
+   "description": "His rotational work schedule between Yellowknife and Jordan, Ontario began",
+   "paragraphs": [
+    5
+   ],
+   "quote": "My rotational work schedule has continued from 2015 to the present.",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2020-03",
+   "precision": "month",
+   "description": "COVID-19 arrived and his employer had him fly back to Ontario early",
+   "paragraphs": [
+    6
+   ],
+   "quote": "When Covid-19 arrived in Canada in March of 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2020-07-06",
+   "precision": "day",
+   "description": "He flew back to Yellowknife",
+   "paragraphs": [
+    7
+   ],
+   "quote": "I flew back to Yellowknife on July 6, 2020",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2020-07-06",
+   "precision": "range",
+   "description": "He completed eight self-isolation periods totalling 102 days between July 6, 2020 and February 22, 2022",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I completed eight self-isolation plans, for a total of 102 days",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2020-12-30",
+   "precision": "day",
+   "description": "COVID-19 vaccinations began in the Northwest Territories",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Covid-19 vaccinations in the Northwest Territories commenced on December 30, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2021-08-13",
+   "precision": "day",
+   "description": "The federal government announced planned vaccination mandates, including for travel",
+   "paragraphs": [
+    10,
+    14
+   ],
+   "quote": "On August 13, 2021 (2 days before the federal election was called)",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2021-09",
+   "precision": "month",
+   "description": "The GNWT introduced a staff vaccination policy with a testing alternative",
+   "paragraphs": [
+    10
+   ],
+   "quote": "followed suit in September to introduce a vaccination policy of Staff",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2021-09-20",
+   "precision": "day",
+   "description": "Federal election results",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Following the election results on September 20, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2021-10-06",
+   "precision": "day",
+   "description": "Announcement confirming domestic travel restrictions from October 30, 2021",
+   "paragraphs": [
+    15
+   ],
+   "quote": "another announcement was issued on October 6, 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2021-10",
+   "precision": "month",
+   "description": "He ordered rapid antigen test kits from Levitt Safety",
+   "paragraphs": [
+    13
+   ],
+   "quote": "I contacted Levitt Safety in October 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2021-10-15",
+   "precision": "day",
+   "description": "CTV News article quoting WestJet's Andrew Gibbons on vaccine verification",
+   "paragraphs": [
+    18
+   ],
+   "quote": "I finally saw a CTV News article on October 15",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2021-10-15",
+   "precision": "range",
+   "description": "From October 15 to November 22, 2021 he repeatedly contacted WestJet, his MP and the Minister of Transport about a religious exemption",
+   "paragraphs": [
+    21
+   ],
+   "quote": "From October 15",
+   "exhibits": [
+    "E",
+    "D"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2021-10-30",
+   "precision": "day",
+   "description": "Domestic travel restrictions began (vaccination or recent negative molecular test)",
+   "paragraphs": [
+    15
+   ],
+   "quote": "From October 30 through November 29, 2021, passengers could board",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2021-11-19",
+   "precision": "day",
+   "description": "He submitted a religious exemption application to the NWT CPHO (dated November 21 in paragraph 35)",
+   "paragraphs": [
+    25,
+    35
+   ],
+   "quote": "On November 19, 2021, I completed and submitted a religious exemption application",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2021-11-22",
+   "precision": "day",
+   "description": "Wendy Nixon of Transport Canada wrote that airlines and railways would administer exemptions with forms from November 30",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On November 22, 2021, Wendy Nixon, Director General, Aviation Security at Transport Canada wrote",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": "2021-12",
+   "precision": "month",
+   "description": "Unable to fly in time, he drove 5,000 km from Yellowknife to Jordan, Ontario",
+   "paragraphs": [
+    23
+   ],
+   "quote": "I would need to\ndrive 5000 km from Yellowknife, NWT to Jordan, ON",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2021-11-30",
+   "precision": "day",
+   "description": "Only fully vaccinated passengers could board; WestJet's website posted its religious exemption process",
+   "paragraphs": [
+    15,
+    24
+   ],
+   "quote": "On November 30, 2021, and upon arrival in Ontario",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2021-12-02",
+   "precision": "day",
+   "description": "He submitted his WestJet religious exemption application",
+   "paragraphs": [
+    24
+   ],
+   "quote": "I completed and submitted my application on December 2, 2021.",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2021-12-03",
+   "precision": "day",
+   "description": "The NWT CPHO approved his religious exemption",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On the evening of Friday, December 3, 2021, my religious exemption application was",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2021-12-04",
+   "precision": "day",
+   "description": "He updated his WestJet request with the CPHO approval letter",
+   "paragraphs": [
+    27
+   ],
+   "quote": "my updated religious exemption request of December 4, 2021",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": null,
+   "precision": "undated",
+   "description": "The City of Yellowknife Council granted him a religious exemption from its proof-of-vaccine policy",
+   "paragraphs": [
+    26
+   ],
+   "quote": "I also received a religious exemption from the City of Yellowknife Council",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "date": "2021-12-12",
+   "precision": "day",
+   "description": "Globe and Mail article: WestJet and Air Canada say airlines should not evaluate religious exemptions",
+   "paragraphs": [
+    28
+   ],
+   "quote": "A December 12, 2021, article in the Globe and Mail",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": "2021-12-16",
+   "precision": "day",
+   "description": "Video of WestJet's Andrew Gibbons on restrictions not being based on science and data",
+   "paragraphs": [
+    28
+   ],
+   "quote": "A December 16, 2021, video that includes Andrew Gibbons",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e27",
+   "date": "2021-12-23",
+   "precision": "day",
+   "description": "WestJet declined his religious exemption with no appeal",
+   "paragraphs": [
+    29
+   ],
+   "quote": "On December 23, 2021, I received a notice from WestJet",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e28",
+   "date": "2021-12-29",
+   "precision": "day",
+   "description": "He accessed Air Canada's travel page stating it did not anticipate accommodating religious exemptions",
+   "paragraphs": [
+    30,
+    31
+   ],
+   "quote": "which was accessed on December 29, 2021",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e29",
+   "date": "2022-02",
+   "precision": "month",
+   "description": "He drove 5,000 km back to Yellowknife in early February",
+   "paragraphs": [
+    32
+   ],
+   "quote": "drive 5,000 km back to Yellowknife during early February",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "date": "2022-03-10",
+   "precision": "day",
+   "description": "Baigent swore the affidavit remotely",
+   "paragraphs": [
+    39
+   ],
+   "quote": "this 10th day of March 2022",
+   "exhibits": []
+  }
+ ]
 }

@@ -9,20 +9,153 @@
  "deponent": "Emily Seaby",
  "deponent_role": "Legal assistant at Goodmans LLP, solicitors for JAMP Pharma Corporation",
  "sworn_date": "2024-07-26",
- "exhibits": [
-  {"label": "S1", "file": "doc-af72vx.pdf", "kind": "public_record", "date": "2020-02-03", "author": "U.S. Food & Drug Administration and Federal Trade Commission", "recipients": [], "description": "Joint FDA-FTC statement on a collaboration to advance competition in the biologic marketplace", "references": [{"paragraph": 2, "quote": "Attached as Exhibit “S1” to my affidavit is a copy of a joint statement"}], "content_check": "Joint Statement of the FDA and FTC regarding a collaboration to advance competition in the biologic marketplace (6 pages plus the next tab divider)"},
-  {"label": "S2", "file": "doc-4q82hm.pdf", "kind": "court_filing", "date": null, "author": "Federal Trade Commission", "recipients": ["U.S. District Court for the District of New Jersey"], "description": "FTC brief as amicus curiae in Teva v. Amneal", "references": [{"paragraph": 3, "quote": "Attached as Exhibit “S2” to my affidavit is a copy of the Federal Trade Commission"}], "content_check": "48 pages: FTC amicus brief, Teva Branded Pharmaceutical Products R&D v. Amneal, D.N.J."},
-  {"label": "S3", "file": "doc-9xazr7.pdf", "kind": "public_record", "date": "2016-04-18", "author": "Competition Bureau", "recipients": [], "description": "Competition Bureau position statement on Teva's acquisition of Allergan's generic business", "references": [{"paragraph": 4, "quote": "Attached as Exhibit “S3” to my affidavit is a copy of the Competition Bureau"}], "content_check": "8 pages: 'Teva's acquisition of Allergan's generic pharmaceuticals business - Position Statement'"},
-  {"label": "S4", "file": "doc-26m4ym.pdf", "kind": "report", "date": "2007-10-29", "author": "Competition Bureau", "recipients": [], "description": "Competition Bureau Generic Drug Sector Study report", "references": [{"paragraph": 5, "quote": "Attached as Exhibit “S4” to my affidavit is a copy of the Competition Bureau"}], "content_check": "58 pages: 'Generic Drug Sector Study' with executive summary"},
-  {"label": "S5", "file": "doc-eeexcc.pdf", "kind": "report", "date": "2019-03-07", "author": "Competition Bureau", "recipients": [], "description": "Competition Bureau Abuse of Dominance Enforcement Guidelines", "references": [{"paragraph": 6, "quote": "Attached as Exhibit “S5” to my affidavit is a copy of the Competition Bureau"}], "content_check": "63 pages: Abuse of Dominance Enforcement Guidelines"},
-  {"label": "S6", "file": "doc-8rvxjg.pdf", "kind": "public_record", "date": "2022-10-10", "author": "European Commission", "recipients": [], "description": "European Commission press release on its Statement of Objections to Teva", "references": [{"paragraph": 7, "quote": "Attached as Exhibit “S6” to my affidavit is a copy of the European Commission"}], "content_check": "6 pages: EC press release 10 October 2022, 'Antitrust: Commission sends Statement of Objections to Teva'"},
-  {"label": "S7", "file": "doc-p3szvt.pdf", "kind": "report", "date": "2002-04", "author": "House of Commons Standing Committee on Industry, Science and Technology", "recipients": [], "description": "Report 'A Plan to Modernize Canada's Competition Regime'", "references": [{"paragraph": 8, "quote": "Attached as Exhibit “S7” to my affidavit is a copy of the House of Commons"}], "content_check": "149 pages: House of Commons committee report 'A Plan to Modernize Canada's Competition Regime'"},
-  {"label": "S8", "file": "doc-m2x7xb.pdf", "kind": "report", "date": "2022", "author": "Patented Medicine Prices Review Board", "recipients": [], "description": "PMPRB 2022 Annual Report", "references": [{"paragraph": 9, "quote": "Attached as Exhibit “S8” to my affidavit is a copy of the 2022 Annual Report"}], "content_check": "85 pages: Patented Medicine Prices Review Board Annual Report 2022"}
- ],
- "events": [
-  {"id": "e1", "date": "2024-07-26", "precision": "day", "description": "Seaby swore the affidavit remotely in Toronto", "paragraphs": [9], "quote": "on July 26, 2024, in accordance with O. Reg. 431/20", "exhibits": []}
- ],
  "referenced_not_attached": [],
  "leak_waivers": [],
- "notes": "Document-attaching affidavit with prefixed labels S1-S8; covers given with --covers. Each exhibit ends with the next tab's bare 'Exhibit Sn' divider page. The affidavit narrates no happenings beyond dated documents; exhibit dates carry the chronology."
+ "notes": "Document-attaching affidavit with prefixed labels S1-S8; covers given with --covers. Each exhibit ends with the next tab's bare 'Exhibit Sn' divider page. The affidavit narrates no happenings beyond dated documents; exhibit dates carry the chronology.",
+ "subject": "competition",
+ "exhibits": [
+  {
+   "label": "S1",
+   "file": "doc-af72vx.pdf",
+   "kind": "public_record",
+   "date": "2020-02-03",
+   "author": "U.S. Food & Drug Administration and Federal Trade Commission",
+   "recipients": [],
+   "description": "Joint FDA-FTC statement on a collaboration to advance competition in the biologic marketplace",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached as Exhibit “S1” to my affidavit is a copy of a joint statement"
+    }
+   ],
+   "content_check": "Joint Statement of the FDA and FTC regarding a collaboration to advance competition in the biologic marketplace (6 pages plus the next tab divider)"
+  },
+  {
+   "label": "S2",
+   "file": "doc-4q82hm.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Federal Trade Commission",
+   "recipients": [
+    "U.S. District Court for the District of New Jersey"
+   ],
+   "description": "FTC brief as amicus curiae in Teva v. Amneal",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit “S2” to my affidavit is a copy of the Federal Trade Commission"
+    }
+   ],
+   "content_check": "48 pages: FTC amicus brief, Teva Branded Pharmaceutical Products R&D v. Amneal, D.N.J."
+  },
+  {
+   "label": "S3",
+   "file": "doc-9xazr7.pdf",
+   "kind": "public_record",
+   "date": "2016-04-18",
+   "author": "Competition Bureau",
+   "recipients": [],
+   "description": "Competition Bureau position statement on Teva's acquisition of Allergan's generic business",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit “S3” to my affidavit is a copy of the Competition Bureau"
+    }
+   ],
+   "content_check": "8 pages: 'Teva's acquisition of Allergan's generic pharmaceuticals business - Position Statement'"
+  },
+  {
+   "label": "S4",
+   "file": "doc-26m4ym.pdf",
+   "kind": "report",
+   "date": "2007-10-29",
+   "author": "Competition Bureau",
+   "recipients": [],
+   "description": "Competition Bureau Generic Drug Sector Study report",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit “S4” to my affidavit is a copy of the Competition Bureau"
+    }
+   ],
+   "content_check": "58 pages: 'Generic Drug Sector Study' with executive summary"
+  },
+  {
+   "label": "S5",
+   "file": "doc-eeexcc.pdf",
+   "kind": "report",
+   "date": "2019-03-07",
+   "author": "Competition Bureau",
+   "recipients": [],
+   "description": "Competition Bureau Abuse of Dominance Enforcement Guidelines",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit “S5” to my affidavit is a copy of the Competition Bureau"
+    }
+   ],
+   "content_check": "63 pages: Abuse of Dominance Enforcement Guidelines"
+  },
+  {
+   "label": "S6",
+   "file": "doc-8rvxjg.pdf",
+   "kind": "public_record",
+   "date": "2022-10-10",
+   "author": "European Commission",
+   "recipients": [],
+   "description": "European Commission press release on its Statement of Objections to Teva",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit “S6” to my affidavit is a copy of the European Commission"
+    }
+   ],
+   "content_check": "6 pages: EC press release 10 October 2022, 'Antitrust: Commission sends Statement of Objections to Teva'"
+  },
+  {
+   "label": "S7",
+   "file": "doc-p3szvt.pdf",
+   "kind": "report",
+   "date": "2002-04",
+   "author": "House of Commons Standing Committee on Industry, Science and Technology",
+   "recipients": [],
+   "description": "Report 'A Plan to Modernize Canada's Competition Regime'",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit “S7” to my affidavit is a copy of the House of Commons"
+    }
+   ],
+   "content_check": "149 pages: House of Commons committee report 'A Plan to Modernize Canada's Competition Regime'"
+  },
+  {
+   "label": "S8",
+   "file": "doc-m2x7xb.pdf",
+   "kind": "report",
+   "date": "2022",
+   "author": "Patented Medicine Prices Review Board",
+   "recipients": [],
+   "description": "PMPRB 2022 Annual Report",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit “S8” to my affidavit is a copy of the 2022 Annual Report"
+    }
+   ],
+   "content_check": "85 pages: Patented Medicine Prices Review Board Annual Report 2022"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2024-07-26",
+   "precision": "day",
+   "description": "Seaby swore the affidavit remotely in Toronto",
+   "paragraphs": [
+    9
+   ],
+   "quote": "on July 26, 2024, in accordance with O. Reg. 431/20",
+   "exhibits": []
+  }
+ ]
 }

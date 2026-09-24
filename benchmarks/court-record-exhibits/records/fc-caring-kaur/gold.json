@@ -9,147 +9,987 @@
  "deponent": "Jasmine Kaur",
  "deponent_role": "Law clerk to David Taylor at Conway Baxter Wilson LLP, counsel to the respondent Caring Society",
  "sworn_date": "2026-07-23",
+ "referenced_not_attached": [
+  "Affidavit of Duncan Farthing-Nichol dated October 22, 2025",
+  "Monthly updates filed by the Caring Society and Canada",
+  "2025 CHRT 6"
+ ],
+ "notes": "Exhibit A's summary says the call was on January 22, 2025 (affidavit: February 5, 2025); Exhibit K is dated January 27, 2026 (affidavit: provided January 29, 2026); Exhibit S is dated April 24, 2025 (affidavit: April 25, 2025).",
+ "subject": "administrative",
  "exhibits": [
-  {"label": "A", "file": "doc-hcrfsk.pdf", "kind": "minutes", "date": "2025-02-13", "author": "Canadian Human Rights Tribunal", "recipients": ["Parties to T1340/7008"],
+  {
+   "label": "A",
+   "file": "doc-hcrfsk.pdf",
+   "kind": "minutes",
+   "date": "2025-02-13",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Tribunal's February 13, 2025 summary of the Case Management Conference Call held February 5, 2025 on the Caring Society's motion for Canada's return to discussions under the March 2018 Consultation Protocol",
-   "references": [{"paragraph": 4, "quote": "A copy of the Case Management Conference Call summary provided by the Tribunal on February 13, 2025"}],
-   "content_check": "Tribunal letter dated February 13, 2025 summarizing a CMCC on the Caring Society's consultation-protocol motion; the summary itself says the call was held on January 22, 2025, not February 5, 2025 as the affidavit states"},
-  {"label": "B", "file": "doc-575yu8.pdf", "kind": "email", "date": "2025-04-02", "author": "CHRT Registry Office", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copy of the Case Management Conference Call summary provided by the Tribunal on February 13, 2025"
+    }
+   ],
+   "content_check": "Tribunal letter dated February 13, 2025 summarizing a CMCC on the Caring Society's consultation-protocol motion; the summary itself says the call was held on January 22, 2025, not February 5, 2025 as the affidavit states"
+  },
+  {
+   "label": "B",
+   "file": "doc-575yu8.pdf",
+   "kind": "email",
+   "date": "2025-04-02",
+   "author": "CHRT Registry Office",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The Panel's April 2, 2025 communication noting its February 10, 2025 question did not invite evidence and dealing with extensions for the AFN and NAN submissions",
-   "references": [{"paragraph": 5, "quote": "a true copy of which is attached to my affidavit as Exhibit"}],
-   "content_check": "Email from the CHRT Registry Office, Wednesday April 2, 2025 8:40 AM, subject 'Panel Direction - FNCFCSC and AFN v. AGC (CHRT File T1340/7008)', to David Taylor and other counsel"},
-  {"label": "C", "file": "doc-wyj3zn.pdf", "kind": "email_chain", "date": "2025-07-09", "author": "CHRT Registry Office", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "a true copy of which is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Email from the CHRT Registry Office, Wednesday April 2, 2025 8:40 AM, subject 'Panel Direction - FNCFCSC and AFN v. AGC (CHRT File T1340/7008)', to David Taylor and other counsel"
+  },
+  {
+   "label": "C",
+   "file": "doc-wyj3zn.pdf",
+   "kind": "email_chain",
+   "date": "2025-07-09",
+   "author": "CHRT Registry Office",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "Email chain setting out the agenda for the July 25, 2025 Case Management Conference Call and the two-week scheduling delay due to counsel's lack of availability",
-   "references": [{"paragraph": 6, "quote": "is an email chain setting out the details of the agenda and the scheduling"}],
-   "content_check": "Two-page CHRT Registry email chain 'Request for CMCC availability', latest message Wednesday July 9, 2025 11:40 AM noting no common date was found for a CMCC the next week"},
-  {"label": "D", "file": "doc-ppcghx.pdf", "kind": "email", "date": "2025-09-17", "author": "CHRT Registry Office", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is an email chain setting out the details of the agenda and the scheduling"
+    }
+   ],
+   "content_check": "Two-page CHRT Registry email chain 'Request for CMCC availability', latest message Wednesday July 9, 2025 11:40 AM noting no common date was found for a CMCC the next week"
+  },
+  {
+   "label": "D",
+   "file": "doc-ppcghx.pdf",
+   "kind": "email",
+   "date": "2025-09-17",
+   "author": "CHRT Registry Office",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The September 17, 2025 email scheduling the September 26, 2025 Case Management Conference Call and setting out its agenda",
-   "references": [{"paragraph": 7, "quote": "September 17, 2025 email scheduling this Case Management Conference Call"}],
-   "content_check": "One-page CHRT Registry email sent Wednesday September 17, 2025 11:36 AM to counsel"},
-  {"label": "E", "file": "doc-yy2had.pdf", "kind": "email", "date": "2025-09-26", "author": "CHRT Registry Office", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "September 17, 2025 email scheduling this Case Management Conference Call"
+    }
+   ],
+   "content_check": "One-page CHRT Registry email sent Wednesday September 17, 2025 11:36 AM to counsel"
+  },
+  {
+   "label": "E",
+   "file": "doc-yy2had.pdf",
+   "kind": "email",
+   "date": "2025-09-26",
+   "author": "CHRT Registry Office",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The September 26, 2025 email cancelling that day's Case Management Conference Call",
-   "references": [{"paragraph": 8, "quote": "copy of the September 26, 2025 email cancelling the Case Management Conference"}],
-   "content_check": "One-page CHRT Registry email sent Friday September 26, 2025 10:30 AM to counsel"},
-  {"label": "F", "file": "doc-sckvgc.pdf", "kind": "email", "date": "2025-10-16", "author": "CHRT Registry Office on behalf of the Panel", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "copy of the September 26, 2025 email cancelling the Case Management Conference"
+    }
+   ],
+   "content_check": "One-page CHRT Registry email sent Friday September 26, 2025 10:30 AM to counsel"
+  },
+  {
+   "label": "F",
+   "file": "doc-sckvgc.pdf",
+   "kind": "email",
+   "date": "2025-10-16",
+   "author": "CHRT Registry Office on behalf of the Panel",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The October 16, 2025 email sent on behalf of the Panel with the agenda for the October 20, 2025 three-hour Case Management Conference Call",
-   "references": [{"paragraph": 9, "quote": "A true copy of the October 16, 2025 email"}],
-   "content_check": "Two-page CHRT Registry email sent Thursday October 16, 2025 10:12 AM to counsel"},
-  {"label": "G", "file": "doc-ep74se.pdf", "kind": "minutes", "date": "2025-10-28", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A true copy of the October 16, 2025 email"
+    }
+   ],
+   "content_check": "Two-page CHRT Registry email sent Thursday October 16, 2025 10:12 AM to counsel"
+  },
+  {
+   "label": "G",
+   "file": "doc-ep74se.pdf",
+   "kind": "minutes",
+   "date": "2025-10-28",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Tribunal's summary of the October 20, 2025 Case Management Conference Call, received October 28, 2025",
-   "references": [{"paragraph": 10, "quote": "Conference Call, received on October 28, 2025, is attached to my affidavit as Exhibit"}],
-   "content_check": "Six-page Tribunal letter dated October 28, 2025 summarizing the CMCC held on October 20, 2025, written by the Panel"},
-  {"label": "H", "file": "doc-ac35bu.pdf", "kind": "court_order", "date": "2025-08-20", "author": "Canadian Human Rights Tribunal", "recipients": [],
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Conference Call, received on October 28, 2025, is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Six-page Tribunal letter dated October 28, 2025 summarizing the CMCC held on October 20, 2025, written by the Panel"
+  },
+  {
+   "label": "H",
+   "file": "doc-ac35bu.pdf",
+   "kind": "court_order",
+   "date": "2025-08-20",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [],
    "description": "The final edited version of the ruling 2025 CHRT 80, received October 29, 2025",
-   "references": [{"paragraph": 11, "quote": "A true copy of the edited ruling as attached to my affidavit as Exhibit"}],
-   "content_check": "36-page CHRT ruling, citation 2025 CHRT 80, dated August 20, 2025, file T1340/7008"},
-  {"label": "I", "file": "doc-m63mwr.pdf", "kind": "letter", "date": "2025-12-22", "author": "Department of Justice, Prairie Regional Office (Dayna Anderson), counsel for Canada", "recipients": ["Canadian Human Rights Tribunal"],
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A true copy of the edited ruling as attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "36-page CHRT ruling, citation 2025 CHRT 80, dated August 20, 2025, file T1340/7008"
+  },
+  {
+   "label": "I",
+   "file": "doc-m63mwr.pdf",
+   "kind": "letter",
+   "date": "2025-12-22",
+   "author": "Department of Justice, Prairie Regional Office (Dayna Anderson), counsel for Canada",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
    "description": "Canada's counsel's letter filing Canada's long-term reform plan, with the plan's first page noting it is filed with prejudice to this judicial review",
-   "references": [{"paragraph": 13, "quote": "counsel's letter filing Canada's long-term reform plan"}],
-   "content_check": "Department of Justice letter via Titanfile dated December 22, 2025 to the CHRT (signed by Dayna Anderson; text layer carries a hidden 'DRAFT' marker not visible on the page), listing Canada's National Plan and five supporting affidavits,, stating the plan is provided with prejudice to Canada's related judicial review application"},
-  {"label": "J", "file": "doc-wt8vc6.pdf", "kind": "email", "date": "2026-01-07", "author": "CHRT Registry Office on behalf of the Tribunal", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "counsel's letter filing Canada's long-term reform plan"
+    }
+   ],
+   "content_check": "Department of Justice letter via Titanfile dated December 22, 2025 to the CHRT (signed by Dayna Anderson; text layer carries a hidden 'DRAFT' marker not visible on the page), listing Canada's National Plan and five supporting affidavits,, stating the plan is provided with prejudice to Canada's related judicial review application"
+  },
+  {
+   "label": "J",
+   "file": "doc-wt8vc6.pdf",
+   "kind": "email",
+   "date": "2026-01-07",
+   "author": "CHRT Registry Office on behalf of the Tribunal",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The Tribunal's January 7, 2026 email acknowledging receipt of the long-term reform plans and requesting availability for a Case Management Conference Call",
-   "references": [{"paragraph": 14, "quote": "A true copy of the January 7, 2026 email sent on behalf of the Tribunal"}],
-   "content_check": "One-page CHRT Registry email sent Wednesday January 7, 2026 2:56 PM to counsel"},
-  {"label": "K", "file": "doc-n932a2.pdf", "kind": "minutes", "date": "2026-01-29", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A true copy of the January 7, 2026 email sent on behalf of the Tribunal"
+    }
+   ],
+   "content_check": "One-page CHRT Registry email sent Wednesday January 7, 2026 2:56 PM to counsel"
+  },
+  {
+   "label": "K",
+   "file": "doc-n932a2.pdf",
+   "kind": "minutes",
+   "date": "2026-01-29",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The amended summary of the January 21, 2026 Case Management Conference Call, provided January 29, 2026",
-   "references": [{"paragraph": 15, "quote": "A true copy of the amended summary January 21, 2026 Case Management"}],
-   "content_check": "Three-page Tribunal letter summarizing the CMCC held on January 21, 2026; the letter is dated January 27, 2026 rather than January 29, 2026"},
-  {"label": "L", "file": "doc-g8cp9g.pdf", "kind": "notice", "date": "2026-01-27", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A true copy of the amended summary January 21, 2026 Case Management"
+    }
+   ],
+   "content_check": "Three-page Tribunal letter summarizing the CMCC held on January 21, 2026; the letter is dated January 27, 2026 rather than January 29, 2026"
+  },
+  {
+   "label": "L",
+   "file": "doc-g8cp9g.pdf",
+   "kind": "notice",
+   "date": "2026-01-27",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Panel's January 27, 2026 direction on the schedule for long-term reform proceedings outside Ontario",
-   "references": [{"paragraph": 16, "quote": "A true copy of this direction is attached to my affidavit as Exhibit"}],
-   "content_check": "Three-page Tribunal directions letter dated January 27, 2026 on determining a hearing schedule for the national long-term reform plans"},
-  {"label": "M", "file": "doc-hxsfgm.pdf", "kind": "email", "date": "2026-04-28", "author": "CHRT Registry Office on behalf of the Panel", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "A true copy of this direction is attached to my affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Three-page Tribunal directions letter dated January 27, 2026 on determining a hearing schedule for the national long-term reform plans"
+  },
+  {
+   "label": "M",
+   "file": "doc-hxsfgm.pdf",
+   "kind": "email",
+   "date": "2026-04-28",
+   "author": "CHRT Registry Office on behalf of the Panel",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The April 28, 2026 email setting out the agenda for the April 30, 2026 Case Management Conference Call",
-   "references": [{"paragraph": 18, "quote": "set out in an April"}],
-   "content_check": "CHRT Registry email Tuesday April 28, 2026 9:49 AM, subject 'April 30, 2026 CMCC', with agenda and dial-in information"},
-  {"label": "N", "file": "doc-fwq96f.pdf", "kind": "notice", "date": "2026-05-05", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "set out in an April"
+    }
+   ],
+   "content_check": "CHRT Registry email Tuesday April 28, 2026 9:49 AM, subject 'April 30, 2026 CMCC', with agenda and dial-in information"
+  },
+  {
+   "label": "N",
+   "file": "doc-fwq96f.pdf",
+   "kind": "notice",
+   "date": "2026-05-05",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Panel's May 5, 2026 further direction regarding the long-term reform schedule",
-   "references": [{"paragraph": 19, "quote": "On May 5, 2026, the Panel issued a further direction regarding the long-term"}],
-   "content_check": "Four-page 'Tribunal Direction' dated May 5, 2026 following the April 30, 2026 CMCC, on the timeline for ruling on interested-party motions by regional First Nations organizations"},
-  {"label": "O", "file": "doc-jbubbq.pdf", "kind": "letter", "date": "2026-05-19", "author": "Fasken (Peter Mantas), counsel for the AFN", "recipients": ["Canadian Human Rights Tribunal"],
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "On May 5, 2026, the Panel issued a further direction regarding the long-term"
+    }
+   ],
+   "content_check": "Four-page 'Tribunal Direction' dated May 5, 2026 following the April 30, 2026 CMCC, on the timeline for ruling on interested-party motions by regional First Nations organizations"
+  },
+  {
+   "label": "O",
+   "file": "doc-jbubbq.pdf",
+   "kind": "letter",
+   "date": "2026-05-19",
+   "author": "Fasken (Peter Mantas), counsel for the AFN",
+   "recipients": [
+    "Canadian Human Rights Tribunal"
+   ],
    "description": "AFN counsel's May 19, 2026 letter to the Panel on behalf of the parties setting out a timetable for long-term reform proceedings",
-   "references": [{"paragraph": 20, "quote": "counsel for the AFN wrote to the Panel on behalf of the"}],
-   "content_check": "Five-page Fasken letter dated May 19, 2026 from Peter Mantas to the CHRT Registrar, written on behalf of the Assembly of First Nations"},
-  {"label": "P", "file": "doc-thtkbc.pdf", "kind": "notice", "date": "2026-05-22", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "counsel for the AFN wrote to the Panel on behalf of the"
+    }
+   ],
+   "content_check": "Five-page Fasken letter dated May 19, 2026 from Peter Mantas to the CHRT Registrar, written on behalf of the Assembly of First Nations"
+  },
+  {
+   "label": "P",
+   "file": "doc-thtkbc.pdf",
+   "kind": "notice",
+   "date": "2026-05-22",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Panel's May 22, 2026 direction confirming the schedule set by the parties",
-   "references": [{"paragraph": 21, "quote": "the Panel issued a direction confirming the schedule set by"}],
-   "content_check": "Bilingual Tribunal letter dated May 22, 2026 acknowledging the proposed timetable dated May 19, 2026 and accepting it"},
-  {"label": "Q", "file": "doc-y8bsr2.pdf", "kind": "letter", "date": "2026-06-19", "author": "David P. Taylor, Conway Baxter Wilson (counsel for the Caring Society)", "recipients": ["Amanda Wilkes, CHRT Registry Operations"],
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "the Panel issued a direction confirming the schedule set by"
+    }
+   ],
+   "content_check": "Bilingual Tribunal letter dated May 22, 2026 acknowledging the proposed timetable dated May 19, 2026 and accepting it"
+  },
+  {
+   "label": "Q",
+   "file": "doc-y8bsr2.pdf",
+   "kind": "letter",
+   "date": "2026-06-19",
+   "author": "David P. Taylor, Conway Baxter Wilson (counsel for the Caring Society)",
+   "recipients": [
+    "Amanda Wilkes, CHRT Registry Operations"
+   ],
    "description": "The Caring Society's June 19, 2026 letter requesting clarification of the May 22, 2026 direction regarding further interested party status requests",
-   "references": [{"paragraph": 22, "quote": "A true copy of the Caring Society's letter is"}],
-   "content_check": "Four-page letter dated June 19, 2026 from David P. Taylor to Amanda Wilkes, CHRT Registry Operations"},
-  {"label": "R", "file": "doc-za8xxr.pdf", "kind": "notice", "date": "2025-04-24", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "A true copy of the Caring Society's letter is"
+    }
+   ],
+   "content_check": "Four-page letter dated June 19, 2026 from David P. Taylor to Amanda Wilkes, CHRT Registry Operations"
+  },
+  {
+   "label": "R",
+   "file": "doc-za8xxr.pdf",
+   "kind": "notice",
+   "date": "2025-04-24",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Panel's April 24, 2025 direction setting out its approach to the 12 interested party status motions received by the April 15, 2025 deadline",
-   "references": [{"paragraph": 27, "quote": "direction (Exhibit R)"}],
-   "content_check": "Three-page Tribunal letter dated April 24, 2025 advising the parties of its approach to the motions for interested party status"},
-  {"label": "S", "file": "doc-8f5c7m.pdf", "kind": "email", "date": "2025-04-24", "author": "CHRT Registry Office on behalf of the Panel", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "direction (Exhibit R)"
+    }
+   ],
+   "content_check": "Three-page Tribunal letter dated April 24, 2025 advising the parties of its approach to the motions for interested party status"
+  },
+  {
+   "label": "S",
+   "file": "doc-8f5c7m.pdf",
+   "kind": "email",
+   "date": "2025-04-24",
+   "author": "CHRT Registry Office on behalf of the Panel",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "An April 25, 2025 email sent on behalf of the Panel on its approach to the interested party status motions",
-   "references": [{"paragraph": 27, "quote": "an April 25, 2025 email sent on behalf of the Panel (Exhibit"}],
-   "content_check": "CHRT Registry email 'Motions for Interested Party status', sent Thursday April 24, 2025 1:59 PM, not April 25 as the affidavit states"},
-  {"label": "T", "file": "doc-nkk52c.pdf", "kind": "email", "date": "2025-04-28", "author": "CHRT Registry Office on behalf of the Panel", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "an April 25, 2025 email sent on behalf of the Panel (Exhibit"
+    }
+   ],
+   "content_check": "CHRT Registry email 'Motions for Interested Party status', sent Thursday April 24, 2025 1:59 PM, not April 25 as the affidavit states"
+  },
+  {
+   "label": "T",
+   "file": "doc-nkk52c.pdf",
+   "kind": "email",
+   "date": "2025-04-28",
+   "author": "CHRT Registry Office on behalf of the Panel",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The April 28, 2025 email sent on behalf of the Panel identifying the moving parties seeking interested party status",
-   "references": [{"paragraph": 28, "quote": "Attached as Exhibit"}],
-   "content_check": "Two-page CHRT Registry email sent Monday April 28, 2025 1:41 PM to counsel"},
-  {"label": "U", "file": "doc-bggayu.pdf", "kind": "email", "date": "2025-05-14", "author": "CHRT Registry Office on behalf of the Panel", "recipients": ["Counsel for the parties"],
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "Two-page CHRT Registry email sent Monday April 28, 2025 1:41 PM to counsel"
+  },
+  {
+   "label": "U",
+   "file": "doc-bggayu.pdf",
+   "kind": "email",
+   "date": "2025-05-14",
+   "author": "CHRT Registry Office on behalf of the Panel",
+   "recipients": [
+    "Counsel for the parties"
+   ],
    "description": "The Panel's May 14, 2025 direction setting a schedule for submissions on the standing of Chiefs of Ontario and NAN to bring the Ontario Final Agreement approval motion",
-   "references": [{"paragraph": 29, "quote": "is a true copy of a May 14, 2025 direction"}],
-   "content_check": "Two-page CHRT Registry email sent Wednesday May 14, 2025 8:28 AM carrying the Panel's direction"},
-  {"label": "V", "file": "doc-adty84.pdf", "kind": "notice", "date": "2025-05-23", "author": "Canadian Human Rights Tribunal (Panel)", "recipients": ["Parties to T1340/7008"],
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "is a true copy of a May 14, 2025 direction"
+    }
+   ],
+   "content_check": "Two-page CHRT Registry email sent Wednesday May 14, 2025 8:28 AM carrying the Panel's direction"
+  },
+  {
+   "label": "V",
+   "file": "doc-adty84.pdf",
+   "kind": "notice",
+   "date": "2025-05-23",
+   "author": "Canadian Human Rights Tribunal (Panel)",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
    "description": "The Panel's May 23, 2025 direction pausing the Ontario Final Agreement motion schedule pending resolution of the standing issue",
-   "references": [{"paragraph": 30, "quote": "is a true copy of a May 23, 2025 direction from the"}],
-   "content_check": "Three-page Tribunal letter dated May 23, 2025 reviewing whether the partial joint COO-NAN motion schedule of April 8, 2025 should remain or be modified"},
-  {"label": "W", "file": "doc-g7e22q.pdf", "kind": "court_order", "date": "2025-05-29", "author": "Canadian Human Rights Tribunal", "recipients": [],
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "is a true copy of a May 23, 2025 direction from the"
+    }
+   ],
+   "content_check": "Three-page Tribunal letter dated May 23, 2025 reviewing whether the partial joint COO-NAN motion schedule of April 8, 2025 should remain or be modified"
+  },
+  {
+   "label": "W",
+   "file": "doc-g7e22q.pdf",
+   "kind": "court_order",
+   "date": "2025-05-29",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [],
    "description": "The formal ruling 2025 CHRT 58 dated May 29, 2025 that followed the May 23, 2025 direction",
-   "references": [{"paragraph": 30, "quote": "is the formal ruling that followed after the May 23, 2025 direction"}],
-   "content_check": "14-page CHRT ruling, citation 2025 CHRT 58, dated May 29, 2025"}
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "is the formal ruling that followed after the May 23, 2025 direction"
+    }
+   ],
+   "content_check": "14-page CHRT ruling, citation 2025 CHRT 58, dated May 29, 2025"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2018-03", "precision": "month", "description": "March 2018 Consultation Protocol between the parties", "paragraphs": [4], "quote": "March", "exhibits": [], "referenced_not_attached": ["March 2018 Consultation Protocol"]},
-  {"id": "e2", "date": "2025-01-31", "precision": "day", "description": "AFN Quebec-Labrador and FNQLHSSC filed an interested party status motion", "paragraphs": [26], "quote": "Quebec and Labrador Health and Social Services Commission (filed", "exhibits": []},
-  {"id": "e3", "date": "2025-02-05", "precision": "day", "description": "Case Management Conference Call on the Caring Society's consultation-protocol motion", "paragraphs": [4], "quote": "does not note the Case Management Conference Call held on February 5, 2025 on that subject", "exhibits": ["A"]},
-  {"id": "e4", "date": "2025-02-10", "precision": "day", "description": "The Panel asked a question that did not invite evidence", "paragraphs": [5], "quote": "the February 10, 2025 question from the", "exhibits": ["B"]},
-  {"id": "e5", "date": "2025-02-13", "precision": "day", "description": "The Tribunal provided its summary of the Case Management Conference Call", "paragraphs": [4], "quote": "summary provided by the Tribunal on February 13, 2025", "exhibits": ["A"]},
-  {"id": "e6", "date": "2025-03-22", "precision": "day", "description": "Earlier case management conference at which the Panel set the April 15, 2025 deadline for interested party motions", "paragraphs": [27], "quote": "deadline that it had set at an earlier case management conference (held on March 22,", "exhibits": []},
-  {"id": "e7", "date": "2025-04-02", "precision": "day", "description": "Panel communication on the February 10 question and deadline extensions for the AFN and NAN", "paragraphs": [5], "quote": "does not include an April 2, 2025", "exhibits": ["B"]},
-  {"id": "e8", "date": "2025-04-15", "precision": "day", "description": "Deadline by which 12 interested party status motions were received", "paragraphs": [27], "quote": "that had been received by the April 15, 2025", "exhibits": ["R", "S"]},
-  {"id": "e9", "date": "2025-04-24", "precision": "day", "description": "Panel direction on its approach to the interested party status motions", "paragraphs": [27], "quote": "true copies of an April 24, 2025", "exhibits": ["R"]},
-  {"id": "e10", "date": "2025-04-25", "precision": "day", "description": "Email on behalf of the Panel on the interested party status motions", "paragraphs": [27], "quote": "an April 25, 2025 email sent on behalf of the Panel", "exhibits": ["S"]},
-  {"id": "e11", "date": "2025-04-28", "precision": "day", "description": "Email on behalf of the Panel identifying the moving parties seeking interested party status", "paragraphs": [28], "quote": "is a true copy of an April 28, 2025 email sent on behalf", "exhibits": ["T"]},
-  {"id": "e12", "date": "2025-05-14", "precision": "day", "description": "Panel direction scheduling submissions on COO and NAN standing to bring the Ontario Final Agreement motion", "paragraphs": [29], "quote": "is a true copy of a May 14, 2025 direction", "exhibits": ["U"]},
-  {"id": "e13", "date": "2025-05-23", "precision": "day", "description": "Panel direction pausing the Ontario Final Agreement motion schedule", "paragraphs": [30], "quote": "pausing the previously-ordered Ontario Final Agreement motion schedule", "exhibits": ["V"]},
-  {"id": "e14", "date": "2025-05-29", "precision": "day", "description": "The Tribunal issued ruling 2025 CHRT 58", "paragraphs": [30], "quote": "dated May 29, 2025 and bearing the", "exhibits": ["W"]},
-  {"id": "e15", "date": "2025-07-25", "precision": "day", "description": "Case Management Conference Call held after a two-week scheduling delay due to counsel's unavailability", "paragraphs": [6], "quote": "held on July 25, 2025", "exhibits": ["C"]},
-  {"id": "e16", "date": "2025-07-31", "precision": "day", "description": "Southern Chiefs Organization's interested party motion received", "paragraphs": [26], "quote": "Southern Chiefs Organization (received July 31, 2025)", "exhibits": []},
-  {"id": "e17", "date": "2025-09-17", "precision": "day", "description": "Email scheduling a Case Management Conference Call for September 26, 2025 to discuss 2025 CHRT 80", "paragraphs": [7], "quote": "was scheduled for September 26, 2025, in part to discuss the 2025", "exhibits": ["D"]},
-  {"id": "e18", "date": "2025-09-22", "precision": "day", "description": "The Caring Society filed its first monthly update", "paragraphs": [12], "quote": "the Caring Society filed its first", "exhibits": []},
-  {"id": "e19", "date": "2025-09-25", "precision": "day", "description": "Canada filed its first monthly update", "paragraphs": [12], "quote": "Canada filed its first monthly update with the Tribunal on September 25, 2025", "exhibits": []},
-  {"id": "e20", "date": "2025-09-26", "precision": "day", "description": "The September 26 Case Management Conference Call was cancelled due to late filing of material", "paragraphs": [8], "quote": "Conference Call was", "exhibits": ["E"]},
-  {"id": "e21", "date": "2025-10-16", "precision": "day", "description": "Agenda sent for the October 20 call; the Caring Society filed its second monthly update", "paragraphs": [9, 12], "quote": "Caring Society's second monthly update on October 16, 2025", "exhibits": ["F"]},
-  {"id": "e22", "date": "2025-10-20", "precision": "day", "description": "Three-hour Case Management Conference Call on 2025 CHRT 80 and a long-term reform hearing schedule", "paragraphs": [9], "quote": "A further Case Management Conference Call was held on October 20, 2025", "exhibits": ["F", "G"]},
-  {"id": "e23", "date": "2025-10-22", "precision": "day", "description": "Affidavit of Duncan Farthing-Nichol filed for Canada", "paragraphs": [4], "quote": "I have reviewed the October 22, 2025 Affidavit of Duncan Farthing-Nichol", "exhibits": [], "referenced_not_attached": ["Affidavit of Duncan Farthing-Nichol dated October 22, 2025"]},
-  {"id": "e24", "date": "2025-10-28", "precision": "day", "description": "The Tribunal's summary of the October 20 call was received", "paragraphs": [10], "quote": "received on October 28, 2025", "exhibits": ["G"]},
-  {"id": "e25", "date": "2025-10-29", "precision": "day", "description": "The final edited version of 2025 CHRT 80 was received", "paragraphs": [11], "quote": "The final edited version of 2025 CHRT 80 was received on October 29, 2025", "exhibits": ["H"]},
-  {"id": "e26", "date": "2025-11-04", "precision": "day", "description": "Canada's second monthly update", "paragraphs": [12], "quote": "Canada's second monthly update on November 4, 2025", "exhibits": []},
-  {"id": "e27", "date": "2025-11-21", "precision": "day", "description": "Caring Society's third monthly update", "paragraphs": [12], "quote": "Caring Society's third monthly update on November 21, 2025", "exhibits": []},
-  {"id": "e28", "date": "2025-11-28", "precision": "day", "description": "Canada's third monthly update", "paragraphs": [12], "quote": "Canada's third monthly update on November 28, 2025", "exhibits": []},
-  {"id": "e29", "date": "2025-12-21", "precision": "day", "description": "Caring Society's fourth monthly update", "paragraphs": [12], "quote": "Caring Society's fourth monthly update on December 21, 2025", "exhibits": []},
-  {"id": "e30", "date": "2025-12-22", "precision": "day", "description": "Long-term reform plans filed by the complainants and by Canada, Canada's expressly with prejudice to this judicial review", "paragraphs": [13], "quote": "Long-term reform plans were filed on behalf of the complainants and on behalf", "exhibits": ["I"]},
-  {"id": "e31", "date": "2026-01-07", "precision": "day", "description": "The Tribunal acknowledged receipt of the plans and requested availability for a call", "paragraphs": [14], "quote": "The Tribunal acknowledged receipt of the long-term reform plans on January", "exhibits": ["J"]},
-  {"id": "e32", "date": "2026-01-21", "precision": "day", "description": "Case Management Conference Call held", "paragraphs": [15], "quote": "The Case Management Conference Call was ultimately held on January 21,", "exhibits": ["K"]},
-  {"id": "e33", "date": "2026-01-27", "precision": "day", "description": "Panel direction on the long-term reform schedule outside Ontario", "paragraphs": [16], "quote": "On January 27, 2026, the Panel provided the parties with further direction", "exhibits": ["L"]},
-  {"id": "e34", "date": "2026-01-29", "precision": "day", "description": "Amended summary of the January 21 call provided; Caring Society's fifth monthly update", "paragraphs": [15, 12], "quote": "Caring Society's fifth monthly update on January 29, 2026", "exhibits": ["K"]},
-  {"id": "e35", "date": "2026-03-03", "precision": "day", "description": "Scheduled Case Management Conference Call cancelled due to a health emergency", "paragraphs": [17], "quote": "however, it was cancelled due to a health emergency", "exhibits": []},
-  {"id": "e36", "date": "2026-03-06", "precision": "day", "description": "Caring Society's sixth monthly update", "paragraphs": [12], "quote": "Caring Society's sixth monthly update on March 6, 2026", "exhibits": []},
-  {"id": "e37", "date": "2026-04-10", "precision": "day", "description": "Caring Society's seventh monthly update", "paragraphs": [12], "quote": "Caring Society's seventh monthly update on April 10, 2026", "exhibits": []},
-  {"id": "e38", "date": "2026-04-30", "precision": "day", "description": "Case Management Conference Call held; agenda sent April 28", "paragraphs": [18], "quote": "A further Case Management Conference Call was held on April 30, 2026", "exhibits": ["M"]},
-  {"id": "e39", "date": "2026-05-05", "precision": "day", "description": "Panel direction on the long-term reform schedule", "paragraphs": [19], "quote": "On May 5, 2026, the Panel issued a further direction", "exhibits": ["N"]},
-  {"id": "e40", "date": "2026-05-19", "precision": "day", "description": "AFN counsel wrote on behalf of the parties proposing a long-term reform timetable", "paragraphs": [20], "quote": "On May 19, 2026, counsel for the AFN wrote to the Panel", "exhibits": ["O"]},
-  {"id": "e41", "date": "2026-05-22", "precision": "day", "description": "Panel direction confirming the parties' schedule", "paragraphs": [21], "quote": "On May 22, 2026, the Panel issued a direction confirming the schedule", "exhibits": ["P"]},
-  {"id": "e42", "date": "2026-06-19", "precision": "day", "description": "Caring Society requested clarification of the May 22 direction regarding further interested party requests", "paragraphs": [22], "quote": "On June 19, 2026, the Caring Society made a request for clarification", "exhibits": ["Q"]},
-  {"id": "e43", "date": "2026-07-08", "precision": "day", "description": "The Tribunal advised that Member Lustig had resigned and Member Marchildon would continue", "paragraphs": [24], "quote": "On July 8, 2026, the Tribunal advised the parties that Member Lustig had", "exhibits": []},
-  {"id": "e44", "date": "2026-07-21", "precision": "day", "description": "At a Case Management Conference Call the parties were directed to make written submissions on the clarification request", "paragraphs": [23], "quote": "Call held on July 21, 2026, the parties were directed to provide submissions in writing", "exhibits": []},
-  {"id": "e45", "date": "2025", "precision": "year", "description": "The Tribunal managed long-term reform outside Ontario, the Ontario Final Agreement and interim Jordan's Principle remedies (2025 CHRT 6), and received 13 interested party motions", "paragraphs": [25, 26], "quote": "In 2025, the Tribunal was managing three distinct aspects of the remedial phase", "exhibits": []}
- ],
- "referenced_not_attached": ["Affidavit of Duncan Farthing-Nichol dated October 22, 2025", "Monthly updates filed by the Caring Society and Canada", "2025 CHRT 6"],
- "notes": "Exhibit A's summary says the call was on January 22, 2025 (affidavit: February 5, 2025); Exhibit K is dated January 27, 2026 (affidavit: provided January 29, 2026); Exhibit S is dated April 24, 2025 (affidavit: April 25, 2025)."
+  {
+   "id": "e1",
+   "date": "2018-03",
+   "precision": "month",
+   "description": "March 2018 Consultation Protocol between the parties",
+   "paragraphs": [
+    4
+   ],
+   "quote": "March",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "March 2018 Consultation Protocol"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2025-01-31",
+   "precision": "day",
+   "description": "AFN Quebec-Labrador and FNQLHSSC filed an interested party status motion",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Quebec and Labrador Health and Social Services Commission (filed",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2025-02-05",
+   "precision": "day",
+   "description": "Case Management Conference Call on the Caring Society's consultation-protocol motion",
+   "paragraphs": [
+    4
+   ],
+   "quote": "does not note the Case Management Conference Call held on February 5, 2025 on that subject",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2025-02-10",
+   "precision": "day",
+   "description": "The Panel asked a question that did not invite evidence",
+   "paragraphs": [
+    5
+   ],
+   "quote": "the February 10, 2025 question from the",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2025-02-13",
+   "precision": "day",
+   "description": "The Tribunal provided its summary of the Case Management Conference Call",
+   "paragraphs": [
+    4
+   ],
+   "quote": "summary provided by the Tribunal on February 13, 2025",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2025-03-22",
+   "precision": "day",
+   "description": "Earlier case management conference at which the Panel set the April 15, 2025 deadline for interested party motions",
+   "paragraphs": [
+    27
+   ],
+   "quote": "deadline that it had set at an earlier case management conference (held on March 22,",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2025-04-02",
+   "precision": "day",
+   "description": "Panel communication on the February 10 question and deadline extensions for the AFN and NAN",
+   "paragraphs": [
+    5
+   ],
+   "quote": "does not include an April 2, 2025",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2025-04-15",
+   "precision": "day",
+   "description": "Deadline by which 12 interested party status motions were received",
+   "paragraphs": [
+    27
+   ],
+   "quote": "that had been received by the April 15, 2025",
+   "exhibits": [
+    "R",
+    "S"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2025-04-24",
+   "precision": "day",
+   "description": "Panel direction on its approach to the interested party status motions",
+   "paragraphs": [
+    27
+   ],
+   "quote": "true copies of an April 24, 2025",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2025-04-25",
+   "precision": "day",
+   "description": "Email on behalf of the Panel on the interested party status motions",
+   "paragraphs": [
+    27
+   ],
+   "quote": "an April 25, 2025 email sent on behalf of the Panel",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2025-04-28",
+   "precision": "day",
+   "description": "Email on behalf of the Panel identifying the moving parties seeking interested party status",
+   "paragraphs": [
+    28
+   ],
+   "quote": "is a true copy of an April 28, 2025 email sent on behalf",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2025-05-14",
+   "precision": "day",
+   "description": "Panel direction scheduling submissions on COO and NAN standing to bring the Ontario Final Agreement motion",
+   "paragraphs": [
+    29
+   ],
+   "quote": "is a true copy of a May 14, 2025 direction",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2025-05-23",
+   "precision": "day",
+   "description": "Panel direction pausing the Ontario Final Agreement motion schedule",
+   "paragraphs": [
+    30
+   ],
+   "quote": "pausing the previously-ordered Ontario Final Agreement motion schedule",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2025-05-29",
+   "precision": "day",
+   "description": "The Tribunal issued ruling 2025 CHRT 58",
+   "paragraphs": [
+    30
+   ],
+   "quote": "dated May 29, 2025 and bearing the",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2025-07-25",
+   "precision": "day",
+   "description": "Case Management Conference Call held after a two-week scheduling delay due to counsel's unavailability",
+   "paragraphs": [
+    6
+   ],
+   "quote": "held on July 25, 2025",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2025-07-31",
+   "precision": "day",
+   "description": "Southern Chiefs Organization's interested party motion received",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Southern Chiefs Organization (received July 31, 2025)",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2025-09-17",
+   "precision": "day",
+   "description": "Email scheduling a Case Management Conference Call for September 26, 2025 to discuss 2025 CHRT 80",
+   "paragraphs": [
+    7
+   ],
+   "quote": "was scheduled for September 26, 2025, in part to discuss the 2025",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2025-09-22",
+   "precision": "day",
+   "description": "The Caring Society filed its first monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "the Caring Society filed its first",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2025-09-25",
+   "precision": "day",
+   "description": "Canada filed its first monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Canada filed its first monthly update with the Tribunal on September 25, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2025-09-26",
+   "precision": "day",
+   "description": "The September 26 Case Management Conference Call was cancelled due to late filing of material",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Conference Call was",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e21",
+   "date": "2025-10-16",
+   "precision": "day",
+   "description": "Agenda sent for the October 20 call; the Caring Society filed its second monthly update",
+   "paragraphs": [
+    9,
+    12
+   ],
+   "quote": "Caring Society's second monthly update on October 16, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2025-10-20",
+   "precision": "day",
+   "description": "Three-hour Case Management Conference Call on 2025 CHRT 80 and a long-term reform hearing schedule",
+   "paragraphs": [
+    9
+   ],
+   "quote": "A further Case Management Conference Call was held on October 20, 2025",
+   "exhibits": [
+    "F",
+    "G"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2025-10-22",
+   "precision": "day",
+   "description": "Affidavit of Duncan Farthing-Nichol filed for Canada",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I have reviewed the October 22, 2025 Affidavit of Duncan Farthing-Nichol",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Affidavit of Duncan Farthing-Nichol dated October 22, 2025"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2025-10-28",
+   "precision": "day",
+   "description": "The Tribunal's summary of the October 20 call was received",
+   "paragraphs": [
+    10
+   ],
+   "quote": "received on October 28, 2025",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e25",
+   "date": "2025-10-29",
+   "precision": "day",
+   "description": "The final edited version of 2025 CHRT 80 was received",
+   "paragraphs": [
+    11
+   ],
+   "quote": "The final edited version of 2025 CHRT 80 was received on October 29, 2025",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": "2025-11-04",
+   "precision": "day",
+   "description": "Canada's second monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Canada's second monthly update on November 4, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "date": "2025-11-21",
+   "precision": "day",
+   "description": "Caring Society's third monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Caring Society's third monthly update on November 21, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "date": "2025-11-28",
+   "precision": "day",
+   "description": "Canada's third monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Canada's third monthly update on November 28, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "date": "2025-12-21",
+   "precision": "day",
+   "description": "Caring Society's fourth monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Caring Society's fourth monthly update on December 21, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "date": "2025-12-22",
+   "precision": "day",
+   "description": "Long-term reform plans filed by the complainants and by Canada, Canada's expressly with prejudice to this judicial review",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Long-term reform plans were filed on behalf of the complainants and on behalf",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e31",
+   "date": "2026-01-07",
+   "precision": "day",
+   "description": "The Tribunal acknowledged receipt of the plans and requested availability for a call",
+   "paragraphs": [
+    14
+   ],
+   "quote": "The Tribunal acknowledged receipt of the long-term reform plans on January",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e32",
+   "date": "2026-01-21",
+   "precision": "day",
+   "description": "Case Management Conference Call held",
+   "paragraphs": [
+    15
+   ],
+   "quote": "The Case Management Conference Call was ultimately held on January 21,",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e33",
+   "date": "2026-01-27",
+   "precision": "day",
+   "description": "Panel direction on the long-term reform schedule outside Ontario",
+   "paragraphs": [
+    16
+   ],
+   "quote": "On January 27, 2026, the Panel provided the parties with further direction",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e34",
+   "date": "2026-01-29",
+   "precision": "day",
+   "description": "Amended summary of the January 21 call provided; Caring Society's fifth monthly update",
+   "paragraphs": [
+    15,
+    12
+   ],
+   "quote": "Caring Society's fifth monthly update on January 29, 2026",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e35",
+   "date": "2026-03-03",
+   "precision": "day",
+   "description": "Scheduled Case Management Conference Call cancelled due to a health emergency",
+   "paragraphs": [
+    17
+   ],
+   "quote": "however, it was cancelled due to a health emergency",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "date": "2026-03-06",
+   "precision": "day",
+   "description": "Caring Society's sixth monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Caring Society's sixth monthly update on March 6, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e37",
+   "date": "2026-04-10",
+   "precision": "day",
+   "description": "Caring Society's seventh monthly update",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Caring Society's seventh monthly update on April 10, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "date": "2026-04-30",
+   "precision": "day",
+   "description": "Case Management Conference Call held; agenda sent April 28",
+   "paragraphs": [
+    18
+   ],
+   "quote": "A further Case Management Conference Call was held on April 30, 2026",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e39",
+   "date": "2026-05-05",
+   "precision": "day",
+   "description": "Panel direction on the long-term reform schedule",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On May 5, 2026, the Panel issued a further direction",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e40",
+   "date": "2026-05-19",
+   "precision": "day",
+   "description": "AFN counsel wrote on behalf of the parties proposing a long-term reform timetable",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On May 19, 2026, counsel for the AFN wrote to the Panel",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e41",
+   "date": "2026-05-22",
+   "precision": "day",
+   "description": "Panel direction confirming the parties' schedule",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On May 22, 2026, the Panel issued a direction confirming the schedule",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e42",
+   "date": "2026-06-19",
+   "precision": "day",
+   "description": "Caring Society requested clarification of the May 22 direction regarding further interested party requests",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On June 19, 2026, the Caring Society made a request for clarification",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e43",
+   "date": "2026-07-08",
+   "precision": "day",
+   "description": "The Tribunal advised that Member Lustig had resigned and Member Marchildon would continue",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On July 8, 2026, the Tribunal advised the parties that Member Lustig had",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "date": "2026-07-21",
+   "precision": "day",
+   "description": "At a Case Management Conference Call the parties were directed to make written submissions on the clarification request",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Call held on July 21, 2026, the parties were directed to provide submissions in writing",
+   "exhibits": []
+  },
+  {
+   "id": "e45",
+   "date": "2025",
+   "precision": "year",
+   "description": "The Tribunal managed long-term reform outside Ontario, the Ontario Final Agreement and interim Jordan's Principle remedies (2025 CHRT 6), and received 13 interested party motions",
+   "paragraphs": [
+    25,
+    26
+   ],
+   "quote": "In 2025, the Tribunal was managing three distinct aspects of the remedial phase",
+   "exhibits": []
+  }
+ ]
 }

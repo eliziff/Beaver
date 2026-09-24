@@ -9,30 +9,279 @@
  "deponent": "Pamela Wicks",
  "deponent_role": "VP Finance and Chief Financial Officer, Pulse Seismic Inc.",
  "sworn_date": "2026-06",
+ "referenced_not_attached": [
+  "Affidavit of Christian Cardiff and its exhibits (2025 investor presentation, Veren License Agreement)",
+  "Pulse Master List"
+ ],
+ "leak_waivers": [],
+ "notes": "Public version; Exhibits A and B are fully redacted. Jurat day is hand-written (June 2026). Covers are OCR-garbled, given with --covers. Raw file was downloaded earlier from the CT site (now behind a captcha).",
+ "subject": "competition",
  "exhibits": [
-  {"label": "A", "file": "doc-tr8242.pdf", "kind": "map", "date": null, "author": "Pulse Seismic", "recipients": [], "description": "Map of all publicly available 2D seismic datasets in the Basin, Pulse's in blue", "references": [{"paragraph": 6, "quote": "is attached as Exhibits \"A\" and \"B\" to this Affidavit"}], "content_check": "1 page, fully blacked out (confidential) in the public version"},
-  {"label": "B", "file": "doc-k4g2b6.pdf", "kind": "map", "date": null, "author": "Pulse Seismic", "recipients": [], "description": "Map of all publicly available 3D seismic datasets in the Basin", "references": [{"paragraph": 6, "quote": "is attached as Exhibits \"A\" and \"B\" to this Affidavit"}], "content_check": "1 page, fully blacked out (confidential) in the public version"},
-  {"label": "C", "file": "doc-frgxnp.pdf", "kind": "email_chain", "date": "2019-01-18", "author": "Crescent Point Energy (Adam Westlake)", "recipients": ["Pulse Seismic (Brian Ingenthron)"], "description": "January 18 and February 7, 2019 emails from Crescent Point declining to license Pulse's 3D data", "references": [{"paragraph": 8, "quote": "Attached as Exhibit \"C\" are the January 18, 2019 and February 7, 2019 emails from Crescent Point to Pulse."}], "content_check": "3 pages: forwarded email chain from Adam Westlake, January 18, 2019"},
-  {"label": "D", "file": "doc-hzvpzc.pdf", "kind": "letter", "date": "2025-05-05", "author": "Whitecap Resources Inc.", "recipients": ["Neal Coleman, Pulse Seismic"], "description": "Whitecap's May 5, 2025 letter about retaining Veren's licensed seismic data", "references": [{"paragraph": 26, "quote": "Attached as Exhibit \"D\" is the May 5, 2025 letter of Whitecap."}], "content_check": "4 pages: letter dated May 5th, 2025 to Neal Coleman, President and CEO of Pulse"},
-  {"label": "E", "file": "doc-hyc4a6.pdf", "kind": "email_chain", "date": "2025-05-07", "author": "Pulse Seismic (Neal Coleman)", "recipients": ["Christian Cardiff, Whitecap"], "description": "Pulse's May 7, 2025 response with data breakdown and fee calculation", "references": [{"paragraph": 27, "quote": "Attached as Exhibit \"E\" is the May 7, 2025 response of Pulse."}], "content_check": "2 pages: email chain 'Re: VRN Seismic' ending with Coleman's May 9, 2025 email to Cardiff, including the May 7 message"},
-  {"label": "F", "file": "doc-p8mzrc.pdf", "kind": "court_filing", "date": null, "author": "Whitecap Partnership", "recipients": ["Court of King's Bench of Alberta"], "description": "Amended Statement of Claim in the KB Action", "references": [{"paragraph": 30, "quote": "Attached as Exhibit \"F\" and \"G\" are the referenced Amended Statement o"}], "content_check": "8 pages: Form 10 amended statement of claim, ABKB 2501-14251, Whitecap v. Pulse"},
-  {"label": "G", "file": "doc-75qvrc.pdf", "kind": "court_filing", "date": "2025-10-01", "author": "Pulse Seismic", "recipients": ["Court of King's Bench of Alberta"], "description": "Statement of Defence and Counterclaim in the KB Action", "references": [{"paragraph": 30, "quote": "Statement of Defence and Counterclaim."}], "content_check": "17 pages: Form 11 statement of defence and counterclaim, ABKB 2501-14251"}
+  {
+   "label": "A",
+   "file": "doc-tr8242.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Pulse Seismic",
+   "recipients": [],
+   "description": "Map of all publicly available 2D seismic datasets in the Basin, Pulse's in blue",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is attached as Exhibits \"A\" and \"B\" to this Affidavit"
+    }
+   ],
+   "content_check": "1 page, fully blacked out (confidential) in the public version"
+  },
+  {
+   "label": "B",
+   "file": "doc-k4g2b6.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Pulse Seismic",
+   "recipients": [],
+   "description": "Map of all publicly available 3D seismic datasets in the Basin",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "is attached as Exhibits \"A\" and \"B\" to this Affidavit"
+    }
+   ],
+   "content_check": "1 page, fully blacked out (confidential) in the public version"
+  },
+  {
+   "label": "C",
+   "file": "doc-frgxnp.pdf",
+   "kind": "email_chain",
+   "date": "2019-01-18",
+   "author": "Crescent Point Energy (Adam Westlake)",
+   "recipients": [
+    "Pulse Seismic (Brian Ingenthron)"
+   ],
+   "description": "January 18 and February 7, 2019 emails from Crescent Point declining to license Pulse's 3D data",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit \"C\" are the January 18, 2019 and February 7, 2019 emails from Crescent Point to Pulse."
+    }
+   ],
+   "content_check": "3 pages: forwarded email chain from Adam Westlake, January 18, 2019"
+  },
+  {
+   "label": "D",
+   "file": "doc-hzvpzc.pdf",
+   "kind": "letter",
+   "date": "2025-05-05",
+   "author": "Whitecap Resources Inc.",
+   "recipients": [
+    "Neal Coleman, Pulse Seismic"
+   ],
+   "description": "Whitecap's May 5, 2025 letter about retaining Veren's licensed seismic data",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached as Exhibit \"D\" is the May 5, 2025 letter of Whitecap."
+    }
+   ],
+   "content_check": "4 pages: letter dated May 5th, 2025 to Neal Coleman, President and CEO of Pulse"
+  },
+  {
+   "label": "E",
+   "file": "doc-hyc4a6.pdf",
+   "kind": "email_chain",
+   "date": "2025-05-07",
+   "author": "Pulse Seismic (Neal Coleman)",
+   "recipients": [
+    "Christian Cardiff, Whitecap"
+   ],
+   "description": "Pulse's May 7, 2025 response with data breakdown and fee calculation",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached as Exhibit \"E\" is the May 7, 2025 response of Pulse."
+    }
+   ],
+   "content_check": "2 pages: email chain 'Re: VRN Seismic' ending with Coleman's May 9, 2025 email to Cardiff, including the May 7 message"
+  },
+  {
+   "label": "F",
+   "file": "doc-p8mzrc.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Whitecap Partnership",
+   "recipients": [
+    "Court of King's Bench of Alberta"
+   ],
+   "description": "Amended Statement of Claim in the KB Action",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached as Exhibit \"F\" and \"G\" are the referenced Amended Statement o"
+    }
+   ],
+   "content_check": "8 pages: Form 10 amended statement of claim, ABKB 2501-14251, Whitecap v. Pulse"
+  },
+  {
+   "label": "G",
+   "file": "doc-75qvrc.pdf",
+   "kind": "court_filing",
+   "date": "2025-10-01",
+   "author": "Pulse Seismic",
+   "recipients": [
+    "Court of King's Bench of Alberta"
+   ],
+   "description": "Statement of Defence and Counterclaim in the KB Action",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Statement of Defence and Counterclaim."
+    }
+   ],
+   "content_check": "17 pages: Form 11 statement of defence and counterclaim, ABKB 2501-14251"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "2007", "precision": "year", "description": "Wicks became Pulse's VP Finance and CFO", "paragraphs": [1], "quote": "have been in my current role since 2007", "exhibits": []},
-  {"id": "e2", "date": "2012-09-06", "precision": "day", "description": "Whitecap entered its license agreement with Pulse containing the change of control provision", "paragraphs": [24], "quote": "Effective September 6, 2012, Whitecap entered into a license agreement with Pulse", "exhibits": []},
-  {"id": "e3", "date": "2019-01-18", "precision": "day", "description": "Crescent Point declined to license Pulse's 3D dataset at its price and later shot its own 2D program", "paragraphs": [8], "quote": "On January 18, 2019, Crescent Point advised Pulse", "exhibits": ["C"]},
-  {"id": "e4", "date": "2021-05-28", "precision": "day", "description": "Veren (Crescent Point) and Pulse entered the Veren License Agreement", "paragraphs": [23], "quote": "In the May 28, 2021 License Agreement between Veren and Pulse", "exhibits": []},
-  {"id": "e5", "date": "2021", "precision": "year", "description": "Whitecap paid change-of-control fees after acquiring an existing licensee", "paragraphs": [25], "quote": "as a result of acquiring an existing licensee in 2021", "exhibits": []},
-  {"id": "e6", "date": "2024", "precision": "year", "description": "Crescent Point became Veren Inc.", "paragraphs": [3], "quote": "became Veren Inc. (\"Veren\") in 2024", "exhibits": []},
-  {"id": "e7", "date": "2025-05-05", "precision": "day", "description": "Whitecap wrote to Pulse anticipating completion of the Plan of Arrangement on May 12, 2025 and asking for pricing", "paragraphs": [26], "quote": "Whitecap wrote to Pulse on May 5, 2025", "exhibits": ["D"]},
-  {"id": "e8", "date": "2025-05-07", "precision": "day", "description": "Pulse responded with a data breakdown, the Veren License Agreement and its fee calculation", "paragraphs": [27], "quote": "by letter dated May 7, 2025, Pulse", "exhibits": ["E"]},
-  {"id": "e9", "date": "2025", "precision": "year", "description": "Whitecap acquired Veren by plan of arrangement", "paragraphs": [3], "quote": "subsequent amalgamation in 2025", "exhibits": []},
-  {"id": "e10", "date": "2025-09-08", "precision": "day", "description": "Whitecap commenced the KB Action against Pulse", "paragraphs": [30], "quote": "On September 8, 2025, prior to filing this Application with the Tribunal, Whitecap commenced a civil claim", "exhibits": ["F"]},
-  {"id": "e11", "date": "2025-10-01", "precision": "day", "description": "Pulse filed its Statement of Defence and Counterclaim", "paragraphs": [30], "quote": "Statement of Defence and Counterclaim on October 1, 2025", "exhibits": ["G"]},
-  {"id": "e12", "date": "2026-03-19", "precision": "day", "description": "Christian Cardiff swore the affidavit this one responds to", "paragraphs": [2], "quote": "the Affidavit of Christian Cardiff sworn March 19, 2026", "exhibits": []}
- ],
- "referenced_not_attached": ["Affidavit of Christian Cardiff and its exhibits (2025 investor presentation, Veren License Agreement)", "Pulse Master List"],
- "leak_waivers": [],
- "notes": "Public version; Exhibits A and B are fully redacted. Jurat day is hand-written (June 2026). Covers are OCR-garbled, given with --covers. Raw file was downloaded earlier from the CT site (now behind a captcha)."
+  {
+   "id": "e1",
+   "date": "2007",
+   "precision": "year",
+   "description": "Wicks became Pulse's VP Finance and CFO",
+   "paragraphs": [
+    1
+   ],
+   "quote": "have been in my current role since 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2012-09-06",
+   "precision": "day",
+   "description": "Whitecap entered its license agreement with Pulse containing the change of control provision",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Effective September 6, 2012, Whitecap entered into a license agreement with Pulse",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2019-01-18",
+   "precision": "day",
+   "description": "Crescent Point declined to license Pulse's 3D dataset at its price and later shot its own 2D program",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On January 18, 2019, Crescent Point advised Pulse",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2021-05-28",
+   "precision": "day",
+   "description": "Veren (Crescent Point) and Pulse entered the Veren License Agreement",
+   "paragraphs": [
+    23
+   ],
+   "quote": "In the May 28, 2021 License Agreement between Veren and Pulse",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2021",
+   "precision": "year",
+   "description": "Whitecap paid change-of-control fees after acquiring an existing licensee",
+   "paragraphs": [
+    25
+   ],
+   "quote": "as a result of acquiring an existing licensee in 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2024",
+   "precision": "year",
+   "description": "Crescent Point became Veren Inc.",
+   "paragraphs": [
+    3
+   ],
+   "quote": "became Veren Inc. (\"Veren\") in 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2025-05-05",
+   "precision": "day",
+   "description": "Whitecap wrote to Pulse anticipating completion of the Plan of Arrangement on May 12, 2025 and asking for pricing",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Whitecap wrote to Pulse on May 5, 2025",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2025-05-07",
+   "precision": "day",
+   "description": "Pulse responded with a data breakdown, the Veren License Agreement and its fee calculation",
+   "paragraphs": [
+    27
+   ],
+   "quote": "by letter dated May 7, 2025, Pulse",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2025",
+   "precision": "year",
+   "description": "Whitecap acquired Veren by plan of arrangement",
+   "paragraphs": [
+    3
+   ],
+   "quote": "subsequent amalgamation in 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2025-09-08",
+   "precision": "day",
+   "description": "Whitecap commenced the KB Action against Pulse",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On September 8, 2025, prior to filing this Application with the Tribunal, Whitecap commenced a civil claim",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2025-10-01",
+   "precision": "day",
+   "description": "Pulse filed its Statement of Defence and Counterclaim",
+   "paragraphs": [
+    30
+   ],
+   "quote": "Statement of Defence and Counterclaim on October 1, 2025",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2026-03-19",
+   "precision": "day",
+   "description": "Christian Cardiff swore the affidavit this one responds to",
+   "paragraphs": [
+    2
+   ],
+   "quote": "the Affidavit of Christian Cardiff sworn March 19, 2026",
+   "exhibits": []
+  }
+ ]
 }

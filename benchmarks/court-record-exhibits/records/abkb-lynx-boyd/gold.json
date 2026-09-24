@@ -1,0 +1,666 @@
+{
+ "record_id": "abkb-lynx-boyd",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2401-02664 (Calgary)",
+ "subject": "insolvency",
+ "family": "lynx-air",
+ "proceeding": "In the matter of the compromise or arrangement of Lynx Air Holdings Corporation and 1263343 Alberta Inc. dba Lynx Air (CCAA); Greater Toronto Airports Authority's application declaring unremitted Airport Improvement Fees held in trust",
+ "document": "Affidavit of Jason Boyd sworn May 24, 2024",
+ "deponent": "Jason Boyd",
+ "deponent_role": "Corporate Controller, Greater Toronto Airports Authority",
+ "sworn_date": "2024-05-24",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-rwf3zc.pdf",
+   "kind": "agreement",
+   "date": "2022",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [
+    "1263343 Alberta Inc. dba Lynx Air"
+   ],
+   "description": "The Air Carrier - Application for Entry agreement Lynx Air executed to operate at Pearson Airport",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Attached hereto as Exhibit “ A” is a copy of the"
+    }
+   ],
+   "content_check": "17 pages: GTAA 'Air Carrier - Application for Entry, Version 1, Toronto Pearson International Airport' form with table of contents and general identification"
+  },
+  {
+   "label": "B",
+   "file": "doc-rggn4e.pdf",
+   "kind": "letter",
+   "date": "2022-04-05",
+   "author": "Deborah Flint, Greater Toronto Airports Authority",
+   "recipients": [
+    "Merren McArthur, Lynx Air"
+   ],
+   "description": "The Approval Letter approving Lynx Air to operate at Pearson, acknowledged and agreed to by Mr. McArthur",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "is attached hereto as Exhibit “B”"
+    }
+   ],
+   "content_check": "1 page, image only: GTAA letter of April 5, 2022 to Merren McArthur, CEO Lynx Air, re Application for Entry, approving operation at Toronto Pearson, countersigned by McArthur as CEO and President"
+  },
+  {
+   "label": "C",
+   "file": "doc-zq7kq6.pdf",
+   "kind": "other",
+   "date": "2013",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [],
+   "description": "The Toronto Pearson Handbook for Business Partners",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached hereto as Exhibit “C” is"
+    }
+   ],
+   "content_check": "43 pages: Toronto Pearson Handbook for Business Partners, copyright 2013 GTAA (OCR text)"
+  },
+  {
+   "label": "D",
+   "file": "doc-d2b7j8.pdf",
+   "kind": "email",
+   "date": "2023-06-05",
+   "author": "thepearsonstandard@gtaa.com",
+   "recipients": [
+    "Rob Hoffart (Lynx Air), others redacted"
+   ],
+   "description": "The June 5, 2023 email to Lynx Air attaching the GTAA Rules (The Pearson Standard: Rules & Regulations)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "is a copy of the June 5th email attaching the GTAA Rules"
+    }
+   ],
+   "content_check": "33 pages: screenshot of email 'Introducing The Pearson Standard: Rules & Regulations' sent Mon 6/5/2023 (Bcc incl. Rob Hoffart), followed by the Rules & Regulations June 5, 2023 version 1.0"
+  },
+  {
+   "label": "E",
+   "file": "doc-3zsqrj.pdf",
+   "kind": "agreement",
+   "date": "2023-01-01",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [
+    "1263343 Alberta Inc. dba Lynx Air"
+   ],
+   "description": "The amended AIF Agreement dated January 1, 2023, redacted as to the Administration Fee",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "is attached hereto as Exhibit “E” to this affidavit"
+    }
+   ],
+   "content_check": "36 pages: GTAA Airport Improvement Fee Agreement, Toronto-Pearson International Airport, effective date January 1, 2023, carrier 1263343 Alberta Inc. (dba Lynx Air) (OCR text)"
+  },
+  {
+   "label": "F",
+   "file": "doc-qz8yum.pdf",
+   "kind": "other",
+   "date": "2022-10-04",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [],
+   "description": "The GTAA Fee Schedule effective January 1, 2023",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "A copy of the Fee Schedule effective January 1, 2023, attached hereto"
+    }
+   ],
+   "content_check": "3 pages: GTAA aeronautical fees schedule dated October 4, 2022, effective January 1, 2023, incl. other aeronautical charges (PWD curb transfer fee)"
+  },
+  {
+   "label": "G",
+   "file": "doc-j923us.pdf",
+   "kind": "other",
+   "date": "2024-01-01",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [],
+   "description": "The revised Fee Schedule effective January 1, 2024",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "The Fee Schedule was revised effective January 1, 2024, a copy of which is attached"
+    }
+   ],
+   "content_check": "2 pages: Greater Toronto Airports Authority Aeronautical Fees Effective January 1, 2024 (terminal charges, landing fees, AIF)"
+  },
+  {
+   "label": "H",
+   "file": "doc-727gsh.pdf",
+   "kind": "spreadsheet",
+   "date": "2023-06",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [
+    "Lynx Air"
+   ],
+   "description": "Schedule 1-A, the breakdown of the $3,066,113 security deposit calculation",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Attached hereto as Exhibit “H” is a copy of Schedule A-1."
+    }
+   ],
+   "content_check": "2 pages: table by month and sector of aircraft seats, MTOW, landing fees, general terminal charges, apron and check-in fees (security deposit calculation)"
+  },
+  {
+   "label": "I",
+   "file": "doc-zrsftg.pdf",
+   "kind": "letter",
+   "date": "2024-02-16",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [
+    "Mike Woodward, CFO, 1263343 Alberta Inc. dba Lynx Air"
+   ],
+   "description": "The GTAA's Notice of Default of February 16, 2024",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Attached hereto as Exhibit “I” is a copy of the Notice of Default."
+    }
+   ],
+   "content_check": "3 pages: letter dated February 16, 2024 to Mike Woodward, CFO, re Notice of Default - Overdue Aeronautical Fees and Charges and Airport Improvement Fees"
+  },
+  {
+   "label": "J",
+   "file": "doc-625a9c.pdf",
+   "kind": "spreadsheet",
+   "date": "2024-02-22",
+   "author": "GTAA finance department",
+   "recipients": [],
+   "description": "Spreadsheet of the Outstanding Pre-Filing Obligations, including how the Letter of Credit proceeds were applied",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "outlining the Outstanding Pre-Filing Obligations is attached hereto as Exhibit “J”."
+    },
+    {
+     "paragraph": 49,
+     "quote": "is included within Exhibit “J”"
+    }
+   ],
+   "content_check": "1 page: GTAA receivables report for Lynx Air account 00032718 as on 2024-02-22 with outstanding amount, LOC application and remaining balance columns"
+  },
+  {
+   "label": "K",
+   "file": "doc-k8mec2.pdf",
+   "kind": "spreadsheet",
+   "date": "2024-02-22",
+   "author": "GTAA finance department",
+   "recipients": [],
+   "description": "Spreadsheet of the Post-Filing Obligations",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "outlining the Post-Filing Obligations is attached hereto as Exhibit “K”."
+    }
+   ],
+   "content_check": "1 page: GTAA receivables report for Lynx Air account 00032718 with payment application and remaining invoice balance columns"
+  },
+  {
+   "label": "L",
+   "file": "doc-bcd8p2.pdf",
+   "kind": "letter",
+   "date": "2024-02-23",
+   "author": "Greater Toronto Airports Authority",
+   "recipients": [
+    "ATB Financial"
+   ],
+   "description": "The GTAA's February 23, 2024 letter to ATB Financial demanding payment of the full $3,100,000 Letter of Credit",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "Attached hereto as Exhibit “L” is a copy of the February 23, 2024 letter."
+    }
+   ],
+   "content_check": "13 pages, image only: GTAA letter of February 23, 2024 by courier to ATB Financial re Irrevocable Standby Letter of Credit No. 3546141, full drawing CAD$3,100,000, with enclosures"
+  },
+  {
+   "label": "M",
+   "file": "doc-82srgm.pdf",
+   "kind": "letter",
+   "date": "2024-03-05",
+   "author": "Shawn Irving, Osler, Hoskin & Harcourt LLP (for the GTAA)",
+   "recipients": [
+    "Lynx Air",
+    "FTI Consulting (Monitor)",
+    "counsel"
+   ],
+   "description": "The March 5 Letter asserting the GTAA's trust claim over the Unremitted AIF",
+   "references": [
+    {
+     "paragraph": 50,
+     "quote": "Attached hereto as Exhibit “M” is a"
+    }
+   ],
+   "content_check": "8 pages: Osler letter dated March 5, 2024 from Shawn Irving, sent by email"
+  },
+  {
+   "label": "N",
+   "file": "doc-j85669.pdf",
+   "kind": "letter",
+   "date": "2024-03-28",
+   "author": "Shawn Irving, Osler, Hoskin & Harcourt LLP (for the GTAA)",
+   "recipients": [
+    "Lynx Air",
+    "FTI Consulting (Monitor)",
+    "counsel"
+   ],
+   "description": "The March 28 Letter demanding immediate remittance of the Unremitted AIF",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "Attached hereto as Exhibit “N” is a copy of the March 28"
+    }
+   ],
+   "content_check": "2 pages: Osler letter dated March 28, 2024 from Shawn Irving, sent by email"
+  },
+  {
+   "label": "O",
+   "file": "doc-zqjwtq.pdf",
+   "kind": "letter",
+   "date": "2024-04-02",
+   "author": "Tommy Gelbman, Osler, Hoskin & Harcourt LLP (for Lynx Air)",
+   "recipients": [
+    "GTAA and other airport authorities"
+   ],
+   "description": "Lynx Air's April 2 Letter setting out its general position on AIF collected",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "Attached hereto as Exhibit “O” is a copy of the April 2 Letter."
+    }
+   ],
+   "content_check": "2 pages: Osler (Calgary) letter dated April 2, 2024 from Tommy Gelbman"
+  },
+  {
+   "label": "P",
+   "file": "doc-r7yfz5.pdf",
+   "kind": "letter",
+   "date": "2024-04-12",
+   "author": "Tommy Gelbman, Osler, Hoskin & Harcourt LLP (for Lynx Air)",
+   "recipients": [
+    "Greater Toronto Airports Authority"
+   ],
+   "description": "Lynx Air's April 12 Letter giving an individual accounting of the GTAA's AIF trust claim",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "Attached as Exhibit “P” is a copy of the April 12 Letter."
+    }
+   ],
+   "content_check": "3 pages: Osler (Calgary) letter dated April 12, 2024 from Tommy Gelbman"
+  },
+  {
+   "label": "Q",
+   "file": "doc-73db7b.pdf",
+   "kind": "letter",
+   "date": "2024-04-25",
+   "author": "Shawn Irving, Osler, Hoskin & Harcourt LLP (for the GTAA)",
+   "recipients": [
+    "Lynx Air and its counsel"
+   ],
+   "description": "The GTAA's April 25 Letter disputing Lynx Air's allocation of the Letter of Credit",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "Attached as Exhibit “Q” is a copy"
+    }
+   ],
+   "content_check": "6 pages: Osler letter dated April 25, 2024 from Shawn Irving, sent by email"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "GTAA's Ground Lease of Pearson Airport with the Crown",
+   "date": "1996-12-02",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Ground Lease dated December 2, 1996",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Lynx Air applies to operate at Pearson and executes the Application for Entry",
+   "date": "2022",
+   "precision": "approximate",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "In early 2022, Lynx Air applied to operate an air carrier service at Pearson Airport.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "GTAA approves Lynx Air to operate at Pearson (Approval Letter)",
+   "date": "2022-04-05",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On April 5, 2022, the GTAA wrote to Lynx Air to advise that",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Lynx Air first signs an AIF Agreement and commences operating at Pearson",
+   "date": "2022-04-11",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    14,
+    23
+   ],
+   "quote": "On April 11, 2022, Lynx Air first signed an AIF Agreement.",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Lynx Air provides the $500,000 ATB Letter of Credit",
+   "date": "2022-04-12",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On April 12, 2022, Lynx Air provided the GTAA with a security deposit",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Fee Schedule effective January 1, 2023 provided to Lynx Air",
+   "date": "2023-01-01",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Fee Schedule effective January 1, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Amended AIF Agreement dated January 1, 2023",
+   "date": "2023-01-01",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "the parties signed an amended AIF \nagreement dated January 1, 2023",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Pearson Handbook superseded by the Pearson Standard: Rules and Regulations",
+   "date": "2023-06-01",
+   "precision": "approximate",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about June 1, 2023, the Pearson Handbook was superseded",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "GTAA Rules emailed to Lynx Air",
+   "date": "2023-06-05",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "from thepearsonstandard@gtaa.com on June 5, 2023",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "GTAA reassesses security deposit at $3,066,113 and sends Schedule 1-A",
+   "date": "2023-06",
+   "precision": "month",
+   "paragraphs": [
+    33
+   ],
+   "quote": "In early June 2023, the GTAA re-assessed the quantum of the security deposit",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Letter of Credit increased from $2,950,000 to $3,100,000 (last amendment)",
+   "date": "2023-06-05",
+   "precision": "day",
+   "paragraphs": [
+    32,
+    34
+   ],
+   "quote": "The Letter of Credit was amended and increased from $2,950,000 to $3,100,000",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Lynx Air falls into arrears; GTAA begins emailing payment demands",
+   "date": "2023-10",
+   "precision": "month",
+   "paragraphs": [
+    36,
+    37
+   ],
+   "quote": "In or about October 2023, Lynx Air started falling into arrears",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Fee Schedule revised effective January 1, 2024",
+   "date": "2024-01-01",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "The Fee Schedule was revised effective January 1, 2024",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "GTAA sends Notice of Default demanding payment by February 21",
+   "date": "2024-02-16",
+   "precision": "day",
+   "paragraphs": [
+    38,
+    39
+   ],
+   "quote": "On February 16, 2024, the GTAA sent a letter to Lynx Air providing notice",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Lynx Air fails to cure the defaults by the deadline",
+   "date": "2024-02-21",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Lynx Air did not provide a response to the Notice of Default and failed to cure the Defaults",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Initial Order under the CCAA granted; $4,759,580.87 owing to the GTAA",
+   "date": "2024-02-22",
+   "precision": "day",
+   "paragraphs": [
+    9,
+    41,
+    42
+   ],
+   "quote": "On February 22, 2024, Lynx Air and Lynx Holdco sought and obtained an initial order",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Lynx Air pays $187,784.00 toward Post-Filing Obligations",
+   "date": "2024-02-23",
+   "precision": "approximate",
+   "paragraphs": [
+    44
+   ],
+   "quote": "Lynx Air made payment to the GTAA in the amount of $187,784.00",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "GTAA demands payment of the full Letter of Credit from ATB Financial",
+   "date": "2024-02-23",
+   "precision": "day",
+   "paragraphs": [
+    45
+   ],
+   "quote": "on February 23, 2024, the \nGTAA sent a letter to ATB Financial",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Lynx Air's last flight from Pearson",
+   "date": "2024-02-25",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Lynx Air’s last flight from Pearson Airport took place on February 25, 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "GTAA receives $3,100,000 under the Letter of Credit and applies it first to Aeronautical Fees",
+   "date": "2024-02-29",
+   "precision": "day",
+   "paragraphs": [
+    46,
+    47,
+    48
+   ],
+   "quote": "On February 29, 2024, the GTAA received $3,100,000 in respect of the Letter of Credit.",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Amended and Restated Initial Order granted",
+   "date": "2024-03-01",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "On March 1, 2024, \nthe Court granted an Amended and Restated Initial Order",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "GTAA asserts its trust claim over the Unremitted AIF (March 5 Letter)",
+   "date": "2024-03-05",
+   "precision": "day",
+   "paragraphs": [
+    50
+   ],
+   "quote": "On March 5, 2024, the GTAA, through its local counsel, wrote to Lynx Air",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "GTAA reiterates trust claim and demands remittance (March 28 Letter)",
+   "date": "2024-03-28",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "On March 28, 2024, the GTAA, through its local counsel, sent another letter",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Lynx Air responds to the airport authorities (April 2 Letter)",
+   "date": "2024-04-02",
+   "precision": "day",
+   "paragraphs": [
+    52
+   ],
+   "quote": "On April 2, 2024, Lynx Air responded to the GTAA",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Lynx Air provides its individual accounting, conceding the trust but saying nothing remains owing (April 12 Letter)",
+   "date": "2024-04-12",
+   "precision": "day",
+   "paragraphs": [
+    53
+   ],
+   "quote": "On April 12, 2024, Lynx Air provided the GTAA with a so-called “individual accounting”",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "GTAA disputes Lynx Air's allocation of the Letter of Credit (April 25 Letter)",
+   "date": "2024-04-25",
+   "precision": "day",
+   "paragraphs": [
+    54
+   ],
+   "quote": "On April 25, 2024, the GTAA, through its local counsel, responded to the April 12 Letter",
+   "exhibits": [
+    "Q"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Ground Lease dated December 2, 1996",
+  "Initial Order (February 22, 2024)",
+  "Amended and Restated Initial Order (March 1, 2024)",
+  "Original AIF agreement signed April 11, 2022",
+  "October 2023 onward GTAA payment-demand emails"
+ ],
+ "leak_waivers": [],
+ "notes": "The affidavit's last page is an exhibit tab list naming each exhibit's short title. Exhibits B and L are image-only scans. Family lynx-air (Brigley, Woodward, Watts, Lisun)."
+}

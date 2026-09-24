@@ -9,6 +9,12 @@
  "deponent": "Seung Hwoo Kim",
  "deponent_role": "Concentrates Trading Assistant, Glencore Canada Corporation",
  "sworn_date": "2024-10-01",
+ "referenced_not_attached": [
+  "Section 21 of the Offtake Agreements (set-off clause)"
+ ],
+ "leak_waivers": [],
+ "notes": "Image-only affidavit pages OCR'd with --ocr-affidavit; exhibits carry a poor OCR text layer. Paragraph 19 says US$1 129,129.60 (OCR). Exhibit G's notice date OCRs as 'April 1.1, 2023'; the affidavit dates it April 14, 2023. OCR lost the numbers of paragraphs 7 ('if') and 17 ('ihe'); their exhibit references carry paragraph null, events keep 7 and 17.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -377,10 +383,5 @@
     "H"
    ]
   }
- ],
- "referenced_not_attached": [
-  "Section 21 of the Offtake Agreements (set-off clause)"
- ],
- "leak_waivers": [],
- "notes": "Image-only affidavit pages OCR'd with --ocr-affidavit; exhibits carry a poor OCR text layer. Paragraph 19 says US$1 129,129.60 (OCR). Exhibit G's notice date OCRs as 'April 1.1, 2023'; the affidavit dates it April 14, 2023. OCR lost the numbers of paragraphs 7 ('if') and 17 ('ihe'); their exhibit references carry paragraph null, events keep 7 and 17."
+ ]
 }

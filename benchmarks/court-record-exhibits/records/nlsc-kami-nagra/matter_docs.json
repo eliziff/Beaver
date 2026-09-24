@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/nlsc-kami-nagra/nagra-2-2020-06-03.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/PublishingImages/Pages/Kami-Mine/4.%20Affidavit%20of%20Narinder%20Nagra%20No.%202,%20sworn%20June%203,%202020.pdf",
+  "title": "Affidavit of Narinder Nagra No. 2 sworn June 3, 2020 (no exhibits)",
+  "kind": "affidavit",
+  "relation": "later affidavit of the same deponent in the same application"
+ },
+ {
+  "file": "raw/matter/nlsc-kami-nagra/nagra-3-2020-06-04.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/PublishingImages/Pages/Kami-Mine/5.%20Affidavit%20of%20Narinder%20Nagra%20No.%203,%20sworn%20June%204,%202020.pdf",
+  "title": "Affidavit of Narinder Nagra No. 3 sworn June 4, 2020 (no exhibits)",
+  "kind": "affidavit",
+  "relation": "later affidavit of the same deponent"
+ },
+ {
+  "file": "raw/matter/nlsc-kami-nagra/receiver-notice-2020-06-30.pdf",
+  "url": "https://www.insolvencies.deloitte.ca/en-ca/PublishingImages/Pages/Kami-Mine/Notice%20and%20Statement%20of%20the%20Receiver,%20dated%20June%2030,%202020.pdf",
+  "title": "Notice and Statement of the Receiver, June 30, 2020",
+  "kind": "notice",
+  "relation": "receiver's statutory notice after appointment"
+ }
+]

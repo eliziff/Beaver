@@ -87,7 +87,7 @@ def audit(rid):
         if lab in labels or lab == "S":
             continue
         ctx = fold(aff_raw[max(0, m.start() - 160):m.end() + 60])
-        if re.search(r"affidavit of|report|to the .{0,40}affidavit|appendix|schedule|tab \d|motion record|application record", ctx) or f"exhibit {lab.lower()}" in explained:
+        if re.search(r"affidavit of|report|(?:to|of) (?:the|my) .{0,40}affidavit|appendix|schedule|tab \d|motion record|application record", ctx) or f"exhibit {lab.lower()}" in explained:
             continue
         findings.append(("mentions", f"affidavit mentions Exhibit {lab} but gold has no such exhibit: …{ctx[-150:]}"))
     paras = paragraphs(aff_raw)

@@ -81,5 +81,8 @@
    "text_chars": 20714
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-6fxekt.pdf"
+ ]
 }

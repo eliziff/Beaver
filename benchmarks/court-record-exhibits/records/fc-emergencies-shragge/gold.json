@@ -9,6 +9,13 @@
  "deponent": "Steven Shragge",
  "deponent_role": "Senior Policy Advisor, Privy Council Office, Security and Intelligence Secretariat",
  "sworn_date": "2022-04-04",
+ "referenced_not_attached": [
+  "Proclamation Declaring a Public Order Emergency",
+  "Emergency Measures Regulations SOR/2022-21 and Emergency Economic Measures Order SOR/2022-22"
+ ],
+ "leak_waivers": [],
+ "notes": "Posted by CCLA (ccla.org needs a browser UA and Referer). The text layer displaces some paragraph numbers from their paragraphs. 2 of max 3 for the consolidated proceeding (with fc-emergencies-beaudoin).",
+ "subject": "charter",
  "exhibits": [
   {
    "label": "A",
@@ -204,11 +211,5 @@
    "quote": "On February 23, 2022, the declaration of a public order emergency under the Emergencies Act was revoked.",
    "exhibits": []
   }
- ],
- "referenced_not_attached": [
-  "Proclamation Declaring a Public Order Emergency",
-  "Emergency Measures Regulations SOR/2022-21 and Emergency Economic Measures Order SOR/2022-22"
- ],
- "leak_waivers": [],
- "notes": "Posted by CCLA (ccla.org needs a browser UA and Referer). The text layer displaces some paragraph numbers from their paragraphs. 2 of max 3 for the consolidated proceeding (with fc-emergencies-beaudoin)."
+ ]
 }

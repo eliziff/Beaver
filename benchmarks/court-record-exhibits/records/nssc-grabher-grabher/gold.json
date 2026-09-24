@@ -9,41 +9,457 @@
  "deponent": "Lorne Wayne Grabher",
  "deponent_role": "Applicant",
  "sworn_date": "2017-11",
+ "referenced_not_attached": [
+  "The anonymous complaint about the plate"
+ ],
+ "leak_waivers": [],
+ "notes": "Scanned record with handwritten/stamped covers; all 17 covers given by eye (--covers). The affidavit's text layer reads Exhibit B as \"8\". Jurat day is illegible in the scan; filed November 1, 2017.",
+ "subject": "charter",
  "exhibits": [
-  {"label": "A", "file": "doc-skqywz.pdf", "kind": "photograph", "date": null, "author": null, "recipients": [], "description": "Picture of the son's identical Alberta licence plate", "references": [{"paragraph": 5, "quote": "Attached to this Affidavit as Exhibit \"A\" is a picture of the Alberta Plate."}], "content_check": "1 image-only page: photograph of the Alberta plate"},
-  {"label": "B", "file": "doc-hjh6qh.pdf", "kind": "letter", "date": "2016-12-09", "author": "Office of the Registrar of Motor Vehicles, Nova Scotia", "recipients": ["Lorne Wayne Grabher"], "description": "Registrar's December 9, 2016 letter reporting a complaint and cancelling the plate", "references": [{"paragraph": 7, "quote": "is the letter of December 9, 2016"}], "content_check": "NS Transportation and Infrastructure Renewal, RMV letter dated December 9, 2016 re cancellation of personalized plate GRABHER (affidavit's OCR text calls it Exhibit \"8\")"},
-  {"label": "C", "file": "doc-5gzrrw.pdf", "kind": "letter", "date": "2016-12-20", "author": "Office of the Registrar of Motor Vehicles, Nova Scotia", "recipients": ["Lorne Wayne Grabher"], "description": "December 20, 2016 letter confirming the plate would be cancelled", "references": [{"paragraph": 8, "quote": "This letter is attached to my Affidavit as Exhibit \"C\"."}], "content_check": "RMV letter dated December 20, 2016 to Grabher"},
-  {"label": "D", "file": "doc-ucttsb.pdf", "kind": "letter", "date": "2017-03-31", "author": "Justice Centre for Constitutional Freedoms", "recipients": ["Janice Harland, Registrar of Motor Vehicles"], "description": "Counsel's March 31, 2017 letter warning that removal of the plate infringed Charter freedoms", "references": [{"paragraph": 8, "quote": "Attached to my Affidavit as Exhibit \"D\" is the letter of my counsel"}], "content_check": "3 pages: JCCF letter dated March 31, 2017 to Janice Harland, demanding confirmation by April 6, 2017"},
-  {"label": "E", "file": "doc-s4x5mt.pdf", "kind": "letter", "date": "2017-04-06", "author": "Office of the Registrar of Motor Vehicles, Nova Scotia", "recipients": ["John Carpay, JCCF"], "description": "Registrar's April 6, 2017 letter saying the December 9, 2016 decision was final", "references": [{"paragraph": 8, "quote": "Exhibit \"E\" is the letter of April 6, 2017, from the Respondent"}], "content_check": "RMV letter dated April 6, 2017 to Mr. John Carpay"},
-  {"label": "F", "file": "doc-4enaa9.pdf", "kind": "other", "date": null, "author": "Halifax Water", "recipients": [], "description": "Halifax Water bus advertisement 'Our minds are in the gutter.'", "references": [{"paragraph": 13, "quote": "(advertisement attached hereto as Exhibit \"F\")"}], "content_check": "Image: 'Our minds are in the gutter. We keep stormwater in check.' Halifax Water ad"},
-  {"label": "G", "file": "doc-5rp5bm.pdf", "kind": "other", "date": null, "author": "Halifax Water", "recipients": [], "description": "Halifax Water bus advertisement 'Be proud of your Dingle.'", "references": [{"paragraph": 13, "quote": "(advertisement attached hereto as Exhibit \"G\")"}], "content_check": "Image: 'Be proud of your Dingle. A clean harbour means the beach is open.'"},
-  {"label": "H", "file": "doc-dzj98t.pdf", "kind": "photograph", "date": null, "author": "Halifax Water", "recipients": [], "description": "'Powerful sh*t' advertisement and a picture of it on a Halifax Transit bus", "references": [{"paragraph": 13, "quote": "(advertisement and picture of advertisement on a Halifax Transit bus attached hereto as Exhibit \"H\")"}], "content_check": "2 pages: 'Powerful sh*t. We turn wastewater into energy.' ad and photo of a Halifax Transit bus"},
-  {"label": "I", "file": "doc-gjnqrk.pdf", "kind": "email", "date": "2017-09-28", "author": "James Campbell, Halifax Water", "recipients": ["Tracey Grabher"], "description": "Halifax Water's September 28, 2017 email explaining the busboards' intent", "references": [{"paragraph": 14, "quote": "In an email dated September 28, 2017 (attached to this Affidavit as Exhibit \"I\")"}], "content_check": "2 pages: JCCF mail printout 10/30/2017 of James Campbell's email of September 28, 2017"},
-  {"label": "J", "file": "doc-ybw6kq.pdf", "kind": "webpage", "date": null, "author": "Google Maps; Wikipedia", "recipients": [], "description": "Map and description of Dildo, Newfoundland", "references": [{"paragraph": 16, "quote": "(map and description attached as Exhibit \"J\")"}], "content_check": "2 pages: Google Maps screenshot and Wikipedia article printout"},
-  {"label": "K", "file": "doc-67kxvs.pdf", "kind": "webpage", "date": null, "author": "Google Maps; NL government", "recipients": [], "description": "Map and description of Blow Me Down Provincial Park, Newfoundland", "references": [{"paragraph": 16, "quote": "(map and description attached as Exhibit \"K\")"}], "content_check": "2 pages: Google Maps 'Blow Me Down Provincial Park' and a government parks page"},
-  {"label": "L", "file": "doc-6hbj7e.pdf", "kind": "webpage", "date": null, "author": "Google Maps; Frontenac Park Lands", "recipients": [], "description": "Map and description of Crotch Lake, Ontario", "references": [{"paragraph": 16, "quote": "(map and description attached as Exhibit \"L\")"}], "content_check": "2 pages: Google Maps Crotch Lake and North Frontenac Park Lands page"},
-  {"label": "M", "file": "doc-xxs9jk.pdf", "kind": "webpage", "date": null, "author": "Google Maps; Wikipedia", "recipients": [], "description": "Map and description of Old Squaw Islands, Nunavut", "references": [{"paragraph": 17, "quote": "(map and description attached as Exhibit \"M\")"}], "content_check": "2 pages: Google Maps (Baffin, Nunavut) and Wikipedia printout"},
-  {"label": "N", "file": "doc-r57had.pdf", "kind": "webpage", "date": null, "author": "Google Maps; Wikipedia", "recipients": [], "description": "Map and description of Red Indian Lake, Newfoundland", "references": [{"paragraph": 17, "quote": "(map and description attached as"}], "content_check": "2 pages: Google Maps Red Indian Lake and Wikipedia Red_Indian_Lake"},
-  {"label": "O", "file": "doc-ceydxz.pdf", "kind": "webpage", "date": null, "author": "Google Maps; Wikipedia", "recipients": [], "description": "Map and description of Swastika, Ontario", "references": [{"paragraph": 18, "quote": "(map and description attached as Exhibit \"O\")"}], "content_check": "2 pages: Google Maps Swastika, Kirkland Lake ON and Wikipedia Swastika,_Ontario"},
-  {"label": "P", "file": "doc-efzm7t.pdf", "kind": "webpage", "date": null, "author": "Google Maps", "recipients": [], "description": "Map and image of the government sign for Sandy Hook, Manitoba", "references": [{"paragraph": 18, "quote": "(map and image of government identification sign attached as Exhibit \"P\")"}], "content_check": "2 pages: Google Maps Sandy Hook with sign image"},
-  {"label": "Q", "file": "doc-qthzkt.pdf", "kind": "other", "date": "2017-01-31", "author": "Tristin Hopper, National Post", "recipients": [], "description": "January 31, 2017 National Post article on Swastika, Ontario refusing to rename", "references": [{"paragraph": 19, "quote": "(see the January 31, 2017 National Post article attached as Exhibit \"Q\")"}], "content_check": "1 page: National Post, January 31, 2017, by Tristin Hopper, on the people of Swastika"}
+  {
+   "label": "A",
+   "file": "doc-skqywz.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Picture of the son's identical Alberta licence plate",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached to this Affidavit as Exhibit \"A\" is a picture of the Alberta Plate."
+    }
+   ],
+   "content_check": "1 image-only page: photograph of the Alberta plate"
+  },
+  {
+   "label": "B",
+   "file": "doc-hjh6qh.pdf",
+   "kind": "letter",
+   "date": "2016-12-09",
+   "author": "Office of the Registrar of Motor Vehicles, Nova Scotia",
+   "recipients": [
+    "Lorne Wayne Grabher"
+   ],
+   "description": "Registrar's December 9, 2016 letter reporting a complaint and cancelling the plate",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "is the letter of December 9, 2016"
+    }
+   ],
+   "content_check": "NS Transportation and Infrastructure Renewal, RMV letter dated December 9, 2016 re cancellation of personalized plate GRABHER (affidavit's OCR text calls it Exhibit \"8\")"
+  },
+  {
+   "label": "C",
+   "file": "doc-5gzrrw.pdf",
+   "kind": "letter",
+   "date": "2016-12-20",
+   "author": "Office of the Registrar of Motor Vehicles, Nova Scotia",
+   "recipients": [
+    "Lorne Wayne Grabher"
+   ],
+   "description": "December 20, 2016 letter confirming the plate would be cancelled",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "This letter is attached to my Affidavit as Exhibit \"C\"."
+    }
+   ],
+   "content_check": "RMV letter dated December 20, 2016 to Grabher"
+  },
+  {
+   "label": "D",
+   "file": "doc-ucttsb.pdf",
+   "kind": "letter",
+   "date": "2017-03-31",
+   "author": "Justice Centre for Constitutional Freedoms",
+   "recipients": [
+    "Janice Harland, Registrar of Motor Vehicles"
+   ],
+   "description": "Counsel's March 31, 2017 letter warning that removal of the plate infringed Charter freedoms",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached to my Affidavit as Exhibit \"D\" is the letter of my counsel"
+    }
+   ],
+   "content_check": "3 pages: JCCF letter dated March 31, 2017 to Janice Harland, demanding confirmation by April 6, 2017"
+  },
+  {
+   "label": "E",
+   "file": "doc-s4x5mt.pdf",
+   "kind": "letter",
+   "date": "2017-04-06",
+   "author": "Office of the Registrar of Motor Vehicles, Nova Scotia",
+   "recipients": [
+    "John Carpay, JCCF"
+   ],
+   "description": "Registrar's April 6, 2017 letter saying the December 9, 2016 decision was final",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Exhibit \"E\" is the letter of April 6, 2017, from the Respondent"
+    }
+   ],
+   "content_check": "RMV letter dated April 6, 2017 to Mr. John Carpay"
+  },
+  {
+   "label": "F",
+   "file": "doc-4enaa9.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Halifax Water",
+   "recipients": [],
+   "description": "Halifax Water bus advertisement 'Our minds are in the gutter.'",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "(advertisement attached hereto as Exhibit \"F\")"
+    }
+   ],
+   "content_check": "Image: 'Our minds are in the gutter. We keep stormwater in check.' Halifax Water ad"
+  },
+  {
+   "label": "G",
+   "file": "doc-5rp5bm.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Halifax Water",
+   "recipients": [],
+   "description": "Halifax Water bus advertisement 'Be proud of your Dingle.'",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "(advertisement attached hereto as Exhibit \"G\")"
+    }
+   ],
+   "content_check": "Image: 'Be proud of your Dingle. A clean harbour means the beach is open.'"
+  },
+  {
+   "label": "H",
+   "file": "doc-dzj98t.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "Halifax Water",
+   "recipients": [],
+   "description": "'Powerful sh*t' advertisement and a picture of it on a Halifax Transit bus",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "(advertisement and picture of advertisement on a Halifax Transit bus attached hereto as Exhibit \"H\")"
+    }
+   ],
+   "content_check": "2 pages: 'Powerful sh*t. We turn wastewater into energy.' ad and photo of a Halifax Transit bus"
+  },
+  {
+   "label": "I",
+   "file": "doc-gjnqrk.pdf",
+   "kind": "email",
+   "date": "2017-09-28",
+   "author": "James Campbell, Halifax Water",
+   "recipients": [
+    "Tracey Grabher"
+   ],
+   "description": "Halifax Water's September 28, 2017 email explaining the busboards' intent",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "In an email dated September 28, 2017 (attached to this Affidavit as Exhibit \"I\")"
+    }
+   ],
+   "content_check": "2 pages: JCCF mail printout 10/30/2017 of James Campbell's email of September 28, 2017"
+  },
+  {
+   "label": "J",
+   "file": "doc-ybw6kq.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps; Wikipedia",
+   "recipients": [],
+   "description": "Map and description of Dildo, Newfoundland",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "(map and description attached as Exhibit \"J\")"
+    }
+   ],
+   "content_check": "2 pages: Google Maps screenshot and Wikipedia article printout"
+  },
+  {
+   "label": "K",
+   "file": "doc-67kxvs.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps; NL government",
+   "recipients": [],
+   "description": "Map and description of Blow Me Down Provincial Park, Newfoundland",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "(map and description attached as Exhibit \"K\")"
+    }
+   ],
+   "content_check": "2 pages: Google Maps 'Blow Me Down Provincial Park' and a government parks page"
+  },
+  {
+   "label": "L",
+   "file": "doc-6hbj7e.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps; Frontenac Park Lands",
+   "recipients": [],
+   "description": "Map and description of Crotch Lake, Ontario",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "(map and description attached as Exhibit \"L\")"
+    }
+   ],
+   "content_check": "2 pages: Google Maps Crotch Lake and North Frontenac Park Lands page"
+  },
+  {
+   "label": "M",
+   "file": "doc-xxs9jk.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps; Wikipedia",
+   "recipients": [],
+   "description": "Map and description of Old Squaw Islands, Nunavut",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "(map and description attached as Exhibit \"M\")"
+    }
+   ],
+   "content_check": "2 pages: Google Maps (Baffin, Nunavut) and Wikipedia printout"
+  },
+  {
+   "label": "N",
+   "file": "doc-r57had.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps; Wikipedia",
+   "recipients": [],
+   "description": "Map and description of Red Indian Lake, Newfoundland",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "(map and description attached as"
+    }
+   ],
+   "content_check": "2 pages: Google Maps Red Indian Lake and Wikipedia Red_Indian_Lake"
+  },
+  {
+   "label": "O",
+   "file": "doc-ceydxz.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps; Wikipedia",
+   "recipients": [],
+   "description": "Map and description of Swastika, Ontario",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "(map and description attached as Exhibit \"O\")"
+    }
+   ],
+   "content_check": "2 pages: Google Maps Swastika, Kirkland Lake ON and Wikipedia Swastika,_Ontario"
+  },
+  {
+   "label": "P",
+   "file": "doc-efzm7t.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Google Maps",
+   "recipients": [],
+   "description": "Map and image of the government sign for Sandy Hook, Manitoba",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "(map and image of government identification sign attached as Exhibit \"P\")"
+    }
+   ],
+   "content_check": "2 pages: Google Maps Sandy Hook with sign image"
+  },
+  {
+   "label": "Q",
+   "file": "doc-qthzkt.pdf",
+   "kind": "other",
+   "date": "2017-01-31",
+   "author": "Tristin Hopper, National Post",
+   "recipients": [],
+   "description": "January 31, 2017 National Post article on Swastika, Ontario refusing to rename",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "(see the January 31, 2017 National Post article attached as Exhibit \"Q\")"
+    }
+   ],
+   "content_check": "1 page: National Post, January 31, 2017, by Tristin Hopper, on the people of Swastika"
+  }
  ],
  "events": [
-  {"id": "e1", "date": "1906", "precision": "year", "description": "Deponent's father's family immigrates to Canada", "paragraphs": [1], "quote": "My father's family immigrated to Canada in 1906", "exhibits": []},
-  {"id": "e2", "date": "2007", "precision": "year", "description": "Deponent and wife live in Dartmouth since 2007", "paragraphs": [2], "quote": "My wife and I have lived in Dartmouth, Nova Scotia since 2007.", "exhibits": []},
-  {"id": "e3", "date": "1990", "precision": "approximate", "description": "Family applies for and obtains the GRABHER personalized plate as a gift for the father", "paragraphs": [4], "quote": "Approximately 27 years ago, in or around 1990, my family applied to the Respondent Registrar of Motor Vehicles", "exhibits": []},
-  {"id": "e4", "date": null, "precision": "undated", "description": "Son obtains an identical Alberta plate after moving to Alberta", "paragraphs": [5], "quote": "When my son moved to Alberta from Nova Scotia, he applied for and obtained another license plate identical to the Plate", "exhibits": ["A"]},
-  {"id": "e5", "date": "2016-12-09", "precision": "day", "description": "Registrar notifies of a complaint and cancels the plate as of January 13, 2017", "paragraphs": [7], "quote": "By letter dated December 9, 2016, I was notified by the Respondent's Office of the Registrar of Motor Vehicles", "exhibits": ["B"]},
-  {"id": "e6", "date": "2016-12-20", "precision": "day", "description": "Registrar confirms the plate will be cancelled", "paragraphs": [8], "quote": "By letter dated December 20, 2016, the Respondent informed me that the Plate would indeed be cancelled.", "exhibits": ["C"]},
-  {"id": "e7", "date": "2017-01-12", "precision": "approximate", "description": "Plate cancelled", "paragraphs": [8], "quote": "The Plate was cancelled by the Respondent on or about January 12, 2017.", "exhibits": []},
-  {"id": "e8", "date": "2017-03-31", "precision": "day", "description": "Counsel writes that removal of the plate infringes Charter freedoms", "paragraphs": [8], "quote": "Respondent of March 31, 2017", "exhibits": ["D"]},
-  {"id": "e9", "date": "2017-04-06", "precision": "day", "description": "Registrar replies that the December 9, 2016 decision is final", "paragraphs": [8], "quote": "the letter of April 6, 2017, from the Respondent saying the December 9, 2016 letter was final", "exhibits": ["E"]},
-  {"id": "e10", "date": "2017", "precision": "approximate", "description": "Halifax Water runs sexually suggestive advertisements on Halifax Transit buses", "paragraphs": [13], "quote": "recent advertisements placed on Halifax transit buses by Halifax Water include the following", "exhibits": ["F", "G", "H"]},
-  {"id": "e11", "date": "2017-09-28", "precision": "day", "description": "Halifax Water's James Campbell explains the busboards were not meant to offend", "paragraphs": [14], "quote": "In an email dated September 28, 2017", "exhibits": ["I"]},
-  {"id": "e12", "date": "2017-01-31", "precision": "day", "description": "National Post reports Swastika, Ontario refused to rename", "paragraphs": [19], "quote": "January 31, 2017 National Post article", "exhibits": ["Q"]},
-  {"id": "e13", "date": "2012", "precision": "year", "description": "Sandy Hook Elementary School shooting in the United States", "paragraphs": [20], "quote": "the tragic school shooting that took place at Sandy Hook Elementary School in 2012", "exhibits": []}
- ],
- "referenced_not_attached": ["The anonymous complaint about the plate"],
- "leak_waivers": [],
- "notes": "Scanned record with handwritten/stamped covers; all 17 covers given by eye (--covers). The affidavit's text layer reads Exhibit B as \"8\". Jurat day is illegible in the scan; filed November 1, 2017."
+  {
+   "id": "e1",
+   "date": "1906",
+   "precision": "year",
+   "description": "Deponent's father's family immigrates to Canada",
+   "paragraphs": [
+    1
+   ],
+   "quote": "My father's family immigrated to Canada in 1906",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2007",
+   "precision": "year",
+   "description": "Deponent and wife live in Dartmouth since 2007",
+   "paragraphs": [
+    2
+   ],
+   "quote": "My wife and I have lived in Dartmouth, Nova Scotia since 2007.",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "1990",
+   "precision": "approximate",
+   "description": "Family applies for and obtains the GRABHER personalized plate as a gift for the father",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Approximately 27 years ago, in or around 1990, my family applied to the Respondent Registrar of Motor Vehicles",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": null,
+   "precision": "undated",
+   "description": "Son obtains an identical Alberta plate after moving to Alberta",
+   "paragraphs": [
+    5
+   ],
+   "quote": "When my son moved to Alberta from Nova Scotia, he applied for and obtained another license plate identical to the Plate",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2016-12-09",
+   "precision": "day",
+   "description": "Registrar notifies of a complaint and cancels the plate as of January 13, 2017",
+   "paragraphs": [
+    7
+   ],
+   "quote": "By letter dated December 9, 2016, I was notified by the Respondent's Office of the Registrar of Motor Vehicles",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2016-12-20",
+   "precision": "day",
+   "description": "Registrar confirms the plate will be cancelled",
+   "paragraphs": [
+    8
+   ],
+   "quote": "By letter dated December 20, 2016, the Respondent informed me that the Plate would indeed be cancelled.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2017-01-12",
+   "precision": "approximate",
+   "description": "Plate cancelled",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The Plate was cancelled by the Respondent on or about January 12, 2017.",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2017-03-31",
+   "precision": "day",
+   "description": "Counsel writes that removal of the plate infringes Charter freedoms",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Respondent of March 31, 2017",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2017-04-06",
+   "precision": "day",
+   "description": "Registrar replies that the December 9, 2016 decision is final",
+   "paragraphs": [
+    8
+   ],
+   "quote": "the letter of April 6, 2017, from the Respondent saying the December 9, 2016 letter was final",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2017",
+   "precision": "approximate",
+   "description": "Halifax Water runs sexually suggestive advertisements on Halifax Transit buses",
+   "paragraphs": [
+    13
+   ],
+   "quote": "recent advertisements placed on Halifax transit buses by Halifax Water include the following",
+   "exhibits": [
+    "F",
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2017-09-28",
+   "precision": "day",
+   "description": "Halifax Water's James Campbell explains the busboards were not meant to offend",
+   "paragraphs": [
+    14
+   ],
+   "quote": "In an email dated September 28, 2017",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2017-01-31",
+   "precision": "day",
+   "description": "National Post reports Swastika, Ontario refused to rename",
+   "paragraphs": [
+    19
+   ],
+   "quote": "January 31, 2017 National Post article",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2012",
+   "precision": "year",
+   "description": "Sandy Hook Elementary School shooting in the United States",
+   "paragraphs": [
+    20
+   ],
+   "quote": "the tragic school shooting that took place at Sandy Hook Elementary School in 2012",
+   "exhibits": []
+  }
+ ]
 }

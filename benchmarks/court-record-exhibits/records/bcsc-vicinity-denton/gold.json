@@ -9,6 +9,10 @@
  "deponent": "Chelsea Denton",
  "deponent_role": "Legal assistant, Dentons Canada LLP, solicitors for Royal Bank of Canada",
  "sworn_date": "2024-10-16",
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Search-results affidavit; the affidavit pages are scans OCR'd with --ocr-affidavit. Exhibit L's cover omits the deponent's name, so all covers were given with --covers.",
+ "subject": "insolvency",
  "exhibits": [
   {
    "label": "A",
@@ -272,8 +276,5 @@
     "L"
    ]
   }
- ],
- "referenced_not_attached": [],
- "leak_waivers": [],
- "notes": "Search-results affidavit; the affidavit pages are scans OCR'd with --ocr-affidavit. Exhibit L's cover omits the deponent's name, so all covers were given with --covers."
+ ]
 }

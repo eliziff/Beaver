@@ -1,0 +1,369 @@
+{
+ "record_id": "onsc-bill7-mehra",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00698007-0000",
+ "subject": "charter",
+ "family": "ohc-bill7-charter",
+ "proceeding": "Ontario Health Coalition and Advocacy Centre for the Elderly v. His Majesty the King in right of Ontario: Charter application challenging Bill 7 (More Beds, Better Care Act, 2022)",
+ "document": "Affidavit of Natalie Mehra affirmed April 11, 2023",
+ "deponent": "Natalie Mehra",
+ "deponent_role": "Executive Director, Ontario Health Coalition (co-applicant)",
+ "sworn_date": "2023-04-11",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-6g8udu.pdf",
+   "kind": "other",
+   "date": "2023-03",
+   "author": "Natalie Mehra",
+   "recipients": [],
+   "description": "Brief summary of Mehra's work with the Coalition",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached hereto as Exhibit “A” is a brief summary of my work with the Coalition."
+    }
+   ],
+   "content_check": "3 pages: 'Natalie Mehra - biographical details - March 2023'"
+  },
+  {
+   "label": "B",
+   "file": "doc-zkd2u6.pdf",
+   "kind": "corporate_record",
+   "date": "2023-04-03",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "List of current OHC directors",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A list of current OHC directors is attached hereto as Exhibit “B”."
+    }
+   ],
+   "content_check": "1 pages: OHC Board of Directors as of April 3, 2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-4hcs6u.pdf",
+   "kind": "corporate_record",
+   "date": "2010-10-14",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "OHC Mission and Mandate and Local Health Coalition Terms of Reference",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "are attached hereto as Exhibit “C.”"
+    }
+   ],
+   "content_check": "2 pages: 'Ontario Health Coalition Mission and Mandate and Local Health Coalition Terms of Reference', amended October 14, 2010"
+  },
+  {
+   "label": "D",
+   "file": "doc-jepbcs.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "List of the Coalition's submissions to and testimony before Standing Committees",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "are attached Exhibit “D”."
+    }
+   ],
+   "content_check": "3 pages: list 'Submissions to and testimony before Standing Committees of the Ontario Legislature'"
+  },
+  {
+   "label": "E",
+   "file": "doc-zvx2sx.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "List of OHC engagement and advocacy on hospital beds, capacity and de-hospitalization",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "is attached hereto as Exhibit “E”."
+    }
+   ],
+   "content_check": "3 pages: 'OHC's engagement and advocacy on matters around hospital beds, public health care capacity and dehospitalization'"
+  },
+  {
+   "label": "F",
+   "file": "doc-ss2cac.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "List of OHC community engagement, monitoring and advocacy on long-term care",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "is attached hereto as Exhibit “F”."
+    }
+   ],
+   "content_check": "5 pages: 'OHC's engagement and advocacy on long-term care and its engagement with long-term care residents and their families'"
+  },
+  {
+   "label": "G",
+   "file": "doc-x4gsbd.pdf",
+   "kind": "letter",
+   "date": "2021-03-16",
+   "author": "Ontario Health Coalition, Advocacy Centre for the Elderly and Ontario Council of Hospital Unions",
+   "recipients": [
+    "Ena Chadha, Chief Commissioner, Ontario Human Rights Commission"
+   ],
+   "description": "Submissions to and correspondence with the Ontario Human Rights Commission requesting a public inquiry into age discrimination in health care (G(i)-(iii))",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "are attached hereto as Exhibit “G (i), (ii) and (iii).”"
+    }
+   ],
+   "content_check": "47 pages: letter dated March 16, 2021 to Ena Chadha, Chief Commissioner, Ontario Human Rights Commission, with the related submissions and correspondence"
+  },
+  {
+   "label": "H",
+   "file": "doc-u999qn.pdf",
+   "kind": "report",
+   "date": "2016-06-30",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "OHC backgrounder documenting the decline in hospital capacity",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "It published a backgrounder documenting this decline which is attached as Exhibit “H”."
+    }
+   ],
+   "content_check": "9 pages: 'Hospital Overload: Backgrounder on Ontario's Hospital Bed Shortage' (dated June 30, 2016)"
+  },
+  {
+   "label": "I",
+   "file": "doc-7wehdw.pdf",
+   "kind": "report",
+   "date": "2022",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "OHC 2022 'Fast Facts' comparing Canada's hospital capacity with the OECD",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "which is attached as Exhibit “I.”"
+    }
+   ],
+   "content_check": "2 pages: 'Ontario Health Coalition Fast Facts 2022', OECD hospital beds per 1000 population in 2020"
+  },
+  {
+   "label": "J",
+   "file": "doc-dkqprb.pdf",
+   "kind": "report",
+   "date": "2021-12-01",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "OHC report on for-profit long-term care home death rates during COVID",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "This report is attached hereto as Exhibit “J”."
+    }
+   ],
+   "content_check": "5 pages: 'BRIEFING NOTE: The Horrifying Truth About For-Profit Long-Term Care Homes', posted December 1, 2021"
+  },
+  {
+   "label": "K",
+   "file": "doc-vs7b4n.pdf",
+   "kind": "transcript",
+   "date": "2020-11-23",
+   "author": "Neesons Reporting",
+   "recipients": [],
+   "description": "Mehra's submissions to the Long-Term Care COVID-19 Commission",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "my submissions to the Commission are attached hereto as Exhibit “K.”"
+    }
+   ],
+   "content_check": "113 pages: transcript 'Long Term Care Covid-19 Commission Mtg. Ontario Health Coalition (Dr. Amit Arya and Natalie Mehra)', Monday, November 23, 2020"
+  },
+  {
+   "label": "L",
+   "file": "doc-4um8pd.pdf",
+   "kind": "report",
+   "date": "2023-02-01",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "OHC summary of HCCSS long-term care wait list data",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "which is attached hereto as Exhibit “L.”"
+    }
+   ],
+   "content_check": "33 pages: report on long-term care wait lists in each of the 14 health regions (longest and shortest wait lists)"
+  },
+  {
+   "label": "M",
+   "file": "doc-2wxtkz.pdf",
+   "kind": "report",
+   "date": "2023-02-01",
+   "author": "Ontario Health Coalition",
+   "recipients": [],
+   "description": "OHC report on violations for the ten homes with the lowest wait lists in each region",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Another Coalition report, attached hereto as “Exhibit M”"
+    }
+   ],
+   "content_check": "100 pages: 'Numbers of Violations for the Ten Long-Term Care Homes with Lowest Waitlist in each of Ontario's Health Regions', February 1, 2023"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Coalition participates in consultations leading to the Canada Health Act",
+   "date": "1984",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "the passage of the Canada Health Act in 1984",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Mehra becomes Executive Director of the Coalition",
+   "date": "2000-09",
+   "precision": "month",
+   "paragraphs": [
+    1,
+    2
+   ],
+   "quote": "since September 2000",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Coalition saves the Leamington birthing unit",
+   "date": "2015-01",
+   "precision": "range",
+   "paragraphs": [
+    14
+   ],
+   "quote": "between January and March 2015, the Coalition convened a town hall meeting",
+   "exhibits": [],
+   "end_date": "2015-03"
+  },
+  {
+   "id": "e4",
+   "description": "Coalition works with Wallaceburg residents to stop the emergency department closure",
+   "date": "2015",
+   "precision": "range",
+   "paragraphs": [
+    16
+   ],
+   "quote": "In 2015- 2016 the Coalition worked with local residents and municipal officials in Wallaceburg",
+   "exhibits": [],
+   "end_date": "2016"
+  },
+  {
+   "id": "e5",
+   "description": "Coalition campaign stops the Welland hospital closure",
+   "date": "2017",
+   "precision": "approximate",
+   "paragraphs": [
+    15
+   ],
+   "quote": "In the spring of 2017, in response to plans to close the Welland hospital",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Government cancels annual unannounced comprehensive inspections",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Since this Government cancelled the program of conducting annual unannounced comprehensive inspections 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Coalition begins tracking and reporting COVID outbreaks and deaths in long-term care",
+   "date": "2020",
+   "precision": "approximate",
+   "paragraphs": [
+    21
+   ],
+   "quote": "At the beginning of the COVID-19 pandemic, the Coalition recognized the early warning signs",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Mehra appears before the Long-Term Care COVID-19 Commission",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    23
+   ],
+   "quote": "I appeared before the Commission and my submissions to the Commission are attached",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Coalition, ACE and OCHU ask the Human Rights Commission to investigate age discrimination; Commission declines",
+   "date": "2021",
+   "precision": "year",
+   "paragraphs": [
+    12
+   ],
+   "quote": "In 2021 the Ontario Health Coalition joined forces with the Advocacy Centre for the Elderly",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Coalition publishes its 2022 Fast Facts on hospital capacity",
+   "date": "2022",
+   "precision": "year",
+   "paragraphs": [
+    18
+   ],
+   "quote": "including in its 2022 report (“Fast Facts”)",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Coalition joins ACE as co-applicant challenging Bill 7",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    28
+   ],
+   "quote": "the Coalition has joined with the Advocacy Centre of the Elderly as a co-applicant in these proceedings",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Coalition report for the Drummond Commission (2012)",
+  "'Crisis Unabated' report",
+  "Report on the Ford government's LTC bed allocations"
+ ],
+ "leak_waivers": [],
+ "notes": "Exhibit G is cited as G(i), (ii) and (iii) and posted as one file. The Commission appearance date comes from the Exhibit K transcript, not the affidavit, so that event is marked undated. Same deponent as ondc-ohc-mehra (a different proceeding). Family ohc-bill7-charter."
+}

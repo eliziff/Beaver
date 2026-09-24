@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/mbkb-genesus-barrington3/barrington-cross-2025-02-27.pdf",
+  "url": "https://www.bdo.ca/getmedia/78d099c4-165a-4b4b-984a-68a7ca4c05b4/063-Transcript-of-the-Cross-Examination-of-Ed-Barrington-February-27-2025.pdf",
+  "title": "Transcript of the Cross-Examination of Ed Barrington, February 27, 2025",
+  "kind": "transcript",
+  "relation": "cross-examination on this affidavit"
+ },
+ {
+  "file": "raw/matter/mbkb-genesus-barrington3/receiver-brief-2025-01-24.pdf",
+  "url": "https://www.bdo.ca/getmedia/52b45fed-51b7-4385-9bf2-a42155f15029/1102-Brief-of-Receiver-Dated-January-24-2025.pdf",
+  "title": "Brief of the Receiver dated January 24, 2025",
+  "kind": "court_filing",
+  "relation": "receiver's brief on the Sea Air/BMO priority motion"
+ },
+ {
+  "file": "raw/matter/mbkb-genesus-barrington3/bmo-brief-2025-04-02.pdf",
+  "url": "https://www.bdo.ca/getmedia/629bf630-8578-43fc-b94b-f065a4730ee7/064-Brief-of-BMOApril-2-2025.pdf",
+  "title": "Brief of BMO, April 2, 2025",
+  "kind": "court_filing",
+  "relation": "BMO's brief on the same motion"
+ }
+]

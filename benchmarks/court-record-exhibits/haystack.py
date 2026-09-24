@@ -126,8 +126,10 @@ def render(d, path):
 
 
 def family(gold):
-    """Proceeding key: an explicit "family" in the gold, else the court file number's letters and digits."""
-    return gold.get("family") or re.sub(r"[^A-Z0-9]", "", (gold.get("court_file") or "").upper().split("(")[0])
+    """Proceeding key: an explicit "family" in the gold, else the court file number's letters and digits
+    (only when it has a digit: "Vancouver Registry (number illegible)" identifies no proceeding)."""
+    key = re.sub(r"[^A-Z0-9]", "", (gold.get("court_file") or "").upper().split("(")[0])
+    return gold.get("family") or (key if re.search(r"\d", key) else "")
 
 
 def main():
@@ -144,7 +146,20 @@ def main():
     entries = []
     names = set()
 
+    def text_key(path):
+        """Hash of a file's normalized text (its .txt when the benchmark has one); None when nearly empty."""
+        txt = path[:-4] + ".txt"
+        t = open(txt, encoding="utf-8").read() if os.path.exists(txt) else "".join(p.get_text() for p in fitz.open(path)) if path.endswith(".pdf") else ""
+        w = re.findall(r"[a-z0-9]+", re.sub(r"\[page \d+\]", "", t.lower()))
+        return hashlib.sha1(" ".join(w).encode()).hexdigest() if len(w) >= 30 else None
+
+    targets = {text_key(os.path.join(rec, "files", e["file"])) for e in gold["exhibits"]} - {None}
+
     def place(src, ext, meta):
+        # A distractor that is a copy of one of the target's own exhibits would make a correct row look wrong.
+        if meta["role"] != "exhibit" and not callable(src) and text_key(src) in targets:
+            print(f"  skip {meta['role']} copy of a target exhibit: {meta.get('provenance')}")
+            return
         while True:
             name = "".join(rng.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(8)) + ext
             if name not in names:

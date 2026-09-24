@@ -1,0 +1,652 @@
+{
+ "record_id": "fc-bccla-rcmp-omalley",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1347-20",
+ "subject": "charter",
+ "family": "bccla-rcmp-crcc",
+ "proceeding": "British Columbia Civil Liberties Association v. RCMP Commissioner Brenda Lucki et al.: application for mandamus over the Commissioner's delay in responding to the CRCC interim report on BCCLA's surveillance complaint (respondents' evidence)",
+ "document": "Affidavit of Michael O'Malley affirmed February 3, 2021",
+ "deponent": "Michael O'Malley",
+ "deponent_role": "Superintendent, Director of the RCMP National Public Complaints Directorate",
+ "sworn_date": "2021-02-03",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-spbpkm.pdf",
+   "kind": "email",
+   "date": "2019-04-15",
+   "author": "Nika Joncas-Bourget (CRCC)",
+   "recipients": [
+    "Michael O'Malley (RCMP NPCD)"
+   ],
+   "description": "Joncas-Bourget email asking for a time estimate for the Commissioner's response",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Attached to my affidavit as Exhibit \"A\" is a copy of the email dated April 15, 2019 from Ms. Nika Joncas-Bourget"
+    }
+   ],
+   "content_check": "Email from Joncas-Bourget, Monday, April 15, 2019, 'Request for time estimate for Commissioner's Response to CRCC's Interim Report on BCCLA Complaint'"
+  },
+  {
+   "label": "B",
+   "file": "doc-uxtdgu.pdf",
+   "kind": "email",
+   "date": "2019-05-29",
+   "author": "Nika Joncas-Bourget (CRCC)",
+   "recipients": [
+    "Michael O'Malley (RCMP NPCD)"
+   ],
+   "description": "Joncas-Bourget follow-up email",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Exhibit \"B\" is a copy of the email dated May 29, 2019 from Ms."
+    }
+   ],
+   "content_check": "Email from Joncas-Bourget to O'Malley, cc Denis Savard, dated 2019/05/29"
+  },
+  {
+   "label": "C",
+   "file": "doc-tx9acy.pdf",
+   "kind": "email",
+   "date": "2019-06-10",
+   "author": "Michael O'Malley (RCMP NPCD)",
+   "recipients": [
+    "Nika Joncas-Bourget (CRCC)"
+   ],
+   "description": "O'Malley's reply that no date could be approximated",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Exhibit \"C\" is a copy of my email dated June"
+    }
+   ],
+   "content_check": "Email from O'Malley to Joncas-Bourget, June 10, 2019, FW: Request for time estimate"
+  },
+  {
+   "label": "D",
+   "file": "doc-e5kczf.pdf",
+   "kind": "email_chain",
+   "date": "2019-07-16",
+   "author": "Michael O'Malley (RCMP NPCD)",
+   "recipients": [
+    "Josh Paterson (BCCLA)"
+   ],
+   "description": "O'Malley's follow-up email to BCCLA's executive director on the backlog",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Exhibit \"D\" is a copy of my email to Josh Paterson dated July 16, 2019"
+    }
+   ],
+   "content_check": "Email from O'Malley to Josh Paterson, Tuesday July 16, 2019, Re: FW: CRCC file A2018-013, with the earlier chain"
+  },
+  {
+   "label": "E",
+   "file": "doc-25q7gh.pdf",
+   "kind": "letter",
+   "date": "2019-08-09",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Commissioner Brenda Lucki (RCMP)"
+   ],
+   "description": "Champ letter to the Commissioner on the status of the complaint",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Exhibit \"E\" is a copy of correspondence from Paul Champ dated August 9, 2019"
+    }
+   ],
+   "content_check": "Champ & Associates letter dated August 9, 2019 to Commissioner Lucki"
+  },
+  {
+   "label": "F",
+   "file": "doc-ydmnhy.pdf",
+   "kind": "letter",
+   "date": "2019-08-16",
+   "author": "Commissioner Brenda Lucki (RCMP)",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner's response to Champ",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Exhibit \"F\" is a copy of Commissioner's response to Paul Champ dated August 16, 2019"
+    }
+   ],
+   "content_check": "RCMP Commissioner letterhead letter to Champ, stamped AUG 16 2019"
+  },
+  {
+   "label": "G",
+   "file": "doc-26j33c.pdf",
+   "kind": "letter",
+   "date": "2020-06-23",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Commissioner Brenda Lucki (RCMP)"
+   ],
+   "description": "Champ letter to the Commissioner about the response to the Interim Report",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Exhibit \"G\" is a copy of the correspondence from Paul Champ dated June 23, 2020"
+    }
+   ],
+   "content_check": "Champ & Associates fax cover sheet Jun. 23, 2020 with letter to the Commissioner"
+  },
+  {
+   "label": "H",
+   "file": "doc-we7uj7.pdf",
+   "kind": "email",
+   "date": "2020-06-29",
+   "author": "Nika Joncas-Bourget (CRCC)",
+   "recipients": [
+    "Michael O'Malley (RCMP NPCD)"
+   ],
+   "description": "Joncas-Bourget email seeking a status update",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Exhibit \"H\" is a copy of the email dated June 29, 2020 from Ms. Nika Joncas-Bourget"
+    }
+   ],
+   "content_check": "Email from Joncas-Bourget 2020-06-29, 'Letter from BCCLA's lawyer - Status of NEB Hearings/Pipeline PII'"
+  },
+  {
+   "label": "I",
+   "file": "doc-s6hzn4.pdf",
+   "kind": "email",
+   "date": "2020-06-29",
+   "author": "Michael O'Malley (RCMP NPCD)",
+   "recipients": [
+    "Nika Joncas-Bourget (CRCC)"
+   ],
+   "description": "O'Malley's reply that the response would come in the fall",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Exhibit \" I\" is a copy of my email dated June 29, 2020 to Ms."
+    }
+   ],
+   "content_check": "Email from O'Malley to Joncas-Bourget, June 29, 2020 3:38 PM"
+  },
+  {
+   "label": "J",
+   "file": "doc-xjt5tt.pdf",
+   "kind": "letter",
+   "date": "2020-07-08",
+   "author": "CRCC Chairperson (Michelaine Lahaie)",
+   "recipients": [
+    "Commissioner Brenda Lucki (RCMP)"
+   ],
+   "description": "CRCC Chairperson letter giving 90 days before the Final Report",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Exhibit \"J\" is a copy of the correspondence from the CRCC Chairperson dated July 8, 2020"
+    }
+   ],
+   "content_check": "CRCC Office of the Chairperson letter dated July 8, 2020 to Commissioner Lucki"
+  },
+  {
+   "label": "K",
+   "file": "doc-kn55wx.pdf",
+   "kind": "letter",
+   "date": "2020-08-07",
+   "author": "Commissioner Brenda Lucki (RCMP)",
+   "recipients": [
+    "CRCC",
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner's letter re-prioritizing the BCCLA response",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Exhibit \"K\" is a copy of the correspondence from the Commissioner dated August 7, 2020"
+    }
+   ],
+   "content_check": "RCMP Commissioner letterhead letter stamped AUG 07 2020"
+  },
+  {
+   "label": "L",
+   "file": "doc-2spvgn.pdf",
+   "kind": "letter",
+   "date": "2020-09-24",
+   "author": "Paul Champ (Champ & Associates)",
+   "recipients": [
+    "Commissioner Brenda Lucki (RCMP)"
+   ],
+   "description": "Champ letter to the Commissioner",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Exhibit \"L\" is a copy of correspondence from Paul Champ dated September 24, 2020"
+    }
+   ],
+   "content_check": "Champ & Associates letter dated September 24, 2020 to Commissioner Lucki"
+  },
+  {
+   "label": "M",
+   "file": "doc-2cs4f5.pdf",
+   "kind": "email",
+   "date": "2020-10-04",
+   "author": "Michael O'Malley (RCMP NPCD)",
+   "recipients": [
+    "Nika Joncas-Bourget (CRCC)"
+   ],
+   "description": "O'Malley email that the response would not be done by October 6",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "Exhibit \"M\" is a copy of my email dated October 4, 2020 to Ms. Joncas-Bourget"
+    }
+   ],
+   "content_check": "Email from O'Malley to Joncas-Bourget, October 4, 2020, 'NEB Update'"
+  },
+  {
+   "label": "N",
+   "file": "doc-hdxer5.pdf",
+   "kind": "letter",
+   "date": "2020-10-13",
+   "author": "Commissioner Brenda Lucki (RCMP)",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner's letter targeting November 7, 2020",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "Exhibit \"N\" is a copy of correspondence from the Commissioner to Paul Champ dated October 13, 2020"
+    }
+   ],
+   "content_check": "RCMP Commissioner letterhead letter to Champ stamped OCT 13 2020"
+  },
+  {
+   "label": "O",
+   "file": "doc-f9m4ns.pdf",
+   "kind": "letter",
+   "date": "2020-11-06",
+   "author": "Commissioner Brenda Lucki (RCMP)",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner's letter asking two more weeks",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "Exhibit \"O\" is a copy of the correspondence from the Commissioner to Paul Champ dated November 6, 2020"
+    }
+   ],
+   "content_check": "RCMP Commissioner letterhead letter to Champ stamped NOV 06 2020"
+  },
+  {
+   "label": "P",
+   "file": "doc-h6jcug.pdf",
+   "kind": "letter",
+   "date": "2020-11-20",
+   "author": "Commissioner Brenda Lucki (RCMP)",
+   "recipients": [
+    "Paul Champ (Champ & Associates)"
+   ],
+   "description": "Commissioner's letter confirming the response to the Interim Report was provided",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Exhibit \"P\" is a copy of the correspondence from the Commissioner to Paul Champ dated November 20, 2020"
+    }
+   ],
+   "content_check": "RCMP Commissioner letterhead letter to Champ stamped NOV 20 2020"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent joins the RCMP",
+   "date": "1987-07",
+   "precision": "range",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been a member of the Royal Canadian Mounted Police (\"RCMP\") since July 1987",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Deponent appointed Director of the NPCD",
+   "date": "2018-11",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "In November 2018, I was appointed into my current position as Director of",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "BCCLA submits its complaint to the CRCC",
+   "date": "2014-02",
+   "precision": "range",
+   "paragraphs": [
+    17
+   ],
+   "quote": "In February 2014, the BCCLA submitted a complaint to the CRCC",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "CRCC delivers its Interim Report to the Commissioner",
+   "date": "2017-06-23",
+   "precision": "range",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On June 23, 2017, the CRCC delivered its Interim Report regarding the BCCLA Complaint to the Commissioner",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Meeting of Commissioner Lucki and CRCC Interim Chair Bujold",
+   "date": "2018-12-05",
+   "precision": "range",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On December 5, 2018, I attended a meeting between Commissioner Lucki",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Joncas-Bourget asks about status; O'Malley replies no response within 90 days",
+   "date": "2019-01-04",
+   "precision": "range",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On January 4, 2019, I received an email message from Ms. Nika Joncas-",
+   "exhibits": [],
+   "end_date": "2019-01-09"
+  },
+  {
+   "id": "e7",
+   "description": "Introductory meeting with new CRCC Chair Lahaie",
+   "date": "2019-01-17",
+   "precision": "range",
+   "paragraphs": [
+    23
+   ],
+   "quote": "On January 17, 2019. I attended an introductory meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Joncas-Bourget emails about the response status",
+   "date": "2019-04-15",
+   "precision": "range",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On April 15, 2019 and May 29, 2019, I received email messages from Ms.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Joncas-Bourget follow-up email",
+   "date": "2019-05-29",
+   "precision": "range",
+   "paragraphs": [
+    24
+   ],
+   "quote": "email dated May 29, 2019 from Ms.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "O'Malley replies that no date can be approximated",
+   "date": "2019-06-10",
+   "precision": "range",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On June 10, 2019, I responded to Ms. Joncas-Bourget's earlier emails",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Commissioner meets CRCC Chair; Kent County prioritized",
+   "date": "2019-06-28",
+   "precision": "range",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On June 28, 2019, I attended a meeting between the Commissioner and",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Call with Josh Paterson of BCCLA",
+   "date": "2019-07-15",
+   "precision": "range",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On July 15, 2019, I had a telephone conversation with Mr. Josh Paterson",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "O'Malley follow-up message to Paterson",
+   "date": "2019-07-16",
+   "precision": "range",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On July 16, 2019, I followed up",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Champ writes to the Commissioner",
+   "date": "2019-08-09",
+   "precision": "range",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On August 9, 2019, counsel for the Applicant wrote to the Commissioner",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Commissioner responds to Champ",
+   "date": "2019-08-16",
+   "precision": "range",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On August 16, 2019, the Commissioner responded to counsel for the Applicant",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "CRCC and RCMP sign an MOU",
+   "date": "2019-12-11",
+   "precision": "range",
+   "paragraphs": [
+    29
+   ],
+   "quote": "On December 11, 2019, the CRCC Chairperson and the RCMP Commissioner signed a Memorandum of Understanding",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Commissioner responds to the Kent County Interim Report",
+   "date": "2020-06",
+   "precision": "range",
+   "paragraphs": [
+    47
+   ],
+   "quote": "The Commissioner provided her response to the Kent County Interim Report in June 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Champ writes to the Commissioner about the Interim Report response",
+   "date": "2020-06-23",
+   "precision": "range",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On June 23, 2020, counsel for the Applicant wrote the Commissioner",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Joncas-Bourget seeks an update; O'Malley replies response in the fall",
+   "date": "2020-06-29",
+   "precision": "range",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On June 29, 2020, I received an email message from Ms. Joncas-Bourget",
+   "exhibits": [
+    "H",
+    "I"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "CRCC Chair gives 90 days before issuing the Final Report",
+   "date": "2020-07-08",
+   "precision": "range",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On July 8, 2020, the CRCC Chairperson wrote the Commissioner",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Three NPCD advisors assigned to the BCCLA Interim Report",
+   "date": "2020-07",
+   "precision": "range",
+   "paragraphs": [
+    47
+   ],
+   "quote": "in July 2020, the three available NPCD advisors were assigned to review the BCCLA",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Commissioner directs re-prioritization of the BCCLA response",
+   "date": "2020-08-07",
+   "precision": "range",
+   "paragraphs": [
+    33
+   ],
+   "quote": "On August 7, 2020, the Commissioner wrote to the CRCC and counsel for",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Champ writes to the Commissioner",
+   "date": "2020-09-24",
+   "precision": "range",
+   "paragraphs": [
+    34
+   ],
+   "quote": "On September 24, 2020, counsel for the Applicant wrote to the RCMP",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "O'Malley tells CRCC the response will not be done by October 6",
+   "date": "2020-10-04",
+   "precision": "range",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On October 4, 2020, I informed the CRCC that the Commissioner's",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Commissioner advises completion by November 7, 2020",
+   "date": "2020-10-13",
+   "precision": "range",
+   "paragraphs": [
+    36
+   ],
+   "quote": "On October 13, 2020, the Commissioner wrote to counsel for the Applicant",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Commissioner advises two more weeks are needed",
+   "date": "2020-11-06",
+   "precision": "range",
+   "paragraphs": [
+    37
+   ],
+   "quote": "The Commissioner wrote to counsel for the Applicant on November 6, 2020",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Commissioner provides her response to the CRCC Interim Report",
+   "date": "2020-11-20",
+   "precision": "range",
+   "paragraphs": [
+    38
+   ],
+   "quote": "On November 20, 2020, the Commissioner provided her response to the",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "RCMP staffing processes to hire NPCD advisors",
+   "date": "2019",
+   "precision": "range",
+   "paragraphs": [
+    48
+   ],
+   "quote": "the RCMP conducted a staffing process in 2019 and again in 2020",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Nika Joncas-Bourget sworn January 18, 2021 (its Exhibit A email chain of January 2019 and Exhibit E MOU)",
+  "CRCC Interim Report of June 23, 2017",
+  "Kent County Interim Report"
+ ]
+}

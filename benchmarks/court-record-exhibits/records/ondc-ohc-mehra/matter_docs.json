@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/ondc-ohc-mehra/notice-of-application.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/ISSUED-Notice_of_Application__Ontario_Health_Coalition_et_al__28-DEC-2023_56SH2VE5.pdf",
+  "title": "Notice of Application for Judicial Review, December 28, 2023",
+  "kind": "court_filing",
+  "relation": "originating process of this judicial review"
+ },
+ {
+  "file": "raw/matter/ondc-ohc-mehra/respondent-factum.pdf",
+  "url": "https://www.ontariohealthcoalition.ca/wp-content/uploads/Factum-Respondent-ON-20-SEP-2024.pdf",
+  "title": "Factum of the Respondent Minister of Long-Term Care, September 20, 2024",
+  "kind": "court_filing",
+  "relation": "respondent's argument in this judicial review"
+ }
+]

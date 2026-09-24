@@ -164,5 +164,10 @@
    "text_chars": 36220
   }
  ],
- "leak_audit": []
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-cepj4h.pdf",
+  "doc-esempy.pdf",
+  "doc-k4jxzj.pdf"
+ ]
 }

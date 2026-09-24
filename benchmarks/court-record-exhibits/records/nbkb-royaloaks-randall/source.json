@@ -1,0 +1,19 @@
+{
+ "url": "https://www.insolvencies.deloitte.ca/en-ca/Documents/Royal%20Oaks%20Golf%20Club%20Inc/Affidavit%20of%20Rod%20Randall.pdf",
+ "landing_url": "https://www.insolvencies.deloitte.ca/en-ca/Pages/Royal-Oaks-Golf-Club-Inc.aspx",
+ "court": "Court of King's Bench of New Brunswick (in Bankruptcy and Insolvency), Judicial District of Saint John",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "SJM 44 2024",
+ "document_title": "Affidavit of Rod Randall, receivership application of CWB Maximum Financial Inc. against Royal Oaks Golf Club Inc.",
+ "retrieved": "2026-09-23",
+ "record_id": "nbkb-royaloaks-randall",
+ "source_file": "nbkb-affidavit-20of-20rod-20randall.pdf",
+ "page_range": [
+  1,
+  138
+ ],
+ "source_sha256": "f4828ab29cdef143f2db77812469a090e0797167a242ea74014630a0db2c254f",
+ "source_pages": 138,
+ "covers": "A=8,B=12,C=16,D=22,E=26,F=32,F1=39,G=43,H=46,I=49,J=52,K=63,L=69,M=74,N=79,O=86,P=93,Q=103,R=121,S=126"
+}
