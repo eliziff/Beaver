@@ -1,4 +1,5 @@
 import { sha256 } from "../hash";
+import { readResearchQueries, type ResearchQueryReceipt } from "../researchFile";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { textField } from "../textField";
@@ -648,9 +649,9 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
-      const researchQueries = research ? await deps.sources.items(auth, research.document.id,
-          { kind: "queries", offset: 0, limit: 10_000 }) : null,
-        workspaceContext = research ? await deps.sources.context(auth, research.document.id,
+      let researchQueries: Promise<ResearchQueryReceipt[]> | undefined;
+      const queryHistory = research ? () => researchQueries ??= readResearchQueries(deps.documents, auth, research) : undefined;
+      const workspaceContext = research ? await deps.sources.context(auth, research.document.id,
           researchSelection ?? undefined) : undefined;
       const researchContext = workspaceContext && tabularDetail && input.research_selection === undefined &&
           !chat?.research_selection && researchFileId === tabularDetail.review.scope_config?.research_file_id
@@ -665,9 +666,7 @@ export function createChatApplication(deps: Dependencies) {
           ...(workspaceContext?.subjects.flatMap(({ savedEvidence }) => savedEvidence) ?? [])]
           .map((receipt) => [receipt.evidence_id, receipt])).values()].filter((receipt) =>
             permittedEvidence({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] })),
-        priorQueries = [...new Map([...priorLegalResearchQueryReceipts(priorEvents),
-          ...(researchQueries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [])]
-          .map((receipt) => [receipt.query_id, receipt])).values()],
+        priorQueries = priorLegalResearchQueryReceipts(priorEvents),
         evidenceState = createLegalEvidenceTurnState();
       for (const event of priorEvents) if (event.type === "subagent_run" && event.status !== "running")
         evidenceState.readerResults.set(event.id, event);
@@ -905,6 +904,7 @@ ${registeredWorkflow.skill_md}` : "",
           createTools: localTools.createTools,
           researchContext,
           priorQueries,
+          queryHistory,
           operation: { executor: "assistant", model: selectedModel, chatId: chat.id, turnId,
             ...(tabularReviewId ? { reviewId: tabularReviewId } : {}) },
           onResearchObserved: async (receipt, operation) => {

@@ -15,7 +15,7 @@ import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
 import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
-import { groundedSentenceCount, type GroundedClaim } from "../groundedAnswer";
+import { groundedSentenceCount, renderCitedBlocks, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
 import { objectSchema } from "./toolRegistry";
 
@@ -955,15 +955,8 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   if (state.failure) return null;
   if (!state.answer) return null;
   const { claimRefs } = legalEvidenceCitationPlan(state);
-  return state.answer.map((claim, index) => {
-    const table = claim.text.startsWith("|") && claim.text.endsWith("|");
-    const citations = claimRefs[index].map((ref) => `[${ref}]`).join("");
-    const text = table
-      ? `${claim.text.slice(0, -1).trimEnd()} ${citations} |`
-      : `${claim.text}${citations ? ` ${citations}` : ""}`;
-    const separator = index === 0 ? "" : table && state.answer![index - 1].text.endsWith("|") ? "\n" : "\n\n";
-    return separator + text;
-  }).join("");
+  return renderCitedBlocks(state.answer.map((claim, index) => ({ text: claim.text,
+    citations: [claimRefs[index].map(ref => `[${ref}]`).join("")].filter(Boolean) })));
 }
 
 type CitationEntry = RegisteredEvidence & { ref: number };

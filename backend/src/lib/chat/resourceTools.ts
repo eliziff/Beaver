@@ -69,7 +69,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Read",
-    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence, selected inputs with selection, or saved chat and table results with findings. Use drafting for semantic DOCX Markdown or redline for editorial markup.",
+    "Read a document, legal source, saved evidence_id or query_id. A run of paragraphs is one call: give locator and end_locator, and every unit in the run returns its own evidence_id, so never read a run one unit per call. To search a legal source you already hold, batch independent phrases in patterns (one source fetch); use pattern for a single phrase, not another corpus search. Reuse the passages and evidence_ids you hold; request independent reads together. Follow returned next inputs for more text, and read within the returned extent rather than probing past it. Read reader findings with file_path readers and section=reader_id. Search prior work on demand with file_path queries, pattern=term and optionally section=source_resource or reader_id; zero matches describe only that search, not semantic absence. List prior evidence with file_path evidence, selected inputs with selection, or saved chat and table results with findings (pattern filters their questions and answers). Use drafting for semantic DOCX Markdown or redline for editorial markup.",
     {
       file_path: {
         type: "string",
@@ -107,7 +107,7 @@ export const RESOURCE_TOOLS = [
         type: "string",
         minLength: 1,
         maxLength: 256,
-        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID from findings; with queries, filter the saved query text.",
+        description: "Literal phrase to find inside the source; each hit returns its unit's evidence_id, and hits in a case's headnote are counted, not returned. Or an exact support ID from findings; with queries, filter saved query text; with findings and no section, filter saved questions and answers.",
       },
       patterns: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true,
         items: { type: "string", minLength: 1, maxLength: 256 },

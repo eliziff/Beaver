@@ -1,6 +1,6 @@
 import { readDocumentProjection } from "../documentApplication";
 import { readerHandoff } from "./readerHandoff";
-import { queryResources, readQueryHistory } from "./queryHistory";
+import { queryResources, readQueryHistory, type QueryHistorySource } from "./queryHistory";
 import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
   sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
@@ -228,7 +228,8 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'batch',title,actions:[label/annotate/label-selection/remove-label actions]} groups a change. New labels, filings and edits to model-owned labels apply immediately with History/Undo. Only edits, moves or deletions of human-created or human-approved labels require acceptance. " +
       "{type:'undo',changeId} reverses a recorded change while preserving unrelated work. Read history for change IDs. If the result is pending, tell the user the change is waiting for acceptance; do not report it as completed. " +
       "{type:'note',markdown}; or " +
-      "{type:'memo',title,markdown,mode?:'replace'|'append'} writes the workspace memo with " +
+      "{type:'memo',title,references:[reference from Read findings],mode?:'append'|'replace'} copies original cited findings into the memo without rewriting them; defaults to append. " +
+      "{type:'memo',title,markdown,mode?:'replace'|'append'} writes new prose into the workspace memo with " +
       "verified source links from top-level evidence_ids; use [@evidence_id] for inline citations; " +
       "IDs are opaque: annotate only returned label_id/source_id or matches[].evidence_id." } } : {}),
   }, ["action"]),
@@ -1501,7 +1502,7 @@ export type AssistantToolsDependencies = {
   documents: DocumentStore;
   sources?: SourceWorkspaceApplication;
   researchContext?: ResearchReadContext;
-  queryHistory?: () => Iterable<import("./legalEvidence").LegalResearchQueryReceipt>;
+  queryHistory?: QueryHistorySource;
   operation?: ResearchOperationContext;
   library: LibraryStore;
   projects: ProjectStore;
@@ -1641,7 +1642,7 @@ export function assistantTools<Context extends {
       return readResearchFindings({ sources, scope, workspaceId: researchContext.workspace.documentId,
         findingRefs: researchContext.findingRefs,
         ...(researchContext.restricted ? { subjects: researchContext.subjects ?? [] } : {}) }, {
-        reference, ...(args.pattern ? { evidence_id: String(args.pattern) } : {}),
+        reference, ...(args.pattern ? reference ? { evidence_id: String(args.pattern) } : { pattern: String(args.pattern) } : {}),
         ...(reference ? { text_offset: Number(args.start_char) || 0 }
           : { offset, limit: Math.min(50, limit) }),
       });
@@ -1662,7 +1663,7 @@ export function assistantTools<Context extends {
         return event ? result(readerHandoff(event, legalEvidenceState, offset, limit)) : fail("Reader result not found in this scope");
       }
       if (requested === "queries" || /^q_/u.test(requested)) {
-        const queries = [...(queryHistory?.() ?? legalEvidenceState.queries.values())].filter(query =>
+        const queries = [...(await queryHistory?.() ?? legalEvidenceState.queries.values())].filter(query =>
           !researchContext?.restricted || queryResources(query).length > 0 &&
             queryResources(query).every(resource => inScope({ resource })));
         return result(readQueryHistory(queries, { file_path: requested,
@@ -2027,6 +2028,19 @@ export function assistantTools<Context extends {
         typeId: trimmed(command.typeId) || undefined, versionId, workingRevision: edit.workingRevision ?? 0 }, operation);
       Object.assign(edit, { versionId: saved.file.versionId, workingRevision: saved.file.workingRevision });
       return result({ filed: saved.saved, version_id: saved.file.versionId, working_revision: saved.file.workingRevision });
+    }
+    if (command.type === "memo" && command.references !== undefined) {
+      if (command.markdown !== undefined) return fail("Use either saved finding references or new Markdown, not both");
+      const next = await sources.memo(scope, documentId, { versionId, workingRevision: edit.workingRevision ?? 0,
+        title: trimmed(command.title), references: researchFindingReferenceSchema.array().min(1).max(500).parse(command.references),
+        ...(command.mode !== undefined ? { mode: command.mode as "append" | "replace" } : {}) },
+      { operation, assistant: { turnVersionId: edit.turnVersionId, turnId }, signal,
+        findingRefs: researchContext?.findingRefs,
+        ...(researchContext?.restricted ? { subjects: researchContext.subjects ?? [] } : {}) });
+      turnEditState?.set(documentId, { versionId: next.versionId, workingRevision: next.workingRevision,
+        parentVersionId: edit.parentVersionId, turnVersionId: next.versionId });
+      return mutationResult({ ok: true, action: "updated", document_id: documentId, version_id: next.versionId,
+        filename: next.document.filename, resource: resourceReference.document(documentId, next.versionId) });
     }
     if (command.type === "memo") {
       const title = trimmed(command.title), markdown = typeof command.markdown === "string"

@@ -320,7 +320,7 @@ export async function readResearchQueries(documents: DocumentStore, scope: Appli
 export async function pageResearchItems(documents: DocumentStore, scope: ApplicationScope,
   file: ResearchFile, kind: "passages" | "evidence" | "queries" | "history", offset = 0, limit = 50,
   sourceIds?: string[]) {
-  offset = Math.max(0, Math.trunc(offset)); limit = Math.max(1, Math.min(kind === "queries" ? 10_000 : 200, Math.trunc(limit)));
+  offset = Math.max(0, Math.trunc(offset)); limit = Math.max(1, Math.min(200, Math.trunc(limit)));
   if (kind === "history") { const values = (await readResearchHistory(documents, scope, file)).reverse(), total = values.length;
     return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
       ({ kind: "change", index: offset + index, value })), total,

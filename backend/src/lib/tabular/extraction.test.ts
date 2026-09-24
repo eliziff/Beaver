@@ -15,6 +15,7 @@ it.each([true, false])("repairs only the invalid cell and preserves accepted sib
     accepted: { index: number; cell: TabularCellContent }[] = [], measurements: import("./extraction").TabularMeasurement[] = [],
     documents = { metadata: async () => ({ filename: "terms.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
       projectionSource: async () => ({ documentId: "repair", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }) } as unknown as DocumentStore;
+  const queries = vi.fn(async () => { throw new Error("Unrelated history must remain off the ordinary execution path"); });
   let evidenceIds: string[] = [], call = 0;
   const payload = (index: number, value: unknown) => ({ column_index: index, value, flag: "grey", outcome: "answered",
     claims: [{ text: index ? "Start: 15 January 2026." : "Annual charge: CAD 1000.", evidence_ids: evidenceIds }] });
@@ -39,7 +40,7 @@ it.each([true, false])("repairs only the invalid cell and preserves accepted sib
     params.callbacks.onContentDelta("See Example v Example, 2024 SCC 1.");
     return { fullText: "See Example v Example, 2024 SCC 1." };
   });
-  const result = await extractTabularAnswers({ documents, scope: { userId: "owner" },
+  const result = await extractTabularAnswers({ documents, scope: { userId: "owner" }, prior: { passages: [], queries },
     subject: { sourceId: "repair", resource: "document://repair/version/v1", sourceSha256,
       reference: { provider: "library", kind: "document", id: "repair", versionId: "v1" } },
     model: "codex:gpt-5.6-luna", apiKeys: {}, columns: [
@@ -48,6 +49,7 @@ it.each([true, false])("repairs only the invalid cell and preserves accepted sib
     runTurn: async (options) => { evidenceIds = [...options.evidenceState!.evidence.keys()]; return runChatTurn(options); },
     onMeasurement: event => measurements.push(event), accept: async (index, cell) => { accepted.push({ index, cell }); },
   });
+  expect(queries).not.toHaveBeenCalled();
   expect(accepted.map(({ index, cell }) => [index, cell.value])).toEqual(succeeds ? [[0, "CAD 1000"], [1, "2026-01-15"]] : [[0, "CAD 1000"]]);
   expect(result).toEqual(new Set(succeeds ? [0, 1] : [0]));
   expect(measurements.filter(event => event.phase === "repair").map(event => event.columns)).toEqual([[1]]);
@@ -142,20 +144,24 @@ it("makes carried search history readable without placing failed query terms in 
       metadata: async () => ({ filename: "Terms.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
       projectionSource: async () => ({ documentId: "history-doc", versionId: "v1", fileType: "txt", sourceSha256, readBytes: () => bytes }),
     } as unknown as DocumentStore;
-  let inspected = false;
+  let inspected = false, loads = 0;
   await extractTabularAnswers({ documents, scope: { userId: "owner" }, model: "codex:reader", apiKeys: {},
     subject: { sourceId: "history", resource, reference: { provider: "library", kind: "document", id: "history-doc", versionId: "v1" } },
     columns: [{ index: 0, name: "Issue", prompt: "Evaluate this provision" }],
-    prior: { passages: [], queries: [{ query_id: "q_prior", call_id: "read", tool: "Read", model: "reader",
+    prior: { passages: [], queries: async () => { loads++; return [{ query_id: "q_prior", call_id: "read", tool: "Read", model: "reader",
       executed_at: "2026-09-24T00:00:00Z", executor_version: "legal-source-pattern-v1",
-      input: { resource, pattern: "earlier-zero-hit-needle" }, results: [] }] },
+      input: { resource, pattern: "earlier-zero-hit-needle" }, results: [] }]; } },
     runTurn: async options => {
+      expect(loads).toBe(0);
       expect(options.messages.map(message => message.content).join(" ")).not.toContain("earlier-zero-hit-needle");
       const context: ChatToolContext = { evidence: options.evidenceState!, operation: options.operation!, addEvent() {} },
         read = options.createTools(context.evidence, "main", context).find(tool => tool.name === "Read")!,
         result = await read.execute({ file_path: "queries", pattern: "earlier-zero" }, context,
           new AbortController().signal, { id: "history", name: "Read", input: {} });
       expect(JSON.stringify(result.result)).toContain("earlier-zero-hit-needle"); inspected = true;
+      await read.execute({ file_path: "q_prior" }, context, new AbortController().signal,
+        { id: "history-again", name: "Read", input: {} });
+      expect(loads).toBe(1);
       throw new Error("End after history inspection");
     }, accept: async () => {},
   }).catch(error => { expect(error.message).toBe("End after history inspection"); });
