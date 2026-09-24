@@ -138,6 +138,15 @@ Checks beyond `verify.py` and `audit.py`, applied to every record:
   The gold is thin on documentary events (a search obtained, a report
   prepared), which affects chronology scoring more than exhibit
   identification.
+- **Second blind relabelling**, 10 of the 30 records added by the growth
+  pass (134 files): 128 of 132 checked files agreed. The 4 disagreements
+  were the reviewer's, not the gold's: two files whose distinguishing text
+  sits past the 2,500-character preview (a 51-page DIP loan agreement) or
+  only on a scanned signature page (one of four identical RBC assignment
+  forms), swapped in pairs; the gold follows the source's cover pages.
+  The event read of 5 records claimed 44 events; 41 were already in the
+  gold and the 3 others were added (a production motion, a summary judgment
+  motion scheduled, draft financial statements prepared).
 
 `score.py events` scores chronology creation by meaning: a row that cites an
 event's file is paired with it by description similarity, and the date is

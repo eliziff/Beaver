@@ -312,6 +312,19 @@
     "H",
     "K"
    ]
+  },
+  {
+   "id": "e10",
+   "description": "Atlantica's draft unaudited non-consolidated financial statements were prepared as at September 30, 2016",
+   "date": "2016-09-30",
+   "precision": "day",
+   "paragraphs": [
+    "20"
+   ],
+   "quote": "learn in March Of 2017 that\ncheques were being run for Canada Revenue Agency",
+   "exhibits": [
+    "I"
+   ]
   }
  ],
  "referenced_not_attached": [],
