@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/fc-peckford-baigent/order-2022-06-30.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2022/07/T-145-22-T-247-22-T-168-22-T-1991-21-Order-dated-June-30-2022-.pdf",
+  "title": "Order dated June 30, 2022 in T-145-22, T-247-22, T-168-22 and T-1991-21",
+  "kind": "court_order",
+  "relation": "order in the consolidated applications including this one"
+ },
+ {
+  "file": "raw/matter/fc-peckford-baigent/consolidated-direction-2022-05.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2022/05/T-145-22-T-247-22-T-168-22-et-T-1991-21.pdf",
+  "title": "Court document in T-145-22, T-247-22, T-168-22 and T-1991-21 (May 2022)",
+  "kind": "court_filing",
+  "relation": "procedural document in the consolidated applications including this one"
+ }
+]

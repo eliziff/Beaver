@@ -1,0 +1,93 @@
+{
+ "record_id": "nssc-cffi-bartlett",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "memo",
+   "date": "2026-01-19",
+   "from": "Brittany Bartlett, VP and CFO",
+   "to": [
+    "CFFI finance team"
+   ],
+   "subject": "T4 and T5 slip deadlines",
+   "body": "T4 slips must be issued by February 27. Please reconcile payroll registers to the general ledger by February 13 so we have time for corrections."
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2025-10-30",
+   "from": "Stan Spavold",
+   "to": [
+    "Brittany Bartlett"
+   ],
+   "subject": "Cormorant truck fleet insurance",
+   "body": "Brittany,\n\nThe broker confirmed the fleet insurance renewal for Cormorant's service trucks at a 4% increase. I will sign unless you have concerns.\n\nStan"
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2026-03-31",
+   "from": "Bedford Fleet Maintenance Ltd.",
+   "to": [
+    "Cormorant Utility Services Limited"
+   ],
+   "subject": "Fleet servicing, March 2026",
+   "body": "Net 30.\nOil change and inspection, 9 trucks: 2430.0\nTire replacement, 2 trucks: 1680.0\nHST 15%: 616.5"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2026-02-10",
+   "from": "",
+   "to": [
+    "Operations managers"
+   ],
+   "subject": "Minutes of Operations Meeting",
+   "body": "1. Winter storm response: all crews back to regular schedule.\n\n2. Safety training for new hires February 24.\n\n3. Next meeting: March 10."
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2026-04-20",
+   "from": "McInnes Cooper",
+   "to": [
+    "Brittany Bartlett, CFFI Ventures Inc."
+   ],
+   "subject": "Updated billing contact",
+   "body": "Dear Ms. Bartlett:\n\nPlease note that our accounts receivable contact has changed. Remittance details remain the same.\n\nMcInnes Cooper"
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2026-05-21",
+   "from": "Brittany Bartlett",
+   "to": [
+    "CFFI office manager"
+   ],
+   "subject": "Office move - server room",
+   "body": "Please confirm with IT that the server room cooling will be installed before the move on June 12.\n\nBrittany"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-06-05",
+   "from": "Brittany Bartlett",
+   "to": [
+    "Brittany Bartlett"
+   ],
+   "subject": "",
+   "body": "Assistant: Parking at the courthouse is limited, take a cab\nBrittany: Will do. Can you move my 3 pm?\nAssistant: Moved to Monday"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2025-12-31",
+   "from": "Halifax Records Management Inc.",
+   "to": [
+    "CFFI Ventures Inc."
+   ],
+   "subject": "Document shredding, Q4 2025",
+   "body": "Thank you.\nSecure shredding, 24 bins: 720.0\nHST 15%: 108.0"
+  }
+ ]
+}

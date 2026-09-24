@@ -1,0 +1,88 @@
+{
+ "record_id": "chrt-caring-blackstock-2026",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-v9f7w6.pdf",
+   "source_pages": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ],
+   "cover_page": 5,
+   "stamp_page": null,
+   "text_chars": 17235
+  },
+  {
+   "label": "B",
+   "file": "doc-m6v7j3.pdf",
+   "source_pages": [
+    24,
+    25,
+    26,
+    27
+   ],
+   "cover_page": 23,
+   "stamp_page": null,
+   "text_chars": 10925
+  },
+  {
+   "label": "C",
+   "file": "doc-7menmq.pdf",
+   "source_pages": [
+    29,
+    30
+   ],
+   "cover_page": 28,
+   "stamp_page": null,
+   "text_chars": 5465
+  },
+  {
+   "label": "D",
+   "file": "doc-bt7s7j.pdf",
+   "source_pages": [
+    32,
+    33,
+    34
+   ],
+   "cover_page": 31,
+   "stamp_page": null,
+   "text_chars": 6778
+  },
+  {
+   "label": "E",
+   "file": "doc-8dn3g7.pdf",
+   "source_pages": [
+    36,
+    37,
+    38
+   ],
+   "cover_page": 35,
+   "stamp_page": null,
+   "text_chars": 7956
+  }
+ ],
+ "leak_audit": []
+}

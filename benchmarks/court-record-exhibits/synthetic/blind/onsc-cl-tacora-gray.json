@@ -1,0 +1,94 @@
+{
+ "record_id": "onsc-cl-tacora-gray",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2023-10-26",
+   "from": "Thomas Gray <grayt@bennettjones.com>",
+   "to": [
+    "Sean Zweig <zweigs@bennettjones.com>"
+   ],
+   "subject": "Articling student feedback forms",
+   "body": "Sean,\n\nThe student feedback forms for the fall rotation are due Friday. I have filled in mine for the two students on our team; could you add your comments?\n\nThomas"
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2023-10-24",
+   "from": "Sean Zweig <zweigs@bennettjones.com>",
+   "to": [
+    "Insolvency Group <insolvency@bennettjones.com>"
+   ],
+   "subject": "Group lunch - November",
+   "body": "All,\n\nOur quarterly group lunch is November 16 at noon in the 34th floor boardroom. Please let me know dietary restrictions.\n\nSean"
+  },
+  {
+   "doc": 2,
+   "kind": "memo",
+   "date": "2023-10-10",
+   "from": "Tacora Resources Inc. - Scully Mine Operations",
+   "to": [
+    "Mine staff"
+   ],
+   "subject": "Winter preparation schedule",
+   "body": "Snow fencing will go up along the haul road starting October 23. Heated enclosures for the pumps must be inspected by November 3."
+  },
+  {
+   "doc": 3,
+   "kind": "invoice",
+   "date": "2023-09-30",
+   "from": "Labrador Industrial Supply Ltd.",
+   "to": [
+    "Tacora Resources Inc."
+   ],
+   "subject": "Safety supplies",
+   "body": "Net 30.\nHigh-visibility winter parkas, 60 units: 9000.0\nHard hat liners: 720.0\nHST 15%: 1458.0"
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2023-10-19",
+   "from": "FTI Consulting Canada Inc., Monitor of Tacora Resources Inc.",
+   "to": [
+    "Trade creditors of Tacora Resources Inc."
+   ],
+   "subject": "Monitor's case website and contact information",
+   "body": "Dear Sir or Madam:\n\nThe Monitor has posted a frequently asked questions page on its case website for suppliers. Questions may be sent to the Monitor's dedicated inbox.\n\nFTI Consulting Canada Inc."
+  },
+  {
+   "doc": 5,
+   "kind": "text",
+   "date": "2023-10-25",
+   "from": "Thomas Gray",
+   "to": [
+    "Thomas Gray"
+   ],
+   "subject": "",
+   "body": "Friend: Still on for squash tomorrow at 7?\nThomas: Have to cancel, crazy day. Next week?\nFriend: Sure, Tuesday"
+  },
+  {
+   "doc": 6,
+   "kind": "minutes",
+   "date": "2023-10-05",
+   "from": "",
+   "to": [
+    "Committee members",
+    "Thomas Gray"
+   ],
+   "subject": "Minutes of Pro Bono Committee",
+   "body": "1. Two new tenant clinic files assigned.\n\n2. Volunteer schedule for the November small claims duty counsel program.\n\n3. Next meeting: November 2."
+  },
+  {
+   "doc": 7,
+   "kind": "email",
+   "date": "2023-10-27",
+   "from": "Thomas Gray <grayt@bennettjones.com>",
+   "to": [
+    "Docs Centre <docs@bennettjones.com>"
+   ],
+   "subject": "Binding request",
+   "body": "Hi,\n\nPlease cerlox bind three copies of the precedent binder on the shelf outside my office for the new associates.\n\nThanks,\nThomas"
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+{
+ "record_id": "onca-roe-caldwell",
+ "affidavit_pages": [
+  5,
+  6,
+  7
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-8nx9r9.pdf",
+   "source_pages": [
+    9,
+    10,
+    11,
+    12
+   ],
+   "cover_page": 8,
+   "stamp_page": null,
+   "text_chars": 3768
+  },
+  {
+   "label": "B",
+   "file": "doc-cmdq5t.pdf",
+   "source_pages": [
+    14,
+    15,
+    16
+   ],
+   "cover_page": 13,
+   "stamp_page": null,
+   "text_chars": 2632
+  },
+  {
+   "label": "C",
+   "file": "doc-azsgxr.pdf",
+   "source_pages": [
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+   ],
+   "cover_page": 17,
+   "stamp_page": null,
+   "text_chars": 8132
+  },
+  {
+   "label": "D",
+   "file": "doc-keuduj.pdf",
+   "source_pages": [
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45
+   ],
+   "cover_page": 24,
+   "stamp_page": null,
+   "text_chars": 29173
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "C",
+   "file": "doc-azsgxr",
+   "text": "endments to the above waiver.\u201c [page 3] THIS IS EXHIBIT \u201cG\u201d REFERRED TO IN THE AFFIDAVIT OF RAYMOND ZAR SWORN BEFORE ME THIS 6TH DAY OF FEBRUARY, 20"
+  }
+ ]
+}

@@ -1,0 +1,93 @@
+{
+ "record_id": "onsc-ottawa-ashcroft-choo",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "letter",
+   "date": "2025-01-31",
+   "from": "Ashcroft Homes - Resident Services",
+   "to": [
+    "Residents of an Ashcroft student residence"
+   ],
+   "subject": "Winter study hall hours",
+   "body": "Dear Residents:\n\nThe second-floor study lounge will be open 24 hours during the February exam period. Please keep noise to a minimum after 11 pm.\n\nResident Services"
+  },
+  {
+   "doc": 1,
+   "kind": "invoice",
+   "date": "2024-12-31",
+   "from": "Rideau Snow Services Ltd.",
+   "to": [
+    "Ashcroft Homes Group"
+   ],
+   "subject": "Snow clearing, December 2024",
+   "body": "Net 30.\nParking lot clearing, 7 events: 3150.0\nWalkway salting: 840.0\nHST 13%: 518.7"
+  },
+  {
+   "doc": 2,
+   "kind": "email",
+   "date": "2025-10-24",
+   "from": "David Oswald Choo",
+   "to": [
+    "Ashcroft marketing team"
+   ],
+   "subject": "Brochure photography",
+   "body": "Team,\n\nThe photographer can shoot the model suites on November 3. Please have the staging completed by the 31st.\n\nDavid"
+  },
+  {
+   "doc": 3,
+   "kind": "memo",
+   "date": "2025-05-12",
+   "from": "Ashcroft Homes - Human Resources",
+   "to": [
+    "All employees"
+   ],
+   "subject": "Summer hours",
+   "body": "Head office will close at 1 pm on Fridays from June 27 to August 29. Site offices keep regular hours."
+  },
+  {
+   "doc": 4,
+   "kind": "minutes",
+   "date": "2025-03-18",
+   "from": "",
+   "to": [
+    "Residents' Council members"
+   ],
+   "subject": "Minutes of Residents' Council",
+   "body": "1. Spring garden club planting day April 26.\n\n2. Dining room menu survey results shared.\n\n3. Shuttle to the shopping centre on Tuesdays and Fridays continues."
+  },
+  {
+   "doc": 5,
+   "kind": "invoice",
+   "date": "2025-08-31",
+   "from": "Capital Elevator Inspections Inc.",
+   "to": [
+    "Ashcroft Homes Group"
+   ],
+   "subject": "Annual elevator inspections",
+   "body": "Thank you.\nInspection of 6 elevators: 2700.0\nHST 13%: 351.0"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2025-10-27",
+   "from": "David Oswald Choo",
+   "to": [
+    "David Oswald Choo"
+   ],
+   "subject": "",
+   "body": "Assistant: Your 4 pm site walk is confirmed\nDavid: Thanks, bring the paint samples\nAssistant: Will do"
+  },
+  {
+   "doc": 7,
+   "kind": "email",
+   "date": "2024-12-12",
+   "from": "Ashcroft Homes - Resident Services",
+   "to": [
+    "David Oswald Choo"
+   ],
+   "subject": "Holiday decorating",
+   "body": "David,\n\nThe residents' holiday decorating event went very well; photos are attached for the newsletter.\n\nResident Services"
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/mbqb-gateway-loeppky/affidavit-of-brent-roussin.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2021/10/01-Affidavit-of-Brent-Roussin-FINAL.pdf",
+  "title": "Affidavit of Dr. Brent Roussin (CI 20-01-29284)",
+  "kind": "affidavit",
+  "relation": "Chief Public Health Officer's affidavit filed by the respondents alongside this one"
+ },
+ {
+  "file": "raw/matter/mbqb-gateway-loeppky/reply-affidavit-of-carla-loeppky.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2021/10/02a-Reply-Affidavit-of-Carla-Loeppky-Affirmed-April-30-2021.pdf",
+  "title": "Reply Affidavit of Carla Loeppky affirmed April 30, 2021 (CI 20-01-29284)",
+  "kind": "affidavit",
+  "relation": "the deponent's later reply affidavit in the same application"
+ }
+]

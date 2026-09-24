@@ -1,0 +1,67 @@
+{
+ "record_id": "nssc-cffi-bartlett",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4m8kpk.pdf",
+   "source_pages": [
+    6
+   ],
+   "cover_page": 5,
+   "stamp_page": null,
+   "text_chars": 1205
+  },
+  {
+   "label": "B",
+   "file": "doc-ngdhu3.pdf",
+   "source_pages": [
+    8,
+    9,
+    10,
+    11,
+    12
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 9629
+  },
+  {
+   "label": "C",
+   "file": "doc-97tfr6.pdf",
+   "source_pages": [
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+   ],
+   "cover_page": 13,
+   "stamp_page": null,
+   "text_chars": 20360
+  },
+  {
+   "label": "D",
+   "file": "doc-e97m8s.pdf",
+   "source_pages": [
+    22,
+    23,
+    24,
+    25
+   ],
+   "cover_page": 21,
+   "stamp_page": null,
+   "text_chars": 7680
+  }
+ ],
+ "leak_audit": []
+}

@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/fc-cawsbar-mason/statement-of-claim.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2025/04/CAWSBAR-Statement-of-Claim-Filed-Redacted.pdf",
+  "title": "Statement of Claim (filed), CAWSBAR v. His Majesty the King, T-1146-25",
+  "kind": "court_filing",
+  "relation": "the claim for which public interest standing is sought"
+ },
+ {
+  "file": "raw/matter/fc-cawsbar-mason/statement-of-defence-2026-08-31.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2026/09/T-1146-25-CAWSBAR-v-HMK-Statement-of-Defence-August-31-2026_Redacted.pdf",
+  "title": "Statement of Defence dated August 31, 2026, T-1146-25",
+  "kind": "court_filing",
+  "relation": "the Crown's defence in the same action"
+ }
+]

@@ -1,0 +1,94 @@
+{
+ "record_id": "onsc-cp-fresco-brown",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2022-12-28",
+   "from": "Jody Brown",
+   "to": [
+    "Goldblatt Partners Toronto staff"
+   ],
+   "subject": "Office closure reminder",
+   "body": "Hi all,\n\nReminder that the office reopens January 3. The phone system will route to voicemail until then.\n\nJody"
+  },
+  {
+   "doc": 1,
+   "kind": "minutes",
+   "date": "2022-11-16",
+   "from": "",
+   "to": [
+    "Jody Brown",
+    "Committee members"
+   ],
+   "subject": "Minutes of Office Committee",
+   "body": "1. Holiday party December 9.\n\n2. Replacement of boardroom chairs approved.\n\n3. New articling students begin in August."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2022-12-31",
+   "from": "Spadina Translation Services Inc.",
+   "to": [
+    "Goldblatt Partners LLP"
+   ],
+   "subject": "Translation - unrelated employment arbitration award",
+   "body": "Net 30.\nFrench to English translation, 3,800 words: 950.0\nHST 13%: 123.5"
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2022-10-03",
+   "from": "Jody Brown",
+   "to": [
+    "Law Society CPD coordinator"
+   ],
+   "subject": "Speaker confirmation",
+   "body": "Dear Coordinator:\n\nI confirm that I will speak on the employment law update panel on November 24. My materials will follow by November 10.\n\nJody Brown"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2023-01-03",
+   "from": "Jody Brown",
+   "to": [
+    "IT Help"
+   ],
+   "subject": "VPN access",
+   "body": "Hi,\n\nMy VPN token expired over the holidays. Could you reissue it this morning?\n\nJody"
+  },
+  {
+   "doc": 5,
+   "kind": "memo",
+   "date": "2022-09-12",
+   "from": "Goldblatt Partners LLP - Finance",
+   "to": [
+    "Lawyers"
+   ],
+   "subject": "Docketing reminder",
+   "body": "Please docket time daily. Month-end billing runs will now close on the third business day."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2022-12-20",
+   "from": "Jody Brown",
+   "to": [
+    "Jody Brown"
+   ],
+   "subject": "",
+   "body": "Assistant: Your dentist appointment is moved to January 10\nJody: Fine, thanks\nAssistant: Also the parking pass renewal is due"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2022-11-30",
+   "from": "Queen Street Office Cleaning Ltd.",
+   "to": [
+    "Goldblatt Partners LLP"
+   ],
+   "subject": "Office cleaning, November 2022",
+   "body": "Thank you.\nNightly cleaning: 3100.0\nCarpet shampoo, boardrooms: 420.0\nHST 13%: 457.6"
+  }
+ ]
+}

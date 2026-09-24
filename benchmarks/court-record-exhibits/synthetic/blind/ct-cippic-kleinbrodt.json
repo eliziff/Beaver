@@ -1,0 +1,94 @@
+{
+ "record_id": "ct-cippic-kleinbrodt",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2026-05-05",
+   "from": "Julian Kleinbrodt",
+   "to": [
+    "San Francisco office services"
+   ],
+   "subject": "Conference room AV",
+   "body": "Hi,\n\nThe screen in conference room 24B keeps dropping the connection. Could someone check it before my 2 pm tomorrow?\n\nJulian"
+  },
+  {
+   "doc": 1,
+   "kind": "minutes",
+   "date": "2026-04-14",
+   "from": "",
+   "to": [
+    "Julian Kleinbrodt",
+    "Committee members"
+   ],
+   "subject": "Minutes of Associates Committee",
+   "body": "1. Summer associate program starts June 1.\n\n2. Mentoring pairings finalized.\n\n3. Next meeting: May 12."
+  },
+  {
+   "doc": 2,
+   "kind": "letter",
+   "date": "2026-03-30",
+   "from": "Julian Kleinbrodt",
+   "to": [
+    "Law school career services office"
+   ],
+   "subject": "Mock interview volunteers",
+   "body": "Dear Career Services:\n\nI am happy to volunteer for the mock interview program on April 21. Please send the schedule.\n\nJulian Kleinbrodt"
+  },
+  {
+   "doc": 3,
+   "kind": "invoice",
+   "date": "2026-04-30",
+   "from": "Embarcadero Court Reporting Inc.",
+   "to": [
+    "Gibson, Dunn & Crutcher LLP"
+   ],
+   "subject": "Deposition transcript - unrelated commercial matter",
+   "body": "Net 30.\nTranscript, 212 pages: 1060.0\nRough draft: 212.0\nExhibits scanning: 90.0"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2026-05-11",
+   "from": "Julian Kleinbrodt",
+   "to": [
+    "Legal assistant"
+   ],
+   "subject": "Travel expense report",
+   "body": "Please file my expenses from the April trip to Chicago. Receipts are in the envelope on my desk.\n\nJulian"
+  },
+  {
+   "doc": 5,
+   "kind": "memo",
+   "date": "2026-04-01",
+   "from": "Gibson Dunn - Knowledge Management",
+   "to": [
+    "Litigation attorneys"
+   ],
+   "subject": "New research database training",
+   "body": "Training sessions on the new case-law research platform will run April 8 and April 15. Attendance counts toward CLE hours."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-05-08",
+   "from": "Julian Kleinbrodt",
+   "to": [
+    "Julian Kleinbrodt"
+   ],
+   "subject": "",
+   "body": "Assistant: Car to SFO at 5:15 am Monday\nJulian: Make it 5:30\nAssistant: Updated"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2026-03-31",
+   "from": "Market Street Catering LLC",
+   "to": [
+    "Gibson, Dunn & Crutcher LLP - San Francisco"
+   ],
+   "subject": "Lunch catering, March 2026",
+   "body": "Thank you.\nWorking lunches, 9 events: 2430.0\nService: 243.0\nSales tax: 233.87"
+  }
+ ]
+}

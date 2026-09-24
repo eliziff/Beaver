@@ -1,0 +1,19 @@
+{
+ "url": "https://slatervecchio.com/wp-content/uploads/2021/12/11.-Affidavit-1-of-Daniel-Habashi.pdf",
+ "landing_url": "https://slatervecchio.com/",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-193384 (Vancouver)",
+ "document_title": "Affidavit #1 of Daniel Habashi made February 1, 2021 (TikTok defendants, responding to certification), A.C. v. Musical.ly Inc. et al. (children's privacy class action)",
+ "retrieved": "2026-09-23",
+ "record_id": "bcsc-cp-tiktok-habashi",
+ "source_file": "sv-11-affidavit-1-of-daniel-habashi.pdf",
+ "page_range": [
+  1,
+  234
+ ],
+ "source_sha256": "2f793e583bb6bcce34d4f033164e3b9874fbff00411e388f24410d84728c1039",
+ "source_pages": 234,
+ "covers": "A=9,B=21,C=27,D=29,E=34,F=62,G=64,H=66,I=68,J=73,K=127,L=132,M=136"
+}

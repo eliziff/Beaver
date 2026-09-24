@@ -1,0 +1,19 @@
+{
+ "url": "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/521278/1/document.do",
+ "landing_url": "https://decisions.ct-tc.gc.ca/ct-tc/cd/en/item/521281/index.do",
+ "court": "Competition Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CT-2024-006",
+ "document_title": "Affidavit of Emily Seaby sworn July 26, 2024 (JAMP Pharma, application for leave under s. 103.1 against Janssen Inc.)",
+ "retrieved": "2026-09-23",
+ "record_id": "ct-jamp-seaby",
+ "source_file": "ct-521278.pdf",
+ "page_range": [
+  1,
+  440
+ ],
+ "source_sha256": "453646fabe0108a361c637900a8d628431b4f979feab33a0f26cf7ae60437ab3",
+ "source_pages": 440,
+ "covers": "S1=9,S2=17,S3=66,S4=75,S5=134,S6=198,S7=205,S8=355"
+}

@@ -1,0 +1,18 @@
+{
+ "url": "https://cfcanada.fticonsulting.com/cffi/docs/Affidavit%20of%20B.%20Bartlett_issued_searchable_June%205,%202026.pdf",
+ "landing_url": "https://cfcanada.fticonsulting.com/cffi/motions.htm",
+ "court": "Supreme Court of Nova Scotia",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "Hfx No. 551716",
+ "document_title": "Affidavit of Brittany Bartlett sworn June 5, 2026 (CFFI Ventures Inc. CCAA, rebuttal to the Second Scott Affidavit and the Hugh Affidavit)",
+ "retrieved": "2026-09-22",
+ "record_id": "nssc-cffi-bartlett",
+ "source_file": "ns-cffi-3.pdf",
+ "page_range": [
+  1,
+  25
+ ],
+ "source_sha256": "06f197abdfb5e0c4e5ef2c1fdf1d1efcf89b1542f74d07c3f4563a740c581b7f",
+ "source_pages": 25
+}

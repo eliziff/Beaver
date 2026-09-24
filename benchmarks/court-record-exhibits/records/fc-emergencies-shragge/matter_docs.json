@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/fc-emergencies-shragge/affidavit-deshman-2022-03-04.pdf",
+  "url": "https://ccla.org/wp-content/uploads/2022/04/20220304-Affidavit-of-Abigail-Deshman-Emergencies-Act.pdf",
+  "title": "Affidavit of Abigail Deshman, March 4, 2022 (CCLA, T-316-22)",
+  "kind": "court_filing",
+  "relation": "applicant's affidavit in the same consolidated judicial reviews"
+ },
+ {
+  "file": "raw/matter/fc-emergencies-shragge/affidavit-coleman-2022-04-04.pdf",
+  "url": "https://ccla.org/wp-content/uploads/2022/05/2022.04.04-Affidavit-of-Rebecca-Coleman2048097.1.pdf",
+  "title": "Affidavit of Rebecca Coleman, April 4, 2022 (AGC, T-306-22 et al.)",
+  "kind": "court_filing",
+  "relation": "another respondent affidavit in the same consolidated judicial reviews"
+ }
+]

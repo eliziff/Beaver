@@ -1,0 +1,37 @@
+{
+ "record_id": "bcsc-1281805-mann",
+ "court": "Supreme Court of British Columbia (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "Estate No. 11-3352394 (Vancouver; court file number illegible)",
+ "proceeding": "In the Matter of the Notice of Intention to Make a Proposal of 1281805 BC Ltd. (BIA), application for a DIP financing charge",
+ "document": "Affidavit #1 of Talbir Mann affirmed March 31, 2026, filed April 20, 2026",
+ "deponent": "Talbir Mann",
+ "deponent_role": "Director of 1281805 BC Ltd. and of joint venturer Wood Lock Developments Ltd.",
+ "sworn_date": "2026-03-31",
+ "exhibits": [
+  {"label": "A", "file": "doc-4jm93u.pdf", "kind": "corporate_record", "date": null, "author": "BC Registry Services", "recipients": [], "description": "Corporate summary for the Company", "references": [{"paragraph": 3, "quote": "Attached and marked as Exhibit “A” to this Affidavit is a true"}], "content_check": "3 pages: BC Registry Services company summary for 1281805 B.C. Ltd."},
+  {"label": "B", "file": "doc-8a3cv9.pdf", "kind": "public_record", "date": "2026-03-24", "author": "BC Land Title Office", "recipients": [], "description": "Land title search for the Everwood Project property", "references": [{"paragraph": 5, "quote": "and marked as Exhibit “B” to this Affidavit is a true copy of the land title search"}], "content_check": "7 pages: title search print 2026-03-24 requested by William Stransky"},
+  {"label": "C", "file": "doc-uhr3yy.pdf", "kind": "spreadsheet", "date": "2026-03-24", "author": "1281805 B.C. Ltd.", "recipients": [], "description": "The Company's current creditors listing", "references": [{"paragraph": 12, "quote": "The Company’s current creditors listing is attached and marked as Exhibit “C”"}], "content_check": "4 pages: '1281805 B.C. Ltd - Vendor List As of March 24, 2026'"},
+  {"label": "D", "file": "doc-u8wv6b.pdf", "kind": "agreement", "date": "2023-06-23", "author": "Envision Financial (First West Credit Union)", "recipients": ["Wood Lock Developments Ltd., 1281826 B.C. Ltd., 1281805 B.C. Ltd."], "description": "Phase 1 Credit Facility offer of credit dated June 23, 2023", "references": [{"paragraph": 14, "quote": "Attached and marked as Exhibit “D” to this Affidavit is a"}], "content_check": "25 pages: First West Credit Union offer of credit dated June 23, 2023 to the joint venture"},
+  {"label": "E", "file": "doc-m59vbk.pdf", "kind": "agreement", "date": "2025-01-28", "author": "Envision Financial (First West Credit Union)", "recipients": ["Joint venture borrowers"], "description": "Phase 2 Credit Facility offer of credit dated January 28, 2025", "references": [{"paragraph": 14, "quote": "Attached and marked as Exhibit “E” to"}], "content_check": "40 pages: DocuSigned First West Credit Union offer dated January 28, 2025"},
+  {"label": "F", "file": "doc-t4z24r.pdf", "kind": "public_record", "date": "2026-03-26", "author": "BC Personal Property Registry", "recipients": [], "description": "PPR registration reports dated March 26, 2026 for the Company", "references": [{"paragraph": 15, "quote": "Attached and marked as Exhibit “F” are the personal property security registration"}], "content_check": "8 pages: PPR search result for 1281805 B.C. Ltd., March 26, 2026"},
+  {"label": "G", "file": "doc-kr7bbc.pdf", "kind": "spreadsheet", "date": "2026-03-27", "author": "1281805 BC Ltd. with the Proposal Trustee", "recipients": [], "description": "Projected cash flow for the Everwood Project dated March 27, 2026", "references": [{"paragraph": 26, "quote": "Attached and marked as Exhibit “G” to this"}], "content_check": "2 pages: cash flow summary / cost to complete, Phase 1, forecast March 24 - July 31, 2026"},
+  {"label": "H", "file": "doc-pfyqt9.pdf", "kind": "agreement", "date": "2026-03-30", "author": "Maynbridge Capital Inc.", "recipients": ["1281805 BC Ltd."], "description": "DIP financing term sheet dated March 30, 2026", "references": [{"paragraph": 29, "quote": "Attached and marked as Exhibit “H\" to this Affidavit is a true copy of the term sheet"}], "content_check": "DocuSigned Maynbridge Capital Inc. term sheet to 1281805 BC Ltd."}
+ ],
+ "events": [
+  {"id": "e1", "date": "2023-06-23", "precision": "day", "description": "Envision issued the Phase 1 credit facility", "paragraphs": [14], "quote": "an offer of credit dated June 23, 2023", "exhibits": ["D"]},
+  {"id": "e2", "date": "2025-01-28", "precision": "day", "description": "Envision issued the Phase 2 credit facility", "paragraphs": [14], "quote": "an offer of credit dated January 28, 2025", "exhibits": ["E"]},
+  {"id": "e3", "date": "2025-11-07", "precision": "day", "description": "Eleven Phase 1 units were completed and sold", "paragraphs": [8], "quote": "11 units were completed and sold around\nNovember 7, 2025", "exhibits": []},
+  {"id": "e4", "date": "2026-03-26", "precision": "day", "description": "The Company filed a notice of intention to make a proposal; FTI became proposal trustee", "paragraphs": [11, 22], "quote": "on March 26, 2026, the Proposal Trustee filed an NOI on behalf of the\nCompany", "exhibits": []},
+  {"id": "e5", "date": "2026-03-27", "precision": "day", "description": "The Company filed amended disclosure statements with the BC Financial Services Authority", "paragraphs": [24], "quote": "on March 27, 2026, to\npermit their continued marketing", "exhibits": []},
+  {"id": "e6", "date": "2026-03-30", "precision": "day", "description": "Maynbridge Capital offered $2.4M DIP financing by term sheet", "paragraphs": [29], "quote": "dated March 30, 2026", "exhibits": ["H"]},
+  {"id": "e7", "date": "2026-04-02", "precision": "day", "description": "Notice to creditors expected to be mailed", "paragraphs": [12], "quote": "on or\nbefore April 2, 2026", "exhibits": []},
+  {"id": "e8", "date": null, "precision": "undated", "description": "Envision declined further funds to complete Phase 1", "paragraphs": [20], "quote": "Envision has advised it will not make further funds available", "exhibits": []},
+  {"id": "e9", "date": "2026-06-03", "precision": "day", "description": "Building 8 units anticipated completion (Building 1 by July 29, 2026)", "paragraphs": [8], "quote": "be completed by June 3, 2026", "exhibits": []},
+  {"id": "e10", "date": "2026-03-31", "precision": "day", "description": "Mann affirmed the affidavit by video", "paragraphs": [33], "quote": "acknowledge the solemnity of making this affidavit", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Pre-sale contracts", "Notice to creditors"],
+ "leak_waivers": [],
+ "notes": "Scanned affidavit; text from --ocr-affidavit. Covers given with --covers."
+}

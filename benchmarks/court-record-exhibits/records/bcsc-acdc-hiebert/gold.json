@@ -1,0 +1,43 @@
+{
+ "record_id": "bcsc-acdc-hiebert",
+ "court": "Supreme Court of British Columbia (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-263255 (Vancouver Registry)",
+ "proceeding": "In the matter of the receivership of Arctic Canadian Diamond Company Ltd. and Burgundy Diamonds (Canada) Limited (following CCAA proceedings)",
+ "document": "Affidavit #1 of Lisa Hiebert in support of FTI's application for approval of the Monitor's and Fasken's fees and disbursements",
+ "deponent": "Lisa Hiebert",
+ "deponent_role": "Partner, Fasken Martineau DuMoulin LLP, counsel for FTI Consulting Canada Inc. as Monitor",
+ "sworn_date": "2026-07-20",
+ "exhibits": [
+  {"label": "A", "file": "doc-c3uydy.pdf", "kind": "invoice", "date": "2026-05-27", "author": "Fasken Martineau DuMoulin LLP", "recipients": ["FTI Consulting Canada Inc. (Tom Powell)"],
+   "description": "Fasken invoice #2282529 dated May 27, 2026 for $5,873.00 (fees $5,210.00, disbursements $36.00, taxes $627.00)",
+   "references": [{"paragraph": 5, "quote": "2282529 May 27, 2026 $5,210.00"}],
+   "content_check": "Fasken invoice #2282529 dated May 27, 2026 to FTI (attention Tom Powell), matter Arctic Canadian Diamond Company Ltd., services through April 30, 2026, total CAD $5,873.00; narratives omitted"},
+  {"label": "B", "file": "doc-55ay7t.pdf", "kind": "invoice", "date": "2026-06-10", "author": "Fasken Martineau DuMoulin LLP", "recipients": ["FTI Consulting Canada Inc. (Tom Powell)"],
+   "description": "Fasken invoice #2290078 dated June 10, 2026 for $39,435.71",
+   "references": [{"paragraph": 5, "quote": "2290078 June 10,2026 $34,863.00"}],
+   "content_check": "Fasken invoice #2290078 dated June 10, 2026, matter 'Burgundy Diamond Mines Ltd.', services through May 31, 2026, 4 pages"},
+  {"label": "C", "file": "doc-vqc4b4.pdf", "kind": "invoice", "date": "2026-07-03", "author": "Fasken Martineau DuMoulin LLP", "recipients": ["FTI Consulting Canada Inc. (Tom Powell)"],
+   "description": "Fasken invoice #2299236 dated July 3, 2026 for $24,811.92",
+   "references": [{"paragraph": 5, "quote": "2299236 July 3, 2026 $22,146.00"}],
+   "content_check": "Fasken invoice #2299236 dated July 03, 2026, services through July 02, 2026, fees $22,146.00, taxes $2,657.92"},
+  {"label": "D", "file": "doc-4u8bur.pdf", "kind": "invoice", "date": "2026-07-17", "author": "Fasken Martineau DuMoulin LLP", "recipients": ["FTI Consulting Canada Inc. (Tom Powell)"],
+   "description": "Fasken invoice #2300166 dated July 17, 2026 for $24,602.31",
+   "references": [{"paragraph": 5, "quote": "2300166 July 17, 2026 $21,856.50"}, {"paragraph": 13, "quote": "Since the most recent Fasken Invoice issued on July 17,2026"}],
+   "content_check": "Fasken invoice #2300166 dated July 17, 2026, services through July 15, 2026, fees $21,856.50, disbursements $117.50"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2026-04-28", "end_date": "2026-07-15", "precision": "range", "description": "Fasken invoiced $84,075.50 in fees plus disbursements and taxes, $94,722.94 in total, for work as Monitor's counsel", "paragraphs": [6], "quote": "from April 28 to July 15, 2026, Fasken invoiced fees", "exhibits": ["A", "B", "C", "D"]},
+  {"id": "e2", "date": "2026-05-27", "precision": "day", "description": "Fasken issued invoice #2282529", "paragraphs": [5], "quote": "2282529 May 27, 2026", "exhibits": ["A"]},
+  {"id": "e3", "date": "2026-06-10", "precision": "day", "description": "Fasken issued invoice #2290078", "paragraphs": [5], "quote": "2290078 June 10,2026", "exhibits": ["B"]},
+  {"id": "e4", "date": "2026-07-03", "precision": "day", "description": "Fasken issued invoice #2299236", "paragraphs": [5], "quote": "2299236 July 3, 2026", "exhibits": ["C"]},
+  {"id": "e5", "date": "2026-07-17", "precision": "day", "description": "Fasken issued its most recent invoice #2300166 for services through July 15, 2026", "paragraphs": [5, 13], "quote": "Since the most recent Fasken Invoice issued on July 17,2026", "exhibits": ["D"]},
+  {"id": "e6", "date": "2026-07-31", "precision": "day", "description": "Estimated further fees of about $10,000 to be incurred through July 31, 2026 (the Fasken Fee Estimate)", "paragraphs": [13], "quote": "incurred or to be incurred by Fasken through July 31, 2026, will total approximately $10,000", "exhibits": []},
+  {"id": "e7", "precision": "undated", "description": "The Court granted the Receivership Order approving the Monitor's activities and transitioning the CCAA proceedings to receivership", "paragraphs": [10], "quote": "activities in the CCAA Proceedings were approved by the Court under the Receivership", "exhibits": [], "referenced_not_attached": ["Receivership Order", "Monitor's Reports"]},
+  {"id": "e8", "precision": "undated", "description": "Fasken holds a $50,000 retainer from the Debtors expected to cover the Fasken Fee Estimate", "paragraphs": [14], "quote": "Currently, Fasken holds a retainer from the Debtors in the amount of $50,000", "exhibits": []},
+  {"id": "e9", "date": "2007", "precision": "year", "description": "Hiebert was called to the bar in Alberta (British Columbia in 2009)", "paragraphs": [9], "quote": "I was called to the bar in Alberta in 2007", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Notice of Application for the Fee Approval Order", "Receivership Order", "Monitor's Reports"],
+ "notes": "Exhibits are referenced only through the invoice table in paragraph 5, which pairs each exhibit letter with invoice number, date and amounts; quotes are taken from that table. Exhibit B's matter line reads Burgundy Diamond Mines Ltd. rather than Arctic Canadian Diamond Company Ltd."
+}

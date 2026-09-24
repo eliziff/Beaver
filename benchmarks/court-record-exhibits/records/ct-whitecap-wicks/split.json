@@ -1,0 +1,122 @@
+{
+ "record_id": "ct-whitecap-wicks",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  10,
+  12,
+  20,
+  21
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-tr8242.pdf",
+   "source_pages": [
+    10
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 15
+  },
+  {
+   "label": "B",
+   "file": "doc-k4g2b6.pdf",
+   "source_pages": [
+    12
+   ],
+   "cover_page": 11,
+   "stamp_page": null,
+   "text_chars": 15
+  },
+  {
+   "label": "C",
+   "file": "doc-frgxnp.pdf",
+   "source_pages": [
+    14,
+    15,
+    16
+   ],
+   "cover_page": 13,
+   "stamp_page": null,
+   "text_chars": 2464
+  },
+  {
+   "label": "D",
+   "file": "doc-hzvpzc.pdf",
+   "source_pages": [
+    18,
+    19,
+    20,
+    21
+   ],
+   "cover_page": 17,
+   "stamp_page": null,
+   "text_chars": 1828
+  },
+  {
+   "label": "E",
+   "file": "doc-hyc4a6.pdf",
+   "source_pages": [
+    23,
+    24
+   ],
+   "cover_page": 22,
+   "stamp_page": null,
+   "text_chars": 2887
+  },
+  {
+   "label": "F",
+   "file": "doc-p8mzrc.pdf",
+   "source_pages": [
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33
+   ],
+   "cover_page": 25,
+   "stamp_page": null,
+   "text_chars": 15354
+  },
+  {
+   "label": "G",
+   "file": "doc-75qvrc.pdf",
+   "source_pages": [
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51
+   ],
+   "cover_page": 34,
+   "stamp_page": null,
+   "text_chars": 36682
+  }
+ ],
+ "leak_audit": []
+}

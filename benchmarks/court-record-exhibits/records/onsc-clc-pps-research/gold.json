@@ -1,0 +1,298 @@
+{
+ "record_id": "onsc-clc-pps-research",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-24-00094951-0000 (Ottawa)",
+ "proceeding": "Campaign Life Coalition and Maeve Roche v. Parliamentary Protective Service (application over graphic anti-abortion posters on Parliament Hill, Charter expression)",
+ "document": "Expert affidavit of the respondent's research expert (name redacted in the public copy) sworn April 25, 2025",
+ "deponent": "[redacted] (respondent's research expert)",
+ "deponent_role": "University of Ottawa professor and University Research Chair in Medication Abortion Studies, sexual and reproductive health researcher",
+ "sworn_date": "2025-04-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4ftuas.pdf",
+   "kind": "other",
+   "date": "2024-08",
+   "author": "The deponent",
+   "recipients": [],
+   "description": "Her CV, current to August 2024",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "I attach my CV, current to August 2024, as Exhibit “A” to my affidavit."
+    }
+   ],
+   "content_check": "37 pages, fully blacked out by redaction in the public copy (no readable content)"
+  },
+  {
+   "label": "B",
+   "file": "doc-quug7x.pdf",
+   "kind": "photograph",
+   "date": null,
+   "author": "Canadian Centre for Bio-Ethical Reform",
+   "recipients": [],
+   "description": "The three graphic anti-abortion posters at issue in the case",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "I have reviewed and attached the posters as Exhibit “B”."
+    }
+   ],
+   "content_check": "3 image pages of posters, the first reading 'ABORTION - 1st-Trimester (8-week) Aborted Embryo - whyhumanrights.ca'"
+  },
+  {
+   "label": "C",
+   "file": "doc-b9xy4y.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "The deponent's research team",
+   "recipients": [],
+   "description": "Preliminary scoping review summary on the impacts of anti-abortion imagery",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "I have attached our preliminary scoping review summary as\nExhibit “C”."
+    }
+   ],
+   "content_check": "5 pages: 'Exploring the impact of graphic anti-abortion advertisements on recipients: A preliminary scoping review summary'"
+  },
+  {
+   "label": "D",
+   "file": "doc-h82kcz.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "The deponent's research team",
+   "recipients": [
+    "Social Sciences and Humanities Research Council"
+   ],
+   "description": "Substantive part of the SSHRC grant proposal for the study's next two phases",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "I\nattach the substantive part of our proposal as Exhibit “D”."
+    }
+   ],
+   "content_check": "10 pages: 'SSHRC Partnership Engage Grant - Exploring the impact of graphic anti-abortion advertisements on communities: A multi-methods qualitative study in Canada'"
+  },
+  {
+   "label": "E",
+   "file": "doc-c6yn53.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Members of the public (anonymized)",
+   "recipients": [],
+   "description": "Representative sample of complaints about graphic anti-abortion pamphlets, without names",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "I attach a representative sample of complaints (without names, for the complainant’s\nprivacy) as Exhibit “E”."
+    }
+   ],
+   "content_check": "5 pages: 'Sampling of Public Complaints' from Hamilton, Toronto, London, New Westminster and elsewhere"
+  },
+  {
+   "label": "F",
+   "file": "doc-7fv6cy.pdf",
+   "kind": "affidavit",
+   "date": "2025-01-17",
+   "author": "The applicants' policy analysis expert (name redacted)",
+   "recipients": [],
+   "description": "The applicants' expert's affidavit and report 'A Statistical Analysis on the Effectiveness of Abortion Victim Photography in Pro-Life Activism'",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "“A\nStatistical Analysis on the Effectiveness of Abortion Victim Photography in Pro-Life Activism”,\nattached as Exhibit “F”."
+    }
+   ],
+   "content_check": "62 pages: the applicants' affidavit affirmed January 17, 2025 under the same style of cause, with its own Exhibits A-C (acknowledgment of expert's duty, CV, and the report)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "1996",
+   "precision": "year",
+   "description": "The deponent completed an undergraduate degree at Stanford and began studying reproductive rights",
+   "paragraphs": [
+    1,
+    2
+   ],
+   "quote": "I have studied and researched in the field of reproductive rights since 1996.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2001",
+   "precision": "year",
+   "description": "She completed a DPhil at Oxford as a Rhodes Scholar",
+   "paragraphs": [
+    3
+   ],
+   "quote": "from the University of Oxford in 2001",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2002",
+   "precision": "range",
+   "description": "She worked at Ibis Reproductive Health from 2002 until 2011",
+   "paragraphs": [
+    5
+   ],
+   "quote": "From 2002 until 2011, I worked at Ibis Reproductive Health",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2006",
+   "precision": "year",
+   "description": "She received a medical degree from Harvard Medical School",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I received a medical degree from Harvard Medical School in 2006.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2011",
+   "precision": "year",
+   "description": "She joined the University of Ottawa School of Interdisciplinary Health Sciences",
+   "paragraphs": [
+    6,
+    7
+   ],
+   "quote": "Since joining the University of Ottawa in 2011",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2019-06",
+   "precision": "month",
+   "description": "Her group's SSHRC-funded study with NAF Canada on safe access zone laws and protests",
+   "paragraphs": [
+    10
+   ],
+   "quote": "a study done in June 2019 by my group",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2020",
+   "precision": "year",
+   "description": "She gave an expert affidavit in van Hee v. Ontario (Bill 163 challenge) and was cross-examined",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "I provided an expert affidavit in Canada once before in 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2020",
+   "precision": "year",
+   "description": "She received a multi-year foundation grant for studies on abortion medication delivery",
+   "paragraphs": [
+    7
+   ],
+   "quote": "In 2020, I received a multi-year",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2024",
+   "precision": "year",
+   "description": "She became University Research Chair in Medication Abortion Studies (2024-2029)",
+   "paragraphs": [
+    8
+   ],
+   "quote": "2024-2029 – University Research Chair in Medication Abortion Studies",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": null,
+   "precision": "undated",
+   "description": "Her team completed the scoping review of 2,112 international sources on anti-abortion imagery",
+   "paragraphs": [
+    16
+   ],
+   "quote": "We have completed the review of international authorities as part of the scoping review.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": null,
+   "precision": "undated",
+   "description": "Her team completed a SSHRC grant proposal for the study's next two phases",
+   "paragraphs": [
+    17
+   ],
+   "quote": "We have completed a proposal for the next two phases of the study for a SSHRC grant.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": null,
+   "precision": "undated",
+   "description": "Her team did a preliminary review of complaints about graphic pamphlets delivered door to door",
+   "paragraphs": [
+    18
+   ],
+   "quote": "we did a preliminary review of\ncomplaints provided to us",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": null,
+   "precision": "undated",
+   "description": "She reviewed the applicants' expert's affidavit and statistical report",
+   "paragraphs": [
+    23
+   ],
+   "quote": "For the purpose of my expert opinion, I reviewed",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2025-04-25",
+   "precision": "day",
+   "description": "She swore the affidavit virtually before a commissioner",
+   "paragraphs": [
+    24
+   ],
+   "quote": "this 25th\nday of April, 2025",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Her 2020 expert affidavit in van Hee v. Ontario (CV-19-80325)"
+ ],
+ "leak_waivers": [
+  "F"
+ ],
+ "notes": "Deponent names are redacted throughout the public copy. Exhibit A is entirely blacked out. Covers given with --covers so the nested affidavit in Exhibit F keeps its own exhibits. Leak waiver F: Exhibit F is itself an affidavit whose own Exhibit A-C covers (sworn January 17, 2024/2025) remain inside it; they are its content, not this affidavit's covers."
+}

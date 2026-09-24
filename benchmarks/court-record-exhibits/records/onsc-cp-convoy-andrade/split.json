@@ -1,0 +1,65 @@
+{
+ "record_id": "onsc-cp-convoy-andrade",
+ "affidavit_pages": [
+  305,
+  306,
+  307,
+  308,
+  309,
+  310,
+  311,
+  312,
+  313,
+  314,
+  315,
+  316,
+  317,
+  318,
+  319,
+  320,
+  321,
+  322,
+  323,
+  324
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-nt8zfd.pdf",
+   "source_pages": [
+    326,
+    327,
+    328
+   ],
+   "cover_page": 325,
+   "stamp_page": null,
+   "text_chars": 6027
+  },
+  {
+   "label": "B",
+   "file": "doc-maqhqg.pdf",
+   "source_pages": [
+    330
+   ],
+   "cover_page": 329,
+   "stamp_page": null,
+   "text_chars": 1444
+  },
+  {
+   "label": "C",
+   "file": "doc-2545cy.pdf",
+   "source_pages": [
+    332,
+    333,
+    334,
+    335
+   ],
+   "cover_page": 331,
+   "stamp_page": null,
+   "text_chars": 9546
+  }
+ ],
+ "leak_audit": []
+}

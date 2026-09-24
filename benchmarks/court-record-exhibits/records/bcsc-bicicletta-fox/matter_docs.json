@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/bcsc-bicicletta-fox/approval-and-vesting-order-2023-08-31.pdf",
+  "url": "http://cfcanada.fticonsulting.com/Bicicletta/docs/Pleadings - B230306 - Order Made After Application - Justice Lyster (August 31, 2023) re Approval and Vesting Order(48667911.1).pdf",
+  "title": "Approval and Vesting Order of Justice Lyster, August 31, 2023",
+  "kind": "court_order",
+  "relation": "the order sought by the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/bcsc-bicicletta-fox/second-report-of-proposal-trustee-2023-08-29.pdf",
+  "url": "http://cfcanada.fticonsulting.com/Bicicletta/docs/2023-08-29 _ Second Report of the Proposal Trustee, dated Aug. 29, 2023.pdf",
+  "title": "Second Report of the Proposal Trustee (FTI), August 29, 2023",
+  "kind": "report",
+  "relation": "trustee's report on the same sale approval application"
+ }
+]

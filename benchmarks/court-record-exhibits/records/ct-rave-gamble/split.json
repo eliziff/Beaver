@@ -1,0 +1,157 @@
+{
+ "record_id": "ct-rave-gamble",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-acbmx3.pdf",
+   "source_pages": [
+    21,
+    22,
+    23
+   ],
+   "cover_page": 20,
+   "stamp_page": null,
+   "text_chars": 9504
+  },
+  {
+   "label": "B",
+   "file": "doc-7dgfb5.pdf",
+   "source_pages": [
+    25,
+    26
+   ],
+   "cover_page": 24,
+   "stamp_page": null,
+   "text_chars": 5388
+  },
+  {
+   "label": "C",
+   "file": "doc-f3htam.pdf",
+   "source_pages": [
+    28
+   ],
+   "cover_page": 27,
+   "stamp_page": null,
+   "text_chars": 2512
+  },
+  {
+   "label": "D",
+   "file": "doc-br58sc.pdf",
+   "source_pages": [
+    30
+   ],
+   "cover_page": 29,
+   "stamp_page": null,
+   "text_chars": 1490
+  },
+  {
+   "label": "E",
+   "file": "doc-guj7pq.pdf",
+   "source_pages": [
+    32
+   ],
+   "cover_page": 31,
+   "stamp_page": null,
+   "text_chars": 694
+  },
+  {
+   "label": "F",
+   "file": "doc-nrvdgy.pdf",
+   "source_pages": [
+    34,
+    35
+   ],
+   "cover_page": 33,
+   "stamp_page": null,
+   "text_chars": 143
+  },
+  {
+   "label": "G",
+   "file": "doc-5qppd6.pdf",
+   "source_pages": [
+    37,
+    38
+   ],
+   "cover_page": 36,
+   "stamp_page": null,
+   "text_chars": 8568
+  },
+  {
+   "label": "H",
+   "file": "doc-yuuvd3.pdf",
+   "source_pages": [
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52
+   ],
+   "cover_page": 39,
+   "stamp_page": null,
+   "text_chars": 9628
+  },
+  {
+   "label": "I",
+   "file": "doc-7sp9ej.pdf",
+   "source_pages": [
+    54,
+    55,
+    56
+   ],
+   "cover_page": 53,
+   "stamp_page": null,
+   "text_chars": 5294
+  },
+  {
+   "label": "J",
+   "file": "doc-xqejbr.pdf",
+   "source_pages": [
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67
+   ],
+   "cover_page": 57,
+   "stamp_page": null,
+   "text_chars": 7681
+  }
+ ],
+ "leak_audit": []
+}

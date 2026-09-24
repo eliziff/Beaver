@@ -1,0 +1,20 @@
+{
+ "url": "http://cfcanada.fticonsulting.com/1281805BC/docs/2026%2004%2020%20FILED%20Affidavit%20No.%201%20of%20Talbir%20Mann%20with%20exhibits.pdf",
+ "landing_url": "http://cfcanada.fticonsulting.com/1281805BC/",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "see affidavit (1281805 B.C. Ltd. proceedings)",
+ "document_title": "Affidavit #1 of Talbir Mann made March 31, 2026, filed April 20, 2026 (1281805 B.C. Ltd.)",
+ "retrieved": "2026-09-23",
+ "record_id": "bcsc-1281805-mann",
+ "source_file": "fti-2026-2004-2020-20filed-20affidavit-20no-201-20of-20talbir-20.pdf",
+ "page_range": [
+  1,
+  99
+ ],
+ "source_sha256": "0030e77cacd02cfa16396f5723ed32ae859eed751be6e46ba0e3a2bc5c1c4e4a",
+ "source_pages": 99,
+ "affidavit_ocr": true,
+ "covers": "A=6,B=9,C=16,D=20,E=45,F=85,G=93,H=95"
+}

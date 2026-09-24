@@ -1,0 +1,94 @@
+{
+ "record_id": "chrt-caring-blackstock-fsa",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "memo",
+   "date": "2022-08-15",
+   "from": "Cindy Blackstock, Executive Director",
+   "to": [
+    "Caring Society staff"
+   ],
+   "subject": "Office move-in schedule",
+   "body": "Movers will relocate the filing cabinets and library to the new meeting room on August 26. Please pack your personal items by August 25."
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2022-08-30",
+   "from": "Cindy Blackstock",
+   "to": [
+    "Caring Society communications staff"
+   ],
+   "subject": "Bear Witness Day materials",
+   "body": "Hi,\n\nCan we reorder the teddy bear stickers and the activity guides for schools before the spring? Last year's supply ran out in April.\n\nCindy"
+  },
+  {
+   "doc": 2,
+   "kind": "letter",
+   "date": "2022-06-20",
+   "from": "School of Social Work",
+   "to": [
+    "Professor Cindy Blackstock"
+   ],
+   "subject": "Fall 2022 course assignment",
+   "body": "Dear Professor Blackstock:\n\nThis confirms your assignment to teach the graduate seminar in child welfare policy in the fall term.\n\nSchool of Social Work"
+  },
+  {
+   "doc": 3,
+   "kind": "invoice",
+   "date": "2022-07-31",
+   "from": "Rideau Print & Design Inc.",
+   "to": [
+    "First Nations Child and Family Caring Society of Canada"
+   ],
+   "subject": "Annual report printing",
+   "body": "Net 30.\nAnnual report, 500 copies: 2350.0\nHST 13%: 305.5"
+  },
+  {
+   "doc": 4,
+   "kind": "minutes",
+   "date": "2022-06-08",
+   "from": "",
+   "to": [
+    "Board members",
+    "Cindy Blackstock"
+   ],
+   "subject": "Minutes of Board Meeting",
+   "body": "1. Audited financial statements for 2021-22 approved.\n\n2. Auditor reappointed.\n\n3. Staff wellness policy updated."
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2022-07-12",
+   "from": "Caring Society Events",
+   "to": [
+    "Cindy Blackstock"
+   ],
+   "subject": "Summer reading list",
+   "body": "Cindy,\n\nHere is the draft summer reading list of children's books by Indigenous authors for the website. Please add any titles you would like.\n\nEvents"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2022-08-10",
+   "from": "Cindy Blackstock",
+   "to": [
+    "Cindy Blackstock"
+   ],
+   "subject": "",
+   "body": "Staff: Your flight to Winnipeg on the 22nd is confirmed\nCindy: Thanks. Window seat please\nStaff: Done"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2022-05-31",
+   "from": "Glebe IT Services Ltd.",
+   "to": [
+    "First Nations Child and Family Caring Society of Canada"
+   ],
+   "subject": "Managed IT services, May 2022",
+   "body": "Thank you.\nMonthly support: 850.0\nLaptop setup, 2 units: 240.0\nHST 13%: 141.7"
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+{
+ "record_id": "nbkb-ccla-ab",
+ "court": "Court of King's Bench of New Brunswick (Trial Division)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "FM-76-2023 (Fredericton)",
+ "proceeding": "Canadian Civil Liberties Association v. Province of New Brunswick (judicial review of revised Policy 713 on sexual orientation and gender identity in schools), motion of Gender Dysphoria Alliance and Our Duty Canada for leave to intervene",
+ "document": "Redacted affidavit of A.B. sworn March 18, 2024 (filed as Exhibit D to the affidavit of Darren Leung in the proposed intervenors' motion record)",
+ "deponent": "A.B. (anonymized parent)",
+ "deponent_role": "Mother of a 16-year-old in the New Brunswick public school system; member of Our Duty Canada",
+ "sworn_date": "2024-03-18",
+ "exhibits": [
+  {"label": "A", "file": "doc-bwq96u.pdf", "kind": "public_record", "date": "2020-08-17", "author": "New Brunswick Department of Education and Early Childhood Development", "recipients": [], "description": "Policy 713 as it stood, prohibiting staff from telling parents a child's preferred name without consent", "references": [{"paragraph": 20, "quote": "(the \"Policy\", attached as Exhibit \"A\" to this affidavit)"}], "content_check": "6 pages: NB Department of Education Policy 713 'Sexual Orientation and Gender Identity', effective August 17, 2020"},
+  {"label": "B", "file": "doc-r2efa6.pdf", "kind": "report", "date": "2023-06-14", "author": "Miriam Grossman, MD", "recipients": ["U.S. House Energy and Commerce Subcommittee on Health"], "description": "Testimony of Dr. Miriam Grossman she brought to the pediatrician", "references": [{"paragraph": 33, "quote": "testimony of Dr. Miriam Grossman (attached as Exhibit \"B\" to this affidavit)"}], "content_check": "11 pages: 'Summary of Testimony, June 14, 2023 to the House Energy and Commerce Subcommittee on Health' by Miriam Grossman MD"},
+  {"label": "C", "file": "doc-g9u64d.pdf", "kind": "report", "date": null, "author": "Stephen Levine et al.", "recipients": [], "description": "Journal article by Dr. Stephen Levine", "references": [{"paragraph": 33, "quote": "a journal article by Dr. Stephen Levine (attached as Exhibit \"C\" to this affidavit)"}], "content_check": "23 pages: Journal of Sex & Marital Therapy article 'Reconsidering Informed Consent for Trans-Identified Children, Adolescents, and Young Adults'"},
+  {"label": "D", "file": "doc-4kx4tp.pdf", "kind": "report", "date": "2023-02-23", "author": "The BMJ", "recipients": [], "description": "British Medical Journal report of February 2023 concluding the evidence behind the WPATH recommendations was weak", "references": [{"paragraph": 33, "quote": "a report published in the British Medical Journal in February 2023 (attached as Exhibit \"D\" to this affidavit)"}], "content_check": "5 pages: BMJ 2023;380:p382, published 23 February 2023, 'BMJ Investigation - Gender dysphoria...' feature"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2020", "precision": "approximate", "description": "In spring 2020 C gave A.B. a letter saying she was struggling with gender identity and was non-binary", "paragraphs": [3], "quote": "In the spring of 2020, C gave me a letter", "exhibits": []},
+  {"id": "e2", "date": "2020-08-17", "precision": "day", "description": "Policy 713 took effect in the version then in force", "paragraphs": [20], "quote": "I immediately found Policy 713", "exhibits": ["A"]},
+  {"id": "e3", "date": "2020", "precision": "approximate", "description": "C began seeing a psychologist with expertise in transgender youth in fall 2020, who advised following C's lead on names and pronouns", "paragraphs": [8, 9], "quote": "C began to see this psychologist in the fall of 2020.", "exhibits": []},
+  {"id": "e4", "date": "2021", "precision": "approximate", "description": "In spring 2021 C came out at school as a transgender boy using a new name and he/him pronouns", "paragraphs": [13], "quote": "In the spring of 2021, C told me about \"coming out\" at school as a boy.", "exhibits": []},
+  {"id": "e5", "date": null, "precision": "undated", "description": "A classmate's mother told A.B. that teachers and staff were using C's new name and pronouns", "paragraphs": [14], "quote": "the mother of one of C's classmates told me", "exhibits": []},
+  {"id": "e6", "date": null, "precision": "undated", "description": "The school's vice-principal phoned A.B., said the school was 'following the policy', and hung up when she became upset", "paragraphs": [16, 17, 18, 19], "quote": "I received a phone call from the school's vice-principal", "exhibits": []},
+  {"id": "e7", "date": null, "precision": "undated", "description": "After the call A.B. found Policy 713 online", "paragraphs": [20], "quote": "After the phone call, I googled \"New Brunswick schools\" and \"transgender students.\"", "exhibits": ["A"]},
+  {"id": "e8", "date": "2021-09", "precision": "month", "description": "The psychologist's September 2021 email said supports such as binders and period suppression were what C needed", "paragraphs": [26], "quote": "The psychologist told me in an email from September 2021", "exhibits": []},
+  {"id": "e9", "date": "2022", "precision": "approximate", "description": "In spring 2022 the psychologist reported C wanted testosterone but said it was too early", "paragraphs": [27], "quote": "In the spring of 2022, the psychologist contacted me", "exhibits": []},
+  {"id": "e10", "date": "2022", "precision": "approximate", "description": "At the Fall 2022 Meeting the psychologist recommended starting testosterone at age 14", "paragraphs": [28, 30], "quote": "In the fall of 2022, the psychologist wrote to me again and requested a meeting", "exhibits": []},
+  {"id": "e11", "date": null, "precision": "undated", "description": "The family doctor referred C to a pediatrician for hormone therapy", "paragraphs": [32], "quote": "our family doctor made a referral to a pediatrician", "exhibits": []},
+  {"id": "e12", "date": "2023", "precision": "year", "description": "C had two pediatrician appointments; A.B. brought research articles; the pediatrician prescribed testosterone", "paragraphs": [33], "quote": "Chad two appointments with the pediatrician in 2023.", "exhibits": ["B", "C", "D"]},
+  {"id": "e13", "date": "2023", "precision": "approximate", "description": "C began testosterone in summer/fall 2023; A.B. signed the authorization", "paragraphs": [34], "quote": "C began taking testosterone in the summer/fall of 2023.", "exhibits": []},
+  {"id": "e14", "date": null, "precision": "undated", "description": "The psychologist recommended a bilateral mastectomy for C as soon as possible", "paragraphs": [35], "quote": "The next step of gender transition that C requested was a bilateral mastectomy.", "exhibits": []},
+  {"id": "e15", "date": "2024-03-18", "precision": "day", "description": "A.B. swore the affidavit at Island View, New Brunswick", "paragraphs": [38], "quote": "I swear this affidavit bona.fide for no improper purpose.", "exhibits": []}
+ ],
+ "referenced_not_attached": ["C's 2020 letter", "WPATH guidelines", "Psychologist's emails of September 2021, spring 2022 and fall 2022"],
+ "leak_waivers": [],
+ "notes": "The deponent's name is redacted throughout. Taken from PDF pages 180-238 of the proposed intervenors' motion record, where it is Exhibit D to the Leung affidavit; its own Exhibits A-D are split here."
+}

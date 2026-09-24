@@ -1,0 +1,656 @@
+{
+ "record_id": "bcsc-eaglecrest-junbi",
+ "court": "Supreme Court of British Columbia (Vancouver)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-264260 (Vancouver Registry)",
+ "proceeding": "Re 464 Eaglecrest Drive LP, TCD Developments (Gibsons) and 464 Eaglecrest Drive Properties (CCAA initial order, Eagle View Heights, Gibsons)",
+ "document": "Affidavit #1 of Jun Bi made June 5, 2026, filed June 8, 2026",
+ "deponent": "Jun Bi",
+ "deponent_role": "Director of the petitioners Eaglecrest Properties and TCD",
+ "sworn_date": "2026-06-05",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ujkrkc.pdf",
+   "kind": "corporate_record",
+   "date": null,
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "Corporate search for Eaglecrest Partnership",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "is a copy of the corporate search for Eaglecrest Partnership"
+    }
+   ],
+   "content_check": "BC Registry Services search"
+  },
+  {
+   "label": "B",
+   "file": "doc-uhnpn5.pdf",
+   "kind": "corporate_record",
+   "date": null,
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "Corporate search for Eaglecrest Properties",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "is a copy of the corporate search for Eaglecrest Properties"
+    }
+   ],
+   "content_check": "BC Registry Services search"
+  },
+  {
+   "label": "C",
+   "file": "doc-qb3dt4.pdf",
+   "kind": "corporate_record",
+   "date": null,
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "Corporate search for TCD",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Is a copy of the corporate search for TCD"
+    }
+   ],
+   "content_check": "BC Registry Services search"
+  },
+  {
+   "label": "D",
+   "file": "doc-25c6p6.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Petitioners",
+   "recipients": [],
+   "description": "Organizational chart for the Project",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "is a copy of an organizational chart for the Project"
+    }
+   ],
+   "content_check": "Gibsons Org Chart as of Aug. 24 2018 (drawio printout)"
+  },
+  {
+   "label": "E",
+   "file": "doc-wskdvw.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "BC Land Title Office",
+   "recipients": [],
+   "description": "Land Title Search for the Property",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "is a Land Title Search for the Property"
+    }
+   ],
+   "content_check": "Title search print dated 2026-06"
+  },
+  {
+   "label": "F",
+   "file": "doc-7s99nv.pdf",
+   "kind": "letter",
+   "date": "2026-03-12",
+   "author": "Town of Gibsons",
+   "recipients": [],
+   "description": "Town of Gibsons' March 12, 2026 request for additional landscaping security",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "request made by the Town of Gibsons for additional landscaping security"
+    }
+   ],
+   "content_check": "Town of Gibsons letter"
+  },
+  {
+   "label": "G",
+   "file": "doc-xmsjtq.pdf",
+   "kind": "spreadsheet",
+   "date": "2026-05",
+   "author": "Petitioners",
+   "recipients": [],
+   "description": "Completion cash-flow and costs-to-complete tables for Phase One",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "cash-flow statement indicating to completion"
+    }
+   ],
+   "content_check": "Completion cash-flow for the petitioners"
+  },
+  {
+   "label": "H",
+   "file": "doc-dg4amp.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Petitioners",
+   "recipients": [],
+   "description": "Summary spreadsheet of pre-sale agreements",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "is summary spreadsheet of pre-sale agreements"
+    }
+   ],
+   "content_check": "EagleView Heights sales information spreadsheet"
+  },
+  {
+   "label": "I",
+   "file": "doc-9n4uq8.pdf",
+   "kind": "contract",
+   "date": null,
+   "author": "Petitioners and purchaser",
+   "recipients": [],
+   "description": "Sample pre-sale agreement",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "is a sample copy of a pre-sale agreement"
+    }
+   ],
+   "content_check": "EagleView Heights Agreement of Purchase and Sale (blank sample)"
+  },
+  {
+   "label": "J",
+   "file": "doc-ph8p6u.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Petitioners",
+   "recipients": [],
+   "description": "Summary of the construction Lien Claims",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "summary of the Lien Claims"
+    }
+   ],
+   "content_check": "Lien claims summary table"
+  },
+  {
+   "label": "K",
+   "file": "doc-q4z9ht.pdf",
+   "kind": "letter",
+   "date": "2021-10-20",
+   "author": "Envision Financial",
+   "recipients": [],
+   "description": "Loan Commitment Letter of October 20, 2021 for the $46,296,000 Construction Loan",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "is a copy of the Lo"
+    }
+   ],
+   "content_check": "First West Credit Union letter dated October 20, 2021"
+  },
+  {
+   "label": "L",
+   "file": "doc-utuh96.pdf",
+   "kind": "agreement",
+   "date": "2021-11-05",
+   "author": "Eaglecrest Partnership and Envision",
+   "recipients": [],
+   "description": "Loan Agreement of November 5, 2021",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "copy of the Loan Agreement"
+    }
+   ],
+   "content_check": "CreditMaster Construction Loan Agreement"
+  },
+  {
+   "label": "M",
+   "file": "doc-b8me9s.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "Indemnitors",
+   "recipients": [],
+   "description": "Indemnity Agreements in favour of Envision",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "is a copy of the Indemnity Agreements"
+    }
+   ],
+   "content_check": "Indemnity Agreement - All Liabilities (credit union form)"
+  },
+  {
+   "label": "N",
+   "file": "doc-r2zr3r.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "Kind Development and Envision",
+   "recipients": [],
+   "description": "Kind Development's Commercial Security Agreement",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "is a copy of the Commercial Security Agreement"
+    }
+   ],
+   "content_check": "Commercial Security Agreement (credit union form)"
+  },
+  {
+   "label": "O",
+   "file": "doc-8zejcz.pdf",
+   "kind": "letter",
+   "date": "2026-05-05",
+   "author": "Baker Newby LLP for Envision Financial",
+   "recipients": [],
+   "description": "Envision's May 5, 2026 demand for payment and notice of intention to enforce security",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "is a copy of the Demand"
+    }
+   ],
+   "content_check": "Baker Newby LLP demand letter (counsel for Envision)"
+  },
+  {
+   "label": "P",
+   "file": "doc-yy26cc.pdf",
+   "kind": "financial_statement",
+   "date": "2025-12-31",
+   "author": "Eaglecrest Properties",
+   "recipients": [],
+   "description": "Eaglecrest Properties' unaudited 2025 financial statements",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "Eaglecrest Properties' unaudited financial statements"
+    }
+   ],
+   "content_check": "DocuSigned 2025 financial statements of 464 Eaglecrest Drive Properties Ltd."
+  },
+  {
+   "label": "Q",
+   "file": "doc-fedkhe.pdf",
+   "kind": "financial_statement",
+   "date": "2025-12-31",
+   "author": "Eaglecrest Partnership",
+   "recipients": [],
+   "description": "Eaglecrest Partnership's unaudited 2025 financial statements",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "Eaglecrest Partnership's unaudited financial statements"
+    }
+   ],
+   "content_check": "DocuSigned 2025 financial statements of 464 Eaglecrest Drive Limited Partnership"
+  },
+  {
+   "label": "R",
+   "file": "doc-52znew.pdf",
+   "kind": "financial_statement",
+   "date": "2025-12-31",
+   "author": "TCD Developments (Gibsons) Ltd.",
+   "recipients": [],
+   "description": "TCD's unaudited 2025 financial statements",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "unaudited financial statements for the year ended December 31, 2025 which I have reviewed"
+    }
+   ],
+   "content_check": "DocuSigned 2025 financial statements of TCD Developments (Gibsons) Ltd."
+  },
+  {
+   "label": "S",
+   "file": "doc-j257fg.pdf",
+   "kind": "agreement",
+   "date": "2021-07-20",
+   "author": "Petitioners and Kindred",
+   "recipients": [],
+   "description": "Holdback Account Agreement dated July 20, 2021",
+   "references": [
+    {
+     "paragraph": 75,
+     "quote": "Holdback Account Agreement dated July 20, 2021"
+    }
+   ],
+   "content_check": "Appendix D Agreement Regarding Holdback Account dated July 20, 2021"
+  },
+  {
+   "label": "T",
+   "file": "doc-c2eaf5.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Petitioners",
+   "recipients": [],
+   "description": "Current creditor list",
+   "references": [
+    {
+     "paragraph": 81,
+     "quote": "is a copy of a current creditor list"
+    }
+   ],
+   "content_check": "Creditor list of the petitioners"
+  },
+  {
+   "label": "U",
+   "file": "doc-vy66fj.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "FTI Consulting Canada Inc.",
+   "recipients": [],
+   "description": "FTI's signed consent to act as monitor",
+   "references": [
+    {
+     "paragraph": 86,
+     "quote": "signed consent to act as monitor"
+    }
+   ],
+   "content_check": "FTI consent to act as monitor, BCSC style of cause"
+  },
+  {
+   "label": "V",
+   "file": "doc-evws7d.pdf",
+   "kind": "agreement",
+   "date": "2026-06-08",
+   "author": "Envision / Tru",
+   "recipients": [],
+   "description": "Interim Financing Term Sheet (offer of credit dated June 8, 2026)",
+   "references": [
+    {
+     "paragraph": 93,
+     "quote": "is a copy of the Interim Financing Term Sheet"
+    }
+   ],
+   "content_check": "Tru/Envision offer of credit letter dated May 30, 2026 (affidavit says June 8)"
+  },
+  {
+   "label": "W",
+   "file": "doc-nzsm2s.pdf",
+   "kind": "other",
+   "date": "2026-05-28",
+   "author": "Envision",
+   "recipients": [],
+   "description": "Details of Envision's May 28, 2026 advance of $281,276.54 for insurance",
+   "references": [
+    {
+     "paragraph": 94,
+     "quote": "is a copy of detaiis of that advance by Envision"
+    }
+   ],
+   "content_check": "Envision transaction record for the insurance advance"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2016-09-14",
+   "precision": "approximate",
+   "description": "Eaglecrest Properties incorporated",
+   "paragraphs": [
+    13
+   ],
+   "quote": "on or about September 14,2016",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2018-08-22",
+   "precision": "approximate",
+   "description": "TCD incorporated",
+   "paragraphs": [
+    14
+   ],
+   "quote": "on or about August 22, 2018",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2018-08-24",
+   "precision": "approximate",
+   "description": "Eaglecrest Partnership formed",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on or about August 24,2018",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2017",
+   "precision": "year",
+   "description": "Petitioners acquire the Property",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The Petitioners acquired the Property in 2017.",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2018-06",
+   "precision": "month",
+   "description": "Rezoning approval from the Town of Gibsons",
+   "paragraphs": [
+    23
+   ],
+   "quote": "in June, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2018-07",
+   "precision": "month",
+   "description": "Development permits issued",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Development permits were issued in July 2018.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2020",
+   "precision": "approximate",
+   "description": "Initial building permits issued (summer 2020)",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Issued In summer 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2021",
+   "precision": "approximate",
+   "description": "Site work begins in spring 2021; major construction summer 2021",
+   "paragraphs": [
+    23,
+    38
+   ],
+   "quote": "major construction beginning in the summer 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2021-07-20",
+   "precision": "day",
+   "description": "Holdback Account Agreement",
+   "paragraphs": [
+    75
+   ],
+   "quote": "Holdback Account Agreement dated July 20, 2021",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2021-10-20",
+   "precision": "day",
+   "description": "Envision loan commitment letter",
+   "paragraphs": [
+    56
+   ],
+   "quote": "dated October 20, 2021",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2021-11-05",
+   "precision": "day",
+   "description": "Loan Agreement",
+   "paragraphs": [
+    57
+   ],
+   "quote": "dated November 5, 2021",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2021-12",
+   "precision": "month",
+   "description": "Four-month construction pause while financing is finalized",
+   "paragraphs": [
+    52
+   ],
+   "quote": "In December 2021 the Project experienced a temporary construction pause",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2023",
+   "precision": "year",
+   "description": "Budget rises to about $54 million by end of 2023",
+   "paragraphs": [
+    53
+   ],
+   "quote": "the overall budget had increased to approximately $54,000,000",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2025-12",
+   "precision": "month",
+   "description": "Budget disagreements; lien claims filed",
+   "paragraphs": [
+    54
+   ],
+   "quote": "Disagreements arose between the Petitioners about the budget In December 2025",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2026-02",
+   "precision": "month",
+   "description": "Construction ceases",
+   "paragraphs": [
+    9
+   ],
+   "quote": "construction ceased in February 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2026-03-12",
+   "precision": "day",
+   "description": "Town of Gibsons requests additional landscaping security of $297,398.40",
+   "paragraphs": [
+    36
+   ],
+   "quote": "made on March 12,2026",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2026-05-05",
+   "precision": "day",
+   "description": "Envision demands payment; about $48.3 million owing",
+   "paragraphs": [
+    61,
+    62
+   ],
+   "quote": "in a letter dated May 5, 2026",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2026-05-28",
+   "precision": "day",
+   "description": "Envision advances $281,276.54 for insurance",
+   "paragraphs": [
+    94
+   ],
+   "quote": "made on May 28,2026",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": "2026-05-31",
+   "precision": "day",
+   "description": "Holdback Account shortfall of $256,568.40",
+   "paragraphs": [
+    77
+   ],
+   "quote": "As of May 31, 2026, the Holdback Account has a shortfall",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2026-06-08",
+   "precision": "day",
+   "description": "Interim financing offer of credit",
+   "paragraphs": [
+    93
+   ],
+   "quote": "dated June 8, 2026",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e21",
+   "date": "2026-07-12",
+   "precision": "day",
+   "description": "Building permit set to expire",
+   "paragraphs": [
+    34
+   ],
+   "quote": "set to expire on July 12, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": "2026-08-03",
+   "precision": "day",
+   "description": "Outside date for completion of Phase One under the disclosure statement",
+   "paragraphs": [
+    50
+   ],
+   "quote": "August 3,2026",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Petition with draft Initial Order (Schedule A)",
+  "Disclosure statement amendments"
+ ],
+ "leak_waivers": [],
+ "notes": "OCR text layer; exhibit covers given with --covers (OCR reads I as '1'). Content checks limited to the first page of each file. Exhibit V's letter is dated May 30, 2026; the affidavit calls it an offer of credit dated June 8, 2026."
+}

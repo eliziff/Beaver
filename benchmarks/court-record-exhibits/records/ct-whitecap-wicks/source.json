@@ -1,0 +1,19 @@
+{
+ "url": "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/521894/1/document.do",
+ "landing_url": "https://decisions.ct-tc.gc.ca/ct-tc/cd/en/item/521760/index.do",
+ "court": "Competition Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CT-2026-003",
+ "document_title": "Affidavit of Pamela Wicks (Whitecap Resources Inc., application for leave under s. 103.1 of the Competition Act against Pulse Seismic)",
+ "retrieved": "2026-09-23",
+ "record_id": "ct-whitecap-wicks",
+ "source_file": "ct-521894.pdf",
+ "page_range": [
+  1,
+  51
+ ],
+ "source_sha256": "224c212a57ddcddde001f964f8a093e018e2e66fefc7c000d59c1935b7590577",
+ "source_pages": 51,
+ "covers": "A=9,B=11,C=13,D=17,E=22,F=25,G=34"
+}

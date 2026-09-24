@@ -1,0 +1,332 @@
+{
+ "record_id": "fc-caring-kaur",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hcrfsk.pdf",
+   "source_pages": [
+    10,
+    11,
+    12,
+    13
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 6232
+  },
+  {
+   "label": "B",
+   "file": "doc-575yu8.pdf",
+   "source_pages": [
+    15
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 2908
+  },
+  {
+   "label": "C",
+   "file": "doc-wyj3zn.pdf",
+   "source_pages": [
+    17,
+    18
+   ],
+   "cover_page": 16,
+   "stamp_page": null,
+   "text_chars": 5010
+  },
+  {
+   "label": "D",
+   "file": "doc-ppcghx.pdf",
+   "source_pages": [
+    20
+   ],
+   "cover_page": 19,
+   "stamp_page": null,
+   "text_chars": 1934
+  },
+  {
+   "label": "E",
+   "file": "doc-yy2had.pdf",
+   "source_pages": [
+    22
+   ],
+   "cover_page": 21,
+   "stamp_page": null,
+   "text_chars": 2120
+  },
+  {
+   "label": "F",
+   "file": "doc-sckvgc.pdf",
+   "source_pages": [
+    24,
+    25
+   ],
+   "cover_page": 23,
+   "stamp_page": null,
+   "text_chars": 2787
+  },
+  {
+   "label": "G",
+   "file": "doc-ep74se.pdf",
+   "source_pages": [
+    27,
+    28,
+    29,
+    30,
+    31,
+    32
+   ],
+   "cover_page": 26,
+   "stamp_page": null,
+   "text_chars": 15529
+  },
+  {
+   "label": "H",
+   "file": "doc-ac35bu.pdf",
+   "source_pages": [
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69
+   ],
+   "cover_page": 33,
+   "stamp_page": null,
+   "text_chars": 77862
+  },
+  {
+   "label": "I",
+   "file": "doc-m63mwr.pdf",
+   "source_pages": [
+    71,
+    72,
+    73
+   ],
+   "cover_page": 70,
+   "stamp_page": null,
+   "text_chars": 4161
+  },
+  {
+   "label": "J",
+   "file": "doc-wt8vc6.pdf",
+   "source_pages": [
+    75
+   ],
+   "cover_page": 74,
+   "stamp_page": null,
+   "text_chars": 2085
+  },
+  {
+   "label": "K",
+   "file": "doc-n932a2.pdf",
+   "source_pages": [
+    77,
+    78,
+    79
+   ],
+   "cover_page": 76,
+   "stamp_page": null,
+   "text_chars": 5289
+  },
+  {
+   "label": "L",
+   "file": "doc-g8cp9g.pdf",
+   "source_pages": [
+    81,
+    82,
+    83
+   ],
+   "cover_page": 80,
+   "stamp_page": null,
+   "text_chars": 4047
+  },
+  {
+   "label": "M",
+   "file": "doc-hxsfgm.pdf",
+   "source_pages": [
+    85,
+    86
+   ],
+   "cover_page": 84,
+   "stamp_page": null,
+   "text_chars": 2176
+  },
+  {
+   "label": "N",
+   "file": "doc-fwq96f.pdf",
+   "source_pages": [
+    88,
+    89,
+    90,
+    91
+   ],
+   "cover_page": 87,
+   "stamp_page": null,
+   "text_chars": 9732
+  },
+  {
+   "label": "O",
+   "file": "doc-jbubbq.pdf",
+   "source_pages": [
+    93,
+    94,
+    95,
+    96,
+    97
+   ],
+   "cover_page": 92,
+   "stamp_page": null,
+   "text_chars": 9752
+  },
+  {
+   "label": "P",
+   "file": "doc-thtkbc.pdf",
+   "source_pages": [
+    99,
+    100,
+    101,
+    102
+   ],
+   "cover_page": 98,
+   "stamp_page": null,
+   "text_chars": 9123
+  },
+  {
+   "label": "Q",
+   "file": "doc-y8bsr2.pdf",
+   "source_pages": [
+    104,
+    105,
+    106,
+    107
+   ],
+   "cover_page": 103,
+   "stamp_page": null,
+   "text_chars": 9729
+  },
+  {
+   "label": "R",
+   "file": "doc-za8xxr.pdf",
+   "source_pages": [
+    109,
+    110,
+    111
+   ],
+   "cover_page": 108,
+   "stamp_page": null,
+   "text_chars": 4504
+  },
+  {
+   "label": "S",
+   "file": "doc-8f5c7m.pdf",
+   "source_pages": [
+    113
+   ],
+   "cover_page": 112,
+   "stamp_page": null,
+   "text_chars": 2723
+  },
+  {
+   "label": "T",
+   "file": "doc-nkk52c.pdf",
+   "source_pages": [
+    115,
+    116
+   ],
+   "cover_page": 114,
+   "stamp_page": null,
+   "text_chars": 3878
+  },
+  {
+   "label": "U",
+   "file": "doc-bggayu.pdf",
+   "source_pages": [
+    118,
+    119
+   ],
+   "cover_page": 117,
+   "stamp_page": null,
+   "text_chars": 3310
+  },
+  {
+   "label": "V",
+   "file": "doc-adty84.pdf",
+   "source_pages": [
+    121,
+    122,
+    123
+   ],
+   "cover_page": 120,
+   "stamp_page": null,
+   "text_chars": 3553
+  },
+  {
+   "label": "W",
+   "file": "doc-g7e22q.pdf",
+   "source_pages": [
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138
+   ],
+   "cover_page": 124,
+   "stamp_page": null,
+   "text_chars": 25914
+  }
+ ],
+ "leak_audit": []
+}

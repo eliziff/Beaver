@@ -1,0 +1,117 @@
+{
+ "record_id": "nssc-saltwire-dunning",
+ "affidavit_pages": [
+  1,
+  2,
+  3
+ ],
+ "divider_pages": [
+  4,
+  10,
+  18,
+  43,
+  54
+ ],
+ "scanned_pages": [
+  25,
+  31,
+  37,
+  52
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-h3j8m5.pdf",
+   "source_pages": [
+    6,
+    7,
+    8,
+    9
+   ],
+   "cover_page": 5,
+   "stamp_page": null,
+   "text_chars": 4573
+  },
+  {
+   "label": "B",
+   "file": "doc-7qxdtd.pdf",
+   "source_pages": [
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+   ],
+   "cover_page": 11,
+   "stamp_page": null,
+   "text_chars": 8847
+  },
+  {
+   "label": "C",
+   "file": "doc-errazu.pdf",
+   "source_pages": [
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42
+   ],
+   "cover_page": 19,
+   "stamp_page": null,
+   "text_chars": 31806
+  },
+  {
+   "label": "D",
+   "file": "doc-jjw8jc.pdf",
+   "source_pages": [
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53
+   ],
+   "cover_page": 44,
+   "stamp_page": null,
+   "text_chars": 13021
+  },
+  {
+   "label": "E",
+   "file": "doc-m3cnbe.pdf",
+   "source_pages": [
+    56,
+    57,
+    58,
+    59,
+    60,
+    61
+   ],
+   "cover_page": 55,
+   "stamp_page": null,
+   "text_chars": 10889
+  }
+ ],
+ "leak_audit": []
+}

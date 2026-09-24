@@ -1,0 +1,18 @@
+{
+ "url": "https://ccla.org/wp-content/uploads/2022/05/Affidavit-of-Denis-Beaudoin-sworn-April-4-2022.pdf",
+ "landing_url": "https://ccla.org/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-306-22, T-316-22, T-347-22, T-382-22",
+ "document_title": "Affidavit of Denis Beaudoin (RCMP) sworn April 4, 2022, filed by the Attorney General of Canada in the Emergencies Act judicial reviews",
+ "retrieved": "2026-09-23",
+ "record_id": "fc-emergencies-beaudoin",
+ "source_file": "web-affidavit-of-denis-beaudoin-sworn-april-4-2022.pdf",
+ "page_range": [
+  1,
+  29
+ ],
+ "source_sha256": "63a382e84d40f3fcbc8089650d61721dfd83ef5f9a585fdf8cef1401fec82923",
+ "source_pages": 29
+}

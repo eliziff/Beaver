@@ -1,0 +1,94 @@
+{
+ "record_id": "fc-caring-kaur",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2025-09-26",
+   "from": "Jasmine Kaur",
+   "to": [
+    "David Taylor"
+   ],
+   "subject": "Office supplies order",
+   "body": "David,\n\nI am placing the monthly supplies order today. Do you need any more legal pads or binder clips?\n\nJasmine"
+  },
+  {
+   "doc": 1,
+   "kind": "memo",
+   "date": "2025-06-02",
+   "from": "Conway Baxter Wilson LLP - Office Administration",
+   "to": [
+    "All staff"
+   ],
+   "subject": "Summer hours",
+   "body": "From June 20 to September 1, the office will close at 3 pm on Fridays. Please arrange coverage for your teams."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2025-10-31",
+   "from": "Capital Courier Services Inc.",
+   "to": [
+    "Conway Baxter Wilson LLP"
+   ],
+   "subject": "Courier services, October 2025",
+   "body": "Net 30.\nSame-day deliveries, 22: 506.0\nRush surcharge, 3: 45.0\nHST 13%: 71.63"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2026-02-11",
+   "from": "",
+   "to": [
+    "Staff",
+    "Jasmine Kaur"
+   ],
+   "subject": "Minutes of Staff Meeting",
+   "body": "1. New document management system rollout in March.\n\n2. Staff wellness day April 17.\n\n3. Next meeting: March 11."
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2026-05-19",
+   "from": "David Taylor",
+   "to": [
+    "Jasmine Kaur"
+   ],
+   "subject": "Conference registration",
+   "body": "Jasmine,\n\nCould you register me for the October administrative law conference? Early-bird ends May 31.\n\nDavid"
+  },
+  {
+   "doc": 5,
+   "kind": "letter",
+   "date": "2025-12-01",
+   "from": "Conway Baxter Wilson LLP",
+   "to": [
+    "Building Management, 400-411 Roosevelt Avenue"
+   ],
+   "subject": "After-hours HVAC request",
+   "body": "Dear Building Management:\n\nPlease provide after-hours heating on Saturdays in December for the fourth floor. We will pay the standard hourly charge.\n\nYours truly"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-07-23",
+   "from": "Jasmine Kaur",
+   "to": [
+    "Jasmine Kaur"
+   ],
+   "subject": "",
+   "body": "Colleague: Commissioner free at 11?\nJasmine: Yes thanks. Also can you grab me a coffee on your way back\nColleague: Sure"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2026-01-31",
+   "from": "Rideau Legal Printing Ltd.",
+   "to": [
+    "Conway Baxter Wilson LLP"
+   ],
+   "subject": "Printing - unrelated appeal books",
+   "body": "Thank you.\nAppeal book printing, 4 volumes x 6 copies: 1440.0\nHST 13%: 187.2"
+  }
+ ]
+}

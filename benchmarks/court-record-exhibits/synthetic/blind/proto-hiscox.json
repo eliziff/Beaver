@@ -1,0 +1,142 @@
+{
+ "record_id": "proto-hiscox",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2023-03-15",
+   "from": "Robert Hiscox <robert.hiscox@constantineinc.com>",
+   "to": [
+    "Chris Donlan <chris.donlan@constantineinc.com>"
+   ],
+   "subject": "Spring offsite - dates",
+   "body": "Chris,\n\nCan we lock in the week of April 24 for the spring offsite? Lina is holding rooms at the Elora Mill for two nights. Please send me the finance agenda items by Friday so I can circulate a draft.\n\nThanks,\nRobert"
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2023-03-13",
+   "from": "David Ho <david.ho@constantineinc.com>",
+   "to": [
+    "Robert HISCOX <robert.hiscox@constantineinc.com>"
+   ],
+   "subject": "Bayview Towns - window samples",
+   "body": "Hi Robert,\n\nThe two window suppliers for the Bayview townhomes dropped off samples at the office this afternoon. Loewen is about 8% more expensive but can deliver in June; the other supplier cannot commit before September. I recommend we go with Loewen and I will ask for a revised quote with the triple-glazed option.\n\nDavid"
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2023-02-28",
+   "from": "Northgate Elevator Services Ltd.",
+   "to": [
+    "Mizrahi (128 Hazelton) Inc."
+   ],
+   "subject": "Monthly maintenance - 128 Hazelton Avenue, February 2023",
+   "body": "Payment due within 30 days. Thank you for your business.\nPreventive maintenance, 2 passenger elevators: 1450.0\nEmergency phone line monitoring: 85.0\nHST 13%: 199.55"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2022-11-08",
+   "from": "",
+   "to": [
+    "Robert Hiscox",
+    "Sam Mizrahi",
+    "Joshua Lax",
+    "Chris Donlan"
+   ],
+   "subject": "Minutes of Sales Committee Meeting",
+   "body": "1. Remaining inventory: six suites unsold, including both penthouse units.\n\n2. Pricing: the committee agreed to hold list prices through the first quarter of 2023 and revisit in April.\n\n3. Marketing: Joshua Lax to circulate revised brochure proofs by November 30.\n\n4. Next meeting: January 2023."
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2024-02-12",
+   "from": "Cassels Brock & Blackwell LLP",
+   "to": [
+    "Ms. Priya Raman",
+    "Suite 402, 128 Hazelton Avenue",
+    "Toronto, ON"
+   ],
+   "subject": "Suite 402 - interim occupancy fee statement",
+   "body": "Dear Ms. Raman:\n\nEnclosed is the updated interim occupancy fee statement for Suite 402 for the period ending January 31, 2024. The monthly amount is unchanged. Please contact our office if you have any questions.\n\nYours truly,\n\nCassels Brock & Blackwell LLP"
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2022-09-20",
+   "from": "Esteban Yanquelevech <esteban@mizrahidevelopments.ca>",
+   "to": [
+    "Robert Hiscox <robert.hiscox@constantineinc.com>"
+   ],
+   "subject": "Street occupancy permit renewal - Hazelton",
+   "body": "Hi Robert,\n\nThe City approved the renewal of the street occupancy permit for the hoarding on Hazelton Avenue through March 31, 2023. The fee has been paid and I will forward the receipt for the file.\n\nSincerely,\nEsteban"
+  },
+  {
+   "doc": 6,
+   "kind": "memo",
+   "date": "2023-04-03",
+   "from": "Chris Donlan, CFO",
+   "to": [
+    "Board of Directors, Constantine Enterprises Inc."
+   ],
+   "subject": "Q1 2023 liquidity summary - rental portfolio",
+   "body": "The rental portfolio ended the quarter with occupancy of 97%. Two refinancings closed in February at rates below budget. No capital calls are expected from the rental portfolio in Q2.\n\nThe development portfolio is reported separately."
+  },
+  {
+   "doc": 7,
+   "kind": "text",
+   "date": "2023-03-17",
+   "from": "Lina White",
+   "to": [
+    "Lina White"
+   ],
+   "subject": "",
+   "body": "Lina: Your flight to Vancouver is booked for Tuesday at 8:05 am\nRobert: Thanks. Can you move the dinner with the lenders to 7?\nLina: Done, 7 pm at Hawksworth\nRobert: Perfect"
+  },
+  {
+   "doc": 8,
+   "kind": "email",
+   "date": "2024-07-10",
+   "from": "Bobby Kofman <bkofman@ksvadvisory.com>",
+   "to": [
+    "Robert Hiscox <robert.hiscox@constantineinc.com>"
+   ],
+   "subject": "128 Hazelton - property insurance renewal",
+   "body": "Robert,\n\nThe property insurance for 128 Hazelton renews on August 1. The broker has confirmed coverage on the same terms as last year. The Receiver will pay the premium from the receivership account. No action is required from CEI.\n\nBobby"
+  },
+  {
+   "doc": 9,
+   "kind": "email",
+   "date": "2021-06-02",
+   "from": "Mark Kilfoyle <mark@mizrahidevelopments.ca>",
+   "to": [
+    "Chris Donlan <chris.donlan@constantineinc.com>"
+   ],
+   "subject": "128 Hazelton - property tax instalment",
+   "body": "Chris,\n\nThe second interim property tax instalment for 128 Hazelton is due June 30. Please confirm that CEI's share of the funding will be in the project account by June 25.\n\nMark"
+  },
+  {
+   "doc": 10,
+   "kind": "invoice",
+   "date": "2023-05-31",
+   "from": "GreenLeaf Grounds Inc.",
+   "to": [
+    "Constantine Enterprises Inc. - 50 Wynford Drive property"
+   ],
+   "subject": "Spring clean-up and lawn care, May 2023",
+   "body": "Thank you.\nSpring clean-up: 1800.0\nWeekly lawn care (4 visits): 640.0\nHST 13%: 317.2"
+  },
+  {
+   "doc": 11,
+   "kind": "email",
+   "date": "2023-01-12",
+   "from": "Joshua Lax <jlax@mizrahidevelopments.ca>",
+   "to": [
+    "Robert Hiscox"
+   ],
+   "subject": "Hazelton brochure - revised proofs",
+   "body": "Robert,\n\nAttached are the revised brochure proofs with the updated floor plans for the two penthouse suites. The printer needs sign-off by January 20 to deliver before the February open house.\n\nJosh"
+  }
+ ]
+}

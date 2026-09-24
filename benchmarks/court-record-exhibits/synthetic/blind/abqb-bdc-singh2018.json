@@ -1,0 +1,106 @@
+{
+ "record_id": "abqb-bdc-singh2018",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "invoice",
+   "date": "2017-05-31",
+   "from": "Northern Linen Services Ltd.",
+   "to": [
+    "1119658 Alberta Ltd. - Drayton Valley hotel"
+   ],
+   "subject": "Linen service, May 2017",
+   "body": "Net 30.\nTowels and sheets, 4 weekly pickups: 2860.0\nGST 5%: 143.0"
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2018-08-22",
+   "from": "Hardeep Singh <hardeep.singh@bdc.ca>",
+   "to": [
+    "Special Accounts Team <special.accounts@bdc.ca>"
+   ],
+   "subject": "Team lunch Friday",
+   "body": "Hi team,\n\nLunch Friday at noon to welcome our new analyst. I have booked a table for eight.\n\nHardeep"
+  },
+  {
+   "doc": 2,
+   "kind": "memo",
+   "date": "2016-03-10",
+   "from": "Kuldeep Maan",
+   "to": [
+    "Front desk staff, Yorkton hotel"
+   ],
+   "subject": "Spring pool maintenance closure",
+   "body": "The indoor pool will be closed April 4 to 8 for resurfacing. Please notify guests at check-in and offer a discount voucher for the fitness room."
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2015-07-15",
+   "from": "Business Development Bank of Canada",
+   "to": [
+    "Kuldeep Maan",
+    "1119658 Alberta Ltd."
+   ],
+   "subject": "Invitation - Entrepreneur networking breakfast",
+   "body": "Dear Mr. Maan:\n\nYou are invited to our client networking breakfast in Edmonton on September 17, 2015. Please RSVP to your account manager.\n\nBDC"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2017-06-08",
+   "from": "Kuldeep Maan",
+   "to": [
+    "Yorkton hotel manager"
+   ],
+   "subject": "Wedding block booking",
+   "body": "Please hold 25 rooms for the Gill wedding on July 21 and 22 at the group rate. Deposit to be collected by June 30."
+  },
+  {
+   "doc": 5,
+   "kind": "minutes",
+   "date": "2016-11-02",
+   "from": "",
+   "to": [
+    "Kuldeep Maan",
+    "Hotel managers"
+   ],
+   "subject": "Minutes of Management Meeting",
+   "body": "1. Christmas party bookings: three corporate events confirmed.\n\n2. Housekeeping staffing: one position posted.\n\n3. Breakfast menu refresh approved."
+  },
+  {
+   "doc": 6,
+   "kind": "invoice",
+   "date": "2018-09-30",
+   "from": "Drayton Valley Plumbing & Heating Ltd.",
+   "to": [
+    "1119658 Alberta Ltd."
+   ],
+   "subject": "Boiler service",
+   "body": "Thank you.\nAnnual boiler inspection and service: 1150.0\nReplacement circulating pump: 690.0\nGST 5%: 92.0"
+  },
+  {
+   "doc": 7,
+   "kind": "email",
+   "date": "2018-11-19",
+   "from": "Hardeep Singh <hardeep.singh@bdc.ca>",
+   "to": [
+    "IT Service Desk <it.help@bdc.ca>"
+   ],
+   "subject": "Laptop docking station",
+   "body": "Hello,\n\nMy docking station stopped charging the laptop this morning. Could someone swap it today?\n\nHardeep"
+  },
+  {
+   "doc": 8,
+   "kind": "text",
+   "date": "2017-12-22",
+   "from": "Kuldeep Maan",
+   "to": [
+    "Kuldeep Maan"
+   ],
+   "subject": "",
+   "body": "Manager: Ice machine on 2nd floor broken again\nKuldeep: Call the repair guy, and put a sign up\nManager: Will do"
+  }
+ ]
+}

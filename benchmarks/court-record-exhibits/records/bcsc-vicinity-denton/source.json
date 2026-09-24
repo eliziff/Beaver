@@ -1,0 +1,20 @@
+{
+ "url": "https://cfcanada.fticonsulting.com/vicinity/docs/2024-10-17%20_%20Affidavit%201%20of%20Chelsea%20Denton%20(With%20Exhibits).pdf",
+ "landing_url": "https://cfcanada.fticonsulting.com/vicinity/",
+ "court": "Supreme Court of British Columbia (Vancouver)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "VLC-S-S-247082",
+ "document_title": "Affidavit #1 of Chelsea Denton sworn October 16, 2024 (Vicinity Motors receivership application)",
+ "retrieved": "2026-09-23",
+ "record_id": "bcsc-vicinity-denton",
+ "source_file": "fti-denton.pdf",
+ "page_range": [
+  1,
+  259
+ ],
+ "source_sha256": "79d8090d3871798b0e178eb9d5fa348a13dc72113fde05b901483625ad1baad9",
+ "source_pages": 259,
+ "affidavit_ocr": true,
+ "covers": "A=4,B=7,C=10,D=12,E=14,F=26,G=39,H=42,I=186,J=192,K=195,L=258"
+}

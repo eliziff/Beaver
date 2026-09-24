@@ -1,0 +1,19 @@
+{
+ "url": "http://cfcanada.fticonsulting.com/SquareNine/docs/2025%2011%2010%20FILED%20Affidavit%201%20of%20Manish%20Sharma%2C%20made%20November%2010%2C%202025.pdf",
+ "landing_url": "http://cfcanada.fticonsulting.com/SquareNine/",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "Vancouver Registry (CCAA petition, number illegible on filed copy)",
+ "document_title": "Affidavit #1 of Manish Sharma made November 10, 2025, CCAA petition of Square Nine King George Development Ltd. and Square Nine Builders Inc.",
+ "retrieved": "2026-09-23",
+ "record_id": "bcsc-squarenine-sharma",
+ "source_file": "fti2-2025-2011-2010-20filed-20affidavit-201-20of-20manish-20sharm.pdf",
+ "page_range": [
+  1,
+  228
+ ],
+ "source_sha256": "0a3d5da6872ed7b87e0b0e26a68ca9621702b97a18aedd9216ca4e92d7a63792",
+ "source_pages": 228,
+ "covers": "A=11,B=14,C=17,D=19,E=212,F=223,G=225"
+}

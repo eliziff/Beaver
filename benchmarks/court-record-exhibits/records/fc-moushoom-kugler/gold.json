@@ -1,0 +1,408 @@
+{
+ "record_id": "fc-moushoom-kugler",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-402-19 / T-141-20 / T-1120-21",
+ "proceeding": "Moushoom, Meawasige, Trout et al. v. Attorney General of Canada (First Nations child welfare and Jordan's Principle class actions; settlement approval)",
+ "document": "Affidavit of Robert Kugler sworn October 16, 2023 (Tab 7, plaintiffs' second supplementary motion record)",
+ "deponent": "Robert Kugler",
+ "deponent_role": "Partner, Kugler Kandestin LLP; class counsel",
+ "sworn_date": "2023-10-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-z4xfrr.pdf",
+   "kind": "agreement",
+   "date": "2023-04-19",
+   "author": "AFN, Canada, representative plaintiffs and class counsel",
+   "recipients": [],
+   "description": "The revised Final Settlement Agreement (FSA) executed April 19, 2023",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "The final settlement agreement is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "237 pages: First Nations Child and Family Services, Jordan's Principle, and Trout Class Settlement Agreement (as revised on April 17, 2023), with schedules"
+  },
+  {
+   "label": "B",
+   "file": "doc-xh6u85.pdf",
+   "kind": "agreement",
+   "date": "2023-10-10",
+   "author": "Parties to the FSA",
+   "recipients": [],
+   "description": "Addendum to the FSA executed October 10, 2023",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "and the Addendum is attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: Addendum to the Settlement Agreement (as revised on April 19, 2023), executed with effect as of October 10, 2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-r8a8v2.pdf",
+   "kind": "agreement",
+   "date": "2023-04-19",
+   "author": "AFN, Canada and the Caring Society",
+   "recipients": [],
+   "description": "Minutes of settlement among the parties to the Tribunal proceedings",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit “C” is a copy of the minutes of settlement."
+    }
+   ],
+   "content_check": "103 pages: minutes of settlement, CHRT File T1340/7008"
+  },
+  {
+   "label": "D",
+   "file": "doc-zvange.pdf",
+   "kind": "court_order",
+   "date": "2022-12-20",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [],
+   "description": "2022 CHRT 41, the Tribunal's ruling rejecting the Joint Motion on the First FSA",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "The 2022 Joint Motion Decision is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "168 pages: 2022 CHRT 41, December 20, 2022"
+  },
+  {
+   "label": "E",
+   "file": "doc-7bf58j.pdf",
+   "kind": "letter",
+   "date": "2023-06-27",
+   "author": "Euan Reid, Eckler",
+   "recipients": [
+    "Robert Kugler",
+    "Geoff Cowper"
+   ],
+   "description": "Eckler's estimate of investment income on the settlement funds",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "Attached as Exhibit “E” is Eckler’s said estimate"
+    }
+   ],
+   "content_check": "1 page: Eckler letter dated June 27, 2023 re investment of settlement funds"
+  },
+  {
+   "label": "F",
+   "file": "doc-7knkda.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Eckler",
+   "recipients": [],
+   "description": "Eckler memo estimating cash flows",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "Eckler also prepared a memo estimating cash flows. A copy is attached as Exhibit"
+    }
+   ],
+   "content_check": "7 pages of cash-flow tables (numbers by year, 2024-2027)"
+  },
+  {
+   "label": "G",
+   "file": "doc-eazdvg.pdf",
+   "kind": "court_order",
+   "date": "2023-08-16",
+   "author": "Federal Court (Justice Aylen)",
+   "recipients": [],
+   "description": "Order of August 16, 2023 approving revised notices and extending the opt-out deadline to October 6, 2023",
+   "references": [
+    {
+     "paragraph": 84,
+     "quote": "Attached as Exhibit “G” is the Court’s order."
+    }
+   ],
+   "content_check": "4 pages: order dated August 16, 2023, T-402-19 et al., Madam Justice Aylen"
+  },
+  {
+   "label": "H",
+   "file": "doc-pn9mcc.pdf",
+   "kind": "letter",
+   "date": "2023-07-26",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [
+    "Parties to T1340/7008"
+   ],
+   "description": "Tribunal letter decision of July 26, 2023 granting the new joint motion",
+   "references": [
+    {
+     "paragraph": 95,
+     "quote": "Attached as Exhibit “H” is a copy of that decision."
+    }
+   ],
+   "content_check": "5 pages: Tribunal letter dated July 26, 2023"
+  },
+  {
+   "label": "I",
+   "file": "doc-8zy3ca.pdf",
+   "kind": "court_order",
+   "date": "2023-09-26",
+   "author": "Canadian Human Rights Tribunal",
+   "recipients": [],
+   "description": "Tribunal's full reasons of September 26, 2023 (2023 CHRT 44)",
+   "references": [
+    {
+     "paragraph": 96,
+     "quote": "Attached as Exhibit “I” is a copy of those reasons."
+    }
+   ],
+   "content_check": "65 pages: 2023 CHRT 44, September 26, 2023"
+  },
+  {
+   "label": "J",
+   "file": "doc-eem6wm.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Class counsel",
+   "recipients": [],
+   "description": "Class counsel's Enhancement Payment Initial Approach",
+   "references": [
+    {
+     "paragraph": 129,
+     "quote": "The enhancement payment approach proposed by class counsel is attached as Exhibit"
+    }
+   ],
+   "content_check": "8 pages: Removed Child Enhancement Payments approach"
+  },
+  {
+   "label": "K",
+   "file": "doc-da3nh6.pdf",
+   "kind": "agreement",
+   "date": "2021-12-31",
+   "author": "Parties and class counsel",
+   "recipients": [],
+   "description": "Agreement in Principle concluded December 31, 2021",
+   "references": [
+    {
+     "paragraph": 143,
+     "quote": "This Agreement in Principle is attached as Exhibit"
+    }
+   ],
+   "content_check": "14 image pages: Agreement in Principle with Federal Court class proceeding style of cause"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2022-06-30",
+   "precision": "day",
+   "description": "First Final Settlement Agreement (First FSA) dated",
+   "paragraphs": [
+    2
+   ],
+   "quote": "a motion to approve a settlement dated June 30, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2022-09-02",
+   "precision": "day",
+   "description": "Colish affirms his affidavit supporting approval of the First FSA",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On September 2, 2022, William Colish, affirmed an affidavit",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2022-09",
+   "precision": "month",
+   "description": "AFN and Canada file the Joint Motion at the Tribunal; the September 2022 approval hearing is adjourned",
+   "paragraphs": [
+    10,
+    13
+   ],
+   "quote": "In September 2022, the AFN and Canada filed the Joint Motion.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2022-10-24",
+   "precision": "day",
+   "description": "Tribunal dismisses the Joint Motion by letter decision",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On October 24, 2022, the Tribunal delivered a letter decision",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2022-12-20",
+   "precision": "day",
+   "description": "Tribunal releases its reasons, 2022 CHRT 41",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On December 20, 2022, the Tribunal released its ruling, indexed as 2022 CHRT 41",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2023-02",
+   "precision": "approximate",
+   "description": "Parties and the Caring Society meet in Ottawa to consider a new settlement",
+   "paragraphs": [
+    24
+   ],
+   "quote": "In or about February of this year, the parties and the Caring Society met in Ottawa",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2023-01",
+   "precision": "range",
+   "description": "Intensive negotiations January to April 2023",
+   "paragraphs": [
+    26
+   ],
+   "quote": "between January and April 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2023-04-19",
+   "precision": "day",
+   "description": "Parties execute the revised FSA and minutes of settlement",
+   "paragraphs": [
+    5,
+    27
+   ],
+   "quote": "On April 19, 2023, the parties executed a revised final settlement agreement.",
+   "exhibits": [
+    "A",
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2023-10-10",
+   "precision": "day",
+   "description": "Parties execute the Addendum to the FSA",
+   "paragraphs": [
+    6,
+    139
+   ],
+   "quote": "On October 10, 2023, the parties executed an addendum",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2023-02-23",
+   "precision": "day",
+   "description": "Court extends the opt-out period to one year (to August 23, 2023)",
+   "paragraphs": [
+    81,
+    82
+   ],
+   "quote": "On February 23, 2023, the Court granted the extension sought",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2023-08-16",
+   "precision": "day",
+   "description": "Court approves revised notices and extends opt-out to October 6, 2023",
+   "paragraphs": [
+    84
+   ],
+   "quote": "was granted by the Court on August 16, 2023",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2023-07-26",
+   "precision": "day",
+   "description": "Tribunal grants the new joint motion by letter decision",
+   "paragraphs": [
+    95
+   ],
+   "quote": "The Tribunal granted that order by a letter decision dated July 26, 2023.",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2023-09-26",
+   "precision": "day",
+   "description": "Tribunal releases full reasons on the new joint motion",
+   "paragraphs": [
+    96
+   ],
+   "quote": "The Tribunal released its full reasons for its decision on the new joint motion on September 26, 2023.",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2021-12-31",
+   "precision": "day",
+   "description": "Agreement in Principle concluded under Mandamin and Sinclair",
+   "paragraphs": [
+    143
+   ],
+   "quote": "ultimately concluding an Agreement in Principle on December 31, 2021",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": null,
+   "precision": "undated",
+   "description": "Eckler estimates investment income and cash flows on the settlement funds",
+   "paragraphs": [
+    68,
+    69
+   ],
+   "quote": "Class counsel obtained estimates from the actuary, Eckler",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": null,
+   "precision": "undated",
+   "description": "Class counsel develop a draft Enhancement Payment approach",
+   "paragraphs": [
+    128,
+    129
+   ],
+   "quote": "Class counsel have developed a draft approach in respect of making Enhancement Payments",
+   "exhibits": [
+    "J"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Colish Affidavit of September 2, 2022",
+  "Affidavits of Kim Blanchette, Joelle Gott and Dean Janvier (October 2023)",
+  "Dr. Lucyna Lach expert report",
+  "ISC Database",
+  "Non-Class Counsel Legal Professionals Protocol motion"
+ ],
+ "leak_waivers": [],
+ "notes": "Tab 7 of the Sotos second supplementary motion record (source pages 175-840). Exhibit K is image-only. 3 of max 3 for this proceeding (with fc-moushoom-blackstock and fc-moushoom-meawasige)."
+}

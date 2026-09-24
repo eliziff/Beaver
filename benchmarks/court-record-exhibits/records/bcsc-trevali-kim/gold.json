@@ -1,0 +1,386 @@
+{
+ "record_id": "bcsc-trevali-kim",
+ "court": "Supreme Court of British Columbia (Vancouver)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-226670 (Vancouver Registry)",
+ "proceeding": "Re Trevali Mining Corporation and Trevali Mining (New Brunswick) Ltd. (CCAA; Glencore set-off and HST dispute)",
+ "document": "Affidavit #1 of Seung Hwoo Kim affirmed October 1, 2024, filed October 3, 2024 (for Glencore Canada)",
+ "deponent": "Seung Hwoo Kim",
+ "deponent_role": "Concentrates Trading Assistant, Glencore Canada Corporation",
+ "sworn_date": "2024-10-01",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-mh586m.pdf",
+   "kind": "court_filing",
+   "date": "2023-04-21",
+   "author": "Glencore Canada Corporation (McCarthy Tetrault)",
+   "recipients": [
+    "Trevali Mining Corporation",
+    "FTI Consulting Canada (Monitor)"
+   ],
+   "description": "Glencore's Proof of Claim Form dated April 21, 2023, whose Schedule A describes the zinc and lead offtake agreements",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "dated April 21, 2023, which is attached as Exhibit"
+    }
+   ],
+   "content_check": "11 pages: DocuSigned CCAA Proof of Claim Form for Glencore Canada Corporation, c/o McCarthy Tetrault"
+  },
+  {
+   "label": "B",
+   "file": "doc-bnmmvf.pdf",
+   "kind": "invoice",
+   "date": "2022",
+   "author": "Trevali Mining Corporation",
+   "recipients": [
+    "Glencore Canada Corporation"
+   ],
+   "description": "TMC's provisional invoices to Glencore, charging HST, paid in cash",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Copies of these provisional invoices are attached as Exhibit"
+    }
+   ],
+   "content_check": "16 pages: DocuSign-stamped wire banking information and Trevali provisional invoices (poor OCR)"
+  },
+  {
+   "label": "C",
+   "file": "doc-t3wag9.pdf",
+   "kind": "invoice",
+   "date": "2023-03-06",
+   "author": "Trevali Mining Corporation",
+   "recipients": [
+    "Glencore Canada Corporation"
+   ],
+   "description": "TMC's final invoices, including those dated December 31, 2022 and March 6, 2023 showing amounts due to Trevali with HST",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Copies of these\nfinal invoices are attached as Exhibit"
+    },
+    {
+     "paragraph": null,
+     "quote": "Copies of these final\ninvoices are attached as Exhibit"
+    }
+   ],
+   "content_check": "14 pages: Trevali final invoices, Schedule B - Zn-202201-F etc."
+  },
+  {
+   "label": "D",
+   "file": "doc-nnywjy.pdf",
+   "kind": "notice",
+   "date": "2022-08-18",
+   "author": "Julien Demers Guerard, Glencore Canada Corporation",
+   "recipients": [
+    "Brendan Creaney, CFO, Trevali Mining Corporation"
+   ],
+   "description": "Glencore's Notices of Set-off of August 18 and September 8, 2022, including HST",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the Notices of Set-off are\nattached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: Glencore Notice of Set Off dated August 18, 2022 re Contract 180-20-30432-P and a second notice"
+  },
+  {
+   "label": "E",
+   "file": "doc-ztzme8.pdf",
+   "kind": "email",
+   "date": "2022-09-09",
+   "author": "Gordon Eng (cjeng@trevali.com), TMC",
+   "recipients": [
+    "Thomas Kim, Glencore"
+   ],
+   "description": "Eng's September 9, 2022 email saying HST is owed to the CRA and asking Glencore to exclude it from the set-off",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of this email is attached as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: email from cjeng@trevali.com sent Friday, September 09, 2022 to Thomas.Kim@glencore.ca"
+  },
+  {
+   "label": "F",
+   "file": "doc-pm5jtx.pdf",
+   "kind": "notice",
+   "date": "2022-09-15",
+   "author": "Glencore Canada Corporation",
+   "recipients": [
+    "Brendan Creaney, CFO, Trevali Mining Corporation"
+   ],
+   "description": "Glencore's revised Notices of Set-Off excluding HST, sent September 15, October 7 and November 4, 2022",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Copies of those notices, which were sent on September 15,\nOctober 7, and November 4, 2022, are attached as Exhibit"
+    }
+   ],
+   "content_check": "10 pages: Revised Notices of Set Off (first dated September 13, 2022), with later notices of October 7 and November 4, 2022"
+  },
+  {
+   "label": "G",
+   "file": "doc-6wdbwg.pdf",
+   "kind": "notice",
+   "date": "2023-04-14",
+   "author": "Glencore Canada Corporation",
+   "recipients": [
+    "Brendan Creaney, CFO, Trevali Mining Corporation"
+   ],
+   "description": "Glencore's April 14, 2023 updated Set-off Notice electing to satisfy its net obligation of US$8,656,660.24 including HST",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A copy of this updated Set-off Notice is attached as Exhibit"
+    }
+   ],
+   "content_check": "18 pages: Glencore Notice of Set Off for contracts 062-13-27000-P and 180-20-30432-P (date OCR'd as April 1.1, 2023) with schedules"
+  },
+  {
+   "label": "H",
+   "file": "doc-fzn64s.pdf",
+   "kind": "letter",
+   "date": "2023-09-13",
+   "author": "FTI Consulting Canada Inc., Receiver of Trevali NB",
+   "recipients": [
+    "Glencore Canada Corporation c/o McCarthy Tetrault"
+   ],
+   "description": "FTI's September 13, 2023 letter asking Glencore to remit US$1,129,129.60 in HST",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "A\ncopy of that letter is attached as Exhibit"
+    }
+   ],
+   "content_check": "4 pages: letter dated September 13, 2023 to Glencore re Trevali NB HST on Set-Off Amounts"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2021-01-11",
+   "precision": "day",
+   "description": "Zinc Offtake Agreement between Glencore and TMC takes effect",
+   "paragraphs": [
+    3
+   ],
+   "quote": "effective January 11, 2021, pursuant to which TMC agreed to sell and Glencore agreed to buy",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2020-01-01",
+   "precision": "day",
+   "description": "Lead Offtake Agreement between Glencore and TMC takes effect",
+   "paragraphs": [
+    4
+   ],
+   "quote": "effective January 1, 2020, pursuant to which TMC agreed to sell and Glencore",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2023-04-21",
+   "precision": "day",
+   "description": "Glencore files its Proof of Claim",
+   "paragraphs": [
+    3,
+    4
+   ],
+   "quote": "Schedule A to the Proof of Claim Form of Glencore, dated April 21, 2023",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2022-08",
+   "precision": "month",
+   "description": "Before the CCAA filing, TMC issues provisional invoices with HST, which Glencore pays in cash",
+   "paragraphs": [
+    7
+   ],
+   "quote": "TMC provided Glencore with provisional invoices which estimated the",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": null,
+   "precision": "undated",
+   "description": "TMC issues final invoices reflecting actual zinc and lead delivered, charging HST",
+   "paragraphs": [
+    8
+   ],
+   "quote": "TMC also charged HST on these final invoices.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": null,
+   "precision": "undated",
+   "description": "TMC fails to deliver minimum zinc tonnage, owing Shortfall Amounts; freight and handling costs fall into arrears",
+   "paragraphs": [
+    10
+   ],
+   "quote": "TMC did not deliver the minimum amounts of zinc that it was required to deliver under",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2022-08",
+   "precision": "month",
+   "description": "TMC files for CCAA protection and stops regular invoicing",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In August 2022, TMC filed for creditor protection under the CCAA.",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2022-08-18",
+   "precision": "day",
+   "description": "Glencore issues its first Notice of Set-off, including HST",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On August 18, 2022 and September 08, 2022, Glencore issued two Notices of Set-off to",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2022-09-08",
+   "precision": "day",
+   "description": "Glencore issues its second Notice of Set-off",
+   "paragraphs": [
+    13
+   ],
+   "quote": "On August 18, 2022 and September 08, 2022, Glencore issued two Notices of Set-off to",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2022-09-09",
+   "precision": "day",
+   "description": "Eng emails Glencore that HST is owed to the CRA and asks it to amend the notice",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On September 9, 2022, Gordon Eng, VP, Tax & Treasury at TMC, sent an email to",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2022-09-15",
+   "precision": "day",
+   "description": "Glencore sends a revised Notice of Set-Off excluding HST",
+   "paragraphs": [
+    15
+   ],
+   "quote": "which were sent on September 15,",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": "2022-10-07",
+   "precision": "day",
+   "description": "Glencore sends a further revised Notice of Set-Off",
+   "paragraphs": [
+    15
+   ],
+   "quote": "October 7, and November 4, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2022-11-04",
+   "precision": "day",
+   "description": "Glencore sends a further revised Notice of Set-Off",
+   "paragraphs": [
+    15
+   ],
+   "quote": "October 7, and November 4, 2022",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": null,
+   "precision": "undated",
+   "description": "Glencore's tax team concludes it is entitled to set off the HST",
+   "paragraphs": [
+    16
+   ],
+   "quote": "after consulting with Glencore’s internal tax team, Glencore determined that",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2023-02",
+   "precision": "month",
+   "description": "TMC issues final invoices dated December 31, 2022 and March 6, 2023, with amounts due to Trevali including HST",
+   "paragraphs": [
+    17
+   ],
+   "quote": "2023. These invoices include amounts “due to Trevali” which include HST.",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2023-04-14",
+   "precision": "day",
+   "description": "Glencore gives an updated Set-off Notice for a net obligation of US$8,656,660.24 including HST",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On April 14, 2023, in response to TMC’s final invoices, Glencore provided an updated",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2023-09-13",
+   "precision": "day",
+   "description": "FTI, as Receiver of Trevali NB, asks Glencore to remit the HST",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In a letter dated September 13, 2023, FTI Consulting Canada",
+   "exhibits": [
+    "H"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Section 21 of the Offtake Agreements (set-off clause)"
+ ],
+ "leak_waivers": [],
+ "notes": "Image-only affidavit pages OCR'd with --ocr-affidavit; exhibits carry a poor OCR text layer. Paragraph 19 says US$1 129,129.60 (OCR). Exhibit G's notice date OCRs as 'April 1.1, 2023'; the affidavit dates it April 14, 2023. OCR lost the numbers of paragraphs 7 ('if') and 17 ('ihe'); their exhibit references carry paragraph null, events keep 7 and 17."
+}

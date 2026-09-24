@@ -1,0 +1,96 @@
+{
+ "record_id": "onsc-trinity-alichagla",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2021-07-05",
+   "from": "Dr. Zain Chagla",
+   "to": [
+    "Dr. Karim Ali"
+   ],
+   "subject": "Journal club - July topic",
+   "body": "Karim,\n\nFor the July infectious diseases journal club, how about the recent paper on outpatient antimicrobial stewardship in long-term care? I can present if you moderate.\n\nZain"
+  },
+  {
+   "doc": 1,
+   "kind": "minutes",
+   "date": "2021-06-16",
+   "from": "",
+   "to": [
+    "Division members",
+    "Dr. Karim Ali",
+    "Dr. Zain Chagla"
+   ],
+   "subject": "Minutes of Division Meeting",
+   "body": "1. On-call schedule for August finalized.\n\n2. Fellow orientation set for July 5.\n\n3. Antibiotic formulary changes for cefazolin dosing reviewed."
+  },
+  {
+   "doc": 2,
+   "kind": "memo",
+   "date": "2021-06-28",
+   "from": "Hospital Antimicrobial Stewardship Program",
+   "to": [
+    "Attending physicians"
+   ],
+   "subject": "Updated guidance on vancomycin monitoring",
+   "body": "Effective July 12, area-under-the-curve dosing replaces trough monitoring for vancomycin on inpatient units. Pharmacy will provide calculators on the intranet."
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2021-06-10",
+   "from": "Postgraduate Program Director",
+   "to": [
+    "Dr. Karim Ali"
+   ],
+   "subject": "Resident teaching evaluations",
+   "body": "Dear Dr. Ali:\n\nEnclosed are your teaching evaluations from the 2020-21 academic year. Thank you for your contribution to resident education.\n\nProgram Director"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2021-06-30",
+   "from": "Counsel, Ministry of the Attorney General",
+   "to": [
+    "Dr. Karim Ali",
+    "Dr. Zain Chagla"
+   ],
+   "subject": "Invoice submission instructions",
+   "body": "Dear Doctors,\n\nFor administrative purposes only: invoices should be submitted to the Ministry's accounts payable mailbox with your supplier number. Payment is typically made within 30 days.\n\nMinistry counsel"
+  },
+  {
+   "doc": 5,
+   "kind": "text",
+   "date": "2021-07-02",
+   "from": "Dr. Karim Ali",
+   "to": [
+    "Dr. Karim Ali"
+   ],
+   "subject": "",
+   "body": "Zain: Can you swap weekend call with me for the 17th?\nKarim: Yes, I'll take the 24th then\nZain: Deal"
+  },
+  {
+   "doc": 6,
+   "kind": "invoice",
+   "date": "2021-05-31",
+   "from": "Medical Society membership office",
+   "to": [
+    "Dr. Zain Chagla"
+   ],
+   "subject": "Annual membership renewal",
+   "body": "Thank you for renewing.\nFull membership 2021-22: 395.0\nHST 13%: 51.35"
+  },
+  {
+   "doc": 7,
+   "kind": "email",
+   "date": "2021-07-08",
+   "from": "Dr. Karim Ali",
+   "to": [
+    "Infectious disease fellows"
+   ],
+   "subject": "Clinic templates",
+   "body": "Welcome, new fellows. Your outpatient clinic templates are in the shared drive. Please review before your first clinic on Tuesday.\n\nKarim"
+  }
+ ]
+}

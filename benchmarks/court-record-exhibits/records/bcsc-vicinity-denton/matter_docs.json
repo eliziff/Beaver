@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/bcsc-vicinity-denton/receivership-order-2024-10-21.pdf",
+  "url": "https://cfcanada.fticonsulting.com/vicinity/docs/2024-10-21 Order Made After Application (Receivership Order).pdf",
+  "title": "Receivership Order made October 21, 2024 (VLC-S-S-247082)",
+  "kind": "court_order",
+  "relation": "the order granted on the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/bcsc-vicinity-denton/approval-vesting-order-2025-04-22.pdf",
+  "url": "https://cfcanada.fticonsulting.com/vicinity/docs/Entered Approval and Vesting Order made April 22, 2025.pdf",
+  "title": "Approval and Vesting Order (Auction) made April 22, 2025",
+  "kind": "court_order",
+  "relation": "later order in the same receivership"
+ }
+]

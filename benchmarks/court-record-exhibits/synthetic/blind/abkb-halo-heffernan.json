@@ -1,0 +1,93 @@
+{
+ "record_id": "abkb-halo-heffernan",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2026-02-05",
+   "from": "Nicholas Heffernan",
+   "to": [
+    "Northbase team"
+   ],
+   "subject": "Industry dinner tickets",
+   "body": "Hi team,\n\nWe have a table at the energy services dinner on March 12. Let me know by Monday if you want a seat.\n\nNicholas"
+  },
+  {
+   "doc": 1,
+   "kind": "memo",
+   "date": "2025-10-06",
+   "from": "Northbase Finance Inc. - Administration",
+   "to": [
+    "All staff"
+   ],
+   "subject": "New email signatures after amalgamation",
+   "body": "Please update your email signatures to the new logo and remove any references to the old letterhead by October 15. Templates are on the shared drive."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2025-11-30",
+   "from": "Beltline Office Interiors Ltd.",
+   "to": [
+    "Northbase Finance Inc."
+   ],
+   "subject": "Reception signage",
+   "body": "Net 30.\nReception wall sign, new logo: 2400.0\nInstallation: 300.0\nGST 5%: 135.0"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2023-05-16",
+   "from": "",
+   "to": [
+    "Field supervisors"
+   ],
+   "subject": "Minutes of Field Operations Meeting",
+   "body": "1. Spring road bans in effect until June 1.\n\n2. Pump jack maintenance schedule approved.\n\n3. H2S refresher training June 6."
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2022-04-04",
+   "from": "Norden Finance Inc.",
+   "to": [
+    "Clients"
+   ],
+   "subject": "New office address",
+   "body": "Dear Client:\n\nEffective May 1, 2022 our office will relocate within downtown Calgary. Phone numbers and email addresses are unchanged.\n\nNorden Finance Inc."
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2026-02-09",
+   "from": "Randal Van de Mosselaer",
+   "to": [
+    "Osler Calgary litigation assistants"
+   ],
+   "subject": "Articling student research memo",
+   "body": "Hi,\n\nPlease file the student's research memo on the unrelated pipeline easement question in the precedents folder.\n\nRandal"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-02-02",
+   "from": "Nicholas Heffernan",
+   "to": [
+    "Nicholas Heffernan"
+   ],
+   "subject": "",
+   "body": "Colleague: Golf simulator league starts next week\nNicholas: Sign me up for Thursdays\nColleague: Done"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2024-09-30",
+   "from": "Foothills Wellsite Services Ltd.",
+   "to": [
+    "Halo Exploration Ltd."
+   ],
+   "subject": "Lease road grading",
+   "body": "Thank you.\nRoad grading, 3 lease roads: 4200.0\nGravel, 60 tonnes: 1800.0\nGST 5%: 300.0"
+  }
+ ]
+}

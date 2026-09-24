@@ -1,0 +1,1211 @@
+{
+ "record_id": "ct-jamp-juneja",
+ "court": "Competition Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CT-2024-006",
+ "proceeding": "JAMP Pharma Corporation v. Janssen Inc. (application for leave under s. 103.1 of the Competition Act to bring an abuse of dominance application under s. 79)",
+ "document": "Affidavit of Sukhad Juneja sworn July 25, 2024 for JAMP (public version)",
+ "deponent": "Sukhad Juneja",
+ "deponent_role": "Senior Vice-President, Global Portfolio & Scientific Affairs, JAMP Pharma Corporation",
+ "sworn_date": "2024-07-25",
+ "exhibits": [
+  {
+   "label": "J1",
+   "file": "doc-xz5p6h.pdf",
+   "kind": "financial_statement",
+   "date": "2023-12-31",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Annual Report (Form 10-K) for fiscal 2023, showing Janssen is a wholly-owned subsidiary",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "I have attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "SEC Form 10-K annual report of Johnson & Johnson"
+  },
+  {
+   "label": "J2",
+   "file": "doc-86um69.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Health Canada guidance on information and submission requirements for biosimilar biologic drugs",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "biosimilar guidance document attached as Exhibit"
+    }
+   ],
+   "content_check": "Guidance Document: Information and Submission Requirements for Biosimilar Biologic Drugs"
+  },
+  {
+   "label": "J3",
+   "file": "doc-8spb9y.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Health Canada guidance on data protection under C.08.004.1 of the Food and Drug Regulations",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Guidance Document: Data Protection under C.08.004.1 (adopted 2009/03/11)"
+  },
+  {
+   "label": "J4",
+   "file": "doc-hdbe87.pdf",
+   "kind": "public_record",
+   "date": "2024-07-04",
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Register of Innovative Drugs, last updated July 4, 2024",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "A copy of such register last updated July 4, 2024 is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Register of Innovative Drugs table (medicinal ingredient, submission number, data protection dates)"
+  },
+  {
+   "label": "J5",
+   "file": "doc-n4er3w.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Health Canada guidance to the PM(NOC) Regulations",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "I have attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Guidance Document: Patented Medicines (Notice of Compliance) Regulations"
+  },
+  {
+   "label": "J6",
+   "file": "doc-xn4tmv.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Extract of the online Patent Register",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached as Exhibit"
+    }
+   ],
+   "content_check": "Canada.ca Patent Register printout"
+  },
+  {
+   "label": "J7",
+   "file": "doc-6xerfe.pdf",
+   "kind": "report",
+   "date": "2011",
+   "author": "mAbs (Landes Bioscience)",
+   "recipients": [],
+   "description": "Research paper on the discovery and mechanism of ustekinumab",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Review article, mAbs 3:6, 535-545, November/December 2011"
+  },
+  {
+   "label": "J8",
+   "file": "doc-zudpsk.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Notice of Compliance Database extract recording Stelara's NOC of December 12, 2008",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "I\nhave attached as Exhibit"
+    }
+   ],
+   "content_check": "Canada.ca Notice of Compliance (NOC) online query printout"
+  },
+  {
+   "label": "J9",
+   "file": "doc-hx8d8b.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Janssen Inc.",
+   "recipients": [],
+   "description": "Stelara product monograph listing its indications",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "I have attached as Exhibit"
+    }
+   ],
+   "content_check": "91-page Product Monograph including patient medication information"
+  },
+  {
+   "label": "J10",
+   "file": "doc-hs8jz6.pdf",
+   "kind": "financial_statement",
+   "date": "2012",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J annual report material for 2012 reporting Stelara sales (first of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "71 pages: J&J Management's Discussion and Analysis (2012)"
+  },
+  {
+   "label": "J11",
+   "file": "doc-w5xdvn.pdf",
+   "kind": "financial_statement",
+   "date": "2013-12-29",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2013 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended December 29, 2013"
+  },
+  {
+   "label": "J12",
+   "file": "doc-nhh5wt.pdf",
+   "kind": "financial_statement",
+   "date": "2014-12-28",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2014 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended December 28, 2014"
+  },
+  {
+   "label": "J13",
+   "file": "doc-cgx2xy.pdf",
+   "kind": "financial_statement",
+   "date": "2016-01-03",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2015 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended January 3, 2016"
+  },
+  {
+   "label": "J14",
+   "file": "doc-xdxskz.pdf",
+   "kind": "financial_statement",
+   "date": "2017-01-01",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2016 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended January 1, 2017"
+  },
+  {
+   "label": "J15",
+   "file": "doc-64tv39.pdf",
+   "kind": "financial_statement",
+   "date": "2017-12-31",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2017 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended December 31, 2017"
+  },
+  {
+   "label": "J16",
+   "file": "doc-4k7dkq.pdf",
+   "kind": "financial_statement",
+   "date": "2018-12-30",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2018 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended December 30, 2018"
+  },
+  {
+   "label": "J17",
+   "file": "doc-8saxhe.pdf",
+   "kind": "financial_statement",
+   "date": "2019-12-29",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2019 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended December 29, 2019"
+  },
+  {
+   "label": "J18",
+   "file": "doc-yktw3v.pdf",
+   "kind": "financial_statement",
+   "date": "2021-01-03",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2020 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended January 3, 2021"
+  },
+  {
+   "label": "J19",
+   "file": "doc-5sjyen.pdf",
+   "kind": "financial_statement",
+   "date": "2023-01-01",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J Form 10-K for fiscal 2022 (part of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Form 10-K, fiscal year ended January 1, 2023"
+  },
+  {
+   "label": "J20",
+   "file": "doc-7nksm5.pdf",
+   "kind": "financial_statement",
+   "date": "2023",
+   "author": "Johnson & Johnson",
+   "recipients": [],
+   "description": "J&J 2023 Annual Report (last of Exhibits J10-J20)",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "These are attached to this affidavit"
+    }
+   ],
+   "content_check": "Johnson & Johnson 2023 Annual Report (Our Credo)"
+  },
+  {
+   "label": "J21",
+   "file": "doc-5f2x8k.pdf",
+   "kind": "court_order",
+   "date": "2023-07-17",
+   "author": "Federal Court",
+   "recipients": [],
+   "description": "Federal Court decision dismissing Janssen's judicial review over listing the 837 Patent against Stelara",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Federal Court decision attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "2023 FC 870, Docket T-2627-22, July 17, 2023"
+  },
+  {
+   "label": "J22",
+   "file": "doc-np8q3n.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Janssen Inc.",
+   "recipients": [],
+   "description": "Janssen's Notice of Application for judicial review of the Minister's refusal to list the 837 Patent against Stelara",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "That Notice of Application for such application is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Notice of Application, Janssen Inc. v. Minister of Health, Federal Court"
+  },
+  {
+   "label": "J23",
+   "file": "doc-wpvxe2.pdf",
+   "kind": "court_order",
+   "date": "2023-11-21",
+   "author": "Federal Court of Appeal",
+   "recipients": [],
+   "description": "Federal Court of Appeal dismissal from the bench of Janssen's appeal",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Such dismissal is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "2023 FCA 229, A-192-23, November 21, 2023"
+  },
+  {
+   "label": "J24",
+   "file": "doc-krv63u.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Notice of Compliance Database extract for Finlius (NOC April 18, 2023, labelling only)",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Canada.ca Notice of Compliance online query printout"
+  },
+  {
+   "label": "J25",
+   "file": "doc-qqmn9s.pdf",
+   "kind": "court_filing",
+   "date": "2023-04-26",
+   "author": "Janssen Inc.",
+   "recipients": [],
+   "description": "Janssen's Notice of Application in T-873-23 stating Finlius is merely another name for Stelara",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "as is clear from the Notice of Application attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Scanned issued Notice of Application, Janssen Inc., Federal Court"
+  },
+  {
+   "label": "J26",
+   "file": "doc-2bsf6b.pdf",
+   "kind": "public_record",
+   "date": "2023-07-07",
+   "author": "Janssen Inc.",
+   "recipients": [],
+   "description": "Finlius product monograph (July 7, 2023 version)",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "91-page product monograph (EDMS-RIM-1023893)"
+  },
+  {
+   "label": "J27",
+   "file": "doc-9dgd58.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Federal Court",
+   "recipients": [],
+   "description": "Recorded entries for Federal Court file T-873-23 (stay sought May 2023, discontinued February 28, 2024)",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "As set out in the relevant Federal Court File record attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: Recorded Entry Information, T-873-23"
+  },
+  {
+   "label": "J28",
+   "file": "doc-yaq4h2.pdf",
+   "kind": "webpage",
+   "date": "2020-01-14",
+   "author": "JAMP Pharma Group",
+   "recipients": [],
+   "description": "January 14, 2020 announcement of the JAMP-Alvotech strategic partnership",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "This announcement is attached as Exhibit"
+    }
+   ],
+   "content_check": "JAMP Pharma Group press release on partnership for five biosimilars"
+  },
+  {
+   "label": "J29",
+   "file": "doc-v2xvbw.pdf",
+   "kind": "webpage",
+   "date": "2022-02-01",
+   "author": "JAMP Pharma Group",
+   "recipients": [],
+   "description": "February 1, 2022 announcement creating the BioJAMP division",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "This announcement is attached as Exhibit"
+    }
+   ],
+   "content_check": "BIOJAMP: A Range of Biosimilars for a Seamless Approach"
+  },
+  {
+   "label": "J30",
+   "file": "doc-6vexbr.pdf",
+   "kind": "webpage",
+   "date": "2022-04-14",
+   "author": "JAMP Pharma Group",
+   "recipients": [],
+   "description": "April 14, 2022 announcement launching Simlandi",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "This announcement is attached as Exhibit"
+    }
+   ],
+   "content_check": "Press release: JAMP Pharma launches SIMLANDI biosimilar"
+  },
+  {
+   "label": "J31",
+   "file": "doc-k4j2mn.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Notice of Compliance Database extract for Jamteki (NOC November 9, 2023)",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "An extract of the Canada Notice of Compliance Database for Jamteki is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "Canada.ca Notice of Compliance online query printout"
+  },
+  {
+   "label": "J32",
+   "file": "doc-zv92gp.pdf",
+   "kind": "webpage",
+   "date": "2024-03-01",
+   "author": "JAMP Pharma Group",
+   "recipients": [],
+   "description": "Press release announcing the launch of Jamteki",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "A copy of the press release making such announ"
+    }
+   ],
+   "content_check": "JAMP Pharma Group announces commercial launch of PrJamteki"
+  },
+  {
+   "label": "J33",
+   "file": "doc-fbv9wq.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Journal article",
+   "recipients": [],
+   "description": "Research paper on the discovery and mechanism of infliximab",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Review: Remicade (infliximab): 20 years of contributions to science and medicine"
+  },
+  {
+   "label": "J34",
+   "file": "doc-n73sph.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Drug Product Database extract for Remicade",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Canada.ca Drug Product Database printout (Remicade)"
+  },
+  {
+   "label": "J35",
+   "file": "doc-sky83e.pdf",
+   "kind": "webpage",
+   "date": "2016",
+   "author": "The Globe and Mail",
+   "recipients": [],
+   "description": "Globe and Mail article on Remicade pricing",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "an article in the Globe and Mail that I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Investigation: How a blockbuster drug tells the story of why Canada's spending on prescriptions is sky high"
+  },
+  {
+   "label": "J36",
+   "file": "doc-mavujr.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Drug Product Database extract for Inflectra (first of J36-J39)",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "which I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Drug Product Database printout (Inflectra)"
+  },
+  {
+   "label": "J37",
+   "file": "doc-dr5m5u.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Drug Product Database extract for Renflexis",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "which I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Drug Product Database printout (Renflexis)"
+  },
+  {
+   "label": "J38",
+   "file": "doc-kefmnr.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Drug Product Database extract for Avsola",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "which I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Drug Product Database printout (Avsola)"
+  },
+  {
+   "label": "J39",
+   "file": "doc-s7bv9y.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Drug Product Database extract for Remsima",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "which I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Drug Product Database printout (Remsima)"
+  },
+  {
+   "label": "J40",
+   "file": "doc-q83hnt.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Competition Bureau",
+   "recipients": [],
+   "description": "Bureau position statement concluding its inquiry into Janssen's Remicade practices",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "the Bureau issued a position statement, which I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Inquiry into alleged anti-competitive conduct by Janssen: Position Statement"
+  },
+  {
+   "label": "J41",
+   "file": "doc-haqyt8.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Health Canada",
+   "recipients": [],
+   "description": "Drug Product Database extract for Omvyence (approved December 2020, never marketed)",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "which I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Drug Product Database printout (Omvyence)"
+  },
+  {
+   "label": "J42",
+   "file": "doc-6zkppr.pdf",
+   "kind": "public_record",
+   "date": "2022-06-27",
+   "author": "Competition Bureau",
+   "recipients": [],
+   "description": "June 2022 Bureau position statement on relabelled biologics",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "that I have attached as Exhibit"
+    }
+   ],
+   "content_check": "Completion of preliminary investigation into relabelled biologic drugs: Position Statement"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2013",
+   "precision": "year",
+   "description": "Deponent hired by JAMP",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I was originally hired by JAMP in 2013.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "1988",
+   "precision": "year",
+   "description": "JAMP's generics business founded",
+   "paragraphs": [
+    5
+   ],
+   "quote": "founded in 1988",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2008-12-12",
+   "precision": "day",
+   "description": "Janssen receives a NOC for Stelara",
+   "paragraphs": [
+    24
+   ],
+   "quote": "which records that Janssen received a NOC from Health Canada for Stelara on December 12, 2008",
+   "exhibits": [
+    "J8"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2010",
+   "precision": "year",
+   "description": "Stelara worldwide sales about USD 393 million; Canadian sales about CAD 14.0 million",
+   "paragraphs": [
+    26
+   ],
+   "quote": "I understand that in 2010 J&J generated revenues from sales of Stelara",
+   "exhibits": [
+    "J10"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2023",
+   "precision": "year",
+   "description": "Stelara worldwide sales about USD 10.858 billion; Canadian sales about CAD 912.8 million",
+   "paragraphs": [
+    26
+   ],
+   "quote": "I understand that in 2023 J&J generated revenues from sales of Stelara",
+   "exhibits": [
+    "J20"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2016-12-12",
+   "precision": "day",
+   "description": "Stelara's data protection ends",
+   "paragraphs": [
+    28
+   ],
+   "quote": "Stelara’s data protection under the Food and Drug Regulations ended on December 1",
+   "exhibits": [
+    "J4"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2021-08-09",
+   "precision": "day",
+   "description": "No patent listed against Stelara from this date",
+   "paragraphs": [
+    29
+   ],
+   "quote": "there has been no patent listed against Stelara on the patent register since August 9, 2021",
+   "exhibits": [
+    "J21"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2019-02-15",
+   "precision": "day",
+   "description": "Janssen files the regulatory submission for a change in use",
+   "paragraphs": [
+    32
+   ],
+   "quote": "was filed by Janssen on February 15, 2019",
+   "exhibits": [
+    "J21"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2019-09-24",
+   "precision": "day",
+   "description": "Application giving rise to the 837 Patent filed in Canada",
+   "paragraphs": [
+    32
+   ],
+   "quote": "the application giving rise to the 837 Patent was filed in Canada on September 24, 2019",
+   "exhibits": [
+    "J21"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2022-07-12",
+   "precision": "day",
+   "description": "837 Patent issues",
+   "paragraphs": [
+    32
+   ],
+   "quote": "shortly after the 837 Patent issued on July 12, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2022-07-25",
+   "precision": "day",
+   "description": "Janssen attempts to list the 837 Patent against Stelara; the Minister declines",
+   "paragraphs": [
+    30
+   ],
+   "quote": "on July 25, 2022, Janssen attempted to list Canadian Letters Patent No. 3,113,837",
+   "exhibits": [
+    "J21"
+   ]
+  },
+  {
+   "id": "e12",
+   "date": null,
+   "precision": "undated",
+   "description": "Janssen applies for judicial review of the Minister's refusal, seeking listing retroactive to July 19, 2022",
+   "paragraphs": [
+    33
+   ],
+   "quote": "Janssen commenced a judicial review application in the Federal Court of Canada arguing that the Minister’s decision was unreasonable and that the relevant",
+   "exhibits": [
+    "J22"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2023-06-21",
+   "precision": "day",
+   "description": "Federal Court dismisses Janssen's Stelara judicial review",
+   "paragraphs": [
+    33
+   ],
+   "quote": "dismissed Janssen’s judicial review application on June 21, 2023",
+   "exhibits": [
+    "J21"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2023-11-21",
+   "precision": "day",
+   "description": "Federal Court of Appeal dismisses Janssen's appeal from the bench",
+   "paragraphs": [
+    34,
+    50
+   ],
+   "quote": "which was dismissed from the bench on November 21, 2023",
+   "exhibits": [
+    "J23"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2023-04-18",
+   "precision": "day",
+   "description": "Janssen receives a NOC for Finlius, identical to Stelara",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On April 18, 2023 Janssen received approval from Health Canada to market Finlius",
+   "exhibits": [
+    "J24"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2023-01",
+   "precision": "range",
+   "description": "Minister declines to list the 837 Patent against Finlius (late 2022 and early 2023)",
+   "paragraphs": [
+    38
+   ],
+   "quote": "In late 2022 and early 2023, the Minister of Health declined to list the 837 Patent against Finlius",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2023-04-26",
+   "precision": "day",
+   "description": "Janssen applies for judicial review of the Finlius listing refusal",
+   "paragraphs": [
+    40,
+    51
+   ],
+   "quote": "That application was commenced on April 26, 2023",
+   "exhibits": [
+    "J25"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2023-05",
+   "precision": "month",
+   "description": "Janssen seeks a stay of the Finlius application",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Janssen sought a stay of its application in May 2023",
+   "exhibits": [
+    "J27"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": "2024-02-28",
+   "precision": "day",
+   "description": "Janssen discontinues the Finlius judicial review",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Janssen only discontinued its Finlius judicial review application on February 28, 2024",
+   "exhibits": [
+    "J27"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2024-07-02",
+   "precision": "day",
+   "description": "Janssen begins marketing Finlius",
+   "paragraphs": [
+    41
+   ],
+   "quote": "Janssen only commenced marketing of Finlius on July 2, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2020-01-14",
+   "precision": "day",
+   "description": "JAMP and Alvotech announce their strategic partnership",
+   "paragraphs": [
+    44
+   ],
+   "quote": "On January 14, 2020, JAMP and Alvotech announced to the public their exclusive",
+   "exhibits": [
+    "J28"
+   ]
+  },
+  {
+   "id": "e22",
+   "date": "2022-02-01",
+   "precision": "day",
+   "description": "JAMP announces the BioJAMP division",
+   "paragraphs": [
+    45
+   ],
+   "quote": "On February 1, 2022, prior to JAMP’s launch of any biosimilar products",
+   "exhibits": [
+    "J29"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2022-04-14",
+   "precision": "day",
+   "description": "JAMP launches Simlandi",
+   "paragraphs": [
+    46
+   ],
+   "quote": "On April 14, 2022, JAMP announced the launch of BioJAMP’s first biosimilar drug in Canada",
+   "exhibits": [
+    "J30"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2022",
+   "precision": "year",
+   "description": "Simlandi sales over $7 million in 2022 and over $37 million in 2023",
+   "paragraphs": [
+    48
+   ],
+   "quote": "BioJAMP generated more than $7 million in sales of Simlandi",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "date": "2022-11-24",
+   "precision": "day",
+   "description": "JAMP files the NDS for Jamteki",
+   "paragraphs": [
+    49
+   ],
+   "quote": "JAMP submitted a NDS for a second biosimilar, Jamteki, on November 24, 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e26",
+   "date": "2023-11-09",
+   "precision": "day",
+   "description": "Jamteki receives a NOC",
+   "paragraphs": [
+    54
+   ],
+   "quote": "Jamteki received a NOC from Health Canada on November 9, 2023.",
+   "exhibits": [
+    "J31"
+   ]
+  },
+  {
+   "id": "e27",
+   "date": "2024-03-01",
+   "precision": "day",
+   "description": "BioJAMP launches Jamteki",
+   "paragraphs": [
+    54
+   ],
+   "quote": "BioJAMP subsequently announced the launch of Jamteki on March 1, 2024.",
+   "exhibits": [
+    "J32"
+   ]
+  },
+  {
+   "id": "e28",
+   "date": "2023-12-27",
+   "precision": "day",
+   "description": "Amgen's Wezlana receives a NOC",
+   "paragraphs": [
+    56
+   ],
+   "quote": "Wezlana received a NOC from Health Canada on December 27, 2023.",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "date": "2024-03-01",
+   "precision": "day",
+   "description": "Amgen first markets Wezlana",
+   "paragraphs": [
+    56
+   ],
+   "quote": "Amgen first marketed Wezlana on March 1, 2024.",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "date": "2024-05-31",
+   "precision": "day",
+   "description": "At least five Stelara biosimilar submissions under review",
+   "paragraphs": [
+    57
+   ],
+   "quote": "of May 31, 2024, there are at least five new drug submissions currently under review",
+   "exhibits": []
+  },
+  {
+   "id": "e31",
+   "date": "1998",
+   "precision": "year",
+   "description": "Remicade approved by the US FDA",
+   "paragraphs": [
+    58
+   ],
+   "quote": "under the name of Remicade in 1998",
+   "exhibits": [
+    "J33"
+   ]
+  },
+  {
+   "id": "e32",
+   "date": "2001",
+   "precision": "year",
+   "description": "Janssen obtains approval for and begins marketing Remicade in Canada",
+   "paragraphs": [
+    59
+   ],
+   "quote": "originally marketed Remicade in Canada in 2001",
+   "exhibits": [
+    "J34"
+   ]
+  },
+  {
+   "id": "e33",
+   "date": "2016",
+   "precision": "year",
+   "description": "Janssen sells Remicade at $987.56 per vial",
+   "paragraphs": [
+    60
+   ],
+   "quote": "in 2016, Janssen sold Remicade for $987.56 per vial",
+   "exhibits": [
+    "J35"
+   ]
+  },
+  {
+   "id": "e34",
+   "date": "2014",
+   "precision": "year",
+   "description": "Inflectra approved",
+   "paragraphs": [
+    61
+   ],
+   "quote": "Inflectra (approved in 2014)",
+   "exhibits": [
+    "J36"
+   ]
+  },
+  {
+   "id": "e35",
+   "date": "2018",
+   "precision": "year",
+   "description": "Renflexis approved",
+   "paragraphs": [
+    61
+   ],
+   "quote": "Renflexis (in 2018)",
+   "exhibits": [
+    "J37"
+   ]
+  },
+  {
+   "id": "e36",
+   "date": "2020",
+   "precision": "year",
+   "description": "Avsola approved",
+   "paragraphs": [
+    61
+   ],
+   "quote": "Avsola (in 2020)",
+   "exhibits": [
+    "J38"
+   ]
+  },
+  {
+   "id": "e37",
+   "date": "2021",
+   "precision": "year",
+   "description": "Remsima approved",
+   "paragraphs": [
+    61
+   ],
+   "quote": "Remsima (in 2021)",
+   "exhibits": [
+    "J39"
+   ]
+  },
+  {
+   "id": "e38",
+   "date": "2018",
+   "precision": "year",
+   "description": "Competition Bureau begins its inquiry into Janssen's Remicade practices",
+   "paragraphs": [
+    62
+   ],
+   "quote": "in 2018, the Competition Bureau",
+   "exhibits": [
+    "J40"
+   ]
+  },
+  {
+   "id": "e39",
+   "date": "2020-12",
+   "precision": "month",
+   "description": "Janssen obtains approval for Omvyence, never marketed",
+   "paragraphs": [
+    63
+   ],
+   "quote": "Janssen obtained approval from Health Canada for Omvyence in Canada in December 2020",
+   "exhibits": [
+    "J41"
+   ]
+  },
+  {
+   "id": "e40",
+   "date": "2020",
+   "precision": "approximate",
+   "description": "Competition Bureau begins an inquiry into relabelled biologics",
+   "paragraphs": [
+    64
+   ],
+   "quote": "In approximately 2020, I understand the Competition Bureau commenced an inquiry",
+   "exhibits": [
+    "J42"
+   ]
+  },
+  {
+   "id": "e41",
+   "date": "2022-06",
+   "precision": "month",
+   "description": "Bureau issues its relabelled biologics position statement",
+   "paragraphs": [
+    64
+   ],
+   "quote": "According to a June 2022 position statement",
+   "exhibits": [
+    "J42"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Amelie Faubert (Jamteki forecast and performance)",
+  "IQVIA sales data",
+  "Janssen Inc. v. Celltrion Healthcare, 2016 FC 525",
+  "Health Canada Drug and Health Product Submissions Under Review list"
+ ],
+ "leak_waivers": [],
+ "notes": "Each exhibit has a bare 'Exhibit \"Jn\"' divider followed by the sworn cover page; covers given with --covers at the sworn pages (dividers are stripped). Exhibits J10-J20 are J&J annual reports/10-Ks for 2012-2023 referenced together in paragraph 26. Paragraph 57 is truncated mid-sentence in the filed affidavit. 2 of max 3 for CT-2024-006 (with ct-jamp-seaby)."
+}

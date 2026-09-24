@@ -1,0 +1,30 @@
+{
+ "record_id": "abqb-amla-smolishunt",
+ "court": "Court of Queen's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "1903-20251 (Edmonton)",
+ "proceeding": "Alberta March for Life Association and Jerry Pasternak v. City of Edmonton (application concerning the City's refusal to light the High Level Bridge for the 2019 March for Life)",
+ "document": "Affidavit of Mary Smolis-Hunt sworn February 2020, filed February 25, 2020 for the applicants",
+ "deponent": "Mary Smolis-Hunt",
+ "deponent_role": "Chairwoman, Alberta March for Life Association",
+ "sworn_date": "2020-02",
+ "exhibits": [
+  {"label": "A", "file": "doc-6dx39z.pdf", "kind": "webpage", "date": "2020-02-12", "author": "City of Edmonton", "recipients": [], "description": "Three City of Edmonton Facebook and Twitter announcements of lighting the High Level Bridge for climate-change events or causes", "references": [{"paragraph": 3, "quote": "Now shown to me and attached as Exhibit \"A\" to this, my Affidavit are three announcements \nby the City of Edmonton"}, {"paragraph": 5, "quote": "( contained in Exhibit \"A\")"}], "content_check": "Four pages of City of Edmonton social posts printed 2/12/2020, the first dated March 5, 2018 listing bridge lighting requests including the Cities IPCC Conference"},
+  {"label": "B", "file": "doc-ywwmqz.pdf", "kind": "webpage", "date": "2020-02-13", "author": "City of Edmonton social media users", "recipients": [], "description": "Comments posted on the City's Facebook page and Twitter account regarding climate change", "references": [{"paragraph": 4, "quote": "Now shown to me and attached as Exhibit \"B\" to this, my Affidavit are comments \"posted\" \non the City's Facebook page and Twitter account regarding \"climate change\"."}], "content_check": "185 pages of City of Edmonton Facebook posts and comment threads printed 2/13/2020"},
+  {"label": "C", "file": "doc-bsk2dx.pdf", "kind": "webpage", "date": null, "author": "City of Edmonton", "recipients": [], "description": "The City websites edmonton.ca/TheWayWeGreen and changeforclimate.ca", "references": [{"paragraph": 5, "quote": "Now shown to me and attached as Exhibit \"C\" to \nthis, my Affidavit are the two City websites regarding \"climate change\" referred to above."}], "content_check": "15 pages of edmonton.ca 'Environment, Climate Change, Energy' web printouts with a 'Change for Climate' banner"},
+  {"label": "D", "file": "doc-d7x5hx.pdf", "kind": "webpage", "date": "2020-02-11", "author": "City of Edmonton", "recipients": [], "description": "City announcements of lighting the Bridge for LGBT- or Pride-related events or causes", "references": [{"paragraph": 6, "quote": "Now shown to me and attached as Exhibit \"D\" to this, my Affidavit are many announcements \nby the City"}], "content_check": "17 pages of City of Edmonton posts printed 2/11/2020, the first of November 18, 2019 listing lighting including Transgender Day of Remembrance"},
+  {"label": "E", "file": "doc-gj8x5p.pdf", "kind": "webpage", "date": "2020-02-18", "author": "City of Edmonton social media users", "recipients": [], "description": "Comments posted on the City's Facebook and Twitter accounts regarding LGBT- and Pride-related issues, events and causes", "references": [{"paragraph": 7, "quote": "Now shown to me and attached as Exhibit \"E\" to this, my Affidavit are comments \"posted\" \non the City's Facebook page and Twitter account regarding LGBT-related"}], "content_check": "Nine pages printed 2/18/2020 beginning with the City's June 7, 2019 'Happy Pride!' ETS Pride Bus post and its comments"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2019", "precision": "year", "description": "City staff cancelled the request to light the Bridge for the 2019 March for Life as 'polarizing'", "paragraphs": [2], "quote": "In cancelling the request \nto light the Bridge for the 2019 March For Life, City of Edmonton staff stated that the reason \nwas because the request was \"polarizing\".", "exhibits": []},
+  {"id": "e2", "date": null, "precision": "undated", "description": "City announced lighting the Bridge for climate-change events and causes", "paragraphs": [3], "quote": "of the lighting of the Bridge for events or causes regarding \"climate change\".", "exhibits": ["A"]},
+  {"id": "e3", "date": null, "precision": "undated", "description": "Users posted comments about climate change on the City's social media", "paragraphs": [4], "quote": "comments \"posted\" \non the City's Facebook page and Twitter account regarding \"climate change\"", "exhibits": ["B"]},
+  {"id": "e4", "date": "2017-06-02", "precision": "day", "description": "City tweeted about lighting the Bridge for a 'green energy future', linking to TheWayWeGreen", "paragraphs": [5], "quote": "The link contained in the City's June 2, 2017 Twitter announcement", "exhibits": ["A", "C"]},
+  {"id": "e5", "date": null, "precision": "undated", "description": "City announced lighting the Bridge for LGBT and Pride events and causes", "paragraphs": [6], "quote": "lighting of the Bridge for LG BT-related or \"PRIDE\"-related events or causes", "exhibits": ["D"]},
+  {"id": "e6", "date": null, "precision": "undated", "description": "Users posted comments about LGBT and Pride issues on the City's social media", "paragraphs": [7], "quote": "regarding LGBT-related and \"PRIDE\"-\nrelated issues, events and causes", "exhibits": ["E"]}
+ ],
+ "referenced_not_attached": ["The City's criteria for approving bridge-lighting requests"],
+ "leak_waivers": [],
+ "notes": "Short affidavit; the sworn day is illegible in the text layer ('February L:::::f._, 2020'), so sworn_date is the month."
+}

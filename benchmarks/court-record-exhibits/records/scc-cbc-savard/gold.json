@@ -1,0 +1,39 @@
+{
+ "record_id": "scc-cbc-savard",
+ "court": "Supreme Court of Canada",
+ "court_level": "apex_appellate",
+ "jurisdiction": "federal",
+ "court_file": "40371",
+ "proceeding": "Canadian Broadcasting Corporation et al. v. His Majesty the King and Named Person; Attorney General of Quebec v. His Majesty the King et al. (appeal from the Court of Appeal of Quebec)",
+ "document": "Affidavit of Megan Savard in support of the Criminal Lawyers' Association (Ontario) joint motion for an extension of time and for leave to intervene",
+ "deponent": "Megan Savard",
+ "deponent_role": "Barrister and solicitor; co-chair of the Criminal Lawyers' Association (Ontario) Litigation Committee",
+ "sworn_date": "2023-08-01",
+ "exhibits": [
+  {"label": "A", "file": "doc-jjsta4.pdf", "kind": "email", "date": "2023-07-29", "author": "Alexandra Heine (Stockwoods LLP), counsel for the CLA", "recipients": ["Counsel for the appellants and respondents"],
+   "description": "Heine's July 29, 2023 email to counsel for the appellants and respondents requesting their position on the CLA's motion to extend time to seek leave to intervene",
+   "references": [{"paragraph": 15, "quote": "A copy of this email is attached"}],
+   "content_check": "Email from Alexandra Heine, Saturday July 29, 2023 2:18 PM, 'Consent on Motion to Extend Time: SCC File No. 40371', written in French, explaining the Litigation Committee's diarizing error and that the CLA plans to file on August 2, 2023"},
+  {"label": "B", "file": "doc-fp4qjp.pdf", "kind": "email", "date": "2023-07-31", "author": "Simon-Pierre Lavoie, counsel for the Attorney General of Quebec", "recipients": ["Alexandra Heine"],
+   "description": "Email from counsel for the appellant Attorney General of Quebec stating it takes no position on the motion",
+   "references": [{"paragraph": 16, "quote": "A copy of the email from counsel for the Appellant, the Attorney"}],
+   "content_check": "French email from Me Simon-Pierre Lavoie, Monday July 31, 2023 8:46 AM: the Procureur general du Quebec will not oppose and defers to the Court; quotes Heine's July 29 email below"},
+  {"label": "C", "file": "doc-z5u4ca.pdf", "kind": "email_chain", "date": "2023-07-31", "author": "Patricia Henault (Fasken), counsel for the media appellants", "recipients": ["Alexandra Heine"],
+   "description": "Email from counsel for CBC, La Presse, CN2i, Canadian Press, MediaQMI and Groupe TVA stating they take no position on the motion",
+   "references": [{"paragraph": 16, "quote": "MediaQMI Inc., and Groupe TVA Inc. is attached as"}],
+   "content_check": "Email chain ending with Patricia Henault's Monday July 31, 2023 3:41 PM message that her clients will not object to the extension, above her 12:11 PM holding reply and Heine's earlier message"}
+ ],
+ "events": [
+  {"id": "e1", "date": "1971-11-01", "precision": "day", "description": "The Criminal Lawyers' Association was founded", "paragraphs": [8], "quote": "The CLA is a non-profit organization founded on November 1, 1971", "exhibits": []},
+  {"id": "e2", "date": "2023-04-26", "precision": "day", "description": "The Supreme Court set deadlines: appellants' materials by June 12, 2023 and intervener motions by July 10, 2023", "paragraphs": [12], "quote": "On April 26, 2023, this Court ordered, inter alia", "exhibits": []},
+  {"id": "e3", "date": "2023-06-12", "precision": "day", "description": "Deadline for the appellants' factums, records and books of authorities", "paragraphs": [12], "quote": "records, and books of authorities, had to be served on or before June 12, 2023", "exhibits": []},
+  {"id": "e4", "date": "2023-07-10", "precision": "day", "description": "Deadline for serving and filing motions for leave to intervene", "paragraphs": [12], "quote": "had to be served and filed on or before July 10, 2023", "exhibits": []},
+  {"id": "e5", "precision": "undated", "description": "Savard mistakenly diarized the intervener deadline as August 10, 2023", "paragraphs": [13], "quote": "I mistakenly recorded the", "exhibits": ["A"]},
+  {"id": "e6", "date": "2023-07-26", "precision": "day", "description": "Savard realized her diarizing error and immediately retained counsel for the CLA", "paragraphs": [13, 14], "quote": "I realized that I had committed this error on", "exhibits": []},
+  {"id": "e7", "date": "2023-07-29", "precision": "day", "description": "Heine emailed counsel for the parties asking their position on the extension motion", "paragraphs": [15], "quote": "Counsel for the CLA, Alexandra Heine, sent an email to counsel for the appellants and", "exhibits": ["A"]},
+  {"id": "e8", "date": "2023-07-31", "precision": "day", "description": "Counsel for the parties each responded that they would take no position", "paragraphs": [16], "quote": "By emails dated July 31, 2023, counsel for the parties each responded that they would take", "exhibits": ["B", "C"]},
+  {"id": "e9", "precision": "undated", "description": "Heine could not obtain the positions of His Majesty the King and Named Person because their counsel's details are redacted in the public file", "paragraphs": [17], "quote": "she was unable to obtain the position of two of the", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Order of the Supreme Court of Canada of April 26, 2023", "CLA Memorandum of Argument"],
+ "notes": "Exhibits are bilingual (mostly French) email correspondence; the affidavit is in English. Paragraph 16 carries both the B and C references."
+}

@@ -1,0 +1,94 @@
+{
+ "record_id": "fc-emergencies-shragge",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2022-02-11",
+   "from": "Steven Shragge",
+   "to": [
+    "S&I Secretariat policy team"
+   ],
+   "subject": "Language training schedule",
+   "body": "Hi all,\n\nSecond-language training sessions resume March 7, Tuesdays and Thursdays at 8 am. Please confirm your level with me by February 25.\n\nSteven"
+  },
+  {
+   "doc": 1,
+   "kind": "memo",
+   "date": "2021-06-21",
+   "from": "Privy Council Office - Human Resources",
+   "to": [
+    "Steven Shragge"
+   ],
+   "subject": "Acting appointment - Senior Policy Advisor",
+   "body": "This confirms your appointment as Senior Policy Advisor in the Security and Intelligence Secretariat. Please complete the security briefing and onboarding checklist within two weeks."
+  },
+  {
+   "doc": 2,
+   "kind": "minutes",
+   "date": "2022-01-19",
+   "from": "",
+   "to": [
+    "Team members",
+    "Steven Shragge"
+   ],
+   "subject": "Minutes of Team Meeting",
+   "body": "1. Annual security clearance renewals due in March.\n\n2. Performance agreements to be signed by February 15.\n\n3. Office move to the fifth floor postponed."
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2020-10-05",
+   "from": "PCO Corporate Services",
+   "to": [
+    "Steven Shragge"
+   ],
+   "subject": "Welcome to PCO",
+   "body": "Dear Mr. Shragge:\n\nWelcome to the Privy Council Office. Your building pass and laptop can be collected at the security desk on your first day.\n\nCorporate Services"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2022-02-24",
+   "from": "PCO Corporate Services",
+   "to": [
+    "All PCO employees"
+   ],
+   "subject": "Parking at 80 Wellington",
+   "body": "Parking access at 80 Wellington has returned to normal hours. Monthly permit holders may resume regular use."
+  },
+  {
+   "doc": 5,
+   "kind": "invoice",
+   "date": "2021-11-30",
+   "from": "Byward Training Institute Inc.",
+   "to": [
+    "Privy Council Office"
+   ],
+   "subject": "Policy writing workshop",
+   "body": "Net 30.\nTwo-day policy writing workshop, 12 participants: 7200.0\nHST 13%: 936.0"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2022-03-30",
+   "from": "Steven Shragge",
+   "to": [
+    "Steven Shragge"
+   ],
+   "subject": "",
+   "body": "Colleague: Farewell lunch for Marie on Friday, you in?\nSteven: Yes, count me in\nColleague: Great, noon at the usual place"
+  },
+  {
+   "doc": 7,
+   "kind": "memo",
+   "date": "2021-12-06",
+   "from": "S&I Secretariat",
+   "to": [
+    "Policy advisors"
+   ],
+   "subject": "Holiday coverage roster",
+   "body": "Coverage for December 24 to January 3 is attached. Advisors on duty must keep their phones on and check the secure inbox twice daily."
+  }
+ ]
+}

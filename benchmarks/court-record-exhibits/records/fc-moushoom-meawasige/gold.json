@@ -1,0 +1,37 @@
+{
+ "record_id": "fc-moushoom-meawasige",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-402-19 / T-141-20 / T-1120-21",
+ "proceeding": "Moushoom, Meawasige et al. v. Attorney General of Canada (First Nations child welfare and Jordan's Principle class action; settlement approval)",
+ "document": "Affidavit of Jonavon Joseph Meawasige sworn September 25, 2023 (Tab 2, plaintiffs' second supplementary motion record)",
+ "deponent": "Jonavon Joseph Meawasige",
+ "deponent_role": "Representative plaintiff and brother and litigation guardian of representative plaintiff Jeremy Meawasige",
+ "sworn_date": "2023-09-25",
+ "exhibits": [
+  {"label": "A", "file": "doc-6yfj5q.pdf", "kind": "affidavit", "date": "2019-05-08", "author": "Maurina Beadle", "recipients": [], "description": "Affidavit of the deponent's late mother Maurina Beadle sworn May 8, 2019", "references": [{"paragraph": 7, "quote": "Attached as Exhibit “A” is a copy of her affidavit."}], "content_check": "3 image pages: Affidavit of Maurina Beadle (sworn May 8th, 2019), T-402-19, seeking appointment as litigation guardian"},
+  {"label": "B", "file": "doc-6fxekt.pdf", "kind": "court_order", "date": "2019-05-28", "author": "Federal Court (Justice St-Louis)", "recipients": [], "description": "Order of May 28, 2019 appointing Maurina Beadle litigation guardian for Jeremy, without Schedule A", "references": [{"paragraph": 7, "quote": "Attached as\nExhibit “B” is a copy of that order without Schedule “A”."}], "content_check": "2 image pages: Federal Court order dated 20190528, Montreal, Madam Justice St-Louis (record index misdates it May 28, 2023)"},
+  {"label": "C", "file": "doc-hv5dst.pdf", "kind": "court_order", "date": "2021-07-07", "author": "Federal Court (Justice St-Louis)", "recipients": [], "description": "Order of July 7, 2021 appointing the deponent as Jeremy's representative and litigation guardian, without schedules", "references": [{"paragraph": 12, "quote": "Attached as Exhibit “C” is the order of Madam Justice St-"}], "content_check": "6 pages: Federal Court order dated July 7, 2021, T-402-19 and T-141-20, Madam Justice St-Louis"},
+  {"label": "D", "file": "doc-tk7y48.pdf", "kind": "court_order", "date": "2021-11-26", "author": "Federal Court (Justice Aylen)", "recipients": [], "description": "Order of Justice Aylen of November 26, 2021 certifying the class action and appointing representative plaintiffs, without schedules", "references": [{"paragraph": 13, "quote": "Attached as Exhibit “D” is\nthe order of Madam Justice Aylen without schedules."}], "content_check": "15 pages: 2021 FC 1225, November 26, 2021, Madam Justice Aylen, class proceeding"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2013-04-04", "precision": "day", "description": "Federal Court finds Canada's refusal to fund Jeremy's essential services violated Jordan's Principle", "paragraphs": [5, 14], "quote": "On April 4, 2013, the Court found that Canada’s refusal to pay for", "exhibits": []},
+  {"id": "e2", "date": "2019-05-08", "precision": "day", "description": "Maurina Beadle swears her affidavit as proposed litigation guardian", "paragraphs": [7], "quote": "She swore an Affidavit on May 8, 2019.", "exhibits": ["A"]},
+  {"id": "e3", "date": "2019-05-28", "precision": "day", "description": "Court appoints Maurina Beadle as Jeremy's litigation guardian", "paragraphs": [7], "quote": "litigation guardian for Jeremy by order of the Court dated May 28, 2019", "exhibits": ["B"]},
+  {"id": "e4", "date": "2019-11-13", "precision": "day", "description": "Maurina Beadle dies after a stroke", "paragraphs": [8], "quote": "our mother had a stroke and passed away on November 13, 2019", "exhibits": []},
+  {"id": "e5", "date": "2019-11-18", "precision": "day", "description": "Maurina Beadle laid to rest in Pictou Landing", "paragraphs": [8], "quote": "She was laid to rest in Pictou Landing on November 18, 2019.", "exhibits": []},
+  {"id": "e6", "date": "2021-07-07", "precision": "day", "description": "Court appoints the deponent as Jeremy's representative and litigation guardian", "paragraphs": [12], "quote": "The Court appointed me as Jeremy’s representative and litigation guardian on July 7, 2021.", "exhibits": ["C"]},
+  {"id": "e7", "date": "2021-11-26", "precision": "day", "description": "Justice Aylen certifies the class action and appoints Jeremy and the deponent representative plaintiffs", "paragraphs": [13], "quote": "On November 26, 2021, Madam Justice Aylen certified the class action", "exhibits": ["D"]},
+  {"id": "e8", "date": "2021", "precision": "year", "description": "Agreement in principle signed; deponent speaks to the media", "paragraphs": [24], "quote": "I was thrilled with the agreement in principle that was signed in 2021.", "exhibits": []},
+  {"id": "e9", "date": null, "precision": "undated", "description": "First meeting in Toronto with Sotos LLP at the start of the class action", "paragraphs": [15], "quote": "Toward the beginning of this class action, I met in person with David Sterns and Mohsen Seddigh", "exhibits": []},
+  {"id": "e10", "date": "2022", "precision": "year", "description": "Deponent meets class counsel, co-representative plaintiff Trout and expert Dr. Lach in Toronto", "paragraphs": [20], "quote": "Last year, I travelled to Toronto to meet with class counsel", "exhibits": []},
+  {"id": "e11", "date": "2022-06-30", "precision": "day", "description": "All parties sign the first settlement agreement", "paragraphs": [25], "quote": "All parties finally signed the settlement agreement on", "exhibits": []},
+  {"id": "e12", "date": "2022", "precision": "year", "description": "Canadian Human Rights Tribunal rejects the settlement", "paragraphs": [29, 33], "quote": "I was shocked when the settlement was rejected by the Canadian Human Rights Tribunal", "exhibits": []},
+  {"id": "e13", "date": "2023", "precision": "year", "description": "Parties reach a new $23.34 billion settlement agreement", "paragraphs": [34, 35], "quote": "Fortunately, earlier this year all parties were able to go back to the negotiating table", "exhibits": []},
+  {"id": "e14", "date": "2023", "precision": "year", "description": "CHRT approves the new settlement over the summer", "paragraphs": [35], "quote": "I was ecstatic to hear this summer that the Canadian Human", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Pictou Landing Band Council v. Canada, 2013 FC 342", "Sotos LLP retainer agreement", "Consolidated Statement of Claim", "Deponent's certification affidavit"],
+ "leak_waivers": [],
+ "notes": "Tab 2 of the Sotos second supplementary motion record (source pages 17-56). Exhibits A and B are image-only. 2 of max 3 for this proceeding (with fc-moushoom-blackstock)."
+}

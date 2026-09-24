@@ -1,0 +1,18 @@
+{
+ "url": "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/521702/1/document.do",
+ "landing_url": "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/521702/1/document.do",
+ "court": "Competition Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CT-2025-008",
+ "document_title": "Affidavit of Maria Arabella Robles sworn February 13, 2026 in support of the Consumers Council of Canada's application for leave under s. 103.1",
+ "retrieved": "2026-09-23",
+ "record_id": "ct-ccc-robles",
+ "source_file": "ct-521702.pdf",
+ "page_range": [
+  1,
+  142
+ ],
+ "source_sha256": "1c1407f208b1c2f325d5e7dd4f6bacd8e574a23c9be6bcd3d94f8c3f5af5fa42",
+ "source_pages": 142
+}

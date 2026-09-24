@@ -1,0 +1,28 @@
+{
+ "record_id": "onsc-cl-tacora-gray",
+ "court": "Ontario Superior Court of Justice (Commercial List)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00707394-00CL",
+ "proceeding": "In the matter of a plan of compromise or arrangement of Tacora Resources Inc. (CCAA)",
+ "document": "Affidavit of Thomas Gray sworn October 26, 2023, filed for the Ad Hoc Group of noteholders with its revised DIP proposal",
+ "deponent": "Thomas Gray",
+ "deponent_role": "Associate, Bennett Jones LLP (counsel to the Ad Hoc Group of SPN and SSN holders)",
+ "sworn_date": "2023-10-26",
+ "exhibits": [
+  {"label": "A", "file": "doc-rv5qde.pdf", "kind": "email", "date": "2023-10-26", "author": "Thomas Gray (Bennett Jones)", "recipients": ["FTI (Monitor)", "Monitor's counsel", "Tacora's counsel"], "description": "Gray's October 26, 2023 9:08 a.m. email to the Monitor attaching the Bennett Jones letter, the Revised DIP Agreement and the Javelin Term Sheet", "references": [{"paragraph": 2, "quote": "A copy of that email is\nattached hereto at Exhibit “A”"}], "content_check": "One-page email from Thomas Gray, Thursday October 26, 2023 9:08 AM, to Nigel Meakin and Jodi Porepa (FTI), subject 'Tacora', attachments 'Letter to Monitor.pdf; DIP Loan Agreement - October 26 2023.pdf'"},
+  {"label": "B", "file": "doc-dgcj24.pdf", "kind": "letter", "date": "2023-10-26", "author": "Sean Zweig (Bennett Jones)", "recipients": ["FTI Consulting Canada Inc. (Monitor)"], "description": "The Bennett Jones letter to the Monitor attached to the email", "references": [{"paragraph": 2, "quote": "the letter from Bennett Jones is attached hereto at Exhibit\n“B”"}], "content_check": "Three-page Bennett Jones letter from Sean Zweig dated October 26, 2023 to FTI as Monitor of Tacora, attention Nigel Meakin and Jodi Porepa"},
+  {"label": "C", "file": "doc-mumk5f.pdf", "kind": "agreement", "date": "2023-10-26", "author": "Tacora Resources Inc. and the Ad Hoc Group DIP Lenders", "recipients": [], "description": "The Revised DIP Agreement dated October 26, 2023, executed by the proposed Ad Hoc Group DIP Lenders, with confidential redactions", "references": [{"paragraph": 2, "quote": "The Revised DIP Agreement and a redline tracking the changes to the version submitted on\nOctober 8th are attached hereto at Exhibits “C” and “D”, respectively"}], "content_check": "122-page 'DIP LOAN AGREEMENT Dated as of October 26, 2023', clean version"},
+  {"label": "D", "file": "doc-a2j84s.pdf", "kind": "agreement", "date": "2023-10-26", "author": "Bennett Jones (redline)", "recipients": [], "description": "A redline tracking the changes from the October 8 version to the Revised DIP Agreement", "references": [{"paragraph": 2, "quote": "The Revised DIP Agreement and a redline tracking the changes to the version submitted on\nOctober 8th are attached hereto at Exhibits “C” and “D”, respectively"}], "content_check": "61-page redline of the DIP Loan Agreement whose dating line reads 'October 826, 2023' (the struck 8 and inserted 26)"},
+  {"label": "E", "file": "doc-frx9nt.pdf", "kind": "agreement", "date": "2023-10-25", "author": "Javelin Global Commodities", "recipients": ["Tacora Resources Inc."], "description": "Javelin Global Commodities' binding term sheet for an offtake agreement for Tacora, with confidential redactions", "references": [{"paragraph": 2, "quote": "The Javelin Term Sheet is attached hereto at Exhibit “E”"}], "content_check": "Five-page '25 October 2023 BINDING TERM SHEET FOR TACORA RESOURCES IRON ORE CONCENTRATE DURING THE CCAA PROCEEDINGS', buyer Javelin Global Commodities"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2023-10-08", "precision": "day", "description": "The Ad Hoc Group submitted an earlier version of its DIP agreement", "paragraphs": [2], "quote": "the version submitted on\nOctober 8th", "exhibits": ["D"]},
+  {"id": "e2", "date": "2023-10-25", "precision": "day", "description": "Javelin Global Commodities issued a binding offtake term sheet for Tacora", "paragraphs": [2], "quote": "a binding term sheet from Javelin Global Commodities in respect of an offtake agreement for Tacora", "exhibits": ["E"]},
+  {"id": "e3", "date": "2023-10-26", "precision": "day", "description": "The proposed Ad Hoc Group DIP Lenders executed the Revised DIP Agreement", "paragraphs": [2], "quote": "a revised, binding DIP\nAgreement dated October 26th", "exhibits": ["C", "D"]},
+  {"id": "e4", "date": "2023-10-26", "precision": "day", "description": "Gray emailed the Monitor, copying Monitor's and Tacora's counsel, with the Bennett Jones letter, the Revised DIP Agreement and the Javelin Term Sheet", "paragraphs": [2], "quote": "On October 26th at 9:08am, I sent an email to the Monitor", "exhibits": ["A", "B", "C", "E"]}
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": ["C"],
+ "notes": "Leak C is the DIP agreement's own reference to 'Confidential Exhibit C to the affidavit of Joe Broking', part of the contract text. Exhibits C and D are the clean and redlined versions of the same agreement."
+}

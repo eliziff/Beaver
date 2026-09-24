@@ -1,0 +1,19 @@
+{
+ "url": "http://cfcanada.fticonsulting.com/AFPL/docs/Affidavit%20of%20J.%20Sullivan%20-%20filed%20May%2011,%202021.pdf",
+ "landing_url": "http://cfcanada.fticonsulting.com/AFPL/",
+ "court": "Court of Queen's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": null,
+ "document_title": "Affidavit of John Sullivan sworn May 11, 2021 (ATB Financial's receivership application against Alberta Foothills Properties Ltd. et al.)",
+ "retrieved": "2026-09-23",
+ "record_id": "abqb-afpl-sullivan",
+ "source_file": "fti-affidavit-20of-20j-20sullivan-20-20filed-20may-2011-2c-20202.pdf",
+ "page_range": [
+  1,
+  256
+ ],
+ "source_sha256": "f36469a00a86b065e305f03752664000f3fe3cd5b60b041d8eb3a79a87102e01",
+ "source_pages": 256,
+ "covers": "A=14,B=23,C=46,D=61,E=74,F=79,G=84,H=90,I=96,J=103,K=109,L=117,M=123,N=128,O=136,P=142,Q=159,R=172,S=177,T=183,U=187,V=196,W=204,X=223,Y=242,Z=247,AA=251,BB=253"
+}

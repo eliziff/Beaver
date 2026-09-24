@@ -1,0 +1,633 @@
+{
+ "record_id": "abqb-bdc-singh2018",
+ "court": "Court of Queen's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "1803 21971 (Edmonton)",
+ "proceeding": "Business Development Bank of Canada v. 1119658 Alberta Ltd. and 101285461 Saskatchewan Ltd. (application to appoint a receiver and manager)",
+ "document": "Affidavit of Hardeep Singh sworn November 20, 2018 in support of BDC's receivership application",
+ "deponent": "Hardeep Singh",
+ "deponent_role": "Senior Account Manager, Special Accounts, Business Development Bank of Canada",
+ "sworn_date": "2018-11-20",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-3zgr4z.pdf",
+   "kind": "letter",
+   "date": "2015-07-08",
+   "author": "Business Development Bank of Canada",
+   "recipients": [
+    "1119658 Alberta Ltd. (Kuldeep Maan)"
+   ],
+   "description": "BDC's Commitment Letter dated July 8, 2015 for Loan #089654-01 to 111",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached\nhereto and marked as Exhibits \"A\" and \"B\" respectively are true copies of the Commitment\nLetters."
+    }
+   ],
+   "content_check": "16-page BDC 'Letter of Offer dated July 8, 2015' to 1119658 Alberta Ltd., attention Kuldeep (Kelly) Maan, Loan No. 089654-01"
+  },
+  {
+   "label": "B",
+   "file": "doc-4hbqha.pdf",
+   "kind": "letter",
+   "date": "2015-07-08",
+   "author": "Business Development Bank of Canada",
+   "recipients": [
+    "101285461 Saskatchewan Ltd. (Yorkton Best Western)"
+   ],
+   "description": "BDC's Commitment Letter dated July 8, 2015 for Loan #089712-01 to 101",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached\nhereto and marked as Exhibits \"A\" and \"B\" respectively are true copies of the Commitment\nLetters."
+    }
+   ],
+   "content_check": "16-page 'Letter of Offer dated July 8, 2015' addressed to Yorkton Best Western, Loan No. 089712-01"
+  },
+  {
+   "label": "C",
+   "file": "doc-mmv4q4.pdf",
+   "kind": "contract",
+   "date": "2015-07-30",
+   "author": "1119658 Alberta Ltd.",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The Alberta Mortgage of the Drayton Valley lands for $5,500,000",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto and marked as Exhibits \"C\", \"D\" and \"E\" respectively\nare true copies of the Alberta Mortgage, the 111 GSA and Standard Mortgage Terms"
+    }
+   ],
+   "content_check": "One-page Alberta Land Titles Act MORTGAGE form, mortgagor 1119658 Alberta Ltd., mortgagee Business Development Bank of Canada"
+  },
+  {
+   "label": "D",
+   "file": "doc-nm92u8.pdf",
+   "kind": "contract",
+   "date": "2015-07-30",
+   "author": "1119658 Alberta Ltd.",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The general security agreement of 111 in favour of BDC (the 111 GSA)",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached hereto and marked as Exhibits \"C\", \"D\" and \"E\" respectively\nare true copies of the Alberta Mortgage, the 111 GSA and Standard Mortgage Terms"
+    }
+   ],
+   "content_check": "18-page BDC 'General Security Agreement' from 1119658 Alberta Ltd. dated 2015"
+  },
+  {
+   "label": "E",
+   "file": "doc-8999bp.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Business Development Bank of Canada (registered at Alberta Land Titles)",
+   "recipients": [],
+   "description": "The Standard Mortgage Terms registered at the Alberta Land Titles Office as document number 112 052 406",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "the Alberta Land Titles Office as document number 112 052 406"
+    }
+   ],
+   "content_check": "16 pages beginning with an Alberta Government Services Land Titles Office cover 'Image of document registered as: 112052406'"
+  },
+  {
+   "label": "F",
+   "file": "doc-ef8jxv.pdf",
+   "kind": "contract",
+   "date": "2015-07-30",
+   "author": "101285461 Saskatchewan Ltd. (guarantor per the affidavit)",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The 101 Guarantee: 101's guarantee of the 111 Loan in the principal amount of $2,750,000",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto and marked as Exhibits \"F\", \"G\" and \"H\" respectively are true copies\nof the 101 Guarantee, the Saskatchewan Mortgage and the 101 GSA."
+    }
+   ],
+   "content_check": "Three-page BDC GUARANTEE form; the text layer reads guarantor 1119658 Alberta Ltd., debtor 101285461 Saskatchewan Ltd., debt $2,750,000"
+  },
+  {
+   "label": "G",
+   "file": "doc-rbft2y.pdf",
+   "kind": "contract",
+   "date": "2015-07-30",
+   "author": "101285461 Saskatchewan Ltd.",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The Saskatchewan Mortgage of the Yorkton lands for $5,500,000",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto and marked as Exhibits \"F\", \"G\" and \"H\" respectively are true copies\nof the 101 Guarantee, the Saskatchewan Mortgage and the 101 GSA."
+    }
+   ],
+   "content_check": "16-page BDC MORTGAGE, mortgagor 101285461 Saskatchewan Ltd., for $5,500,000, 2015"
+  },
+  {
+   "label": "H",
+   "file": "doc-6efbzy.pdf",
+   "kind": "contract",
+   "date": "2015-07-30",
+   "author": "101285461 Saskatchewan Ltd.",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The general security agreement of 101 in favour of BDC (the 101 GSA)",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto and marked as Exhibits \"F\", \"G\" and \"H\" respectively are true copies\nof the 101 Guarantee, the Saskatchewan Mortgage and the 101 GSA."
+    }
+   ],
+   "content_check": "18-page 'General Security Agreement' from 101285461 Saskatchewan Ltd. to BDC, 2015"
+  },
+  {
+   "label": "I",
+   "file": "doc-w3ttvf.pdf",
+   "kind": "public_record",
+   "date": "2018-09-06",
+   "author": "Alberta Personal Property Registry",
+   "recipients": [],
+   "description": "Alberta Personal Property Registry search results evidencing registration of the 111 GSA",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "attached hereto and\nmarked as Exhibits \"I\" and \"J\" respectively are true copies of Personal Property Registry search"
+    }
+   ],
+   "content_check": "Seven-page Government of Alberta Personal Property Registry Search Results Report, Search ID Z10671667, date of search 2018-Sep-06"
+  },
+  {
+   "label": "J",
+   "file": "doc-utxh5f.pdf",
+   "kind": "public_record",
+   "date": "2018-09-10",
+   "author": "Saskatchewan Personal Property Registry",
+   "recipients": [],
+   "description": "Saskatchewan Personal Property Registry search results evidencing registration of the 101 GSA",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "attached hereto and\nmarked as Exhibits \"I\" and \"J\" respectively are true copies of Personal Property Registry search"
+    }
+   ],
+   "content_check": "Three-page Saskatchewan PPR search result for 101285461 Saskatchewan Ltd., search date 10-Sep-2018"
+  },
+  {
+   "label": "K",
+   "file": "doc-p2gkf7.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Alberta Land Titles",
+   "recipients": [],
+   "description": "Land Titles search results showing registration of the Alberta Mortgage against the Alberta Lands",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto and marked as\nExhibit \"K\" and \"L\" respectively are true copies of search results from the relevant Land Titles"
+    }
+   ],
+   "content_check": "Three-page Alberta Land Title Certificate, LINC 0032 162 174, Plan 0720020 Block 151 Lot 8, Town of Drayton Valley"
+  },
+  {
+   "label": "L",
+   "file": "doc-z6tyra.pdf",
+   "kind": "public_record",
+   "date": "2018-09-10",
+   "author": "Saskatchewan Land Titles Registry",
+   "recipients": [],
+   "description": "Land Titles search results showing registration of the Saskatchewan Mortgage against the Saskatchewan Lands",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto and marked as\nExhibit \"K\" and \"L\" respectively are true copies of search results from the relevant Land Titles"
+    }
+   ],
+   "content_check": "Five-page Province of Saskatchewan Land Titles Registry title 146957473, as of 10 Sep 2018"
+  },
+  {
+   "label": "M",
+   "file": "doc-rkkbz2.pdf",
+   "kind": "contract",
+   "date": "2015-07-30",
+   "author": "1119658 Alberta Ltd. (guarantor per the affidavit)",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The 111 Guarantee of the 101 Loan in the principal amount of $2,750,000",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A true copy of the 111 Guarantee is attached hereto and marked as\nExhibit \"M\"."
+    }
+   ],
+   "content_check": "Three-page BDC GUARANTEE form; text layer reads guarantor 101285461 Saskatchewan Ltd., debtor 1119658 Alberta Ltd., debt $2,750,000 (the parties appear reversed against the affidavit's description of F and M)"
+  },
+  {
+   "label": "N",
+   "file": "doc-n85xkv.pdf",
+   "kind": "letter",
+   "date": "2018-08-23",
+   "author": "Business Development Bank of Canada",
+   "recipients": [
+    "1119658 Alberta Ltd.",
+    "101285461 Saskatchewan Ltd.",
+    "Kuldeep Maan"
+   ],
+   "description": "BDC's demand letters dated August 23, 2018 to the Borrowers and Maan, collectively",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached\nhereto and marked collectively as Exhibit \"N\" to this my Affidavit are true copies of such\ndemands."
+    }
+   ],
+   "content_check": "30 pages of registered-mail demand letters dated August 23, 2018, the first to 1119658 Alberta Ltd. re BDC Loan Account No. 089654-01 ('You are in DEFAULT')"
+  },
+  {
+   "label": "O",
+   "file": "doc-e4s2fr.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Town of Drayton Valley",
+   "recipients": [],
+   "description": "Tax search result showing $37,423.46 of tax arrears on the Alberta Lands",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached hereto and marked as\nExhibit \"O\" and"
+    }
+   ],
+   "content_check": "One-page Town of Drayton Valley Tax Certificate, roll 53107700, Plan 0720020 Block 151 Lot 8"
+  },
+  {
+   "label": "P",
+   "file": "doc-exyv4n.pdf",
+   "kind": "public_record",
+   "date": "2018-11-16",
+   "author": "City of Yorkton",
+   "recipients": [],
+   "description": "Tax search result showing $406,656.80 of tax arrears on the Saskatchewan Lands (the affidavit's letter for it is missing from the text)",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached hereto and marked as\nExhibit \"O\" and \nrespectively are true copies of such search results."
+    }
+   ],
+   "content_check": "One-page City of Yorkton Tax Certificate dated 16-Nov-18 for 101285461 Saskatchewan Ltd., Parkland Inn, 2 Kelsey Bay"
+  },
+  {
+   "label": "Q",
+   "file": "doc-rgyab5.pdf",
+   "kind": "notice",
+   "date": "2017-05-18",
+   "author": "Business Development Bank of Canada",
+   "recipients": [
+    "Kuldeep Maan",
+    "1119658 Alberta Ltd.",
+    "101285461 Saskatchewan Ltd."
+   ],
+   "description": "BDC's notices of default issued to 111 and 101 on or about May 18, 2017",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "true copies of such\nnotices of default are attached hereto and marked as Exhibit \"Q\"."
+    }
+   ],
+   "content_check": "Five pages: BDC letter dated May 18, 2017 to Ms. Kuldeep (Kelly) Maan, 1119658 Alberta Ltd., re BDC Loan Account No. 089654-01, with courier slip"
+  },
+  {
+   "label": "R",
+   "file": "doc-m4nbcn.pdf",
+   "kind": "financial_statement",
+   "date": "2017-06-30",
+   "author": "1119658 Alberta Ltd.",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The most recent financial statements of 111 provided to BDC",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "Attached hereto and marked as Exhibit \"R\" are true copies of the most recent financial\nstatements for 111 provided to BDC"
+    }
+   ],
+   "content_check": "13-page unaudited financial statements of 1119658 Alberta Ltd. (operating as Westwood Inn), June 30, 2017"
+  },
+  {
+   "label": "S",
+   "file": "doc-vx3h5x.pdf",
+   "kind": "financial_statement",
+   "date": "2017-06-30",
+   "author": "101285461 Saskatchewan Ltd.",
+   "recipients": [
+    "Business Development Bank of Canada"
+   ],
+   "description": "The most recent financial statements of 101 provided to BDC",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "attached hereto and marked as Exhibit \"S\" are true\ncopies of the most recent financial statements for 101 provided to BDC."
+    }
+   ],
+   "content_check": "12-page unaudited financial statements of 101285461 Saskatchewan Ltd. (operating as Quality Inn), June 30, 2017"
+  },
+  {
+   "label": "T",
+   "file": "doc-p7p48h.pdf",
+   "kind": "court_filing",
+   "date": "2018-11",
+   "author": "Hardie & Kelly Inc.",
+   "recipients": [],
+   "description": "Hardie & Kelly Inc.'s consent to act as receiver and manager",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached hereto and marked as Exhibit \"T\" Is a true\ncopy of such consent."
+    }
+   ],
+   "content_check": "One-page ABQB-captioned consent document, Court File 1803-, In the matter of the bankruptcy and insolvency of 1119658 Alberta Ltd. and 101285461 Saskatchewan Ltd., BDC plaintiff"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2015-07-08",
+   "precision": "day",
+   "description": "BDC issued Commitment Letters to the Borrowers for the 111 Loan and the 101 Loan",
+   "paragraphs": [
+    6
+   ],
+   "quote": "hereto and marked as Exhibits \"A\" and \"B\" respectively are true copies of the Commitment",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2015-07-30",
+   "precision": "day",
+   "description": "111 granted BDC the Alberta Mortgage and the 111 GSA securing the 111 Loan",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The 111 Loan is secured by a charge on lands located In Drayton Valley, Alberta",
+   "exhibits": [
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2015-07-30",
+   "precision": "day",
+   "description": "101 guaranteed the 111 Loan and granted the Saskatchewan Mortgage and the 101 GSA",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The 111 Loan is further supported by a guarantee by 101 In the principal amount of $2,750,000",
+   "exhibits": [
+    "F",
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2015-07-30",
+   "precision": "day",
+   "description": "111 guaranteed the 101 Loan",
+   "paragraphs": [
+    13
+   ],
+   "quote": "111 has provided a guarantee in the principal amount of",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": null,
+   "precision": "undated",
+   "description": "The GSAs were registered in the Alberta and Saskatchewan Personal Property Registries",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The 111 GSA and the 101 GSA were registered in accordance with law",
+   "exhibits": [
+    "I",
+    "J"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": null,
+   "precision": "undated",
+   "description": "The mortgages were registered against the Alberta and Saskatchewan Lands",
+   "paragraphs": [
+    10
+   ],
+   "quote": "The Alberta Mortgage and the Saskatchewan Mortgage have been duly registered",
+   "exhibits": [
+    "K",
+    "L"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": null,
+   "precision": "undated",
+   "description": "The 111 Loan proceeds paid out about $800,000 of existing Alberta financing and funded 101's acquisition of the Saskatchewan Lands",
+   "paragraphs": [
+    11
+   ],
+   "quote": "The proceeds of the 111 Loan were utilized to pay out existing financing on the Alberta Lands",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2006",
+   "precision": "year",
+   "description": "111 acquired the Alberta Lands and has operated the Alberta Hotel since",
+   "paragraphs": [
+    21
+   ],
+   "quote": "Ill has owned the Alberta Lands since 2006",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2015",
+   "end_date": "2017-05",
+   "precision": "range",
+   "description": "The Hotels suffered a material revenue drop and losses in the two years before May 2017",
+   "paragraphs": [
+    23
+   ],
+   "quote": "had experienced\na material drop in revenue and suffered material losses in the two years leading up to May 2017.",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2017-05-18",
+   "precision": "day",
+   "description": "BDC issued notices of default to 111 and 101",
+   "paragraphs": [
+    23
+   ],
+   "quote": "On or about May 18, 2017, BDC issued notices of default to 111 and 101",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2017-06-07",
+   "precision": "day",
+   "description": "BDC and the Borrowers entered standstill agreements, BDC forbearing until November 23, 2017 on conditions",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On or about June 7, 2017, BDC and the Borrowers entered into standstill agreements",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2017-06-30",
+   "precision": "day",
+   "description": "Financial statements of 111 and 101 as at June 30, 2017 were prepared and later provided to BDC",
+   "paragraphs": [
+    28
+   ],
+   "quote": "the most recent financial\nstatements for 111 provided to BDC",
+   "exhibits": [
+    "R",
+    "S"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": null,
+   "precision": "undated",
+   "description": "The Borrowers defaulted on the standstill conditions (property taxes, appraisal fees, VTB information)",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Defaults by the Borrowers with respect to their obligations under the foregoing standstill",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2018-05-23",
+   "precision": "day",
+   "description": "BDC extended the forbearance agreements to May 23, 2018 on further compromises",
+   "paragraphs": [
+    26
+   ],
+   "quote": "the forbearance agreements v/ere extended through to May 23,",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2017",
+   "end_date": "2018",
+   "precision": "range",
+   "description": "Saskatchewan Hotel tax arrears rose from $197,652 to $398,196",
+   "paragraphs": [
+    26
+   ],
+   "quote": "allowing an increase in the Saskatchewan Hotel tax arrears from",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "date": "2018-07",
+   "precision": "month",
+   "description": "The Borrowers stopped making payments and became non-responsive",
+   "paragraphs": [
+    26
+   ],
+   "quote": "the Borrowers ceased making\npayments In July 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2018-08-23",
+   "precision": "day",
+   "description": "BDC demanded payment from the Borrowers and Maan",
+   "paragraphs": [
+    14
+   ],
+   "quote": "by\nletters dated August 23, 2018, BDC demanded payment on the Borrowers and Maan",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2018-08-23",
+   "precision": "day",
+   "description": "111 owed BDC $2,638,265.67 and 101 owed $2,610,487.29",
+   "paragraphs": [
+    17,
+    18
+   ],
+   "quote": "As at August 23, 2018, 111 was indebted to BDC in the amount of $2,638,265.67",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2018-10",
+   "precision": "month",
+   "description": "BDC met the Borrowers, who agreed to an insolvency practitioner monitoring the Hotels, then went non-responsive",
+   "paragraphs": [
+    27
+   ],
+   "quote": "met with the Borrowers In October in an attempt to avoid litigation",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2018-11",
+   "precision": "approximate",
+   "description": "Municipal tax searches showed arrears of $37,423.46 (Alberta Lands) and $406,656.80 (Saskatchewan Lands)",
+   "paragraphs": [
+    22
+   ],
+   "quote": "Searches conducted with the municipal tax authorities in Drayton Valley, Alberta and Yorkton",
+   "exhibits": [
+    "O",
+    "P"
+   ]
+  },
+  {
+   "id": "e21",
+   "date": "2018-11",
+   "precision": "approximate",
+   "description": "Hardie & Kelly Inc. consented to act as receiver and manager",
+   "paragraphs": [
+    29
+   ],
+   "quote": "has consented to act in such capacity",
+   "exhibits": [
+    "T"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Standstill and forbearance agreements (June 7, 2017 and extensions)"
+ ],
+ "notes": "Posted on BDO's site as a Saskatchewan matter, but the affidavit is filed in the Court of Queen's Bench of Alberta, Edmonton. Affidavit page 1 is image-only (no text layer). The guarantee forms F and M read with guarantor and debtor the other way round from the affidavit's description; gold follows the affidavit."
+}

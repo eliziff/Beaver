@@ -1,0 +1,94 @@
+{
+ "record_id": "bcsc-cp-tiktok-habashi",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2021-01-25",
+   "from": "Daniel Habashi",
+   "to": [
+    "TikTok Canada Toronto team"
+   ],
+   "subject": "Office reopening plan",
+   "body": "Team,\n\nThe Richmond Street office will stay closed through February. Please continue working from home; desk booking will reopen once the province lifts the stay-at-home order.\n\nDaniel"
+  },
+  {
+   "doc": 1,
+   "kind": "memo",
+   "date": "2020-06-15",
+   "from": "Daniel Habashi, General Manager",
+   "to": [
+    "TikTok Canada staff"
+   ],
+   "subject": "Welcome and team structure",
+   "body": "I am pleased to have joined as General Manager. Over the next month I will meet each team lead. Our priorities are hiring for creator partnerships and building out the Toronto office."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2020-11-30",
+   "from": "King West Event Rentals Inc.",
+   "to": [
+    "TikTok Technology Canada Inc."
+   ],
+   "subject": "Virtual creator summit - AV rental",
+   "body": "Net 30.\nCamera kit and lighting, 2 days: 3200.0\nTechnician: 900.0\nHST 13%: 533.0"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2020-12-09",
+   "from": "",
+   "to": [
+    "Daniel Habashi",
+    "Team leads"
+   ],
+   "subject": "Minutes of Leadership Meeting",
+   "body": "1. Holiday campaign with Canadian small businesses performing above plan.\n\n2. Two new hires in the creator team start January 11.\n\n3. Year-end party held virtually December 17."
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2021-01-15",
+   "from": "TikTok Canada Marketing",
+   "to": [
+    "Daniel Habashi"
+   ],
+   "subject": "Holiday campaign recap",
+   "body": "Daniel,\n\nRecap of the December small business campaign is attached: 42 participating businesses and three regional media mentions. Next steps are a spring edition.\n\nMarketing"
+  },
+  {
+   "doc": 5,
+   "kind": "letter",
+   "date": "2020-09-01",
+   "from": "Daniel Habashi",
+   "to": [
+    "Landlord, 240 Richmond Street West"
+   ],
+   "subject": "Signage request",
+   "body": "Dear Sir or Madam:\n\nWe request approval to install a small logo sign at our suite entrance. Drawings are enclosed.\n\nYours truly,\nDaniel Habashi"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2021-02-01",
+   "from": "Daniel Habashi",
+   "to": [
+    "Daniel Habashi"
+   ],
+   "subject": "",
+   "body": "Assistant: Your 2 pm with the creator agency moved to 3\nDaniel: OK\nAssistant: Webex link resent"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2021-01-31",
+   "from": "Queen West Office Supply Ltd.",
+   "to": [
+    "TikTok Technology Canada Inc."
+   ],
+   "subject": "Home office equipment for staff",
+   "body": "Thank you.\nMonitors, 8 units: 1920.0\nKeyboards and mice, 8 sets: 480.0\nHST 13%: 312.0"
+  }
+ ]
+}

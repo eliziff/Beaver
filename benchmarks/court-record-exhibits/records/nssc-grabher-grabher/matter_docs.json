@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/nssc-grabher-grabher/decision-2020-nssc-46.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2020/02/2020-NSSC-46-Grabher-v.-Prov-of-NS.pdf",
+  "title": "Grabher v. Nova Scotia, 2020 NSSC 46 (decision on the application)",
+  "kind": "court_order",
+  "relation": "the decision on the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/nssc-grabher-grabher/applicant-brief-2019-03-01.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2019/03/Grabher-Brief-filed-March-1-2019.pdf",
+  "title": "Applicant's brief filed March 1, 2019 (463399)",
+  "kind": "court_filing",
+  "relation": "the applicant's brief relying on this affidavit"
+ }
+]

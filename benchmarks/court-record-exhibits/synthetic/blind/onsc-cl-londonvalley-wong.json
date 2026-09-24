@@ -1,0 +1,94 @@
+{
+ "record_id": "onsc-cl-londonvalley-wong",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "invoice",
+   "date": "2025-07-31",
+   "from": "Forest City Grounds Care Inc.",
+   "to": [
+    "KSV Restructuring Inc., Receiver of London Valley IV Inc."
+   ],
+   "subject": "Lawn mowing and weed control, July 2025",
+   "body": "Net 30.\nWeekly mowing, 5 visits: 1100.0\nWeed control: 260.0\nHST 13%: 176.8"
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2025-08-07",
+   "from": "Jordan Wong",
+   "to": [
+    "KSV administration"
+   ],
+   "subject": "Expense report approval",
+   "body": "Hi,\n\nI have approved the July expense reports for my team in the system. Please process them in the next payroll run.\n\nJordan"
+  },
+  {
+   "doc": 2,
+   "kind": "letter",
+   "date": "2025-04-15",
+   "from": "KSV Restructuring Inc., in its capacity as Receiver",
+   "to": [
+    "Municipal water billing office"
+   ],
+   "subject": "Account holder change - London Valley IV Inc. property",
+   "body": "Dear Sir or Madam:\n\nPlease address future water statements for the property to the Receiver at our Toronto office.\n\nKSV Restructuring Inc."
+  },
+  {
+   "doc": 3,
+   "kind": "memo",
+   "date": "2025-09-02",
+   "from": "KSV Restructuring Inc. - Operations",
+   "to": [
+    "All staff"
+   ],
+   "subject": "Case website template update",
+   "body": "The case website template has been updated with a new document table layout. Please migrate active case pages by September 30."
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2025-08-15",
+   "from": "Calvin Horsten",
+   "to": [
+    "Aird & Berlis Restructuring clerks"
+   ],
+   "subject": "Courier account for weekend deliveries",
+   "body": "Hi all,\n\nFor weekend deliveries please use the new courier account code posted on the intranet. The old code is no longer valid.\n\nCalvin"
+  },
+  {
+   "doc": 5,
+   "kind": "minutes",
+   "date": "2025-06-11",
+   "from": "",
+   "to": [
+    "Jordan Wong",
+    "Staff"
+   ],
+   "subject": "Minutes of Staff Meeting",
+   "body": "1. Summer student onboarding.\n\n2. CPA professional development hours reminder.\n\n3. Office kitchen renovation scheduled for July."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2025-11-05",
+   "from": "Jordan Wong",
+   "to": [
+    "Jordan Wong"
+   ],
+   "subject": "",
+   "body": "Colleague: Team lunch at 12:30?\nJordan: Yes, after I swear this\nColleague: See you downstairs"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2025-10-31",
+   "from": "Southwest Security Patrol Ltd.",
+   "to": [
+    "KSV Restructuring Inc., Receiver of London Valley IV Inc."
+   ],
+   "subject": "Site patrols, October 2025",
+   "body": "Thank you.\nNightly mobile patrol, 31 nights: 1860.0\nHST 13%: 241.8"
+  }
+ ]
+}

@@ -1,0 +1,78 @@
+{
+ "record_id": "onsc-cl-mpxi-budd",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  11,
+  13,
+  17,
+  18,
+  19,
+  20,
+  21
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-nmxtmz.pdf",
+   "source_pages": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 8777
+  },
+  {
+   "label": "B",
+   "file": "doc-66g6gu.pdf",
+   "source_pages": [
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "cover_page": 24,
+   "stamp_page": null,
+   "text_chars": 6410
+  },
+  {
+   "label": "C",
+   "file": "doc-y9x8d2.pdf",
+   "source_pages": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "cover_page": 30,
+   "stamp_page": null,
+   "text_chars": 7307
+  }
+ ],
+ "leak_audit": []
+}

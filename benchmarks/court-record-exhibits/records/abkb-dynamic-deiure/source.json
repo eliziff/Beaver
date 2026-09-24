@@ -1,0 +1,19 @@
+{
+ "url": "http://cfcanada.fticonsulting.com/dynamicgroup/docs/2301-03179-UnFiled-20230316-%20Affidavit%20of%20Kristy%20Deiure%20Sworn%20March%2016%2C%202023%20.pdf",
+ "landing_url": "http://cfcanada.fticonsulting.com/dynamicgroup/",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2301-03179",
+ "document_title": "Affidavit of Kristy DeIure sworn March 16, 2023 (Dynamic Group / Empire Industries proceedings)",
+ "retrieved": "2026-09-23",
+ "record_id": "abkb-dynamic-deiure",
+ "source_file": "fti2-2301-03179-unfiled-20230316-20affidavit-20of-20kristy-20deiu.pdf",
+ "page_range": [
+  1,
+  79
+ ],
+ "source_sha256": "75a053445168661b10277d87568d3d8710a3943bff81cbe5bb78e8e1ee804431",
+ "source_pages": 79,
+ "covers": "A=3,B=28,C=33,D=60,E=63,F=66,G=69,H=72,I=75"
+}

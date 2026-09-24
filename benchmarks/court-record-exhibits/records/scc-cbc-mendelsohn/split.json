@@ -1,0 +1,162 @@
+{
+ "record_id": "scc-cbc-mendelsohn",
+ "affidavit_pages": [
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  21,
+  38,
+  56,
+  74,
+  77,
+  78,
+  79,
+  80,
+  81,
+  82,
+  83,
+  84,
+  85,
+  86,
+  87,
+  88,
+  89,
+  90,
+  91,
+  92
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-mekjh5.pdf",
+   "source_pages": [
+    21
+   ],
+   "cover_page": 20,
+   "stamp_page": null,
+   "text_chars": 8
+  },
+  {
+   "label": "B",
+   "file": "doc-557fjm.pdf",
+   "source_pages": [
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+   ],
+   "cover_page": 22,
+   "stamp_page": null,
+   "text_chars": 23785
+  },
+  {
+   "label": "C",
+   "file": "doc-5js648.pdf",
+   "source_pages": [
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58
+   ],
+   "cover_page": 40,
+   "stamp_page": null,
+   "text_chars": 31154
+  },
+  {
+   "label": "D",
+   "file": "doc-x646n2.pdf",
+   "source_pages": [
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75
+   ],
+   "cover_page": 59,
+   "stamp_page": null,
+   "text_chars": 26005
+  },
+  {
+   "label": "E",
+   "file": "doc-ks5vdn.pdf",
+   "source_pages": [
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92
+   ],
+   "cover_page": 76,
+   "stamp_page": null,
+   "text_chars": 150
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "D",
+   "file": "doc-x646n2",
+   "text": "ffidavit at paras 9-10. 6 Vice AR, tab 9, Makuch Affidavit, Exhibit D at p. 107. 7 Vice AR, tab 9, p. 86, Makuch Affidavit at par"
+  },
+  {
+   "label": "D",
+   "file": "doc-x646n2",
+   "text": "ple, Vice AR, tab 9, Makuch Affidavit, Exhibit C at p. 104, Exhibit D at p. 110, Exhibit E at p. 119, Exhibit F at pp. 126, 133. "
+  }
+ ]
+}

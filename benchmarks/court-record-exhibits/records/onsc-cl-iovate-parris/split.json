@@ -1,0 +1,93 @@
+{
+ "record_id": "onsc-cl-iovate-parris",
+ "affidavit_pages": [
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-an4d6s.pdf",
+   "source_pages": [
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38
+   ],
+   "cover_page": 25,
+   "stamp_page": null,
+   "text_chars": 19459
+  },
+  {
+   "label": "B",
+   "file": "doc-ymqdwj.pdf",
+   "source_pages": [
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46
+   ],
+   "cover_page": 39,
+   "stamp_page": null,
+   "text_chars": 13396
+  },
+  {
+   "label": "C",
+   "file": "doc-dnwtwk.pdf",
+   "source_pages": [
+    48,
+    49,
+    50,
+    51,
+    52,
+    53
+   ],
+   "cover_page": 47,
+   "stamp_page": null,
+   "text_chars": 12817
+  },
+  {
+   "label": "D",
+   "file": "doc-xvequu.pdf",
+   "source_pages": [
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61
+   ],
+   "cover_page": 54,
+   "stamp_page": null,
+   "text_chars": 13107
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "A",
+   "file": "doc-an4d6s",
+   "text": "tee\u201d). Copies of the NOIs are attached hereto and marked as Exhibit \u201cA\u201d. 3. This affidavit is made in support of a motion by the Io"
+  }
+ ]
+}

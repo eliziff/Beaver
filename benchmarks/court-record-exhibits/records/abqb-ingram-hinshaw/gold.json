@@ -1,0 +1,34 @@
+{
+ "record_id": "abqb-ingram-hinshaw",
+ "court": "Court of Queen's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2001-14300 (Calgary)",
+ "proceeding": "Ingram, Heights Baptist Church, Northside Baptist Church, Blacklaws and Tanner v. Her Majesty the Queen in right of Alberta and the Chief Medical Officer of Health (interlocutory injunction against COVID-19 public health orders)",
+ "document": "Affidavit of Dr. Deena Hinshaw affirmed December 18, 2020 in response to the applicants' interlocutory injunction application",
+ "deponent": "Dr. Deena Hinshaw",
+ "deponent_role": "Chief Medical Officer of Health, Alberta Ministry of Health",
+ "sworn_date": "2020-12-18",
+ "exhibits": [
+  {"label": "A", "file": "doc-4s38rm.pdf", "kind": "chart", "date": null, "author": "Alberta Health", "recipients": [], "description": "Graph showing the trend of exponential growth of COVID-19 cases across Alberta", "references": [{"paragraph": 19, "quote": "Attached and marked Exhibit \"A\" to this \ni .Af!id!lvit is a graph demonstrating a trend of exponential growth of the number of COVID-19"}], "content_check": "One-page Alberta slide 'Daily New Cases in Alberta', probable and confirmed cases by date reported"},
+  {"label": "B", "file": "doc-9newa2.pdf", "kind": "chart", "date": "2020-12-18", "author": "Alberta Health", "recipients": [], "description": "Chart showing suspected routes of acquisition of active COVID-19 cases", "references": [{"paragraph": 21, "quote": "Attached \nand marked Exhibit \"B\" to this Affidavit is a chart showing suspected routes of acquisition."}], "content_check": "One-page 'Routes of Transmission' pie chart of active cases by suspected acquisition, Dec 18: unknown 78%, outbreak 11%, close contact 10%, travel 1%; commissioner's signature remains at top"},
+  {"label": "C", "file": "doc-q2g2wf.pdf", "kind": "chart", "date": null, "author": "Alberta Health", "recipients": [], "description": "Charts of actual and predicted hospital and ICU admissions with and without additional public health measures", "references": [{"paragraph": 31, "quote": "Attached and marked as Exhibit \"C\" are charts, demonstrating \nactual and predicted numbers of hospital and ICU admissions"}], "content_check": "Three slides: predicted vs actual hospitalizations (model run Oct. 26), actual vs predicted ICU admissions, and expected results from four-week restrictions"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2010-01", "precision": "range", "description": "The deponent served as Medical Officer of Health in AHS's Central Zone from January 2010 to July 2017", "paragraphs": [2], "quote": "Central Zone of Alberta Health Services \n(AHS) from January 2010 until July 2017", "exhibits": []},
+  {"id": "e2", "date": "2019", "precision": "approximate", "description": "COVID-19 was first recognized in Wuhan, China", "paragraphs": [5], "quote": "COVID-19 was first recognized in the city of \nWuhan, China in late 2019.", "exhibits": []},
+  {"id": "e3", "date": "2020-03-05", "precision": "day", "description": "The first case of COVID-19 was recognized in Alberta", "paragraphs": [28], "quote": "The first case of COVID-19 was recognized on March 5, 2020", "exhibits": []},
+  {"id": "e4", "date": "2020-09-17", "precision": "day", "description": "Asymptomatic testing stopped being available for Albertans", "paragraphs": [16], "quote": "Asymptomatic testing was available for \nAlbertans until September 17, 2020", "exhibits": []},
+  {"id": "e5", "date": "2020-07", "precision": "range", "description": "Weekly case, hospitalization, ICU and death averages grew from July to December 2020", "paragraphs": [18], "quote": "the number of recognized SARS-Co V-2 infections \n(COVID-19 cases) has continued to grow dramatically as can be seen in table below", "exhibits": ["A"]},
+  {"id": "e6", "date": "2020-11-24", "precision": "day", "description": "Alberta declared a state of public health emergency", "paragraphs": [19], "quote": "Alberta declared a state of public health \nemergency on November 24, 2020", "exhibits": ["A"]},
+  {"id": "e7", "date": "2020-12", "precision": "month", "description": "Alberta began deploying the Pfizer BioNTech vaccine", "paragraphs": [8], "quote": "Alberta Health and Alberta Health Services began to deploy in December 2020", "exhibits": []},
+  {"id": "e8", "date": "2020-12-16", "precision": "day", "description": "Between March 5 and December 16, 2020, 2,862 COVID-19 cases were hospitalized and 506 required ICU", "paragraphs": [30], "quote": "Between March 5, 2020 and December 16, 2020, there have been 2,862 COVID-19 cases \nhospitalized and 506 have required ICU.", "exhibits": []},
+  {"id": "e9", "date": "2020-12-17", "precision": "day", "description": "763 people were in hospital with COVID-19, 138 in ICU, and 790 had died since March", "paragraphs": [26, 28], "quote": "as of December 17, 2020, there were 763 people in the hospital due to \nCOVID-19", "exhibits": []},
+  {"id": "e10", "date": "2020-12-18", "precision": "day", "description": "78% of active COVID-19 cases had no identifiable source", "paragraphs": [21], "quote": "of the active COVID-19 cases on December 18, 2020, 78% of cases do \nnot have an identifiable source", "exhibits": ["B"]},
+  {"id": "e11", "date": null, "precision": "undated", "description": "Alberta implemented public health restrictions, including mandatory masking and limits on high-risk settings, to control spread", "paragraphs": [31, 33, 34], "quote": "Alberta has attempted to control the spread of the SARS-CoV-2 virus by implementing a \nnumber of public health measures.", "exhibits": ["C"]},
+  {"id": "e12", "date": "2020-12-18", "precision": "day", "description": "The deponent affirmed the affidavit by video in response to the injunction application", "paragraphs": [36, 37], "quote": "I make this affidavit in ·response to the Applicants' interlocutory injunction apptication.", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Alberta public health guidance on two-metre physical distancing", "Notice to the Profession 2020-02"],
+ "leak_waivers": [],
+ "notes": "Poor OCR text layer with scanner noise; quotes copied as they appear. The source PDF holds two copies of this affidavit; the record uses the first (pages 2-14). Exhibit covers share their page with the chart, so each exhibit keeps its stamped page with the cover text removed and the commissioner's signature visible."
+}

@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/skkb-urpride-kimberly/affidavit-of-dr-travers.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2023/09/UR-Pride-05.-Affidavit-of-Dr.-Travers_Redacted.pdf",
+  "title": "Affidavit of Dr. Travers (UR Pride), KBG-RG-01978-2023",
+  "kind": "affidavit",
+  "relation": "applicant's expert affidavit on affirmative care, referred to in this affidavit"
+ },
+ {
+  "file": "raw/matter/skkb-urpride-kimberly/affidavit-of-m-walter.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2023/09/Saskatchewan-03.-Affidavit-of-M.-Walter_Redacted.pdf",
+  "title": "Affidavit of M. Walter (Government of Saskatchewan), KBG-RG-01978-2023",
+  "kind": "affidavit",
+  "relation": "respondent government's affidavit in the same injunction application"
+ }
+]

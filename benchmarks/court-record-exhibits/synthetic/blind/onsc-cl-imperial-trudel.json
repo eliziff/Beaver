@@ -1,0 +1,95 @@
+{
+ "record_id": "onsc-cl-imperial-trudel",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2025-01-20",
+   "from": "Andre Lesperance",
+   "to": [
+    "Philippe H. Trudel"
+   ],
+   "subject": "Bureau - renouvellement du bail / office lease renewal",
+   "body": "Philippe,\n\nThe landlord sent the renewal proposal for our Montreal office lease. The rent increase is 3%. Can we discuss at Thursday's partners' meeting?\n\nAndre"
+  },
+  {
+   "doc": 1,
+   "kind": "minutes",
+   "date": "2025-01-09",
+   "from": "",
+   "to": [
+    "Philippe H. Trudel",
+    "Andre Lesperance",
+    "Partners"
+   ],
+   "subject": "Minutes of Partners' Meeting",
+   "body": "1. New IT support contract approved.\n\n2. Summer student hiring: two positions.\n\n3. Office renovation of the reception area deferred to spring."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2025-01-15",
+   "from": "Services de traduction Mont-Royal inc.",
+   "to": [
+    "Trudel Johnston & Lesperance"
+   ],
+   "subject": "Translation - unrelated consumer class action pleadings",
+   "body": "Payable in 30 days.\nTranslation French to English, 6,400 words: 1600.0\nGST 5%: 80.0\nQST 9.975%: 159.6"
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2025-01-17",
+   "from": "Philippe H. Trudel",
+   "to": [
+    "Faculty of Law - Class Actions Seminar coordinator"
+   ],
+   "subject": "Guest lecture",
+   "body": "Dear Coordinator:\n\nI confirm that I will give the guest lecture on class action procedure on March 12. I will send slides a week in advance.\n\nYours truly,\nPhilippe H. Trudel"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2025-01-21",
+   "from": "Raymond Wagner",
+   "to": [
+    "Andre Lesperance"
+   ],
+   "subject": "Conference panel in Halifax",
+   "body": "Andre,\n\nWould you be willing to sit on our class actions panel at the Halifax conference in May? It would be a 45-minute session.\n\nRaymond"
+  },
+  {
+   "doc": 5,
+   "kind": "memo",
+   "date": "2025-01-06",
+   "from": "Trudel Johnston & Lesperance - Administration",
+   "to": [
+    "All staff"
+   ],
+   "subject": "Year-end timekeeping",
+   "body": "Please make sure all 2024 time entries are finalized by January 10 for the year-end close."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2025-01-22",
+   "from": "Philippe H. Trudel",
+   "to": [
+    "Philippe H. Trudel"
+   ],
+   "subject": "",
+   "body": "Assistant: Train to Toronto booked for the 28th, 7:30 am\nPhilippe: Parfait. Hotel near the courthouse?\nAssistant: Booked"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2024-12-31",
+   "from": "Bureautique Saint-Laurent inc.",
+   "to": [
+    "Trudel Johnston & Lesperance"
+   ],
+   "subject": "Photocopier lease, December 2024",
+   "body": "Merci.\nMonthly lease: 420.0\nOverage copies: 96.0\nGST 5%: 25.8\nQST 9.975%: 51.47"
+  }
+ ]
+}

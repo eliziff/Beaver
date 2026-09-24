@@ -1,0 +1,122 @@
+{
+ "generator": "claude-opus-5-5 (opus-low subagent, session 1f20d775)",
+ "created": "2026-09-23",
+ "record_id": "bcsc-trevali-kim",
+ "brief": "Glencore / Trevali / FTI cast, 2022-2024; concentrate logistics, trading desk admin and mine operations unrelated to set-off, HST, invoicing disputes or the proof of claim.",
+ "documents": [
+  {
+   "kind": "email",
+   "format": "eml",
+   "date": "2022-09-09",
+   "time": "11:20",
+   "from": "Thomas Kim <thomas.kim@glencore.ca>",
+   "to": [
+    "Seung Hwoo Kim <seunghwoo.kim@glencore.ca>"
+   ],
+   "subject": "Assay lab visit next week",
+   "body": "Seung,\n\nThe independent assay lab has invited us to tour their new sample prep line next Wednesday. Can you join? It will take the morning.\n\nThomas",
+   "why_irrelevant": "Same Glencore people, same day as the Eng email; about a lab tour."
+  },
+  {
+   "kind": "email",
+   "format": "pdf",
+   "date": "2022-08-17",
+   "time": "09:05",
+   "from": "Gordon Eng <cjeng@trevali.com>",
+   "to": [
+    "Thomas Kim <thomas.kim@glencore.ca>"
+   ],
+   "subject": "Updated shipping contact",
+   "body": "Thomas,\n\nPlease note our logistics coordinator has changed; vessel nominations should now go to the shared logistics mailbox. All else stays the same.\n\nGordon",
+   "why_irrelevant": "Near miss: Trevali to Glencore the day before the first set-off notice; contact change only."
+  },
+  {
+   "kind": "memo",
+   "format": "docx",
+   "date": "2023-02-01",
+   "from": "Glencore Canada - Concentrates Desk",
+   "to": [
+    "Trading assistants"
+   ],
+   "subject": "New shipment tracking spreadsheet",
+   "body": "From February 1, all concentrate shipments should be logged in the new tracking workbook on the shared drive. Old workbooks will be archived.",
+   "why_irrelevant": "Desk procedure memo; no reference to Trevali invoices or HST."
+  },
+  {
+   "kind": "invoice",
+   "format": "pdf",
+   "date": "2022-06-30",
+   "from": "Harbourside Stevedoring Ltd.",
+   "letterhead": "Harbourside Stevedoring Ltd.",
+   "to": [
+    "Trevali Mining (New Brunswick) Ltd."
+   ],
+   "subject": "Stockpile handling, June 2022",
+   "items": [
+    [
+     "Concentrate shed handling, 3 parcels",
+     18400.0
+    ],
+    [
+     "Front-end loader hours",
+     2600.0
+    ],
+    [
+     "HST 15%",
+     3150.0
+    ]
+   ],
+   "body": "Net 30.",
+   "why_irrelevant": "Port service invoice to the mine before the filing; not a TMC-Glencore invoice."
+  },
+  {
+   "kind": "minutes",
+   "format": "docx",
+   "date": "2022-05-11",
+   "letterhead": "Trevali Mining Corporation - Safety Committee",
+   "to": [
+    "Committee members"
+   ],
+   "subject": "Minutes of Joint Health and Safety Committee",
+   "body": "1. Ventilation survey results reviewed.\n\n2. Two near-miss reports closed.\n\n3. Next inspection: June 8.",
+   "why_irrelevant": "Mine safety minutes; unrelated to commercial terms."
+  },
+  {
+   "kind": "email",
+   "format": "eml",
+   "date": "2023-04-13",
+   "time": "16:44",
+   "from": "Seung Hwoo Kim <seunghwoo.kim@glencore.ca>",
+   "to": [
+    "Julien Demers Guerard <julien.demersguerard@glencore.ca>"
+   ],
+   "subject": "Out of office Friday",
+   "body": "Julien,\n\nI will be out Friday for a medical appointment. Thomas will cover the desk.\n\nSeung",
+   "why_irrelevant": "Same people, day before the April 14 notice; absence notice."
+  },
+  {
+   "kind": "letter",
+   "format": "pdf",
+   "date": "2023-09-20",
+   "letterhead": "FTI Consulting Canada Inc.",
+   "from": "FTI Consulting Canada Inc., Receiver of Trevali Mining (New Brunswick) Ltd.",
+   "to": [
+    "Former employees of Trevali Mining (New Brunswick) Ltd."
+   ],
+   "subject": "Records of employment",
+   "body": "Dear Former Employee:\n\nYour final T4 slips for 2022 have been mailed to your address on file. If you require a copy, please contact the Receiver's office.\n\nFTI Consulting Canada Inc.",
+   "why_irrelevant": "Receiver letter a week after the real FTI letter; employment administration."
+  },
+  {
+   "kind": "text",
+   "format": "pdf",
+   "date": "2024-09-30",
+   "from": "Seung Hwoo Kim",
+   "to": [
+    "Seung Hwoo Kim"
+   ],
+   "body": "Thomas: Coffee before the 10 am?\nSeung: Sure, lobby at 9:40\nThomas: See you",
+   "why_irrelevant": "Chat between colleagues the day before the affidavit; social."
+  }
+ ]
+}

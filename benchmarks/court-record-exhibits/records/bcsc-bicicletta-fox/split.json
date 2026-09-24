@@ -1,0 +1,98 @@
+{
+ "record_id": "bcsc-bicicletta-fox",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ryjdm7.pdf",
+   "source_pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 12021
+  },
+  {
+   "label": "B",
+   "file": "doc-pmxpue.pdf",
+   "source_pages": [
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34
+   ],
+   "cover_page": 17,
+   "stamp_page": null,
+   "text_chars": 36045
+  },
+  {
+   "label": "C",
+   "file": "doc-y47m89.pdf",
+   "source_pages": [
+    36,
+    37,
+    38,
+    39,
+    40,
+    41
+   ],
+   "cover_page": 35,
+   "stamp_page": null,
+   "text_chars": 14108
+  },
+  {
+   "label": "D",
+   "file": "doc-54c8m3.pdf",
+   "source_pages": [
+    43,
+    44
+   ],
+   "cover_page": 42,
+   "stamp_page": null,
+   "text_chars": 2210
+  },
+  {
+   "label": "E",
+   "file": "doc-yrm44s.pdf",
+   "source_pages": [
+    46,
+    47,
+    48
+   ],
+   "cover_page": 45,
+   "stamp_page": null,
+   "text_chars": 2446
+  }
+ ],
+ "leak_audit": []
+}

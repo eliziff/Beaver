@@ -1,0 +1,94 @@
+{
+ "record_id": "scc-cbc-savard",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2023-07-31",
+   "from": "Megan Savard",
+   "to": [
+    "CLA Litigation Committee"
+   ],
+   "subject": "Committee meeting - September date",
+   "body": "Hi all,\n\nOur September committee meeting will be on the 14th at 5 pm by video. Please send agenda items by the 7th.\n\nMegan"
+  },
+  {
+   "doc": 1,
+   "kind": "minutes",
+   "date": "2023-06-08",
+   "from": "",
+   "to": [
+    "Megan Savard",
+    "Committee members"
+   ],
+   "subject": "Minutes of Litigation Committee",
+   "body": "1. Volunteer roster for the fall duty counsel mentoring program.\n\n2. Budget for printing of the annual newsletter.\n\n3. Next meeting: September."
+  },
+  {
+   "doc": 2,
+   "kind": "letter",
+   "date": "2023-05-15",
+   "from": "CLA office",
+   "to": [
+    "Members"
+   ],
+   "subject": "Fall conference registration",
+   "body": "Dear Member:\n\nRegistration for the fall conference opens June 1. Early registration closes August 31.\n\nCriminal Lawyers' Association"
+  },
+  {
+   "doc": 3,
+   "kind": "invoice",
+   "date": "2023-06-30",
+   "from": "Richmond Street Print Shop Ltd.",
+   "to": [
+    "Criminal Lawyers' Association"
+   ],
+   "subject": "Newsletter printing",
+   "body": "Net 30.\nNewsletter, 1,200 copies: 1980.0\nMailing: 540.0\nHST 13%: 327.6"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2023-07-29",
+   "from": "Alexandra Heine",
+   "to": [
+    "Stockwoods LLP associates"
+   ],
+   "subject": "Summer student farewell",
+   "body": "Hi all,\n\nFarewell drinks for the summer students on August 10 at 5 pm. Please RSVP.\n\nAlex"
+  },
+  {
+   "doc": 5,
+   "kind": "memo",
+   "date": "2023-07-04",
+   "from": "Criminal Lawyers' Association - Executive Director",
+   "to": [
+    "Committee chairs"
+   ],
+   "subject": "Summer office hours",
+   "body": "The CLA office will be closed Fridays in July and August. Urgent matters can be sent to the general inbox."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2023-08-01",
+   "from": "Megan Savard",
+   "to": [
+    "Megan Savard"
+   ],
+   "subject": "",
+   "body": "Colleague: Bail hearing moved to 2 pm tomorrow\nMegan: Thanks, I'll prep tonight\nColleague: Client's surety is confirmed"
+  },
+  {
+   "doc": 7,
+   "kind": "email",
+   "date": "2023-06-20",
+   "from": "Megan Savard",
+   "to": [
+    "CLA office"
+   ],
+   "subject": "Newsletter article deadline",
+   "body": "Hi,\n\nCan we push the newsletter article deadline to July 7? Two authors asked for an extra week.\n\nMegan"
+  }
+ ]
+}

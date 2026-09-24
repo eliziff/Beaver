@@ -1,0 +1,18 @@
+{
+ "url": "https://www.jccf.ca/wp-content/uploads/2020/08/2020-8-5-Applicants-Record.pdf",
+ "landing_url": "https://www.jccf.ca/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-918-19 (with T-917-19)",
+ "document_title": "Affidavit of Phil Whitehead sworn September 13, 2019, Applicant's Record, BCM International (Canada) Inc. v. Canada (Minister of Employment, Workforce Development and Labour) (Canada Summer Jobs judicial review)",
+ "retrieved": "2026-09-23",
+ "record_id": "fc-bcm-whitehead",
+ "source_file": "j-2020-8-5-applicants-record.pdf",
+ "page_range": [
+  208,
+  250
+ ],
+ "source_sha256": "6cfde608f8c71cd5dedc6eaa5401e27b3d220d6acc5e748463997f33eb5c00d6",
+ "source_pages": 643
+}

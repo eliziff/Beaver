@@ -1,0 +1,158 @@
+{
+ "record_id": "nssc-cffi-scott",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  1,
+  69
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hyrmyz.pdf",
+   "source_pages": [
+    16,
+    17,
+    18,
+    19,
+    20
+   ],
+   "cover_page": 15,
+   "stamp_page": null,
+   "text_chars": 7999
+  },
+  {
+   "label": "B",
+   "file": "doc-3pqv3a.pdf",
+   "source_pages": [
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50
+   ],
+   "cover_page": 21,
+   "stamp_page": null,
+   "text_chars": 82426
+  },
+  {
+   "label": "C",
+   "file": "doc-726388.pdf",
+   "source_pages": [
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69
+   ],
+   "cover_page": 51,
+   "stamp_page": null,
+   "text_chars": 47832
+  },
+  {
+   "label": "D",
+   "file": "doc-q58dcu.pdf",
+   "source_pages": [
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83
+   ],
+   "cover_page": 70,
+   "stamp_page": null,
+   "text_chars": 28742
+  },
+  {
+   "label": "E",
+   "file": "doc-pr69s9.pdf",
+   "source_pages": [
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99
+   ],
+   "cover_page": 84,
+   "stamp_page": null,
+   "text_chars": 43734
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "A",
+   "file": "doc-hyrmyz",
+   "text": "Amended and Restated Credit Agreement is attached hereto as Exhibit \u201cA\u201d. 5. The ARCA provides for total committed facilities of app"
+  }
+ ]
+}

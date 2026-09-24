@@ -1,0 +1,463 @@
+{
+ "record_id": "abkb-mte-french",
+ "court": "Court of King's Bench of Alberta (Calgary)",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2601-11638",
+ "proceeding": "Fiera Private Debt Fund VI LP v. MTE Logistix LP et al. (creditor-led CCAA initial order)",
+ "document": "Affidavit of Russell French affirmed June 25, 2026 (part 1 of 4 of the posted affidavit: exhibits A-J)",
+ "deponent": "Russell French",
+ "deponent_role": "Managing Director, Special Situations, Fiera Private Debt Fund GP Inc. (the applicant lender)",
+ "sworn_date": "2026-06-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-kk3s7x.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Fiera / Norton Rose Fulbright",
+   "recipients": [],
+   "description": "Organizational chart of the Borrower, MLG GP, the Guarantors and additional obligors",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: Hillcore/MTE organization chart"
+  },
+  {
+   "label": "B",
+   "file": "doc-73a3du.pdf",
+   "kind": "corporate_record",
+   "date": "2026-04-16",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Partnership search for MTE Logistix and corporate search for MLG GP",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "corporate search for MLG GP are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: Trade Name/Partnership Search, date of search 2026/04/16, and MLG GP searches"
+  },
+  {
+   "label": "C",
+   "file": "doc-7696mg.pdf",
+   "kind": "corporate_record",
+   "date": "2026-04-16",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Corporate searches for each Guarantor",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Corporate searches for each of the Guarantors are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "21 pages: Corporation/Non-Profit Searches dated 2026/04/16"
+  },
+  {
+   "label": "D",
+   "file": "doc-zdacqr.pdf",
+   "kind": "corporate_record",
+   "date": "2026-05-13",
+   "author": "Alberta Corporate Registry",
+   "recipients": [],
+   "description": "Corporate searches for 1139604 Alberta and A.P.E. Ventures",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Corporate searches for 113 and A.P.E. Ventures are attached hereto a"
+    }
+   ],
+   "content_check": "6 image pages: Corporation search for 1139604 Alberta Ltd. (2026/05/13) and A.P.E. Ventures"
+  },
+  {
+   "label": "E",
+   "file": "doc-d8j42p.pdf",
+   "kind": "agreement",
+   "date": "2021-08-17",
+   "author": "Fiera Private Debt Fund VI LP and MTE Logistix LP",
+   "recipients": [],
+   "description": "Original Credit Agreement dated August 17, 2021 ($56 million)",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "A copy of the\n Original Credit Agreement is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "94 pages: Credit Agreement dated as of August 17, 2021"
+  },
+  {
+   "label": "F",
+   "file": "doc-8as38q.pdf",
+   "kind": "agreement",
+   "date": "2023-12-22",
+   "author": "Fiera and MTE Logistix",
+   "recipients": [],
+   "description": "First Amending Agreement dated December 22, 2023",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "8 pages: First Amendment to Credit Agreement dated 22nd day of December, 2023"
+  },
+  {
+   "label": "G",
+   "file": "doc-bbffjx.pdf",
+   "kind": "agreement",
+   "date": "2024-06-03",
+   "author": "Fiera and the Obligors",
+   "recipients": [],
+   "description": "Accommodation Agreement dated June 3, 2024",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "15 pages: Accommodation Agreement"
+  },
+  {
+   "label": "H",
+   "file": "doc-28xuhw.pdf",
+   "kind": "agreement",
+   "date": "2025-10-03",
+   "author": "Fiera and the Obligors",
+   "recipients": [],
+   "description": "Forbearance Agreement (October 2025)",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "21 pages: Forbearance Agreement and Amending Agreement to Credit Agreement made as of October 3, 2025 (para 59 says October 1)"
+  },
+  {
+   "label": "I",
+   "file": "doc-5bjjhk.pdf",
+   "kind": "agreement",
+   "date": "2021-08-17",
+   "author": "MTE Logistix and Guarantors",
+   "recipients": [],
+   "description": "General security agreement granted by the Borrower and Guarantors",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "25 pages: General Security Agreement dated with effect as of August 17, 2021"
+  },
+  {
+   "label": "J",
+   "file": "doc-fsx57m.pdf",
+   "kind": "agreement",
+   "date": "2021-08-17",
+   "author": "Guarantors",
+   "recipients": [],
+   "description": "Guarantee agreement from the Guarantors",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "13 pages: Guarantee Agreement dated with effect as of August 17, 2021"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2021-04-26",
+   "precision": "day",
+   "description": "Deponent takes his position with the Lender",
+   "paragraphs": [
+    1
+   ],
+   "quote": "April 26, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2021-08",
+   "precision": "month",
+   "description": "Hillcore acquires the MTE Group; Lender advances the $56 million Loan",
+   "paragraphs": [
+    9
+   ],
+   "quote": "In August 2021, the MTE Group was acquired by Hillcore",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2021-08-17",
+   "precision": "day",
+   "description": "Original Credit Agreement",
+   "paragraphs": [
+    32
+   ],
+   "quote": "dated August 17, 2021",
+   "exhibits": [
+    "E",
+    "I",
+    "J"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2021-08-12",
+   "precision": "day",
+   "description": "2021 ATB Commitment for a revolving line of credit",
+   "paragraphs": [
+    39
+   ],
+   "quote": "dated August 12, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2022-07-22",
+   "precision": "day",
+   "description": "ATB-Lender Priority Agreement",
+   "paragraphs": [
+    40
+   ],
+   "quote": "dated July 22, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2023",
+   "precision": "approximate",
+   "description": "Lender learns of covenant defaults in late 2023",
+   "paragraphs": [
+    11,
+    50
+   ],
+   "quote": "In late 2023, the Lender first became aware",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2023-12-22",
+   "precision": "day",
+   "description": "First Amending Agreement permits a one-time equity cure",
+   "paragraphs": [
+    33,
+    50
+   ],
+   "quote": "dated December 22, 2023",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2024-02",
+   "precision": "month",
+   "description": "Eastlake Lease entered into with a Hillcore joint venture landlord",
+   "paragraphs": [
+    55
+   ],
+   "quote": "The Eastlake Lease was entered into in February 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2024-06-03",
+   "precision": "day",
+   "description": "Accommodation Agreement",
+   "paragraphs": [
+    33,
+    52
+   ],
+   "quote": "dated June 3, 2024",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2024-10-21",
+   "precision": "day",
+   "description": "KPMG LLP engaged as the Lender's financial advisor",
+   "paragraphs": [
+    70
+   ],
+   "quote": "dated October 21, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2024-12-19",
+   "precision": "day",
+   "description": "Lender terminates the Accommodation Agreement (December 2024 Default Notice)",
+   "paragraphs": [
+    53
+   ],
+   "quote": "On December 19, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2025-02",
+   "precision": "month",
+   "description": "Borrower presents its restructuring plan; deponent learns of the Eastlake Lease",
+   "paragraphs": [
+    54,
+    55
+   ],
+   "quote": "Subsequently, in February 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2025-08-26",
+   "precision": "day",
+   "description": "August 2025 Default Notice",
+   "paragraphs": [
+    58
+   ],
+   "quote": "On August 26, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "date": "2025-09",
+   "precision": "month",
+   "description": "Eastlake Premises substantially completed",
+   "paragraphs": [
+    55
+   ],
+   "quote": "substantially completed in September 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "date": "2025-10-01",
+   "precision": "day",
+   "description": "Obligors enter the Forbearance Agreement",
+   "paragraphs": [
+    59
+   ],
+   "quote": "October 1, 2025, the Borrower and other Obligors entered into the Forbearance Agreement",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2026-03-10",
+   "precision": "day",
+   "description": "2026 ATB Commitment",
+   "paragraphs": [
+    39
+   ],
+   "quote": "dated March 10, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "date": "2026-03-31",
+   "precision": "day",
+   "description": "Second Hillcore injection not made (Termination Event)",
+   "paragraphs": [
+    62
+   ],
+   "quote": "On March 31, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "date": "2026-04-06",
+   "precision": "day",
+   "description": "April 2026 Default Notice",
+   "paragraphs": [
+    62
+   ],
+   "quote": "On April 6, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2026-05-01",
+   "precision": "approximate",
+   "description": "Hillcore makes the second injection",
+   "paragraphs": [
+    63
+   ],
+   "quote": "On or about May 1, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2026-06-05",
+   "precision": "day",
+   "description": "June 5 Default Notice",
+   "paragraphs": [
+    65
+   ],
+   "quote": "On June 5, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2026-06-12",
+   "precision": "day",
+   "description": "Demands and BIA s. 244 notices sent",
+   "paragraphs": [
+    66
+   ],
+   "quote": "On June 12, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": "2026-06-17",
+   "precision": "day",
+   "description": "KPMG's advisory engagement formally terminated",
+   "paragraphs": [
+    70
+   ],
+   "quote": "June 17, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "date": "2026-07-01",
+   "precision": "day",
+   "description": "Eastlake rent payments due to begin",
+   "paragraphs": [
+    55,
+    64
+   ],
+   "quote": "July 1, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "date": "2026-07-07",
+   "precision": "day",
+   "description": "Comeback Application scheduled",
+   "paragraphs": [
+    95
+   ],
+   "quote": "July 7, 2026",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibits K-Z (assignment of insurance, MLG GP and Hillcore Industrial guarantees and pledges, 2026 ATB Commitment, Priority Agreement, PPR searches, financial statements, tax returns, default notices, demands, KPMG consent, interim financing term sheet): posted in parts 2-4 of the affidavit",
+  "KPMG Pre-Filing Report"
+ ],
+ "leak_waivers": [],
+ "notes": "Source is part 1 of 4 of the affidavit as posted by KPMG; only exhibits A-J are in this record. Exhibit D is image-only."
+}

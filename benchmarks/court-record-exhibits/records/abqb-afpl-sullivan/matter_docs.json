@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/abqb-afpl-sullivan/consent-receivership-order-2021-05-27.pdf",
+  "url": "http://cfcanada.fticonsulting.com/AFPL/docs/Consent of Receivership Order - filed May 27, 2021.pdf",
+  "title": "Consent Receivership Order filed May 27, 2021",
+  "kind": "court_order",
+  "relation": "the receivership order granted on the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/abqb-afpl-sullivan/first-report-of-the-receiver-2021-08-31.pdf",
+  "url": "http://cfcanada.fticonsulting.com/AFPL/docs/First Report of the Receiver - Filed August 31, 2021.pdf",
+  "title": "First Report of the Receiver filed August 31, 2021",
+  "kind": "report",
+  "relation": "the receiver's first report in the receivership this affidavit sought"
+ }
+]

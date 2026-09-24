@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/bcsc-eaglecrest-junbi/initial-order-2026-06-08.pdf",
+  "url": "https://cfcanada.fticonsulting.com/eaglecrest/docs/Order Made After Application (Initial Order) entered Jun 8, 2026.pdf",
+  "title": "Initial Order entered June 8, 2026 (S-264260)",
+  "kind": "court_order",
+  "relation": "the order granted on the petition this affidavit supports"
+ },
+ {
+  "file": "raw/matter/bcsc-eaglecrest-junbi/stay-extension-order-2026-09-08.pdf",
+  "url": "https://cfcanada.fticonsulting.com/eaglecrest/docs/2026-09-08 Entered Stay Extension Order.pdf",
+  "title": "Stay Extension Order entered September 8, 2026",
+  "kind": "court_order",
+  "relation": "later order in the same CCAA"
+ }
+]

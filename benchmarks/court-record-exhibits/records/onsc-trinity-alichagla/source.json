@@ -1,0 +1,19 @@
+{
+ "url": "https://www.jccf.ca/wp-content/uploads/2023/05/Affidavit-of-Drs.-K.-Ali-and-Z.-Chagla-affirmed-July-5-2021_Redacted.pdf",
+ "landing_url": "https://www.jccf.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-21-00000095-0000 (Kitchener) and related St. Thomas and Welland files",
+ "document_title": "Joint affidavit of Drs. Kamran Ali and Zain Chagla affirmed July 5, 2021 (Attorney General of Ontario), Attorney General of Ontario v. Trinity Bible Chapel et al. and related applications (COVID-19 gathering limits, Charter)",
+ "retrieved": "2026-09-23",
+ "record_id": "onsc-trinity-alichagla",
+ "source_file": "j-affidavit-of-drs-k-ali-and-z-chagla-affirmed-july-5-2021-red.pdf",
+ "page_range": [
+  1,
+  29
+ ],
+ "source_sha256": "00fd4252af7e664b769808b598dd8b89c82c85c67b87d56b7af0b671fe38ae76",
+ "source_pages": 29,
+ "affidavit_ocr": true
+}

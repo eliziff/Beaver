@@ -1,0 +1,28 @@
+{
+ "record_id": "fc-bcm-whitehead",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-918-19 (with T-917-19)",
+ "proceeding": "BCM International (Canada) Inc. v. Canada (Minister of Employment, Workforce Development and Labour) and Attorney General of Canada (judicial review of Canada Summer Jobs funding refusals for Christian camps)",
+ "document": "Affidavit of Phil Whitehead sworn September 13, 2019, Tab 4 of the Applicant's Record",
+ "deponent": "Phil Whitehead",
+ "deponent_role": "Executive Director of BCM International (Canada) Inc.",
+ "sworn_date": "2019-09-13",
+ "exhibits": [
+  {"label": "A", "file": "doc-2fu5yh.pdf", "kind": "corporate_record", "date": "1968-10-26", "author": "Province of Ontario; Consumer and Corporate Affairs Canada", "recipients": ["BCM International (Canada) Inc."], "description": "BCM's Letters Patent", "references": [{"paragraph": 3, "quote": "See BCM Letters Patent attached as Exhibit \"A\" to this Affidavit."}], "content_check": "11 pages: federal supplementary letters patent changing the name of Bible Club Movement of Canada Inc. to BCM International (Canada) Inc. (dated February 1993), by-laws and the original Ontario letters patent of October 26, 1968"},
+  {"label": "B", "file": "doc-7pjxus.pdf", "kind": "other", "date": null, "author": "BCM International (Canada) Inc.", "recipients": [], "description": "BCM Doctrinal Statement", "references": [{"paragraph": 4, "quote": "See BCM Doctrinal Statement attached as Exhibit \"B\" to this Affidavit."}], "content_check": "1 page: BCM International (Canada) Inc. 'Doctrinal Statement' with ten numbered articles"},
+  {"label": "C", "file": "doc-765yv7.pdf", "kind": "webpage", "date": "2019-09-09", "author": "BCM Canada", "recipients": [], "description": "'About Us' section of BCM's website giving a brief history", "references": [{"paragraph": 5, "quote": "website under the \"About Us\" section, a copy of which is attached as Exhibit \"C\" to this"}], "content_check": "3 pages: 'About Us - BCM Canada' printed 9/9/2019, history from 1936"},
+  {"label": "D", "file": "doc-57aqdu.pdf", "kind": "webpage", "date": "2019-09-09", "author": "BCM Canada", "recipients": [], "description": "'Camping' section of the BCM website describing Mill Stream and Mount Traber camps", "references": [{"paragraph": 5, "quote": "\"Camping\" section of BCM website attached as Exhibit \"D\" to this Affidavit."}], "content_check": "5 pages: 'Camping - BCM Canada' printed 9/9/2019"},
+  {"label": "E", "file": "doc-zuztxu.pdf", "kind": "other", "date": "2018", "author": "Mill Stream Bible Camp", "recipients": ["Prospective camp staff"], "description": "Mill Stream staff application", "references": [{"paragraph": 7, "quote": "See Mill Stream and Mount Traber staff applications attached to this"}], "content_check": "7 pages, poor scan: Mill Stream 2018 summer camp staff application from millstream.camp"},
+  {"label": "F", "file": "doc-7zn3wz.pdf", "kind": "other", "date": "2019", "author": "Mount Traber Bible Camp", "recipients": ["Prospective camp staff"], "description": "Mount Traber staff application", "references": [{"paragraph": 7, "quote": "Affidavit as Exhibits \"E\" and \"F\", respectively."}], "content_check": "8 pages: 'Mount Traber: 2019 Summer Staff Application' including a doctrinal questionnaire"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2012-11", "precision": "month", "description": "Whitehead became Executive Director of BCM, after roles with AWANA Clubs Canada", "paragraphs": [2], "quote": "I have served as the executive director BCM since November 2012.", "exhibits": []},
+  {"id": "e2", "date": null, "precision": "undated", "description": "BCM's camps require staff applicants to answer questions on BCM's Christian beliefs, followed by conversations with applicants", "paragraphs": [7, 8], "quote": "Both the Mill Stream and Mount Traber camp staff applications therefore inquire", "exhibits": ["E", "F"]},
+  {"id": "e3", "date": "2019-09-13", "precision": "day", "description": "Whitehead swore the affidavit in support of the notices of application", "paragraphs": [9], "quote": "I swear this Affidavit in support of the Notice of Applications filed in these matters", "exhibits": []}
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Affidavit is Tab 4 of JCCF's posted Applicant's Record (PDF pages 208-250). The jurat date is hand-written; the record index dates it September 13, 2019."
+}

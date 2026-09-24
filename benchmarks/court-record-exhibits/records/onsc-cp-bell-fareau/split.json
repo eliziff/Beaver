@@ -1,0 +1,69 @@
+{
+ "record_id": "onsc-cp-bell-fareau",
+ "affidavit_pages": [
+  14,
+  15,
+  16,
+  17,
+  18
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  18,
+  20,
+  21,
+  22,
+  24,
+  25,
+  26,
+  28,
+  30
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-2kc3yz.pdf",
+   "source_pages": [
+    20,
+    21,
+    22
+   ],
+   "cover_page": 19,
+   "stamp_page": null,
+   "text_chars": 26
+  },
+  {
+   "label": "B",
+   "file": "doc-4w2re6.pdf",
+   "source_pages": [
+    24,
+    25,
+    26
+   ],
+   "cover_page": 23,
+   "stamp_page": null,
+   "text_chars": 26
+  },
+  {
+   "label": "C",
+   "file": "doc-b296aj.pdf",
+   "source_pages": [
+    28
+   ],
+   "cover_page": 27,
+   "stamp_page": null,
+   "text_chars": 8
+  },
+  {
+   "label": "D",
+   "file": "doc-fka8pz.pdf",
+   "source_pages": [
+    30
+   ],
+   "cover_page": 29,
+   "stamp_page": null,
+   "text_chars": 8
+  }
+ ],
+ "leak_audit": []
+}

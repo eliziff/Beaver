@@ -1,0 +1,18 @@
+{
+ "url": "https://assets.kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/mte-group/affidavit-of-r-french-2026-06-29-part-1-of-4.pdf.coredownload.inline.pdf",
+ "landing_url": "https://kpmg.com/ca/en/home/services/advisory/deal-advisory/creditorlinks/mte-group.html",
+ "court": "Court of King's Bench of Alberta (Calgary)",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2601-11638",
+ "document_title": "Affidavit of Russell French affirmed June 25, 2026 (Fiera v. MTE Logistix, CCAA originating application), exhibits A-J",
+ "retrieved": "2026-09-23",
+ "record_id": "abkb-mte-french",
+ "source_file": "kpmg-french1-ab.pdf",
+ "page_range": [
+  1,
+  250
+ ],
+ "source_sha256": "be159e50a57578af06abd7744a5c10ad62e27d6c30c5a6e444fd0c94c1824b75",
+ "source_pages": 250
+}

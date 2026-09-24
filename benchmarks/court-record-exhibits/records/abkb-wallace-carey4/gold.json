@@ -1,0 +1,416 @@
+{
+ "record_id": "abkb-wallace-carey4",
+ "court": "Court of King's Bench of Alberta",
+ "court_level": "superior_trial",
+ "jurisdiction": "AB",
+ "court_file": "2301-08305",
+ "proceeding": "In the matter of the CCAA compromise or arrangement of Wallace & Carey Inc., Loudon Bros Limited and Carey Management Inc.",
+ "document": "Affidavit No. 4 of Patrick Carey in support of the Applicants' application returnable May 29, 2024 (stay extension, lease assignment and equipment purchase agreement)",
+ "deponent": "Patrick Carey",
+ "deponent_role": "Sole director of Carey Management Inc., Wallace & Carey Inc. and Loudon Bros Limited",
+ "sworn_date": "2024-05-21",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-v8g6k2.pdf",
+   "kind": "court_order",
+   "date": "2023-11-09",
+   "author": "Court of King's Bench of Alberta (Justice E.J. Sidnell)",
+   "recipients": [],
+   "description": "The Freshslice Order of November 9, 2023 requiring A&M Enterprise Ltd. to pay $497,521.26 to Wallace & Carey and directing the Freshslice entities to take certain actions",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Copies of the Freshslice Order and Costs Award are attached as Exhibits"
+    }
+   ],
+   "content_check": "Certified true copy of an ABKB order pronounced November 9, 2023 by Justice E.J. Sidnell, filed Nov 15, 2023; para 4 orders AME to pay Wallace & Carey $497,521.26"
+  },
+  {
+   "label": "B",
+   "file": "doc-jafeth.pdf",
+   "kind": "court_order",
+   "date": "2023-11-09",
+   "author": "Court of King's Bench of Alberta (Justice E.J. Sidnell)",
+   "recipients": [],
+   "description": "The Costs Award granted against A&M Enterprise Ltd. in addition to the Freshslice Order",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Copies of the Freshslice Order and Costs Award are attached as Exhibits"
+    }
+   ],
+   "content_check": "ABKB order pronounced November 9, 2023 by Justice Sidnell awarding the Applicants 50% of their reasonable solicitor-client costs of the application against AME, with assessment if not agreed by November 23, 2023"
+  },
+  {
+   "label": "C",
+   "file": "doc-36f3zf.pdf",
+   "kind": "court_order",
+   "date": "2023-12-12",
+   "author": "Court of King's Bench of Alberta (Justice E.J. Sidnell)",
+   "recipients": [],
+   "description": "The Stay Dismissal Order dismissing A&M's application to stay the Freshslice Order and awarding costs of $20,000 to the Applicants and $5,000 to the Monitor",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "A copy of the Stay Dismissal Order is attached as Exhibit"
+    }
+   ],
+   "content_check": "ABKB order pronounced December 12, 2023 (filed Dec 19, 2023) on AME's application for a stay of enforcement of the Sidnell order; the affidavit dates it December 12, 2024, an evident year slip"
+  },
+  {
+   "label": "D",
+   "file": "doc-xmz77c.pdf",
+   "kind": "court_order",
+   "date": "2024-01-24",
+   "author": "Court of Appeal of Alberta (Justice L.B. Ho)",
+   "recipients": [],
+   "description": "The Court of Appeal Order of January 24, 2024 denying A&M leave to appeal the Freshslice Order and requiring it to pay appeal costs",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "A copy of the Court of Appeal Order is attached as Exhibit"
+    }
+   ],
+   "content_check": "Court of Appeal of Alberta order (file 2301-0295AC) pronounced January 24, 2024 by Justice L.B. Ho dismissing A&M Enterprise Ltd.'s application for leave to appeal the Sidnell Order"
+  },
+  {
+   "label": "E",
+   "file": "doc-3j9f7d.pdf",
+   "kind": "letter",
+   "date": "2023-11-30",
+   "author": "Miller Thomson LLP (James W. Reid), counsel to Wallace & Carey",
+   "recipients": [
+    "Megabox Inc."
+   ],
+   "description": "Demand letter to Megabox for the return of payment for the Unfulfilled POs",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A copy of the demand letter is attached as Exhibit"
+    }
+   ],
+   "content_check": "Miller Thomson letter dated November 30, 2023 to Megabox Inc. demanding return of $392,966.96 for unfulfilled pizza box orders by December 8, 2023, enclosing a copy of the November 9, 2023 order"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "1921",
+   "precision": "year",
+   "description": "Wallace & Carey was founded as a family-owned business",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Wallace & Carey is a family-owned business founded in 1921",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2011",
+   "precision": "year",
+   "description": "Wallace & Carey began owning and operating Loudon Bros",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Wallace & Carey has owned and operated Loudon Bros since 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2023-06-22",
+   "precision": "day",
+   "description": "The Applicants obtained a CCAA Initial Order",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On June 22, 2023, the Applicants obtained a CCAA Initial Order in these proceedings",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Affidavit No. 1 of Brian M. Birnie sworn June 21, 2023"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2023-06-30",
+   "precision": "day",
+   "description": "The Initial Order was amended and restated (ARIO); KSV Restructuring Inc. is Monitor",
+   "paragraphs": [
+    11
+   ],
+   "quote": "which order was amended and restated on June 30, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "date": "2023-08-23",
+   "precision": "day",
+   "description": "The Court approved the SISP and the engagement of Alvarez & Marsal Canada Securities ULC as financial advisor",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On August 23, 2023, the Court granted an Order approving the Applicants",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2023",
+   "precision": "approximate",
+   "description": "The Logistics Companies lost major customers and downsized, discontinuing Loudon Bros operations in late 2023",
+   "paragraphs": [
+    3,
+    13,
+    14
+   ],
+   "quote": "Loudon Bros, ceased operations in late 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2023-11-03",
+   "precision": "day",
+   "description": "The Court approved the sale of Loudon Bros' real property",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On November 3, 2023, the Court approved the sale of Loudon Bros",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2023-11-09",
+   "precision": "day",
+   "description": "The Court granted the Freshslice Order against A&M Enterprise Ltd. and a Costs Award",
+   "paragraphs": [
+    21,
+    22
+   ],
+   "quote": "On November 9, 2023, the Court granted an Order, among other things, requiring A&M",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2023-11-17",
+   "precision": "day",
+   "description": "The Loudon Bros real property sale closed",
+   "paragraphs": [
+    15
+   ],
+   "quote": "which transaction closed on November 17, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2023-11-17",
+   "precision": "day",
+   "description": "The Court approved the Sale Agreement with 7-Eleven Canada and the TSA",
+   "paragraphs": [
+    18,
+    19,
+    20
+   ],
+   "quote": "On November 17, 2023, the Court granted an Order approving the Applicants entering into the Sale Agreement and TSA",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2023-11-19",
+   "precision": "day",
+   "description": "Effective closing time from which the Purchaser funds the Logistics Companies' costs under the TSA",
+   "paragraphs": [
+    19
+   ],
+   "quote": "being 12:01 a.m. on November 19, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2023-11-21",
+   "precision": "day",
+   "description": "The 7-Eleven transaction closed",
+   "paragraphs": [
+    20
+   ],
+   "quote": "approving the associated transaction which closed on November 21, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "date": "2023-11-30",
+   "precision": "day",
+   "description": "Wallace & Carey demanded that Megabox return payment for the Unfulfilled POs",
+   "paragraphs": [
+    38,
+    39
+   ],
+   "quote": "These purchase orders are and remain unfulfilled notwithstanding a demand for the",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2023-12-12",
+   "precision": "day",
+   "description": "Justice Sidnell dismissed A&M's application to stay the Freshslice Order and awarded costs to the Applicants and the Monitor (affidavit says December 12, 2024)",
+   "paragraphs": [
+    24
+   ],
+   "quote": "the Honourable Justice Sidnell dismissed A&M",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2024-01-24",
+   "precision": "day",
+   "description": "The Court of Appeal of Alberta denied A&M leave to appeal the Freshslice Order",
+   "paragraphs": [
+    25
+   ],
+   "quote": "on January 24, 2024, the Court of Appeal of Alberta denied such application",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2024-02-23",
+   "precision": "day",
+   "description": "The Stay Period was last extended",
+   "paragraphs": [
+    61
+   ],
+   "quote": "Since the Stay Period was last extended by this Honourable Court on February 23, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "precision": "undated",
+   "description": "Assessment hearing on the Costs Award and Court of Appeal Order; the assessment officer granted all costs claimed",
+   "paragraphs": [
+    26,
+    27
+   ],
+   "quote": "The assessment officer granted all costs claimed by the Applicants",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "precision": "undated",
+   "description": "The Applicants registered the Costs Orders with the Supreme Court of British Columbia for enforcement; no payments made by A&M",
+   "paragraphs": [
+    28,
+    29
+   ],
+   "quote": "The Applicants have since registered the Costs Orders with the Supreme Court of",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "date": "2024-05-02",
+   "precision": "day",
+   "description": "Wallace & Carey was owed about $401,000 by Freshslice franchisees (the Accounts Receivable)",
+   "paragraphs": [
+    35
+   ],
+   "quote": "As at May 2, 2024, Wallace & Carey was owed approximately $401,000",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "date": "2024-05-16",
+   "precision": "day",
+   "description": "Justice B.B. Johnston granted summary judgment of $616,340.56 plus costs against INS News (the INS Order)",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On May 16, 2024, the Honourable Justice B.B. Johnston granted summary judgment",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2024-05-27",
+   "precision": "day",
+   "description": "Scheduled hearing for summary judgment against the Freshslice Group of Companies",
+   "paragraphs": [
+    36
+   ],
+   "quote": "Wallace & Carey has scheduled time before the Court on May 27, 2024 to obtain summary",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": "2024-06-26",
+   "precision": "day",
+   "description": "Scheduled hearing to seek return of payment for the Unfulfilled POs from Megabox and Pizza Club",
+   "paragraphs": [
+    41
+   ],
+   "quote": "Wallace & Carey has scheduled time before the Court on June 26, 2024 to seek return",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "precision": "undated",
+   "description": "Wallace & Carey pre-purchased products from Megabox and Pizza Club under purchase orders that remain unfulfilled",
+   "paragraphs": [
+    38,
+    39
+   ],
+   "quote": "Wallace & Carey pre-purchased products from Megabox Inc.",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2001-05-01",
+   "precision": "day",
+   "description": "Whole-building lease of the Oakville warehouse premises made",
+   "paragraphs": [
+    46
+   ],
+   "quote": "pursuant to a whole building lease made as of May 1, 2001",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Lease"
+   ]
+  },
+  {
+   "id": "e25",
+   "precision": "undated",
+   "description": "The Monitor and the Purchaser negotiated the Lease Assignment Agreement and the Equipment Purchase Agreement",
+   "paragraphs": [
+    47,
+    53
+   ],
+   "quote": "The Monitor and the Purchaser have negotiated an assignment of the Lease",
+   "exhibits": [],
+   "referenced_not_attached": [
+    "Lease Assignment Agreement and Equipment Purchase Agreement (to be appended to the Monitor's Tenth Report)"
+   ]
+  },
+  {
+   "id": "e26",
+   "precision": "undated",
+   "description": "CMI held preliminary discussions with the Monitor and key stakeholders about exiting the CCAA proceedings",
+   "paragraphs": [
+    59
+   ],
+   "quote": "CMI has had preliminary discussions with the Monitor and certain key stakeholders",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit No. 1 of Brian M. Birnie sworn June 21, 2023",
+  "Monitor's Tenth Report",
+  "INS Order",
+  "Sale Agreement and TSA"
+ ],
+ "notes": "The affidavit dates the Stay Dismissal Order December 12, 2024; the order itself and the Court of Appeal order show December 12, 2023, so e14 uses 2023."
+}

@@ -1,0 +1,105 @@
+{
+ "record_id": "abkb-dynamic-deiure",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2023-03-15",
+   "from": "Kristy DeIure <kristy.deiure@gowlingwlg.com>",
+   "to": [
+    "Sam Gabor <sam.gabor@gowlingwlg.com>"
+   ],
+   "subject": "Parking pass renewal",
+   "body": "Sam,\n\nYour monthly parkade pass expires March 31. Shall I renew it for another three months? The rate has gone up by $15 a month.\n\nKristy"
+  },
+  {
+   "doc": 1,
+   "kind": "letter",
+   "date": "2022-06-20",
+   "from": "CIBC Commercial Banking",
+   "to": [
+    "Dynamic Structures Ltd.",
+    "Port Coquitlam, BC"
+   ],
+   "subject": "Change of branch transit for online banking",
+   "body": "Dear Client:\n\nAs part of a regional consolidation, your online banking profile will be serviced by our new commercial banking centre effective July 18, 2022. Your account numbers will not change.\n\nCIBC"
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2022-10-31",
+   "from": "Fraser Steel Detailing Inc.",
+   "to": [
+    "Dynamic Structures Ltd."
+   ],
+   "subject": "Shop drawing services - observatory enclosure project",
+   "body": "Net 30.\nSteel detailing, 120 hours: 13200.0\nGST 5%: 660.0"
+  },
+  {
+   "doc": 3,
+   "kind": "memo",
+   "date": "2022-02-14",
+   "from": "Dynamic Attractions Ltd. - Human Resources",
+   "to": [
+    "All staff"
+   ],
+   "subject": "Benefits enrolment deadline",
+   "body": "The annual benefits enrolment window closes February 28. Staff who wish to change their dental or vision coverage must submit the online form by then."
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2022-07-12",
+   "from": "Dynamic Attractions Ltd. <projects@dynamicattractions.com>",
+   "to": [
+    "Export Development Canada <client.services@edc.ca>"
+   ],
+   "subject": "Trade show registration",
+   "body": "Hello,\n\nWe would like to register two staff for the export readiness webinar series in September. Please send the registration link.\n\nThank you"
+  },
+  {
+   "doc": 5,
+   "kind": "minutes",
+   "date": "2022-11-09",
+   "from": "",
+   "to": [
+    "Engineering leads"
+   ],
+   "subject": "Minutes of Design Review Meeting",
+   "body": "1. Ride vehicle seat restraint redesign approved for prototype.\n\n2. Motion base test rig scheduled for January.\n\n3. Next review: December 7."
+  },
+  {
+   "doc": 6,
+   "kind": "letter",
+   "date": "2019-04-30",
+   "from": "CIBC",
+   "to": [
+    "Empire Industries Ltd."
+   ],
+   "subject": "Corporate credit card program - additional cardholders",
+   "body": "Dear Client:\n\nWe confirm the addition of four cardholders to your corporate card program. Cards will be delivered to your head office within ten business days.\n\nCIBC"
+  },
+  {
+   "doc": 7,
+   "kind": "email",
+   "date": "2023-03-08",
+   "from": "Sam Gabor <sam.gabor@gowlingwlg.com>",
+   "to": [
+    "Kristy DeIure <kristy.deiure@gowlingwlg.com>"
+   ],
+   "subject": "CLE registration",
+   "body": "Kristy,\n\nCan you register me for the April insolvency CLE luncheon? Vegetarian meal please.\n\nThanks,\nSam"
+  },
+  {
+   "doc": 8,
+   "kind": "invoice",
+   "date": "2016-06-30",
+   "from": "Calgary Crating & Export Ltd.",
+   "to": [
+    "Dynamic Attractions Ltd."
+   ],
+   "subject": "Export crating",
+   "body": "Thank you.\nCustom crating for ride components, 6 crates: 9400.0\nGST 5%: 470.0"
+  }
+ ]
+}

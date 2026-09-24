@@ -1,0 +1,19 @@
+{
+ "url": "https://www.jccf.ca/wp-content/uploads/2017/11/2017-11-01-Grabher-Affidavit-with-Exhibits.pdf",
+ "landing_url": "https://www.jccf.ca/",
+ "court": "Supreme Court of Nova Scotia (Halifax)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NS",
+ "court_file": "463399",
+ "document_title": "Affidavit of Lorne Wayne Grabher sworn November 2017 (Charter application over cancelled personalized licence plate)",
+ "retrieved": "2026-09-23",
+ "record_id": "nssc-grabher-grabher",
+ "source_file": "jccf-2017-11-01-grabher-affidavit-with-exhibits.pdf",
+ "page_range": [
+  1,
+  51
+ ],
+ "source_sha256": "23d3fef0f731e9e6ff1b149d149562a62e1c7807662de7b3fd3f0d6c6b395adb",
+ "source_pages": 51,
+ "covers": "A=7,B=9,C=11,D=13,E=17,F=19,G=21,H=23,I=26,J=29,K=32,L=35,M=38,N=41,O=44,P=47,Q=50"
+}

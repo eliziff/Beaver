@@ -1,0 +1,18 @@
+{
+ "url": "https://moodiemair.com/assets/news/finalized-motion-record-to-approve-cwt-settlement-00964745.pdf",
+ "landing_url": "https://moodiemair.com/",
+ "court": "Ontario Superior Court of Justice (class proceeding, Newmarket)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "01-B2684",
+ "document_title": "Motion Record of the Plaintiffs (motion to approve settlements with Canadian Western Trust Company and Rene Beauregard), Tab 2: Affidavit of Bronwyn Martin",
+ "retrieved": "2026-09-22",
+ "record_id": "onsc-cp-cwt-martin",
+ "source_file": "on-moodiemair-cwt.pdf",
+ "page_range": [
+  19,
+  416
+ ],
+ "source_sha256": "e7faaa0d90c760964adbc30c042a5d041c9fae6882934d00d8c64fb42a5046f3",
+ "source_pages": 432
+}

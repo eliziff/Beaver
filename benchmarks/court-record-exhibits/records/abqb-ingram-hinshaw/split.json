@@ -1,0 +1,50 @@
+{
+ "record_id": "abqb-ingram-hinshaw",
+ "affidavit_pages": [
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4s38rm.pdf",
+   "source_pages": [
+    10
+   ],
+   "cover_page": null,
+   "stamp_page": 10,
+   "text_chars": 330
+  },
+  {
+   "label": "B",
+   "file": "doc-9newa2.pdf",
+   "source_pages": [
+    11
+   ],
+   "cover_page": null,
+   "stamp_page": 11,
+   "text_chars": 304
+  },
+  {
+   "label": "C",
+   "file": "doc-q2g2wf.pdf",
+   "source_pages": [
+    12,
+    13,
+    14
+   ],
+   "cover_page": null,
+   "stamp_page": 12,
+   "text_chars": 1504
+  }
+ ],
+ "leak_audit": []
+}

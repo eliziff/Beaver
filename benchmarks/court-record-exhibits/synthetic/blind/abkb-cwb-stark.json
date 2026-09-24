@@ -1,0 +1,95 @@
+{
+ "record_id": "abkb-cwb-stark",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "invoice",
+   "date": "2023-06-30",
+   "from": "Airport Road HVAC Services Ltd.",
+   "to": [
+    "2004639 Alberta Ltd."
+   ],
+   "subject": "Rooftop unit maintenance",
+   "body": "Net 30.\nQuarterly RTU maintenance, 4 units: 2400.0\nFilters: 380.0\nGST 5%: 139.0"
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2024-02-29",
+   "from": "Cory Stark",
+   "to": [
+    "CWB Special Asset Management team"
+   ],
+   "subject": "Team meeting moved",
+   "body": "Hi team,\n\nThis morning's pipeline meeting is moved to 2 pm. Same room.\n\nCory"
+  },
+  {
+   "doc": 2,
+   "kind": "letter",
+   "date": "2023-09-12",
+   "from": "Building Management",
+   "to": [
+    "All tenants"
+   ],
+   "subject": "Parking lot resurfacing",
+   "body": "Dear Tenant:\n\nThe north parking lot will be resurfaced on September 23 and 24. Please use the south lot during that time.\n\nBuilding Management"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2022-10-18",
+   "from": "",
+   "to": [
+    "Property manager",
+    "Directors"
+   ],
+   "subject": "Minutes of Building Operations Meeting",
+   "body": "1. Snow removal contract renewed.\n\n2. Lobby lighting replaced with LED fixtures.\n\n3. Next meeting: January."
+  },
+  {
+   "doc": 4,
+   "kind": "memo",
+   "date": "2024-01-08",
+   "from": "Canadian Western Bank - Special Asset Management",
+   "to": [
+    "Team members",
+    "Cory Stark"
+   ],
+   "subject": "File naming convention",
+   "body": "Starting January 15, all correspondence saved to the shared drive must use the new naming convention: date, borrower number, document type."
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2023-04-28",
+   "from": "McLennan Ross LLP - Accounts",
+   "to": [
+    "Cory Stark"
+   ],
+   "subject": "Updated remittance details",
+   "body": "Cory,\n\nPlease note our firm's updated bank remittance details for all future payments, effective May 1.\n\nAccounts"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2024-04-17",
+   "from": "Cory Stark",
+   "to": [
+    "Cory Stark"
+   ],
+   "subject": "",
+   "body": "Colleague: Coffee at 3?\nCory: Make it 3:30, I'm at a commissioner\nColleague: OK"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2017-05-31",
+   "from": "Deerfoot Signs Ltd.",
+   "to": [
+    "2004639 Alberta Ltd."
+   ],
+   "subject": "Tenant directory sign",
+   "body": "Thank you.\nLobby tenant directory, fabricated and installed: 3150.0\nGST 5%: 157.5"
+  }
+ ]
+}

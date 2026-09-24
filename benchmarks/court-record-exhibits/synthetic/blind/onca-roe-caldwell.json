@@ -1,0 +1,106 @@
+{
+ "record_id": "onca-roe-caldwell",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2023-03-14",
+   "from": "Brennan Caldwell <bcaldwell@goodmans.ca>",
+   "to": [
+    "Records Department <records@goodmans.ca>"
+   ],
+   "subject": "Closed file boxes - off-site retrieval",
+   "body": "Hi,\n\nPlease retrieve boxes 14 to 17 for the 2019 closed financing file (client matter 118402) from off-site storage and deliver them to the 34th floor file room by Friday. They are needed for a precedent search on an unrelated lending file.\n\nThanks,\nBrennan"
+  },
+  {
+   "doc": 1,
+   "kind": "invoice",
+   "date": "2023-02-28",
+   "from": "Parkline Property Maintenance Inc.",
+   "to": [
+    "KSV Restructuring Inc., Receiver of 30 Roe Investments Corp."
+   ],
+   "subject": "Snow clearing and salting - 30 Roe Avenue, February 2023",
+   "body": "Payment due within 30 days.\nSnow clearing, 6 events: 1320.0\nSidewalk salting: 410.0\nHST 13%: 224.9"
+  },
+  {
+   "doc": 2,
+   "kind": "email",
+   "date": "2023-02-07",
+   "from": "KSV Restructuring Inc. <admin@ksvadvisory.com>",
+   "to": [
+    "Brennan Caldwell <bcaldwell@goodmans.ca>"
+   ],
+   "subject": "30 Roe - building insurance certificate",
+   "body": "Brennan,\n\nFor your file, attached is the renewed certificate of property insurance for 30 Roe Avenue naming the Receiver as insured. The premium is unchanged from last year.\n\nRegards,\nKSV"
+  },
+  {
+   "doc": 3,
+   "kind": "memo",
+   "date": "2023-01-23",
+   "from": "Goodmans LLP - Restructuring Group",
+   "to": [
+    "Restructuring associates and clerks"
+   ],
+   "subject": "Updated e-filing checklist for the Commercial List",
+   "body": "The Commercial List portal now requires a single combined PDF for each motion record with bookmarks at each tab. Please use the updated template on the precedent drive. Clerks should confirm page numbering before upload."
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2023-03-09",
+   "from": "KSV Restructuring Inc., in its capacity as Receiver",
+   "to": [
+    "Eglinton Waste & Recycling Inc.",
+    "Customer Accounts"
+   ],
+   "subject": "30 Roe Avenue - account holder change",
+   "body": "Dear Sir or Madam:\n\nPlease note that the waste collection account for 30 Roe Avenue should be addressed to the Receiver at our Bay Street office effective immediately. Kindly forward future statements accordingly.\n\nYours truly,\nKSV Restructuring Inc."
+  },
+  {
+   "doc": 5,
+   "kind": "text",
+   "date": "2023-03-15",
+   "from": "Brennan Caldwell",
+   "to": [
+    "Brennan Caldwell"
+   ],
+   "subject": "",
+   "body": "Clerk: Commissioner is free at 4:30 in room 3410\nBrennan: Great. Can you also book the boardroom Thursday for the student interviews?\nClerk: Done, 9 to 12\nBrennan: Thanks"
+  },
+  {
+   "doc": 6,
+   "kind": "minutes",
+   "date": "2023-02-15",
+   "from": "",
+   "to": [
+    "Brennan Caldwell",
+    "Committee members"
+   ],
+   "subject": "Minutes of Student Committee Meeting",
+   "body": "1. Summer student interviews to run March 16 and 17.\n\n2. Rotation schedule for articling students confirmed.\n\n3. Next meeting: April 12."
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2023-03-10",
+   "from": "Lakeshore Locksmiths Ltd.",
+   "to": [
+    "KSV Restructuring Inc. - 30 Roe Avenue"
+   ],
+   "subject": "Lock rekeying",
+   "body": "Thank you.\nRekey main entrance and service doors: 380.0\nFive new keys: 40.0\nHST 13%: 54.6"
+  },
+  {
+   "doc": 8,
+   "kind": "email",
+   "date": "2022-12-19",
+   "from": "Brennan Caldwell <bcaldwell@goodmans.ca>",
+   "to": [
+    "KSV Restructuring Inc. <admin@ksvadvisory.com>"
+   ],
+   "subject": "Holiday office closure",
+   "body": "Hi,\n\nA reminder that our office is closed December 26 to January 2. Urgent matters can go to the restructuring group's on-call line.\n\nBrennan"
+  }
+ ]
+}

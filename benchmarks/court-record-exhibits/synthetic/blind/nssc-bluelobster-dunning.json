@@ -1,0 +1,93 @@
+{
+ "record_id": "nssc-bluelobster-dunning",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "invoice",
+   "date": "2024-10-31",
+   "from": "Pictou County Property Services Ltd.",
+   "to": [
+    "3284906 Nova Scotia Limited"
+   ],
+   "subject": "Grounds maintenance, October 2024 - 228-230 Foord Street, Stellarton",
+   "body": "Net 30.\nFall leaf clean-up: 640.0\nGutter cleaning: 280.0\nHST 15%: 138.0"
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2024-11-25",
+   "from": "Marc Dunning",
+   "to": [
+    "Office assistant"
+   ],
+   "subject": "Boardroom booking",
+   "body": "Please book the small boardroom Thursday afternoon for a client meeting on an unrelated estate file. Coffee for four.\n\nMarc"
+  },
+  {
+   "doc": 2,
+   "kind": "letter",
+   "date": "2024-09-16",
+   "from": "Blue Lobster Capital Limited",
+   "to": [
+    "Tenant, 4558 Pictou Landing Road, Hillside, NS"
+   ],
+   "subject": "Annual furnace inspection",
+   "body": "Dear Tenant:\n\nOur contractor will attend on September 24 between 9 am and noon for the annual furnace inspection. Please ensure access to the basement.\n\nBlue Lobster Capital Limited"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2024-06-12",
+   "from": "",
+   "to": [
+    "Management"
+   ],
+   "subject": "Minutes of Quarterly Property Review",
+   "body": "1. Vacancy: two units vacant in Stellarton, advertising renewed.\n\n2. Snow removal tenders to be requested in September.\n\n3. Next review: September 11."
+  },
+  {
+   "doc": 4,
+   "kind": "invoice",
+   "date": "2024-11-26",
+   "from": "Stellarton Plumbing Ltd.",
+   "to": [
+    "Blue Lobster Capital Limited"
+   ],
+   "subject": "Service call - Foord Street",
+   "body": "Thank you.\nEmergency call, leaking hot water tank: 185.0\nTank replacement, 40 gallon: 1250.0\nHST 15%: 215.25"
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2024-11-20",
+   "from": "Marc Dunning",
+   "to": [
+    "Law firm accounting"
+   ],
+   "subject": "Trust cheque request - unrelated real estate closing",
+   "body": "Please issue a trust cheque for the deed transfer tax on the Antigonish residential purchase closing Friday.\n\nMarc"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2024-11-27",
+   "from": "Marc Dunning",
+   "to": [
+    "Marc Dunning"
+   ],
+   "subject": "",
+   "body": "Assistant: Commissioner stamp is on your desk\nMarc: Thanks. Also remind me about the Rotary lunch Friday\nAssistant: Noted"
+  },
+  {
+   "doc": 7,
+   "kind": "letter",
+   "date": "2024-08-05",
+   "from": "4318682 Nova Scotia Limited",
+   "to": [
+    "Municipality of Pictou County - Tax Office"
+   ],
+   "subject": "Mailing address change",
+   "body": "Please update the mailing address for tax notices on our property to our Stellarton office effective immediately.\n\nYours truly"
+  }
+ ]
+}

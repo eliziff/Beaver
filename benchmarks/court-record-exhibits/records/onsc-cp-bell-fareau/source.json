@@ -1,0 +1,19 @@
+{
+ "url": "https://www.sotosclassactions.com/wp-content/uploads/2021/01/Motion-Record-Certification-Bell-6Jan2021.pdf",
+ "landing_url": "https://www.sotosclassactions.com/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00635778-00CP",
+ "document_title": "Affidavit of Vanessa Fareau sworn December 17, 2020 (Tab 2, plaintiffs' certification motion record, Fareau and Capay v. Bell Canada)",
+ "retrieved": "2026-09-23",
+ "record_id": "onsc-cp-bell-fareau",
+ "source_file": "cp-sotos-bell-cert.pdf",
+ "page_range": [
+  14,
+  30
+ ],
+ "source_sha256": "20b24bd48a688db619a81e28777a88fee883659e7c869951bc36d16100f2ec1b",
+ "source_pages": 548,
+ "affidavit_ocr": true
+}

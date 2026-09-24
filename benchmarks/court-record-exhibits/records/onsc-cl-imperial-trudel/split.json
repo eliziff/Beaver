@@ -1,0 +1,79 @@
+{
+ "record_id": "onsc-cl-imperial-trudel",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-twbf8g.pdf",
+   "source_pages": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 23241
+  },
+  {
+   "label": "B",
+   "file": "doc-pbhhkj.pdf",
+   "source_pages": [
+    18,
+    19
+   ],
+   "cover_page": 17,
+   "stamp_page": null,
+   "text_chars": 5776
+  },
+  {
+   "label": "C",
+   "file": "doc-vzw88p.pdf",
+   "source_pages": [
+    21
+   ],
+   "cover_page": 20,
+   "stamp_page": null,
+   "text_chars": 2416
+  },
+  {
+   "label": "D",
+   "file": "doc-x3ggdu.pdf",
+   "source_pages": [
+    23
+   ],
+   "cover_page": 22,
+   "stamp_page": null,
+   "text_chars": 698
+  },
+  {
+   "label": "E",
+   "file": "doc-hsdzw5.pdf",
+   "source_pages": [
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "cover_page": 24,
+   "stamp_page": null,
+   "text_chars": 9176
+  }
+ ],
+ "leak_audit": []
+}

@@ -1,0 +1,39 @@
+{
+ "record_id": "bcsc-trevali-petrakis",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-226670 (Vancouver Registry)",
+ "proceeding": "In the matter of the CCAA plan of compromise and arrangement of Trevali Mining Corporation and Trevali Mining (New Brunswick) Ltd.",
+ "document": "1st Affidavit of Yiota Petrakis filed for the Petitioners",
+ "deponent": "Yiota Petrakis",
+ "deponent_role": "Legal administrative assistant to Claire Hildebrand, Blake, Cassels & Graydon LLP, counsel for the Petitioners",
+ "sworn_date": "2023-07-17",
+ "exhibits": [
+  {"label": "A", "file": "doc-de2fck.pdf", "kind": "agreement", "date": "2020-09-30", "author": "Trevali Mining Corporation, The Bank of Nova Scotia, Glencore Canada Corporation and others", "recipients": [],
+   "description": "Intercreditor Agreement dated September 30, 2020 between Trevali Mining Corporation, the Bank of Nova Scotia, Glencore Canada Corporation and others",
+   "references": [{"paragraph": 2, "quote": "is a copy of an \"Intercreditor Agreement\""}],
+   "content_check": "Execution version Intercreditor Agreement dated September 30, 2020 (Fasken), among The Bank of Nova Scotia as first lien agent, Glencore Canada Corporation as second lien creditor, Trevali Mining Corporation as debtor and others; 79 pages with its own Exhibit A list of assignors"},
+  {"label": "B", "file": "doc-ufnhbq.pdf", "kind": "email_chain", "date": "2022-10-02", "author": "Lance Williams (McCarthy Tetrault LLP)", "recipients": ["Kibben Jackson (Fasken)"],
+   "description": "Partially redacted email from Lance Williams to Kibben Jackson dated October 2, 2022, with previous correspondence and attachment",
+   "references": [{"paragraph": 3, "quote": "is a partially redacted email from Mr. Lance"}],
+   "content_check": "Email from Lance Williams, Sunday, October 2, 2022 7:12 PM, to Kibben Jackson, 'RE: [EXT] Trevali', attaching 'Settlement Financial Terms - McT Comments', marked Without Prejudice, over Jackson's earlier email; 9 pages"},
+  {"label": "C", "file": "doc-pr89hu.pdf", "kind": "email", "date": "2022-10-11", "author": "Claire Hildebrand (Blake, Cassels & Graydon LLP)", "recipients": ["Service list including FTI, Fasken, McCarthy Tetrault and others"],
+   "description": "Email from Ms. Hildebrand to a number of recipients dated October 11, 2022, without attachments",
+   "references": [{"paragraph": 4, "quote": "is an email from Ms. Hildebrand to a number"}],
+   "content_check": "Email from Claire Hildebrand, Tuesday, October 11, 2022 2:32 PM, to a long list including FTI, Fasken and McCarthy addresses, 'RE: In the Matter of the CCAA of Trevali Mining Corporation et al.'; 4 pages"},
+  {"label": "D", "file": "doc-uzyecj.pdf", "kind": "transcript", "date": "2022-10-11", "author": "Charest Legal Solutions (Patricia Bentley)", "recipients": [],
+   "description": "Transcript of proceedings in chambers in the British Columbia Supreme Court dated October 11, 2022",
+   "references": [{"paragraph": 5, "quote": "is a transcript from proceedings in"}],
+   "content_check": "Transcript of proceedings in chambers before Justice Fitzpatrick, Vancouver, October 11, 2022, action S226670, 52 pages"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2020-09-30", "precision": "day", "description": "Trevali, the Bank of Nova Scotia, Glencore and others entered into the Intercreditor Agreement", "paragraphs": [2], "quote": "dated September 30, 2020, between Trevali Mining Corporation, the Bank of Nova Scotia,", "exhibits": ["A"]},
+  {"id": "e2", "date": "2022-10-02", "precision": "day", "description": "Lance Williams emailed Kibben Jackson (with earlier correspondence and an attachment)", "paragraphs": [3], "quote": "Williams to Mr. Kibben Jackson dated October 2, 2022, and previous correspondence", "exhibits": ["B"]},
+  {"id": "e3", "date": "2022-10-11", "precision": "day", "description": "Ms. Hildebrand emailed a number of recipients", "paragraphs": [4], "quote": "of recipients dated October 11, 2022 (without attachments)", "exhibits": ["C"]},
+  {"id": "e4", "date": "2022-10-11", "precision": "day", "description": "Proceedings in chambers in the British Columbia Supreme Court", "paragraphs": [5], "quote": "chambers in the British Columbia Supreme Court dated October 11, 2022", "exhibits": ["D"]}
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": ["A"],
+ "notes": "A bare exhibit-listing affidavit. Leak A is the Intercreditor Agreement's own 'EXHIBIT \"A\" LIST OF ASSIGNORS', not the affidavit label."
+}

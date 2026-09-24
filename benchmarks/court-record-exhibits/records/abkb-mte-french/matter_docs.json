@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/abkb-mte-french/initial-order-2026-06-29.pdf",
+  "url": "https://assets.kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/mte-group/initial-order-2026-06-29.pdf.coredownload.inline.pdf",
+  "title": "CCAA Initial Order, June 29, 2026 (2601-11638)",
+  "kind": "court_order",
+  "relation": "the order granted on the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/abkb-mte-french/pre-filing-report-2026-06-26.pdf",
+  "url": "https://assets.kpmg.com/content/dam/kpmgsites/ca/pdf/creditorlinks/mte-group/pre-filing-report-of-the-proposed-monitor-2026-06-26.pdf.coredownload.inline.pdf",
+  "title": "Pre-Filing Report of the Proposed Monitor KPMG, June 26, 2026",
+  "kind": "report",
+  "relation": "monitor's report on the same application"
+ }
+]

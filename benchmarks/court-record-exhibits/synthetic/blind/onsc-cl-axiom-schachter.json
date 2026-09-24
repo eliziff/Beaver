@@ -1,0 +1,94 @@
+{
+ "record_id": "onsc-cl-axiom-schachter",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2019-05-22",
+   "from": "Andrew Schachter",
+   "to": [
+    "Axiom product team"
+   ],
+   "subject": "Release notes - dashboard v4.2",
+   "body": "Team,\n\nGreat work on the v4.2 dashboard release. The new site-enrolment chart is already getting positive feedback from two sponsors. Please finalize the release notes for the help centre by Friday.\n\nAndrew"
+  },
+  {
+   "doc": 1,
+   "kind": "invoice",
+   "date": "2023-08-31",
+   "from": "King Street Cloud Hosting Inc.",
+   "to": [
+    "Axiom Real-Time Metrics Inc."
+   ],
+   "subject": "Hosting services, August 2023",
+   "body": "Net 30.\nDedicated database servers, 4: 7600.0\nBackup storage, 12 TB: 1440.0\nHST 13%: 1175.2"
+  },
+  {
+   "doc": 2,
+   "kind": "memo",
+   "date": "2021-02-15",
+   "from": "Axiom Real-Time Metrics Inc. - People Operations",
+   "to": [
+    "All staff"
+   ],
+   "subject": "Remote work stipend",
+   "body": "All full-time staff will receive a $500 remote work stipend for home office equipment. Submit receipts through the expense tool by March 31."
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2022-09-14",
+   "from": "",
+   "to": [
+    "Andrew Schachter",
+    "Product leads"
+   ],
+   "subject": "Minutes of Product Council",
+   "body": "1. Roadmap for eCOA module approved for Q1.\n\n2. Customer advisory board meeting set for November.\n\n3. Bug backlog down 18% since June."
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2020-11-02",
+   "from": "Andrew Schachter, CEO",
+   "to": [
+    "Customers"
+   ],
+   "subject": "Holiday support hours",
+   "body": "Dear Customer:\n\nOur support desk will operate reduced hours from December 24 to January 1. Critical issues will be answered within four hours.\n\nAxiom"
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2025-07-08",
+   "from": "Tamara Watson",
+   "to": [
+    "Loopstra Nixon litigation assistants"
+   ],
+   "subject": "Boardroom booking",
+   "body": "Please book the 6th floor boardroom Thursday morning for a mediation on an unrelated commercial lease file.\n\nTamara"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2025-07-11",
+   "from": "Andrew Schachter",
+   "to": [
+    "Andrew Schachter"
+   ],
+   "subject": "",
+   "body": "Assistant: Your car is booked for 4 pm to the airport\nAndrew: Thanks. Make sure the dog walker has the key\nAssistant: Done"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2024-06-30",
+   "from": "Front Street Office Furniture Ltd.",
+   "to": [
+    "Thinkworks Inc."
+   ],
+   "subject": "Standing desks",
+   "body": "Thank you.\nSit-stand desks, 3: 2250.0\nHST 13%: 292.5"
+  }
+ ]
+}

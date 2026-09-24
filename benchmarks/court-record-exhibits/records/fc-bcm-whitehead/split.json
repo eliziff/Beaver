@@ -1,0 +1,101 @@
+{
+ "record_id": "fc-bcm-whitehead",
+ "affidavit_pages": [
+  208,
+  209
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-2fu5yh.pdf",
+   "source_pages": [
+    211,
+    212,
+    213,
+    214,
+    215,
+    216,
+    217,
+    218,
+    219,
+    220,
+    221
+   ],
+   "cover_page": 210,
+   "stamp_page": null,
+   "text_chars": 11023
+  },
+  {
+   "label": "B",
+   "file": "doc-7pjxus.pdf",
+   "source_pages": [
+    223
+   ],
+   "cover_page": 222,
+   "stamp_page": null,
+   "text_chars": 4678
+  },
+  {
+   "label": "C",
+   "file": "doc-765yv7.pdf",
+   "source_pages": [
+    225,
+    226,
+    227
+   ],
+   "cover_page": 224,
+   "stamp_page": null,
+   "text_chars": 3458
+  },
+  {
+   "label": "D",
+   "file": "doc-57aqdu.pdf",
+   "source_pages": [
+    229,
+    230,
+    231,
+    232,
+    233
+   ],
+   "cover_page": 228,
+   "stamp_page": null,
+   "text_chars": 4576
+  },
+  {
+   "label": "E",
+   "file": "doc-zuztxu.pdf",
+   "source_pages": [
+    235,
+    236,
+    237,
+    238,
+    239,
+    240,
+    241
+   ],
+   "cover_page": 234,
+   "stamp_page": null,
+   "text_chars": 5143
+  },
+  {
+   "label": "F",
+   "file": "doc-7zn3wz.pdf",
+   "source_pages": [
+    243,
+    244,
+    245,
+    246,
+    247,
+    248,
+    249,
+    250
+   ],
+   "cover_page": 242,
+   "stamp_page": null,
+   "text_chars": 15734
+  }
+ ],
+ "leak_audit": []
+}

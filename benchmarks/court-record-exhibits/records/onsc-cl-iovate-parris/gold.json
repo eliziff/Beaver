@@ -1,0 +1,226 @@
+{
+ "record_id": "onsc-cl-iovate-parris",
+ "court": "Ontario Superior Court of Justice (Commercial List), in bankruptcy and insolvency",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "BK-25-03268936-0031",
+ "proceeding": "In the matter of the Notices of Intention to Make a Proposal of Iovate Health Sciences International Inc., Iovate Health Sciences U.S.A. Inc. and Northern Innovations Holding Corp.",
+ "document": "Affidavit of Wesley Parris in support of the NOI Applicants' motion to extend the time to file a proposal (Motion Record, Tab 2)",
+ "deponent": "Wesley Parris",
+ "deponent_role": "Chief Executive Officer of the NOI Applicants",
+ "sworn_date": "2025-09-29",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-an4d6s.pdf",
+   "kind": "affidavit",
+   "date": "2025-09-06",
+   "author": "Wesley Parris",
+   "recipients": [],
+   "description": "Parris's earlier affidavit sworn September 6, 2025 setting out the background to the NOI filing, without exhibits",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "is a copy of my affidavit sworn September 6, 2025, without exhibits"
+    }
+   ],
+   "content_check": "13-page Affidavit of Wesley Parris (sworn September 6, 2025) in the Iovate NOI proceedings; it refers to the NOIs as its own Exhibit A (the leak-audit hit)"
+  },
+  {
+   "label": "B",
+   "file": "doc-ymqdwj.pdf",
+   "kind": "court_order",
+   "date": "2025-09-09",
+   "author": "Ontario Superior Court of Justice (Justice J. Dietrich)",
+   "recipients": [],
+   "description": "The September 9 Order approving administrative consolidation, an administration charge and Iovate International's authority to act as foreign representative and seek Chapter 15 relief",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached hereto \nand marked as Exhibit “B” is the September 9 Order"
+    }
+   ],
+   "content_check": "Seven-page Order of Justice J. Dietrich, Tuesday the 9th day of September, 2025, on the Iovate Entities' motion"
+  },
+  {
+   "label": "C",
+   "file": "doc-dnwtwk.pdf",
+   "kind": "court_order",
+   "date": "2025-09-10",
+   "author": "United States Bankruptcy Court for the Southern District of New York",
+   "recipients": [],
+   "description": "The Provisional Order provisionally recognizing Iovate International as foreign representative with full authority over US assets and applying Bankruptcy Code s. 362",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Copies of \nthe Provisional Order and the Extension Order are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "SDNY Chapter 15 Case No. 25-11958 (MG) 'Order Granting Provisional Relief Pursuant to Section 1519 of the Bankruptcy Code' (Joint Administration Requested)"
+  },
+  {
+   "label": "D",
+   "file": "doc-xvequu.pdf",
+   "kind": "court_order",
+   "date": "2025-09-19",
+   "author": "United States Bankruptcy Court for the Southern District of New York (Judge Martin Glenn)",
+   "recipients": [],
+   "description": "The Extension Order of September 19, 2025 extending the Provisional Order",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Copies of \nthe Provisional Order and the Extension Order are attached hereto as Exhibits"
+    }
+   ],
+   "content_check": "Seven-page SDNY order in Case No. 25-11958 (MG) (Jointly Administered), also titled 'Order Granting Provisional Relief Pursuant to Section 1519', dated September 19, 2025, signed Martin Glenn"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2024-04-29",
+   "precision": "day",
+   "description": "Parris became CEO of the NOI Applicants",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have served in this position since April 29, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2025-09-05",
+   "precision": "day",
+   "description": "The NOI Applicants each filed a Notice of Intention to Make a Proposal; KSV appointed proposal trustee",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On September 5, 2025, the NOI Applicants each filed a Notice of Intention to Make a",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2025-09-06",
+   "precision": "day",
+   "description": "Parris swore his first affidavit setting out the background to the filing",
+   "paragraphs": [
+    4
+   ],
+   "quote": "The background to the NOI Applicants’ filing is set out in my affidavit sworn on September",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2025-09-09",
+   "precision": "day",
+   "description": "The Court granted the September 9 Order (consolidation, administration charge, foreign representative, Chapter 15 authority)",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On September 9, 2025, this Court granted an order approving",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2025-09-10",
+   "precision": "day",
+   "description": "The New York Court entered the Provisional Order recognizing Iovate International as foreign representative",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On September 10, 2025, the United States Bankruptcy Court for the Southern District of",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "date": "2025-09-19",
+   "precision": "day",
+   "description": "The New York Court extended the Provisional Order (the Extension Order)",
+   "paragraphs": [
+    6
+   ],
+   "quote": "The Provisional Order was extended pursuant to an \norder granted by the New York Court on September 19, 2025",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2025-09-26",
+   "precision": "day",
+   "description": "Walmart was holding about USD $13.2 million in receivables because of Orgain's enforcement efforts",
+   "paragraphs": [
+    7
+   ],
+   "quote": "the failure to receive approximately USD $13.2 million (as of September 26, 2025)",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "precision": "undated",
+   "description": "A main third-party logistics provider filed a Motion for Relief from Stay or Adequate Protection in the Chapter 15 Proceedings",
+   "paragraphs": [
+    7
+   ],
+   "quote": "the filing of a Motion for Relief from Stay or Adequate Protection under the",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "date": "2025-10-05",
+   "precision": "day",
+   "description": "The current period to file proposals expires (NOI Stay)",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The current period for the NOI Applicants to file proposals expires on October 5, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "date": "2025-10-28",
+   "precision": "day",
+   "description": "Scheduled hearing of the motion for final Chapter 15 recognition",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Code is scheduled for October 28, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "date": "2025-11-04",
+   "precision": "day",
+   "description": "Requested end of the Extension",
+   "paragraphs": [
+    2
+   ],
+   "quote": "from October 5, 2025 (the “NOI Stay”) to November \n4, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "precision": "undated",
+   "description": "The NOI Applicants worked with KPMG, the Proposal Trustee and counsel on cash flows, restructuring options and discussions with Orgain and Walmart",
+   "paragraphs": [
+    10
+   ],
+   "quote": "worked with KPMG, in its capacity as financial advisor to the NOI Applicants",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Notices of Intention to Make a Proposal",
+  "Proposal Trustee's second report with the consolidated cash flow"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "Exhibit A is itself an affidavit whose text mentions its own Exhibit A (the NOIs); that is genuine content, not a stamp. Exhibits C and D are both titled 'Order Granting Provisional Relief' and differ mainly in date and joint-administration status."
+}

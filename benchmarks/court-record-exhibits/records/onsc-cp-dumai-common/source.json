@@ -1,0 +1,19 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2026/07/Motion-Record-Applicants-05JUNE2026.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-25-00745191-00CP (Toronto)",
+ "document_title": "Affidavit of James Common sworn June 5, 2026, Motion Record (certification), Scott and Common v. TELUS Health (Canada) Ltd. and RBC Investor Services Trust (Dumai pension class proceeding)",
+ "retrieved": "2026-09-23",
+ "record_id": "onsc-cp-dumai-common",
+ "source_file": "km-motion-record-applicants-05june2026.pdf",
+ "page_range": [
+  28,
+  215
+ ],
+ "source_sha256": "f392446a7441d0a597c81b9cee22ccb054ea42c8f56aa84c7ffecad92ea84ae7",
+ "source_pages": 591,
+ "covers": "A=45,B=52,C=135,D=140,E=186,F=190,G=193,H=195,I=198,J=202,K=206"
+}

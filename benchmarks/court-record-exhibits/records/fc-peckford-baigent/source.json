@@ -1,0 +1,18 @@
+{
+ "url": "https://www.jccf.ca/wp-content/uploads/2024/01/Peckford-Bernier-Affidavits_Redacted-1.pdf",
+ "landing_url": "https://www.jccf.ca/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-168-22",
+ "document_title": "Affidavit of Kenneth B. Baigent sworn March 10, 2022, Peckford et al. v. Minister of Transport et al. (challenge to the federal COVID-19 vaccination requirement for air and rail travel)",
+ "retrieved": "2026-09-23",
+ "record_id": "fc-peckford-baigent",
+ "source_file": "j-peckford-bernier-affidavits-redacted-1.pdf",
+ "page_range": [
+  122,
+  196
+ ],
+ "source_sha256": "c2d27610257cb927bd900e239b3f7198521ac6f4ab2e023bf73bc083978f26e1",
+ "source_pages": 371
+}

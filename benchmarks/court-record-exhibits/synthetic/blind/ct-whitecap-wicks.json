@@ -1,0 +1,95 @@
+{
+ "record_id": "ct-whitecap-wicks",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "memo",
+   "date": "2026-01-12",
+   "from": "Pamela Wicks, VP Finance and CFO",
+   "to": [
+    "Pulse finance staff"
+   ],
+   "subject": "Year-end audit timetable",
+   "body": "Auditor fieldwork begins February 2. Please have the fixed asset rollforward, prepaid schedule and payroll reconciliations uploaded to the audit portal by January 28."
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2025-05-07",
+   "from": "Pamela Wicks",
+   "to": [
+    "Neal Coleman"
+   ],
+   "subject": "Office parking allocation",
+   "body": "Neal,\n\nBuilding management is reallocating stalls in June. We keep six stalls; can you let me know which of your team need one?\n\nPamela"
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2025-09-30",
+   "from": "Bow River Data Storage Ltd.",
+   "to": [
+    "Pulse Seismic Inc."
+   ],
+   "subject": "Tape vault storage, Q3 2025",
+   "body": "Net 30.\nClimate-controlled tape vault, 3 months: 5400.0\nRetrieval requests, 14: 420.0\nGST 5%: 291.0"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2025-11-05",
+   "from": "",
+   "to": [
+    "Pamela Wicks",
+    "Neal Coleman",
+    "Management"
+   ],
+   "subject": "Minutes of Management Meeting",
+   "body": "1. Office lease renewal terms under review.\n\n2. IT migration of email to new platform in December.\n\n3. Holiday party December 12."
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2025-08-15",
+   "from": "Pamela Wicks, VP Finance and CFO",
+   "to": [
+    "Shareholders"
+   ],
+   "subject": "Quarterly dividend payment date",
+   "body": "Dear Shareholder:\n\nThe quarterly dividend declared by the Board will be paid on September 12 to shareholders of record on August 29.\n\nPulse Seismic Inc."
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2025-09-08",
+   "from": "Brian Ingenthron",
+   "to": [
+    "Pamela Wicks"
+   ],
+   "subject": "Conference booth",
+   "body": "Pamela,\n\nThe geoscience convention booth deposit is due this week. Can finance process the payment?\n\nBrian"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-03-19",
+   "from": "Pamela Wicks",
+   "to": [
+    "Pamela Wicks"
+   ],
+   "subject": "",
+   "body": "Neal: Lunch meeting with the bank relationship manager moved to 1\nPamela: OK, I'll bring the covenant certificate\nNeal: Thanks"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2026-02-28",
+   "from": "Stephen Avenue Office Services Inc.",
+   "to": [
+    "Pulse Seismic Inc."
+   ],
+   "subject": "Office cleaning, February 2026",
+   "body": "Thank you.\nJanitorial services: 1850.0\nWindow cleaning: 300.0\nGST 5%: 107.5"
+  }
+ ]
+}

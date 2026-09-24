@@ -1,0 +1,93 @@
+{
+ "record_id": "onsc-cl-baffinland-gordon",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2026-06-08",
+   "from": "Joshua Gordon",
+   "to": [
+    "Ryan Jacobs"
+   ],
+   "subject": "Summer student assignment list",
+   "body": "Ryan,\n\nI have drafted the assignment list for the two summer students joining the group next week. Can you confirm you are happy with them shadowing the closing on the unrelated real estate file?\n\nJosh"
+  },
+  {
+   "doc": 1,
+   "kind": "memo",
+   "date": "2026-06-01",
+   "from": "Cassels Brock & Blackwell LLP - Office Services",
+   "to": [
+    "Toronto personnel"
+   ],
+   "subject": "Fire drill June 10",
+   "body": "A building fire drill will take place on June 10 at 10:30 am. All personnel must leave by the nearest stairwell and gather at the designated assembly point."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2026-05-31",
+   "from": "Arctic Sealift Provisions Ltd.",
+   "to": [
+    "Baffinland Iron Mines Corporation"
+   ],
+   "subject": "Camp provisions order - summer sealift",
+   "body": "Payment terms per supply agreement.\nDry goods, 12 containers: 186000.0\nRefrigerated goods, 4 containers: 92000.0\nLoading and documentation: 7400.0"
+  },
+  {
+   "doc": 3,
+   "kind": "minutes",
+   "date": "2026-05-20",
+   "from": "",
+   "to": [
+    "Site managers"
+   ],
+   "subject": "Minutes of Site Operations Meeting",
+   "body": "1. Shipping season preparations on schedule.\n\n2. Wildlife monitoring program staffing confirmed.\n\n3. Next meeting: June 17."
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2026-06-09",
+   "from": "Ryan Jacobs",
+   "to": [
+    "Cassels Restructuring Group"
+   ],
+   "subject": "Group summer outing",
+   "body": "All,\n\nOur summer outing is July 9 on the Toronto Islands. Ferry at 3 pm. Please RSVP by June 20.\n\nRyan"
+  },
+  {
+   "doc": 5,
+   "kind": "letter",
+   "date": "2026-06-03",
+   "from": "FTI Consulting Canada Inc., Monitor",
+   "to": [
+    "Suppliers of Baffinland Iron Mines Corporation"
+   ],
+   "subject": "Monitor's contact information",
+   "body": "Dear Sir or Madam:\n\nSupplier inquiries may be directed to the Monitor's dedicated email address and toll-free number listed on the case website.\n\nFTI Consulting Canada Inc."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-06-09",
+   "from": "Joshua Gordon",
+   "to": [
+    "Joshua Gordon"
+   ],
+   "subject": "",
+   "body": "Friend: Still good for the Jays game Friday?\nJosh: Yes, meet at the gate at 6:45\nFriend: Perfect"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2026-05-31",
+   "from": "Adelaide Street Catering Inc.",
+   "to": [
+    "Cassels Brock & Blackwell LLP"
+   ],
+   "subject": "Working lunch catering, May 2026",
+   "body": "Thank you.\nBoardroom lunches, 11 events: 2970.0\nHST 13%: 386.1"
+  }
+ ]
+}

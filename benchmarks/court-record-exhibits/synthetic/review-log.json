@@ -1,0 +1,28 @@
+[
+ {
+  "record": "bcsc-trevali-kim",
+  "action": "dropped",
+  "doc": 8,
+  "subject": "Umpire sampling services",
+  "why": "blind review: relevant (umpire sampling bears on the Shortfall Amount dispute)"
+ },
+ {
+  "record": "bcsc-acdc-hiebert",
+  "action": "dropped",
+  "doc": 7,
+  "subject": "Printing and binding, June 2026",
+  "why": "blind review: unsure (printing disbursement close to the fee application)"
+ },
+ {
+  "record": "onsc-cl-axiom-schachter",
+  "action": "renamed real firm",
+  "count": 2,
+  "to": "Harcourt Vale LLP (fictional)"
+ },
+ {
+  "record": "proto-hiscox",
+  "action": "kept",
+  "doc": 8,
+  "why": "Bobby Kofman is copied on the real Exhibit A letter, so he is part of the matter's cast"
+ }
+]

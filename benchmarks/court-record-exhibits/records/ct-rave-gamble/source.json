@@ -1,0 +1,18 @@
+{
+ "url": "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/521945/1/document.do",
+ "landing_url": "https://decisions.ct-tc.gc.ca/ct-tc/cd/en/item/521840/index.do",
+ "court": "Competition Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CT-2026-006",
+ "document_title": "Affidavit of Stoney Gamble (Apple, responding to Rave Inc.'s application for leave under s. 103.1 of the Competition Act)",
+ "retrieved": "2026-09-23",
+ "record_id": "ct-rave-gamble",
+ "source_file": "ct-521945.pdf",
+ "page_range": [
+  1,
+  67
+ ],
+ "source_sha256": "591676ff71fc01ea7ea8f3a583e1070cd0b8109a09c41ba92746939e048ea3fe",
+ "source_pages": 67
+}

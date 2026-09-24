@@ -1,0 +1,18 @@
+{
+ "url": "http://cfcanada.fticonsulting.com/tradex/docs/Affidavit%20of%20Sarah%20Lam%20affirmed%20December%2022,%202023.pdf",
+ "landing_url": "http://cfcanada.fticonsulting.com/tradex/motions.htm",
+ "court": "Ontario Superior Court of Justice (Commercial List)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-23-00710413-00CL",
+ "document_title": "Affidavit of Sarah Lam affirmed December 22, 2023 (receivership of Trade X group)",
+ "retrieved": "2026-09-23",
+ "record_id": "onsc-cl-tradex-lam",
+ "source_file": "fti-tradex-lam.pdf",
+ "page_range": [
+  1,
+  58
+ ],
+ "source_sha256": "d6bcc73aad937cf3f6d8b633c6f32e2461649f02dd8e8fdd8a828d22e4bc279f",
+ "source_pages": 58
+}

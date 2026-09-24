@@ -1,0 +1,279 @@
+{
+ "record_id": "bcsc-vicinity-denton",
+ "court": "Supreme Court of British Columbia (Vancouver)",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "VLC-S-S-247082",
+ "proceeding": "Royal Bank of Canada v. Vicinity Motor (Bus) Corp. et al. (application to appoint FTI as receiver)",
+ "document": "Affidavit #1 of Chelsea Denton made October 16, 2024",
+ "deponent": "Chelsea Denton",
+ "deponent_role": "Legal assistant, Dentons Canada LLP, solicitors for Royal Bank of Canada",
+ "sworn_date": "2024-10-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-47ughb.pdf",
+   "kind": "corporate_record",
+   "date": "2024-10-15",
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "BC Company Search for Vicinity Motor (Bus) Corp. (the Borrower)",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "BC Company Search for Vicinity Motor (Bus) Corp."
+    }
+   ],
+   "content_check": "BC Company Summary for Vicinity Motor (Bus) Corp., searched October 15, 2024"
+  },
+  {
+   "label": "B",
+   "file": "doc-7kxe6c.pdf",
+   "kind": "corporate_record",
+   "date": "2024-10-15",
+   "author": "BC Registry Services",
+   "recipients": [],
+   "description": "BC Company Search for Vicinity Motor Corp. (Vicinity Parent)",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Company Search for Vicinity Motor Corp."
+    }
+   ],
+   "content_check": "BC Company Summary for Vicinity Motor Corp."
+  },
+  {
+   "label": "C",
+   "file": "doc-kyctr9.pdf",
+   "kind": "corporate_record",
+   "date": "2024-08-02",
+   "author": "Delaware Division of Corporations",
+   "recipients": [],
+   "description": "Delaware company search for Vicinity Motor (Bus) USA Corp.",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Company Search for Vicinity Motor (Bus) USA Corp."
+    }
+   ],
+   "content_check": "1 page Delaware entity search"
+  },
+  {
+   "label": "D",
+   "file": "doc-q957zf.pdf",
+   "kind": "corporate_record",
+   "date": "2024-08-06",
+   "author": "Delaware Division of Corporations",
+   "recipients": [],
+   "description": "Delaware company search for Vicinity Motor Property, LLC",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Company Search for Vicinity Motor Property, LLC"
+    }
+   ],
+   "content_check": "1 page Delaware entity search"
+  },
+  {
+   "label": "E",
+   "file": "doc-f57zb4.pdf",
+   "kind": "public_record",
+   "date": "2024-10-15",
+   "author": "BC Personal Property Registry",
+   "recipients": [],
+   "description": "BC PPR search results for the Borrower",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "search results in respect of the\nBorrower dated October 15, 2024."
+    }
+   ],
+   "content_check": "11 pages: BC PPR search results"
+  },
+  {
+   "label": "F",
+   "file": "doc-ydqzzk.pdf",
+   "kind": "public_record",
+   "date": "2024-10-15",
+   "author": "BC Personal Property Registry",
+   "recipients": [],
+   "description": "BC PPR search results for Vicinity Parent",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "search results in respect of Vicinity Parent dated October 15, 2024."
+    }
+   ],
+   "content_check": "12 pages: BC PPR search results"
+  },
+  {
+   "label": "G",
+   "file": "doc-9vc2xt.pdf",
+   "kind": "public_record",
+   "date": "2024-08-02",
+   "author": "Delaware Division of Corporations",
+   "recipients": [],
+   "description": "Delaware UCC search results for the Borrower",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "in respect of the\nBorrower dated August 2, 2024."
+    }
+   ],
+   "content_check": "2 pages: Delaware UCC search"
+  },
+  {
+   "label": "H",
+   "file": "doc-y8hmkm.pdf",
+   "kind": "public_record",
+   "date": "2024-08-02",
+   "author": "Delaware Division of Corporations",
+   "recipients": [],
+   "description": "Delaware UCC search results for Vicinity USA",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "UCC search results in respect of Vicinity USA dated August 2, 2024."
+    }
+   ],
+   "content_check": "143 pages: Delaware UCC search results and filings"
+  },
+  {
+   "label": "I",
+   "file": "doc-7fbx4j.pdf",
+   "kind": "public_record",
+   "date": "2024-08-06",
+   "author": "Delaware Division of Corporations",
+   "recipients": [],
+   "description": "Delaware UCC search results for Vicinity Property",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "UCC search results in respect of Vicinity Property dated August 6, 2024."
+    }
+   ],
+   "content_check": "5 pages: Delaware UCC search"
+  },
+  {
+   "label": "J",
+   "file": "doc-ejp6pc.pdf",
+   "kind": "public_record",
+   "date": "2024-10-15",
+   "author": "Bank Act Security Registry (BASR)",
+   "recipients": [],
+   "description": "Bank Act s. 427 Notice of Intention search for Grande West Transportation International Ltd.",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Security — Section 427, Notice of Intention search"
+    }
+   ],
+   "content_check": "2 pages: BASR confirmation letter 10/15/2024, registration 01314188 by Royal Bank of Canada"
+  },
+  {
+   "label": "K",
+   "file": "doc-239ghh.pdf",
+   "kind": "public_record",
+   "date": "2024-08-02",
+   "author": "Whatcom County, Washington",
+   "recipients": [],
+   "description": "Washington property search for 5453 and 5457 Pacific Fern Drive, Ferndale",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached and marked as Exhibit “K” to my affidavit is a true copy of the Washington"
+    }
+   ],
+   "content_check": "62 pages: Whatcom County property records"
+  },
+  {
+   "label": "L",
+   "file": "doc-uax45q.pdf",
+   "kind": "other",
+   "date": "2024-10-16",
+   "author": "FTI Consulting Canada Inc. (Tom Powell)",
+   "recipients": [],
+   "description": "FTI's executed consent to act as receiver",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "a copy of the executed consent is attached"
+    }
+   ],
+   "content_check": "1 page: DocuSigned Consent of FTI Consulting Canada Inc., dated the 16th day of October, 2024"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2024-08-02",
+   "precision": "day",
+   "description": "Delaware company and UCC searches for Vicinity USA and the Borrower, and the Washington property search",
+   "paragraphs": [
+    4,
+    8,
+    9,
+    12
+   ],
+   "quote": "dated August\n2, 2024.",
+   "exhibits": [
+    "C",
+    "G",
+    "H",
+    "K"
+   ]
+  },
+  {
+   "id": "e2",
+   "date": "2024-08-06",
+   "precision": "day",
+   "description": "Delaware company and UCC searches for Vicinity Property",
+   "paragraphs": [
+    5,
+    10
+   ],
+   "quote": "dated August\n6, 2024.",
+   "exhibits": [
+    "D",
+    "I"
+   ]
+  },
+  {
+   "id": "e3",
+   "date": "2024-10-15",
+   "precision": "day",
+   "description": "BC company and PPR searches and the Bank Act search",
+   "paragraphs": [
+    2,
+    3,
+    6,
+    7,
+    11
+   ],
+   "quote": "dated October 15,\n2024.",
+   "exhibits": [
+    "A",
+    "B",
+    "E",
+    "F",
+    "J"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": null,
+   "precision": "undated",
+   "description": "FTI consents to act as receiver",
+   "paragraphs": [
+    13
+   ],
+   "quote": "FTI has consented to act as",
+   "exhibits": [
+    "L"
+   ]
+  }
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Search-results affidavit; the affidavit pages are scans OCR'd with --ocr-affidavit. Exhibit L's cover omits the deponent's name, so all covers were given with --covers."
+}

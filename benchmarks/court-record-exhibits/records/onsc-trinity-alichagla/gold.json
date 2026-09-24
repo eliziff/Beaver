@@ -1,0 +1,27 @@
+{
+ "record_id": "onsc-trinity-alichagla",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-21-00000095-0000 (Kitchener), CV-21-08 (St. Thomas), CV-21-00013361-0000 (Welland)",
+ "proceeding": "Attorney General of Ontario v. Trinity Bible Chapel et al. and related applications (Charter challenge to COVID-19 limits on religious gatherings)",
+ "document": "Joint expert affidavit of Drs. Karim Ali and Zain Chagla affirmed July 5, 2021 for the Attorney General of Ontario",
+ "deponent": "Karim Ali and Zain Chagla",
+ "deponent_role": "Infectious diseases physicians retained as experts by the Attorney General of Ontario",
+ "sworn_date": "2021-07-05",
+ "exhibits": [
+  {"label": "A", "file": "doc-55shgf.pdf", "kind": "report", "date": null, "author": "Dr. Karim Ali and Dr. Zain Chagla", "recipients": ["Counsel for the Attorney General of Ontario"], "description": "Their expert report on COVID-19 risk factors, transmission and public health measures", "references": [{"paragraph": 3, "quote": "Our expert\nreport is attached to this affidavit as Exhibit “A”."}], "content_check": "10 pages: report opening '1) Generation of Report' by Dr. Karim Ali and Dr. Zain Chagla, listing the questions asked and materials reviewed (Schabas, Kettner, Warren)"},
+  {"label": "B", "file": "doc-swzzuh.pdf", "kind": "court_filing", "date": null, "author": "Dr. Karim Ali", "recipients": [], "description": "Signed Acknowledgement of Expert's Duty (the first of the two)", "references": [{"paragraph": 4, "quote": "attached as Exhibits “B” and “C” are signed copies ofour Acknowledgement of\nExpert’s Duty"}], "content_check": "2 pages: 'Acknowledgment of Expert's Duty' under the four-proceeding style of cause (text layer)"},
+  {"label": "C", "file": "doc-pug5as.pdf", "kind": "court_filing", "date": null, "author": "Dr. Zain Chagla", "recipients": [], "description": "Signed Acknowledgement of Expert's Duty (the second of the two)", "references": [{"paragraph": 4, "quote": "attached as Exhibits “B” and “C” are signed copies ofour Acknowledgement of\nExpert’s Duty"}], "content_check": "2 scanned pages: 'Acknowledgment of Expert's Duty' under the same style of cause"},
+  {"label": "D", "file": "doc-e7jcaa.pdf", "kind": "other", "date": null, "author": "Karim Ali", "recipients": [], "description": "CV of Dr. Ali", "references": [{"paragraph": 4, "quote": "Attached as Exhibits “D” and “E” are the CVs ofDrs. Ali and Chagla,\nrespectively."}], "content_check": "3 pages: CV of Dr. Karim Firdous Ali, infectious diseases and internal medicine physician"},
+  {"label": "E", "file": "doc-33x8vh.pdf", "kind": "other", "date": null, "author": "Zain Chagla", "recipients": [], "description": "CV of Dr. Chagla", "references": [{"paragraph": 4, "quote": "Attached as Exhibits “D” and “E” are the CVs ofDrs. Ali and Chagla,\nrespectively."}], "content_check": "4 pages: CV of Dr. Zain Chagla, Associate Professor, McMaster University"}
+ ],
+ "events": [
+  {"id": "e1", "date": null, "precision": "undated", "description": "At counsel's request, the deponents prepared an expert report on COVID-19 risk factors, transmission and public health measures", "paragraphs": [3], "quote": "At the request of counsel for the Attorney General of Ontario, we have provided an expert\nreport", "exhibits": ["A"]},
+  {"id": "e2", "date": null, "precision": "undated", "description": "The deponents signed Acknowledgements of Expert's Duty", "paragraphs": [4], "quote": "signed copies ofour Acknowledgement of\nExpert’s Duty", "exhibits": ["B", "C"]},
+  {"id": "e3", "date": "2021-07-05", "precision": "day", "description": "Both deponents affirmed the affidavit by video conference before a commissioner in Toronto", "paragraphs": [4], "quote": "We make this affidavit to provide our expert opinion and for no improper purpose.", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Submissions of Dr. Schabas, Dr. Kettner and Dr. Warren (reviewed in the report)"],
+ "leak_waivers": [],
+ "notes": "The affidavit body page is a scan with redacted addresses; its text comes from --ocr-affidavit. Which acknowledgment (B or C) belongs to which expert is inferred from order; the affidavit does not say."
+}

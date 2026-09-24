@@ -1,0 +1,93 @@
+{
+ "record_id": "ct-jamp-seaby",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2024-07-26",
+   "from": "Emily Seaby <eseaby@goodmans.ca>",
+   "to": [
+    "Goodmans Office Services <officeservices@goodmans.ca>"
+   ],
+   "subject": "Desk move",
+   "body": "Hi,\n\nI am moving to workstation 36-14 next week. Please transfer my phone extension and monitor on Monday.\n\nThanks,\nEmily"
+  },
+  {
+   "doc": 1,
+   "kind": "memo",
+   "date": "2024-07-15",
+   "from": "Goodmans LLP - Litigation Support",
+   "to": [
+    "Legal assistants"
+   ],
+   "subject": "New tribunal e-filing formats",
+   "body": "Please save all electronic filings as searchable PDFs with bookmarks at each tab. A refresher session will be held July 22 at 12 pm."
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2024-06-30",
+   "from": "Boucherville Packaging Solutions Inc.",
+   "to": [
+    "JAMP Pharma Corporation"
+   ],
+   "subject": "Blister foil and cartons",
+   "body": "Net 45.\nPrinted cartons, 50,000: 6250.0\nAluminium blister foil, 40 rolls: 8800.0\nGST 5%: 752.5\nQST 9.975%: 1501.24"
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2024-05-14",
+   "from": "JAMP Pharma Corporation",
+   "to": [
+    "Pharmacy customers"
+   ],
+   "subject": "Updated ordering portal",
+   "body": "Dear Customer:\n\nOur online ordering portal will be upgraded on June 1. Existing login credentials will continue to work.\n\nJAMP Pharma Corporation"
+  },
+  {
+   "doc": 4,
+   "kind": "email",
+   "date": "2024-07-24",
+   "from": "Emily Seaby <eseaby@goodmans.ca>",
+   "to": [
+    "Goodmans Litigation Group"
+   ],
+   "subject": "Summer BBQ sign-up",
+   "body": "Hi all,\n\nThe litigation group BBQ is August 8 on the terrace. Please sign up by Friday.\n\nEmily"
+  },
+  {
+   "doc": 5,
+   "kind": "minutes",
+   "date": "2024-04-10",
+   "from": "",
+   "to": [
+    "Operations team"
+   ],
+   "subject": "Minutes of Operations Meeting",
+   "body": "1. Warehouse racking expansion complete.\n\n2. Two new forklift operators hired.\n\n3. Next meeting: May 8."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2024-07-25",
+   "from": "Emily Seaby",
+   "to": [
+    "Emily Seaby"
+   ],
+   "subject": "",
+   "body": "Colleague: Can you cover reception at lunch tomorrow?\nEmily: Sure, 12 to 1\nColleague: Thanks!"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2024-07-31",
+   "from": "Bay Street Legal Printing Inc.",
+   "to": [
+    "Goodmans LLP"
+   ],
+   "subject": "Tabs and binders",
+   "body": "Thank you.\nCustom exhibit tabs, 20 sets: 300.0\nBinders, 20: 160.0\nHST 13%: 59.8"
+  }
+ ]
+}

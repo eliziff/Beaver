@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/onsc-cp-bell-blum/statement-of-claim.pdf",
+  "url": "https://www.sotosclassactions.com/wp-content/uploads/2020/02/Statement-Of-Claim-Bell-Canada-Prison-Calls.pdf",
+  "title": "Statement of Claim, Fareau and Capay v. Bell Canada et al. (prison collect calls)",
+  "kind": "court_filing",
+  "relation": "the claim the certification motion concerns"
+ },
+ {
+  "file": "raw/matter/onsc-cp-bell-blum/endorsement-amend-claim.pdf",
+  "url": "https://www.sotosclassactions.com/wp-content/uploads/2020/07/Bell-Endorsement-Amend-Statement-of-Claim.pdf",
+  "title": "Endorsement granting leave to amend the Statement of Claim",
+  "kind": "court_order",
+  "relation": "endorsement in the same proceeding"
+ }
+]

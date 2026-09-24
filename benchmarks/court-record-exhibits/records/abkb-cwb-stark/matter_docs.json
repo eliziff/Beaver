@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/abkb-cwb-stark/application-with-schedule-a.pdf",
+  "url": "http://cfcanada.fticonsulting.com/2004639AB/docs/Application with Schedule A (Order) - CWB v 200 AB.pdf",
+  "title": "CWB application for receivership order with Schedule A (draft order)",
+  "kind": "court_filing",
+  "relation": "the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/abkb-cwb-stark/receivership-order-2024-06-04.pdf",
+  "url": "http://cfcanada.fticonsulting.com/2004639AB/docs/2401-03935-Filed-2024-06-04-Receivership Order 4161-7316-8976 v. 1.pdf",
+  "title": "Receivership Order filed June 4, 2024 (2401 03935)",
+  "kind": "court_order",
+  "relation": "the order granted on the application this affidavit supports"
+ },
+ {
+  "file": "raw/matter/abkb-cwb-stark/first-report-of-the-receiver.pdf",
+  "url": "http://cfcanada.fticonsulting.com/2004639AB/docs/2401-03935-Filed-First Report of the Receiver.pdf",
+  "title": "First Report of the Receiver (2401 03935)",
+  "kind": "report",
+  "relation": "the receiver's first report in the resulting receivership"
+ }
+]

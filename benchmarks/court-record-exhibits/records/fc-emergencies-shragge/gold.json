@@ -1,0 +1,214 @@
+{
+ "record_id": "fc-emergencies-shragge",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-306-22, T-316-22, T-347-22, T-382-22",
+ "proceeding": "Canadian Frontline Nurses, CCLA, CCF and Jost et al. v. Attorney General of Canada (judicial reviews of the Emergencies Act declaration)",
+ "document": "Affidavit of Steven Shragge affirmed April 4, 2022 (for the respondent AGC)",
+ "deponent": "Steven Shragge",
+ "deponent_role": "Senior Policy Advisor, Privy Council Office, Security and Intelligence Secretariat",
+ "sworn_date": "2022-04-04",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pedecr.pdf",
+   "kind": "public_record",
+   "date": "2022-02-14",
+   "author": "Government of Canada",
+   "recipients": [
+    "Houses of Parliament"
+   ],
+   "description": "Section 58 Explanation of the February 14, 2022 declaration of a public order emergency",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached hereto and marked as Exhibit “A” is a copy of the Section 58 Explanation."
+    }
+   ],
+   "content_check": "14 pages: February 14, 2022 Declaration of Public Order Emergency Explanation pursuant to subsection 58(1) of the Emergencies Act"
+  },
+  {
+   "label": "B",
+   "file": "doc-ary3fs.pdf",
+   "kind": "report",
+   "date": "2022-02-16",
+   "author": "Minister of Public Safety",
+   "recipients": [
+    "Houses of Parliament"
+   ],
+   "description": "Report to the Houses of Parliament: Emergencies Act Consultations, February 16, 2022",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached hereto and marked as Exhibit“B” is a copyof the Report to the Houses of Parliament"
+    }
+   ],
+   "content_check": "13 pages: Report to the Houses of Parliament: Emergencies Act Consultations, February 16, 2022"
+  },
+  {
+   "label": "C",
+   "file": "doc-8mrywd.pdf",
+   "kind": "public_record",
+   "date": "2022-02-16",
+   "author": "Hon. Marco Mendicino",
+   "recipients": [
+    "House of Commons"
+   ],
+   "description": "Motion of February 16, 2022 to confirm the declaration",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "Attached hereto and marked as Exhibit “C” is a copy of the Motion dated February 16, 2022."
+    }
+   ],
+   "content_check": "1 page: Motion for Confirmation of a Declaration of Emergency"
+  },
+  {
+   "label": "D",
+   "file": "doc-zqu3ub.pdf",
+   "kind": "public_record",
+   "date": "2022-02-21",
+   "author": "House of Commons",
+   "recipients": [],
+   "description": "House of Commons Journals of February 21, 2022 recording the vote",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "is a copy of the House of Commons Journals dated February 21, 2022."
+    }
+   ],
+   "content_check": "4 pages: House of Commons Journals No. 36, Monday, February 21, 2022"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2020-10",
+   "precision": "month",
+   "description": "Deponent joins the Privy Council Office",
+   "paragraphs": [],
+   "quote": "employed at the Privy Council Office (PCO) since October 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2021-06",
+   "precision": "month",
+   "description": "Deponent becomes Senior Policy Advisor, Security and Intelligence Secretariat",
+   "paragraphs": [],
+   "quote": "I have held this role since June 2021.",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2022-02-10",
+   "precision": "day",
+   "description": "Prime Minister convenes the Incident Response Group on the blockades",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On February 10, 2022, Prime Minister Justin Trudeau convened the IRG",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "date": "2022-02-12",
+   "precision": "day",
+   "description": "IRG meets again",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The IRG subsequently met on February 12 and 13, 2022",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2022-02-13",
+   "precision": "day",
+   "description": "IRG meets and Cabinet meets",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "I am aware that Cabinet met on February 13, 2022.",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2022-02-14",
+   "precision": "day",
+   "description": "Governor in Council declares a public order emergency",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On February 14, 2022, the Governor in Council declared a public order emergency",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "date": "2022-02-15",
+   "precision": "day",
+   "description": "Cabinet meets; Emergency Measures Regulations and Economic Measures Order enacted",
+   "paragraphs": [
+    10,
+    12
+   ],
+   "quote": "Cabinet met again on February 15, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "date": "2022-02-16",
+   "precision": "day",
+   "description": "Section 58 Explanation and Consultations Report tabled; confirmation motion brought",
+   "paragraphs": [
+    4,
+    13
+   ],
+   "quote": "tabled in the House of Commons on February 16,",
+   "exhibits": [
+    "A",
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2022-02-21",
+   "precision": "day",
+   "description": "Commons passes the motion 185-151; Explanation tabled in the Senate",
+   "paragraphs": [
+    4,
+    14
+   ],
+   "quote": "On February 21, 2022, the motion passed with 185 votes in favour and 151 votes against.",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2022-02-23",
+   "precision": "day",
+   "description": "Declaration revoked",
+   "paragraphs": [
+    15
+   ],
+   "quote": "On February 23, 2022, the declaration of a public order emergency under the Emergencies Act was revoked.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Proclamation Declaring a Public Order Emergency",
+  "Emergency Measures Regulations SOR/2022-21 and Emergency Economic Measures Order SOR/2022-22"
+ ],
+ "leak_waivers": [],
+ "notes": "Posted by CCLA (ccla.org needs a browser UA and Referer). The text layer displaces some paragraph numbers from their paragraphs. 2 of max 3 for the consolidated proceeding (with fc-emergencies-beaudoin)."
+}

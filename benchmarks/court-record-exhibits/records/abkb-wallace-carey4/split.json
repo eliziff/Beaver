@@ -1,0 +1,87 @@
+{
+ "record_id": "abkb-wallace-carey4",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  31
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-v8g6k2.pdf",
+   "source_pages": [
+    12,
+    13,
+    14,
+    15
+   ],
+   "cover_page": 11,
+   "stamp_page": null,
+   "text_chars": 5785
+  },
+  {
+   "label": "B",
+   "file": "doc-jafeth.pdf",
+   "source_pages": [
+    17,
+    18,
+    19
+   ],
+   "cover_page": 16,
+   "stamp_page": null,
+   "text_chars": 2390
+  },
+  {
+   "label": "C",
+   "file": "doc-36f3zf.pdf",
+   "source_pages": [
+    21,
+    22,
+    23
+   ],
+   "cover_page": 20,
+   "stamp_page": null,
+   "text_chars": 2960
+  },
+  {
+   "label": "D",
+   "file": "doc-xmz77c.pdf",
+   "source_pages": [
+    25,
+    26,
+    27
+   ],
+   "cover_page": 24,
+   "stamp_page": null,
+   "text_chars": 3254
+  },
+  {
+   "label": "E",
+   "file": "doc-3j9f7d.pdf",
+   "source_pages": [
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35
+   ],
+   "cover_page": 28,
+   "stamp_page": null,
+   "text_chars": 8641
+  }
+ ],
+ "leak_audit": []
+}

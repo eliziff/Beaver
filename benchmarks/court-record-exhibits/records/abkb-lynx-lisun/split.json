@@ -1,0 +1,264 @@
+{
+ "record_id": "abkb-lynx-lisun",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4ggd2m.pdf",
+   "source_pages": [
+    14,
+    15
+   ],
+   "cover_page": null,
+   "stamp_page": 14,
+   "text_chars": 3212
+  },
+  {
+   "label": "B",
+   "file": "doc-y3g5px.pdf",
+   "source_pages": [
+    16,
+    17,
+    18,
+    19,
+    20
+   ],
+   "cover_page": null,
+   "stamp_page": 16,
+   "text_chars": 5536
+  },
+  {
+   "label": "C",
+   "file": "doc-pu8u7e.pdf",
+   "source_pages": [
+    21,
+    22
+   ],
+   "cover_page": null,
+   "stamp_page": 21,
+   "text_chars": 3745
+  },
+  {
+   "label": "D",
+   "file": "doc-mus3yd.pdf",
+   "source_pages": [
+    23
+   ],
+   "cover_page": null,
+   "stamp_page": 23,
+   "text_chars": 1535
+  },
+  {
+   "label": "E",
+   "file": "doc-gpa6zj.pdf",
+   "source_pages": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "cover_page": null,
+   "stamp_page": 24,
+   "text_chars": 16858
+  },
+  {
+   "label": "F",
+   "file": "doc-b2mqhg.pdf",
+   "source_pages": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "cover_page": null,
+   "stamp_page": 31,
+   "text_chars": 10314
+  },
+  {
+   "label": "G",
+   "file": "doc-ak3q5b.pdf",
+   "source_pages": [
+    37,
+    38
+   ],
+   "cover_page": null,
+   "stamp_page": 37,
+   "text_chars": 2351
+  },
+  {
+   "label": "H",
+   "file": "doc-7cd4hv.pdf",
+   "source_pages": [
+    39,
+    40,
+    41,
+    42
+   ],
+   "cover_page": null,
+   "stamp_page": 39,
+   "text_chars": 10487
+  },
+  {
+   "label": "I",
+   "file": "doc-6ybjx6.pdf",
+   "source_pages": [
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102
+   ],
+   "cover_page": 43,
+   "stamp_page": null,
+   "text_chars": 101109
+  },
+  {
+   "label": "J",
+   "file": "doc-yvgez6.pdf",
+   "source_pages": [
+    103,
+    104
+   ],
+   "cover_page": null,
+   "stamp_page": 103,
+   "text_chars": 2712
+  },
+  {
+   "label": "K",
+   "file": "doc-hwn8xn.pdf",
+   "source_pages": [
+    105,
+    106
+   ],
+   "cover_page": null,
+   "stamp_page": 105,
+   "text_chars": 3197
+  },
+  {
+   "label": "L",
+   "file": "doc-4ja42s.pdf",
+   "source_pages": [
+    107,
+    108,
+    109,
+    110,
+    111
+   ],
+   "cover_page": null,
+   "stamp_page": 107,
+   "text_chars": 7694
+  },
+  {
+   "label": "M",
+   "file": "doc-zhqmw7.pdf",
+   "source_pages": [
+    112,
+    113,
+    114,
+    115,
+    116,
+    117
+   ],
+   "cover_page": null,
+   "stamp_page": 112,
+   "text_chars": 22539
+  },
+  {
+   "label": "N",
+   "file": "doc-6749q4.pdf",
+   "source_pages": [
+    118,
+    119
+   ],
+   "cover_page": null,
+   "stamp_page": 118,
+   "text_chars": 2635
+  },
+  {
+   "label": "O",
+   "file": "doc-aj9du4.pdf",
+   "source_pages": [
+    120
+   ],
+   "cover_page": null,
+   "stamp_page": 120,
+   "text_chars": 1217
+  }
+ ],
+ "leak_audit": []
+}

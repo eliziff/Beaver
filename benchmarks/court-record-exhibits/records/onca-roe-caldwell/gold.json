@@ -1,0 +1,40 @@
+{
+ "record_id": "onca-roe-caldwell",
+ "court": "Court of Appeal for Ontario",
+ "court_level": "appellate",
+ "jurisdiction": "ON",
+ "court_file": "M54109 (COA-23-CV-0215)",
+ "proceeding": "KingSett Mortgage Corporation v. 30 Roe Investments Corp. (appeal from receivership sale approval orders)",
+ "document": "Affidavit of Brennan Caldwell in the Receiver's motion record for its motion to quash, expedite or lift the stay of the appeal",
+ "deponent": "Brennan Caldwell",
+ "deponent_role": "Lawyer with Goodmans LLP, counsel to the Receiver KSV Restructuring Inc.",
+ "sworn_date": "2023-03-15",
+ "exhibits": [
+  {"label": "A", "file": "doc-8nx9r9.pdf", "kind": "chart", "date": "2023-03", "author": "Goodmans LLP (counsel to the Receiver)", "recipients": [],
+   "description": "A chronology of the law firms retained by the Appellant over the course of the proceedings",
+   "references": [{"paragraph": 2, "quote": "A chronology of events regarding the various law firms that have been retained by the"}],
+   "content_check": "Four-page table 'Chronology of Counsel of 30 Roe Investments Corp.' (Date / Event / Reference) from January 17, 2022 (receivership application before Justice Cavanagh) through March 3, 2023 (Blaney's motion to be removed)"},
+  {"label": "B", "file": "doc-cmdq5t.pdf", "kind": "chart", "date": "2023-03", "author": "Goodmans LLP (counsel to the Receiver)", "recipients": [],
+   "description": "A chronology summarizing the progress of the appeal to date",
+   "references": [{"paragraph": 3, "quote": "A chronology summarizing the progress of this appeal to date is attached as Exhibit"}],
+   "content_check": "Table 'Chronology of Appeal Proceedings' from the February 7, 2023 Sale Approval Motion through the March 8 and 15, 2023 inquiries to the Court of Appeal about motion dates"},
+  {"label": "C", "file": "doc-azsgxr.pdf", "kind": "affidavit", "date": "2023-02-06", "author": "Raymond Zar", "recipients": [],
+   "description": "An excerpt of the affidavit of the Appellant's principal Raymond Zar sworn February 6, 2023, with Exhibit G to it",
+   "references": [{"paragraph": 4, "quote": "is an excerpt of the Affidavit of the principal of the"}],
+   "content_check": "Excerpted pages of the Affidavit of Raymond Zar (CV-22-00674810-00CL), paragraphs on retaining Blaney McMurtry under a KingSett conflict waiver, then its own 'Exhibit G' cover and a January 17, 2023 email chain from Daniel Pollack (KingSett) setting the waiver terms"},
+  {"label": "D", "file": "doc-keuduj.pdf", "kind": "court_filing", "date": "2023-03", "author": "KSV Restructuring Inc. (Receiver), by Bennett Jones LLP", "recipients": ["30 Roe Investments Corp.", "Raymond Zar", "service list"],
+   "description": "The Receiver's Amended Notice of Motion, returnable before a single judge of the Court of Appeal on March 27, 2023, seeking to quash the Appellant's appeal among other relief",
+   "references": [{"paragraph": 5, "quote": "is a copy of the Amended Notice of Motion of the Receiver"}],
+   "content_check": "21-page 'Amended Notice of Motion (Motion to Quash, Expedite and Lift Stay)' in the Court of Appeal with tracked amendments to a single judge on March 27, 2023; the text layer is font-garbled (shifted glyph codes), so it must be read visually"}
+ ],
+ "events": [
+  {"id": "e1", "precision": "undated", "description": "The Appellant retained a series of law firms over the course of the receivership proceedings", "paragraphs": [2], "quote": "regarding the various law firms that have been retained by the", "exhibits": ["A"]},
+  {"id": "e2", "precision": "undated", "description": "The appeal progressed to date as summarized in the appeal chronology", "paragraphs": [3], "quote": "A chronology summarizing the progress of this appeal to date", "exhibits": ["B"]},
+  {"id": "e3", "date": "2023-02-06", "precision": "day", "description": "Raymond Zar, the Appellant's principal, swore an affidavit", "paragraphs": [4], "quote": "Appellant, Raymond Zar, sworn February 6, 2023", "exhibits": ["C"]},
+  {"id": "e4", "precision": "undated", "description": "The Receiver amended its notice of motion seeking to quash the appeal", "paragraphs": [5], "quote": "Amended Notice of Motion of the Receiver", "exhibits": ["D"]},
+  {"id": "e5", "date": "2023-03-27", "precision": "day", "description": "Return date before a single judge of the Court of Appeal for the Receiver's motion to quash", "paragraphs": [5], "quote": "returnable before a single judge of the Court of Appeal March 27, 2023", "exhibits": ["D"]}
+ ],
+ "referenced_not_attached": ["The Appellant's Notice of Appeal", "Remainder of the Zar affidavit and its other exhibits"],
+ "leak_waivers": ["C"],
+ "notes": "Exhibit C embeds a whole-page cover for its own nested 'Exhibit G' to the Zar affidavit; split.py keeps it inside C (it names a different affiant), so the leak audit flags it. Exhibit D's text layer is garbled glyph codes. The affidavit narrates few dated events itself; the chronologies in A and B carry the detail."
+}

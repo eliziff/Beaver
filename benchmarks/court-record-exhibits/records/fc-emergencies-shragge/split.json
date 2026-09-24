@@ -1,0 +1,85 @@
+{
+ "record_id": "fc-emergencies-shragge",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pedecr.pdf",
+   "source_pages": [
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ],
+   "cover_page": 8,
+   "stamp_page": null,
+   "text_chars": 37963
+  },
+  {
+   "label": "B",
+   "file": "doc-ary3fs.pdf",
+   "source_pages": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "cover_page": 23,
+   "stamp_page": null,
+   "text_chars": 25705
+  },
+  {
+   "label": "C",
+   "file": "doc-8mrywd.pdf",
+   "source_pages": [
+    38
+   ],
+   "cover_page": 37,
+   "stamp_page": null,
+   "text_chars": 414
+  },
+  {
+   "label": "D",
+   "file": "doc-zqu3ub.pdf",
+   "source_pages": [
+    40,
+    41,
+    42,
+    43
+   ],
+   "cover_page": 39,
+   "stamp_page": null,
+   "text_chars": 9769
+  }
+ ],
+ "leak_audit": []
+}

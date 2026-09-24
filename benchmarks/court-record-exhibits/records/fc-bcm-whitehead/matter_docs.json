@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/fc-bcm-whitehead/notice-of-application-mount-traber.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2019/06/2019-03-06-Notice-of-Application-Mount-Traber-BCM-v-Canada.pdf",
+  "title": "Notice of Application (Mount Traber), BCM International (Canada) Inc. v. Canada",
+  "kind": "court_filing",
+  "relation": "originating notice of application in the companion file heard with this one"
+ },
+ {
+  "file": "raw/matter/fc-bcm-whitehead/notice-of-application-mill-stream.pdf",
+  "url": "https://www.jccf.ca/wp-content/uploads/2019/06/Notice-of-Application-Mill-Stream-camp.pdf",
+  "title": "Notice of Application (Mill Stream camp), BCM International (Canada) Inc. v. Canada",
+  "kind": "court_filing",
+  "relation": "originating notice of application (Mill Stream decision) in which this affidavit was filed"
+ }
+]

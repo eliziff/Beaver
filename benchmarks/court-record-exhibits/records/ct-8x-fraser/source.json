@@ -1,0 +1,18 @@
+{
+ "url": "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/521715/1/document.do",
+ "landing_url": "https://decisions.ct-tc.gc.ca/ct-tc/cd/en/item/521613/index.do",
+ "court": "Competition Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "CT-2025-006",
+ "document_title": "Affidavit of Jordan Fraser sworn March 6, 2026 (Vistar Media Inc., respondent to 8X Labs Inc.'s application for leave)",
+ "retrieved": "2026-09-23",
+ "record_id": "ct-8x-fraser",
+ "source_file": "ct-521715.pdf",
+ "page_range": [
+  1,
+  67
+ ],
+ "source_sha256": "45337feaa5fd48547c2956e8096d5b22819611cc7615079dbfdd66a9ae6c86d0",
+ "source_pages": 67
+}

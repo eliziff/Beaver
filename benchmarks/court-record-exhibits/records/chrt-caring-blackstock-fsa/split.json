@@ -1,0 +1,89 @@
+{
+ "record_id": "chrt-caring-blackstock-fsa",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-rz3cr5.pdf",
+   "source_pages": [
+    8
+   ],
+   "cover_page": 7,
+   "stamp_page": null,
+   "text_chars": 1765
+  },
+  {
+   "label": "B",
+   "file": "doc-f7bbqd.pdf",
+   "source_pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 12838
+  },
+  {
+   "label": "C",
+   "file": "doc-udgx7f.pdf",
+   "source_pages": [
+    19,
+    20,
+    21,
+    22
+   ],
+   "cover_page": 18,
+   "stamp_page": null,
+   "text_chars": 5921
+  },
+  {
+   "label": "D",
+   "file": "doc-a5khpq.pdf",
+   "source_pages": [
+    24,
+    25,
+    26,
+    27,
+    28
+   ],
+   "cover_page": 23,
+   "stamp_page": null,
+   "text_chars": 10383
+  },
+  {
+   "label": "E",
+   "file": "doc-ggp9gn.pdf",
+   "source_pages": [
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+   ],
+   "cover_page": 29,
+   "stamp_page": null,
+   "text_chars": 24427
+  }
+ ],
+ "leak_audit": []
+}

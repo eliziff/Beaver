@@ -1,0 +1,41 @@
+{
+ "record_id": "onsc-cp-bell-capay",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00635778-00CP",
+ "proceeding": "Fareau and Capay v. Bell Canada and Her Majesty the Queen in right of Ontario (proposed class proceeding over collect-call charges from Ontario correctional facilities), certification motion",
+ "document": "Affidavit of Ransome Capay affirmed December 2020 in support of the certification motion",
+ "deponent": "Ransome Capay",
+ "deponent_role": "Proposed representative plaintiff; member of Lac Seul First Nation",
+ "sworn_date": "2020-12",
+ "exhibits": [
+  {"label": "A", "file": "doc-k4jh9f.pdf", "kind": "court_order", "date": "2019-01-28", "author": "Ontario Superior Court of Justice", "recipients": [], "description": "The court decision finding that the government violated his son's Charter rights by holding him in solitary confinement", "references": [{"paragraph": 4, "quote": "I have attached the court decision about \nmy son's time in solitary confinement as Exhibit \"A\" to my affidavit."}], "content_check": "127-page reasons, R. v. Capay, 2019 ONSC 535, Court File CR-13-0070, dated 2019-01-28"},
+  {"label": "B", "file": "doc-7yxsmp.pdf", "kind": "invoice", "date": "2013-09-20", "author": "Bell Canada", "recipients": ["Glenda Brisket"], "description": "Bell phone bill of September 20, 2013 with $697.02 in collect calls", "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"B\" is a copy ofmy September 20, 2013 bill"}], "content_check": "Scanned Bell bill to Glenda Brisket, Lac Seul, bill date September 20, 2013, amount due $1,316.96"},
+  {"label": "C", "file": "doc-3jtcjj.pdf", "kind": "invoice", "date": "2016-02-17", "author": "Bell Canada", "recipients": ["Glenda Brisket"], "description": "Bell phone bill of February 17, 2016 with $104.03 in collect calls", "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"C\" is a copy ofmy February 17, 2016 bill"}], "content_check": "One scanned page of a Bell bill (image only)"},
+  {"label": "D", "file": "doc-6mtwth.pdf", "kind": "invoice", "date": "2016-03-17", "author": "Bell Canada", "recipients": ["Glenda Brisket"], "description": "Bell phone bill of March 17, 2016 with $209.53 in collect calls", "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"D\" is a copy ofmy March 17, 2016"}], "content_check": "Four scanned pages of a Bell bill (image only)"},
+  {"label": "E", "file": "doc-94baqy.pdf", "kind": "invoice", "date": "2016-07-17", "author": "Bell Canada", "recipients": ["Glenda Brisket"], "description": "Bell phone bill of July 17, 2016 with $553.22 in collect calls", "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"E\" is a copy ofmy July 17, 2016 bill"}], "content_check": "Three scanned pages of a Bell bill (image only)"},
+  {"label": "F", "file": "doc-4pmqzm.pdf", "kind": "invoice", "date": "2016-08-17", "author": "Bell Canada", "recipients": ["Glenda Brisket"], "description": "Bell phone bill of August 17, 2016 with $642.39 in collect calls", "references": [{"paragraph": 6, "quote": "Attached as Exhibit \"F\" is a copy ofmy August 17, 2016 bill"}], "content_check": "Three scanned pages of a Bell bill (image only)"},
+  {"label": "G", "file": "doc-stb8sd.pdf", "kind": "invoice", "date": "2017-01-17", "author": "Bell Canada", "recipients": ["Glenda Brisket"], "description": "The pages he found of his January 17, 2017 Bell bill of $1,002.52", "references": [{"paragraph": 7, "quote": "Attached as Exhibit \"G\" is a copy ofthe pages I found from my January 17, 2017 bill."}], "content_check": "Two scanned pages of a Bell bill (image only)"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2012-06-04", "precision": "range", "description": "The deponent's son was held in pre-trial custody, in solitary confinement, at Thunder Bay and Kenora jails from June 4, 2012 to December 6, 2016", "paragraphs": [3], "quote": "For approximately 4.5 years from June 4, 2012 to December 6, 2016, my son was held \nin pre-trial custody", "exhibits": []},
+  {"id": "e2", "date": "2012", "precision": "range", "description": "From 2012 to 2016 the deponent had a Bell home phone package, long-distance plan and internet", "paragraphs": [5], "quote": "From 2012 to 2016, my monthly home phone package from Bell was approximately \n$55", "exhibits": []},
+  {"id": "e3", "date": null, "precision": "undated", "description": "The deponent accepted many collect calls from his son and received large bills, some over $1,000", "paragraphs": [4, 6, 10, 11], "quote": "I had to accept many collect calls to \nmaintain basic contact with him", "exhibits": []},
+  {"id": "e4", "date": "2013-09-20", "precision": "day", "description": "Bell bill with $697.02 in collect calls", "paragraphs": [6], "quote": "September 20, 2013 bill: $697.02 in collect calls", "exhibits": ["B"]},
+  {"id": "e5", "date": "2016-02-17", "precision": "day", "description": "Bell bill with $104.03 in collect calls", "paragraphs": [6], "quote": "February 17, 2016 bill: $104.03 in collect calls", "exhibits": ["C"]},
+  {"id": "e6", "date": "2016-03-17", "precision": "day", "description": "Bell bill with $209.53 in collect calls", "paragraphs": [6], "quote": "March 17, 2016 bill: $209.53 in collect calls", "exhibits": ["D"]},
+  {"id": "e7", "date": "2016-07-17", "precision": "day", "description": "Bell bill with $553.22 in collect calls", "paragraphs": [6], "quote": "July 17, 2016 bill: $553.22 in collect calls", "exhibits": ["E"]},
+  {"id": "e8", "date": "2016-08-17", "precision": "day", "description": "Bell bill with $642.39 in collect calls", "paragraphs": [6], "quote": "August 17, 2016 bill: $642.39 in collect calls", "exhibits": ["F"]},
+  {"id": "e9", "date": "2017", "precision": "year", "description": "The son was again held in the Kenora Jail and collect-call bills were again large", "paragraphs": [7], "quote": "In 2017 my son was held in the Kenora Jail again.", "exhibits": []},
+  {"id": "e10", "date": "2017-01-17", "precision": "day", "description": "Bell bill of $1,002.52", "paragraphs": [7], "quote": "my January 17, 2017 Bill was $1,002.52", "exhibits": ["G"]},
+  {"id": "e11", "date": "2017-07", "precision": "month", "description": "A 21-minute collect call on the July 2017 bill cost $24.10 to $27.91", "paragraphs": [7], "quote": "For \na 21-minute call on the July 2017 bill", "exhibits": []},
+  {"id": "e12", "date": "2019-01-28", "precision": "day", "description": "The court held that the government violated the son's Charter rights by his prolonged solitary confinement", "paragraphs": [4], "quote": "The court decided that the government violated my son's Charter rights", "exhibits": ["A"]},
+  {"id": "e13", "date": "2020-10-16", "precision": "day", "description": "Jody Brown asked Bell Canada to preserve the billing records", "paragraphs": [8], "quote": "he requested the preservation of those \nrecords from Bell Canada in a letter dated October 16, 2020", "exhibits": []},
+  {"id": "e14", "date": null, "precision": "undated", "description": "The deponent took extra work, such as chopping firewood, to pay the collect-call fees", "paragraphs": [9], "quote": "I had to take on extra work, such \nas chopping firewood", "exhibits": []},
+  {"id": "e15", "date": null, "precision": "undated", "description": "The deponent retained Goldblatt Partners LLP and Sotos LLP to bring the class action", "paragraphs": [13], "quote": "have retained Goldblatt Partners LLP and Sotos LLP to bring this lawsuit", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Complete Bell billing records", "Letter of October 16, 2020 requesting preservation of records", "Litigation Plan"],
+ "leak_waivers": [],
+ "notes": "Affidavit pages are scanned; affidavit.txt is Tesseract OCR (split --ocr-affidavit), so quotes keep OCR spellings such as 'ofmy'. The affirmation day is illegible ('December/ 42020'); sworn_date is the month. Exhibits B-G are image-only scanned bills."
+}

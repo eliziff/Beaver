@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/bcsc-bythebay-alambre/appointment-of-receiver-order-2024-10-03.pdf",
+  "url": "http://cfcanada.fticonsulting.com/BytheBay/docs/2024-10-03 Appointment of Receiver Order.pdf",
+  "title": "Appointment of Receiver Order (October 3, 2024)",
+  "kind": "court_order",
+  "relation": "the order granted on the petition this affidavit supports"
+ },
+ {
+  "file": "raw/matter/bcsc-bythebay-alambre/first-report-of-the-receiver-2025-11-10.pdf",
+  "url": "http://cfcanada.fticonsulting.com/BytheBay/docs/S246124 - First Report of the Receiver (Nov. 10, 2025)(63047985.1).pdf",
+  "title": "First Report of the Receiver (November 10, 2025)",
+  "kind": "report",
+  "relation": "the receiver's first report in the resulting receivership"
+ }
+]

@@ -1,0 +1,19 @@
+{
+ "url": "https://www.ksvadvisory.com/docs/default-source/insolvency-case-documents/highline-and-minoru/receivership-proceedings/application-materials/01_affidavit-no-1-of-daniel-pollack-sworn-november-5-2024.pdf?sfvrsn=7919afd9_5",
+ "landing_url": "https://www.ksvadvisory.com/experience/case/highline-and-minoru",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S247764 (Vancouver Registry)",
+ "document_title": "Affidavit #1 of Daniel Pollack made November 5, 2024 in support of KingSett's receivership petition",
+ "retrieved": "2026-09-23",
+ "record_id": "bcsc-highline-pollack",
+ "source_file": "ksv-pollack1-highline.pdf",
+ "page_range": [
+  1,
+  1457
+ ],
+ "source_sha256": "250663debd523a70f605e8d89aaa7ecfca81e22cb03cf71a2241f57bcbe305aa",
+ "source_pages": 1457,
+ "affidavit_ocr": true
+}

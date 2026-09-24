@@ -1,0 +1,109 @@
+{
+ "generator": "claude-opus-5-5 (opus-low subagent, session 1f20d775)",
+ "created": "2026-09-23",
+ "record_id": "bcsc-acdc-hiebert",
+ "brief": "Fasken / FTI (Tom Powell) / Arctic Canadian Diamond cast, spring-summer 2026; office, mine-site and firm business unrelated to Fasken's fees, invoices, retainer or fee approval.",
+ "documents": [
+  {
+   "kind": "email",
+   "format": "eml",
+   "date": "2026-06-11",
+   "time": "10:30",
+   "from": "Lisa Hiebert <lhiebert@fasken.com>",
+   "to": [
+    "Tom Powell <tom.powell@fticonsulting.com>"
+   ],
+   "subject": "Lunch and learn slides",
+   "body": "Tom,\n\nThanks for presenting at our restructuring lunch and learn yesterday. Attached are the slides for your records. The associates found the case study very useful.\n\nLisa",
+   "why_irrelevant": "Same sender and recipient as the invoices, the day after one; about a training session."
+  },
+  {
+   "kind": "invoice",
+   "format": "pdf",
+   "date": "2026-05-31",
+   "from": "Yellowknife Air Charter Ltd.",
+   "letterhead": "Yellowknife Air Charter Ltd.",
+   "to": [
+    "Arctic Canadian Diamond Company Ltd."
+   ],
+   "subject": "Crew rotation charter, May 2026",
+   "items": [
+    [
+     "Charter flights, 4 rotations",
+     48200.0
+    ],
+    [
+     "Fuel surcharge",
+     3100.0
+    ],
+    [
+     "GST 5%",
+     2565.0
+    ]
+   ],
+   "body": "Net 30.",
+   "why_irrelevant": "An invoice in the same month as a Fasken invoice, but a mine logistics bill."
+  },
+  {
+   "kind": "memo",
+   "format": "docx",
+   "date": "2026-06-01",
+   "from": "Fasken - Vancouver Office Services",
+   "to": [
+    "All Vancouver personnel"
+   ],
+   "subject": "Elevator modernization at 550 Burrard",
+   "body": "Elevators 3 and 4 will be out of service through July for modernization. Please allow extra time in the morning.",
+   "why_irrelevant": "Office building notice at the deponent's address."
+  },
+  {
+   "kind": "email",
+   "format": "pdf",
+   "date": "2026-07-03",
+   "time": "14:02",
+   "from": "Tom Powell <tom.powell@fticonsulting.com>",
+   "to": [
+    "Lisa Hiebert <lhiebert@fasken.com>"
+   ],
+   "subject": "Canada Day - office closure note",
+   "body": "Lisa,\n\nOur Vancouver office will be closed on July 6 for a staff day. Please copy my colleague on anything urgent.\n\nTom",
+   "why_irrelevant": "Near miss: same day as a real invoice, same people; office closure."
+  },
+  {
+   "kind": "letter",
+   "format": "pdf",
+   "date": "2026-06-15",
+   "letterhead": "FTI Consulting Canada Inc.",
+   "from": "FTI Consulting Canada Inc., in its capacity as Receiver",
+   "to": [
+    "Tundra Camp Services Ltd."
+   ],
+   "subject": "Arctic Canadian Diamond Company Ltd. - supplier account contact",
+   "body": "Dear Sir or Madam:\n\nPlease update the billing contact for the supplier account to the Receiver's Vancouver office. Correspondence should be sent to the address above.\n\nFTI Consulting Canada Inc.",
+   "why_irrelevant": "Receivership administration; no reference to counsel's fees."
+  },
+  {
+   "kind": "minutes",
+   "format": "docx",
+   "date": "2026-05-20",
+   "letterhead": "Arctic Canadian Diamond Company Ltd. - Site Care and Maintenance",
+   "to": [
+    "Site managers"
+   ],
+   "subject": "Minutes of Care and Maintenance Meeting",
+   "body": "1. Tailings dam inspection completed; no issues.\n\n2. Camp occupancy reduced to 40.\n\n3. Winter road planning to start in September.",
+   "why_irrelevant": "Mine-site minutes in the period."
+  },
+  {
+   "kind": "text",
+   "format": "pdf",
+   "date": "2026-07-17",
+   "from": "Lisa Hiebert",
+   "to": [
+    "Lisa Hiebert"
+   ],
+   "body": "Assistant: Your 3 pm moved to 3:30\nLisa: Fine. Please book the Whistler condo for August 8-10\nAssistant: Will do",
+   "why_irrelevant": "Personal scheduling the same day as the last invoice."
+  }
+ ]
+}

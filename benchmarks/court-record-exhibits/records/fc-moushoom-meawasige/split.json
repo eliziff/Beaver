@@ -1,0 +1,85 @@
+{
+ "record_id": "fc-moushoom-meawasige",
+ "affidavit_pages": [
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  32,
+  33
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-6yfj5q.pdf",
+   "source_pages": [
+    28,
+    29,
+    30
+   ],
+   "cover_page": 27,
+   "stamp_page": null,
+   "text_chars": 2968
+  },
+  {
+   "label": "B",
+   "file": "doc-6fxekt.pdf",
+   "source_pages": [
+    32,
+    33
+   ],
+   "cover_page": 31,
+   "stamp_page": null,
+   "text_chars": 17
+  },
+  {
+   "label": "C",
+   "file": "doc-hv5dst.pdf",
+   "source_pages": [
+    35,
+    36,
+    37,
+    38,
+    39,
+    40
+   ],
+   "cover_page": 34,
+   "stamp_page": null,
+   "text_chars": 6043
+  },
+  {
+   "label": "D",
+   "file": "doc-tk7y48.pdf",
+   "source_pages": [
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56
+   ],
+   "cover_page": 41,
+   "stamp_page": null,
+   "text_chars": 20714
+  }
+ ],
+ "leak_audit": []
+}

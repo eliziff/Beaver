@@ -1,0 +1,2557 @@
+{
+ "record_id": "onsc-sanctuary-talebi",
+ "court": "Ontario Superior Court of Justice (Toronto)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-640061",
+ "proceeding": "Sanctuary Ministries of Toronto et al. (including the CCLA) v. City of Toronto and HMQ in right of Ontario (Charter application under rule 14.05 over shelter and respite conditions during COVID-19)",
+ "document": "Affidavit of Sahar Talebi affirmed May 4, 2020 (background affidavit for the applicants)",
+ "deponent": "Sahar Talebi",
+ "deponent_role": "Deponent for the applicants (background evidence on the City's and Province's COVID-19 shelter response)",
+ "sworn_date": "2020-05-04",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-e8dkqm.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Attached as Exhibit “A” is the City of Toronto Act, 2006, which provides the City with powers to provide services to its residents, manage its finances, and establish accountability officers for the city.",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "259 pages: 4/18/2020 City of Toronto Act, 2006, S.O. 2006, c. 11, Sched. A https://www.ontario.ca/laws/statute/06c11 1/259 Français City of T"
+  },
+  {
+   "label": "B",
+   "file": "doc-hepax7.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Attached as Exhibit “B” is a copy of the City’s Governance System webpage, indicating that homeless shelters fall in the category of the powers of the City, as defined by the City of Toronto Act, 2006.",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "3 pages: 4/18/2020 City of Toronto’s Governance System – City of Toronto https://www.toronto.ca/city-government/accountability-operations-c"
+  },
+  {
+   "label": "C",
+   "file": "doc-3q6f6f.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Attached as Exhibit “C” is the Housing Services Act, 2011, which is Ontario’s social housing legislation.",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "53 pages: 4/18/2020 Housing Services Act, 2011, S.O. 2011, c. 6, Sched. 1 https://www.ontario.ca/laws/statute/11h06#BK9 1/53 Français Housin"
+  },
+  {
+   "label": "D",
+   "file": "doc-s3qnyn.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the SSHA’s webpage is attached hereto as Exhibit “D”.",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A copy of the SSHA’s webpage is attached hereto as Exhibit “D”"
+    }
+   ],
+   "content_check": "2 pages: 4/17/2020 Shelter, Support & Housing Administration – City of Toronto https://www.toronto.ca/city-government/accountability-operat"
+  },
+  {
+   "label": "E",
+   "file": "doc-jw442f.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the City’s webpage containing this information is attached hereto as Exhibit “E”.",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "s webpage containing this information is attached hereto as Exhibit “E”"
+    }
+   ],
+   "content_check": "6 pages: 4/18/2020 Backgrounder: City of Toronto COVID-19 Response for People Experiencing Homelessness – City of Toronto https://www.toron"
+  },
+  {
+   "label": "F",
+   "file": "doc-gzfe27.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the City’s webpage providing information with respect to response sites is attached hereto as Exhibit “F”.",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "mation with respect to response sites is attached hereto as Exhibit “F”"
+    }
+   ],
+   "content_check": "4 pages: 5/1/2020 Daily Shelter & Overnight Service Usage – City of Toronto https://www.toronto.ca/city-government/data-research-maps/resea"
+  },
+  {
+   "label": "G",
+   "file": "doc-zezs28.pdf",
+   "kind": "report",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Shelter Standards, and the city council minutes adopting the approved Shelter Standards, as well as the City By-law confirming the proceedings are attached hereto as Exhibits “G”, “H” and “I”.",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "ty By-law confirming the proceedings are attached hereto as Exhibits “G”"
+    }
+   ],
+   "content_check": "105 pages: TORONTO SHELTER STANDARDS VERSION 4 SHELTER, SUPPORT & HOUSING ADMINISTRATION [page 2] ACKNOWLEDGMENTS Shelter, Support and Housin"
+  },
+  {
+   "label": "H",
+   "file": "doc-3y59e3.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Shelter Standards, and the city council minutes adopting the approved Shelter Standards, as well as the City By-law confirming the proceedings are attached hereto as Exhibits “G”, “H” and “I”.",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "irming the proceedings are attached hereto as Exhibits “G”, “H”"
+    }
+   ],
+   "content_check": "2 pages: CITY OF TORONTO BY-LAW No. 1053-2015 To confirm the proceedings of City Council at Meeting 9 held on September 30, October 1 and 2"
+  },
+  {
+   "label": "I",
+   "file": "doc-nvu7wm.pdf",
+   "kind": "minutes",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Shelter Standards, and the city council minutes adopting the approved Shelter Standards, as well as the City By-law confirming the proceedings are attached hereto as Exhibits “G”, “H” and “I”.",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "he proceedings are attached hereto as Exhibits “G”, “H” and “I”"
+    }
+   ],
+   "content_check": "294 pages: 4/14/2020 2015-09-30 Minutes - City Council app.toronto.ca/tmmis/viewPublishedReport.do?function=getCouncilMinutesReport&meetingId"
+  },
+  {
+   "label": "J",
+   "file": "doc-m68u3x.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the 24-Hour Respite Site Standards, and the City of Toronto webpage describing the approval process are attached hereto as Exhibits “J” and “K”.",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "page describing the approval process are attached hereto as Exhibits “J”"
+    }
+   ],
+   "content_check": "4 pages: 4/18/2020 24-Hour Respite Site Standards – City of Toronto https://www.toronto.ca/community-people/community-partners/24-hour-resp"
+  },
+  {
+   "label": "K",
+   "file": "doc-qsxkbu.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the 24-Hour Respite Site Standards, and the City of Toronto webpage describing the approval process are attached hereto as Exhibits “J” and “K”.",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "he approval process are attached hereto as Exhibits “J” and “K”"
+    }
+   ],
+   "content_check": "4 pages: 4/18/2020 24-Hour Respite Site Standards – City of Toronto https://www.toronto.ca/community-people/community-partners/24-hour-resp"
+  },
+  {
+   "label": "L",
+   "file": "doc-ujrp2b.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the EMCPA and the March 17, 2020 order declaring a provincial state of emergency, and a copy of the official report of debates (Hansard) whereby the Legislative Assembly of Ontario extends the state of emergency are attached hereto as Exhibits “L”, “...",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "tario extends the state of emergency are attached hereto as Exhibits “L”"
+    }
+   ],
+   "content_check": "16 pages: 4/18/2020 Emergency Management and Civil Protection Act, R.S.O. 1990, c. E.9 https://www.ontario.ca/laws/statute/90e09 1/16 França"
+  },
+  {
+   "label": "M",
+   "file": "doc-azvcwk.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the EMCPA and the March 17, 2020 order declaring a provincial state of emergency, and a copy of the official report of debates (Hansard) whereby the Legislative Assembly of Ontario extends the state of emergency are attached hereto as Exhibits “L”, “...",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "the state of emergency are attached hereto as Exhibits “L”, “M”"
+    }
+   ],
+   "content_check": "1 pages: 4/17/2020 O. Reg. 50/20: DECLARATION OF EMERGENCY https://www.ontario.ca/laws/regulation/200050?search=Emergency+Management+and+Ci"
+  },
+  {
+   "label": "N",
+   "file": "doc-nynqnh.pdf",
+   "kind": "transcript",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the official report of debates (Hansard) whereby the Legislative Assembly of Ontario declares that the period of the emergency is extended past the end of April 14, 2020 for a further period of 28 days is attached hereto as Exhibit “N”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "2020 for a further period of 28 days is attached hereto as Exhibit “N”"
+    }
+   ],
+   "content_check": "28 pages: Legislative Assembly of Ontario Assemblée législative de l’Ontario Official Report of Debates (Hansard) Journal des débats (Hansar"
+  },
+  {
+   "label": "O",
+   "file": "doc-ms3mdc.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "[….] Stay at Home  do not use public transportation, taxis or rideshares  do not go to work, school or other public places  your health care provider will tell you when it is safe to leave Avoid Contact with Others  stay in a separate room, away from other...",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "e Spread webpage retrieved on April 30, 2020 is attached as Exhibit “O”"
+    }
+   ],
+   "content_check": "8 pages: 4/30/2020 COVID-19: Stop the spread | Ontario.ca https://www.ontario.ca/page/covid-19-stop-spread 1/8 COVID-19: Get the latest upd"
+  },
+  {
+   "label": "P",
+   "file": "doc-bcfks8.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "51/20 is attached hereto as Exhibit “P”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "51/20 is attached hereto as Exhibit “P”"
+    }
+   ],
+   "content_check": "4 pages: 4/17/2020 O. Reg. 51/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - CLOSURE OF ESTABLISHMENTS https://www.ontario.ca/laws/regul"
+  },
+  {
+   "label": "Q",
+   "file": "doc-g352c7.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the order and the Government of Ontario webpage providing a list of the essential workplaces are attached hereto as Exhibits “Q”, and “R”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "g a list of the essential workplaces are attached hereto as Exhibits “Q”"
+    }
+   ],
+   "content_check": "7 pages: 4/17/2020 O. Reg. 82/20: ORDER UNDER SUBSECTION 7.0.2 (4) - CLOSURE OF PLACES OF NON-ESSENTIAL BUSINESSES https://www.ontario.ca/l"
+  },
+  {
+   "label": "R",
+   "file": "doc-gr8u3a.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the order and the Government of Ontario webpage providing a list of the essential workplaces are attached hereto as Exhibits “Q”, and “R”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "sential workplaces are attached hereto as Exhibits “Q”, and “R”"
+    }
+   ],
+   "content_check": "6 pages: 4/18/2020 List of essential workplaces | Ontario.ca https://www.ontario.ca/page/list-essential-workplaces#section-12 1/6 COVID-19:"
+  },
+  {
+   "label": "S",
+   "file": "doc-sprj8v.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "52/20 is attached hereto as Exhibit “S”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "52/20 is attached hereto as Exhibit “S”"
+    }
+   ],
+   "content_check": "2 pages: 4/17/2020 O. Reg. 52/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - ORGANIZED PUBLIC EVENTS, CERTAIN GATHERINGS https://www.ont"
+  },
+  {
+   "label": "T",
+   "file": "doc-ppxvtr.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the orders are attached hereto as Exhibits “T” and “U”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Copies of the orders are attached hereto as Exhibits “T”"
+    }
+   ],
+   "content_check": "1 pages: 4/23/2020 O. Reg. 105/20: ORDER MADE UNDER THE ACT - EXTENSION OF EMERGENCY https://www.ontario.ca/laws/regulation/200105 1/1 Fran"
+  },
+  {
+   "label": "U",
+   "file": "doc-dz5gyh.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the orders are attached hereto as Exhibits “T” and “U”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "opies of the orders are attached hereto as Exhibits “T” and “U”"
+    }
+   ],
+   "content_check": "2 pages: 4/17/2020 O. Reg. 104/20: EMERGENCY ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - CLOSURE OF OUTDOOR RECREATIONAL A… https://www.o"
+  },
+  {
+   "label": "V",
+   "file": "doc-4cf7uj.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "141/20 is attached hereto as Exhibit “V”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "141/20 is attached hereto as Exhibit “V”"
+    }
+   ],
+   "content_check": "3 pages: 5/1/2020 O. Reg. 141/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - TEMPORARY HEALTH OR RESIDENTIAL FACILITIES https://www.onta"
+  },
+  {
+   "label": "W",
+   "file": "doc-4wm9p7.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "106/20 is attached hereto as Exhibit “W”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "106/20 is attached hereto as Exhibit “W”"
+    }
+   ],
+   "content_check": "3 pages: 4/17/2020 O. Reg. 106/20: ORDER MADE UNDER THE ACT - EXTENSIONS AND RENEWALS OF ORDERS https://www.ontario.ca/laws/regulation/2001"
+  },
+  {
+   "label": "X",
+   "file": "doc-dmymfu.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "177/20 is attached hereto as Exhibit “X”.",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "177/20 is attached hereto as Exhibit “X”"
+    }
+   ],
+   "content_check": "3 pages: 5/3/2020 O. Reg. 177/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - CONGREGATE CARE SETTINGS https://www.ontario.ca/laws/regula"
+  },
+  {
+   "label": "Y",
+   "file": "doc-n5jrmr.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Ontario government webpage COVID-19 Action Plan: Protecting Vulnerable Ontarians is attached hereto as Exhibit “Y”.",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Plan: Protecting Vulnerable Ontarians is attached hereto as Exhibit “Y”"
+    }
+   ],
+   "content_check": "5 pages: 4/23/2020 COVID-19 action plan: protecting vulnerable Ontarians | Ontario.ca https://www.ontario.ca/page/covid-19-action-plan-prot"
+  },
+  {
+   "label": "Z",
+   "file": "doc-5ehqdx.pdf",
+   "kind": "report",
+   "date": "2020-04-01",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the guidance document is attached hereto as Exhibit “Z”.",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "A copy of the guidance document is attached hereto as Exhibit “Z”"
+    }
+   ],
+   "content_check": "10 pages: 1 | P a g e Ministry of Health COVID-19 Guidance: Homeless Shelters Version 1 – April 1, 2020 This guidance document provides basi"
+  },
+  {
+   "label": "AA",
+   "file": "doc-afq27v.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A table summarizing these efforts, including various directives, orders, and memoranda is attached hereto as Exhibit “AA”.",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "ous directives, orders, and memoranda is attached hereto as Exhibit “AA”"
+    }
+   ],
+   "content_check": "4 pages: DIRECTIVES Date Directive Description March 22, 2020 and April 8, 2020, updated on April 15, 2020 Directive # 3 Directive for Long"
+  },
+  {
+   "label": "BB",
+   "file": "doc-fheers.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Directives #3 and #5 pertaining to long-term care homes, are attached hereto as Exhibits “BB” and “CC”.",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "pertaining to long-term care homes, are attached hereto as Exhibits “BB”"
+    }
+   ],
+   "content_check": "10 pages: COVID-19 Directive #3 for Long-Term Care Homes under the Long- Term Care Homes Act, 2007 Issued under Section 77.7 of the Health P"
+  },
+  {
+   "label": "CC",
+   "file": "doc-g6snma.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Directives #3 and #5 pertaining to long-term care homes, are attached hereto as Exhibits “BB” and “CC”.",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "g-term care homes, are attached hereto as Exhibits “BB” and “CC”"
+    }
+   ],
+   "content_check": "5 pages: COVID-19 Directive #5 for Hospitals within the meaning of the Public Hospitals Act and Long-Term Care Homes within the meaning of "
+  },
+  {
+   "label": "DD",
+   "file": "doc-aymmbg.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "77/20 is attached hereto as Exhibit “DD”.",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "77/20 is attached hereto as Exhibit “DD”"
+    }
+   ],
+   "content_check": "2 pages: 4/30/2020 O. Reg. 77/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - WORK DEPLOYMENT MEASURES IN LONG-TERM CARE H… https://www.o"
+  },
+  {
+   "label": "EE",
+   "file": "doc-rmz4wu.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of this Order in Council is attached hereto as Exhibit “EE”.",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "A copy of this Order in Council is attached hereto as Exhibit “EE”"
+    }
+   ],
+   "content_check": "2 pages: Emergency Management and Civil Protection Act Loi sur la protection civile et la gestion des situations d’urgence ONTARIO REGULATI"
+  },
+  {
+   "label": "FF",
+   "file": "doc-gqavdz.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "146/20 is attached hereto as Exhibit “FF”.",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "146/20 is attached hereto as Exhibit “FF”"
+    }
+   ],
+   "content_check": "2 pages: 5/2/2020 O. Reg. 146/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - LIMITING WORK TO A SINGLE LONG-TERM CARE HOME https://www.o"
+  },
+  {
+   "label": "GG",
+   "file": "doc-quk4dg.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "77/20 is attached hereto as Exhibit “GG”.",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "77/20 is attached hereto as Exhibit “GG”"
+    }
+   ],
+   "content_check": "2 pages: 5/2/2020 O. Reg. 77/20: ORDER UNDER SUBSECTION 7.0.2 (4) OF THE ACT - WORK DEPLOYMENT MEASURES IN LONG-TERM CARE HO… https://www.o"
+  },
+  {
+   "label": "HH",
+   "file": "doc-9ywspv.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "The memoranda pertaining to the Province’s response regarding long-term care homes, dated April 15, April 15, April 17, April 21 and April 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK” and “LL”.",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "pril 17, April 21 and April 26, 2020 are attached hereto as Exhibits “HH”"
+    }
+   ],
+   "content_check": "2 pages: 1615-02 (01/14) 7530-4659 Ministry of Health Office of the Deputy Minister 777 Bay Street, 5th Floor Toronto ON M7A 1N3 Tel.: 416 "
+  },
+  {
+   "label": "II",
+   "file": "doc-xvywtf.pdf",
+   "kind": "letter",
+   "date": "2020-04-15",
+   "author": null,
+   "recipients": [],
+   "description": "The memoranda pertaining to the Province’s response regarding long-term care homes, dated April 15, April 15, April 17, April 21 and April 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK” and “LL”.",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "21 and April 26, 2020 are attached hereto as Exhibits “HH”, “II”"
+    }
+   ],
+   "content_check": "2 pages: April 15, 2020 MEMORANDUM TO: Chief Executive Officers of Ontario Public Hospitals FROM: Matthew Anderson President & CEO, Ontario"
+  },
+  {
+   "label": "JJ",
+   "file": "doc-gp7fg2.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "The memoranda pertaining to the Province’s response regarding long-term care homes, dated April 15, April 15, April 17, April 21 and April 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK” and “LL”.",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "d April 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”"
+    }
+   ],
+   "content_check": "2 pages: Ministry of Health Office of the Deputy Minister 777 Bay Street, 5th Floor Toronto ON M7A 1N3 Tel.: 416 327-4300 Fax: 416 326-1570"
+  },
+  {
+   "label": "KK",
+   "file": "doc-sw9wrt.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "The memoranda pertaining to the Province’s response regarding long-term care homes, dated April 15, April 15, April 17, April 21 and April 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK” and “LL”.",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "il 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK”"
+    }
+   ],
+   "content_check": "2 pages: 1615-02 (01/14) 7530-4659 Ministry of Health Office of the Deputy Minister 777 Bay Street, 5th Floor Toronto ON M7A 1N3 Tel.: 416 "
+  },
+  {
+   "label": "LL",
+   "file": "doc-u584h8.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "The memoranda pertaining to the Province’s response regarding long-term care homes, dated April 15, April 15, April 17, April 21 and April 26, 2020 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK” and “LL”.",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "20 are attached hereto as Exhibits “HH”, “II”,“JJ”,“KK” and “LL”"
+    }
+   ],
+   "content_check": "3 pages: . . . /2 Ministry of Health Assistant Deputy Minister’s Office Hospitals and Capital Division 1075 Bay Street, 11th Floor Toronto "
+  },
+  {
+   "label": "MM",
+   "file": "doc-9rcnfa.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the webpage retrieved on May 2, 2020 is attached hereto as Exhibit “MM”.",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "the webpage retrieved on May 2, 2020 is attached hereto as Exhibit “MM”"
+    }
+   ],
+   "content_check": "5 pages: 5/2/2020 COVID-19 action plan: long-term care homes | Ontario.ca https://www.ontario.ca/page/covid-19-action-plan-long-term-care-h"
+  },
+  {
+   "label": "NN",
+   "file": "doc-wbs6pe.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the HPPA is attached hereto as Exhibit “NN”.",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "A copy of the HPPA is attached hereto as Exhibit “NN”"
+    }
+   ],
+   "content_check": "22 pages: Français Health Protection and Promotion Act R.S.O. 1990, CHAPTER H.7 Consolidation Period: From July 1, 2019 to the e-Laws curren"
+  },
+  {
+   "label": "OO",
+   "file": "doc-4nddgz.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "de Villa’s April 1, 2020 class order is attached hereto as Exhibit “OO”.",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "de Villa’s April 1, 2020 class order is attached hereto as Exhibit “OO”"
+    }
+   ],
+   "content_check": "3 pages: C L A S S O R D E R made pursuant to Section 22(5.0.1) of the Health Protection and Promotion Act Date: April 1, 2020 TO: All pers"
+  },
+  {
+   "label": "PP",
+   "file": "doc-pc5hqt.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of both orders are attached hereto as Exhibits “PP” and “QQ”.",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Copies of both orders are attached hereto as Exhibits “PP”"
+    }
+   ],
+   "content_check": "3 pages: 4/17/2020 Public Notice app.toronto.ca/nm/api/individual/notice/1625.do 1/3 Public Notice Emergency Order No. 1 - To impose regula"
+  },
+  {
+   "label": "QQ",
+   "file": "doc-hh8tmr.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of both orders are attached hereto as Exhibits “PP” and “QQ”.",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "ies of both orders are attached hereto as Exhibits “PP” and “QQ”"
+    }
+   ],
+   "content_check": "3 pages: 4/17/2020 Public Notice app.toronto.ca/nm/api/individual/notice/1626.do 1/3 Public Notice Emergency Order No. 2 - To impose regula"
+  },
+  {
+   "label": "RR",
+   "file": "doc-s2an32.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the by-law is attached as Exhibit “RR”.",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "A copy of the by-law is attached as Exhibit “RR”"
+    }
+   ],
+   "content_check": "3 pages: Authority: Mayor’s delegated authority under Section 59-6.1 of Chapter 59, Emergency Management of The City of Toronto Municipal C"
+  },
+  {
+   "label": "SS",
+   "file": "doc-qh2g6k.pdf",
+   "kind": "minutes",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the City Council’s motion to adopt is attached hereto as Exhibit “SS”.",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "of the City Council’s motion to adopt is attached hereto as Exhibit “SS”"
+    }
+   ],
+   "content_check": "2 pages: Item Tracking Status City Council adopted this item on April 30, 2020 with amendments. City Council consideration on April 30, 202"
+  },
+  {
+   "label": "TT",
+   "file": "doc-wpv8zb.pdf",
+   "kind": "transcript",
+   "date": "2020-03-17",
+   "author": null,
+   "recipients": [],
+   "description": "A table containing the dates and summarizing the contents of these statements and guidelines is attached hereto as Exhibit “TT”, and are also described below.",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "ts of these statements and guidelines is attached hereto as Exhibit “TT”"
+    }
+   ],
+   "content_check": "24 pages: City of Toronto Response Chart to COVID-19 in Homeless Shelters Date Organization/indi vidual Description Statement/Transcript Mar"
+  },
+  {
+   "label": "UU",
+   "file": "doc-gr2sgg.pdf",
+   "kind": "report",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the Fact Sheets are attached hereto as Exhibit “UU”.",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "Copies of the Fact Sheets are attached hereto as Exhibit “UU”"
+    }
+   ],
+   "content_check": "4 pages: Interim Guidance for Homelessness Service Settings Providers Homelessness service settings that provide temporary housing, congreg"
+  },
+  {
+   "label": "VV",
+   "file": "doc-kzkv5q.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the memorandum is attached hereto as Exhibit “VV”.",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "A copy of the memorandum is attached hereto as Exhibit “VV”"
+    }
+   ],
+   "content_check": "2 pages: , Gordon Tanner Director Shelter, Support & Housing Administration Mary-Anne Bédard, General Manager Homelessness Initiatives & Pr"
+  },
+  {
+   "label": "WW",
+   "file": "doc-es4pja.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "As these are being developed, we encourage you to consider the feasibility of implementing any of the following best practices at your sites:  Increase spacing between beds where possible  Arrange beds so that individuals lay head-to-toe (or toe-to-toe)  Us...",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "ng common spaces A copy of the update is attached hereto as Exhibit “WW”"
+    }
+   ],
+   "content_check": "4 pages: Shelter, Support & Housing Administration Mary-Anne Bédard, General Manager Metro Hall, 6th Floor 55 John Street Toronto, Ontario "
+  },
+  {
+   "label": "XX",
+   "file": "doc-m5b826.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the March 17, 2020 news release is attached hereto as Exhibit “XX”.",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "py of the March 17, 2020 news release is attached hereto as Exhibit “XX”"
+    }
+   ],
+   "content_check": "4 pages: 4/18/2020 News Releases & Media Advisories – City of Toronto https://www.toronto.ca/home/media-room/news-releases-media-advisories"
+  },
+  {
+   "label": "YY",
+   "file": "doc-eagwb2.pdf",
+   "kind": "transcript",
+   "date": "2020-03-20",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “YY”.",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “YY”"
+    }
+   ],
+   "content_check": "4 pages: Transcript News Conference COVID-19: March 20, 2020 https://www.youtube.com/watch?v=SK2J2QrB8yM Chief Pegg: 09:54 The City of Toro"
+  },
+  {
+   "label": "ZZ",
+   "file": "doc-7yr48p.pdf",
+   "kind": "transcript",
+   "date": "2020-03-21",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “ZZ”.",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “ZZ”"
+    }
+   ],
+   "content_check": "5 pages: Transcript News Conference COVID-19: March 21, 2020 https://www.youtube.com/watch?v=OqaRn2_h5Tk Melissa from City TV: 17:13 So yes"
+  },
+  {
+   "label": "AAA",
+   "file": "doc-gwcbk4.pdf",
+   "kind": "transcript",
+   "date": "2020-03-24",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “AAA”.",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “AAA”"
+    }
+   ],
+   "content_check": "4 pages: Transcript News Conference COVID-19: March 24, 2020 https://www.youtube.com/watch?v=-qgHbywyVxo Matt Bingley, Global News: 16:27 J"
+  },
+  {
+   "label": "BBB",
+   "file": "doc-yxajyv.pdf",
+   "kind": "report",
+   "date": "2020-03-26",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Q+A document is attached hereto as Exhibit “BBB”.",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "A copy of the Q+A document is attached hereto as Exhibit “BBB”"
+    }
+   ],
+   "content_check": "3 pages: SSHA Q+A March 26, 2020 Shelters, Support and Housing COVID-19 Response For City’s homeless support, what services are continuing "
+  },
+  {
+   "label": "CCC",
+   "file": "doc-9yq7v8.pdf",
+   "kind": "transcript",
+   "date": "2020-03-26",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “CCC”.",
+   "references": [
+    {
+     "paragraph": 50,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “CCC”"
+    }
+   ],
+   "content_check": "5 pages: Transcript News Conference COVID-19: March 26, 2020 https://www.youtube.com/watch?v=v6F-L6NwDr8 Mark McAllister City News: 25:21 A"
+  },
+  {
+   "label": "DDD",
+   "file": "doc-bwu8ey.pdf",
+   "kind": "report",
+   "date": "2020-03-27",
+   "author": null,
+   "recipients": [],
+   "description": "The City stated that it “ is working with Toronto Community Housing (TCH) on a Rapid Housing initiative to identify vacant units that can be made available immediately to particularly vulnerable populations that are currently shelter clients on the waiting lis...",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "housing.” A copy of the Q+A document is attached hereto as Exhibit “DDD”"
+    }
+   ],
+   "content_check": "3 pages: SSHA Q+A March 27, 2020 Housing, Income and Program Support How are people experiencing homeless being assisted to find permanent "
+  },
+  {
+   "label": "EEE",
+   "file": "doc-frvwrt.pdf",
+   "kind": "transcript",
+   "date": "2020-03-27",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “EEE”.",
+   "references": [
+    {
+     "paragraph": 52,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “EEE”"
+    }
+   ],
+   "content_check": "2 pages: Transcript News Conference COVID-19: March 27, 2020 https://www.youtube.com/watch?v=pP8XRHTwVdM Jeff Gray Globe and Mail: 25:30 Ju"
+  },
+  {
+   "label": "FFF",
+   "file": "doc-ahze2r.pdf",
+   "kind": "transcript",
+   "date": "2020-03-30",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the press conference transcript is attached hereto as Exhibit “FFF”.",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "py of the press conference transcript is attached hereto as Exhibit “FFF”"
+    }
+   ],
+   "content_check": "1 pages: Transcript News Conference COVID-19: March 30, 2020 https://www.youtube.com/watch?v=QIXwbFdSopg John Tory: 04:44-06:01 … I want to"
+  },
+  {
+   "label": "GGG",
+   "file": "doc-b78fnb.pdf",
+   "kind": "report",
+   "date": "2020-03-30",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of each Fact Sheet is attached hereto as Exhibit “GGG”.",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "A copy of each Fact Sheet is attached hereto as Exhibit “GGG”"
+    }
+   ],
+   "content_check": "4 pages: March 30, 2020 COVID-19 Infection Prevention and Control Tips for Homelessness Service Setting Providers With current local transm"
+  },
+  {
+   "label": "HHH",
+   "file": "doc-us8u87.pdf",
+   "kind": "report",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Frequently Asked Questions document is attached hereto as Exhibit “HHH”.",
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "e Frequently Asked Questions document is attached hereto as Exhibit “HHH”"
+    }
+   ],
+   "content_check": "13 pages: 30 March 2020 Shelter, Support & Housing Administration Division Homelessness Services COVID-19 Response Frequently Asked Question"
+  },
+  {
+   "label": "III",
+   "file": "doc-c3vmhb.pdf",
+   "kind": "transcript",
+   "date": "2020-03-31",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “III”.",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “III”"
+    }
+   ],
+   "content_check": "3 pages: Transcript News Conference COVID-19: March 31, 2020 https://www.youtube.com/watch?v=we3xA4hKNvc Chief Matthew Pegg: 17:44-18:10 Fi"
+  },
+  {
+   "label": "JJJ",
+   "file": "doc-3w3x86.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "This includes seniors, people experiencing homelessness, residents in long-term care homes, people who have compromised immune systems, and front-line workers.” A copy of Councillor Cressy’s statement on his webpage, retrieved April 30, 2020 is attached hereto...",
+   "references": [
+    {
+     "paragraph": 57,
+     "quote": "his webpage, retrieved April 30, 2020 is attached hereto as Exhibit “JJJ”"
+    }
+   ],
+   "content_check": "4 pages: 4/30/2020 New City of Toronto Measures to Stop COVID-19 - Councillor Joe Cressy - Ward 10, Spadina-Fort York www.joecressy.com/mea"
+  },
+  {
+   "label": "KKK",
+   "file": "doc-3jy8qs.pdf",
+   "kind": "transcript",
+   "date": "2020-04-01",
+   "author": null,
+   "recipients": [],
+   "description": "de Villa stated “ we are very cognizant of the fact that those experiencing homelessness in our community are at high risk of negative impact associated with COVID-19… our colleagues are working as expeditiously as they can to remedy the situation.” A copy of ...",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “KKK”"
+    }
+   ],
+   "content_check": "2 pages: Transcript News Conference COVID-19: April 1, 2020 https://www.youtube.com/watch?v=hRhI4u_v8mU 54:48 Brad Ross: Go to Jeff Gray fr"
+  },
+  {
+   "label": "LLL",
+   "file": "doc-2zdq2b.pdf",
+   "kind": "email",
+   "date": "2020-04-30",
+   "author": null,
+   "recipients": [],
+   "description": "Based on that, we are rapidly expanding our hotel capacity and working with ICHA and shelter providers to identify clients at highest risk so they can be prioritized for relocation.” A copy of the email dated April 2, 2020 is attached hereto as Exhibit “LLL”.",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "copy of the email dated April 2, 2020 is attached hereto as Exhibit “LLL”"
+    }
+   ],
+   "content_check": "3 pages: From: Cathy Crowe To: Louis Century Subject: Fwd: physical distancing in shelters, 24 hr respites, overnight drop-ins Date: Thursd"
+  },
+  {
+   "label": "MMM",
+   "file": "doc-evh55g.pdf",
+   "kind": "email",
+   "date": "2020-04-03",
+   "author": null,
+   "recipients": [],
+   "description": "We are in the middle of transitioning clients into the hotel rooms, with some rooms occupied now but many more people and families to move over the next few days.” A copy of the email dated April 3, 2020 is attached hereto as Exhibit “MMM”.",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "copy of the email dated April 3, 2020 is attached hereto as Exhibit “MMM”"
+    }
+   ],
+   "content_check": "6 pages: L Sj m m■ H H H H From: Brent Gilliard <Brent.Gilliard@toronto.ca> Sent: April 3, 2020 4:59 PM To: Noa Mendelsohn Aviv <mendelsohn"
+  },
+  {
+   "label": "NNN",
+   "file": "doc-rde7vf.pdf",
+   "kind": "transcript",
+   "date": "2020-04-07",
+   "author": null,
+   "recipients": [],
+   "description": "An additional 15 locations are being considered.” A copy of the news conference transcript is attached hereto as Exhibit “NNN”.",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “NNN”"
+    }
+   ],
+   "content_check": "2 pages: Transcript News Conference COVID-19: April 7, 2020 https://www.youtube.com/watch?v=F9Kqe_mJiVY Dr. De Villa 10:29-12:57 In terms o"
+  },
+  {
+   "label": "OOO",
+   "file": "doc-3e7vh9.pdf",
+   "kind": "transcript",
+   "date": "2020-04-08",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “OOO”.",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “OOO”"
+    }
+   ],
+   "content_check": "3 pages: Transcript News Conference COVID-19: April 8, 2020 https://www.youtube.com/watch?v=DmCC6Id5sKI John Tory: 09:10 – 10:10 … The Stra"
+  },
+  {
+   "label": "PPP",
+   "file": "doc-nu6jgh.pdf",
+   "kind": "report",
+   "date": "2020-04-08",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Fact Sheet is attached hereto as Exhibit “PPP”.",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "A copy of the Fact Sheet is attached hereto as Exhibit “PPP”"
+    }
+   ],
+   "content_check": "8 pages: April 8, 2020 COVID-19 Interim Guidance for Homelessness Service Settings Homelessness service settings that provide temporary hou"
+  },
+  {
+   "label": "QQQ",
+   "file": "doc-8z9ffw.pdf",
+   "kind": "report",
+   "date": "2020-04-08",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Fact Sheet is attached hereto as Exhibit “QQQ”.",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "A copy of the Fact Sheet is attached hereto as Exhibit “QQQ”"
+    }
+   ],
+   "content_check": "8 pages: April 8, 2020 COVID-19 Interim Guidance for Homelessness Service Settings Homelessness service settings that provide temporary hou"
+  },
+  {
+   "label": "RRR",
+   "file": "doc-ybvnwr.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the memorandum is attached hereto as Exhibit “RRR”.",
+   "references": [
+    {
+     "paragraph": 66,
+     "quote": "A copy of the memorandum is attached hereto as Exhibit “RRR”"
+    }
+   ],
+   "content_check": "3 pages: Memorandum Shelter, Support & Housing Administration Mary-Anne Bédard, General Manager Metro Hall, 6th Floor 55 John Street Toront"
+  },
+  {
+   "label": "SSS",
+   "file": "doc-tcyct4.pdf",
+   "kind": "transcript",
+   "date": "2020-04-13",
+   "author": null,
+   "recipients": [],
+   "description": "She also stated that the City has “been successful in moving over 1,000 people so far, which is a significant amount of movement to create in the shelter system.” A copy of the news conference transcript is attached hereto as Exhibit “SSS”.",
+   "references": [
+    {
+     "paragraph": 67,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “SSS”"
+    }
+   ],
+   "content_check": "3 pages: Transcript News Conference COVID-19: April 13, 2020 https://www.youtube.com/watch?v=RZpRGZEhJE0 Dr. de Villa: 13:40 In long-term c"
+  },
+  {
+   "label": "TTT",
+   "file": "doc-7kvkas.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "de Villa’s statement are attached hereto as Exhibits “TTT”, “UUU” and “VVV”.",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "de Villa’s statement are attached hereto as Exhibits “TTT”"
+    }
+   ],
+   "content_check": "5 pages: 4/17/2020 News Releases & Media Advisories – City of Toronto https://www.toronto.ca/home/media-room/news-releases-media-advisories"
+  },
+  {
+   "label": "UUU",
+   "file": "doc-3h6eum.pdf",
+   "kind": "transcript",
+   "date": "2020-04-14",
+   "author": null,
+   "recipients": [],
+   "description": "de Villa’s statement are attached hereto as Exhibits “TTT”, “UUU” and “VVV”.",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "de Villa’s statement are attached hereto as Exhibits “TTT”, “UUU”"
+    }
+   ],
+   "content_check": "18 pages: Transcript News Conference COVID-19: April 14, 2020 (additional to regular conference at 3:45 pm) https://www.youtube.com/watch?v="
+  },
+  {
+   "label": "VVV",
+   "file": "doc-9zr2w3.pdf",
+   "kind": "letter",
+   "date": "2020-04-14",
+   "author": null,
+   "recipients": [],
+   "description": "de Villa’s statement are attached hereto as Exhibits “TTT”, “UUU” and “VVV”.",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "statement are attached hereto as Exhibits “TTT”, “UUU” and “VVV”"
+    }
+   ],
+   "content_check": "4 pages: Update on COVID-19 Dr. Eileen de Villa, Medical Officer of Health April 14, 2020 at 12 p.m. Members' Lounge, Toronto City Hall, 10"
+  },
+  {
+   "label": "WWW",
+   "file": "doc-q36pka.pdf",
+   "kind": "transcript",
+   "date": "2020-04-15",
+   "author": null,
+   "recipients": [],
+   "description": "In addition to a number of other actions that are going on in the background to increase safety within the shelter system.” A copy of the news conference transcript is attached hereto as Exhibit “WWW”.",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “WWW”"
+    }
+   ],
+   "content_check": "3 pages: Transcript News Conference COVID-19: April 15, 2020 https://www.youtube.com/watch?v=_3D1VgIrbfw Francine Kopun, The Toronto Star: "
+  },
+  {
+   "label": "XXX",
+   "file": "doc-j6k9b2.pdf",
+   "kind": "transcript",
+   "date": "2020-04-17",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “XXX”.",
+   "references": [
+    {
+     "paragraph": 70,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “XXX”"
+    }
+   ],
+   "content_check": "2 pages: Transcript News Conference COVID-19: April 17, 2020 https://www.youtube.com/watch?v=m0D_rUoJnuU Dr. de Villa: 20:45 The other cong"
+  },
+  {
+   "label": "YYY",
+   "file": "doc-tt9sgz.pdf",
+   "kind": "transcript",
+   "date": "2020-04-20",
+   "author": null,
+   "recipients": [],
+   "description": "Bédard stated that the city is “actively partnering with those who actually have purview over testing hospitals and their assessment centers and the shelters in order to facilitate more testing in these settings, similar to that which is happening within the c...",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “YYY”"
+    }
+   ],
+   "content_check": "4 pages: Transcript News Conference COVID-19: April 20, 2020 https://www.youtube.com/watch?v=j10SkvEXThg Dr. de Villa: 09:18 … In response "
+  },
+  {
+   "label": "ZZZ",
+   "file": "doc-7z3dry.pdf",
+   "kind": "letter",
+   "date": "2020-04-20",
+   "author": null,
+   "recipients": [],
+   "description": "de Villa on April 20 and April 21, 2020 are attached hereto as Exhibits “ZZZ” and “AAAA”.",
+   "references": [
+    {
+     "paragraph": 72,
+     "quote": "Villa on April 20 and April 21, 2020 are attached hereto as Exhibits “ZZZ”"
+    }
+   ],
+   "content_check": "4 pages: Update on COVID-19 Dr. Eileen de Villa, Medical Officer of Health April 20, 2020 at 3:45 p.m. Members' Lounge, Toronto City Hall, "
+  },
+  {
+   "label": "AAAA",
+   "file": "doc-s92sy8.pdf",
+   "kind": "letter",
+   "date": "2020-04-21",
+   "author": null,
+   "recipients": [],
+   "description": "de Villa on April 20 and April 21, 2020 are attached hereto as Exhibits “ZZZ” and “AAAA”.",
+   "references": [
+    {
+     "paragraph": 72,
+     "quote": "nd April 21, 2020 are attached hereto as Exhibits “ZZZ” and “AAAA”"
+    }
+   ],
+   "content_check": "4 pages: Update on COVID-19 Dr. Eileen de Villa, Medical Officer of Health April 21, 2020 at 3:45 p.m. Members' Lounge, Toronto City Hall, "
+  },
+  {
+   "label": "BBBB",
+   "file": "doc-mvnzwy.pdf",
+   "kind": "transcript",
+   "date": "2020-04-21",
+   "author": null,
+   "recipients": [],
+   "description": "Bédard stated “more than 1200 people have been moved in the last few weeks to create physical distancing.” She added that “we've worked closely with our community organisations as well to create almost, almost 1,300 spaces for physical distancing and we will c...",
+   "references": [
+    {
+     "paragraph": 73,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “BBBB”"
+    }
+   ],
+   "content_check": "3 pages: Transcript News Conference COVID-19: April 21, 2020 https://www.youtube.com/watch?v=k9YsCJhEbgA 37:12 Brad Ross: Thank you go now "
+  },
+  {
+   "label": "CCCC",
+   "file": "doc-x278ug.pdf",
+   "kind": "report",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the information sheet is attached hereto as Exhibit “CCCC”.",
+   "references": [
+    {
+     "paragraph": 74,
+     "quote": "A copy of the information sheet is attached hereto as Exhibit “CCCC”"
+    }
+   ],
+   "content_check": "3 pages: INFO SHEET FOR HOMELESSNESS SERVICES PROVIDERS WHAT TO EXPECT WHEN A CLIENT TESTS POSTIVE FOR COVID-19 Shelter, Support and Housin"
+  },
+  {
+   "label": "DDDD",
+   "file": "doc-tdzkje.pdf",
+   "kind": "transcript",
+   "date": "2020-04-23",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “DDDD”.",
+   "references": [
+    {
+     "paragraph": 75,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “DDDD”"
+    }
+   ],
+   "content_check": "1 pages: Transcript News Conference COVID-19: April 23, 2020 https://www.youtube.com/watch?v=D-KUXDZ49QM Jeff Gray, the Globe and Mail: 37:"
+  },
+  {
+   "label": "EEEE",
+   "file": "doc-3sqta6.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the April 23, 2020 letter from the City regarding COVID-19 and the outbreaks in Toronto’s Shelter System is attached hereto as Exhibit “EEEE”.",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "outbreaks in Toronto’s Shelter System is attached hereto as Exhibit “EEEE”"
+    }
+   ],
+   "content_check": "3 pages: City Hall 100 Queen Street West East Tower, 4th Floor Toronto, Ontario M5H 2N2 Chris Murray, MCIP RPP City Manager Tel: 416-392-35"
+  },
+  {
+   "label": "FFFF",
+   "file": "doc-eb2zhs.pdf",
+   "kind": "transcript",
+   "date": "2020-04-24",
+   "author": null,
+   "recipients": [],
+   "description": "we are actively engaged with our community health partners on an expanded site and working very closely with the province to ensure that that site gets opened very quickly.” A copy of the news conference transcript is attached hereto as Exhibit “FFFF”.",
+   "references": [
+    {
+     "paragraph": 77,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “FFFF”"
+    }
+   ],
+   "content_check": "1 pages: Transcript News Conference COVID-19: April 24, 2020 https://www.youtube.com/watch?v=3s8ZgdvxeF8 Francine Kopun, The Toronto Star: "
+  },
+  {
+   "label": "GGGG",
+   "file": "doc-fyj8df.pdf",
+   "kind": "transcript",
+   "date": "2020-04-27",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “GGGG”.",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “GGGG”"
+    }
+   ],
+   "content_check": "1 pages: Transcript News Conference COVID-19: April 27, 2020 https://youtu.be/uRUaqDwSc4E Mayor Tory: 08:20 I want us to protect the health"
+  },
+  {
+   "label": "HHHH",
+   "file": "doc-7cfek4.pdf",
+   "kind": "transcript",
+   "date": "2020-04-28",
+   "author": null,
+   "recipients": [],
+   "description": "On April 28, 2020, at the City’s daily briefings, Mayor Tory stated that “Rogers is donating free Wi-Fi for three months to four permanent City of Toronto shelter locations and has also installed free Wi-Fi in five temporary shelter locations, to help facilita...",
+   "references": [
+    {
+     "paragraph": 79,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “HHHH”"
+    }
+   ],
+   "content_check": "2 pages: Transcript News Conference COVID-19: April 28, 2020 https://youtu.be/DKKUE3zxeIg Mayor Tory: 02:15 I want to stress that divisions"
+  },
+  {
+   "label": "IIII",
+   "file": "doc-29qjfs.pdf",
+   "kind": "letter",
+   "date": "2020-04-27",
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the Applicants’ letters to the City dated April 27, 2020 and April 29, 2020, and April 30, 2020 are attached hereto as Exhibits “IIII”, “JJJJ” and “KKKK”.",
+   "references": [
+    {
+     "paragraph": 80,
+     "quote": "d April 29, 2020, and April 30, 2020 are attached hereto as Exhibits “IIII”"
+    }
+   ],
+   "content_check": "4 pages: Jessica R. Orkin Direct Line: 416.979.4381 Fax: 416.591.7333 jorkin@goldblattpartners.com Our File No. 20-632 April 27, 2020 Via E"
+  },
+  {
+   "label": "JJJJ",
+   "file": "doc-puf2ku.pdf",
+   "kind": "letter",
+   "date": "2020-04-29",
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the Applicants’ letters to the City dated April 27, 2020 and April 29, 2020, and April 30, 2020 are attached hereto as Exhibits “IIII”, “JJJJ” and “KKKK”.",
+   "references": [
+    {
+     "paragraph": 80,
+     "quote": "and April 30, 2020 are attached hereto as Exhibits “IIII”, “JJJJ”"
+    }
+   ],
+   "content_check": "2 pages: Jessica R. Orkin Direct Line: 416.979.4381 Fax: 416.591.7333 jorkin@goldblattpartners.com Our File No. 20-632 April 29, 2020 Via E"
+  },
+  {
+   "label": "KKKK",
+   "file": "doc-jtht5x.pdf",
+   "kind": "letter",
+   "date": "2020-04-30",
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the Applicants’ letters to the City dated April 27, 2020 and April 29, 2020, and April 30, 2020 are attached hereto as Exhibits “IIII”, “JJJJ” and “KKKK”.",
+   "references": [
+    {
+     "paragraph": 80,
+     "quote": "30, 2020 are attached hereto as Exhibits “IIII”, “JJJJ” and “KKKK”"
+    }
+   ],
+   "content_check": "2 pages: Jessica R. Orkin Direct Line: 416.979.4381 Fax: 416.591.7333 jorkin@goldblattpartners.com Our File No. 20-632 April 30, 2020 Via E"
+  },
+  {
+   "label": "LLLL",
+   "file": "doc-ye445m.pdf",
+   "kind": "transcript",
+   "date": "2020-04-29",
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the news conference transcript is attached hereto as Exhibit “LLLL”.",
+   "references": [
+    {
+     "paragraph": 81,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “LLLL”"
+    }
+   ],
+   "content_check": "2 pages: Transcript News Conference COVID-19: April 29, 2020 https://youtu.be/EM_mhaNgHrA Mayor Tory: 02:13 As I said last week, I will be "
+  },
+  {
+   "label": "MMMM",
+   "file": "doc-f89e2u.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the memorandum with attachments is attached hereto as Exhibit “MMMM”.",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "py of the memorandum with attachments is attached hereto as Exhibit “MMMM”"
+    }
+   ],
+   "content_check": "36 pages: Memorandum Shelter, Support & Housing Administration Mary-Anne Bédard, General Manager Metro Hall, 6th Floor 55 John Street Toront"
+  },
+  {
+   "label": "NNNN",
+   "file": "doc-rc4d88.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of Councillor Kristyn Wong-Tam’s statement on her webpage, retrieved on April 30, 2020 is attached hereto as Exhibit “NNNN”.",
+   "references": [
+    {
+     "paragraph": 83,
+     "quote": "webpage, retrieved on April 30, 2020 is attached hereto as Exhibit “NNNN”"
+    }
+   ],
+   "content_check": "16 pages: 4/30/2020 COVID-19 Update, April 29 - Kristyn Wong-Tam https://www.kristynwongtam.ca/april29_covid19update 1/16 Important Facts & "
+  },
+  {
+   "label": "OOOO",
+   "file": "doc-a2a6x8.pdf",
+   "kind": "transcript",
+   "date": "2020-05-01",
+   "author": null,
+   "recipients": [],
+   "description": "Mayor Tory added that the City is “looking at a wide range of options plus the use of hotel rooms to make sure that people who are homeless are in healthy proper conditions as best we possibly can.” A copy of the news conference transcript is attached hereto a...",
+   "references": [
+    {
+     "paragraph": 85,
+     "quote": "opy of the news conference transcript is attached hereto as Exhibit “OOOO”"
+    }
+   ],
+   "content_check": "3 pages: Transcript News Conference COVID-19: May 1, 2020 https://youtu.be/_fBroPyfZXU Dr. de Villa: 12:26 Thank you, Mayor Tory and good a"
+  },
+  {
+   "label": "PPPP",
+   "file": "doc-w6ksxr.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the Active COVID-19 outbreaks in Toronto Shelters as of May 1, 2020 is attached hereto as Exhibit “PPPP”.",
+   "references": [
+    {
+     "paragraph": 86,
+     "quote": "in Toronto Shelters as of May 1, 2020 is attached hereto as Exhibit “PPPP”"
+    }
+   ],
+   "content_check": "1 pages: Active COVID-19 Outbreaks in Toronto Shelters, May 1 2020 Outbreak Number Location Name Cases Deaths Current Hospitalizations Repo"
+  },
+  {
+   "label": "QQQQ",
+   "file": "doc-btf3fh.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the City’s letters to the Applicants dated May 1, 2020 and May 2, 2020 are attached hereto as Exhibits “QQQQ” and “RRRR”.",
+   "references": [
+    {
+     "paragraph": 87,
+     "quote": "ts dated May 1, 2020 and May 2, 2020 are attached hereto as Exhibits “QQQQ”"
+    }
+   ],
+   "content_check": "2 pages: Wendy Walberg LL.B., LL.M., C.S. City Solicitor Legal Services 55 John Street Stn. 1260, 26th Flr., Metro Hall Toronto ON M5V 3C6 "
+  },
+  {
+   "label": "RRRR",
+   "file": "doc-sesgr2.pdf",
+   "kind": "letter",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Copies of the City’s letters to the Applicants dated May 1, 2020 and May 2, 2020 are attached hereto as Exhibits “QQQQ” and “RRRR”.",
+   "references": [
+    {
+     "paragraph": 87,
+     "quote": "and May 2, 2020 are attached hereto as Exhibits “QQQQ” and “RRRR”"
+    }
+   ],
+   "content_check": "2 pages: Wendy Walberg LL.B., LL.M., C.S. City Solicitor Legal Services 55 John Street Stn. 1260, 26th Flr., Metro Hall Toronto ON M5V 3C6 "
+  },
+  {
+   "label": "SSSS",
+   "file": "doc-8b64vf.pdf",
+   "kind": "report",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "A copy of the presentation is attached hereto as Exhibit “SSSS”.",
+   "references": [
+    {
+     "paragraph": 88,
+     "quote": "A copy of the presentation is attached hereto as Exhibit “SSSS”"
+    }
+   ],
+   "content_check": "36 pages: City of Toronto Response and Ongoing Management of Emergency City Business during the COVID-19 Pandemic City Manager’s Presentatio"
+  },
+  {
+   "label": "TTTT",
+   "file": "doc-tvmqc3.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "beds or cots available) and the number of people that occupied those spaces at 4:00 AM the following morning.2 Attached as Exhibit “TTTT” is the latest version of the Excel Spreadsheet available to the Applicants, retrieved April 28, 2020.",
+   "references": [
+    {
+     "paragraph": 89,
+     "quote": "those spaces at 4:00 AM the following morning.2 Attached as Exhibit “TTTT”"
+    }
+   ],
+   "content_check": "1 pages: This file is appended separately as an electronic Exhibit. "
+  },
+  {
+   "label": "UUUU",
+   "file": "doc-kvr3rw.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Daily & Overnight Service Usage information for respites and 24/7 drop-ins from the City's webpage",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information"
+    }
+   ],
+   "content_check": "4 pages: 5/1/2020 Daily Shelter & Overnight Service Usage – City of Toronto https://web.archive.org/web/20200116042301/https://www.toronto."
+  },
+  {
+   "label": "VVVV",
+   "file": "doc-unx6zn.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Daily & Overnight Service Usage information for respites and 24/7 drop-ins from the City's webpage",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information"
+    }
+   ],
+   "content_check": "4 pages: 5/1/2020 Daily Shelter & Overnight Service Usage – City of Toronto https://web.archive.org/web/20200227152941/https://www.toronto."
+  },
+  {
+   "label": "WWWW",
+   "file": "doc-4qavpr.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Daily & Overnight Service Usage information for respites and 24/7 drop-ins from the City's webpage",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information"
+    }
+   ],
+   "content_check": "5 pages: 5/1/2020 Daily Shelter & Overnight Service Usage – City of Toronto https://web.archive.org/web/20200414193841/https://www.toronto."
+  },
+  {
+   "label": "XXXX",
+   "file": "doc-3xfgq3.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Daily & Overnight Service Usage information for respites and 24/7 drop-ins from the City's webpage",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information"
+    }
+   ],
+   "content_check": "4 pages: 5/1/2020 Daily Shelter & Overnight Service Usage – City of Toronto https://web.archive.org/web/20200421194726/https://www.toronto."
+  },
+  {
+   "label": "YYYY",
+   "file": "doc-kvghhc.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Daily & Overnight Service Usage information for respites and 24/7 drop-ins from the City's webpage",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information"
+    }
+   ],
+   "content_check": "5 pages: 5/1/2020 Daily Shelter & Overnight Service Usage – City of Toronto https://www.toronto.ca/city-government/data-research-maps/resea"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "date": "2020-04-17",
+   "precision": "day",
+   "description": "Most of the information in this affidavit was obtained through various online searches conducted between April 17, 2020 and May 4, 2020.",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Most of the information in this affidavit was obtained through various online searches conducted between April 17, 2020 and May 4, 2020.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "date": "2020-03-17",
+   "precision": "day",
+   "description": "On March 17, 2020, due to “the outbreak of a communicable disease namely COVID-19 coronavirus disease [that] constitutes a danger of major proportions that could result in serious ",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On March 17, 2020, due to “the outbreak of a communicable disease namely COVID-19 coronavirus disease [that] constitutes a danger of major proportions that could result in serious ",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "date": "2020-04-14",
+   "precision": "day",
+   "description": "On April 14, 2020, the Province extended the Declaration of Emergency for a further 28 days, until May 12, 2020.",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On April 14, 2020, the Province extended the Declaration of Emergency for a further 28 days, until May 12, 2020.",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "date": "2020-03-17",
+   "precision": "day",
+   "description": "The Province has made numerous orders pursuant to its powers under the EMCPA since March 17, 2020, which are summarized in part below: (a) On March 23, 2020, the Province issued O.",
+   "paragraphs": [
+    25
+   ],
+   "quote": "The Province has made numerous orders pursuant to its powers under the EMCPA since March 17, 2020, which are summarized in part below: (a) On March 23, 2020, the Province issued O.",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e5",
+   "date": "2020-04-03",
+   "precision": "day",
+   "description": "(b) On April 3, 2020, the Province issued O. Reg. 82/20, reducing the list of businesses classified as essential and ordered more workplaces to close.",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(b) On April 3, 2020, the Province issued O. Reg. 82/20, reducing the list of businesses classified as essential and ordered more workplaces to close.",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "date": "2020-04-04",
+   "precision": "day",
+   "description": "The government ordered all businesses not covered by the updated Emergency Order to close effective as of Saturday, April 4, 2020 at 11:59 p.m.",
+   "paragraphs": [
+    25
+   ],
+   "quote": "The government ordered all businesses not covered by the updated Emergency Order to close effective as of Saturday, April 4, 2020 at 11:59 p.m.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "date": "2020-03-28",
+   "precision": "day",
+   "description": "(c) On March 28, 2020, the Province issued O. Reg. 52/20, an emergency order under the EMPCA to prohibit organized public events and social gatherings of more than five people, eff",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(c) On March 28, 2020, the Province issued O. Reg. 52/20, an emergency order under the EMPCA to prohibit organized public events and social gatherings of more than five people, eff",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e8",
+   "date": "2020-03-30",
+   "precision": "day",
+   "description": "(d) On March 30, 2020, the Province issued O. Reg. 105/20, extending the Declaration of Emergency and associated emergency measures, including the closure of non- essential workpla",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(d) On March 30, 2020, the Province issued O. Reg. 105/20, extending the Declaration of Emergency and associated emergency measures, including the closure of non- essential workpla",
+   "exhibits": [
+    "T",
+    "U"
+   ]
+  },
+  {
+   "id": "e9",
+   "date": "2020-04-09",
+   "precision": "day",
+   "description": "(e) On April 9, 2020, the Province issued O. Reg. 141/20, an order under the EMCPA recognizing the need to support municipalities to find alternative sleeping arrangements, includi",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(e) On April 9, 2020, the Province issued O. Reg. 141/20, an order under the EMCPA recognizing the need to support municipalities to find alternative sleeping arrangements, includi",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e10",
+   "date": "2020-04-11",
+   "precision": "day",
+   "description": "(f) On April 11, 2020, the Province issued O. Reg. 106/20, extending all emergency orders that had been put in place to-date under s.7.0.2 (4) of the EMCPA until April 23, 2020, in",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(f) On April 11, 2020, the Province issued O. Reg. 106/20, extending all emergency orders that had been put in place to-date under s.7.0.2 (4) of the EMCPA until April 23, 2020, in",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e11",
+   "date": "2020-04-14",
+   "precision": "day",
+   "description": "(g) On April 14, 2020, the Province extended the Declaration of Emergency under the EMCPA for a further 28 days until May 12, 2020.",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(g) On April 14, 2020, the Province extended the Declaration of Emergency under the EMCPA for a further 28 days until May 12, 2020.",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "date": "2020-04-24",
+   "precision": "day",
+   "description": "(h) On April 24, 2020, the Province issued O. Reg. 177/20, under the EMCPA, providing restrictions for staff members at congregate care setting agencies who provide care in a resid",
+   "paragraphs": [
+    25
+   ],
+   "quote": "(h) On April 24, 2020, the Province issued O. Reg. 177/20, under the EMCPA, providing restrictions for staff members at congregate care setting agencies who provide care in a resid",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e13",
+   "date": "2020-04-23",
+   "precision": "day",
+   "description": "On April 23, 2020 the Province announced that it would be delivering a new COVID-19 Action Plan for Vulnerable People to better protect vulnerable populations during the outbreak o",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On April 23, 2020 the Province announced that it would be delivering a new COVID-19 Action Plan for Vulnerable People to better protect vulnerable populations during the outbreak o",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e14",
+   "date": "2020-04-01",
+   "precision": "day",
+   "description": "On April 1, 2020, Ontario’s Ministry of Health created a Guidance document for Homeless Shelters, to assist with the minimizing of COVID-19 transmissions among Ontarians experienci",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On April 1, 2020, Ontario’s Ministry of Health created a Guidance document for Homeless Shelters, to assist with the minimizing of COVID-19 transmissions among Ontarians experienci",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e15",
+   "date": "2020-04-15",
+   "precision": "day",
+   "description": "In the latest version of Directive # 3, which was updated on April 15, 2020, Long-term care homes were directed to immediately implement a series of precautions and procedures, inc",
+   "paragraphs": [
+    31
+   ],
+   "quote": "In the latest version of Directive # 3, which was updated on April 15, 2020, Long-term care homes were directed to immediately implement a series of precautions and procedures, inc",
+   "exhibits": [
+    "BB",
+    "CC"
+   ]
+  },
+  {
+   "id": "e16",
+   "date": "2020-03-24",
+   "precision": "day",
+   "description": "The Province also issued a number of orders to address COVID-19 within long-terms care homes, which are summarized below: (a) On March 24, 2020, the Province issued O. Reg. 77/20, ",
+   "paragraphs": [
+    32
+   ],
+   "quote": "The Province also issued a number of orders to address COVID-19 within long-terms care homes, which are summarized below: (a) On March 24, 2020, the Province issued O. Reg. 77/20, ",
+   "exhibits": [
+    "DD"
+   ]
+  },
+  {
+   "id": "e17",
+   "date": "2020-03-27",
+   "precision": "day",
+   "description": "(b) On March 27, 2020, the Province issued O. Reg. 95/20, addressing restrictions around staffing, reporting complaints, and documentation.",
+   "paragraphs": [
+    32
+   ],
+   "quote": "(b) On March 27, 2020, the Province issued O. Reg. 95/20, addressing restrictions around staffing, reporting complaints, and documentation.",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e18",
+   "date": "2020-04-15",
+   "precision": "day",
+   "description": "(c) On April 15, 2020, the Province issued O. Reg. 146/20, restricting long-term care staff from working in more than one long-term care home.",
+   "paragraphs": [
+    32
+   ],
+   "quote": "(c) On April 15, 2020, the Province issued O. Reg. 146/20, restricting long-term care staff from working in more than one long-term care home.",
+   "exhibits": [
+    "FF"
+   ]
+  },
+  {
+   "id": "e19",
+   "date": "2020-04-25",
+   "precision": "day",
+   "description": "(d) On April 25, 2020 the Province issued O. Reg. 77/20, allowing for the redeployment of staff, including those working in long-term care homes, to ensure they can work where they",
+   "paragraphs": [
+    32
+   ],
+   "quote": "(d) On April 25, 2020 the Province issued O. Reg. 77/20, allowing for the redeployment of staff, including those working in long-term care homes, to ensure they can work where they",
+   "exhibits": [
+    "GG"
+   ]
+  },
+  {
+   "id": "e20",
+   "date": "2020-04-15",
+   "precision": "day",
+   "description": "The Province provided a copy of its COVID-19 action plan for long-term care homes as of April 15, 2020, on Ontario’s webpage.",
+   "paragraphs": [
+    35
+   ],
+   "quote": "The Province provided a copy of its COVID-19 action plan for long-term care homes as of April 15, 2020, on Ontario’s webpage.",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "date": "2020-04-01",
+   "precision": "day",
+   "description": "On April 1, 2020 Toronto’s Medical Officer of Health, Dr. Eileen de Villa, issued a class order made pursuant to Section 22(5.0.1) of the HPPA.",
+   "paragraphs": [
+    37
+   ],
+   "quote": "On April 1, 2020 Toronto’s Medical Officer of Health, Dr. Eileen de Villa, issued a class order made pursuant to Section 22(5.0.1) of the HPPA.",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "date": "2020-04-03",
+   "precision": "day",
+   "description": "On April 2 and April 3, 2020, Mayor John Tory signed an Emergency Order No. 1 (April 2) and Emergency Order No. 2 (April 3) regulating physical distancing in City parks and public ",
+   "paragraphs": [
+    38
+   ],
+   "quote": "On April 2 and April 3, 2020, Mayor John Tory signed an Emergency Order No. 1 (April 2) and Emergency Order No. 2 (April 3) regulating physical distancing in City parks and public ",
+   "exhibits": [
+    "PP",
+    "QQ"
+   ]
+  },
+  {
+   "id": "e23",
+   "date": "2020-04-02",
+   "precision": "day",
+   "description": "On April 2, 2020, the City passed a by-law to amend Municipal Code Chapters 608 and 636 to impose emergency physical distancing regulations with respect to Parks, and Public Square",
+   "paragraphs": [
+    39
+   ],
+   "quote": "On April 2, 2020, the City passed a by-law to amend Municipal Code Chapters 608 and 636 to impose emergency physical distancing regulations with respect to Parks, and Public Square",
+   "exhibits": [
+    "RR"
+   ]
+  },
+  {
+   "id": "e24",
+   "date": "2020-04-30",
+   "precision": "day",
+   "description": "On April 30, 2020 Mayor John Tory signed an Emergency Order, and the City council adopted the following resolutions with respect to the City’s response and ongoing management of em",
+   "paragraphs": [
+    40
+   ],
+   "quote": "On April 30, 2020 Mayor John Tory signed an Emergency Order, and the City council adopted the following resolutions with respect to the City’s response and ongoing management of em",
+   "exhibits": [
+    "SS"
+   ]
+  },
+  {
+   "id": "e25",
+   "date": "2020-03-09",
+   "precision": "day",
+   "description": "On March 9, 2020, TPH prepared two Fact Sheets providing interim guidance for homelessness service settings providers to help reduce the risk of exposure.",
+   "paragraphs": [
+    42
+   ],
+   "quote": "On March 9, 2020, TPH prepared two Fact Sheets providing interim guidance for homelessness service settings providers to help reduce the risk of exposure.",
+   "exhibits": [
+    "UU"
+   ]
+  },
+  {
+   "id": "e26",
+   "date": "2020-03-10",
+   "precision": "day",
+   "description": "On March 10, 2020, the SSHA prepared a memorandum complimenting the information provided by TPH and providing further updates on plans to assist.",
+   "paragraphs": [
+    43
+   ],
+   "quote": "On March 10, 2020, the SSHA prepared a memorandum complimenting the information provided by TPH and providing further updates on plans to assist.",
+   "exhibits": [
+    "VV"
+   ]
+  },
+  {
+   "id": "e27",
+   "date": "2020-03-16",
+   "precision": "day",
+   "description": "On March 16, 2020, the SSHA released an update to all shelter, 24-hour respite and 24- hour drop-in service providers.",
+   "paragraphs": [
+    44
+   ],
+   "quote": "On March 16, 2020, the SSHA released an update to all shelter, 24-hour respite and 24- hour drop-in service providers.",
+   "exhibits": [
+    "WW"
+   ]
+  },
+  {
+   "id": "e28",
+   "date": "2020-03-17",
+   "precision": "day",
+   "description": "In a news release on March 17, 2020, Mary-Anne Bédard, General Manager of the SSHA, announced that the City was strengthening prevention and response to COVID-19 in the emergency s",
+   "paragraphs": [
+    45
+   ],
+   "quote": "In a news release on March 17, 2020, Mary-Anne Bédard, General Manager of the SSHA, announced that the City was strengthening prevention and response to COVID-19 in the emergency s",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "date": "2020-03-20",
+   "precision": "day",
+   "description": "On March 20, 2020 at a City news conference, Ms. Bédard stated that in response to COVID-19, the city has opened 5 new facilities in order to facilitate effective social distancing",
+   "paragraphs": [
+    46
+   ],
+   "quote": "On March 20, 2020 at a City news conference, Ms. Bédard stated that in response to COVID-19, the city has opened 5 new facilities in order to facilitate effective social distancing",
+   "exhibits": [
+    "YY"
+   ]
+  },
+  {
+   "id": "e30",
+   "date": "2020-03-21",
+   "precision": "day",
+   "description": "On March 21, 2020, at a City news conference providing an update, Ms. Bédard stated that in response to the first positive case of COVID-19, the City has taken every precaution bas",
+   "paragraphs": [
+    47
+   ],
+   "quote": "On March 21, 2020, at a City news conference providing an update, Ms. Bédard stated that in response to the first positive case of COVID-19, the City has taken every precaution bas",
+   "exhibits": [
+    "ZZ"
+   ]
+  },
+  {
+   "id": "e31",
+   "date": "2020-03-24",
+   "precision": "day",
+   "description": "On March 24, 2020, at a City news conference providing further updates, Ms. Bédard, confirmed two positive cases of COVID-19 amongst the City’s homeless clients, one in a shelter a",
+   "paragraphs": [
+    48
+   ],
+   "quote": "On March 24, 2020, at a City news conference providing further updates, Ms. Bédard, confirmed two positive cases of COVID-19 amongst the City’s homeless clients, one in a shelter a",
+   "exhibits": [
+    "AAA"
+   ]
+  },
+  {
+   "id": "e32",
+   "date": "2020-03-26",
+   "precision": "day",
+   "description": "On March 26, 2020, the SSHA prepared and released a Q+A document regarding the City’s COVID-19 response.",
+   "paragraphs": [
+    49
+   ],
+   "quote": "On March 26, 2020, the SSHA prepared and released a Q+A document regarding the City’s COVID-19 response.",
+   "exhibits": [
+    "BBB"
+   ]
+  },
+  {
+   "id": "e33",
+   "date": "2020-03-27",
+   "precision": "day",
+   "description": "On March 27, 2020, the SSHA prepared and released a Q+A document with respect to housing, income and program support.",
+   "paragraphs": [
+    51
+   ],
+   "quote": "On March 27, 2020, the SSHA prepared and released a Q+A document with respect to housing, income and program support.",
+   "exhibits": [
+    "DDD"
+   ]
+  },
+  {
+   "id": "e34",
+   "date": "2020-03-27",
+   "precision": "day",
+   "description": "On March 27, 2020, at a City news conference, Ms. Bédard acknowledged that the current spacing between beds in shelters was less than what the City's Medical Officer of Health, Dr.",
+   "paragraphs": [
+    52
+   ],
+   "quote": "On March 27, 2020, at a City news conference, Ms. Bédard acknowledged that the current spacing between beds in shelters was less than what the City's Medical Officer of Health, Dr.",
+   "exhibits": [
+    "EEE"
+   ]
+  },
+  {
+   "id": "e35",
+   "date": "2020-03-30",
+   "precision": "day",
+   "description": "On March 30, 2020, at a City news conference providing daily briefings, Mayor John Tory provided an update with respect to the City’s response to the outbreak in homeless shelters,",
+   "paragraphs": [
+    53
+   ],
+   "quote": "On March 30, 2020, at a City news conference providing daily briefings, Mayor John Tory provided an update with respect to the City’s response to the outbreak in homeless shelters,",
+   "exhibits": [
+    "FFF"
+   ]
+  },
+  {
+   "id": "e36",
+   "date": "2020-03-30",
+   "precision": "day",
+   "description": "On March 30, 2020, TPH updated its Fact Sheets providing infection prevention and control tips for homelessness service providers as a well as interim guidance for homelessness ser",
+   "paragraphs": [
+    54
+   ],
+   "quote": "On March 30, 2020, TPH updated its Fact Sheets providing infection prevention and control tips for homelessness service providers as a well as interim guidance for homelessness ser",
+   "exhibits": [
+    "GGG"
+   ]
+  },
+  {
+   "id": "e37",
+   "date": "2020-03-30",
+   "precision": "day",
+   "description": "On March 30, 2020, the SSHA prepared a Frequently Asked Questions document to answer questions that homeless service providers may have about COVID-19 and the SSHA’s response.",
+   "paragraphs": [
+    55
+   ],
+   "quote": "On March 30, 2020, the SSHA prepared a Frequently Asked Questions document to answer questions that homeless service providers may have about COVID-19 and the SSHA’s response.",
+   "exhibits": []
+  },
+  {
+   "id": "e38",
+   "date": "2020-03-16",
+   "precision": "day",
+   "description": "With respect to added space for physical distancing, the document stated, Since March 16, 2020, SSHA has opened eight new facilities to better allow for physical distancing between",
+   "paragraphs": [
+    55
+   ],
+   "quote": "With respect to added space for physical distancing, the document stated, Since March 16, 2020, SSHA has opened eight new facilities to better allow for physical distancing between",
+   "exhibits": [
+    "HHH"
+   ]
+  },
+  {
+   "id": "e39",
+   "date": "2020-03-31",
+   "precision": "day",
+   "description": "On March 31, 2020, at a City news conference providing an update on its response to the COVID-19 outbreak, Ms. Bédard stated that the City was moving to the second phase of its act",
+   "paragraphs": [
+    56
+   ],
+   "quote": "On March 31, 2020, at a City news conference providing an update on its response to the COVID-19 outbreak, Ms. Bédard stated that the City was moving to the second phase of its act",
+   "exhibits": [
+    "III"
+   ]
+  },
+  {
+   "id": "e40",
+   "date": "2020-04-01",
+   "precision": "day",
+   "description": "On April 1, 2020, City Councillor Joe Cressy provided an update on his webpage, regarding the City’s homelessness COVID-19 efforts.",
+   "paragraphs": [
+    57
+   ],
+   "quote": "On April 1, 2020, City Councillor Joe Cressy provided an update on his webpage, regarding the City’s homelessness COVID-19 efforts.",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "date": "2020-04-01",
+   "precision": "day",
+   "description": "On April 1, 2020, at a City press conference providing daily briefings, in response to a media question “why is a single homeless person still sleeping within six feet of another h",
+   "paragraphs": [
+    58
+   ],
+   "quote": "On April 1, 2020, at a City press conference providing daily briefings, in response to a media question “why is a single homeless person still sleeping within six feet of another h",
+   "exhibits": [
+    "KKK"
+   ]
+  },
+  {
+   "id": "e42",
+   "date": "2020-04-02",
+   "precision": "day",
+   "description": "In an email dated April 2, 2020, Ms. Bédard responded to an email from representatives of the Applicant Sanctuary Ministries of Toronto asking about any physical distancing in shel",
+   "paragraphs": [
+    59
+   ],
+   "quote": "In an email dated April 2, 2020, Ms. Bédard responded to an email from representatives of the Applicant Sanctuary Ministries of Toronto asking about any physical distancing in shel",
+   "exhibits": []
+  },
+  {
+   "id": "e43",
+   "date": "2020-04-03",
+   "precision": "day",
+   "description": "In an email to Noa Mendelsohn Aviv dated April 3, 2020, Brent Gilliard, the Chief of Staff at the Office of Councillor Joe Cressy, stated that “[a]s an interim and immediate measur",
+   "paragraphs": [
+    60
+   ],
+   "quote": "In an email to Noa Mendelsohn Aviv dated April 3, 2020, Brent Gilliard, the Chief of Staff at the Office of Councillor Joe Cressy, stated that “[a]s an interim and immediate measur",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "date": "2020-04-07",
+   "precision": "day",
+   "description": "On April 7, 2020, at a City news conference, Chief Pegg announced “to date, we have secured 1,200 hotel rooms in 12 hotels.",
+   "paragraphs": [
+    61
+   ],
+   "quote": "On April 7, 2020, at a City news conference, Chief Pegg announced “to date, we have secured 1,200 hotel rooms in 12 hotels.",
+   "exhibits": [
+    "NNN"
+   ]
+  },
+  {
+   "id": "e45",
+   "date": "2020-04-08",
+   "precision": "day",
+   "description": "On April 8, 2020 the City held a news conference to provide an update with respect to the response to COVID-19 and responded to media questions regarding the steps taken to that po",
+   "paragraphs": [
+    62
+   ],
+   "quote": "On April 8, 2020 the City held a news conference to provide an update with respect to the response to COVID-19 and responded to media questions regarding the steps taken to that po",
+   "exhibits": []
+  },
+  {
+   "id": "e46",
+   "date": "2020-04-08",
+   "precision": "day",
+   "description": "On April 8, 2020, TPH prepared a COVID-19 Fact Sheet to provide interim guidance for Homelessness Service Settings.",
+   "paragraphs": [
+    65
+   ],
+   "quote": "On April 8, 2020, TPH prepared a COVID-19 Fact Sheet to provide interim guidance for Homelessness Service Settings.",
+   "exhibits": [
+    "PPP",
+    "QQQ"
+   ]
+  },
+  {
+   "id": "e47",
+   "date": "2020-04-11",
+   "precision": "day",
+   "description": "On April 11, 2020, the SSHA issued a memorandum to homeless services providers, providing an update on the response to COVID-19.",
+   "paragraphs": [
+    66
+   ],
+   "quote": "On April 11, 2020, the SSHA issued a memorandum to homeless services providers, providing an update on the response to COVID-19.",
+   "exhibits": [
+    "RRR"
+   ]
+  },
+  {
+   "id": "e48",
+   "date": "2020-04-13",
+   "precision": "day",
+   "description": "On April 13, 2020 at a City held news conference, Ms. Bédard provide an update with respect to the response to COVID-19.",
+   "paragraphs": [
+    67
+   ],
+   "quote": "On April 13, 2020 at a City held news conference, Ms. Bédard provide an update with respect to the response to COVID-19.",
+   "exhibits": [
+    "SSS"
+   ]
+  },
+  {
+   "id": "e49",
+   "date": "2020-04-14",
+   "precision": "day",
+   "description": "On April 14, 2020, Dr. de Villa, Ms. Bédard, University Health Network Executive Director of Health and Social Policy, Dr. Andrew Boozary, and Inner City Health Associates (ICHA) M",
+   "paragraphs": [
+    68
+   ],
+   "quote": "On April 14, 2020, Dr. de Villa, Ms. Bédard, University Health Network Executive Director of Health and Social Policy, Dr. Andrew Boozary, and Inner City Health Associates (ICHA) M",
+   "exhibits": []
+  },
+  {
+   "id": "e50",
+   "date": "2020-04-15",
+   "precision": "day",
+   "description": "On April 15, 2020, at a City held news conference providing updates regarding the City’s response to COVID-19, Ms. Bédard stated “[w]e have been able to move more than a thousand p",
+   "paragraphs": [
+    69
+   ],
+   "quote": "On April 15, 2020, at a City held news conference providing updates regarding the City’s response to COVID-19, Ms. Bédard stated “[w]e have been able to move more than a thousand p",
+   "exhibits": [
+    "WWW"
+   ]
+  },
+  {
+   "id": "e51",
+   "date": "2020-04-17",
+   "precision": "day",
+   "description": "On April 17, 2020, at a City news conference providing daily briefings, Dr. de Villa stated that TPH and the City would be providing aggregate data regarding shelters, with more de",
+   "paragraphs": [
+    70
+   ],
+   "quote": "On April 17, 2020, at a City news conference providing daily briefings, Dr. de Villa stated that TPH and the City would be providing aggregate data regarding shelters, with more de",
+   "exhibits": [
+    "XXX"
+   ]
+  },
+  {
+   "id": "e52",
+   "date": "2020-04-20",
+   "precision": "day",
+   "description": "On April 20, 2020, at a City news conference, Ms. Bédard stated that the city is “actively partnering with those who actually have purview over testing hospitals and their assessme",
+   "paragraphs": [
+    71
+   ],
+   "quote": "On April 20, 2020, at a City news conference, Ms. Bédard stated that the city is “actively partnering with those who actually have purview over testing hospitals and their assessme",
+   "exhibits": [
+    "YYY"
+   ]
+  },
+  {
+   "id": "e53",
+   "date": "2020-04-21",
+   "precision": "day",
+   "description": "On April 21, 2020 Dr. de Villa provided an update on the COVID-19 outbreak at the Willowdale Welcome Centre, stating that there were now approximately 110 positive COVID-19 cases, ",
+   "paragraphs": [
+    72
+   ],
+   "quote": "On April 21, 2020 Dr. de Villa provided an update on the COVID-19 outbreak at the Willowdale Welcome Centre, stating that there were now approximately 110 positive COVID-19 cases, ",
+   "exhibits": []
+  },
+  {
+   "id": "e54",
+   "date": "2020-04-21",
+   "precision": "day",
+   "description": "On April 21, 2020, at a City held news conference providing updates about COVID-19 efforts, Ms. Bédard stated “more than 1200 people have been moved in the last few weeks to create",
+   "paragraphs": [
+    73
+   ],
+   "quote": "On April 21, 2020, at a City held news conference providing updates about COVID-19 efforts, Ms. Bédard stated “more than 1200 people have been moved in the last few weeks to create",
+   "exhibits": [
+    "BBBB"
+   ]
+  },
+  {
+   "id": "e55",
+   "date": "2020-04-22",
+   "precision": "day",
+   "description": "On April 22, 2020, TPH prepared an information sheet for Homelessness service providers on what to expect when a client tests positive for COVID-19.",
+   "paragraphs": [
+    74
+   ],
+   "quote": "On April 22, 2020, TPH prepared an information sheet for Homelessness service providers on what to expect when a client tests positive for COVID-19.",
+   "exhibits": [
+    "CCCC"
+   ]
+  },
+  {
+   "id": "e56",
+   "date": "2020-04-23",
+   "precision": "day",
+   "description": "On April 23, 2020, at a City held news conference, Ms. Bédard stated that the City is continuing its efforts to look for additional space.",
+   "paragraphs": [
+    75
+   ],
+   "quote": "On April 23, 2020, at a City held news conference, Ms. Bédard stated that the City is continuing its efforts to look for additional space.",
+   "exhibits": [
+    "DDDD"
+   ]
+  },
+  {
+   "id": "e57",
+   "date": "2020-04-23",
+   "precision": "day",
+   "description": "In a letter sent to Ms. Jessica Orkin dated April 23, 2020, explaining the measures taken by the City to deal with COVID-19 and the outbreaks in Toronto’s Shelter System, the City ",
+   "paragraphs": [
+    76
+   ],
+   "quote": "In a letter sent to Ms. Jessica Orkin dated April 23, 2020, explaining the measures taken by the City to deal with COVID-19 and the outbreaks in Toronto’s Shelter System, the City ",
+   "exhibits": []
+  },
+  {
+   "id": "e58",
+   "date": "2020-04-30",
+   "precision": "day",
+   "description": "The City has moved over 1000 residents to new spaces and expects to move another 1000 residents into new spaces by April 30, 2020.",
+   "paragraphs": [
+    76
+   ],
+   "quote": "The City has moved over 1000 residents to new spaces and expects to move another 1000 residents into new spaces by April 30, 2020.",
+   "exhibits": []
+  },
+  {
+   "id": "e59",
+   "date": "2020-04-24",
+   "precision": "day",
+   "description": "On April 24, 2020, at a City news conference providing updates regarding the City’s response to COVID-19, Ms. Bédard stated that “the 200 bed facility that we currently have active",
+   "paragraphs": [
+    77
+   ],
+   "quote": "On April 24, 2020, at a City news conference providing updates regarding the City’s response to COVID-19, Ms. Bédard stated that “the 200 bed facility that we currently have active",
+   "exhibits": [
+    "FFFF"
+   ]
+  },
+  {
+   "id": "e60",
+   "date": "2020-04-27",
+   "precision": "day",
+   "description": "On April 27, 2020, at a City news conference, Mayor Tory discussed the City’s efforts so far, stating the City has been there to provide support and assistance especially to the mo",
+   "paragraphs": [
+    78
+   ],
+   "quote": "On April 27, 2020, at a City news conference, Mayor Tory discussed the City’s efforts so far, stating the City has been there to provide support and assistance especially to the mo",
+   "exhibits": [
+    "GGGG"
+   ]
+  },
+  {
+   "id": "e61",
+   "date": "2020-04-28",
+   "precision": "day",
+   "description": "On April 28, 2020, at the City’s daily briefings, Mayor Tory stated that “Rogers is donating free Wi-Fi for three months to four permanent City of Toronto shelter locations and has",
+   "paragraphs": [
+    79
+   ],
+   "quote": "On April 28, 2020, at the City’s daily briefings, Mayor Tory stated that “Rogers is donating free Wi-Fi for three months to four permanent City of Toronto shelter locations and has",
+   "exhibits": [
+    "HHHH"
+   ]
+  },
+  {
+   "id": "e62",
+   "date": "2020-04-30",
+   "precision": "day",
+   "description": "On April 27, and April 29, and April 30, 2020 the Applicants wrote to the City with requests for disclosure of certain information pertaining to the City’s efforts in response to C",
+   "paragraphs": [
+    80
+   ],
+   "quote": "On April 27, and April 29, and April 30, 2020 the Applicants wrote to the City with requests for disclosure of certain information pertaining to the City’s efforts in response to C",
+   "exhibits": []
+  },
+  {
+   "id": "e63",
+   "date": "2020-04-29",
+   "precision": "day",
+   "description": "On April 29, 2020, at the daily briefings, Mayor Tory stated that the SSHA announced a new program to provide interim housing for up to six months and other supports for people exp",
+   "paragraphs": [
+    81
+   ],
+   "quote": "On April 29, 2020, at the daily briefings, Mayor Tory stated that the SSHA announced a new program to provide interim housing for up to six months and other supports for people exp",
+   "exhibits": [
+    "LLLL"
+   ]
+  },
+  {
+   "id": "e64",
+   "date": "2020-04-29",
+   "precision": "day",
+   "description": "On April 29, 2020, the SSHA delivered a memorandum to homelessness service providers providing an update on the City’s response to COVID-19.",
+   "paragraphs": [
+    82
+   ],
+   "quote": "On April 29, 2020, the SSHA delivered a memorandum to homelessness service providers providing an update on the City’s response to COVID-19.",
+   "exhibits": [
+    "MMMM"
+   ]
+  },
+  {
+   "id": "e65",
+   "date": "2020-04-29",
+   "precision": "day",
+   "description": "On April 29, 2020, City Councillor Kristyn Wong-Tam provided an update on her web page, regarding the City’s homelessness COVID-19 efforts.",
+   "paragraphs": [
+    83
+   ],
+   "quote": "On April 29, 2020, City Councillor Kristyn Wong-Tam provided an update on her web page, regarding the City’s homelessness COVID-19 efforts.",
+   "exhibits": []
+  },
+  {
+   "id": "e66",
+   "date": "2020-05-01",
+   "precision": "day",
+   "description": "On May 1, 2020, at a City news conference providing updates with respect to COVID-19, Dr. de Villa stated “TPH learned that we did not conduct contact tracing for 52 positive COVID",
+   "paragraphs": [
+    84
+   ],
+   "quote": "On May 1, 2020, at a City news conference providing updates with respect to COVID-19, Dr. de Villa stated “TPH learned that we did not conduct contact tracing for 52 positive COVID",
+   "exhibits": []
+  },
+  {
+   "id": "e67",
+   "date": "2020-05-01",
+   "precision": "day",
+   "description": "On May 1, 2020, the City released a report containing a summary of all currently active outbreaks of COVID-19 in Toronto shelters, with confirmed cases, hospitalizations, and death",
+   "paragraphs": [
+    86
+   ],
+   "quote": "On May 1, 2020, the City released a report containing a summary of all currently active outbreaks of COVID-19 in Toronto shelters, with confirmed cases, hospitalizations, and death",
+   "exhibits": []
+  },
+  {
+   "id": "e68",
+   "date": "2020-05-02",
+   "precision": "day",
+   "description": "On May 1, and May 2, 2020, the City responded to the Applicants’ letters regarding information request.",
+   "paragraphs": [
+    87
+   ],
+   "quote": "On May 1, and May 2, 2020, the City responded to the Applicants’ letters regarding information request.",
+   "exhibits": []
+  },
+  {
+   "id": "e69",
+   "date": "2020-03-17",
+   "precision": "day",
+   "description": "Shelter Capacity and Occupancy since March 17, 2020",
+   "paragraphs": [
+    87
+   ],
+   "quote": "Shelter Capacity and Occupancy since March 17, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e70",
+   "date": "2020-04-30",
+   "precision": "day",
+   "description": "On April 30, 2020, the City Manager did a Presentation to Council on the City’s Response and Ongoing Management of Emergency City Business during the COVID-19 Pandemic.",
+   "paragraphs": [
+    88
+   ],
+   "quote": "On April 30, 2020, the City Manager did a Presentation to Council on the City’s Response and Ongoing Management of Emergency City Business during the COVID-19 Pandemic.",
+   "exhibits": [
+    "SSSS"
+   ]
+  },
+  {
+   "id": "e71",
+   "date": "2020-04-26",
+   "precision": "day",
+   "description": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information for these 2 This data is generally made available at https://open.toront",
+   "paragraphs": [
+    90
+   ],
+   "quote": "Attached hereto as Exhibits UUUU, VVVV, WWWW, XXXX and YYYY are Daily & Overnight Service Usage information for these 2 This data is generally made available at https://open.toront",
+   "exhibits": []
+  },
+  {
+   "id": "e72",
+   "date": "2020-05-04",
+   "precision": "day",
+   "description": "AFFIRMED BEFORE ME, via video conference, at the City of Toronto, in the Province of Ontario on May 4, 2020.",
+   "paragraphs": [
+    91
+   ],
+   "quote": "AFFIRMED BEFORE ME, via video conference, at the City of Toronto, in the Province of Ontario on May 4, 2020.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "City daily shelter occupancy open dataset"
+ ],
+ "leak_waivers": [],
+ "notes": "103 exhibits (A to YYYY). Covers given with --covers: the cover for T reads 'S' and the cover for IIII reads 'IiII'. Descriptions are the affidavit's own identifying sentences; events are the affidavit's dated statements, generated from its text and linked to the exhibits cited from that sentence up to the next dated sentence. TTTT is a placeholder page ('appended separately as an electronic Exhibit'). 2 of max 3 for CV-20-640061 (with onsc-sanctuary-mendelsohnaviv)."
+}

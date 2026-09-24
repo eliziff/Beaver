@@ -1,0 +1,93 @@
+{
+ "record_id": "bcsc-acdc-hiebert",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "email",
+   "date": "2026-06-11",
+   "from": "Lisa Hiebert <lhiebert@fasken.com>",
+   "to": [
+    "Tom Powell <tom.powell@fticonsulting.com>"
+   ],
+   "subject": "Lunch and learn slides",
+   "body": "Tom,\n\nThanks for presenting at our restructuring lunch and learn yesterday. Attached are the slides for your records. The associates found the case study very useful.\n\nLisa"
+  },
+  {
+   "doc": 1,
+   "kind": "invoice",
+   "date": "2026-05-31",
+   "from": "Yellowknife Air Charter Ltd.",
+   "to": [
+    "Arctic Canadian Diamond Company Ltd."
+   ],
+   "subject": "Crew rotation charter, May 2026",
+   "body": "Net 30.\nCharter flights, 4 rotations: 48200.0\nFuel surcharge: 3100.0\nGST 5%: 2565.0"
+  },
+  {
+   "doc": 2,
+   "kind": "memo",
+   "date": "2026-06-01",
+   "from": "Fasken - Vancouver Office Services",
+   "to": [
+    "All Vancouver personnel"
+   ],
+   "subject": "Elevator modernization at 550 Burrard",
+   "body": "Elevators 3 and 4 will be out of service through July for modernization. Please allow extra time in the morning."
+  },
+  {
+   "doc": 3,
+   "kind": "email",
+   "date": "2026-07-03",
+   "from": "Tom Powell <tom.powell@fticonsulting.com>",
+   "to": [
+    "Lisa Hiebert <lhiebert@fasken.com>"
+   ],
+   "subject": "Canada Day - office closure note",
+   "body": "Lisa,\n\nOur Vancouver office will be closed on July 6 for a staff day. Please copy my colleague on anything urgent.\n\nTom"
+  },
+  {
+   "doc": 4,
+   "kind": "letter",
+   "date": "2026-06-15",
+   "from": "FTI Consulting Canada Inc., in its capacity as Receiver",
+   "to": [
+    "Tundra Camp Services Ltd."
+   ],
+   "subject": "Arctic Canadian Diamond Company Ltd. - supplier account contact",
+   "body": "Dear Sir or Madam:\n\nPlease update the billing contact for the supplier account to the Receiver's Vancouver office. Correspondence should be sent to the address above.\n\nFTI Consulting Canada Inc."
+  },
+  {
+   "doc": 5,
+   "kind": "minutes",
+   "date": "2026-05-20",
+   "from": "",
+   "to": [
+    "Site managers"
+   ],
+   "subject": "Minutes of Care and Maintenance Meeting",
+   "body": "1. Tailings dam inspection completed; no issues.\n\n2. Camp occupancy reduced to 40.\n\n3. Winter road planning to start in September."
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2026-07-17",
+   "from": "Lisa Hiebert",
+   "to": [
+    "Lisa Hiebert"
+   ],
+   "subject": "",
+   "body": "Assistant: Your 3 pm moved to 3:30\nLisa: Fine. Please book the Whistler condo for August 8-10\nAssistant: Will do"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2026-06-30",
+   "from": "Burrard Document Services Ltd.",
+   "to": [
+    "Fasken Martineau DuMoulin LLP"
+   ],
+   "subject": "Printing and binding, June 2026",
+   "body": "Thank you.\nColour printing, 4,200 pages: 1260.0\nCerlox binding, 30 volumes: 240.0\nGST 5%: 75.0\nPST 7%: 105.0"
+  }
+ ]
+}

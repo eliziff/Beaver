@@ -1,0 +1,100 @@
+{
+ "record_id": "onsc-clc-pps-policy",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  16,
+  37,
+  39
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-jawhjz.pdf",
+   "source_pages": [
+    13,
+    14
+   ],
+   "cover_page": 12,
+   "stamp_page": null,
+   "text_chars": 1786
+  },
+  {
+   "label": "B",
+   "file": "doc-gx7299.pdf",
+   "source_pages": [
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37
+   ],
+   "cover_page": 15,
+   "stamp_page": null,
+   "text_chars": 212
+  },
+  {
+   "label": "C",
+   "file": "doc-66r3de.pdf",
+   "source_pages": [
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62
+   ],
+   "cover_page": 38,
+   "stamp_page": null,
+   "text_chars": 32864
+  }
+ ],
+ "leak_audit": []
+}

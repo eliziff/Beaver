@@ -1,0 +1,29 @@
+{
+ "record_id": "onsc-cl-baffinland-gordon",
+ "court": "Ontario Superior Court of Justice (Commercial List)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CL-26-00000219-0000",
+ "proceeding": "In the matter of a plan of compromise or arrangement of Nunavut Iron Ore, Inc., Baffinland Iron Mines Corporation and 12334992 Canada Inc. (CCAA)",
+ "document": "Affidavit of Joshua Gordon sworn June 9, 2026, filed for the Ad Hoc Committee of senior secured noteholders on the competing DIP financing proposals",
+ "deponent": "Joshua Gordon",
+ "deponent_role": "Associate, Cassels Brock & Blackwell LLP (counsel to the Ad Hoc Committee)",
+ "sworn_date": "2026-06-09",
+ "exhibits": [
+  {"label": "A", "file": "doc-w658hm.pdf", "kind": "email", "date": "2026-06-07", "author": "Brittney Ketwaroo (Stikeman Elliott, counsel to the First Secured Lenders)", "recipients": ["Monitor (FTI)", "Osler", "Debtors' counsel"], "description": "Email of June 7, 2026 attaching the June 6, 2026 letter to the Monitor with questions for the Monitor and the Debtors (the June 6 Letter)", "references": [{"paragraph": 2, "quote": "Attached as Exhibit “A” is an email dated June 7, 2026 from Brittney Ketwaroo"}], "content_check": "Five pages: forwarded email from Brittney Ketwaroo, Sunday June 07, 2026 10:19 PM, to Osler, FTI and Davies, attaching 'Letter dated June 6 2026.pdf', followed by the letter"},
+  {"label": "B", "file": "doc-djzbjr.pdf", "kind": "email", "date": "2026-06-08", "author": "Ben Muller (Osler, counsel to the Monitor)", "recipients": ["Maria Konyukhova (Stikeman)"], "description": "Email of June 8, 2026 attaching the Monitor's letter responding to the June 6 Letter", "references": [{"paragraph": 3, "quote": "Attached as Exhibit “B” is an email dated June 8, 2026 from Ben Muller of Osler to Maria"}], "content_check": "Six pages: email from Ben Muller, Monday June 08, 2026 12:36 PM, attaching 'Project Canary - Letter of the Monitor dated June 8, 2026 (Response to June 6 Letter of First Secured Lenders)', with the letter"},
+  {"label": "C", "file": "doc-p59xme.pdf", "kind": "email", "date": "2026-06-08", "author": "Ryan Jacobs (Cassels)", "recipients": ["Monitor (FTI)", "Osler"], "description": "Email of June 8, 2026 attaching Houlihan Lokey's DIP cost comparison analysis (revised version without branding)", "references": [{"paragraph": 4, "quote": "Attached as Exhibit “C” is an email dated June 8, 2026 from Ryan Jacobs of Cassels to"}], "content_check": "Two pages: email from Ryan Jacobs, Monday June 08, 2026 3:39 PM, 'FW: Baffinland', attaching 'Baffinland - DIP Cost Comparison', with a one-page comparison table"},
+  {"label": "D", "file": "doc-jfx9gc.pdf", "kind": "email_chain", "date": "2026-06-09", "author": "Maria Konyukhova (Stikeman)", "recipients": ["Debtors' counsel", "Monitor", "Osler"], "description": "Chain of two June 9, 2026 emails attaching a June 9 letter enclosing the Senior Secured Lenders' revised DIP term sheet and the Secured Creditor Protections", "references": [{"paragraph": 5, "quote": "Attached as Exhibit “D” is an email chain comprised of two emails from June 9, 2026"}], "content_check": "106 pages: email from Maria Konyukhova, Tuesday June 09, 2026 12:10 PM, 'Baffinland - DIP proposal', attaching a redline DIP concession list and her letter submitting the updated joint DIP proposal with enclosures"},
+  {"label": "E", "file": "doc-2zstwp.pdf", "kind": "email", "date": "2026-06-09", "author": "Ryan Jacobs (Cassels)", "recipients": ["Debtors' counsel (Davies)", "Osler", "Monitor"], "description": "Email of June 9, 2026 requesting the Debtors' KYC information for the proposed fronting lender of the Senior Secured Lenders' DIP", "references": [{"paragraph": 6, "quote": "Attached as Exhibit “E” is an email dated June 9, 2026 from Ryan Jacobs of Cassels to"}], "content_check": "11 pages: email from Ryan Jacobs, Tuesday June 09, 2026 11:42 AM, 'FW: Baffinland - Fronting Lender KYC', attaching a FinCEN CDD Rule Certification and CIP form"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2026-06-06", "precision": "day", "description": "Stikeman sent the Monitor the June 6 Letter with questions for the Monitor and the Debtors", "paragraphs": [2], "quote": "attaching a letter dated June 6, 2026 to the Monitor", "exhibits": ["A"]},
+  {"id": "e2", "date": "2026-06-07", "precision": "day", "description": "Brittney Ketwaroo emailed the June 6 Letter to the Monitor, Osler and Debtors' counsel", "paragraphs": [2], "quote": "Attached as Exhibit “A” is an email dated June 7, 2026 from Brittney Ketwaroo", "exhibits": ["A"]},
+  {"id": "e3", "date": "2026-06-08", "precision": "day", "description": "Osler sent Stikeman the Monitor's responses to the June 6 Letter", "paragraphs": [3], "quote": "attaching a letter containing the Monitor’s responses to the inquiries", "exhibits": ["B"]},
+  {"id": "e4", "date": "2026-06-08", "precision": "day", "description": "Cassels sent the Monitor Houlihan Lokey's DIP cost comparison analysis", "paragraphs": [4], "quote": "attaching a cost comparison analysis prepared by the Ad Hoc Committee’s", "exhibits": ["C"]},
+  {"id": "e5", "date": "2026-06-09", "precision": "day", "description": "Stikeman sent a June 9 letter with the Senior Secured Lenders' revised DIP term sheet and Secured Creditor Protections", "paragraphs": [5], "quote": "letter dated June 9, 2026, enclosing, among other things, (i) a revised form of DIP term sheet", "exhibits": ["D"]},
+  {"id": "e6", "date": "2026-06-09", "precision": "day", "description": "Cassels asked Debtors' counsel for KYC information for the proposed DIP fronting lender", "paragraphs": [6], "quote": "requesting Know Your Customer (KYC) information", "exhibits": ["E"]}
+ ],
+ "referenced_not_attached": [],
+ "notes": "Exhibit C contains a revised, unbranded version of the analysis in place of the one circulated (per paragraph 4)."
+}

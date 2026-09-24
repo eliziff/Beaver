@@ -1,0 +1,34 @@
+{
+ "record_id": "onsc-cp-bell-fareau",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00635778-00CP",
+ "proceeding": "Fareau and Capay v. Bell Canada and HMQ in right of Ontario (class proceeding over prison collect-call charges; certification motion)",
+ "document": "Affidavit of Vanessa Fareau sworn December 17, 2020 (Tab 2 of the plaintiffs' certification motion record)",
+ "deponent": "Vanessa Fareau",
+ "deponent_role": "Proposed representative plaintiff",
+ "sworn_date": "2020-12-17",
+ "exhibits": [
+  {"label": "A", "file": "doc-2kc3yz.pdf", "kind": "financial_statement", "date": "2020-10-30", "author": "Videotron", "recipients": ["Vanessa Fareau"], "description": "Summary of the deponent's total phone bill for each month from February 2018 to the present", "references": [{"paragraph": 11, "quote": "A summary of my total phone bill for each month from February 2018 to present is marked as Exhibit"}], "content_check": "3 image pages: phone screenshots of the Videotron account invoice list, October 30, 2020 back to 2018, with monthly totals"},
+  {"label": "B", "file": "doc-4w2re6.pdf", "kind": "invoice", "date": "2018-02-02", "author": "Videotron", "recipients": ["Vanessa Fareau"], "description": "The deponent's February 2, 2018 Videotron bill", "references": [{"paragraph": 13, "quote": "Marked as Exhibit \"B\" and attached is a copy of my February 2, 2018 bill"}], "content_check": "3 image pages: phone screenshots of a Videotron bill dated Feb 02, 2018 listing collect calls from Stannplans, PQ"},
+  {"label": "C", "file": "doc-b296aj.pdf", "kind": "invoice", "date": "2018-08-03", "author": "Videotron", "recipients": ["Vanessa Fareau"], "description": "The deponent's August 3, 2018 Videotron bill", "references": [{"paragraph": 13, "quote": "Marked as Exhibit \"C\" and attached is a copy of my August 3, 2018 bill"}], "content_check": "1 image page: screenshot of Videotron bill pages 6-7 of 131, dated Aug 03, 2018, pay-per-use services"},
+  {"label": "D", "file": "doc-fka8pz.pdf", "kind": "invoice", "date": "2019-10-04", "author": "Videotron", "recipients": ["Vanessa Fareau"], "description": "The deponent's October 4, 2019 Videotron bill", "references": [{"paragraph": 13, "quote": "Marked as Exhibit \"D\" and attached is a copy of my October 4, 2019 bill"}], "content_check": "1 image page: screenshot of Videotron invoice summary dated Oct 04, 2019, total 2 176.14"}
+ ],
+ "events": [
+  {"id": "e1", "date": "2016", "precision": "year", "description": "Deponent's eldest daughter passes away", "paragraphs": [2], "quote": "My eldest daughter who would now be 23 passed away in 2016.", "exhibits": []},
+  {"id": "e2", "date": "2015", "precision": "approximate", "description": "Deponent held at the Ottawa-Carleton Detention Centre for about two months after being denied bail, while pregnant", "paragraphs": [3], "quote": "I was incarcerated at Ottawa-Carleton Detention Centre (“OCDC”) around the fall and", "exhibits": []},
+  {"id": "e3", "date": "2015", "precision": "approximate", "description": "While incarcerated, deponent spends about $20 a day on OTMS collect calls at about $1 a minute", "paragraphs": [6], "quote": "I recall that I regularly spent $20 per day on phone calls to my family.", "exhibits": []},
+  {"id": "e4", "date": "2018", "precision": "approximate", "description": "A friend is incarcerated at Toronto South Detention Centre and makes collect calls to the deponent", "paragraphs": [9], "quote": "a friend who has been incarcerated in Toronto South Detention Centre since around the beginning of 2018", "exhibits": []},
+  {"id": "e5", "date": "2019", "precision": "approximate", "description": "Deponent's nephew is held at OCDC and makes collect calls to her", "paragraphs": [9], "quote": "I have also received Collect Calls from my nephew who has been held in", "exhibits": []},
+  {"id": "e6", "date": "2018-02", "precision": "month", "description": "Total bill $1,749.88, with $916.06 in collect-call charges", "paragraphs": [11, 13], "quote": "$916.06 in February 2018", "exhibits": ["A", "B"]},
+  {"id": "e7", "date": "2018-08", "precision": "month", "description": "Total bill $1,842.36, with $267.83 in collect-call charges", "paragraphs": [11, 13], "quote": "$267.83 in August 2018", "exhibits": ["A", "C"]},
+  {"id": "e8", "date": "2019-10", "precision": "month", "description": "Total bill $2,176.14, with $693.06 in collect-call charges", "paragraphs": [11, 13], "quote": "$693.06 in October 2019", "exhibits": ["A", "D"]},
+  {"id": "e9", "date": "2019-11", "precision": "month", "description": "Total bill $1,966.45", "paragraphs": [11], "quote": "$1,966.45 in November 2019", "exhibits": ["A"]},
+  {"id": "e10", "date": "2018-02", "precision": "range", "description": "Monthly bills often $1,400-$1,700 or more while accepting collect calls, until she stopped accepting them", "paragraphs": [11], "quote": "My bills have recently decreased because I stopped accepting collect calls.", "exhibits": ["A"]},
+  {"id": "e11", "date": null, "precision": "undated", "description": "Deponent retains Goldblatt Partners and Sotos to bring the class action", "paragraphs": [19], "quote": "I have retained Goldblatt Partners LLP and Sotos LLP to bring this lawsuit", "exhibits": []}
+ ],
+ "referenced_not_attached": ["Deponent's 2015 phone bills (not available)", "Litigation plan"],
+ "leak_waivers": [],
+ "notes": "Tab 2 of the certification motion record (source pages 14-30). The jurat page is a scan; its text was OCR'd with --ocr-affidavit (garbled at the foot). All four exhibits are image-only phone screenshots. The same record gave onsc-cp-bell-capay and onsc-cp-bell-blum (3 of max 3 for this proceeding)."
+}

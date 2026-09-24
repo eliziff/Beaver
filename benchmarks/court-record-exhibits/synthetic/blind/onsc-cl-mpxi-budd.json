@@ -1,0 +1,93 @@
+{
+ "record_id": "onsc-cl-mpxi-budd",
+ "documents": [
+  {
+   "doc": 0,
+   "kind": "memo",
+   "date": "2022-10-14",
+   "from": "Jeremy Budd, General Counsel and Corporate Secretary",
+   "to": [
+    "All MPXI employees"
+   ],
+   "subject": "Updated code of conduct acknowledgement",
+   "body": "All employees must review and acknowledge the updated code of business conduct in the HR portal by October 31. The changes relate to gift and entertainment limits."
+  },
+  {
+   "doc": 1,
+   "kind": "email",
+   "date": "2022-10-17",
+   "from": "Jeremy Budd",
+   "to": [
+    "Canveda Inc. facility manager"
+   ],
+   "subject": "Fire alarm inspection",
+   "body": "Please make sure the annual fire alarm inspection is completed this month and file the certificate with the site binder.\n\nJeremy"
+  },
+  {
+   "doc": 2,
+   "kind": "invoice",
+   "date": "2022-09-30",
+   "from": "Harbour Pest Control Inc.",
+   "to": [
+    "BioCanna Products Ltd."
+   ],
+   "subject": "Monthly pest control service, September 2022",
+   "body": "Thank you.\nMonthly inspection and bait stations: 240.0\nHST 15%: 36.0"
+  },
+  {
+   "doc": 3,
+   "kind": "letter",
+   "date": "2022-08-15",
+   "from": "Jeremy Budd, Corporate Secretary",
+   "to": [
+    "Registered shareholders"
+   ],
+   "subject": "Change of transfer agent address",
+   "body": "Dear Shareholder:\n\nPlease note that our transfer agent has moved to a new office. Mailing addresses for share certificates and correspondence are updated on our website.\n\nMPX International Corporation"
+  },
+  {
+   "doc": 4,
+   "kind": "minutes",
+   "date": "2022-09-21",
+   "from": "",
+   "to": [
+    "Quality team"
+   ],
+   "subject": "Minutes of Quality Meeting",
+   "body": "1. Two batch records reviewed and released.\n\n2. SOP for label reconciliation revised.\n\n3. Next meeting: October 19."
+  },
+  {
+   "doc": 5,
+   "kind": "email",
+   "date": "2022-10-13",
+   "from": "MPXI Human Resources",
+   "to": [
+    "Jeremy Budd"
+   ],
+   "subject": "Vacation carry-over policy",
+   "body": "Jeremy,\n\nCould you review the attached wording for the vacation carry-over policy before it goes to staff? The only change is the March 31 deadline.\n\nHR"
+  },
+  {
+   "doc": 6,
+   "kind": "text",
+   "date": "2022-10-18",
+   "from": "Jeremy Budd",
+   "to": [
+    "Jeremy Budd"
+   ],
+   "subject": "",
+   "body": "Assistant: Your dentist moved you to Friday 8 am\nJeremy: OK thanks\nAssistant: Also the courier picked up the minute books for the annual update"
+  },
+  {
+   "doc": 7,
+   "kind": "invoice",
+   "date": "2022-07-31",
+   "from": "Toronto Records Storage Inc.",
+   "to": [
+    "MPX International Corporation"
+   ],
+   "subject": "Records storage, July 2022",
+   "body": "Net 30.\nStorage of 85 boxes: 212.5\nRetrieval fees: 45.0\nHST 13%: 33.48"
+  }
+ ]
+}
