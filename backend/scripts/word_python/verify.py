@@ -208,7 +208,8 @@ def verify(source, candidate, mode):
     if main_b != main_a: raise ValueError('The main document part moved')
     changed_parts = sorted(n for n in set(before) | set(after) if _semantic(before, n) != _semantic(after, n))
     if not changed_parts:
-        raise ValueError('The program changed nothing. It runs top to bottom as a function body: a def it declares is never called, '
+        raise ValueError('The program changed nothing. If the document already has what was asked, no new preview is needed. '
+                         'Otherwise: a program runs top to bottom as a function body (a def it declares is never called), '
                          'and find() returns [] when the text is absent.')
     story_b = stories(before)
     problems = []
@@ -266,7 +267,7 @@ def verify(source, candidate, mode):
             problems.append('existing list definitions changed; create a new list instead')
     if problems:
         raise ValueError('Review mode verification failed: ' + '; '.join(problems[:4]))
-    new_revisions = {k: v - counts_b.get(k, 0) for k, v in counts_a.items() if v - counts_b.get(k, 0)}
+    new_revisions = {k: v - counts_b.get(k, 0) for k, v in counts_a.items() if v > counts_b.get(k, 0)}
     if not change_count:  # page setup, style, comment or revision edits leave the accepted text as it was
         changes, change_count = ['%s changed' % name for name in changed_parts], len(changed_parts)
     return {k: v for k, v in {

@@ -48,8 +48,10 @@ def find(needle: str, container=None, regex=False) -> list[Paragraph]:
 
 
 def isolate(paragraph: Paragraph, needle: str, occurrence: int = 0) -> list[Run]:
-    """Split runs so that exactly `needle` (the n-th occurrence) is covered by whole runs; returns them."""
-    runs = [r for r in paragraph._p.xpath('./w:r') if r.xpath('./w:t|./w:tab|./w:br') or not r.xpath('./*[not(self::w:rPr)]')]
+    """Split runs so that exactly `needle` (the n-th occurrence) is covered by whole runs; returns them.
+    Searches the accepted view: runs in insertions and hyperlinks count, deleted runs do not."""
+    runs = [r for r in paragraph._p.xpath('.//w:r[not(ancestor::w:del or ancestor::w:moveFrom)]')
+            if r.xpath('ancestor::w:p[1]')[0] is paragraph._p and (r.xpath('./w:t|./w:tab|./w:br') or not r.xpath('./*[not(self::w:rPr)]'))]
     full, spans = '', []
     for r in runs:
         t = Run(r, paragraph).text
