@@ -57,6 +57,13 @@ labelled correctly after one-to-one assignment. Numbers below are all on that.
 | Qwen3-1.7B zero-shot | not run to completion | killed to free the GPU for fine-tuning (1.5B already answered the question) |
 | `mc_ft.py` LoRA r16 on Qwen2.5-0.5B, both directions, 1 epoch (2,286 prompts, lr 5e-4, 570 optimizer steps), fold 0 only | shortlist top-1 l2f 0.211, f2l 0.208 (chance, below zero-shot 0.315) | **inconclusive**: one run, train loss plateaued at the uniform floor (1.76 -> 1.59, ln 5 = 1.61); a fine-tune ending below its zero-shot start points at the setup, and no overfit test (50 examples, 300 steps, loss -> 0) was run. Stopped after fold 0 (1,043 s); the co-tenant's job shares the GPU |
 | `decode.py`: joint decoding with a pairwise label-order/date-order prior (swap local search), nested lam | 0.788 (no gain) | all pairs: lam>0 only hurts (0.02: 0.787, 0.2: 0.746); near-duplicate pairs only (char-gram cos > 0.5/0.7): flat. The order feature already carries it. |
+| `xenc.py` overfit gate: ms-marco-MiniLM-L6-v2 cross-encoder, (mention text, file opening) pairs, listwise softmax over v4 top-5, 20 groups, 200 steps, lr 3e-5, bs 4 | probe loss 1.75 -> 0.035, top-1 0.95 (19/20; the miss is a tie between identical texts, ln2/20 = 0.035) | training works; 1.45 GB peak on the shared GPU, 31 s |
+| `xenc.py` xr1: same cross-encoder, 5-fold (4 epochs, lr 3e-5, bs 4 mentions), row listwise over v4 top-5; `xcomb.py` blends v4 + lam x (row + col shortlist log-softmax), lam nested per fold | alone: row shortlist top-1 0.53-0.63 per fold vs v4 0.69-0.73. Low-confidence files (635/1,427): file->top-5 labels v4 0.378, CE 0.332, cap 0.868. End to end nested 0.793 all / 0.794 low-only (sweep peak lam 0.1: 0.800) | no gain: the plain fine-tuned MiniLM does not separate the near-duplicates better than the features; 135 s per fold on the shared GPU |
+| xs1: xr1 + `--synth` (each training mention also gets a one-field copy of its gold file: a number, month, ordinal or name it shares with the mention swapped; 93% of mentions get one) | alone 0.50-0.61 per fold; low-conf file->top-5 CE 0.326 (v4 0.378); end to end nested 0.796 all / 0.793 low | no gain. Run-to-run noise: xf0 (xr1's exact recipe, fold 0 only) gave 0.536 vs xr1's 0.556, so +-0.02 per-fold differences between CE variants and int8 vs torch are noise. Training top-1 only ~0.47 after 4 epochs (loss 1.2): the model underfits the training folds, it is not overfitting them |
+| xq1: `--resid` (pair logit = v4 score + CE output, so the CE is trained only on what v4 misses), 8 epochs, lr 5e-5; `xcomb.py xq1 --raw` | training top-1 (with v4) 0.86-0.93, loss 0.24-0.45: it fits. Held out: end to end nested 0.786 all / 0.790 low; lam 1 (the trained combination) 0.755 | fits the training folds and does not generalize: with 1,100 training mentions the pair reader memorises instead of learning field agreement. The CE line is closed for this data size |
+| `xstruct.py`: what no pair reader can fix | of the 247 wrong low-confidence v4 picks, 51 have a gold mention inside a list group with no item of its own (every sibling letter gets the same affidavit text) and 15 have an identical-text twin file | ~27% of the residual errors are unreadable pairwise; only order priors or better list-item extraction can reach them, so the 0.868 low-confidence top-5 cap is not reachable by reading |
+| `xonnx.py`: fold-0 xr1-recipe model (xf0, held-out top-1 0.536 vs v4 0.693) exported with torch.onnx (TorchScript path, eager attention), dynamic int8 | fp32 91.0 MB (max diff vs torch 0.0000), int8 **23.0 MB** (max diff 0.13 logits on random ids) | the exported graph takes **int32** inputs (traced from numpy's Windows-default int32; `xonnx.py` now casts to int64 for the next export). The reference must be computed before the export: the exporter leaves the module in training mode (dropout), which first looked like a 2-logit export error. CPU timing: `xtime.py` (below) |
+| `xtime.py`: int8 cross-encoder CPU cost (Python onnxruntime 1.27 as the onnxruntime-node proxy, which is not installed; laptop loaded, IDLE priority via heavy.py; length-sorted batches of 16, 512-token pairs) | "low" pair set (low-confidence labels' top-5 files + files' top-5 labels): 4,791 pairs; per record median 2.2 s / 1.7 s, p90 8.2 s / 7.0 s, max 43 s / 35 s (Talebi) at 2 / 4 threads. All pairs (8,685): median 4.4 s / 3.5 s, max 64 s / 51 s. Fold-0 held-out top-1 int8 0.513 vs torch (bf16) 0.536 | ~90 ms per pair at 2 threads: affordable for the flagged half, but the model adds no accuracy, so not shipped |
 
 **Best browser-runnable configuration so far (v4):** base+sim+fs+order+seg+kind, listwise linear
 (154 weights) + Hungarian. Official scorer (`export.py v4` -> `score.py exhibits`):
@@ -88,9 +95,17 @@ direction ("my email to X" vs X's email to me), or "respectively" order.
   structural prior when a file's date can be read).
 
 ## Next
-- Overfit test for `mc_ft.py` (50 examples, 300 steps; loss must go to ~0) before judging
-  fine-tuned MC; then a fine-tuned reranker only on low-confidence picks.
-- Residual errors are same-kind near-duplicates differing by one field (date, number, party,
-  ordinal, direction): they need a joint two-text reader, not more cheap features.
+- Pair-reading cross-encoder (2026-09-24, `xenc.py`/`xcomb.py`/`xonnx.py`/`xtime.py`): trains (overfit gate
+  passed; residual mode reaches 0.92 training top-1) but does not generalise from 1,100 training mentions:
+  every blend is within noise of v4 (0.786-0.796 vs 0.793 on the common scorer). Not recommended.
+  Shipping composition stays v4 + Hungarian + the >= 0.5 confidence flag (44.5% of files flagged).
+- ~27% of the wrong low-confidence picks are unreadable pairwise (list-group siblings with no item of
+  their own, identical-text twin files): they need better list-item extraction in `refs.py`, not a reader.
+- "my email to X" vs "X's email to me" needs the affiant's name (from `ctx.before`, "I am ...") given to
+  whatever reads the pair; not built.
+- LLM multiple choice fine-tune (step 3) is gated on the desktop GPU (`gen6`, 11 GB, logged a recovered
+  OOM warning at 05:48 while xq1 shared the card). Recipe when it frees: `peft.LoraConfig`, lr 1e-4
+  (ft05's hand-rolled LoRA at lr 5e-4 / scale 2 collapsed to the uniform ln 5 floor), and an
+  `--overfit 50 --steps 300` gate in `mc_ft.py` before any fold run.
 - LLM reranking in the browser is WebGPU-only (CPU WASM is minutes per record); not measured on WebGPU.
 - Recall@5 of the shortlist is 0.928: the ceiling of any top-5 reranker.
