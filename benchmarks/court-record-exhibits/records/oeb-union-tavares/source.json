@@ -1,0 +1,18 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/442410/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2014-0154",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2014-0154",
+ "document_title": "Union_SUB_TransAlta_Motion_20140703 (Submission of Union Gas Limited with the Tavares affidavit)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-union-tavares",
+ "source_file": "doeb-442410.pdf",
+ "page_range": [
+  11,
+  52
+ ],
+ "source_sha256": "0aa503c93fc576ed2d1ed4c7994b7d2111413625466fb9a459e9248cb3f990a4",
+ "source_pages": 52
+}

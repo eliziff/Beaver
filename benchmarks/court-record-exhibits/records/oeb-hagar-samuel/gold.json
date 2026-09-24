@@ -1,0 +1,189 @@
+{
+ "record_id": "oeb-hagar-samuel",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2014-0012",
+ "subject": "regulatory",
+ "proceeding": "Union Gas Limited application under s. 36(1) OEB Act for a new interruptible liquefaction service at its Hagar LNG facility: motion by intervenor Northeast Midstream LP under s. 29(1) (forbearance / competitive LNG market)",
+ "document": "Affidavit of Joshua Samuel sworn October 15, 2014 (Motion Record of Northeast Midstream LP, Tab 2)",
+ "deponent": "Joshua Samuel",
+ "deponent_role": "President and CEO, Northeast Midstream Corporation (general partner of Northeast Midstream LP)",
+ "sworn_date": "2014-10-15",
+ "notes": "--pages 11-133 (covering letter, index and notice of motion excluded).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-tjth2q.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "Northeast Midstream; City of Thorold",
+   "recipients": [],
+   "description": "Site plan for Northeast's LNG liquefaction plant with the site plan agreement with the City of Thorold",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto as Exhibit \"A\" is the site plan"
+    }
+   ],
+   "content_check": "site plan drawing ('4.5m HIGH ... VAPOR FENCE ... Schedule B') followed by the Thorold site plan agreement"
+  },
+  {
+   "label": "B",
+   "file": "doc-7utduw.pdf",
+   "kind": "public_record",
+   "date": "2014-05-29",
+   "author": "Ontario Ministry of the Environment",
+   "recipients": [
+    "Northeast Midstream Corporation"
+   ],
+   "description": "Environmental Compliance Approval for the Thorold LNG plant",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached hereto as Exhibit \"B\" is the Environmental Compliance Approval"
+    }
+   ],
+   "content_check": "'CONTENT COPY OF ORIGINAL Ontario Ministry of the Environment ... Site Location: ... Thorold Natural Gas Plant' Issue Date: May 29, 2014"
+  },
+  {
+   "label": "C",
+   "file": "doc-swzk7j.pdf",
+   "kind": "other",
+   "date": "2014",
+   "author": "Gas Intelligence",
+   "recipients": [],
+   "description": "Program for the Natural Gas Vehicles Canada Conference, Toronto, October 20-22, 2014",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto as Exhibit \"C\" is a program"
+    }
+   ],
+   "content_check": "'2nd Annual Natural Gas Vehicles Canada 2014 ... Oct 20-22, 2014 // Westin Prince Hotel, Toronto'"
+  },
+  {
+   "label": "D",
+   "file": "doc-ewtjgg.pdf",
+   "kind": "webpage",
+   "date": "2014-04-09",
+   "author": "Julie Gordon (Reuters)",
+   "recipients": [],
+   "description": "Reuters article of April 9, 2014 'Ride to lower costs for LNG-run trucks rockier than expected'",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "attached hereto as Exhibit \"D\""
+    }
+   ],
+   "content_check": "Reuters.com print 10/13/14: 'INSIGHT-Ride to lower costs for LNG-run trucks rockier than expected Wed, Apr 9 2014 By Julie Gordon'"
+  },
+  {
+   "label": "E",
+   "file": "doc-62p258.pdf",
+   "kind": "other",
+   "date": "2014-02-18",
+   "author": "Union Gas Limited",
+   "recipients": [],
+   "description": "Union's Non-Binding Call for LNG services and its 'Cold Weather and Growth' presentation",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached hereto as Exhibit \"E\" is Union's anticipated geographic"
+    }
+   ],
+   "content_check": "'Non-Binding Call for Expressions of Interest for Liquefied Natural Gas (LNG) Services February 18th, 2014'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Northeast Midstream LP established",
+   "date": "2013-03-22",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "on March\n22, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Union issues its non-binding call for LNG services",
+   "date": "2014-02-18",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Union Gas Non-Binding Call",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Union presents 'Cold Weather and Growth' at a Calgary meeting",
+   "date": "2014-03-02",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "presented by Union at the meeting in Calgary in March 2, 2014",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Reuters article on LNG-run trucks",
+   "date": "2014-04-09",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "is an article dated April 9, 2014",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Northeast obtains municipal and provincial approvals for its Thorold plant",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    3
+   ],
+   "quote": "securing the necessary municipal and provincial approvals",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Natural Gas Vehicles Canada Conference",
+   "date": "2014-10-20",
+   "precision": "range",
+   "paragraphs": [
+    6
+   ],
+   "quote": "October 20-22, 2014",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Northeast plant scheduled for completion",
+   "date": "2016",
+   "precision": "approximate",
+   "paragraphs": [
+    4
+   ],
+   "quote": "scheduled for completion in the fourth quarter of 2016",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": []
+}

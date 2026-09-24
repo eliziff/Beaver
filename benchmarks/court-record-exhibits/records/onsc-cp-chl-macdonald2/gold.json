@@ -1,0 +1,156 @@
+{
+ "record_id": "onsc-cp-chl-macdonald2",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al.: plaintiffs' reply evidence on certification (books and reports on abuse in hockey and on Sheldon Kennedy / RCMP)",
+ "document": "Affidavit of Catherine MacDonald sworn November 29, 2021 (reply)",
+ "deponent": "Catherine MacDonald",
+ "deponent_role": "Legal assistant, Koskie Minsky LLP (plaintiffs' counsel)",
+ "sworn_date": "2021-11-29",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-cdyrjt.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Theo Fleury",
+   "recipients": [],
+   "description": "Excerpts from 'Playing with Fire' by Theo Fleury",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit \"A\" are excerpts from the book titled, \"Playing with Fire\""
+    }
+   ],
+   "content_check": "19 pages, OCR'd e-reader screenshots: 'THEO FLEURY with KIRSTIE McLELLAN DAY ... Playing With Fire'"
+  },
+  {
+   "label": "B",
+   "file": "doc-qh6eq8.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Greg Gilhooly",
+   "recipients": [],
+   "description": "Excerpts from 'I Am Nobody' by Greg Gilhooly",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit \"B\" are excerpts from the book titled, \"I Am Nobody\""
+    }
+   ],
+   "content_check": "13 pages, OCR'd e-reader screenshots: 'CONFRONTING THE SEXUALLY ABUSIVE COACH WHO STOLE MY LIFE GREG GILHOOLY'"
+  },
+  {
+   "label": "C",
+   "file": "doc-txmaxy.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Sheldon Kennedy",
+   "recipients": [],
+   "description": "Excerpts from 'Why I Didn't Say Anything' by Sheldon Kennedy",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"C\" are excerpts from the book titled, \"Why I Didn"
+    }
+   ],
+   "content_check": "49 pages, OCR'd: 'Why I Didn't Say Anything Sheldon Kennedy ... Copyright 2011'"
+  },
+  {
+   "label": "D",
+   "file": "doc-533f4m.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Laura Robinson",
+   "recipients": [],
+   "description": "Excerpts from 'Crossing the Line' by Laura Robinson",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit \"D\" are excerpts from the book titled, \"Crossing the Line\""
+    }
+   ],
+   "content_check": "28 pages, OCR'd library copy (Ryerson): 'VIOLENCE AND SEXUAL ASSAULT IN CANADA'S NATIONAL SPORT' (Crossing the Line)"
+  },
+  {
+   "label": "E",
+   "file": "doc-vae6pf.pdf",
+   "kind": "webpage",
+   "date": "2014-09-18",
+   "author": null,
+   "recipients": [],
+   "description": "Article 'RCMP office in jail-sex case \"dysfunctional,\" court hears', September 18, 2014",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit \"E\" is a copy of the article titled, \"RCMP office in jail-sex"
+    }
+   ],
+   "content_check": "2 pages, image-only; OCR yields no text (text-less file)"
+  },
+  {
+   "label": "F",
+   "file": "doc-5xbh6q.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Commission for Public Complaints Against the RCMP",
+   "recipients": [],
+   "description": "Report following a public interest investigation into an incident in a Kamloops, BC cell, File No. PC-2010-3263",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit \"F\" is a copy of the report following a public interest  investigation"
+    }
+   ],
+   "content_check": "35 pages, OCR'd: 'COMMISSION FOR PUBLIC COMPLAINTS AGAINST THE RCMP REPORT FOLLOWING A PUBLIC INTEREST INVESTIGATION INTO AN INCIDENT OCCURRING IN THE KAMLOOPS, BRITISH COLUMBIA, CELLS'"
+  },
+  {
+   "label": "G",
+   "file": "doc-mwz6dy.pdf",
+   "kind": "webpage",
+   "date": "2010-08-31",
+   "author": null,
+   "recipients": [],
+   "description": "Article 'Top Mountie on defensive after cell sex accusations'",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit \"G\" is a copy of the article titled, \"Top Mountie on defensive"
+    }
+   ],
+   "content_check": "1 page, OCR'd StarPhoenix (Saskatoon) page, Tuesday, August 31, 2010"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Article reports the RCMP office in the jail-sex case was 'dysfunctional'",
+   "date": "2014-09-18",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "dated September 18, 2014",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Public interest investigation into an incident in a Kamloops RCMP cell (PC-2010-3263)",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    8
+   ],
+   "quote": "a copy of the report following a public interest  investigation into an incident occurring in the Kamloops, British Columbia cell",
+   "exhibits": [
+    "F"
+   ]
+  }
+ ]
+}

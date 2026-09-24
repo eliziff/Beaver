@@ -11,7 +11,7 @@
  "deponent": "Ron Taylor",
  "deponent_role": "Director of Development Services, City of Kawartha Lakes",
  "sworn_date": "2015-03-09",
- "notes": "1,416-page source (126 MB). Covers read by eye (B read '8', I/L '1', Q 'C', II 'll'); each cover is followed by a blank page, left in the file; --drop 1416 (backsheet). V (Dahme e-mail of August 20, 2013) is attached but never cited in the affidavit (para 65 describes the contact). CC is the interim ERT decision of October 31, 2014 (ondc-wpd-mcfarlane A is the final February 19, 2015 decision). BB's posted pages show the February 27-28, 2014 e-mails although the affidavit says the chain runs to March 6.",
+ "notes": "1,416-page source (126 MB). Covers read by eye (B read '8', I/L '1', Q 'C', II 'll'); each cover is followed by a blank page, left in the file; --drop 1416 (backsheet). V (Dahme e-mail of August 20, 2013) is attached but not cited by its letter; its reference is paragraph 65, which narrates the contact. CC is the interim ERT decision of October 31, 2014 (ondc-wpd-mcfarlane A is the final February 19, 2015 decision). BB's posted pages show the February 27-28, 2014 e-mails although the affidavit says the chain runs to March 6.",
  "exhibits": [
   {
    "label": "A",
@@ -27,7 +27,7 @@
      "quote": "is attached as Exhibit “A”"
     }
    ],
-   "content_check": "1 page (after blank): map with Gray Rd, Ballyduff Rd, Waite Rd, Pit Rd; Transverse Mercator NAD83"
+   "content_check": "3 pages (blank page, map, blank page): map with Gray Rd, Ballyduff Rd, Waite Rd, Pit Rd; Transverse Mercator NAD83"
   },
   {
    "label": "B",

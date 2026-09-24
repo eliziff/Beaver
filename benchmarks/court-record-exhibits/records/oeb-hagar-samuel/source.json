@@ -1,0 +1,18 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/452413/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2014-0012",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2014-0012",
+ "document_title": "Northeast_Notice of Motion Record_20141015 (Motion Record of Northeast Midstream LP)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-hagar-samuel",
+ "source_file": "doeb-452413.pdf",
+ "page_range": [
+  11,
+  133
+ ],
+ "source_sha256": "10f0e13e1c1417f44eb10b67adf79af0f8407a5fd34902a1ee230d4db07d1653",
+ "source_pages": 133
+}

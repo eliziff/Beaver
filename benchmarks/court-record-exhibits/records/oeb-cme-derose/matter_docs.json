@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/oeb-cme-derose/dec-order-cme-motion.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/359958/File/document",
+  "title": "OEB Decision and Order on CME's Motion to Review (Aug 23, 2012)",
+  "kind": "court_order",
+  "relation": "decision on the motion the affidavit supports"
+ },
+ {
+  "file": "raw/matter/oeb-cme-derose/po5.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/356288/File/document",
+  "title": "Procedural Order No. 5 on the CME motion (July 31, 2012)",
+  "kind": "court_order",
+  "relation": "same motion"
+ }
+]

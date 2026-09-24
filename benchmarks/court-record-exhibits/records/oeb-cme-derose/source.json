@@ -1,0 +1,18 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/355158/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2011-0327",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2011-0327",
+ "document_title": "CME_Motion_Union_20120716 (Motion Record of Canadian Manufacturers & Exporters)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-cme-derose",
+ "source_file": "doeb-355158.pdf",
+ "page_range": [
+  8,
+  76
+ ],
+ "source_sha256": "3aaf78430cf3bb186a4b846b16f3af32ec0b4f432661a806b50d5b382faa1941",
+ "source_pages": 76
+}
