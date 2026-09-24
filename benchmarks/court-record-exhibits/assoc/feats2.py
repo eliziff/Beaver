@@ -18,6 +18,14 @@ def desc_of(c):
     return re.sub(r"\s+", " ", BOILER.sub(" ", s)).strip(" .,;:")
 
 
+def drop_sibs(t, c):
+    """Remove the other list items of this label's list mention (their dates, numbers and names are not this label's)."""
+    for x in c.get("sib", []):
+        if len(x) > 3:
+            t = t.replace(x, " ")
+    return t
+
+
 def tfidf_pair(qs, ds):
     """Cosine of TF-IDF vectors, IDF over this record's queries + documents."""
     bags = [Counter(tokens(t)) for t in qs + ds]
@@ -80,7 +88,7 @@ def record_feats(r, raw_pages):
     C = r["ctx"]
     desc = [desc_of(C[l]) for l in labels]
     main = [C[l]["main"] or C[l]["sentence"] for l in labels]
-    ctx = [(C[l]["before"][-500:] + " " + C[l]["main"] + " " + C[l]["after"][:300] + " " + C[l]["defined"]) for l in labels]
+    ctx = [drop_sibs(C[l]["before"][-500:] + " " + C[l]["main"] + " " + C[l]["after"][:300] + " " + C[l]["defined"], C[l]) for l in labels]
     para = [C[l]["prev"][-800:] + " " + C[l]["paragraph"] for l in labels]
     allsent = [C[l]["sentence"] for l in labels]
     head1 = [t[:1000] for t in texts]
@@ -138,16 +146,18 @@ def record_feats(r, raw_pages):
         drank[j] = rank / max(1, len(dated) - 1)
     for i, l in enumerate(labels):
         c = C[l]
-        sd = F.dates(desc[i] + " " + c["main"])
+        # a list item carries its own dates; the shared sentence would give every sibling all of them
+        own = F.dates(desc[i]) if c["item"] else []
+        sd = own if F.dayset(own) else F.dates(desc[i] + " " + drop_sibs(c["main"], c))
         cd = F.dates(ctx[i])
         s_day, s_mon, s_yr = F.dayset(sd), F.monthset(sd), F.yearset(sd)
         c_day = F.dayset(cd)
         # a group's k-th date belongs to its k-th label ("letters dated April 27, April 29 and April 30 ... Exhibits I, J and K")
         gd = [v for _, v in F.dates(c["main"]) if len(v) == 10]
-        gd = list(dict.fromkeys(gd))
+        gd = gd if len(gd) == c["group_size"] else list(dict.fromkeys(gd))
         pos_date = gd[c["group_pos"]] if c["group_size"] > 1 and len(gd) == c["group_size"] else None
-        camt = F.amounts(ctx[i] + " " + c["paragraph"])
-        cid = F.idents(ctx[i] + " " + c["paragraph"])
+        camt = F.amounts(ctx[i] + " " + drop_sibs(c["paragraph"], c))
+        cid = F.idents(ctx[i] + " " + drop_sibs(c["paragraph"], c))
         curl = F.urls(ctx[i])
         sn = F.names(desc[i])
         cn = F.names(ctx[i])

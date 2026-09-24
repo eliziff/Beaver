@@ -6,8 +6,10 @@ alone, with something that runs in a browser. Chronology is a separate stream.
 Scripts: copied (untracked, not committed) to `benchmarks/court-record-exhibits/assoc/` on
 2026-09-24 since v4 beat the README baseline; the scratchpad copy below also holds the caches.
 To rebuild there: `exhibit_inputs.py` output -> `assoc/inputs.json`, then `refs.py`, `cache_base.py`,
-`feats2.py`, `feats3.py`, `kinds.py`, `models.py base,sim,fs,order,seg,kind --save v4`,
-`export.py v4`. `cache_base.py`, `feats5.py` and `timing.py` still point `POTION` at the
+`feats2.py`, `feats3.py`, `kinds.py`, `feats6.py`, `models.py base,sim,fs,order,seg,kind,dir --save v6`,
+`export.py v6` (v6 = the recommended composition; drop `feats6.py`/`dir` for v5). `refs.py` writes
+`ctx.item` as "own item | the sentence with the sibling items cut out" and `ctx.sib` (the sibling
+items' literal text), which `feats2.drop_sibs` removes from the shared context views. `cache_base.py`, `feats5.py` and `timing.py` still point `POTION` at the
 scratchpad's `embed-models/potion-8m`.
 
 Working files (experiments):
@@ -65,7 +67,24 @@ labelled correctly after one-to-one assignment. Numbers below are all on that.
 | `xonnx.py`: fold-0 xr1-recipe model (xf0, held-out top-1 0.536 vs v4 0.693) exported with torch.onnx (TorchScript path, eager attention), dynamic int8 | fp32 91.0 MB (max diff vs torch 0.0000), int8 **23.0 MB** (max diff 0.13 logits on random ids) | the exported graph takes **int32** inputs (traced from numpy's Windows-default int32; `xonnx.py` now casts to int64 for the next export). The reference must be computed before the export: the exporter leaves the module in training mode (dropout), which first looked like a 2-logit export error. CPU timing: `xtime.py` (below) |
 | `xtime.py`: int8 cross-encoder CPU cost (Python onnxruntime 1.27 as the onnxruntime-node proxy, which is not installed; laptop loaded, IDLE priority via heavy.py; length-sorted batches of 16, 512-token pairs) | "low" pair set (low-confidence labels' top-5 files + files' top-5 labels): 4,791 pairs; per record median 2.2 s / 1.7 s, p90 8.2 s / 7.0 s, max 43 s / 35 s (Talebi) at 2 / 4 threads. All pairs (8,685): median 4.4 s / 3.5 s, max 64 s / 51 s. Fold-0 held-out top-1 int8 0.513 vs torch (bf16) 0.536 | ~90 ms per pair at 2 threads: affordable for the flagged half, but the model adds no accuracy, so not shipped |
 
-**Best browser-runnable configuration so far (v4):** base+sim+fs+order+seg+kind, listwise linear
+| **v5** `refs.py` list items (2026-09-24): each label of a list mention gets its own reference text = its item + the sentence with the sibling items cut out (`ctx.item`, `ctx.sib`). Items come from, in order: enumerators "(1) ... (2)", a date list ("dated April 15, April 17 and April 21, 2020") or number list ("Resolutions Nos. 88/2024, 89/2024, and 90/2024", "Directives #3 and #5") of exactly n values, then separators from ";" to ", and"/"as well as" to "," to " and" (modifier pieces "dated ...", "from ..." join the piece before), on the object side (after "are copies of") or the subject side ("Copies of X and Y are attached"). A table row is its label's item; a single label sharing a sentence with other mentions owns its clause ("A copy of X is attached as Exhibit G, and a copy of Y ... Exhibit H"); a label used as a heading ('(a) Exhibit "A": a loan agreement ...') owns the text after it and wins over a range header ("Exhibits A to T"). Fixes on the way: unquoted lower-case words were read as labels ("Exhibit G, and a copy" gave A a mention; "exhibits:" gave S), page breaks with their printed page number ("-8-") split sentences, "Drs." and "(e)" sentence bounds, "Exhibit 12 Exhibit 13" lists. `feats2.py`: an item's own dates replace the sentence's (siblings' dates, ids, amounts dropped from the context views); duplicate dates kept for the k-th-date feature | **0.817** (official **1172/1427 = 0.821**, v4 1135) | labels with an item 55 -> 278 (117 of 139 list labels). Of the 51 wrong low-confidence picks whose gold sat in an itemless list: 41 now have an item of their own, 30 of those items point at the right file among the siblings' files (TF-IDF), **27 are now assigned correctly**. The 10 still itemless are truly so ("the Retainer Agreements", "the Commitment Letters", "those email threads", "Copies of the orders", a footnote-split list). Churn: +86 / -54 files vs v4, most losses in records whose inputs did not change (linear model reweighting). Ablations: item text without the shared sentence 0.813; no heading-over-range switch 0.816; sibling items also cut from the segment views 0.811. refs.py per record: median 0.004 s, max 0.04 s |
+| **v6** = v5 + `feats6.py` dir: the affiant's name (`affiant.py`: "I, NAME,", "AFFIDAVIT OF NAME", jurat signature; shares a token with the gold deponent in 141/149 records, surname found in 115/120 of the scored ones) resolves "my email", "I wrote", "from me" (affiant sends) and "to me", "I received", "X wrote to me", "a letter to <surname>" (affiant receives) in the label's own text and in the 400 characters before the mention; file side: surname in the first From: line (or the sign-off when there is none) vs the To:/Cc: lines and salutation; 14 features incl. agree/conflict | **0.819** (official **1174/1427 = 0.823**, +2 files over v5; +3/-1) | mention side is precise (send: gold author is the affiant in 33/37; receive: gold recipient in 16/22) but the scope is tiny: only **4 of v5's 261 wrong files** confuse two exhibits of opposite affiant direction (by gold author/recipient), and none of the 4 is a letter pair the feature can see (approval letter vs exemption request, a chart vs a criminal record, an inspection report vs an email). Kept: cheap (regexes), weights in the expected directions (agree +0.11) |
+| `refs.py --look-back`: an itemless list takes its items from the 600 characters before it (an "a) ... b)" enumeration, a date or number list, or a comma/and list of names, of exactly n) | 0.819 (official 1173, -1 vs v6) | gives items to 8 labels (Retainer Agreements -> "June 30, 2007"/"March 20, 2008", "both orders" -> April 2/April 3, "those articles" -> the a)/b) items) but flips none of their files; off by default |
+
+**v6 cost** (`timing.py`, now incl. the `refs.py` pass and `feats6.py`; single-core Python, loaded laptop):
+per record median 0.22 s, p90 0.58 s, max 2.9 s; size unchanged (potion-8m 31 MB + 2 x 2.2 MB kind
+classifiers + 168 linear weights). v6 calibration: 547/1427 files below the 0.5 confidence gate
+(v4: 635); their file -> top-5 labels top-1 0.377, cap 0.881 (v4 0.378 / 0.868).
+Step 3 (LLM fine-tune) is `mc_peft.py` (peft LoraConfig r16 alpha 32 on all projections, fp32
+adapters, lr 1e-4, batch 4, f2l listwise over the v6 top-5, `--overfit 50 --steps 300` gate) run on
+the desktop through `run_peft.cmd`; waiting for the GPU (`gen6`).
+
+**Best browser-runnable configuration (v6, 2026-09-24):** v5's list-item references + base+sim+fs+order+seg+kind+dir,
+listwise linear (168 weights) + Hungarian: official 1174/1427 = **0.823**; potion-8m 31 MB + 2 x 2.2 MB kind
+classifiers; per record median 0.22 s, p90 0.58 s, max 2.9 s (single-core Python incl. the `refs.py` pass);
+547/1427 files (38%) fall below the 0.5 confidence flag.
+
+Previous best (v4): base+sim+fs+order+seg+kind, listwise linear
 (154 weights) + Hungarian. Official scorer (`export.py v4` -> `score.py exhibits`):
 1135/1427 = **0.795**. Size: potion-8m 31 MB + two hashed-word kind classifiers 2 x 2.2 MB
 (fp32, 32k x 17). CPU per record (`timing.py`, single-core Python, loaded laptop): median
@@ -95,6 +114,13 @@ direction ("my email to X" vs X's email to me), or "respectively" order.
   structural prior when a file's date can be read).
 
 ## Next
+- Shipping composition: v6 + Hungarian + the >= 0.5 confidence flag. Under v6, of the 220 wrong
+  low-confidence picks only 12 still have an itemless list-group gold mention and 12 an identical-text
+  twin file (`BASE=v6 python xstruct.py`); the rest are readable near-duplicates.
+- Items still missing: truly itemless lists ("the Retainer Agreements" of two named clients, "Copies of
+  the orders" after two sentences each naming one O. Reg.): a look-back to the preceding sentences'
+  n distinct values would reach a few; footnotes that split a sentence (Talebi UUUU-YYYY).
+- (Superseded 2026-09-24 by v5/v6, kept for history:)
 - Pair-reading cross-encoder (2026-09-24, `xenc.py`/`xcomb.py`/`xonnx.py`/`xtime.py`): trains (overfit gate
   passed; residual mode reaches 0.92 training top-1) but does not generalise from 1,100 training mentions:
   every blend is within noise of v4 (0.786-0.796 vs 0.793 on the common scorer). Not recommended.

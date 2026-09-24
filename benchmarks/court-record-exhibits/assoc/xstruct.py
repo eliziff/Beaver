@@ -5,7 +5,7 @@ sys.argv = ["x", "m", "t"]
 import numpy as np, xenc
 from common import assign
 recs = json.load(open(os.path.join(H, "inputs2.json"), encoding="utf-8"))
-B = np.load(os.path.join(H, "oof_v4.npz"))
+B = np.load(os.path.join(H, "oof_" + os.environ.get("BASE", "v4") + ".npz"))
 n = grp = twin = either = wrong = wgrp = wtwin = 0
 for r in recs:
     s = B[r["record"]]; L, N = s.shape; k = min(5, L, N)
