@@ -76,11 +76,14 @@ def isolate(paragraph: Paragraph, needle: str, occurrence: int = 0) -> list[Run]
 
 
 def replace_text(paragraph: Paragraph, old: str, new: str, count: int = 0) -> int:
-    """Replace text in a paragraph, keeping the formatting of the first replaced run. count=0 replaces all."""
+    """Replace text in a paragraph, keeping the formatting of the first replaced run. count=0 replaces all.
+    Raises when old is absent: a replacement that changes nothing is a wrong paragraph or wrong text."""
     done = 0
     while not count or done < count:
         try: runs = isolate(paragraph, old, done * new.count(old))
-        except ValueError: break
+        except ValueError:
+            if done: break
+            raise
         runs[0].text = new
         for r in runs[1:]: r._r.getparent().remove(r._r)
         done += 1
