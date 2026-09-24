@@ -82,6 +82,7 @@ describe.skipIf(!available())("word_python", () => {
     const preview = await call("word_python", { action: "preview", file_path, snapshot: inspected.snapshot, program: [
       "t = insert_table_after(find('Fees are set out')[0], 2, 2, style='Table Grid')",
       "t.cell(0, 0).text = 'Advice'; t.cell(0, 1).text = '$400'",
+      "section_range(t, t)  # repeating the range must not add an empty section",
       "set_page(section_range(t, t), orientation='landscape', margins_mm=15)",
       "replace_text(find('30 days')[0], '30 days', '45 days')",
       "return len(doc.sections)"].join("\n") });

@@ -210,7 +210,9 @@ def section_range(first, last, start: str = 'new_page'):
     prev = first_el.getprevious()
     if prev is not None and not ends_section(prev): break_after(prev)
     nxt = last_el.getnext()
-    sect = break_after(last_el) if nxt is not None and nxt.tag != qn('w:sectPr') and not ends_section(last_el) else _governing(last_el)
+    # A table's section already ends at a following empty section-break paragraph (e.g. from an earlier call).
+    closed = ends_section(last_el) or last_el.tag == qn('w:tbl') and ends_section(nxt) and not nxt.xpath('string(.)')
+    sect = break_after(last_el) if nxt is not None and nxt.tag != qn('w:sectPr') and not closed else _governing(last_el)
     section = Section(sect, DOC.part)
     section.start_type = getattr(WD_SECTION_START, start.upper())
     return section
