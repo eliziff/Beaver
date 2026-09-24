@@ -15,7 +15,7 @@ import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
 import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
-import { groundedSentenceCount, renderCitedBlocks, type GroundedClaim } from "../groundedAnswer";
+import { renderCitedBlocks, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
 import { objectSchema } from "./toolRegistry";
 
@@ -31,7 +31,7 @@ export type LegalEvidenceMode = "citation_structure";
 const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
-  "Use one sentence per claim and the smallest supporting passage. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
+  "Keep each support unit concise and use the smallest supporting passage. Split units when their supporting evidence differs. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -739,16 +739,17 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
     const ids = Array.isArray(rawIds)
       ? rawIds.filter((id): id is string => typeof id === "string" && Boolean(id))
       : [];
+    const uniqueIds = [...new Set(ids)];
     if (!row || Object.keys(row).some((key) => !["text", "evidence_ids"].includes(key)))
       errors.push(`claims[${index}] has unknown fields`);
     if (/\[\d+(?:,\s*\d+)*\]\s*$/u.test(text))
       errors.push(`claims[${index}] must cite evidence_ids, not numeric reference markers`);
-    if (!text) errors.push(`claims[${index}].text is empty; give one sentence of the answer`);
+    if (!text) errors.push(`claims[${index}].text is empty; give the supported text of the answer`);
     else if (text.length > (options.maxTextLength ?? Infinity))
-      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${options.maxTextLength}; split it into separate claims, each one sentence with its own evidence_ids`);
-    if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
+      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${options.maxTextLength}; split it into concise support units with their own evidence_ids`);
+    if (!uniqueIds.length || uniqueIds.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0))
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
-    for (const id of ids) {
+    for (const id of uniqueIds) {
       const receipt = state.evidence.get(id)?.receipt;
       if (!receipt) errors.push(`claims[${index}] has unknown evidence_id: ${id}`);
       else if (receipt.scope !== "passage") errors.push(`claims[${index}] requires passage evidence for ${id}`);
@@ -762,7 +763,7 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
           !passages.some((r) => r.provider !== "library" && !state.reviewDocumentIds!.has(r.stable_source_id)))
         errors.push(`claims[${index}] requires a pinpoint in the document under review and another in an external legal authority; retrieve both or omit this finding`);
     }
-    claims.push({ text, evidence_ids: ids });
+    claims.push({ text, evidence_ids: uniqueIds });
   });
   if (!errors.length) for (const [index, claim] of claims.entries())
     errors.push(...legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
@@ -848,16 +849,6 @@ export function submitLegalEvidenceAnswer(
   }
   state.draft = draft;
   const { claims, errors } = validateGroundedClaims(draft, state, { maxClaims: 64, maxTextLength: 1_200 });
-  if (claims && !errors.length) {
-    const native = structureNative();
-    for (const [index, claim] of claims.entries()) {
-      const spans = [...native.citationOccurrencesInText(claim.text), ...native.markedQuoteSpans(claim.text),
-        ...claim.text.matchAll(new RegExp(CASE_NAME.source, "gmu"))].map(span => "index" in span
-          ? { start: span.index!, end: span.index! + span[0].length } : span);
-      if (!claim.text.startsWith("|") && groundedSentenceCount(claim.text, spans) > 1)
-        errors.push(`claims[${index}] contains multiple sentences sharing evidence. Split it into one sentence per claim and bind each to its own supporting pinpoint.`);
-    }
-  }
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12), draft_claims: draft.length,
     next: `Your ${draft.length} claims are kept as this turn's draft. Send back only the claims named above, as replace: [{"index": 0, "text": "…", "evidence_ids": ["…"]}]; do not resend the answer.` };
   state.answer = claims;
@@ -874,7 +865,7 @@ const claimSchema = {
   properties: {
     text: {
       type: "string",
-      description: "One sentence of the answer in Markdown, at most 1,200 characters; a section heading may open the first sentence of its section, and the whole answer holds at most 64 claims. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
+      description: "A concise support unit in Markdown, at most 1,200 characters; a section heading may open the first sentence of its section, and the whole answer holds at most 64 claims. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
     },
     evidence_ids: {
       type: "array",

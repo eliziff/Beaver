@@ -144,11 +144,24 @@ describe("production legal evidence", () => {
     expect(rejected.next).toContain("replace");
     const twoSentences = submitLegalEvidenceAnswer({ replace: [{ index: 1,
       ...claim("The appeal is allowed. The appeal is allowed.") }] }, state);
-    expect(twoSentences.errors).toEqual([expect.stringContaining("claims[1] contains multiple sentences")]);
-    expect(twoSentences.draft_claims).toBe(3);
-    expect(submitLegalEvidenceAnswer({ replace: [{ index: 1, ...claim("The appeal is allowed.") }] }, state))
-      .toEqual({ ok: true, terminal: true });
+    expect(twoSentences).toEqual({ ok: true, terminal: true });
     expect(state.answer).toHaveLength(3);
+  });
+
+  it("normalizes repeated handles without weakening reference or quotation validation", () => {
+    const state = createLegalEvidenceTurnState(), evidence = passage();
+    registerLegalEvidence(state, evidence);
+    const claims = [{ text: "The appeal is allowed. This is the disposition.",
+      evidence_ids: Array(8).fill(evidence.evidence_id) }];
+    expect(submitLegalEvidenceAnswer({ claims }, state)).toEqual({ ok: true, terminal: true });
+    expect(state.answer?.[0].evidence_ids).toEqual([evidence.evidence_id]);
+    expect(claims[0].evidence_ids).toHaveLength(8);
+    expect(validateGroundedClaims([{ ...claims[0], evidence_ids: [evidence.evidence_id, null] }], state)
+      .errors).toContain("claims[0].evidence_ids must contain 1 to 4 unique handles");
+    expect(validateGroundedClaims([{ ...claims[0], evidence_ids: ["missing", "missing"] }], state)
+      .errors.join(" ")).toContain("unknown evidence_id");
+    expect(validateGroundedClaims([{ ...claims[0], text: 'The court said "This is invented wording."' }], state)
+      .errors.join(" ")).toContain("does not match its cited evidence");
   });
 
   it("refuses a replacement that names no draft or a claim outside it", () => {
@@ -704,7 +717,7 @@ describe("production legal evidence", () => {
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "x".repeat(1_201),
       evidence_ids: [evidence[0].evidence_id],
-    }] }, state).errors).toContain("claims[0].text is 1201 characters and the limit is 1200; split it into separate claims, each one sentence with its own evidence_ids");
+    }] }, state).errors).toContain("claims[0].text is 1201 characters and the limit is 1200; split it into concise support units with their own evidence_ids");
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "One proposition.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
@@ -762,18 +775,14 @@ describe("production legal evidence", () => {
     ]);
   });
 
-  it("requires each sentence to carry its own pinpoint", () => {
+  it("keeps granular support without counting sentences", () => {
     const state = createLegalEvidenceTurnState("citation_structure"), evidence = [passage("par30"), passage("par31")];
     evidence.forEach((receipt) => registerLegalEvidence(state, receipt));
     expect(submitLegalEvidenceAnswer({ claims: [{
       text: "The appeal succeeded. Both passages record that result.",
       evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).ok).toBe(false);
-    expect(renderLegalEvidenceAnswer(state)).toBeNull();
-    expect(submitLegalEvidenceAnswer({ claims: [{
-      text: "### Result\n\nThe appeal succeeded. Both passages record that result.",
-      evidence_ids: evidence.map(({ evidence_id }) => evidence_id),
-    }] }, state).ok).toBe(false);
+    }] }, state).ok).toBe(true);
+    expect(renderLegalEvidenceAnswer(state)).toBe("The appeal succeeded. Both passages record that result. [1]");
     expect(submitLegalEvidenceAnswer({ claims: [
       { text: "The appeal succeeded.", evidence_ids: [evidence[0].evidence_id] },
       { text: "Both passages record that result.", evidence_ids: evidence.map(({ evidence_id }) => evidence_id) },

@@ -34,6 +34,7 @@ import { getModelProvider, isModelAvailable, type ModelProvider } from "@/app/li
 import { assistantIntent, type AssistantIntent } from "../assistant/assistantIntent";
 import { errorMessage } from "@/app/lib/utils";
 import { MoreActionsMenu } from "../shared/MoreActionsMenu";
+import { ResearchReuseActions } from "../shared/ResearchReuseActions";
 import { ResearchSelectionLabels } from "../shared/ResearchSelectionLabels";
 import { ResearchChanges } from "../legal/ResearchChanges";
 import { SourcesWorkspace, useSourcesWorkspace } from "../legal/SourcesWorkspace";
@@ -420,8 +421,8 @@ function TRViewContent({ reviewId, projectId }: Props) {
             ...(selection.target === "passages" ? { evidenceIds: selection.evidenceIds ?? [] } : {}) })) ?? []) });
     const scopedRows = selected ? filteredDocuments.filter(({ id }) => selectedIds.includes(id)) : filteredDocuments;
     const discussedRows = discussion?.rowId ? scopedRows.filter(({ id }) => id === discussion.rowId) : scopedRows;
-    const chatSelection = (rows: TabularDocument[]): ResearchSelection => ({ ...rowSelection(rows),
-      findingRefs: rows.flatMap(({ id }) => cells.filter((cell) => cell.document_id === id &&
+    const chatSelection = (rows: TabularDocument[], results = cells): ResearchSelection => ({ ...rowSelection(rows),
+      findingRefs: rows.flatMap(({ id }) => results.filter((cell) => cell.document_id === id &&
         (!discussion || cell.column_index === discussion.columnIndex) && cell.status === "done" && cell.content)
         .map((cell) => ({ kind: "cell" as const, reviewId, rowId: id, columnIndex: cell.column_index }))) });
     const selectedScopeKey = JSON.stringify(chatSelection(discussedRows));
@@ -435,9 +436,13 @@ function TRViewContent({ reviewId, projectId }: Props) {
         setReview(data.review); setCells(data.cells); setDocuments(data.documents);
         const ids = new Set(scopedRows.map(({ id }) => id));
         const rows = data.documents.filter(({ id }) => ids.has(id));
-        const selection = chatSelection(discussion?.rowId ? rows.filter(({ id }) => id === discussion.rowId) : rows);
+        const selection = chatSelection(discussion?.rowId ? rows.filter(({ id }) => id === discussion.rowId) : rows, data.cells);
         workspace.setSelection(selection);
         return { file, selection, rows };
+    }
+    async function prepareReuse() {
+        const { file, selection } = await prepareRows();
+        return { file, title: review?.title || "Selected table findings", references: selection.findingRefs ?? [], selection };
     }
     const prepareChatWorkspace = useEffectEvent(() => { void prepareRows().catch(() => undefined); });
     useEffect(() => {
@@ -552,6 +557,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                 <span className="text-sm font-medium text-gray-800">{selectedIds.length} selected</span>
                                 <ResearchSelectionLabels prepare={async () => (await prepareRows()).rows
                                     .flatMap(({ selection }) => selection ? [selection] : [])} />
+                                <ResearchReuseActions key={selectedScopeKey} prepare={prepareReuse} disabled={generating} />
                                 <Button variant="outline" size="compact" disabled={generating}
                                     onClick={() => void clearResults(selectedIds)}>Clear results</Button>
                                 <Button variant="outline" size="compact" onClick={() => void deleteDocuments()}>Remove</Button>
@@ -636,6 +642,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
                     onDiscuss={() => void openChat({ rowId: expandedCell.document_id, columnIndex: expandedCell.column_index })}
                     onClose={() => setUi({ cellView: null })}
                     onRegenerate={() => regenerateCell(expandedCell.document_id, expandedCell.column_index)}
+                    actions={expandedCell.status === "done" && expandedCell.content ? <ResearchReuseActions disabled={generating} prepare={async () => {
+                        const file = await workspace.ensure({ tableId: reviewId }), references = [{ kind: "cell" as const, reviewId,
+                            rowId: expandedCell.document_id, columnIndex: expandedCell.column_index }];
+                        return { file, references, title: expandedColumn.name, selection: { ...rowSelection([expandedDocument]), findingRefs: references } };
+                    }} /> : undefined}
                     running={generating || !!columnRun} />
             )}
             <AddColumnModal open={columnModal !== undefined} existingCount={columns.length}

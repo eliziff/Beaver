@@ -606,3 +606,45 @@ records, and history terms are not appended to model prompts.
 These separations follow [Zotero's source-linked annotations and notes](https://www.zotero.org/support/pdf_reader)
 and [LangGraph's distinction between execution checkpoints and cross-thread stored data](https://docs.langchain.com/oss/javascript/langgraph/persistence).
 They are design precedents, not added dependencies or guarantees about legal quality.
+
+## Research context and direct reuse
+
+Hosted chat keeps stable policy in the system prompt and appends changed application
+state through the existing private `model_messages` event. The accepted user turn
+and its initial snapshot commit atomically. Unchanged state is not appended again;
+if compaction removes it, the current state is restored after compaction. Earlier
+SDK messages, signatures and tool-result pairs are not rewritten. Previously used
+or discovered tool definitions stay visible for hosted replay within the current
+scope, while unused specialists remain deferred. Native Codex/Claude Code sessions
+retain their existing ownership. Cache reuse still depends on the provider, model,
+tool catalogue and cache lifetime; this is not a measured billing guarantee.
+
+`Read(file_path="findings", pattern=...)` shows match-centred saved text. A bounded
+`finding_refs` array reads selected findings together, retaining whole findings and
+one copy of each exact supporting passage. `next_read` retains the reference set;
+oversized items/support have an ordinary single-finding read path. Source and
+selected-claim permissions apply before returning a batch. Source wording is never
+abbreviated to fit a result.
+
+Grounded submission deduplicates identical evidence IDs and accepts concise support
+units spanning more than one sentence. Different propositions should still use the
+appropriate support. Unknown handles, invalid fields, damaged evidence, quotation
+mismatches, pinpoint checks and bounded answer sizes remain enforced. A sentence
+counter is not a semantic-support check.
+
+Chat answers, selected table rows and individual completed cells expose **Add to
+memo** and **Write from selection**. Copy uses the existing version-checked memo
+operation without a model call. Chat copying selects the parent answer, not every
+intermediate reader finding. Write opens a fresh chat with the original selected
+finding references and an editable composition draft; it does not send a model turn
+until the user submits. Table copying uses refreshed completed-cell references.
+No new persistence layer or agent framework is introduced.
+
+Validation: the focused backend/frontend tests exercise replay, retries, compaction,
+scopes, batching and UI dispatch. `node scripts/test-research-efficiency.mjs` checks
+the built UI against disposable real local storage with recorded findings and no
+paid model turns, saving desktop/mobile screenshots. It does not substitute for the
+launcher-owned `scripts/mike.ps1 smoke -WithAssistantDock` release gate.
+
+Provider references: [OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+and [Anthropic tool-use caching](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-use-with-prompt-caching).

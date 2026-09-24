@@ -5,7 +5,7 @@ import {
   type CallToolResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
+import type { LlmMessage, NormalizedToolCall, NormalizedToolResult } from "../llm";
 import { safeErrorLog } from "../safeError";
 import { jsonRecord } from "../value";
 import type { AskInputsEvent, AssistantEvent } from "./assistantEvents";
@@ -133,13 +133,24 @@ type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Che
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
 type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
 
+/** Reuse already-discovered schemas in hosted replay; a fresh chat still starts deferred. */
+export function previouslyVisibleTools(messages: readonly LlmMessage[]) {
+  return messages.flatMap(message => message.modelState?.messages ?? []).flatMap(message =>
+    message.role === "assistant" && Array.isArray(message.content) ? message.content.flatMap(part => {
+      if (part.type !== "tool-call") return [];
+      const names = part.toolName === LOAD_TOOLS_NAME ? jsonRecord(part.input)?.names : [];
+      return [part.toolName, ...(Array.isArray(names) ? names.filter((name): name is string => typeof name === "string") : [])];
+    }) : []);
+}
+
 export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
   readonly #byName = new Map<string, Compiled<Context>>();
   readonly #active = new Set<string>();
   #mutated = false;
 
-  constructor(tools: BeaverTool<Context>[]) {
+  constructor(tools: BeaverTool<Context>[], previouslyVisible: readonly string[] = []) {
+    const visible = new Set(previouslyVisible);
     this.#tools = tools.map((candidate) => {
       const parsed = ToolSchema.safeParse(schema(candidate));
       if (!parsed.success) throw new Error(
@@ -158,7 +169,7 @@ export class TurnToolRegistry<Context> {
         }),
       };
       this.#byName.set(name, compiled);
-      if (!candidate.specialist) this.#active.add(name);
+      if (!candidate.specialist || visible.has(name)) this.#active.add(name);
       return compiled;
     });
   }

@@ -608,12 +608,14 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         ? activeDockTab
         : "sources";
     const latestAssistantId = session.messages.findLast(({ role }) => role === "assistant")?.id;
-    const messageActions = activeResearchFile && chatId && onUseAnswer
-        ? (messageId: string) => messageId === latestAssistantId
-            ? <ChatFindingActions file={activeResearchFile} chatId={chatId}
-                messageId={messageId} onUseAnswer={() => onUseAnswer(messageId)} />
-            : null
-        : undefined;
+    const messageActions = researchSaveEnabled && chatId
+        ? (messageId: string) => {
+            const message = session.messages.find(message => message.id === messageId);
+            return message?.role === "assistant" && (message.citations.length || messageId === latestAssistantId && onUseAnswer)
+                ? <ChatFindingActions key={messageId} chatId={chatId} messageId={messageId}
+                    onUseAnswer={messageId === latestAssistantId && onUseAnswer ? () => onUseAnswer(messageId) : undefined} />
+                : null;
+        } : undefined;
     const intent = initialIntent ?? (layout === "page" ? location.state?.assistantIntent as AssistantIntent | undefined : undefined);
     const submittedIntent = useRef<string | null>(null);
     useEffect(() => {

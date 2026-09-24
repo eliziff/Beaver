@@ -6,7 +6,7 @@ import { textField } from "../textField";
 import type { BeaverTool } from "./toolRegistry";
 import {
   AssistantStreamError,
-  runChatTurn,
+  applicationContextMessage, runChatTurn,
   type ChatToolContext,
 } from "./turnEngine";
 import { createChatToolRunner } from "./chatToolRunner";
@@ -48,7 +48,7 @@ import {
   priorLegalResearchQueryReceipts,
   registerPriorLegalResearchQueries,
 } from "./legalEvidence";
-import { resumableReadSubagents } from "./readSubagents";
+import { resumableReadSubagents, readSubagentResumePrompt } from "./readSubagents";
 import { tabularChatPrompt } from "./tabularContext";
 import { providerErrorCode, safeErrorLog, safeErrorMessage } from "../safeError";
 import {
@@ -76,7 +76,7 @@ import { wordClientTools, type WordClientCall } from "./wordClientTools";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { ChatCreateInput } from "../chatStore";
 import { researchSelectionSchema } from "../researchSelection";
-import { researchResultFilter } from "../researchReader";
+import { researchResultFilter, researchReadContextPrompt } from "../researchReader";
 import type { AuditStore } from "../audit";
 
 const uuid = z.string().uuid();
@@ -693,6 +693,8 @@ export function createChatApplication(deps: Dependencies) {
       const systemPrompt = [
         CODING_PRODUCTION_SYSTEM_PROMPT,
         CLIENT_WORK_PRODUCT_PRESUMPTION,
+      ].join("\n\n");
+      const turnContext = [
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
         features.sourceCoveragePrompt,
@@ -713,6 +715,22 @@ ${registeredWorkflow.skill_md}` : "",
             "apply_word_edits; it is not a Library document.",
         ].join("\n") : "",
       ].filter(Boolean).join("\n\n");
+
+      const hostedContext = responseProvider !== "codex" && responseProvider !== "claude-p";
+      if (hostedContext && !(retry && assistantContent.some(event =>
+          event.type === "model_messages" && event.id.startsWith("context:")))) {
+        const message = applicationContextMessage([turnContext, researchReadContextPrompt(researchContext),
+          readSubagentResumePrompt(resumableReadSubagents(priorEvents))].filter(Boolean).join("\n\n"));
+        const previous = messages.flatMap(message => message.modelState?.messages ?? []).reverse()
+          .find(message => message.role === "user" && typeof message.content === "string" &&
+            message.content.startsWith("[Current application context —"));
+        if (previous?.content !== message.content) {
+          // The accepted user turn and its private state snapshot share the same atomic commit.
+          assistantContent.push({ type: "model_messages", id: `context:${randomUUID()}`, model: selectedModel, messages: [message] });
+          commit.assistantMessage = { id: assistant?.id ?? commit.assistantMessage?.id ?? randomUUID(), turnId,
+            content: assistantContent, citations: assistantCitations };
+        }
+      }
 
       if (input.word_context && !execution?.clientTool) {
         throw new ChatApplicationError(400, "The Word document bridge is unavailable");
@@ -826,12 +844,10 @@ ${registeredWorkflow.skill_md}` : "",
           type: LOCAL_MUTATION_COMMITTED_EVENT, schema_version: 1,
         }], [], true),
       });
-      const slugByDocumentId = new Map(Object.entries(context.docIndex)
-        .map(([slug, info]) => [info.document_id, slug]));
       const toModelMessages = (list: ReturnType<typeof projectChatTranscript>) =>
         list.map((message) => ({
           role: message.role === "assistant" ? "assistant" as const : "user" as const,
-          content: formatChatMessageContent(message, slugByDocumentId),
+          content: formatChatMessageContent(message),
           images: imageForMessage(message, images),
           contextCheckpoint: message.contextCheckpoint,
           modelState: message.modelState,
@@ -900,6 +916,7 @@ ${registeredWorkflow.skill_md}` : "",
         const result = await runChatTurn({
           model: selectedModel,
           systemPrompt,
+          turnContext,
           messages: toModelMessages(messages),
           createTools: localTools.createTools,
           researchContext,

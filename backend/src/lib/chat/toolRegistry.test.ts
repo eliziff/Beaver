@@ -4,7 +4,7 @@ import { createTnaEvidence } from "./legalEvidence";
 import {
   LOAD_TOOLS_NAME,
   MAX_MODEL_TOOL_RESULT_CHARS,
-  TurnToolRegistry,
+  TurnToolRegistry, previouslyVisibleTools,
   toolText,
   type BeaverOutcome,
   type BeaverTool,
@@ -403,4 +403,19 @@ it("does not disguise an oversized JSON result as successful or return a broken 
   const [read] = await registry.run([call("read", "Read")], { order: [] });
   expect(read.status).toBe("truncated");
   expect(payload(read.content)).toMatchObject({ ok: false, error: "tool_result_too_large", truncated: true });
+});
+
+
+it("keeps already-discovered hosted schemas stable while leaving new specialists deferred and out-of-scope tools unavailable", async () => {
+  const tools = [tool("Read"), tool("known", { specialist: true }), tool("new", { specialist: true })];
+  const first = new TurnToolRegistry(tools);
+  await first.run([call("load", "load_tools", { names: ["known"] })], { order: [] });
+  const history = previouslyVisibleTools([{ role: "assistant", content: "", modelState: { model: "model", messages: [
+    { role: "assistant", content: [{ type: "tool-call", toolCallId: "load", toolName: "load_tools", input: { names: ["known", "outside"] } }] },
+  ] } }]);
+  const resumed = new TurnToolRegistry(tools, history);
+  expect(resumed.visible()).toEqual(first.visible()); expect(resumed.specialists()).toEqual(["new"]);
+  const [outside] = await resumed.run([call("outside", "outside")], { order: [] });
+  expect(outside.status).toBe("error");
+  expect(new TurnToolRegistry(tools).specialists()).toEqual(["known", "new"]);
 });

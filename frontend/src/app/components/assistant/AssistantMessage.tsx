@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Check, Copy, Minimize2 } from "lucide-react";
 import type { WorkflowRunEvent } from "@/app/lib/api/chat";
 import type { Citation } from "@/app/lib/citations";
@@ -25,6 +25,7 @@ interface Props {
     onWorkflowRunClick?: (run: WorkflowRunEvent) => void;
     onReaderClick?: (readerId: string) => void;
     minHeight?: string;
+    actions?: ReactNode;
     onEditViewClick?: (ann: EditAnnotation, filename: string, changeNumber?: number) => void;
     onOpenDocument?: (args: {
         documentId: string;
@@ -48,6 +49,7 @@ export function AssistantMessage({
     onWorkflowRunClick,
     onReaderClick,
     minHeight = "0px",
+    actions,
     onEditViewClick,
     onOpenDocument,
     onEditResolveStart,
@@ -320,6 +322,7 @@ export function AssistantMessage({
                         </button>
                     )}
                 </div>
+                {actions}
             </div>
         </div>
     );

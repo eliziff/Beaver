@@ -1635,6 +1635,8 @@ export function assistantTools<Context extends {
     if (call.name === "Read" && requested === "selection") return researchContext?.subjects
       ? readResearchContextInventory(researchContext, { offset: Number(args.offset) || 1, limit: Number(args.limit) || 20 })
       : fail("No research scope is selected");
+    if (args.finding_refs !== undefined && (requested !== "findings" || args.section || args.pattern))
+      return fail("Use finding_refs with file_path=findings, without section or pattern.");
     if (call.name === "Read" && requested === "findings") {
       if (!sources || !researchContext?.workspace) return fail("Open a Sources workspace to read its findings");
       const reference = args.section ? researchFindingReferenceSchema.parse(JSON.parse(String(args.section))) : undefined,
@@ -1642,7 +1644,8 @@ export function assistantTools<Context extends {
       return readResearchFindings({ sources, scope, workspaceId: researchContext.workspace.documentId,
         findingRefs: researchContext.findingRefs,
         ...(researchContext.restricted ? { subjects: researchContext.subjects ?? [] } : {}) }, {
-        reference, ...(args.pattern ? reference ? { evidence_id: String(args.pattern) } : { pattern: String(args.pattern) } : {}),
+        reference, ...(args.finding_refs ? { references: researchFindingReferenceSchema.array().min(1).max(50).parse(args.finding_refs) } : {}),
+        ...(args.pattern ? reference ? { evidence_id: String(args.pattern) } : { pattern: String(args.pattern) } : {}),
         ...(reference ? { text_offset: Number(args.start_char) || 0 }
           : { offset, limit: Math.min(50, limit) }),
       });
