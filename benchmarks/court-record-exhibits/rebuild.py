@@ -9,7 +9,8 @@ page-number redactions are recomputed the same way split.py makes them; file
 names come from split.json, so the gold's file references hold. Text files
 come from --text-backup (a copy of records/<id>/affidavit.txt and
 files/*.txt, including OCR output) when present, else from the rebuilt
-PDFs. Same-matter documents are re-downloaded from matter_docs.json. Records
+PDFs. Multi-file records (split.json multi_file) fetch each exhibit's
+source_files from source.json's sources list. Same-matter documents are re-downloaded from matter_docs.json. Records
 whose source is missing or changed are reported, not guessed.
 """
 import hashlib, json, os, shutil, subprocess, sys
@@ -27,6 +28,8 @@ def fetch(url, path, referer=""):
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return True
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    if "docs.doanegrantthornton.ca/document-folder/view/" in url:
+        return fetch_gt(url, path)
     url = url.replace(" ", "%20")
     headers = ["-H", "Accept: application/pdf,text/html;q=0.9,*/*;q=0.8", "-H", "Accept-Language: en-CA,en;q=0.9"]
     if referer:
@@ -36,6 +39,27 @@ def fetch(url, path, referer=""):
     if not ok and os.path.exists(path):
         os.remove(path)  # never leave a partial download behind
     return ok
+
+
+def fetch_gt(url, path):
+    """Doane Grant Thornton's view endpoint returns JSON with a one-time viewer link, not the PDF:
+    open the viewer (sets its session cookie), then download by the viewer key."""
+    import tempfile, time, urllib.parse
+    jar = os.path.join(tempfile.gettempdir(), "gt-rebuild-cookies.txt")
+    cu = ["curl", "-s", "-m", "300", "-A", UA, "-c", jar, "-b", jar]
+    for i in range(4):
+        try:
+            link = json.loads(subprocess.run(cu + [url], capture_output=True, text=True).stdout)["link"]
+            k = urllib.parse.parse_qs(urllib.parse.urlparse(link).query)["k"][0]
+            subprocess.run(cu + ["-o", os.devnull, link])
+            body = subprocess.run(cu + [f"https://doanegrantthornton.webpal.net/_ajax/download?ft=1&mode=pdf&generate=yes&p={k}&sk=&vl=1"], capture_output=True).stdout
+            if body[:4] == b"%PDF":
+                open(path, "wb").write(body)
+                return True
+        except Exception:
+            pass
+        time.sleep(3 * (i + 1))
+    return False
 
 
 def rebuild(rid, backup):
@@ -58,7 +82,34 @@ def rebuild(rid, backup):
     folios = record_folios(src, first, last)
     aff = clean_copy(src, [p - 1 for p in split["affidavit_pages"]])
     aff.save(os.path.join(out, "affidavit.pdf"), garbage=4, deflate=True)
-    for ex in split["exhibits"]:
+    if split.get("multi_file"):  # each exhibit cut from its own posted file(s)
+        srcs = {s["file"]: s for s in src_meta["sources"]}
+        for ex in split["exhibits"]:
+            pdf = fitz.open()
+            for part in ex["source_files"]:
+                s = srcs[part["file"]]
+                path = os.path.join(DATA, "raw", s["file"])
+                if not fetch(s.get("url", ""), path, src_meta.get("landing_url", "")):
+                    return f"download failed: {s['file']}"
+                if hashlib.sha256(open(path, "rb").read()).hexdigest() != s["sha256"]:
+                    return f"source changed (sha256 differs): {s['file']}"
+                doc = fitz.open(path)
+                pages = [p - 1 for p in part["pages"]]
+                fol = record_folios(doc, 0, len(doc) - 1)
+                redact = {q: list(fol.get(q, [])) for q in pages}
+                if part.get("stamp_page"):
+                    redact.setdefault(part["stamp_page"] - 1, []).extend(cover_label(doc[part["stamp_page"] - 1])[2])
+                for t in ex.get("redact_text", []):
+                    for q in pages:
+                        redact[q] = redact.get(q, []) + doc[q].search_for(t)
+                pdf.insert_pdf(clean_copy(doc, pages, redact))
+            pdf.set_metadata({}); pdf.set_toc([])
+            try:
+                pdf.set_page_labels([])
+            except Exception:
+                pass
+            pdf.save(os.path.join(out, "files", ex["file"]), garbage=4, deflate=True)
+    for ex in [] if split.get("multi_file") else split["exhibits"]:
         pages = [p - 1 for p in ex["source_pages"]]
         redact = {q: list(folios.get(q, [])) for q in pages}
         if ex.get("stamp_page"):

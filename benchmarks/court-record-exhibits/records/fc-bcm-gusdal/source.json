@@ -1,0 +1,19 @@
+{
+ "url": "https://www.jccf.ca/wp-content/uploads/2020/08/2020-8-5-Applicants-Record.pdf",
+ "landing_url": "https://www.jccf.ca/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-917-19 and T-918-19",
+ "document_title": "Applicant's Record (August 5, 2020), Tab 5: Affidavit of Michelle Gusdal sworn September 16, 2019",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-bcm-gusdal",
+ "source_file": "j-2020-8-5-applicants-record.pdf",
+ "page_range": [
+  251,
+  290
+ ],
+ "source_sha256": "6cfde608f8c71cd5dedc6eaa5401e27b3d220d6acc5e748463997f33eb5c00d6",
+ "source_pages": 643,
+ "covers": "A=253,B=256,C=258,D=261,E=263,F=272,G=277,H=279,I=283"
+}

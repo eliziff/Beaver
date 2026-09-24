@@ -1,0 +1,217 @@
+{
+ "record_id": "fc-bcm-gusdal",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-918-19 (with T-917-19)",
+ "subject": "administrative",
+ "family": "bcm-csj-attestation",
+ "proceeding": "BCM International (Canada) Inc. v. Minister of Employment, Workforce Development and Labour: judicial review of the refusal of Canada Summer Jobs funding to Christian camps (attestation / eligibility criteria), Charter freedom of religion",
+ "document": "Affidavit of Michelle Gusdal sworn September 16, 2019 (Applicant's Record, Tab 5)",
+ "deponent": "Michelle Gusdal",
+ "deponent_role": "Office Manager, Justice Centre for Constitutional Freedoms (applicant's counsel)",
+ "sworn_date": "2019-09-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hq9mhk.pdf",
+   "kind": "email_chain",
+   "date": "2019-05-02",
+   "author": "Service Canada",
+   "recipients": [
+    "Hampton Bible Camp (One Hope Canada)"
+   ],
+   "description": "Service Canada email denying Hampton Bible Camp's Canada Summer Jobs application",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached as Exhibits \"A\", \"B\", \"C\" and \"D\" to this Affidavit are emails dated May 2,"
+    }
+   ],
+   "content_check": "2 pages: forwarded 'Fw: Canada Summer Jobs application' (Ben Lawson, Thu, May 2, 2019) with Service Canada's letter signed Sarah Touchie"
+  },
+  {
+   "label": "B",
+   "file": "doc-965fuq.pdf",
+   "kind": "email_chain",
+   "date": "2019-05-02",
+   "author": "Service Canada",
+   "recipients": [
+    "Camp Livingstone (One Hope Canada)"
+   ],
+   "description": "Service Canada email denying Camp Livingstone's application",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Hampton Bible Camp, Camp Livingstone, Turtle Mountain Bible Camp, and Maple Springs Bible"
+    }
+   ],
+   "content_check": "1 page: 'Fwd: Canada Summer Jobs application - Project Number: 016173528' Brian Murphy, Thu, May 2, 2019"
+  },
+  {
+   "label": "C",
+   "file": "doc-wredsx.pdf",
+   "kind": "email_chain",
+   "date": "2019-05-02",
+   "author": "Service Canada",
+   "recipients": [
+    "Turtle Mountain Bible Camp (One Hope Canada)"
+   ],
+   "description": "Service Canada email denying Turtle Mountain Bible Camp's application",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Camp, respectively, all of which are One Hope Canada camps"
+    }
+   ],
+   "content_check": "2 pages: 'Fwd: Canada Summer Jobs application - Project Number: 016252678' Melanie Mushaluk"
+  },
+  {
+   "label": "D",
+   "file": "doc-29j8s2.pdf",
+   "kind": "email_chain",
+   "date": "2019-05-02",
+   "author": "Service Canada",
+   "recipients": [
+    "Maple Springs Bible Camp (One Hope Canada)"
+   ],
+   "description": "Service Canada email denying Maple Springs Bible Camp's application",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached as Exhibits \"A\", \"B\", \"C\" and \"D\""
+    }
+   ],
+   "content_check": "1 page: 'Fwd: Canada Summer Jobs application - Project Number: 016291981' Maple Springs Director, Thu, May 2, 2019"
+  },
+  {
+   "label": "E",
+   "file": "doc-bn2v68.pdf",
+   "kind": "webpage",
+   "date": "2019-09-16",
+   "author": "One Hope Canada",
+   "recipients": [],
+   "description": "One Hope Canada webpage printouts showing the four camps are its camps",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "see webpage printouts attached as Exhibit \"E\" to this Affidavit"
+    }
+   ],
+   "content_check": "8 pages: printed 9/16/2019 'One Hope Canada DISCOVER THE ATLANTIC ... six Bible camps'"
+  },
+  {
+   "label": "F",
+   "file": "doc-tf4g5t.pdf",
+   "kind": "webpage",
+   "date": "2019-09-16",
+   "author": "Government of Canada (Canada.ca)",
+   "recipients": [],
+   "description": "Canada.ca printouts of 2017 Canada Summer Jobs funding showing the four camps' grants",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "See webpage printouts from Canada.ea attached as Exhibit \"F\" to this Affidavit."
+    }
+   ],
+   "content_check": "4 pages: 'Canada Summer Jobs 2017 - New Brunswick - Canada.ca Amount Jobs Organization Name Paid Created'"
+  },
+  {
+   "label": "G",
+   "file": "doc-arafmu.pdf",
+   "kind": "other",
+   "date": "2018",
+   "author": "One Hope Canada",
+   "recipients": [],
+   "description": "One Hope Canada Statement of Affirmation Form",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Affirmation Form\" attached as Exhibit \"G\" to this Affidavit."
+    }
+   ],
+   "content_check": "1 page: 'Statement of Affirmation Form Statement of Faith and Code of Christian Conduct ... One Hope Canada is a distinctively Christian organization'"
+  },
+  {
+   "label": "H",
+   "file": "doc-tnkngc.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Hampton Bible Camp",
+   "recipients": [],
+   "description": "Hampton Bible Camp 'Application Procedure' webpage",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "See Hampton Bible Camp \"Application"
+    }
+   ],
+   "content_check": "3 pages: 'Join Our Team Application Procedure ... The heart of Hampton Bible Camp'"
+  },
+  {
+   "label": "I",
+   "file": "doc-5vgt2u.pdf",
+   "kind": "other",
+   "date": "2019",
+   "author": "Maple Springs Bible Camp",
+   "recipients": [],
+   "description": "Maple Springs 'Volunteer Staff Info Package 2019' containing the Statement of Affirmation",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "attached as Exhibit \"I\" to this Affidavit."
+    }
+   ],
+   "content_check": "7 pages: 'maplesprings biblecamp ... VOLUNTEER STAFF INFO PACKAGE 2019 A MINISTRY OF onehope'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "The four One Hope Canada camps receive Canada Summer Jobs funding",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Each of these four camps were approved for Canada Summer Jobs funding in 2017, and",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Service Canada denies the four camps' 2019 Canada Summer Jobs applications",
+   "date": "2019-05-02",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "are emails dated May 2,",
+   "exhibits": [
+    "A",
+    "B",
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Gusdal prints the One Hope Canada and Canada.ca webpages",
+   "date": "2019-09-16",
+   "precision": "approximate",
+   "paragraphs": [
+    2,
+    3
+   ],
+   "quote": "see webpage printouts attached as Exhibit \"E\"",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  }
+ ],
+ "referenced_not_attached": [],
+ "leak_waivers": [],
+ "notes": "Tab 5 of the applicant's record (source pages 251-290); the record's AR page folios remain in the text layer. Cover labels are dotted OCR ('/3' = B), so --covers by page. The same record's Whitehead affidavit is fc-bcm-whitehead; Chupa's exhibits have no covers."
+}

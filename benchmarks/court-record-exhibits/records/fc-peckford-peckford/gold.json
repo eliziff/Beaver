@@ -1,0 +1,215 @@
+{
+ "record_id": "fc-peckford-peckford",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-168-22 (heard with T-145-22, T-247-22 and T-1991-21)",
+ "subject": "charter",
+ "family": "peckford-travel-mandate",
+ "proceeding": "Peckford et al. v. Minister of Transport and Attorney General of Canada: judicial review and Charter challenge to the federal COVID-19 vaccination requirement for air and rail travel (Interim Orders for Civil Aviation)",
+ "document": "Affidavit of the Honourable A. Brian Peckford sworn March 11, 2022",
+ "deponent": "A. Brian Peckford",
+ "deponent_role": "Applicant; former Premier of Newfoundland and signatory of the 1981 constitutional accord",
+ "sworn_date": "2022-03-11",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-z97cgt.pdf",
+   "kind": "public_record",
+   "date": "2022",
+   "author": "Transport Canada",
+   "recipients": [],
+   "description": "Interim Order Respecting Certain Requirements for Civil Aviation Due to COVID-19, No. 56 (the Travel Ban)",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "and marked as Exhibit \"A\" to this my Affidavit is a copy of that Order."
+    }
+   ],
+   "content_check": "51 pages: 'Interim Order Respecting Certain Requirements for Civil Aviation Due to COVID-19, No. 56 From: Transport Canada'"
+  },
+  {
+   "label": "B",
+   "file": "doc-gedeev.pdf",
+   "kind": "transcript",
+   "date": "2021-09",
+   "author": null,
+   "recipients": [],
+   "description": "Certified translation and transcript of the Prime Minister's televised comments on unvaccinated people",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached hereto and marked as Exhibit \"B\" to this my Affidavit is a copy of the certified"
+    }
+   ],
+   "content_check": "2 pages: table 'Line# Timestamp Speaker Transcription 0:00-0:03 Justin Trudeau Yes, we are going to get out of this pandemic through vaccination.'"
+  },
+  {
+   "label": "C",
+   "file": "doc-hq39ym.pdf",
+   "kind": "letter",
+   "date": "2021-12-16",
+   "author": "Prime Minister Justin Trudeau",
+   "recipients": [
+    "Minister of Transport Omar Alghabra"
+   ],
+   "description": "Prime Minister's mandate letter to the Minister of Transport",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "and marked as Exhibit \"C\" to this my Affidavit is a copy of the mandate letter."
+    }
+   ],
+   "content_check": "6 pages: pm.gc.ca printout (1/18/22) 'Minister of Transport Mandate Letter December 16, 2021 Dear Minister Alghabra'"
+  },
+  {
+   "label": "D",
+   "file": "doc-8h2puj.pdf",
+   "kind": "webpage",
+   "date": "2022-02-16",
+   "author": "Government of Canada",
+   "recipients": [],
+   "description": "Government of Canada COVID-19 advisory on symptoms and treatment",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Attached hereto and marked as Exhibit \"D\" and Exhibit \"E\" to this my Affidavit is the"
+    }
+   ],
+   "content_check": "9 pages: 'Canada.ca Coronavirus disease (COVID-19) > Coronavirus disease (COVID-19): Symptoms and treatment'"
+  },
+  {
+   "label": "E",
+   "file": "doc-zmsea2.pdf",
+   "kind": "webpage",
+   "date": "2022-03-11",
+   "author": "Government of Canada",
+   "recipients": [],
+   "description": "Government of Canada COVID-19 advisory 'Symptoms, treatment, what to do if you feel sick'",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "official Government of Canada's advisory regarding Covid-19"
+    }
+   ],
+   "content_check": "9 pages: printed 3/11/22 'COVID-19: Symptoms, treatment, what to do if you feel sick - Canada.ca'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Peckford serves as Premier of Newfoundland",
+   "date": "1979-03-26",
+   "precision": "range",
+   "paragraphs": [
+    3
+   ],
+   "quote": "from March 26, 1979,",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "First Ministers strike the constitutional deal after about 18 months of negotiation",
+   "date": "1981-11-05",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "to November 5, 1981, when the deal was finally struck",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Peckford is appointed to the Queen's Privy Council",
+   "date": "1982",
+   "precision": "year",
+   "paragraphs": [
+    6
+   ],
+   "quote": "was appointed to the Queen’s Privy Council of Canada in 1982",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Peckford learns the federal government is preparing to restrict unvaccinated travel",
+   "date": "2021-08",
+   "precision": "approximate",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In and around August of 2021, I became aware that the Federal Government was preparing",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Prime Minister's televised comments on unvaccinated people",
+   "date": "2021-09",
+   "precision": "approximate",
+   "paragraphs": [
+    15
+   ],
+   "quote": "In or about September 2021, Prime Minister Justin Trudeau made concerning and alarming",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Federal government announces Interim Order No. 43 (the Travel Ban)",
+   "date": "2021-10-29",
+   "precision": "approximate",
+   "paragraphs": [
+    14
+   ],
+   "quote": "on or around October 29, 2021, the Federal Government announced",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Prime Minister issues the mandate letter to the Minister of Transport",
+   "date": "2021-12-21",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "On December 21, 2021, Prime Minister Justin Trudeau issued a mandate letter",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Government of Canada COVID-19 advisory as of February 16, 2022",
+   "date": "2022-02-16",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "The official Government of Canada's advisories as of February 16, 2022",
+   "exhibits": [
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Travel Ban keeps Peckford from speaking engagements and family visits",
+   "date": "2021-12",
+   "precision": "approximate",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The Travel Ban has hindered me from being able to attend speaking engagements across",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Video of the Prime Minister's interview (link only)"
+ ],
+ "leak_waivers": [
+  "A"
+ ],
+ "notes": "First affidavit (pages 1-90) of the JCCF compilation of the applicants' affidavits; the same PDF gave fc-peckford-baigent. Leak probe hit 'they exhibit a fever' in the Interim Order (not a label). B and C covers read 'Exhibit “. ”', so --covers by page. The exhibit C letter is dated December 16, 2021; the affidavit says December 21."
+}

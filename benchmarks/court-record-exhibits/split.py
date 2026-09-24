@@ -2,6 +2,15 @@
 
 Usage:
   python split.py <source.pdf> <record_id> [--pages 12-140] [--meta meta.json] [--out DIR] [--ocr-affidavit] [--covers A=9,B=15]
+  python split.py <record_id> --multi <affidavit.pdf> --exhibit A=a.pdf B=b1.pdf+b2.pdf [--covers A,B] [--meta meta.json]
+  python split.py <record_id> --manifest manifest.json [--meta meta.json]
+
+Multi-file mode is for sources that post each exhibit as its own PDF. Each
+file's first page is checked for a cover (sworn identification, or a bare
+"Pièce P-3" / "Exhibit R-1" page) and stripped or stamp-redacted; --covers
+names labels whose first page is a cover read by eye. meta.json's "urls"
+maps each file's basename to its URL; source.json then lists every file
+under "sources" and each exhibit in split.json lists its "source_files".
 
 --pages selects the affidavit-plus-exhibits run inside a larger motion or
 application record (1-based, inclusive). The output directory receives:
@@ -148,18 +157,147 @@ def text_of(doc, ocr=False):
     return "\n".join(f"[page {i + 1}]\n{page_text(p)}" for i, p in enumerate(doc))
 
 
+# A one-exhibit file's own cover: "PIÈCE P-3" / "Exhibit R-12" / "Tab 4" alone on its first page.
+FILE_COVER = re.compile(rf"^\s*(?:tab|exhibit|onglet|pi[eè]ce)?\s*(?:no\.?\s*)?{Q}\s*{LABEL}\s*{Q}\s*$", re.I)
+
+
+def file_cover(page, label, by_eye):
+    """(whole_page, stamp_rects, detected_label) for the first page of a file holding one exhibit."""
+    if by_eye:
+        return True, [], label
+    found, whole, rects = cover_label(page)
+    if found:
+        return whole, ([] if whole else rects), found
+    lines = [norm(l) for l in page.get_text().splitlines() if norm(l) and not PAGINATOR.match(norm(l))]
+    m = [FILE_COVER.match(l) for l in lines]
+    if lines and all(m) and any(x.group(1) for x in m):
+        return True, [], next(x.group(1).upper() for x in m if x.group(1))
+    return False, [], None
+
+
+def split_multi(a, out_dir):
+    """Affidavit and exhibits posted as separate PDFs (--multi AFF --exhibit A=f.pdf B=g.pdf+h.pdf, or --manifest)."""
+    if a.manifest:
+        man = json.load(open(a.manifest, encoding="utf-8"))
+        aff_path = man["affidavit"]
+        specs = [(l, [f] if isinstance(f, str) else f) for l, f in man["exhibits"].items()]
+    else:
+        aff_path = a.multi
+        specs = [(l.strip().upper(), f.split("+")) for l, f in (e.split("=", 1) for e in a.exhibit)]
+    by_eye = {l.strip().upper() for l in (a.covers or "").split(",") if l.strip()}
+    docs = {}
+    def src_of(path):
+        if path not in docs:
+            docs[path] = fitz.open(path)
+        return docs[path]
+    aff_src = src_of(aff_path)
+    first, last = page_range(a.pages, len(aff_src))
+    body = list(range(first, last + 1))
+    rng = random.Random(hashlib.sha256(a.record_id.encode()).digest())
+    ids = set()
+    aff = clean_copy(aff_src, body)
+    aff.save(os.path.join(out_dir, "affidavit.pdf"), garbage=4, deflate=True)
+    open(os.path.join(out_dir, "affidavit.txt"), "w", encoding="utf-8").write(text_of(aff, a.ocr_affidavit))
+    split, audit, scanned = [], [], []
+    for label, paths in specs:
+        parts, pdf, bare = [], fitz.open(), []
+        for k, path in enumerate(paths):
+            src = src_of(path)
+            folios = record_folios(src, 0, len(src) - 1)
+            pages, cover, stamp, rects = list(range(len(src))), None, None, []
+            if k == 0:
+                whole, rects, found = file_cover(src[0], label, label in by_eye)
+                if found and found != label:
+                    audit.append({"label": label, "problem": f"first page of {os.path.basename(path)} names {found}"})
+                if whole:
+                    cover, pages = 1, pages[1:]
+                elif rects:
+                    stamp = 1
+                elif len(norm(src[0].get_text())) < NEEDS_OCR_CHARS:
+                    audit.append({"label": label, "problem": f"first page of {os.path.basename(path)} has no text: check it for a cover by eye (--covers {label})"})
+            scanned += [f"{os.path.basename(path)}:{q + 1}" for q in pages if len(norm(src[q].get_text())) < NEEDS_OCR_CHARS and src[q].get_images()]
+            redact = {q: list(folios.get(q, [])) for q in pages}
+            if stamp:
+                redact[0] += rects
+            # Pièces are often stamped bare ("P-3" in a corner) with no cover; blank the token
+            # (listed under redact_text, which rebuild.py replays on every page).
+            if k == 0 and "-" in label and pages and re.search(rf"(?<![A-Za-z0-9-]){re.escape(label)}(?![0-9])", src[pages[0]].get_text()):
+                bare.append(label)
+            for q in pages:
+                for t in bare:
+                    redact[q] = redact.get(q, []) + src[q].search_for(t)
+            pdf.insert_pdf(clean_copy(src, pages, redact))
+            parts.append({"file": os.path.basename(path), "pages": [q + 1 for q in pages], "cover_page": cover, "stamp_page": stamp})
+        if not len(pdf):
+            audit.append({"label": label, "problem": "exhibit has no pages after its cover"})
+            continue
+        fid = None
+        while not fid or fid in ids:
+            fid = "doc-" + "".join(rng.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(6))
+        ids.add(fid)
+        pdf.set_metadata({}); pdf.set_toc([])
+        try:
+            pdf.set_page_labels([])
+        except Exception:
+            pass
+        pdf.save(os.path.join(out_dir, "files", fid + ".pdf"), garbage=4, deflate=True)
+        text = text_of(fitz.open(os.path.join(out_dir, "files", fid + ".pdf")))
+        open(os.path.join(out_dir, "files", fid + ".txt"), "w", encoding="utf-8").write(text)
+        own = re.compile(rf"(?:exhibit|pi[eè]ce)\s*{Q}\s*{re.escape(label)}\s*{Q}(?![A-Za-z0-9])|referred\s+to\s+in\s+the\s+affidavit|ceci\s+est\s+la\s+pi[eè]ce", re.I)
+        for hit in own.finditer(norm(text)):
+            audit.append({"label": label, "file": fid, "text": norm(text)[max(0, hit.start() - 60):hit.end() + 60]})
+        split.append({"label": label, "file": fid + ".pdf", "source_files": parts,
+                      "source_pages": parts[0]["pages"], "cover_page": parts[0]["cover_page"], "stamp_page": parts[0]["stamp_page"],
+                      "text_chars": len(norm(text)), **({"redact_text": bare} if bare else {})})
+        if bare:
+            audit.append({"label": label, "file": fid, "problem": f"bare label {label} on the first page blanked (redact_text); check the rest"})
+    labels = [l for l, _ in specs]
+    if len(set(labels)) != len(labels):
+        audit.append({"problem": f"duplicate exhibit labels {labels}"})
+    json.dump({"record_id": a.record_id, "multi_file": True, "affidavit_pages": [p + 1 for p in body],
+               "divider_pages": [], "scanned_pages": scanned, "exhibits": split, "leak_audit": audit},
+              open(os.path.join(out_dir, "split.json"), "w", encoding="utf-8"), indent=1)
+    meta = json.load(open(a.meta, encoding="utf-8")) if a.meta else {}
+    urls = meta.pop("urls", {})
+    meta.update({"record_id": a.record_id, "source_file": os.path.basename(aff_path), "page_range": [first + 1, last + 1],
+                 "source_sha256": hashlib.sha256(open(aff_path, "rb").read()).hexdigest(), "source_pages": len(aff_src)})
+    meta["sources"] = [{"file": os.path.basename(p), "url": urls.get(os.path.basename(p), meta.get("url", "") if p == aff_path else ""),
+                        "sha256": hashlib.sha256(open(p, "rb").read()).hexdigest(), "pages": len(d)} for p, d in docs.items()]
+    for s in meta["sources"]:
+        if not s["url"]:
+            audit.append({"problem": f"no url for {s['file']} (meta urls)"})
+    if a.ocr_affidavit:
+        meta["affidavit_ocr"] = True
+    if a.covers:
+        meta["covers"] = a.covers
+    json.dump(meta, open(os.path.join(out_dir, "source.json"), "w", encoding="utf-8"), indent=1)
+    print(json.dumps({"record": a.record_id, "affidavit_pages": len(body), "exhibits": [(e["label"], e["file"], sum(len(p["pages"]) for p in e["source_files"])) for e in split],
+                      "scanned_pages": len(scanned), "leaks": len(audit)}, indent=None))
+    if audit:
+        print(json.dumps(audit, indent=1, ensure_ascii=False))
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("pdf"); ap.add_argument("record_id")
+    ap.add_argument("pdf", nargs="?"); ap.add_argument("record_id", nargs="?")
+    ap.add_argument("--multi", help="affidavit PDF whose exhibits are separate files (with --exhibit or --manifest)")
+    ap.add_argument("--exhibit", nargs="+", help="A=a.pdf B=b1.pdf+b2.pdf: one exhibit per file (or files, in order)")
+    ap.add_argument("--manifest", help='JSON {"affidavit": path, "exhibits": {"A": path or [paths]}} instead of --multi/--exhibit')
     ap.add_argument("--pages"); ap.add_argument("--meta"); ap.add_argument("--out")
     ap.add_argument("--ocr-affidavit", action="store_true", help="OCR image-only affidavit pages into affidavit.txt")
     ap.add_argument("--covers", help="A=9,B=15: whole-page exhibit covers read by eye (handwritten or scanned labels)")
     ap.add_argument("--relabel", help="IT=U: fix a misread stamp label without turning its page into a whole-page cover")
     ap.add_argument("--drop", help="1143,1178: source pages left out of every file (a cover the source repeats inside its exhibit)")
     a = ap.parse_args()
+    if (a.multi or a.manifest) and a.record_id is None:
+        a.pdf, a.record_id = None, a.pdf  # split.py <id> --multi aff.pdf --exhibit ...
+    if not a.record_id:
+        ap.error("record_id is required")
     root = a.out or os.path.join(os.environ["LOCALAPPDATA"], "OpenLegalData", "benchmarks", "court-record-exhibits", "records")
     out_dir = os.path.join(root, a.record_id)
     os.makedirs(os.path.join(out_dir, "files"), exist_ok=True)
+    if a.multi or a.manifest:
+        return split_multi(a, out_dir)
     src = fitz.open(a.pdf)
     first, last = page_range(a.pages, len(src))
 

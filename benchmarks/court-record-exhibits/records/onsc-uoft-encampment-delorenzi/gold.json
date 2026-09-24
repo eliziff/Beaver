@@ -1,0 +1,366 @@
+{
+ "record_id": "onsc-uoft-encampment-delorenzi",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-24-00720977-0000",
+ "subject": "employment",
+ "family": "uoft-encampment-injunction",
+ "proceeding": "Governing Council of the University of Toronto v. John Doe et al. (trespass injunction against the King's College Circle encampment): the Faculty Association's motion to be added as a necessary party",
+ "document": "Affidavit of Nellie De Lorenzi affirmed May 27, 2024",
+ "deponent": "Nellie De Lorenzi",
+ "deponent_role": "Executive Director, University of Toronto Faculty Association (UTFA)",
+ "sworn_date": "2024-05-27",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-jn5hda.pdf",
+   "kind": "agreement",
+   "date": "2024-01-01",
+   "author": "Governing Council of the University of Toronto and UTFA",
+   "recipients": [],
+   "description": "Memorandum of Agreement between the University and UTFA, consolidated as of January 1, 2024",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copy of the MoA, consolidated as of January 1, 2024, is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "17 pages: 'UNIVERSITY OF TORONTO Memorandum of Agreement between The Governing Council of the University of Toronto and The University of Toronto Faculty Association'"
+  },
+  {
+   "label": "B",
+   "file": "doc-xjfy49.pdf",
+   "kind": "email",
+   "date": "2024-04-28",
+   "author": "Sandy Welsh, Vice-Provost, Students",
+   "recipients": [
+    "University of Toronto students"
+   ],
+   "description": "Vice-Provost Welsh's April 28, 2024 email saying encampments are trespassing",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of this email is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "1 page: 'From: Vice-Provost, Students ... Sent: Sunday, April 28, 2024 ... Subject: Message about freedom of expression and protest'"
+  },
+  {
+   "label": "C",
+   "file": "doc-avhtn3.pdf",
+   "kind": "letter",
+   "date": "2024-04-30",
+   "author": "UTFA",
+   "recipients": [
+    "President Meric Gertler"
+   ],
+   "description": "UTFA's letter of April 30, 2024 to President Gertler asking that the communication be retracted",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A copy of UTFA"
+    }
+   ],
+   "content_check": "4 pages: 'April 30, 2024 Dear President Gertler, We are writing to express our deep concerns with a letter that Professor Sandy Welsh, Vice-Provost, Students, sent...'"
+  },
+  {
+   "label": "D",
+   "file": "doc-rdjufp.pdf",
+   "kind": "notice",
+   "date": "2024-05-24",
+   "author": "University of Toronto",
+   "recipients": [
+    "University community"
+   ],
+   "description": "The University's Notice of Trespass",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A copy of the Notice is"
+    }
+   ],
+   "content_check": "4 pages, image-only (OCR'd): U of T 'Messages to the University community' web page carrying the Notice of Trespass"
+  },
+  {
+   "label": "E",
+   "file": "doc-bna5ex.pdf",
+   "kind": "other",
+   "date": "2024-05-24",
+   "author": "UTFA",
+   "recipients": [
+    "UTFA members"
+   ],
+   "description": "UTFA's statement to members dated May 24, 2024 (part 1)",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "is attached to this Affidavit as Exhibits"
+    }
+   ],
+   "content_check": "2 pages, image-only (OCR'd): UTFA web post 'Threats to UTFA members contained in Administration's Trespass Notice May 24, 2024 - Dear colleagues'"
+  },
+  {
+   "label": "E.1",
+   "file": "doc-k6gteq.pdf",
+   "kind": "other",
+   "date": "2024-05-27",
+   "author": "UTFA",
+   "recipients": [
+    "UTFA members"
+   ],
+   "description": "UTFA's follow-up statement to members (filed with the May 24, 2024 statement)",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "is attached to this Affidavit as Exhibits"
+    }
+   ],
+   "content_check": "3 pages, image-only (OCR'd): UTFA web post 'Update on Administration Threats to UTFA Members May 27, 2024'"
+  },
+  {
+   "label": "F",
+   "file": "doc-qh2568.pdf",
+   "kind": "other",
+   "date": "2021-01-01",
+   "author": "University of Toronto Governing Council",
+   "recipients": [],
+   "description": "Policy and Procedures on Academic Appointments dated January 1, 2021",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A copy of this policy, dated January 1, 2021, is attached"
+    }
+   ],
+   "content_check": "26 pages: 'University of Toronto Governing Council Policy and Procedures on Academic Appointments Effective January 1, 2021'"
+  },
+  {
+   "label": "G",
+   "file": "doc-xp3dx6.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "University of Toronto Governing Council",
+   "recipients": [],
+   "description": "Policies for Librarians (dated January 1, 2024 per the affidavit)",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "A copy of this"
+    }
+   ],
+   "content_check": "20 pages: 'Policy for Librarians [July 1, 1991]' Governing Council web copy (the affidavit dates it January 1, 2024)"
+  },
+  {
+   "label": "H",
+   "file": "doc-8tm367.pdf",
+   "kind": "other",
+   "date": "1992-05-02",
+   "author": "University of Toronto Governing Council",
+   "recipients": [],
+   "description": "Statement on Freedom of Speech (dated May 28, 1992 per the affidavit)",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Statement on Freedom of Speech. A copy of this statement, dated May 28"
+    }
+   ],
+   "content_check": "2 pages: 'Freedom of Speech, Statement on Protection of [May 2, 1992]' (the affidavit says May 28, 1992)"
+  },
+  {
+   "label": "I",
+   "file": "doc-8pv6gw.pdf",
+   "kind": "other",
+   "date": "1992-10-15",
+   "author": "University of Toronto Governing Council",
+   "recipients": [],
+   "description": "Statement of Institutional Purpose dated October 15, 1992",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Statement of Institutional Purpose. A copy of this statement, dated October"
+    }
+   ],
+   "content_check": "6 pages: 'Statement of Institutional Purpose [October 15, 1992]'"
+  },
+  {
+   "label": "J",
+   "file": "doc-adncst.pdf",
+   "kind": "other",
+   "date": "2016-07-01",
+   "author": "University of Toronto Governing Council",
+   "recipients": [],
+   "description": "Code of Behaviour on Academic Matters (dated July 1, 2019 per the affidavit)",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Code of Behaviour on Academic Matters. A copy of this document, dated"
+    }
+   ],
+   "content_check": "21 pages: 'Code of Behaviour on Academic Matters [July 1, 2016] updated [July 6, 2016]' (the affidavit says July 1, 2019)"
+  },
+  {
+   "label": "K",
+   "file": "doc-pyp4p6.pdf",
+   "kind": "other",
+   "date": "1994-03-31",
+   "author": "University of Toronto Governing Council",
+   "recipients": [],
+   "description": "Statement on Prohibited Discrimination and Discriminatory Harassment dated March 31, 1994",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Statement on Prohibited Discrimination and Discriminatory Harassment. A"
+    }
+   ],
+   "content_check": "7 pages: 'Statement on Prohibited Discrimination and Discriminatory Harassment [March 31, 1994]'"
+  },
+  {
+   "label": "L",
+   "file": "doc-f6h28m.pdf",
+   "kind": "email_chain",
+   "date": "2024-05-27",
+   "author": "Monique Jilesen (counsel for the University)",
+   "recipients": [
+    "Dayna Steinfeld"
+   ],
+   "description": "Email correspondence between counsel on UTFA's standing",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "2024, is attached to this Affidavit as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: email 'From: Monique Jilesen To: Dayna Steinfeld ... Subject: RE: University of Toronto Injunction - UTFA standing', May-27-24"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Association of the Teaching Staff established",
+   "date": "1954",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "A Faculty Association at the University of Toronto was established in 1954",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Faculty Association renamed UTFA",
+   "date": "1972",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "The Faculty Association",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Memorandum of Agreement creates the present UTFA relationship",
+   "date": "1977",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "created by the Memorandum of Agreement",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Vice-Provost Welsh writes to students that encampments are trespassing",
+   "date": "2024-04-28",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On April 28, 2024, Vice Provost, Students, Professor Sandy Welsh, wrote",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "UTFA writes to President Gertler asking for retraction",
+   "date": "2024-04-30",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "letter, dated April 30, 2024",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "UTFA Executive meets the University about the encampment",
+   "date": "2024-05-06",
+   "precision": "range",
+   "paragraphs": [
+    7
+   ],
+   "quote": "May 6, May 13, and May 21, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "University distributes the Notice of Trespass",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On May 24, 2024, the Applicant distributed a Notice of Trespass",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "UTFA statement to members on the Notice",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "statement to members dated May 24, 2024",
+   "exhibits": [
+    "E",
+    "E.1"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Counsel exchange emails on UTFA's standing; the University does not oppose",
+   "date": "2024-05-26",
+   "precision": "range",
+   "paragraphs": [
+    25
+   ],
+   "quote": "dated May 26 and 27,",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Deadline in the Notice for faculty to stop participating",
+   "date": "2024-05-27",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "after 8:00 am on May 27, 2024",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "University's notice of application and notice of motion for the injunction"
+ ]
+}

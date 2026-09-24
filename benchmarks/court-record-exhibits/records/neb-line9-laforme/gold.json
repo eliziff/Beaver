@@ -1,0 +1,251 @@
+{
+ "record_id": "neb-line9-laforme",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-002-2013 (OF-Fac-Oil-E101-2012-10 02)",
+ "subject": "indigenous_rights",
+ "family": null,
+ "proceeding": "Enbridge Pipelines Inc. Line 9B Reversal and Line 9 Capacity Expansion Project (Hearing Order OH-002-2013): evidence of the Mississaugas of the New Credit First Nation, intervenor, on consultation, Aboriginal and treaty rights and archaeology",
+ "document": "Affidavit of Chief Bryan LaForme affirmed September 25, 2013 (REGDOCS C3-9-2)",
+ "deponent": "Bryan LaForme",
+ "deponent_role": "Chief of the Mississaugas of the New Credit First Nation (intervenor)",
+ "sworn_date": "2013-09-25",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-cufspd.pdf",
+   "kind": "court_order",
+   "date": "2012-07-27",
+   "author": "National Energy Board",
+   "recipients": [
+    "Enbridge Pipelines Inc."
+   ],
+   "description": "NEB Letter Decision approving the Line 9 Reversal Phase I Project",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached as Exhibit \"A\" to my affidavit is a copy of the Board's Letter"
+    }
+   ],
+   "content_check": "28 pages: 'National Energy Board ... LETTER DECISION File OF-Fac-Oil-E101-2011-01 01 27 July 2012' to Enbridge"
+  },
+  {
+   "label": "B",
+   "file": "doc-jz884z.pdf",
+   "kind": "letter",
+   "date": "2013-05-15",
+   "author": "Enbridge Pipelines Inc.",
+   "recipients": [
+    "Mississaugas of the New Credit First Nation"
+   ],
+   "description": "Enbridge letter on its Line 10 and Line 11 Westover segment replacement plans",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "\"B\" to my affidavit is a copy of a letter dated May 15, 2013"
+    }
+   ],
+   "content_check": "4 pages: Enbridge letter May 15, 2013 'LINE 10 WESTOVER SEGMENT REPLACEMENT PROJECT & LINE 11 WESTOVER SEGMENT REPLACEMENT PROJECT'"
+  },
+  {
+   "label": "C",
+   "file": "doc-arrpk3.pdf",
+   "kind": "letter",
+   "date": "2013-03-19",
+   "author": "Ontario Ministry of the Environment",
+   "recipients": [
+    "Chief Bryan LaForme"
+   ],
+   "description": "Ministry of the Environment letter on Enbridge's 1,200-1,400 integrity digs in 2013-2014",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Attached as Exhibit \"C\" to my affidavit is a copy of a letter dated March 19,"
+    }
+   ],
+   "content_check": "2 pages: Ministry of the Environment West-Central Region letter to Chief Bryan LaForme, New Credit First Nation"
+  },
+  {
+   "label": "D",
+   "file": "doc-2cyxkm.pdf",
+   "kind": "email_chain",
+   "date": "2013-07-25",
+   "author": "Enbridge; MNCFN consultants",
+   "recipients": [],
+   "description": "Correspondence between Enbridge and MNCFN on the integrity dig program and archaeological assessments",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached as Exhibit \"D\" is a copy"
+    }
+   ],
+   "content_check": "11 pages: emails 'RE: Archaeological assessments - Westover and Hilton' from Danielle Bertsch (Enbridge), July 25, 2013"
+  },
+  {
+   "label": "E",
+   "file": "doc-r7jpkx.pdf",
+   "kind": "report",
+   "date": "2013-08-02",
+   "author": "William R. Fitzgerald, Ph.D.",
+   "recipients": [
+    "MNCFN"
+   ],
+   "description": "Dr. Fitzgerald's report on archaeological potential near the North Westover Pump Station",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached as Exhibit \"E\" is a"
+    }
+   ],
+   "content_check": "4 pages: 'Comments on the Archaeological Potential of the Westover Pump Station and Integrity Digs between Concessions 6W and 5W William R. Fitzgerald, Ph.D. ... August 2, 2013'"
+  },
+  {
+   "label": "F",
+   "file": "doc-vamcvq.pdf",
+   "kind": "report",
+   "date": "1974",
+   "author": null,
+   "recipients": [],
+   "description": "Extract from the 1974 environmental report Enbridge relies on for archaeology",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Attached as Exhibit \"F\" is a copy of"
+    }
+   ],
+   "content_check": "25 pages: 'PART 1 ... ENVIRONMENTAL SETTING 4. Scientific, Historic and Archaeological Values'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Mississaugas settle in southern Ontario",
+   "date": "1695",
+   "precision": "approximate",
+   "paragraphs": [
+    9
+   ],
+   "quote": "By about 1695, the Mississaugas had settled into southern Ontario.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "MNCFN and Canada settle the Toronto Purchase specific claim",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    18
+   ],
+   "quote": "In 2010, the MNCFN and the Government of Canada settled MNCFN's specific claim for",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Enbridge applies to reverse Line 9 between Sarnia and North Westover (Phase I)",
+   "date": "2011-08-08",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On August 8, 2011, Enbridge applied under section 58 of the National Energy Board Act",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Board approves the Line 9 Reversal Phase I Project on conditions",
+   "date": "2012-07-27",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On July 27, 2012, the Board approved Enbridge's application, on certain",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Ministry of the Environment writes that Enbridge will conduct 1,200-1,400 integrity digs",
+   "date": "2013-03-19",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "a letter dated March 19,",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Enbridge writes about its Line 10 and Line 11 replacement plans",
+   "date": "2013-05-15",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "a letter dated May 15, 2013 indicating Enbridge's plans",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Enbridge and MNCFN correspond on the integrity dig program; no accommodation provided",
+   "date": "2013-07",
+   "precision": "approximate",
+   "paragraphs": [
+    26
+   ],
+   "quote": "While Enbridge is currently consulting with the MNCFN in relation to its integrity dig",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Dr. Fitzgerald reports archaeological potential near the North Westover Pump Station",
+   "date": "2013-08-02",
+   "precision": "day",
+   "paragraphs": [
+    32,
+    33
+   ],
+   "quote": "Dr. William Fitzgerald, to assess whether certain locations near Enbridge's Line 9 near the",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Enbridge declines to conduct archaeological fieldwork, relying on a 1974 environmental report",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    33,
+    34
+   ],
+   "quote": "Enbridge is relying, at least in",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Crown and Enbridge did not consult MNCFN when Lines 9, 10 and 11 were built",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    20
+   ],
+   "quote": "The Crown did not consult or accommodate the MNCFN when it approved Enbridge's",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Enbridge's Line 9B Reversal and Line 9 Capacity Expansion application"
+ ],
+ "leak_waivers": [],
+ "notes": "Affirmed before a Colorado notary; covers OCR-noisy, so --covers by page."
+}

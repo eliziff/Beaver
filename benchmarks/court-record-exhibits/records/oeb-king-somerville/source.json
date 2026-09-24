@@ -1,0 +1,18 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/857831/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record/857831",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2009-0187",
+ "document_title": "Affidavit of Scott Somerville sworn January 2011 (Township of King motion for leave to seek review of Enbridge's York Energy Centre pipeline route)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-king-somerville",
+ "source_file": "doeb-857831.pdf",
+ "page_range": [
+  14,
+  60
+ ],
+ "source_sha256": "ddf05eb98d86a463be627def16a36e4022b64f9c1492347aed916ec14ed0ee7f",
+ "source_pages": 60
+}

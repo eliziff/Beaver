@@ -1,0 +1,19 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/1042654",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Search?txthl=LaForme%20affidavit",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-002-2013 (OF-Fac-Oil-E101-2012-10 02)",
+ "document_title": "Affidavit of Bryan LaForme, Chief of the Mississaugas of the New Credit First Nation, affirmed September 2013 (Enbridge Line 9B Reversal hearing, C3-9-2)",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-line9-laforme",
+ "source_file": "dcer-1042654.pdf",
+ "page_range": [
+  1,
+  86
+ ],
+ "source_sha256": "3dce3852abb97eca62121fd632d02b6200e3d4fbe68c1d3e7f521e260eab1f4b",
+ "source_pages": 86,
+ "covers": "A=7,B=36,C=41,D=44,E=56,F=61"
+}

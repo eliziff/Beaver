@@ -1,0 +1,362 @@
+{
+ "record_id": "oeb-king-somerville",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2009-0187",
+ "subject": "municipal",
+ "family": null,
+ "proceeding": "Township of King's motion for leave to seek review and variance of the OEB's April 5, 2010 decision approving Enbridge Gas Distribution's extra high pressure pipeline route to the York Energy Centre",
+ "document": "Affidavit of Scott Somerville sworn January 19, 2011",
+ "deponent": "Scott Somerville",
+ "deponent_role": "Chief Administrative Officer, Township of King (moving party)",
+ "sworn_date": "2011-01-19",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zcch2g.pdf",
+   "kind": "public_record",
+   "date": "2010-07-29",
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Ontario Regulation 305/10 exempting the York Energy Centre from the Planning Act",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the Regulation is attached as Exhibit A."
+    }
+   ],
+   "content_check": "1 page e-Laws printout: 'ONTARIO REGULATION 305/10 ENERGY UNDERTAKINGS: EXEMPT UNDERTAKINGS'"
+  },
+  {
+   "label": "B",
+   "file": "doc-kvpvvn.pdf",
+   "kind": "letter",
+   "date": "2010-11-03",
+   "author": "James Feehely (Township solicitor)",
+   "recipients": [
+    "Ontario Energy Board"
+   ],
+   "description": "Township solicitor's first request to the OEB to review the route (intervenor request in EB-2010-0310)",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "The first such request was made on November 3, 2010, a copy of"
+    }
+   ],
+   "content_check": "4 pages: Feehely, Gastaldi letter November 3, 2010 via overnight courier"
+  },
+  {
+   "label": "C",
+   "file": "doc-9fw2ay.pdf",
+   "kind": "letter",
+   "date": "2010-11-05",
+   "author": "Ontario Energy Board",
+   "recipients": [
+    "James Feehely"
+   ],
+   "description": "OEB letter granting intervenor status on the variance application but not on routing",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "OEB's correspondence dated November 5, 2010 is attached as Exhibit C."
+    }
+   ],
+   "content_check": "2 pages: OEB letter November 5, 2010 to Mr. James Feehely"
+  },
+  {
+   "label": "D",
+   "file": "doc-hctvnr.pdf",
+   "kind": "letter",
+   "date": "2010-11-12",
+   "author": "James Feehely",
+   "recipients": [
+    "Ontario Energy Board"
+   ],
+   "description": "Township's request that the OEB reconsider its refusal of routing submissions",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A copy of"
+    }
+   ],
+   "content_check": "2 pages: Feehely, Gastaldi letter November 12, 2010"
+  },
+  {
+   "label": "E",
+   "file": "doc-r26wsm.pdf",
+   "kind": "letter",
+   "date": "2010-11-17",
+   "author": "Ontario Energy Board",
+   "recipients": [
+    "James Feehely"
+   ],
+   "description": "OEB letter again refusing to review routing and limiting the Township's participation",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of the OEB's position is attached"
+    }
+   ],
+   "content_check": "1 page: OEB letter November 17, 2010 to Mr. James Feehely"
+  },
+  {
+   "label": "F",
+   "file": "doc-vjn7nz.pdf",
+   "kind": "letter",
+   "date": "2010-11-26",
+   "author": "Scott Stoll (Aird & Berlis, counsel for Enbridge)",
+   "recipients": [
+    "Kirsten Walli, OEB Board Secretary"
+   ],
+   "description": "Enbridge counsel's letter withdrawing the variance application",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the correspondence"
+    }
+   ],
+   "content_check": "2 pages: Aird & Berlis letter November 26, 2010 to Ms. Kirsten Walli"
+  },
+  {
+   "label": "G",
+   "file": "doc-e8s8t2.pdf",
+   "kind": "letter",
+   "date": "2010-12-22",
+   "author": "Township of King",
+   "recipients": [
+    "Kirsten Walli, OEB Board Secretary"
+   ],
+   "description": "Township letter enclosing Council's resolution asking the OEB to direct reconsideration of the route",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "A copy of the correspondence with"
+    }
+   ],
+   "content_check": "3 pages: Township of King letter December 22, 2010 with Council resolution"
+  },
+  {
+   "label": "H",
+   "file": "doc-ybys9x.pdf",
+   "kind": "letter",
+   "date": "2011-01-06",
+   "author": "Ontario Energy Board",
+   "recipients": [
+    "Township of King"
+   ],
+   "description": "OEB letter saying the Township needs leave to request a review",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "A copy of the OEB's January 6, 2011 letter is attached as"
+    }
+   ],
+   "content_check": "2 pages: OEB letter (bilingual letterhead) of January 6, 2011"
+  },
+  {
+   "label": "I",
+   "file": "doc-np5byg.pdf",
+   "kind": "public_record",
+   "date": "2010",
+   "author": "Legislative Assembly of Ontario (Mr. Flynn)",
+   "recipients": [],
+   "description": "Bill 8, Separation Distances for Natural Gas Power Plants Act, 2010 (private member's bill)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of"
+    }
+   ],
+   "content_check": "3 pages: '2ND SESSION, 39TH LEGISLATURE ... Bill 8 An Act to establish separation distances for natural gas power plants Mr. Flynn Private Member's Bill'"
+  },
+  {
+   "label": "J",
+   "file": "doc-7wspbw.pdf",
+   "kind": "agreement",
+   "date": "1997-05-20",
+   "author": "Township of King; The Consumers' Gas Company Ltd.",
+   "recipients": [],
+   "description": "Franchise Agreement between the Township and Consumers' Gas (Enbridge) with By-Law 97-73",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "A copy of the Franchise Agreement is attached as Exhibit J."
+    }
+   ],
+   "content_check": "8 pages: 'BY-LAW ... TO AUTHORIZE A FRANCHISE AGREEMENT ... THE CONSUMERS' GAS COMPANY LTD.', agreement dated May 20, 1997"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Township and Consumers' Gas sign the Franchise Agreement",
+   "date": "1997-05-20",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "which Agreement is dated May 20, 1997",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "OEB approves Enbridge's York Energy Centre pipeline (Decision and Order)",
+   "date": "2010-04-05",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "have reviewed the Ontario Energy Board's Decision and Order dated",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "OMB hearing on Greenbelt conformity of the York Energy Centre concludes",
+   "date": "2010-05",
+   "precision": "month",
+   "paragraphs": [
+    3
+   ],
+   "quote": "which was completed in May",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Ontario passes Regulation 305/10 exempting the York Energy Centre from the Planning Act",
+   "date": "2010-07",
+   "precision": "approximate",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Regulation 305/10 that exempted the Project from the",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Private member's Bill 8 on separation distances for gas power plants introduced",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    17
+   ],
+   "quote": "Assembly in 2010 as Bill 8",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Township solicitor first asks the OEB to review the route and seeks intervenor status",
+   "date": "2010-11-03",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The first such request was made on November 3, 2010",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "OEB grants intervenor status on the variance application only",
+   "date": "2010-11-05",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "OEB's correspondence dated November 5, 2010",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Township asks the OEB to reconsider its refusal of routing submissions",
+   "date": "2010-11-12",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "A subsequent request was made by the Township Solicitor on November",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "OEB again refuses to review routing",
+   "date": "2010-11-17",
+   "precision": "approximate",
+   "paragraphs": [
+    12
+   ],
+   "quote": "The OEB again denied the Township's request to review the issue of",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Enbridge withdraws its variance application",
+   "date": "2010-11-26",
+   "precision": "approximate",
+   "paragraphs": [
+    13
+   ],
+   "quote": "At the end of November, Enbridge withdrew its Application seeking a",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Council's resolution asking the OEB to direct Enbridge to reconsider the route is sent to the OEB",
+   "date": "2010-12-22",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "resolution was sent to the OEB on December 22, 2010",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "OEB tells the Township it needs leave to request a review",
+   "date": "2011-01-06",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "The OEB responded to King Township's request on January 6, 2011",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Enbridge begins construction of the pipeline at the York Energy Centre end",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    31
+   ],
+   "quote": "Enbridge has commenced construction of the pipeline starting at the YEC",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "OEB Decision and Order of April 5, 2010 and its Appendices A and B",
+  "Enbridge's variance application EB-2010-0310",
+  "By-Law 97-73"
+ ],
+ "leak_waivers": [],
+ "notes": "The OEB record also holds the Township's covering letter, council report, minutes and notice of motion (pages 1-13 of the source), left out with --pages 14-60."
+}

@@ -1,0 +1,146 @@
+{
+ "record_id": "fc-peckford-peckford",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-z97cgt.pdf",
+   "source_pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 88881
+  },
+  {
+   "label": "B",
+   "file": "doc-gedeev.pdf",
+   "source_pages": [
+    62,
+    63
+   ],
+   "cover_page": 61,
+   "stamp_page": null,
+   "text_chars": 2901
+  },
+  {
+   "label": "C",
+   "file": "doc-hq39ym.pdf",
+   "source_pages": [
+    65,
+    66,
+    67,
+    68,
+    69,
+    70
+   ],
+   "cover_page": 64,
+   "stamp_page": null,
+   "text_chars": 13599
+  },
+  {
+   "label": "D",
+   "file": "doc-8h2puj.pdf",
+   "source_pages": [
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80
+   ],
+   "cover_page": 71,
+   "stamp_page": null,
+   "text_chars": 8054
+  },
+  {
+   "label": "E",
+   "file": "doc-zmsea2.pdf",
+   "source_pages": [
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90
+   ],
+   "cover_page": 81,
+   "stamp_page": null,
+   "text_chars": 9915
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "A",
+   "file": "doc-z97cgt",
+   "text": "ay be denied permission to board the aircraft if o (a) they exhibit a fever and a cough or a fever and breathing difficulties, un"
+  }
+ ]
+}

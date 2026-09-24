@@ -74,8 +74,9 @@ def audit(rid):
         findings.append(("cover", f"source PDF missing: {source['source_file']}"))
     for ex in split["exhibits"]:
         page = ex["cover_page"] or ex["stamp_page"]
-        if src and page:
-            t = fold(src[page - 1].get_text())
+        doc = fitz.open(os.path.join(ROOT, "raw", ex["source_files"][0]["file"])) if ex.get("source_files") else src
+        if doc and page:
+            t = fold(doc[page - 1].get_text())
             lab = ex["label"].lower()
             if not re.search(rf"(?:exhibit|pi[èe]ce)\s*'?\s*'?{re.escape(lab)}\b", t) and len(t.strip()) > 30:
                 findings.append(("cover", f"{ex['label']}: cover page {page} text does not name it: {t[:120]!r}"))

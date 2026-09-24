@@ -1,0 +1,528 @@
+{
+ "record_id": "onsc-uoft-encampment-dealy",
+ "court": "Ontario Superior Court of Justice (Toronto Region)",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-24-00720977-0000",
+ "subject": "employment",
+ "family": "uoft-encampment-injunction",
+ "proceeding": "Governing Council of the University of Toronto v. John Doe et al. (trespass injunction against the King's College Circle encampment): CUPE 3902's motion to be added as a necessary party to protect members' collective-agreement rights",
+ "document": "Affidavit of Wayne Dealy affirmed May 30, 2024",
+ "deponent": "Wayne Dealy",
+ "deponent_role": "Executive Director, CUPE Local 3902",
+ "sworn_date": "2024-05-30",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hw93qh.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Wayne G. Dealy",
+   "recipients": [],
+   "description": "Dealy's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "I attach a true copy of my curriculum vitae as"
+    }
+   ],
+   "content_check": "3 pages: 'WAYNE G. DEALY SUMMARY OF QUALIFICATIONS - 10+ years of labour-relations and managerial experience for a union'"
+  },
+  {
+   "label": "B",
+   "file": "doc-f88j5j.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "CUPE 3902 and University of Toronto",
+   "recipients": [],
+   "description": "Collective agreement excerpts (Units 1, 5, 6 and 7) on job security",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "regarding job security provisions as Exhibit"
+    }
+   ],
+   "content_check": "26 pages: collective agreement excerpts (appointment/job security articles, 'Minister of Labour appoint a Sole Arbitrator')"
+  },
+  {
+   "label": "C",
+   "file": "doc-z78pd4.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "CUPE 3902 and University of Toronto",
+   "recipients": [],
+   "description": "Collective agreement excerpts (Units 1, 3, 5 and 7) on the grievance arbitration process",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "regarding the grievance arbitration"
+    }
+   ],
+   "content_check": "25 pages: collective agreement excerpts on discipline and grievance procedure ('Coaching letters shall be removed from the employee's file...')"
+  },
+  {
+   "label": "D",
+   "file": "doc-33229b.pdf",
+   "kind": "other",
+   "date": "2024-02-16",
+   "author": "CUPE 3902",
+   "recipients": [
+    "Unit 1 members"
+   ],
+   "description": "Online communication on strike vote results for the 2024 round of bargaining",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "regarding strike vote results for 2024 Round of Bargaining as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: CUPE 3902 Unit 1 email newsletter 'University of Toronto Education Workers Friday, February 16th, 2024 Strike Mandate'"
+  },
+  {
+   "label": "E",
+   "file": "doc-g4mr7a.pdf",
+   "kind": "agreement",
+   "date": "2024-03-03",
+   "author": "University of Toronto and CUPE 3902",
+   "recipients": [],
+   "description": "Memorandum of Agreements between the University and CUPE 3902 Units 1 and 5 executed March 3, 2024",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "I also attach a true copy of the Memorandum of Agreements"
+    }
+   ],
+   "content_check": "4 pages: 'MEMORANDUM OF AGREEMENT BETWEEN THE GOVERNING COUNCIL OF THE UNIVERSITY OF TORONTO...' offer withdrawn if not accepted by Sunday, March 3, 2024 @ 11:59PM"
+  },
+  {
+   "label": "F",
+   "file": "doc-gh9fmp.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "CUPE 3902 and University of Toronto",
+   "recipients": [],
+   "description": "Collective agreement excerpts on Joint Health and Safety Committees / health and safety",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "on Joint Health and Safety Committees as Exhibit"
+    },
+    {
+     "paragraph": 24,
+     "quote": "related to Health & Safety as Exhibit"
+    }
+   ],
+   "content_check": "7 pages: collective agreement excerpts 'ARTICLE 28: HEALTH AND SAFETY'"
+  },
+  {
+   "label": "G",
+   "file": "doc-ex37hx.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "CUPE 3902 and University of Toronto",
+   "recipients": [],
+   "description": "Collective agreement excerpts on Labour/Management Committees",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Units 1, 3, 5, 6 and 7 on Labour/Management Committees as Exhibit"
+    }
+   ],
+   "content_check": "10 pages: collective agreement excerpts (duties, Labour/Management Committee articles)"
+  },
+  {
+   "label": "H",
+   "file": "doc-8xstaz.pdf",
+   "kind": "other",
+   "date": "2024-05-02",
+   "author": "CUPE 3902 Executive Committee",
+   "recipients": [],
+   "description": "CUPE 3902 statement of solidarity with UofT Occupy for Palestine",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "statement of solidarity on May 2, 2024 as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: CUPE Local 3902 letterhead statement (Executive Committee President: Eriks Bredovskis)"
+  },
+  {
+   "label": "I",
+   "file": "doc-r983f7.pdf",
+   "kind": "email",
+   "date": "2024-05-02",
+   "author": "CUPE 3902",
+   "recipients": [
+    "CUPE 3902 members"
+   ],
+   "description": "CUPE 3902 email to membership of May 2, 2024 on support for encampment participants",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "email to membership on"
+    }
+   ],
+   "content_check": "2 pages: CUPE 3902 Unit 1 email 'Thursday, May 2nd, 2024 URGENT: Solidarity for ...'"
+  },
+  {
+   "label": "J",
+   "file": "doc-sbzx2b.pdf",
+   "kind": "email_chain",
+   "date": "2024-05-09",
+   "author": "Kelly Hannah-Moffat / Eriks Bredovskis",
+   "recipients": [],
+   "description": "Email correspondence on the provision of toilets in the encampment",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "I attach a true copy of email correspondence"
+    }
+   ],
+   "content_check": "4 pages: email from hannah.moffat@utoronto.ca, May 9, 2024 7:40 PM, to president@cupe3902.org"
+  },
+  {
+   "label": "K",
+   "file": "doc-u7bwhd.pdf",
+   "kind": "notice",
+   "date": "2024-05-24",
+   "author": "University of Toronto",
+   "recipients": [
+    "Encampment participants"
+   ],
+   "description": "University of Toronto Notice of Trespass dated May 24, 2024",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "Notice of Trespass dated May 24, 2024 as Exhibit"
+    }
+   ],
+   "content_check": "1 page: 'NOTICE OF TRESPASS To All Encampment Participants, This is a notice under the Trespass to Property Act'"
+  },
+  {
+   "label": "L",
+   "file": "doc-72gdxw.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "CUPE 3902 and University of Toronto",
+   "recipients": [],
+   "description": "Collective agreement excerpts on just cause discipline",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "respective just cause discipline clauses as Exhibit"
+    }
+   ],
+   "content_check": "10 pages: collective agreement excerpts (stewards, discipline)"
+  },
+  {
+   "label": "M",
+   "file": "doc-s35sz9.pdf",
+   "kind": "agreement",
+   "date": null,
+   "author": "CUPE 3902 Unit 3 and University of Toronto",
+   "recipients": [],
+   "description": "Article 7 (academic freedom) of the Unit 3 collective agreement",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Unit 3's Collective Agreement as Exhibit"
+    }
+   ],
+   "content_check": "2 pages: Unit 3 collective agreement excerpt (academic freedom)"
+  },
+  {
+   "label": "N",
+   "file": "doc-h5wurk.pdf",
+   "kind": "letter",
+   "date": "2024-05-27",
+   "author": "CUPE 3902 Executive",
+   "recipients": [
+    "Meric Gertler, President, University of Toronto"
+   ],
+   "description": "Letter of May 27, 2024 to President Gertler on the administration's escalating threats",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "dated May 27, 2024 as Exhibit"
+    }
+   ],
+   "content_check": "1 page: CUPE Local 3902 letterhead letter to President Gertler"
+  },
+  {
+   "label": "O",
+   "file": "doc-sfv8qp.pdf",
+   "kind": "email",
+   "date": "2024-05-27",
+   "author": "CUPE 3902 Executive",
+   "recipients": [
+    "CUPE 3902 members"
+   ],
+   "description": "Statement to membership of May 27, 2024 calling an emergency membership meeting",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "statement to membership on May 27, 2024 as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: CUPE 3902 email 'Monday, May 27th, 2024 Emergency Membe[rship meeting]'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CUPE 3902 becomes the first bargaining agent for teaching assistants in North America",
+   "date": "1973",
+   "precision": "year",
+   "paragraphs": [
+    12
+   ],
+   "quote": "dating back to its inception in 1973",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "CUPE 3902 strikes (2000 and 2015)",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    14
+   ],
+   "quote": "The two most recent",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Dealy involved with the Union in various roles",
+   "date": "2007",
+   "precision": "range",
+   "paragraphs": [
+    1
+   ],
+   "quote": "from 2007 to 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "CUPE 3902 strike resolved by binding interest arbitration; Dealy becomes Executive Director",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    1,
+    3,
+    14
+   ],
+   "quote": "Executive Director since 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Unit 1 strike mandate results communicated",
+   "date": "2024-02-16",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "a 94.4% strike mandate",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Collective agreements for Units 1 and 5 reached",
+   "date": "2024-03-03",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "collective agreements for Unit 1 and Unit 5 on March 3, 2024",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Encampment set up at King's College Circle",
+   "date": "2024-05-02",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "set up the encampment at King",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "CUPE 3902 issues statement of solidarity and email to membership",
+   "date": "2024-05-02",
+   "precision": "day",
+   "paragraphs": [
+    18,
+    19
+   ],
+   "quote": "statement of solidarity on May 2, 2024",
+   "exhibits": [
+    "H",
+    "I"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "CUPE 3902 purchases disposable toilets for the students",
+   "date": "2024-05-02",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On May 2, 2024, CUPE 3902 purchased disposable toilets",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Dealy and an organizer meet Vice-Provost Sandy Welsh on toilet placement",
+   "date": "2024-05-05",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "On May 5, 2024, I, along with an encampment organizer, met with Sandy Welsh",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "CUPE 3902 meets administration on toilets",
+   "date": "2024-05-09",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On May 9, 2024, CUPE",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Dealy visits the encampment to confirm toilets installed",
+   "date": "2024-05-10",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "on May 10, 2024, I visited the encampment",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Reis presents at an encampment discussion on divestment",
+   "date": "2024-05-12",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On May 12, 2024, Ms. Reis was invited",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Meeting on allegedly hateful messaging",
+   "date": "2024-05-14",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On May 14, 2024, Ms. Reis and I attended a meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Reis attends negotiation discussions for CUPE 3902",
+   "date": "2024-05-12",
+   "precision": "range",
+   "paragraphs": [
+    21
+   ],
+   "quote": "on May 12, 18, 23, 26 and 27, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Organizers ask CUPE JHSC representatives to tour the camp",
+   "date": "2024-05-22",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "On May 22, 2024, I was contacted by encampment organizers",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Dealy and Holloway tour the encampment on health and safety",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "On May 24, 2024, CUPE 3902 Health and Safety Officer",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "University issues Notice of Trespass",
+   "date": "2024-05-24",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "On May 24, 2024, the University of Toronto issued a Notice of Trespass",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "CUPE 3902 Executive writes to President Gertler and calls an emergency membership meeting",
+   "date": "2024-05-27",
+   "precision": "day",
+   "paragraphs": [
+    39,
+    40
+   ],
+   "quote": "on May 27, 2024, the CUPE 3902 Executive issued a letter",
+   "exhibits": [
+    "N",
+    "O"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Emergency membership meeting scheduled",
+   "date": "2024-06-03",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "emergency membership meeting scheduled for June 3, 2024",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Postdoctoral fellow terminated after protest-related charges; grievance filed; charges later dropped",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    42,
+    43
+   ],
+   "quote": "The Union filed a grievance on behalf of the member as a result of his termination",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "University's motion record on the injunction",
+  "Proposed affidavits of Marianna Reis and Justin Holloway"
+ ]
+}

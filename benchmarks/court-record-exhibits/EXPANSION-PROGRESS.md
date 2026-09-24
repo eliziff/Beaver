@@ -170,6 +170,8 @@ Scratchpad laneE/: harvest.py (logs to rejected-lane-E.jsonl), rej.py, crawl.py 
 | onsc-cp-chl-mackenzie | ON | superior_trial | class_action (CHL president on IRP report) | kmlaw.ca | 6 | carcillo-chl-hazing | --pages 1-82 |
 | onsc-hannan-scouts-hannan1 | ON | superior_trial | voluntary_association (Scouter non-renewal, procedural fairness) | documentcloud.org (CBC News upload of the application record) | 21 | hannan-scouts-canada | --pages 54-190; Q,S,T OCR'd; new source family: DocumentCloud API search (laneE/dc.py, UA=curl) |
 | onsc-hannan-scouts-hannan2 | ON | superior_trial | voluntary_association (reply) | same application record | 5 | hannan-scouts-canada | --pages 208-236; A,C broken encoding OCR'd |
+| onsc-uoft-encampment-dealy | ON | superior_trial | employment (union joinder in campus trespass injunction; collective agreements) | litigate.com via Wayback (id_ URL) | 15 | uoft-encampment-injunction | --pages 13-145; live litigate.com links 404, Wayback copies used (laneE/wb.py) |
+| onsc-uoft-encampment-delorenzi | ON | superior_trial | employment (faculty association joinder) | litigate.com via Wayback | 13 | uoft-encampment-injunction | --pages 16-152 --covers (E and E.1 separate) --ocr-affidavit (jurat page scanned, holds para 25 citing L); D,E,E.1 OCR'd; affidavit misdates G,H,J |
 
 ## Lane D (public law: Charter, human rights, admin/JR, Indigenous, environmental, municipal, immigration, privacy, elections, police/prisons)
 
@@ -209,3 +211,15 @@ Helpers in scratchpad laneF/: harvest.py and rej.py log to rejected-lane-F.jsonl
 | nbkb-ccla-kimberly | NB | superior_trial | charter (Policy 713 JR; GDA intervention) | jccf.ca (GDA/ODC motion record, pp 14-82) | 5 | ccla-nb-policy713 | image-only covers: --covers by page; A,E broken fonts OCR'd; family slug added to repo gold of nbkb-ccla-ab |
 | nbkb-ccla-leung | NB | superior_trial | charter (Policy 713 JR; counsel's affidavit: expert CV, will-say, anonymized affidavits) | same motion record (pp 106-479) | 6 | ccla-nb-policy713 | --covers by page; D/E/F nested affidavits (D = nbkb-ccla-ab's affidavit; D,F leaks waived); E's 200 exhibit pages image-only |
 - Lane F stopped at 9 records (6 insolvency, 3 non-insolvency). Dead ends: SCC case-documents JSON 40800-41900 lists only factums/memoranda; West Coast LEAF, JCCF, democracywatch intervention/appeal PDFs have no text exhibit covers; WP media of Atlantic/Prairie unions, class-action firms and First Nations sites returns nothing; KPMG primewest (SKCA), Bokhari other affidavits and NBCA 720434 Ford (Exhibit A cover only) rejected. Leads: LPC Avocat (lpclex.com) posts Quebec English class-action exhibits R-1.. as separate PDFs (split.py needs a multi-file mode: new flag, not built); Barrick appeal record/compendium (cfmlawyers, raw/f-app-appeal-record-...); GT insolvency set above.
+| oeb-summitt-martin | ON | administrative_tribunal | regulatory (OEB administrative penalty proceeding, Energy Consumer Protection Act) | rds.oeb.ca 331194 | 16 | - | first OEB record; --covers by page (header+tab covers); exdate leads are superscript ordinals ('7 th') |
+| oeb-king-somerville | ON | administrative_tribunal | municipal (Township of King vs Enbridge pipeline route, leave to seek review) | rds.oeb.ca 857831 | 10 | - | --pages 14-60 (covering letter/report/motion excluded) |
+| neb-line9-laforme | federal | administrative_tribunal | indigenous_rights (MNCFN Chief's evidence, Enbridge Line 9B reversal OH-002-2013) | REGDOCS 1042654 | 6 | - | --covers by page (noisy notary covers) |
+
+## Lane G (multi-file split mode; QC-English, NL Fluorspar, Barrick appeal, Atlantic/Prairie/territorial: 2026-09-24)
+
+split.py multi-file mode (`--multi AFF --exhibit A=f.pdf B=g1.pdf+g2.pdf`, or `--manifest`; `--covers A,B` = first page a cover read by eye) and rebuild.py support (source.json `sources[]`, split.json `multi_file` + per-exhibit `source_files`); rebuild.py also refetches Doane Grant Thornton view URLs directly now. Helpers in scratchpad laneG/.
+
+| id | jur | level | subject | source | exhibits | family | notes |
+|---|---|---|---|---|---|---|---|
+| fc-bcm-gusdal | federal | federal_trial | administrative (Canada Summer Jobs refusals to Christian camps, JR) | jccf.ca applicant's record (Tab 5) | 9 | bcm-csj-attestation | same source as fc-bcm-whitehead (other pages); --pages 251-290 --covers; family slug added to repo gold of fc-bcm-whitehead |
+| fc-peckford-peckford | federal | federal_trial | charter (COVID air-travel vaccine mandate; former Premier's evidence) | jccf.ca compilation (pages 1-90) | 5 | peckford-travel-mandate | 3rd record of the consolidated applications; family slug added to repo gold of fc-peckford-baigent and fc-bennaoum-little; B/C covers garbled -> --covers |

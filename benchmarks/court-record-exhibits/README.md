@@ -48,6 +48,12 @@ level, subject, court and site, so gaps in breadth stay visible.
    affidavits inside motion, application or appeal records all qualify. Record
    the court, level and province, and vary them across records.
 2. **Split:** `python split.py <pdf> <id> [--pages a-b] --meta meta.json`.
+   When the source posts the affidavit and each exhibit as separate PDFs,
+   use `python split.py <id> --multi <affidavit.pdf> --exhibit A=<file>
+   B=<file1>+<file2> ...` (or `--manifest m.json`); each file's own cover or
+   stamp is stripped as in one PDF, `--covers A,B` names first pages read by
+   eye as covers, and `meta.json`'s `urls` maps each file's basename to its
+   URL so `rebuild.py` can fetch every part.
    For a motion record, use `--pages` for the one affidavit and its exhibits
    (from the record's index). `meta.json` holds `url`, `landing_url`, `court`,
    `court_level`, `jurisdiction`, `court_file`, `document_title` and
