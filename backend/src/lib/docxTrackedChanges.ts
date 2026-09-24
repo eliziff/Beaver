@@ -209,19 +209,31 @@ function spanAt(spans: readonly { end: number }[], position: number): number {
     return low;
 }
 
+/** The edit runs a sorted plan rewrites: from its first change's run to its last change's run.
+ * An insertion at paragraph end inherits the preceding nonempty run. */
+function rewrittenRuns(flat: DocxParagraphIndex, plan: readonly Pick<PlannedChange, "deleteStart" | "deleteEnd">[]) {
+    const runAt = (position: number) => spanAt(flat.editRuns,
+        Math.min(Math.max(position, 0), flat.acceptedText.length - 1));
+    const first = runAt(plan[0].deleteStart);
+    let last = first;
+    for (const change of plan) last = Math.max(last, runAt(Math.max(change.deleteStart, change.deleteEnd - 1)));
+    return { runAt, first, last };
+}
+
+/** Rewriting re-emits accepted text as plain runs, which would silently accept any pending
+ * revision among the rewritten children. */
+function rewritesRevision(flat: DocxParagraphIndex, plan: readonly Pick<PlannedChange, "deleteStart" | "deleteEnd">[]) {
+    if (flat.acceptedText.length === 0) return false;
+    const { first, last } = rewrittenRuns(flat, plan);
+    return flat.children.slice(flat.editRuns[first].childIndex, flat.editRuns[last].childIndex + 1)
+        .some((child) => /^w:(?:ins|del|moveFrom|moveTo)$/u.test(elName(child) ?? ""));
+}
+
 /** Rewrite only the runs touched by sorted, non-overlapping changes. */
 function planParagraphRevision(flat: DocxParagraphIndex, plan: PlannedChange[],
     now: string, author: string): XNode[] {
     if (plan.length === 0 || flat.acceptedText.length === 0) return flat.children;
-    // An insertion at paragraph end inherits the preceding nonempty run.
-    const runAt = (position: number) => spanAt(flat.editRuns,
-        Math.min(Math.max(position, 0), flat.acceptedText.length - 1));
-    const firstRunIdx = runAt(plan[0].deleteStart);
-    let lastRunIdx = firstRunIdx;
-    for (const change of plan) {
-        lastRunIdx = Math.max(lastRunIdx,
-            runAt(Math.max(change.deleteStart, change.deleteEnd - 1)));
-    }
+    const { runAt, first: firstRunIdx, last: lastRunIdx } = rewrittenRuns(flat, plan);
     const firstRun = flat.editRuns[firstRunIdx];
     const lastRun = flat.editRuns[lastRunIdx];
     const newRunGroup: XNode[] = [];
@@ -264,9 +276,6 @@ function planParagraphRevision(flat: DocxParagraphIndex, plan: PlannedChange[],
 
     const dropped = new Set(flat.editRuns.slice(firstRunIdx, lastRunIdx + 1)
         .map((run) => run.childIndex));
-    for (let index = firstRun.childIndex; index <= lastRun.childIndex; index++) {
-        if (elName(flat.children[index]) === "w:del") dropped.add(index);
-    }
     const revised = emitDocxRevisionPlan(newRunGroup, revisions);
     return flat.children.flatMap((child, index) =>
         index === firstRun.childIndex ? revised : dropped.has(index) ? [] : [child]);
@@ -530,6 +539,15 @@ export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
             fail(editIdx, "This edit touches a Word content control. Edit the control in Word or regenerate the draft.");
             continue;
         }
+        const existing = plansPerParagraph.get(paraIdx) ?? [];
+        if (rewritesRevision(paragraph, [...existing, ...clusters.map((cluster) => ({
+            deleteStart: findStart + cluster.offset,
+            deleteEnd: findStart + cluster.offset + cluster.deleted.length,
+        }))].sort((a, b) => a.deleteStart - b.deleteStart))) {
+            fail(editIdx, "This text is inside or beside pending tracked changes, which this edit would silently accept. " +
+                "Use word_python, which keeps existing revisions.");
+            continue;
+        }
 
         const revision = revisionIdsByEdit.get(editIdx) ?? {
             changeId: `mike-${editIdx}-${Date.now()}`,
@@ -548,7 +566,6 @@ export async function applyTrackedEdits(bytes: Buffer, edits: EditInput[],
             insWId: cluster.inserted ? revision.insWId : undefined,
         }));
 
-        const existing = plansPerParagraph.get(paraIdx) ?? [];
         const overlap = editPlans.some((plan) => existing.some((p) =>
             !(plan.deleteEnd <= p.deleteStart || plan.deleteStart >= p.deleteEnd)));
         if (overlap) {
