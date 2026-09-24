@@ -1,0 +1,59 @@
+{
+ "record_id": "fc-sask-fuelcharge-marier",
+ "affidavit_pages": [
+  12,
+  13
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-mz5tdq.pdf",
+   "source_pages": [
+    15,
+    16,
+    17
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 6255
+  },
+  {
+   "label": "B",
+   "file": "doc-tcq7hg.pdf",
+   "source_pages": [
+    19,
+    20,
+    21
+   ],
+   "cover_page": 18,
+   "stamp_page": null,
+   "text_chars": 6536
+  },
+  {
+   "label": "C",
+   "file": "doc-3fzqcd.pdf",
+   "source_pages": [
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33
+   ],
+   "cover_page": 22,
+   "stamp_page": null,
+   "text_chars": 25944
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-tcq7hg.pdf"
+ ]
+}

@@ -1,0 +1,18 @@
+{
+ "url": "https://s3.documentcloud.org/documents/24794216/govt-of-saskatchewan-cra-injunctionjudicial-review.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/24794216",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1674-24",
+ "document_title": "Motion Record of the Applicant (Moving Party) The Government of Saskatchewan, July 4, 2024 (stay and interlocutory injunction against CRA collection of the federal fuel charge)",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-sask-fuelcharge-marier",
+ "source_file": "hdc-24794216.pdf",
+ "page_range": [
+  12,
+  33
+ ],
+ "source_sha256": "e1ff648b57aca4d79f9d7c32d50c1a62bf5c98c048c9837c7c39639f42b936e5",
+ "source_pages": 221
+}

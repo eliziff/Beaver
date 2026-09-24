@@ -1,0 +1,28 @@
+{
+ "url": "https://s3.documentcloud.org/documents/24794216/govt-of-saskatchewan-cra-injunctionjudicial-review.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/24794216",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1674-24",
+ "document_title": "Motion Record of the Applicant (Moving Party) The Government of Saskatchewan, July 4, 2024 (stay and interlocutory injunction against CRA collection of the federal fuel charge)",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-sask-fuelcharge-wilson",
+ "source_file": "hdc-24794216.pdf",
+ "page_range": [
+  54,
+  58
+ ],
+ "source_sha256": "e1ff648b57aca4d79f9d7c32d50c1a62bf5c98c048c9837c7c39639f42b936e5",
+ "source_pages": 221,
+ "sources": [
+  {
+   "file": "hdc-24794216.pdf",
+   "url": "https://s3.documentcloud.org/documents/24794216/govt-of-saskatchewan-cra-injunctionjudicial-review.pdf",
+   "sha256": "e1ff648b57aca4d79f9d7c32d50c1a62bf5c98c048c9837c7c39639f42b936e5",
+   "pages": 221
+  }
+ ],
+ "affidavit_ocr": "tesseract-cli",
+ "blank": "A=0.7818,0,1.0782,0.5036 B=0.7818,0,1.0782,0.5886 C=0.7818,0,1.0782,0.55 D=0.7759,0.1245,1.1688,0.8127 E=0.3224,0.0318,0.6641,0.7509;0.2576,0.0318,0.6641,0.3336 F=0.3612,0.1091,0.6641,0.7818 G=0.0506,0.1091,0.3924,0.7509 H=0.6847,0.3255,1.1171,0.8127 I=0.7753,0.1168,1.0653,0.6659 J=0.7882,0.1941,1.1688,0.6736 K=0.7365,0.15,1.0265,0.72 L=0.1282,0.1632,0.4571,0.805"
+}

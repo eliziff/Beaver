@@ -156,12 +156,22 @@ def record_folios(src, first, last):
     return folios
 
 
-def text_of(doc, ocr=False):
-    """Page-marked text; with ocr, image-only pages are read with Tesseract (TESSDATA_PREFIX)."""
+def tesseract_cli(page):
+    """OCR one page with the tesseract executable (PyMuPDF's OCR drops the top lines of some scans)."""
+    import subprocess, tempfile
+    exe = os.environ.get("TESSERACT_EXE") or next((p for p in (r"C:\Program Files\Tesseract-OCR\tesseract.exe",) if os.path.exists(p)), "tesseract")
+    with tempfile.TemporaryDirectory() as tmp:
+        png = os.path.join(tmp, "p.png")
+        page.get_pixmap(dpi=300).save(png)
+        return subprocess.run([exe, png, "stdout", "-l", "eng"], capture_output=True, text=True, encoding="utf-8", check=True).stdout
+
+
+def text_of(doc, ocr=False, cli=False):
+    """Page-marked text; with ocr, image-only pages are read with Tesseract (TESSDATA_PREFIX); cli uses the tesseract executable."""
     def page_text(p):
         # A scanned affidavit page can carry a short typed overlay (commissioner's stamp, page number).
         if ocr and len(norm(p.get_text())) < 100 and p.get_images():
-            return p.get_textpage_ocr(dpi=300, full=True).extractText()
+            return tesseract_cli(p) if cli else p.get_textpage_ocr(dpi=300, full=True).extractText()
         return p.get_text()
     return "\n".join(f"[page {i + 1}]\n{page_text(p)}" for i, p in enumerate(doc))
 
@@ -213,7 +223,7 @@ def split_multi(a, out_dir):
     ids = set()
     aff = clean_copy(aff_src, body)
     aff.save(os.path.join(out_dir, "affidavit.pdf"), garbage=4, deflate=True)
-    open(os.path.join(out_dir, "affidavit.txt"), "w", encoding="utf-8").write(text_of(aff, a.ocr_affidavit))
+    open(os.path.join(out_dir, "affidavit.txt"), "w", encoding="utf-8").write(text_of(aff, a.ocr_affidavit, a.ocr_cli))
     split, audit, scanned = [], [], []
     for label, paths in specs:
         parts, pdf, bare = [], fitz.open(), []
@@ -297,7 +307,7 @@ def split_multi(a, out_dir):
         if not s["url"]:
             audit.append({"problem": f"no url for {s['file']} (meta urls)"})
     if a.ocr_affidavit:
-        meta["affidavit_ocr"] = True
+        meta["affidavit_ocr"] = "tesseract-cli" if a.ocr_cli else True
     if a.covers:
         meta["covers"] = a.covers
     if a.blank:
@@ -317,6 +327,7 @@ def main():
     ap.add_argument("--manifest", help='JSON {"affidavit": path, "exhibits": {"A": path or [paths]}} instead of --multi/--exhibit')
     ap.add_argument("--pages"); ap.add_argument("--meta"); ap.add_argument("--out")
     ap.add_argument("--ocr-affidavit", action="store_true", help="OCR image-only affidavit pages into affidavit.txt")
+    ap.add_argument("--ocr-cli", action="store_true", help="with --ocr-affidavit, OCR with the tesseract executable instead of PyMuPDF")
     ap.add_argument("--covers", help="A=9,B=15: whole-page exhibit covers read by eye (handwritten or scanned labels)")
     ap.add_argument("--relabel", help="IT=U: fix a misread stamp label without turning its page into a whole-page cover")
     ap.add_argument("--drop", help="1143,1178: source pages left out of every file (a cover the source repeats inside its exhibit)")
@@ -401,7 +412,7 @@ def main():
     ids = set()
     aff = clean_copy(src, body)
     aff.save(os.path.join(out_dir, "affidavit.pdf"), garbage=4, deflate=True)
-    open(os.path.join(out_dir, "affidavit.txt"), "w", encoding="utf-8").write(text_of(aff, a.ocr_affidavit))
+    open(os.path.join(out_dir, "affidavit.txt"), "w", encoding="utf-8").write(text_of(aff, a.ocr_affidavit, a.ocr_cli))
 
     split, audit = [], []
     for ex in exhibits:
@@ -437,7 +448,7 @@ def main():
     meta.update({"record_id": a.record_id, "source_file": os.path.basename(a.pdf), "page_range": [first + 1, last + 1],
                  "source_sha256": hashlib.sha256(open(a.pdf, "rb").read()).hexdigest(), "source_pages": len(src)})
     if a.ocr_affidavit:
-        meta["affidavit_ocr"] = True
+        meta["affidavit_ocr"] = "tesseract-cli" if a.ocr_cli else True
     if a.covers:
         meta["covers"] = a.covers
     if a.drop:

@@ -1,0 +1,429 @@
+{
+ "record_id": "fc-sask-fuelcharge-wilson",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1674-24",
+ "subject": "tax (federal fuel charge under the GGPPA: assessments of Saskatchewan, objection, s. 148(12) postponement request, CRA garnishment of the Province's RBC account)",
+ "family": "sask-fuelcharge-t1674-24",
+ "proceeding": "Government of Saskatchewan v. Attorney General of Canada: motion for a stay and interlocutory injunction restraining CRA from collecting the federal fuel charge (requirement to pay on the Province's bank account) pending judicial review",
+ "document": "Affidavit of Raynelle Wilson sworn July 4, 2024 (Motion Record, Tab 4)",
+ "deponent": "Raynelle Wilson",
+ "deponent_role": "Deputy Minister to the Premier of Saskatchewan",
+ "sworn_date": "2024-07-04",
+ "notes": "Motion record on DocumentCloud; exhibit stamps and notary seals are part of rotated (/Rotate 270) scans on each exhibit's first page: multi mode over page ranges of the one PDF, each range starting at the typed 'EXHIBIT X' divider (stripped as cover), stamp whited out with --blank. split.py applies --blank rects in unrotated page space, so the fractions passed are derotated (see laneI/wilson-blank.txt); small stamp-edge fragments with no label remain on A-C. The blanks also remove the addressee block of A-E and parts of the adjoining text. First pages are image-only and carry no text (the rest of each file has a text layer). Affidavit jurat page (5) OCR'd with --ocr-cli.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zbhd22.pdf",
+   "kind": "notice",
+   "date": "2024-03-12",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Government of Saskatchewan"
+   ],
+   "description": "Notice of Assessment dated March 12, 2024 for January 2024 fuel charge",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of the Notice of Assessment for the period from January 1, 2024 to January 31, 2024 is"
+    }
+   ],
+   "content_check": "CRA 'Notice of assessment for fuel charge', period Jan 1-31, 2024, total balance $7,988,723.93"
+  },
+  {
+   "label": "B",
+   "file": "doc-ra2hzh.pdf",
+   "kind": "notice",
+   "date": "2024-04-15",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Government of Saskatchewan"
+   ],
+   "description": "Notice of Assessment dated April 15, 2024 for February 2024",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the Notice of Assessment for the period from February 1, 2024 to February 29, 2024 is"
+    }
+   ],
+   "content_check": "CRA notice of assessment, period Feb 1-29, 2024, total balance $25,792,836.59"
+  },
+  {
+   "label": "C",
+   "file": "doc-aerfh8.pdf",
+   "kind": "notice",
+   "date": "2024-05-21",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Government of Saskatchewan"
+   ],
+   "description": "Notice of Assessment dated May 21, 2024 for March 2024",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copy of the Notice of Assessment for the period from March 1, 2024 to March 31, 2024 is"
+    }
+   ],
+   "content_check": "CRA notice of assessment, period Mar 1-31, 2024, total balance $42,365,525.46"
+  },
+  {
+   "label": "D",
+   "file": "doc-xtruxa.pdf",
+   "kind": "letter",
+   "date": "2024-05-29",
+   "author": "Canada Revenue Agency (Complex Case Officer)",
+   "recipients": [
+    "Government of Saskatchewan"
+   ],
+   "description": "CRA letter of May 29, 2024 warning of legal action to recover a $42,446,618.86 fuel charge debt within 14 days",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the letter from"
+    },
+    {
+     "paragraph": 5,
+     "quote": "CRA to the Province dated May 29, 2024 is attached as Exhibit"
+    }
+   ],
+   "content_check": "CRA Central Southern Quebec TSO letter May 29, 2024: 'Our records show that you still owe $42,446,618.86'"
+  },
+  {
+   "label": "E",
+   "file": "doc-fe6n3u.pdf",
+   "kind": "notice",
+   "date": "2024-06-12",
+   "author": "Canada Revenue Agency",
+   "recipients": [
+    "Government of Saskatchewan"
+   ],
+   "description": "Notice of Assessment dated June 12, 2024 for April 2024, total balance $56,414,625.53",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A copy the Notice of Assessment for the period from April 1, 2024 to April 30, 2024 is attached"
+    },
+    {
+     "paragraph": 8,
+     "quote": "Notice of Assessment attached as Exhibit “E” to this my Affidavit"
+    }
+   ],
+   "content_check": "CRA notice of assessment, period Apr 1-30, 2024, date issued Jun 12, 2024, total $56,414,625.53"
+  },
+  {
+   "label": "F",
+   "file": "doc-xhupyv.pdf",
+   "kind": "court_filing",
+   "date": "2024-06-07",
+   "author": "Government of Saskatchewan (MLT Aikins)",
+   "recipients": [
+    "Minister of National Revenue"
+   ],
+   "description": "Notice of Objection of June 7, 2024 to the January and February 2024 assessments",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "hereto and marked as Exhibit “F” is a copy of the Notice of Objection dated June 7, 2024 filed"
+    }
+   ],
+   "content_check": "CRA form 'Notice of Objection - Greenhouse Gas Pollution Pricing Act' signed by Kurt Wintermute, 2024-06-07"
+  },
+  {
+   "label": "G",
+   "file": "doc-y6gxct.pdf",
+   "kind": "letter",
+   "date": "2024-06-13",
+   "author": "MLT Aikins (counsel for the Province)",
+   "recipients": [
+    "C. Dutil, CRA Complex Case Officer"
+   ],
+   "description": "Counsel's letter of June 13, 2024 advising of the objection and a coming s. 148(12) postponement request",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "dated June 13, 2024 is attached as Exhibit “G” to this my Affidavit"
+    }
+   ],
+   "content_check": "MLT Aikins fax cover and letter June 13, 2024 to CRA Central Southern Quebec TSO, Attention C. Dutil"
+  },
+  {
+   "label": "H",
+   "file": "doc-rxpvz9.pdf",
+   "kind": "letter",
+   "date": "2024-06-26",
+   "author": "Government of Saskatchewan (Executive Council)",
+   "recipients": [
+    "Jean-François Fortin, Deputy Commissioner of Revenue"
+   ],
+   "description": "Province's letter of June 26, 2024 asking the Minister to postpone collection under s. 148(12)",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "June 26, 2024 from the Province to the Deputy Commissioner of Revenue is attached as Exhibit"
+    }
+   ],
+   "content_check": "Executive Council letter June 26, 2024 to Jean-François Fortin re 'Collection of Fuel Tax Charges and Interest Under Objection', with Tabs A-D"
+  },
+  {
+   "label": "I",
+   "file": "doc-pm9uhd.pdf",
+   "kind": "affidavit",
+   "date": "2024-06-25",
+   "author": "Claire Dutil (CRA)",
+   "recipients": [
+    "Royal Bank of Canada"
+   ],
+   "description": "CRA officer's affidavit of personal service and the Requirement to Pay served on RBC on June 25, 2024",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of the Affidavit of Personal Service and Requirement to Pay dated June 25,"
+    }
+   ],
+   "content_check": "'AFFIDAVIT OF PERSONAL SERVICE ... I, Claire Dutil, an officer of the Canada Revenue Agency' with the requirement to pay"
+  },
+  {
+   "label": "J",
+   "file": "doc-epafyd.pdf",
+   "kind": "letter",
+   "date": "2024-06-26",
+   "author": "MLT Aikins (counsel for the Province)",
+   "recipients": [
+    "Elia Cholakis, RBC"
+   ],
+   "description": "Counsel's letter of June 26, 2024 asking RBC to hold garnishment in abeyance",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the letter dated June 26, 2024 from counsel for the Province to RBC"
+    }
+   ],
+   "content_check": "MLT Aikins letter June 26, 2024 to RBC Royal Bank, Winnipeg, re dispute under the GGPPA"
+  },
+  {
+   "label": "K",
+   "file": "doc-hgr3kp.pdf",
+   "kind": "letter",
+   "date": "2024-07-03",
+   "author": "MLT Aikins (counsel for the Province)",
+   "recipients": [
+    "Brad Crawford, RBC"
+   ],
+   "description": "Counsel's letter of July 3, 2024 to RBC advising of the imminent injunction application",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "A copy of the letter dated July 3, 2024 from"
+    }
+   ],
+   "content_check": "MLT Aikins letter July 3, 2024 to RBC Law Group, Toronto: 'the Province will be seeking judicial review in Federal Court'"
+  },
+  {
+   "label": "L",
+   "file": "doc-hb8wyg.pdf",
+   "kind": "letter",
+   "date": "2024-06-26",
+   "author": "MLT Aikins (counsel for the Province)",
+   "recipients": [
+    "C. Dutil, CRA Complex Case Officer"
+   ],
+   "description": "Counsel's letter of June 26, 2024 asking CRA to withdraw the Requirement to Pay",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "copy of the letter dated June 26, 2024 from counsel for the Province to the CRA Complex Case"
+    }
+   ],
+   "content_check": "fax delivery confirmation June 26, 2024 and MLT Aikins fax cover/letter to CRA"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CRA assesses the Province's January 2024 fuel charge",
+   "date": "2024-03-12",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "By way of a Notice of Assessment dated March 12, 2024, CRA assessed the Province for",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "CRA assesses February 2024",
+   "date": "2024-04-15",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "By way of a Notice of Assessment dated April 15, 2024, CRA assessed the Province for",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "CRA assesses March 2024",
+   "date": "2024-05-21",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "By way of Notice of Assessment dated May 21, 2024, CRA assessed the Province for the",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CRA letter alleges a $42,446,618.86 debt and threatens legal action within 14 days",
+   "date": "2024-05-29",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "By way of a letter dated May 29, 2024, an official of the CRA",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Province files a Notice of Objection to the January and February assessments",
+   "date": "2024-06-07",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On June 7, 2024, the Province filed a Notice of Objection",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "CRA assesses April 2024; total balance $56,414,625.53",
+   "date": "2024-06-12",
+   "precision": "day",
+   "paragraphs": [
+    6,
+    8
+   ],
+   "quote": "By way of Notice of Assessment dated June 12, 2024, CRA assessed the Province for the",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Counsel writes CRA about the objection and a postponement request",
+   "date": "2024-06-13",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "Counsel for the Province forwarded a letter dated June 13, 2024 to the CRA Complex Case",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "CRA serves a Requirement to Pay $28,259,069.24 on RBC",
+   "date": "2024-06-25",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "from CRA dated June 25, 2024 that was delivered by the CRA Complex Case Officer to the Royal",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Province asks the Deputy Commissioner to postpone collection under s. 148(12)",
+   "date": "2024-06-26",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "By letter dated June 26, 2024 I arranged to forward a letter on behalf of the Province to the",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Deponent learns of the Requirement to Pay from Mitch McAdam",
+   "date": "2024-06-26",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On June 26, 2024, I was informed by Mitch McAdam",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Counsel asks RBC to hold garnishment in abeyance",
+   "date": "2024-06-26",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "A copy of the letter dated June 26, 2024 from counsel for the Province to RBC",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Counsel asks CRA to withdraw the Requirement to Pay",
+   "date": "2024-06-26",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "By letter dated June 26, 2024, counsel for the Province requested that the Complex Case",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Counsel tells RBC the Province will apply for injunctive relief",
+   "date": "2024-07-03",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "and in the July 3, 2024 letter, advised RBC of the Province’s intention to imminently apply for",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "No response yet to the s. 148(12) request; Requirement to Pay not received by the Province",
+   "date": "2024-07-04",
+   "precision": "day",
+   "paragraphs": [
+    14,
+    15
+   ],
+   "quote": "As of the date of this my Affidavit, the Province has yet to receive a copy of the",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "The Province's monthly Fuel Charge Returns",
+  "Notice of Objection for March 2024 (to be filed)"
+ ]
+}

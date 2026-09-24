@@ -1,0 +1,121 @@
+{
+ "record_id": "fc-sask-fuelcharge-marier",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1674-24",
+ "subject": "tax (federal fuel charge under the GGPPA: stay of CRA collection against Saskatchewan pending objection; Crown immunity s. 125)",
+ "family": "sask-fuelcharge-t1674-24",
+ "proceeding": "Government of Saskatchewan v. Attorney General of Canada: motion for a stay and interlocutory injunction restraining CRA from collecting the federal fuel charge (requirement to pay on the Province's bank account) pending judicial review",
+ "document": "Affidavit of Kelly Marier sworn July 4, 2024 (Motion Record, Tab 2)",
+ "deponent": "Kelly Marier",
+ "deponent_role": "Law clerk, Osler, Hoskin & Harcourt LLP (counsel for the Applicant)",
+ "sworn_date": "2024-07-04",
+ "notes": "DocumentCloud upload of the motion record; --pages 12-33, typed covers; B's text layer is a broken font, OCR'd.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-mz5tdq.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Canada Revenue Agency",
+   "recipients": [],
+   "description": "Excerpt of the CRA National Collections Manual downloaded from Taxnet Pro on July 4, 2024",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached as Exhibit A is an excerpt of the CRA National Collections Manual"
+    }
+   ],
+   "content_check": "Taxnet Pro printout 'CRA National Collections Manual, 2017-11'"
+  },
+  {
+   "label": "B",
+   "file": "doc-tcq7hg.pdf",
+   "kind": "public_record",
+   "date": "2023-10-26",
+   "author": "Prime Minister of Canada",
+   "recipients": [],
+   "description": "PMO news release of October 26, 2023 'Delivering support for Canadians on energy bills'",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit B is a copy of the News Release dated October 26, 2023"
+    }
+   ],
+   "content_check": "pm.gc.ca printout dated October 26, 2023: doubling the pollution price rebate rural top-up, heating oil pause"
+  },
+  {
+   "label": "C",
+   "file": "doc-3fzqcd.pdf",
+   "kind": "webpage",
+   "date": "2023-10-28",
+   "author": "Spencer Van Dyk (CTV News)",
+   "recipients": [],
+   "description": "CTV News article of October 28, 2023 on Minister Hutchings' remark that the Prairies should elect more Liberals",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit C is a copy of the article dated October 28, 2023"
+    }
+   ],
+   "content_check": "ctvnews.ca page 'Prairies should elect more Liberals if they want voices heard on carbon pricing', published Oct. 28, 2023"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Federal government announces the energy-bills support package (heating oil pause)",
+   "date": "2023-10-26",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Attached as Exhibit B is a copy of the News Release dated October 26, 2023",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "CTV reports Minister Hutchings' comment on Prairie voters and carbon pricing",
+   "date": "2023-10-28",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Attached as Exhibit C is a copy of the article dated October 28, 2023",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Collections Manual excerpt downloaded from Taxnet Pro",
+   "date": "2024-07-04",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "was downloaded from the Taxnet Pro online database on July",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Deponent downloads the news release and the CTV article",
+   "date": "2024-07-04",
+   "precision": "day",
+   "paragraphs": [
+    3,
+    4
+   ],
+   "quote": "On July 4, 2024, I downloaded a copy of a news release dated October 26, 2023",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+ "url": "https://web.archive.org/web/20160812205847id_/https://cippic.ca/sites/default/files/file-sharing-lawsuits/TekSavvy_Costs_Record-Vol_1_of_2.pdf",
+ "landing_url": "https://cippic.ca/",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-2058-12",
+ "document_title": "Costs Record of the Responding Party TekSavvy Solutions Inc., Volume I (Voltage Pictures v. John Doe): Affidavit of Marc Gaudrault sworn June 27, 2014",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-voltage-teksavvy-gaudrault",
+ "source_file": "hcip-20160812205847.pdf",
+ "page_range": [
+  90,
+  196
+ ],
+ "source_sha256": "27ed6240323d781267dfa4e0b1b65c1b3f0803251d293df2b32f325a191c55bf",
+ "source_pages": 237,
+ "affidavit_ocr": "tesseract-cli",
+ "covers": "A=112,B=115,C=125,D=138,E=141,F=144,G=163,H=167,I=170"
+}

@@ -1,0 +1,502 @@
+{
+ "record_id": "fc-voltage-teksavvy-gaudrault",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-2058-12",
+ "subject": "intellectual_property (copyright Norwich order for ISP subscriber data; privacy safeguards; ISP's compliance costs)",
+ "proceeding": "Voltage Pictures LLC v. John Doe and Jane Doe (TekSavvy Solutions Inc., responding party; CIPPIC, intervener): TekSavvy's claim for its legal costs, administrative costs and disbursements of complying with Prothonotary Aalto's February 20, 2014 order to disclose subscriber information",
+ "document": "Affidavit of Marc Gaudrault sworn June 27, 2014 (Costs Record of the Responding Party TekSavvy, Volume I, Tab 2)",
+ "deponent": "Marc Gaudrault",
+ "deponent_role": "Chief Executive Officer, TekSavvy Solutions Inc.",
+ "sworn_date": "2014-06-27",
+ "notes": "Wayback copy of cippic.ca costs record, all scanned; --pages 90-196, covers read by eye (record page + 4), affidavit OCR'd with --ocr-cli (tesseract executable; PyMuPDF OCR drops the top lines). Exhibit OCR (ocr_exhibits.py) also loses the faint e-mail header lines at the top of some pages. Record page numbers 86-107 print on the affidavit pages. Posted volume ends at record page 192, so Exhibit J is missing.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-rwxn9z.pdf",
+   "kind": "email_chain",
+   "date": "2012-11-13",
+   "author": "Christian S. Tacit",
+   "recipients": [
+    "John Philpott"
+   ],
+   "description": "E-mail from TekSavvy's counsel Tacit of November 13, 2012 stating that no subscriber data should be disclosed without a court order and privacy safeguards",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "2012, expressing this position is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "Tacit e-mail: 'TSI will take the position that no disclosure of end user data should occur without appropriate privacy safeguards'"
+  },
+  {
+   "label": "B",
+   "file": "doc-p7jars.pdf",
+   "kind": "email_chain",
+   "date": "2012-11-21",
+   "author": "John Philpott; Nicholas McHaffie",
+   "recipients": [
+    "Nicholas McHaffie; John Philpott"
+   ],
+   "description": "E-mail exchange between Voltage's counsel Philpott and McHaffie, November 14-21, 2012, on adjourning to December 10 to allow customer notice",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "McHaffie dated November 14-21, 2012 reflecting the foregoing is attached hereto as"
+    }
+   ],
+   "content_check": "'We are prepared to agree to the December 10th return date, provided that it is firm date'"
+  },
+  {
+   "label": "C",
+   "file": "doc-bnmjmh.pdf",
+   "kind": "email_chain",
+   "date": "2012-11-28",
+   "author": "John Philpott",
+   "recipients": [
+    "Nicholas McHaffie"
+   ],
+   "description": "Philpott's e-mails of November 28, 2012 covering Voltage's shortened list of IP addresses (list not attached)",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "covered this list (without a copy of the attached list itself) is attached as Exhibit"
+    }
+   ],
+   "content_check": "'We will be proceeding on December 17th and will not be amendable to any further delays'"
+  },
+  {
+   "label": "D",
+   "file": "doc-pjt422.pdf",
+   "kind": "notice",
+   "date": "2012-12-10",
+   "author": "TekSavvy Solutions Inc.",
+   "recipients": [
+    "affected TekSavvy subscribers"
+   ],
+   "description": "Notice sent to affected subscribers on December 10, 2012",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "copy of the notice sent to affected TekSavvy subscribers is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "'Important: Request for Customer Information ... TekSavvy has received a court motion from Voltage Pictures LLC that may result in disclosure of your name'"
+  },
+  {
+   "label": "E",
+   "file": "doc-9akrbg.pdf",
+   "kind": "email",
+   "date": "2012-12-17",
+   "author": "Nicholas McHaffie",
+   "recipients": [
+    "Voltage's counsel",
+    "CIPPIC"
+   ],
+   "description": "McHaffie's e-mail of December 17, 2012 disclosing errors in the identification and notification of subscribers",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "true copy of Mr. McHaffie’s e-mail dated December 17, 2012 is attached hereto as"
+    }
+   ],
+   "content_check": "'Dear Mr. Zibarras and Mr. Philpott; ... certain errors in its identification and notifications of affected customers have arisen'"
+  },
+  {
+   "label": "F",
+   "file": "doc-x7bub8.pdf",
+   "kind": "email_chain",
+   "date": "2012-12-11",
+   "author": "Nicholas McHaffie",
+   "recipients": [
+    "John Philpott"
+   ],
+   "description": "McHaffie's e-mail of December 11, 2012 asking Voltage for its draft order",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "for Voltage dated December 11, 2012 and January 11, 2013 as Exhibits “F” and “G”"
+    }
+   ],
+   "content_check": "'I confirm receipt. Do you have a draft order? ... On 2012-12-11 ... John Philpott wrote'"
+  },
+  {
+   "label": "G",
+   "file": "doc-w8x59q.pdf",
+   "kind": "email",
+   "date": "2013-01-11",
+   "author": "Nicholas McHaffie",
+   "recipients": [
+    "John Philpott"
+   ],
+   "description": "McHaffie's e-mail of January 11, 2013 on the form of order and costs",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "for Voltage dated December 11, 2012 and January 11, 2013 as Exhibits “F” and “G”"
+    }
+   ],
+   "content_check": "'One outstanding issue is also the question of costs ... the costs have been developing (and increasing)'"
+  },
+  {
+   "label": "H",
+   "file": "doc-j7hzqn.pdf",
+   "kind": "email",
+   "date": "2014-06-26",
+   "author": "Christian S. Tacit",
+   "recipients": [
+    "Marc Gaudrault"
+   ],
+   "description": "Tacit's e-mail confirming his monthly estimates of costs attributable to the Voltage motion",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "information with respect to the foregoing, is attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "'I confirm that my best estimate of costs in providing advice in respect of Voltage's motion ... November, 2012 $6,500.00'"
+  },
+  {
+   "label": "I",
+   "file": "doc-yuqg6g.pdf",
+   "kind": "invoice",
+   "date": null,
+   "author": "Tacit Law",
+   "recipients": [
+    "TekSavvy Solutions Inc."
+   ],
+   "description": "Tacit's invoices to TekSavvy for the months in question",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "Mr. Tacit’s invoices for the above-noted months are attached hereto as Exhibit"
+    }
+   ],
+   "content_check": "bundle of Tacit Law letters and invoices to Marc Gaudrault ('Re: TekSavvy Solutions Inc. - Invoice for Disbursements')"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Canipre's Barry Logan contacts TekSavvy seeking to serve materials for a disclosure order",
+   "date": "2012-10-10",
+   "precision": "approximate",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On approximately October 10, 2012, TekSavvy was contacted through an",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Voltage sends Tacit draft motion materials for disclosure of subscribers behind 4,500 IP addresses",
+   "date": "2012-11-01",
+   "precision": "day",
+   "paragraphs": [
+    11,
+    12
+   ],
+   "quote": "On November 1, 2012, Voltage provided Mr. Tacit",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Tacit e-mails TekSavvy's position that disclosure requires a court order and privacy safeguards",
+   "date": "2012-11-13",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "sent by TekSavvy’s counsel, Christian S. Tacit early in the process on November 13,",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "TekSavvy retains Stikeman Elliott (McHaffie, Elder)",
+   "date": "2012-11-14",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "retained Stikeman Elliott LLP on November 14, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "McHaffie tells Voltage's counsel subscribers should get notice; Voltage agrees to adjourn to December 10",
+   "date": "2012-11-14",
+   "precision": "range",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Mr. McHaffie advised counsel for Voltage of this on November 14, 2012",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "TekSavvy undertakes the IP address correlation",
+   "date": "2012-11-14",
+   "precision": "range",
+   "paragraphs": [
+    11,
+    17,
+    19
+   ],
+   "quote": "TekSavvy undertakes IP address correlation.",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Voltage provides a shortened list of 2,114 IP addresses and refuses further delay",
+   "date": "2012-11-28",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On November 28, 2012, Voltage provided TekSavvy with a revised, shortened",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "TekSavvy completes its initial conversion, identifying about 1,130 subscribers",
+   "date": "2012-12-04",
+   "precision": "day",
+   "paragraphs": [
+    19,
+    21
+   ],
+   "quote": "By December 4, 2012, TekSavvy had completed its initial conversion",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Notice sent to affected subscribers",
+   "date": "2012-12-10",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Notice was sent to these affected subscribers on December 10, 2012",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Voltage serves its motion record; McHaffie asks for a draft order",
+   "date": "2012-12-11",
+   "precision": "day",
+   "paragraphs": [
+    11,
+    39
+   ],
+   "quote": "Voltage serves motion record.",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "TekSavvy e-mails all customers about the online look-up tool",
+   "date": "2012-12-13",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "On December 13, 2012, we sent an e-mail notice to all of our customers",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "TekSavvy handles a surge of customer calls and e-mails; portal overloaded before the December 17 return date",
+   "date": "2012-12",
+   "precision": "month",
+   "paragraphs": [
+    30,
+    31
+   ],
+   "quote": "in the days before the december 17, 2012 return date of the motion, TekSavvy continued to receive a high volume",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "IT staff hours on the correlation project, all before January 11, 2013",
+   "date": "2013-01-11",
+   "precision": "approximate",
+   "paragraphs": [
+    54,
+    55
+   ],
+   "quote": "These hours were all incurred in the period prior to January 11, 2013.",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "First DDoS attack on TekSavvy",
+   "date": "2012-12-15",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "on the evening of December 15, 2012, shortly before the first hearing",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "TekSavvy discovers 42 wrongly notified and 92 un-notified subscribers",
+   "date": "2012-12-16",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "discovered on the night of Sunday, December 16, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "McHaffie advises Voltage and CIPPIC of the errors",
+   "date": "2012-12-17",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "early on the morning of December 17, 2012",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "First attendance; O'Keefe J. adjourns to January 14, 2013",
+   "date": "2012-12-17",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "Mr. Justice O’ Keefe granted an adjournment to January 14, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "CIPPIC files motion for leave to intervene",
+   "date": "2012-12-21",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On December 21, 2012, CIPPIC filed its motion for leave to intervene.",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "McHaffie e-mails Voltage's counsel again on the form of order and costs",
+   "date": "2013-01-11",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "for Voltage dated December 11, 2012 and January 11, 2013 as Exhibits “F” and “G”",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Second attendance; Mandamin J. adjourns pending CIPPIC's motion",
+   "date": "2013-01-14",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On January 14,",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "CIPPIC granted leave to intervene",
+   "date": "2013-02-13",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "On February 13, 2013, CIPPIC was granted leave to intervene.",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Hearing before Prothonotary Aalto",
+   "date": "2013-06-25",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "was heard on that day before Prothonotary Aalto in Toronto",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Prothonotary Aalto's decision and order",
+   "date": "2014-02-20",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    11
+   ],
+   "quote": "Order that was issued by Prothonotary Aalto on February 20, 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Tacit bills monthly Voltage-related work, November 2012 to March 2014, paid by TekSavvy",
+   "date": "2012-11",
+   "precision": "range",
+   "paragraphs": [
+    45,
+    46
+   ],
+   "quote": "I confirm that TekSavvy has been invoiced by Mr. Tacit in respect of",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Tacit e-mails Gaudrault confirming his cost estimates",
+   "date": "2014-06-26",
+   "precision": "day",
+   "paragraphs": [
+    46
+   ],
+   "quote": "A true copy of an e-mail from Mr. Tacit to me, confirming his earlier",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "TekSavvy buys Arbor Networks hardware and support against DDoS and inquiry load",
+   "date": "2013-09-17",
+   "precision": "day",
+   "paragraphs": [
+    61,
+    62
+   ],
+   "quote": "A true copy of the invoice received from Arbor Networks and paid by",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit J: Arbor Networks invoice of September 17, 2013 (record pages 200-201 missing from the posted volume)",
+  "Voltage's list of 2,114 IP addresses (expressly not attached to Exhibit C)",
+  "Affidavit of Barry Logan (Canipre) in support of Voltage's motion",
+  "Prothonotary Aalto's order and decision of February 20, 2014",
+  "Bill of Costs / Stikeman Elliott ledgers"
+ ]
+}
