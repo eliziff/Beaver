@@ -317,3 +317,121 @@ it("keeps selected claim IDs and their original support scoped across Chat findi
   expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).total).toBe(0);
   expect(model).not.toHaveBeenCalled();
 });
+
+it("copies chat and table findings into a stable cited memo without model calls or changing highlights", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), tables = await f.runtime.tabular();
+  let current = (await sources.get(owner, f.workspace.id))!;
+  await sources.update(owner, f.workspace.id, { versionId: current.versionId, workingRevision: current.workingRevision,
+    action: { type: "note", markdown: "My existing analysis, to keep.", expectedMarkdown: current.state.note } });
+  const search = await request(f.api).get(`/source-workspaces/${f.workspace.id}/findings`).query({ pattern: "INTEREST", limit: 1 });
+  expect(search.status).toBe(200); expect(search.body.total).toBe(1);
+  expect(search.body.items[0].answer.claims).toEqual([f.claims[0]]);
+  const review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id });
+  const all = await sources.findings(owner, f.workspace.id, { offset: 0, limit: 50 });
+  expect(all.items.some(item => item.reference.kind === "cell")).toBe(true);
+  current = (await sources.get(owner, f.workspace.id))!;
+  const beforeSources = structuredClone(current.state.sources), beforeLabels = structuredClone(current.state.labels),
+    highlights = (await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).items,
+    input = { version_id: current.versionId, working_revision: current.workingRevision,
+      title: "Selected research", references: all.items.map(item => item.reference) };
+  const copied = await request(f.api).post(`/source-workspaces/${f.workspace.id}/memo`).send(input);
+  expect(copied.status).toBe(200);
+  const memo = copied.body.state.note as string;
+  expect(memo).toMatch(/^My existing analysis, to keep\.\n\n## Selected research\n\n/u);
+  for (const { text } of f.claims) expect(memo.split(text)).toHaveLength(2); // no chat/table duplicate
+  expect(copied.body.state.labels).toEqual(beforeLabels);
+  expect(copied.body.state.sources).toEqual(beforeSources);
+  expect((await sources.items(owner, f.workspace.id, { kind: "passages", offset: 0, limit: 50 })).items).toEqual(highlights);
+  const links = [...memo.matchAll(/\]\(<([^>]+)>\)/gu)].map(match => new URL(match[1], "http://beaver.test"));
+  expect(links).toHaveLength(2);
+  for (const link of links) {
+    const evidenceId = link.searchParams.get("evidence_id")!;
+    expect(f.receipts.some(receipt => receipt.evidence_id === evidenceId)).toBe(true);
+    const resolved = await sources.citation(owner, f.workspace.id, link.searchParams.get("research_source")!, evidenceId);
+    expect(resolved.href).toBe(link.pathname + link.search);
+  }
+  // Reopening reads the stored Markdown, not a live reference that changes with a regenerated cell.
+  const { tabularRepository } = await import("../lib/relationalTabularRepository"), detail = await tables.detail(owner, review.id),
+    cell = detail.cells.find(cell => cell.status === "done" && cell.content)!;
+  await tabularRepository.setCell(owner, { reviewId: review.id, documentId: cell.document_id, columnIndex: cell.column_index,
+    expected: cell, status: "done", content: { ...cell.content!, summary: "Later table edit",
+      claims: [{ ...cell.content!.claims[0], text: "Later edited analysis." }] } });
+  expect((await sources.get(owner, f.workspace.id))!.state.note).toBe(memo);
+  // A retry with the old version cannot silently append the same material twice.
+  expect((await request(f.api).post(`/source-workspaces/${f.workspace.id}/memo`).send(input)).status).toBe(409);
+  expect((await sources.get(owner, f.workspace.id))!.state.note).toBe(memo);
+  expect(model).not.toHaveBeenCalled();
+}, 60_000);
+
+it("rejects unavailable and out-of-scope memo findings atomically", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), file = (await sources.get(owner, f.workspace.id))!,
+    findings = (await sources.findings(owner, f.workspace.id, { offset: 0, limit: 50 })).items,
+    local = findings.find(finding => finding.resource === f.resource)!,
+    input = { title: "Copy", versionId: file.versionId, workingRevision: file.workingRevision,
+      references: findings.map(finding => finding.reference) };
+  await expect(sources.memo({ userId: randomUUID() }, f.workspace.id, input)).rejects.toMatchObject({ status: 404 });
+  await expect(sources.memo(owner, f.workspace.id, input, { findingRefs: [local.reference] }))
+    .rejects.toMatchObject({ status: 400 });
+  await expect(sources.memo(owner, f.workspace.id, { ...input, references: [local.reference,
+    { kind: "answer", chatId: "not-authorized", answerId: "missing", resource: f.resource }] }))
+    .rejects.toMatchObject({ status: 404 });
+  expect((await sources.get(owner, f.workspace.id))!.state).toEqual(file.state);
+  expect(model).not.toHaveBeenCalled();
+});
+
+it("finds saved questions before paging and keeps the pattern in model continuations", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), review = await sources.table(owner, f.workspace.id, { chatId: f.chat.id }),
+    { readResearchFindings } = await import("../lib/chat/researchTableTool"), file = (await sources.get(owner, f.workspace.id))!;
+  const first = await readResearchFindings({ sources, scope: owner, workspaceId: file.document.id }, { pattern: "interest", limit: 1 }),
+    value = JSON.parse((first.result.content[0] as { text: string }).text);
+  expect(value.total).toBe(2); // original chat finding and its table view
+  expect(value.items).toHaveLength(1);
+  expect(value.next_read).toMatchObject({ file_path: "findings", pattern: "interest", offset: 2, limit: 1 });
+  const next = await readResearchFindings({ sources, scope: owner, workspaceId: file.document.id }, { pattern: "interest", offset: 1, limit: 1 }),
+    tail = JSON.parse((next.result.content[0] as { text: string }).text);
+  expect(tail.items[0].reference).toMatchObject({ kind: "cell", reviewId: review.id });
+  expect(tail.next_offset).toBeNull();
+  expect(model).not.toHaveBeenCalled();
+});
+
+
+it("lets the agent copy selected findings through its existing tool without retyping or rereading the evidence", async () => {
+  const f = await fixture(), sources = await f.runtime.sources(), file = (await sources.get(owner, f.workspace.id))!,
+    local = (await sources.findings(owner, f.workspace.id, { pattern: "interest", offset: 0, limit: 20 })).items[0],
+    { assistantTools } = await import("../lib/chat/assistantTools"),
+    { createLegalEvidenceTurnState } = await import("../lib/chat/legalEvidence"),
+    { TurnToolRegistry } = await import("../lib/chat/toolRegistry"),
+    state = createLegalEvidenceTurnState(), research = await sources.context(owner, f.workspace.id,
+      { target: "sources", sourceIds: [local.sourceId], findingRefs: [local.reference] }),
+    edits = new Map(), committed = vi.fn(), history = vi.fn(async () => { throw new Error("Memo composition needs no search history"); }),
+    registry = new TurnToolRegistry(assistantTools({
+      userId: owner.userId, documents: f.documents, sources, library: await f.runtime.library(), projects: await f.runtime.projects(),
+      workProducts: await f.runtime.workProducts(), authorities: await f.runtime.authoritiesWorkspace(),
+      scope: "main", researchContext: { ...research, restricted: true }, legalEvidence: state, edits,
+      queryHistory: history, turnId: randomUUID(), chatId: f.chat.id, resolveArtifact: () => undefined,
+      artifactFor: () => "draft-1", onMutationCommitted: committed,
+    }));
+  let serial = 0;
+  const run = async (name: string, input: Record<string, unknown>) => {
+    const [result] = await registry.run([{ id: `copy-${serial++}`, name, input }], {});
+    return { result, value: JSON.parse(result.content) };
+  };
+  const found = await run("Read", { file_path: "findings", pattern: "interest" });
+  expect(found.value.items).toHaveLength(1);
+  const reference = found.value.items[0].reference, resource = `document://${file.document.id}/version/${file.versionId}`;
+  await run("Read", { file_path: resource, limit: 1 }); // current memo/version, not the original sources
+  const input = { action: "research", document_id: resource, research_action: { type: "memo", title: "Selected", references: [reference] } },
+    copied = await run("document_operation", input);
+  expect(copied.result.status).toBe("ok");
+  expect(copied.result.content).not.toContain(f.claims[0].text);
+  const memo = (await sources.get(owner, file.document.id))!;
+  expect(memo.state.note).toContain(f.claims[0].text);
+  expect(memo.state.note).toContain(`evidence_id=${f.receipts[0].evidence_id}`);
+  expect(memo.state.note).not.toContain(f.claims[1].text);
+  expect(committed).toHaveBeenCalled(); expect(history).not.toHaveBeenCalled();
+  const replaced = await run("document_operation", { ...input, document_id: copied.value.resource,
+    research_action: { type: "memo", title: "Replacement", references: [reference], mode: "replace" } });
+  expect(replaced.result.status).toBe("ok");
+  expect((await sources.get(owner, file.document.id))!.state.note).toMatch(/^## Replacement/);
+  expect(model).not.toHaveBeenCalled();
+}, 60_000);

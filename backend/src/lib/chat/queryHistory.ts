@@ -2,6 +2,8 @@ import type { LegalResearchQueryReceipt } from "../researchContract";
 import { researchSourceKey } from "../resourceReferences";
 import { modelToolData } from "./toolRegistry";
 
+export type QueryHistorySource = () => Iterable<LegalResearchQueryReceipt> | Promise<Iterable<LegalResearchQueryReceipt>>;
+
 const term = (query: LegalResearchQueryReceipt) => String(query.input.pattern ?? query.input.query ?? "");
 export const queryResources = (query: LegalResearchQueryReceipt) => [
   ...(typeof query.input.resource === "string" ? [query.input.resource] : []),

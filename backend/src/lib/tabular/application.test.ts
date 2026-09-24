@@ -325,34 +325,39 @@ describe("TabularApplication", () => {
   });
 
   it("cites a workspace passage without reading it again and records the reads behind the cell", async () => {
-    const saved = createLibraryEvidence({ documentId: "document", versionId: "v1", filename: "lease.txt",
+    const sourceId = "00000000-0000-4000-8000-000000000011", saved = createLibraryEvidence({ documentId: "document", versionId: "v1", filename: "lease.txt",
       sourceText: "Rent is payable monthly in advance.", spanText: "Rent is payable monthly in advance.",
       start: 0, end: 35 });
     const priorQuery = { query_id: "q_prior", call_id: "call-prior", tool: "Read" as const,
       executed_at: "2026-01-01T00:00:00.000Z", model: "codex:gpt-5.6",
       executor_version: "legal-source-pattern-v1" as const,
       input: { resource: "document://document/version/v1" },
-      results: [{ rank: 1, evidence_id: saved.evidence_id }], sourceIds: ["document"],
-      matchedSourceIds: ["document"], evidenceIds: [saved.evidence_id], failures: [], slots: {} };
-    const observed: { queries: { tool: string }[] }[] = [];
+      results: [{ rank: 1, evidence_id: saved.evidence_id }], sourceIds: [sourceId],
+      matchedSourceIds: [sourceId], evidenceIds: [saved.evidence_id], failures: [], slots: {} };
+    const observed: { queries: { tool: string }[] }[] = [],
+      queryBytes = Buffer.from(JSON.stringify({ schemaVersion: "beaver.research-queries.v1", queries: { q_prior: priorQuery } })),
+      queryHash = createHash("sha256").update(queryBytes).digest("hex"), store = documentStore();
+    store.readParts = vi.fn(async () => [{ name: "queries.json", bytes: queryBytes, sha256: queryHash }]);
     const workspace = {
+      get: async () => ({ document: { id: "workspace" }, versionId: "v1", state: { queries: { count: 1, sha256: queryHash } } }),
       items: async (_scope: unknown, _id: string, input: { kind: string }) => ({ total: 1, nextOffset: null,
         items: input.kind === "passages"
-          ? [{ kind: "passage", index: 0, value: { receipt: saved, sourceId: "document", labelIds: [], note: "" } }]
+          ? [{ kind: "passage", index: 0, value: { receipt: saved, sourceId, labelIds: [], note: "" } }]
           : [{ kind: "query", index: 0, value: priorQuery }] }),
       observe: async (_scope: unknown, _id: string, event: { queries: { tool: string }[] }) => { observed.push(event); },
     };
     const columns = [{ index: 0, name: "Rent", prompt: "Extract" }];
-    const scopeConfig = { research_file_id: "workspace", subjects: [{ sourceId: "document",
+    const scopeConfig = { research_file_id: "workspace", subjects: [{ sourceId,
       resource: "document://document/version/v1", reference: { provider: "library" as const,
         kind: "document" as const, id: "document", versionId: "v1", title: "lease.txt" } }] };
     const { repository, cells } = generated(columns);
     const scoped = port({ ...repository,
       detail: async () => ({ review: { ...review, columns_config: columns, scope_config: scopeConfig }, cells }) });
     let prompt = "";
-    const app = createTabularApplication(scoped, documentStore(), projects,
+    const app = createTabularApplication(scoped, store, projects,
       { settings, sources: async () => workspace as never,
         runTurn: model(async (submit, _read, _id, first) => {
+          expect(store.readParts).not.toHaveBeenCalled();
           prompt = first;
           await submit({ column_index: 0, value: "Monthly", flag: "green", outcome: "answered",
             claims: [{ text: "Rent is payable monthly in advance.", evidence_ids: [saved.evidence_id] }] });
@@ -365,6 +370,7 @@ describe("TabularApplication", () => {
     expect(cells[0]).toMatchObject({ status: "done", content: { summary: "Monthly",
       evidence: [{ evidence_id: saved.evidence_id }] } });
     expect(cells[0].content?.query_ids).toEqual(["q_prior"]);
+    expect(store.readParts).toHaveBeenCalledTimes(1);
     expect(observed.flatMap(({ queries }) => queries ?? []).filter(({ tool }) => tool === "Read")).toHaveLength(1);
   });
 

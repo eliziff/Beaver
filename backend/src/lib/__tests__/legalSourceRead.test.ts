@@ -160,6 +160,17 @@ it("reuses a completed empty scan, but scans a changed source and preserves real
   const before = find.mock.calls.length, id = [...state.queries.keys()][0];
   expect(await read("again")).toMatchObject({ total_matches: 0, reused: id });
   expect(find.mock.calls).toHaveLength(before); expect(state.queries.size).toBe(1);
+  const batch = async () => {
+    const output = await readLegalSourceResource({ id: "batch", name: "Read", input: {} },
+      { file_path: resource, patterns: ["rare phrase", "other absent phrase"] },
+      { userId: "local-user", knownSources: new Map(), priorQueries: async () => state.queries.values() });
+    registerLegalResearchQueries(state, output!.queryReceipts ?? [], "test-reader");
+    return JSON.parse(output!.result.content.filter(item => item.type === "text").map(item => item.text).join(""));
+  };
+  await batch();
+  const beforeBatch = find.mock.calls.length, repeated = await batch();
+  expect(repeated.queries.every((query: { reused?: string }) => query.reused)).toBe(true);
+  expect(find.mock.calls).toHaveLength(beforeBatch); // one iterator must serve every pattern, not only the first
   text = "The rare phrase occurs twice: rare phrase.";
   artifact = await native.deriveDocumentStructure({ kind: "native_markup", input: {
     provider: "courtlistener", id: source.id, text, markup: `<p id="paragraph-1">${text}</p>` } });

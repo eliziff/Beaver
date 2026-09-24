@@ -11,6 +11,7 @@ import { researchFileActionSchema } from "../lib/researchFile";
 import { researchCaptureRuleSchema } from "../lib/researchFileQuery";
 import { researchSelectionSchema } from "../lib/researchSelection";
 import { researchFindingReferenceSchema } from "../lib/researchFindingReference";
+import { researchMemoFindingsSchema } from "../lib/researchMemo";
 import type { SourceWorkspaceApplication } from "../lib/sourceWorkspaceApplication";
 
 import { researchImportDesignSchema } from "../lib/tabular/researchImport";
@@ -101,10 +102,16 @@ export function createSourceWorkspacesRouter(app: SourceWorkspaceApplication) {
   }));
   router.get("/:id/findings", asyncRoute(async (req, res) => {
     const { source_ids, message_id, ...input } = z.object({ ...page, chatId: id.optional(), message_id: id.optional(),
-      source_ids: z.string().max(20_000).optional() }).strict().parse(req.query);
+      source_ids: z.string().max(20_000).optional(), pattern: textField(256).optional() }).strict().parse(req.query);
     res.json(await app.findings(scope(res), id.parse(req.params.id), { ...input,
       ...(message_id ? { messageIds: [message_id] } : {}),
       ...(source_ids ? { sourceIds: source_ids.split(",") } : {}) }));
+  }));
+  router.post("/:id/memo", asyncRoute(async (req, res) => {
+    const { version_id, working_revision, ...input } = researchMemoFindingsSchema.extend({
+      version_id: id, working_revision: revision }).parse(req.body);
+    res.json(await app.memo(scope(res), id.parse(req.params.id), { ...input,
+      versionId: version_id, workingRevision: working_revision }, { operation: { executor: "human" } }));
   }));
   router.post("/:id/bind", asyncRoute(async (req, res) => {
     const input = z.object({ chatId: id.optional(), tableId: id.optional(), selection: researchSelectionSchema.optional() }).strict()

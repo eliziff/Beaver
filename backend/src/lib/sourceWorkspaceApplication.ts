@@ -10,7 +10,7 @@ import { commitResearchFile, createResearchFileState, pageResearchItems, readRes
   type ResearchEvidence, type ResearchFileAction, type ResearchFile,
   type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
 import { runResearchFileQuery, verifyResearchPassage, type ResearchFileQueryInput } from "./researchFileQuery";
-import { readResearchMemoCitation } from "./researchMemo";
+import { readResearchMemoCitation, researchMemoFindingsSchema, researchFindingsMarkdown } from "./researchMemo";
 import { resolveChatFindings, selectFindingClaims, type ResearchFinding } from "./researchChat";
 import { researchFindingReferenceSchema, type ResearchFindingReference } from "./researchFindingReference";
 import { researchSelectionSchema, resolveResearchSelection, type ResearchSelection, type ResearchSubject } from "./researchSelection";
@@ -36,7 +36,7 @@ type Operation = ResearchOperationContext;
 type Observations = { evidence?: LegalEvidenceReceipt[]; queries?: Array<LegalResearchQueryReceipt | ResearchQueryReceipt>;
   sources?: ResearchSourceReference[]; chats?: string[]; tables?: string[] };
 type Binding = { chatId?: string; tableId?: string; selection?: ResearchSelection | null };
-type FindingsInput = { sourceIds?: string[]; reference?: ResearchFindingReference; chatId?: string; tableId?: string;
+type FindingsInput = { pattern?: string; sourceIds?: string[]; reference?: ResearchFindingReference; chatId?: string; tableId?: string;
   messageIds?: string[]; references?: ResearchFindingReference[]; offset: number; limit: number; subjects?: ResearchSubject[] };
 type FindingsPage = { items: ResearchFinding[]; total: number; next_offset: number | null; is_running: boolean };
 type TableInput = { tableId?: string; columnIndex?: number; chatId?: string; messageIds?: string[];
@@ -238,6 +238,10 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
         columns: new Map(detail.review.columns_config.map((column) => [column.index, column])),
         byCell: new Map(detail.cells.map((cell) => [cellKey(cell.document_id, cell.column_index), cell])) };
     });
+    const isTableRunning = once(async (id: string) => {
+      const detail = await tableDetail(id);
+      return !!detail && !!await dependencies.isTableRunning?.(id, detail.review.user_id);
+    });
     const transcript = once(async (id: string) => {
       const [chat, rows] = await Promise.all([dependencies.chats.get(scope, id), dependencies.chats.transcript(scope, id)]);
       return chat ? rows ?? fail(404, "Chat not found") : null;
@@ -301,8 +305,11 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
       async function list(input: FindingsInput): Promise<FindingsPage> {
         const found: ResearchFinding[] = [],
           inScope = researchResultFilter(input.subjects ? { subjects: input.subjects, restricted: true } : undefined),
+          pattern = input.pattern?.trim().toLowerCase(),
           include = (value: ResearchFinding | null) => { if (value && inScope(value) &&
-            (!input.sourceIds || input.sourceIds.includes(value.sourceId))) found.push(value); };
+            (!input.sourceIds || input.sourceIds.includes(value.sourceId)) && (!pattern ||
+              [value.question.title, value.question.prompt, value.answer.summary ?? "", ...value.answer.claims.map(claim => claim.text)]
+                .some(text => text.toLowerCase().includes(pattern)))) found.push(value); };
         if (input.reference) {
           if (input.references && !input.references.some((ref) => {
             const requested = researchFindingReferenceSchema.parse(input.reference), allowed = researchFindingReferenceSchema.parse(ref);
@@ -325,10 +332,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
               include(await resolve({ kind: "cell", reviewId: tableId, rowId, columnIndex: index }));
           }
         }
-        const is_running = (await Promise.all([...tableIds].map(async (id) => {
-          const detail = await tableDetail(id);
-          return detail && await dependencies.isTableRunning?.(id, detail.review.user_id) || false;
-        }))).some(Boolean);
+        const is_running = (await Promise.all([...tableIds].map(isTableRunning))).some(Boolean);
         return { items: found.slice(input.offset, input.offset + input.limit), total: found.length, is_running,
           next_offset: input.offset + input.limit < found.length ? input.offset + input.limit : null };
       }
@@ -337,6 +341,35 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return open(id);
   }
   const findings = async (scope: Scope, id: string, input: FindingsInput) => (await readFindings(scope, id)).list(input);
+  async function memo(scope: Scope, id: string, input: {
+    versionId: string; workingRevision: number; title: string;
+    references: ResearchFindingReference[]; mode?: "append" | "replace";
+  }, options: { operation?: Operation; assistant?: { turnVersionId?: string; turnId?: string };
+    subjects?: ResearchSubject[]; findingRefs?: ResearchFindingReference[]; signal?: AbortSignal } = {}) {
+    const { versionId, workingRevision, ...body } = input, selected = researchMemoFindingsSchema.parse(body),
+      read = await readFindings(scope, id), { file } = read;
+    if (file.versionId !== versionId || file.workingRevision !== workingRevision)
+      return conflict("The memo changed. Reload it before adding findings.");
+    const findings: ResearchFinding[] = [];
+    for (const reference of selected.references) {
+      options.signal?.throwIfAborted();
+      const page = await read.list({ reference, references: options.findingRefs, subjects: options.subjects, offset: 0, limit: 1 });
+      if (!page.items.length) return fail(404, "A selected finding is unavailable in this scope");
+      findings.push(page.items[0]);
+    }
+    const bodyMarkdown = researchFindingsMarkdown(file, findings), markdown =
+      `${selected.mode === "append" && file.state.note ? `${file.state.note}\n\n` : ""}` +
+      `## ${selected.title.replace(/[\r\n#]/gu, " ")}\n\n${bodyMarkdown}`;
+    if (markdown.length > 250_000) return fail(413, "The memo would exceed its size limit; select fewer findings");
+    const evidence = [...new Map(findings.flatMap(finding => finding.evidence)
+      .map(receipt => [receipt.evidence_id, receipt])).values()];
+    options.signal?.throwIfAborted();
+    // Save prose and its exact citation targets together through the normal version/CAS boundary.
+    // A memo snapshot never follows subsequent edits to the source chat or table.
+    return await commitResearchFile(documents, scope, file, { type: "merge", evidence,
+      title: "Copy findings to memo", actions: [{ type: "note", markdown, expectedMarkdown: file.state.note }] },
+      options.assistant, operation(options.operation)) ?? conflict("The memo changed while the findings were being copied.");
+  }
   async function views(scope: Scope, id: string) {
     const file = await required(scope, id), chats = [], tables = [];
     for (const chatId of file.state.chats ?? []) { const chat = await dependencies.chats.get(scope, chatId);
@@ -589,7 +622,7 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
   }
 
   return { get, create, update, query, collect, observe, revision, items, citation, bind, ensure, selection,
-    context, readFindings, findings, views, table, previewTable, previewLabels, applyLabels, saveFindings };
+    context, readFindings, findings, memo, views, table, previewTable, previewLabels, applyLabels, saveFindings };
 }
 
 export type SourceWorkspaceApplication = ReturnType<typeof createSourceWorkspaceApplication>;

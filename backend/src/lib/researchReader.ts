@@ -1,6 +1,5 @@
 import { readPatterns } from "./chat/resourceTools";
-import { previousEmptyScan } from "./chat/queryHistory";
-import type { LegalResearchQueryReceipt } from "./researchContract";
+import { previousEmptyScan, type QueryHistorySource } from "./chat/queryHistory";
 import { readDocumentProjection } from "./documentApplication";
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -496,7 +495,7 @@ export async function readLegalSourceResource(
     signal?: AbortSignal;
     reader?: ReadSubagentAssignment;
     knownSources: Map<string, LegalSourceReference>;
-    priorQueries?: () => Iterable<LegalResearchQueryReceipt>;
+    priorQueries?: QueryHistorySource;
   },
 ): Promise<BeaverOutcome | null> {
   if (call.name !== "Read") return null;
@@ -654,10 +653,11 @@ export async function readLegalSourceResource(
         ...(locator ? { locator_kind: locatorKind, locator } : {}), ...(endLocator ? { end_locator: endLocator } : {}),
         context_blocks: locator ? contextBlocks : 0, max_results: allowance, context_chars: contextChars,
         ...(source.kind === "case" && !locator ? { search_scope: "judgment_text" } : {}) });
+      const priorQueries = [...await options.priorQueries?.() ?? []];
       const queries = patterns.map((pattern, index) => {
         options.signal?.throwIfAborted();
         const allowance = Math.ceil(available / (patterns.length - index));
-        const prior = previousEmptyScan(options.priorQueries?.() ?? [], queryInput(pattern, allowance), scanSources);
+        const prior = previousEmptyScan(priorQueries, queryInput(pattern, allowance), scanSources);
         let total = 0, headnote = prior?.scan?.headnote_matches ?? 0, kept = 0;
         const hits = (prior ? [] : corpus).flatMap(({ passage, judgment }) => {
           const find = (text: string, maxResults: number) => findTextMatches({ text,

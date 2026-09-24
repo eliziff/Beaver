@@ -16,7 +16,7 @@ const ids = { type: "array", maxItems: 500, uniqueItems: true, items: string(200
 const paging = { offset: z.number().int().min(0).max(1_000_000).default(0),
   limit: z.number().int().min(1).max(50).default(20) };
 const readInput = z.object({ column_index: z.number().int().nonnegative().optional(), ...paging }).strict();
-const findingsInput = z.object({ sourceIds: z.array(z.string()).optional(),
+const findingsInput = z.object({ pattern: z.string().trim().min(1).max(256).optional(), sourceIds: z.array(z.string()).optional(),
   reference: researchFindingReferenceSchema.optional(), chatId: tabularDtos.id.optional(), ...paging,
   evidence_id: z.string().min(1).max(200).optional(),
   text_offset: z.number().int().min(0).max(10_000_000).default(0),
@@ -44,7 +44,7 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
     const next_offset = options.offset + items.length < page.total ? options.offset + items.length + 1 : null;
     return { result: toolText({ ok: true, research_file_id: workspaceId, items, total: page.total,
       is_running: page.is_running, next_offset,
-      ...(next_offset ? { next_read: { file_path: "findings", offset: next_offset, limit: options.limit } } : {}) }) };
+      ...(next_offset ? { next_read: { file_path: "findings", offset: next_offset, limit: options.limit, ...(options.pattern ? { pattern: options.pattern } : {}) } } : {}) }) };
   }
   const finding = page.items[0];
   if (!finding) throw new ApplicationError(404, "Finding not found");

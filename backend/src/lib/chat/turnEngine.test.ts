@@ -688,3 +688,30 @@ it("uses current reader settings at dispatch and aborts readers before accepting
   expect(events.some(event => event.type === "content_final" || event.output?.includes("Late"))).toBe(false);
   expect(controls.at(-1)).toBeNull();
 });
+
+
+it("loads off-context query history only on demand and makes returned handles reusable without re-emitting receipts", async () => {
+  const receipt = { query_id: "q_saved", call_id: "original", tool: "Read" as const,
+    executed_at: "2026-09-24T00:00:00Z", model: "reader", executor_version: "legal-source-pattern-v1" as const,
+    input: { resource: "source://tna/example", pattern: "old-absent-term" }, results: [] },
+    history = vi.fn(async () => [receipt]);
+  stream.mockImplementationOnce(async ({ runTools, messages, systemPrompt }) => {
+    expect(history).not.toHaveBeenCalled();
+    expect(JSON.stringify([messages, systemPrompt])).not.toContain("old-absent-term");
+    await runTools([{ id: "history", name: "Read", input: { file_path: "queries" } }]);
+    return { fullText: "Done." };
+  });
+  const output = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "",
+    messages: [{ role: "user", content: "Inspect prior work." }], queryHistory: history,
+    createTools: (_state, _scope, context) => [{ name: "Read", inputSchema: { type: "object", additionalProperties: true },
+      async execute() {
+        expect(context.evidence.queries.size).toBe(0);
+        const items = [...await context.queryHistory!()];
+        expect(context.evidence.queries.get(receipt.query_id)).toEqual(receipt);
+        return { result: toolText(items) };
+      } }], emit() {},
+  });
+  expect(history).toHaveBeenCalledTimes(1);
+  expect(output.evidence.queries.get(receipt.query_id)).toEqual(receipt);
+  expect(priorLegalResearchQueryReceipts(output.events)).toEqual([]);
+});
