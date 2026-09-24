@@ -1,0 +1,148 @@
+{
+ "record_id": "nbqb-elsipogtog-sock",
+ "court": "Court of Queen's Bench of New Brunswick",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "FC-935-13 (Fredericton)",
+ "subject": "tax",
+ "proceeding": "Elsipogtog First Nation v. Attorney General of Canada: notice of preliminary motion for an interlocutory injunction against the statutory set-off",
+ "document": "Affidavit of Arren James Sock sworn October 3, 2013",
+ "deponent": "Arren James Sock",
+ "deponent_role": "Chief of Elsipogtog First Nation",
+ "sworn_date": "2013-10-03",
+ "notes": "Paragraph numbers 4-6 were lost in OCR, so those references carry paragraph null. CBC DocumentCloud upload, scanned without a text layer: affidavit OCR'd with --ocr-affidavit --ocr-cli (the day in the jurat is handwritten; the exhibit stamps read '3 day of October 2013'). Stamps sit on each exhibit's first content page and were whited out with --blank (rects from OCR'd stamp words, checked by eye) plus --blank-only; C's blank also covers part of the debtor address block. Exhibit A's MAP tables are printed sideways, so its OCR text is mostly noise. C holds three CRA set-off notices (one per payroll account).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zkfcas.pdf",
+   "kind": "report",
+   "date": "2013-01-24",
+   "author": "Elsipogtog First Nation / AANDC",
+   "recipients": [],
+   "description": "Elsipogtog First Nation's most recent Management Action Plan",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Attached hereto and marked as Exhibit “A” is a"
+    }
+   ],
+   "content_check": "title page 'Elsipogtog First Nation Management Action Plan Approved January 24, 2013' (sideways), then MAP tables"
+  },
+  {
+   "label": "B",
+   "file": "doc-brfjwk.pdf",
+   "kind": "contract",
+   "date": "2012-03-01",
+   "author": "Elsipogtog Band Council and Teed Saunders Doyle & Co.",
+   "recipients": [],
+   "description": "Co-Manager's Contract between the Band and Teed Saunders Doyle & Co.",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "is a copy of the Co-Manager’s Contract which further"
+    }
+   ],
+   "content_check": "'CO-MANAGEMENT AGREEMENT ELSIPOGTOG BAND COUNCIL Commencement: March 1, 2012 Completion: March 31, 2013' with Appendices 1-5"
+  },
+  {
+   "label": "C",
+   "file": "doc-ggwuxn.pdf",
+   "kind": "notice",
+   "date": "2013-09-04",
+   "author": "Canada Revenue Agency (Moncton Tax Services Office)",
+   "recipients": [
+    "Aboriginal Affairs and Northern Development Canada"
+   ],
+   "description": "CRA statutory set-off notices to AANDC for the Band's three payroll accounts",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Attached hereto and marked as Exhibit “C” is a copy of the statutory set-off notice"
+    }
+   ],
+   "content_check": "three CRA 'STATUTORY SET-OFF' forms dated SEP - 4 2013, contact D. Thériault, e.g. requiring $762,437.60"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Co-management agreement begins",
+   "date": "2012-03-01",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "The Band hires a co-manager on a contractual basis",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Management Action Plan approved",
+   "date": "2013-01-24",
+   "precision": "day",
+   "paragraphs": [],
+   "quote": "financial targets are prescribed by AANDC and are set out in a Management Action Plan",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Co-Manager's Contract expires and continues month to month",
+   "date": "2013-03",
+   "precision": "month",
+   "paragraphs": [],
+   "quote": "Chartered Accountants expired in March, 2013",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CRA imposes a statutory set-off for unremitted source deductions for 2010-11 to 2012-13",
+   "date": "2013-09-04",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "statutory set-off on the Band for outstanding payments",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "AANDC tells the co-manager how it will apply the set-off",
+   "date": "2013-09-24",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "on September 24, 2013, he met with Andy Bonnell",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "McGraws Seafood short-term loan due",
+   "date": "2013-10-01",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "This short-loan was borrowed on the condition it would be repaid by October",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Fall semester tuition unpaid",
+   "date": "2013",
+   "precision": "approximate",
+   "paragraphs": [
+    25
+   ],
+   "quote": "the fall semester has not been paid",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": []
+}

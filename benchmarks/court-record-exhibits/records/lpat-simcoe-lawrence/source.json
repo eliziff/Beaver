@@ -1,0 +1,28 @@
+{
+ "url": "https://cela.ca/wp-content/uploads/2019/07/1275-Appeal-Record_Friends-of-Simcoe-Forests.pdf",
+ "landing_url": "https://cela.ca/",
+ "court": "Local Planning Appeal Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "PL190022",
+ "document_title": "Appeal Record of Friends of Simcoe Forests Inc. (March 2019), Nicholyn Farms Inc., Edward Krajcir and Friends of Simcoe Forests Inc. v. Ministry of Municipal Affairs and Housing and County of Simcoe (County Official Plan Amendment No. 2, Environmental Resource Recovery Centre)",
+ "retrieved": "2026-09-24",
+ "record_id": "lpat-simcoe-lawrence",
+ "source_file": "lpat-simcoe-appeal-record.pdf",
+ "page_range": [
+  127,
+  163
+ ],
+ "source_sha256": "2d91d335a8f8014a12666395a7a168972dda6b7008385f045675cfa6380199c7",
+ "source_pages": 431,
+ "sources": [
+  {
+   "file": "lpat-simcoe-appeal-record.pdf",
+   "url": "https://cela.ca/wp-content/uploads/2019/07/1275-Appeal-Record_Friends-of-Simcoe-Forests.pdf",
+   "sha256": "2d91d335a8f8014a12666395a7a168972dda6b7008385f045675cfa6380199c7",
+   "pages": 431
+  }
+ ],
+ "blank": "A=0.6227,0.005,0.98,0.155 B=0.61,0.01,0.985,0.165 C=0.32,0.025,0.72,0.19 D=0.36,0.03,0.75,0.19 E=0.0,0.0,0.168,0.6 F=0.0,0.0,0.168,0.6",
+ "blank_only": true
+}

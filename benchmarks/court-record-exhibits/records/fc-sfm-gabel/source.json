@@ -1,0 +1,39 @@
+{
+ "url": "https://s3.documentcloud.org/documents/23570106/2022-09-29-applicants-record-t-121-22-volume-4.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/23570106",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-956-21 / T-1412-21 (heard with T-121-22)",
+ "document_title": "Applicants' Record, Volumes 4-6 of 15 (September 29, 2022), Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health: Affidavit of Elizabeth Gabel affirmed November 17, 2021, with Exhibits A1-F",
+ "retrieved": "2026-09-24",
+ "record_id": "fc-sfm-gabel",
+ "source_file": "gab-23570106.pdf",
+ "page_range": [
+  23,
+  33
+ ],
+ "source_sha256": "d84cad085406cdf06b92262645e30f10684690a675e24698c9b9407991097cc5",
+ "source_pages": 398,
+ "sources": [
+  {
+   "file": "gab-23570106.pdf",
+   "url": "https://s3.documentcloud.org/documents/23570106/2022-09-29-applicants-record-t-121-22-volume-4.pdf",
+   "sha256": "d84cad085406cdf06b92262645e30f10684690a675e24698c9b9407991097cc5",
+   "pages": 398
+  },
+  {
+   "file": "gab-23570105.pdf",
+   "url": "https://s3.documentcloud.org/documents/23570105/2022-09-29-applicants-record-t-121-22-volume-5.pdf",
+   "sha256": "74ec8e39970f98def629d087603fb41dfdd64751bbe7eced0972ad85938633c7",
+   "pages": 403
+  },
+  {
+   "file": "gab-23572156.pdf",
+   "url": "https://s3.documentcloud.org/documents/23572156/2022-09-29-applicants-record-t-121-22-volume-6.pdf",
+   "sha256": "9b55ac15048993b8d80f4ba44114e22b61b152548fda766147355b974e486a16",
+   "pages": 405
+  }
+ ],
+ "covers": "A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12,A13,B1,B2,B3,B4,B5,B6,B7,B8,B9,B10,B11,B12,B13,B14,B15,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12,C13,C14,D1,D2,D3,E,F"
+}

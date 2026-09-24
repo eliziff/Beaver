@@ -1,0 +1,354 @@
+{
+ "record_id": "bcsc-furlong-robinson",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-128358 (Vancouver Registry)",
+ "subject": "defamation",
+ "proceeding": "Furlong v. Robinson, McLeod, Smith and Vancouver Free Press Publishing Corp.: plaintiff's affidavit responding to Laura Robinson's November 22, 2013 application",
+ "document": "1st Affidavit of John Furlong made December 5, 2013",
+ "deponent": "John Furlong",
+ "deponent_role": "Plaintiff; former President and CEO of VANOC",
+ "sworn_date": "2013-12-05",
+ "notes": "CBC DocumentCloud upload, entirely scanned without a text layer: affidavit OCR'd with --ocr-affidavit --ocr-cli; exhibit stamps sit at the top of each exhibit's first page and were whited out with --blank (rects placed by eye) plus --blank-only; E's stamp is on its own otherwise blank page (--covers E). All five exhibits OCR'd by ocr_exhibits.py. A includes the Georgia Straight article as Schedule A.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-2ztq92.pdf",
+   "kind": "court_filing",
+   "date": "2012-11-27",
+   "author": "John Furlong (Hunter Litigation Chambers)",
+   "recipients": [
+    "Laura Robinson",
+    "Daniel McLeod",
+    "Charlie Smith",
+    "Vancouver Free Press Publishing Corp."
+   ],
+   "description": "Plaintiff's Notice of Civil Claim, with the Georgia Straight article as Schedule A",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached and marked as Exhibit “A” to this affidavit is a true copy of my Notice"
+    }
+   ],
+   "content_check": "'NOTICE OF CIVIL CLAIM' VLC-S-S-128358, registry seal 27-Nov-12; Schedule 'A' 'John Furlong biography omits secret past in Burns Lake'"
+  },
+  {
+   "label": "B",
+   "file": "doc-78vpg7.pdf",
+   "kind": "court_filing",
+   "date": "2013-07-26",
+   "author": "John Furlong (Hunter Litigation Chambers)",
+   "recipients": [
+    "Laura Robinson"
+   ],
+   "description": "Plaintiff's Reply to the Response to Civil Claim of Laura Robinson",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Attached and marked as Exhibit “B” to this affidavit is a true copy of my Reply"
+    }
+   ],
+   "content_check": "'REPLY to RESPONSE TO CIVIL CLAIM of LAURA ROBINSON', registry stamp JUL 26 2013, 'Dated: July 26, 2013'"
+  },
+  {
+   "label": "C",
+   "file": "doc-v754te.pdf",
+   "kind": "webpage",
+   "date": "2013-11-27",
+   "author": "John Furlong",
+   "recipients": [],
+   "description": "Screenshot of www.johnfurlong.ca advertising his keynote speaking business",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "a website that"
+    }
+   ],
+   "content_check": "'John Furlong - Official Site - CEO, Vancouver 2010 Winter Games' printed 27/11/2013"
+  },
+  {
+   "label": "D",
+   "file": "doc-wks38c.pdf",
+   "kind": "webpage",
+   "date": "2013-11-27",
+   "author": "Speakers' Spotlight",
+   "recipients": [],
+   "description": "Furlong's biography on the Speakers' Spotlight website",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "biography on the Speakers’ Spotlight website is attached hereto as Exhibit “D”"
+    }
+   ],
+   "content_check": "'Speakers' Spotlight - John Furlong | Vancouver Organizing Committee' printed 27/11/2013"
+  },
+  {
+   "label": "E",
+   "file": "doc-e3rh57.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "National Speakers Bureau",
+   "recipients": [],
+   "description": "Furlong's biography on the National Speakers Bureau website",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "biography on the National Speakers Bureau is attached hereto as Exhibit “E”"
+    }
+   ],
+   "content_check": "'John Furlong | Speakers | National Speakers Bureau Page 1 of 3'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Furlong President and COO of the Vancouver 2010 Bid Corporation",
+   "date": "2001",
+   "precision": "approximate",
+   "paragraphs": [
+    3
+   ],
+   "quote": "President and Chief Operating Officer of the Vancouver 2010 Bid Corporation from late in",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Furlong President and CEO of VANOC",
+   "date": "2004",
+   "precision": "range",
+   "paragraphs": [
+    3
+   ],
+   "quote": "From 2004 — 2010, I was the President and Chief Executive Officer of VANOC",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Globe and Mail article by Robinson alleging racism by coach Ken Shields; later retracted",
+   "date": "1994",
+   "precision": "year",
+   "paragraphs": [
+    18
+   ],
+   "quote": "A 1994 article in the Globe and Mail in which the Defendant Robinson levied",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Chatelaine article by Robinson on the Vancouver Fire Department",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    20
+   ],
+   "quote": "A 2000 article in Chatelaine Magazine in which the Defendant Robinson alleged",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Robinson sues Keith Benson in Provincial Court",
+   "date": "2005-10",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In October 2005 the Defendant brought an action in British Columbia Provincial",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Robinson amends her claim against Benson",
+   "date": "2006-06",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In June 2006, the Defendant Robinson amended her Notice of Claim",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Robinson withdraws her harassment allegations against Benson",
+   "date": "2006-08",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "In August 2006, the",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Furlong named Canada's Most Influential Sport Figure",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "In 2009, I was named Canada’s Most Influential Sport Figure",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Furlong named an Officer of the Order of Canada",
+   "date": "2010-07-01",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On July 1, 2010, I was",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Furlong becomes a Member of the Order of British Columbia",
+   "date": "2010-10-21",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "on October 21, 2010, I became a Member of the",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Furlong begins work as a public speaker after the 2010 Games",
+   "date": "2010",
+   "precision": "approximate",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Following the conclusion of the 2010 Olympic Winter Games in Vancouver, I",
+   "exhibits": [
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Speaking business is Furlong's principal income",
+   "date": "2011",
+   "precision": "range",
+   "paragraphs": [
+    33
+   ],
+   "quote": "In 2011 and the first part of 2012 my public speaking business was sufficiently",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "RCMP clears Furlong of the Beverley Abraham allegations",
+   "date": "2012",
+   "precision": "approximate",
+   "paragraphs": [
+    21
+   ],
+   "quote": "the RCMP investigator has cleared me of the allegations involving Beverley Abraham in the",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Georgia Straight publishes Robinson's article",
+   "date": "2012-09-27",
+   "precision": "day",
+   "paragraphs": [
+    6,
+    34
+   ],
+   "quote": "Upon the publication on September 27, 2012 of the article by the defendant Laura",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Clients begin cancelling speaking engagements",
+   "date": "2012-09",
+   "precision": "approximate",
+   "paragraphs": [
+    35
+   ],
+   "quote": "Almost immediately after the publication of the Robinson Article",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Robinson's Vancouver Province interview on her agenda",
+   "date": "2012-10-12",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Vancouver Province on Oct. 12,",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Furlong files the Notice of Civil Claim",
+   "date": "2012-11-27",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Attached and marked as Exhibit “A” to this affidavit is a true copy of my Notice",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Furlong files his Reply to Robinson's Response",
+   "date": "2013-07-26",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "to the Response to Civil Claim of Laura Robinson filed in this action",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Furlong discontinues against McLeod, Smith and Vancouver Free Press",
+   "date": "2013-10-29",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "On October 29, 2013,",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Robinson swears her affidavit",
+   "date": "2013-11-15",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "Laura Robinson’s",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Baynham affidavit and Notice of Application",
+   "date": "2013-11-22",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "the Notice of Application dated November 22, 2013",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Laura Robinson made November 15, 2013",
+  "Affidavit of Bryan G. Baynham made November 22, 2013",
+  "Notice of Application dated November 22, 2013",
+  "RCMP correspondence clearing the plaintiff",
+  "Laura Robinson's email to the plaintiff's employers and boards"
+ ]
+}

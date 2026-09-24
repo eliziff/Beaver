@@ -1,0 +1,21 @@
+{
+ "url": "https://s3.documentcloud.org/documents/322377/affidavit-leroycox.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/322377",
+ "court": "Human Rights Tribunal of Ontario",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "2010-06032-I",
+ "document_title": "Affidavit of Leroy Cox sworn February 9, 2012, Cox v. Ontario Public Service Employees Union and Her Majesty the Queen in right of Ontario (Ministry of Community Safety and Correctional Services) (CBC upload)",
+ "retrieved": "2026-09-24",
+ "record_id": "hrto-opseu-cox",
+ "source_file": "hdc-322377.pdf",
+ "page_range": [
+  1,
+  31
+ ],
+ "source_sha256": "9cbbde77a88b89dadeac46fffd002b3f1d41d8e734dfdbf3c3f033e8c1fd57ba",
+ "source_pages": 31,
+ "affidavit_ocr": "tesseract-cli",
+ "covers": "A=11,B=14,C=18,D=21,E=25,F=28",
+ "drop": "10"
+}

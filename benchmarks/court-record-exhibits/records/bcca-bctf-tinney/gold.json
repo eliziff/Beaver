@@ -1,0 +1,211 @@
+{
+ "record_id": "bcca-bctf-tinney",
+ "court": "Court of Appeal for British Columbia",
+ "court_level": "appellate",
+ "jurisdiction": "BC",
+ "court_file": "CA041558",
+ "subject": "employment",
+ "proceeding": "British Columbia Teachers' Federation v. Her Majesty the Queen in right of British Columbia: appeal from the January 27, 2014 BCSC judgment restoring deleted collective agreement terms (evidence on the stay application)",
+ "document": "Affidavit of Jordan Tinney sworn February 12, 2014",
+ "deponent": "Jordan Tinney",
+ "deponent_role": "Superintendent, Surrey School District (SD 36)",
+ "sworn_date": "2014-02-12",
+ "notes": "CBC DocumentCloud upload, scanned without a text layer: affidavit OCR'd with --ocr-affidavit --ocr-cli. A-D each open with a stamp-only page read by eye as a cover (--covers A,B,C,D); E's stamp sits on the chart and was whited out with --blank (plus --blank-only). All exhibits OCR'd by ocr_exhibits.py. Exhibit pages carry circled handwritten page numbers.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-x9sjm3.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Andrew Holland (Assistant Superintendent), Surrey Schools",
+   "recipients": [],
+   "description": "Impact assessment of reverting to 2002 contract language at Lord Tweedsmuir Secondary School",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "An impact assessment at Lord Tweedsmuir Secondary School, (Exhibit"
+    }
+   ],
+   "content_check": "'Surrey Schools Lord Tweedsmuir Secondary School Impact of Reverting to 2002 Contract Language' table (resource room, low incidence students)"
+  },
+  {
+   "label": "B",
+   "file": "doc-4xh77v.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Andrew Holland (Assistant Superintendent), Surrey Schools",
+   "recipients": [],
+   "description": "Impact assessment at North Surrey Secondary School",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "An impact assessment at North Surrey Secondary School, (Exhibit “B”)"
+    }
+   ],
+   "content_check": "'Surrey Schools North Surrey Secondary School Impact of Reverting to 2002 Contract Language'"
+  },
+  {
+   "label": "C",
+   "file": "doc-9pwjrm.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Andrew Holland (Assistant Superintendent), Surrey Schools",
+   "recipients": [],
+   "description": "Impact assessment at Guildford Park Secondary School",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "An impact assessment at Guildford Park Secondary School, (Exhibit"
+    }
+   ],
+   "content_check": "'Surrey Schools Guildford Park Secondary School Impact of Reverting to 2002 Contract Language'"
+  },
+  {
+   "label": "D",
+   "file": "doc-g5xwmm.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Brad Bauman, Director of Instruction, Surrey Schools",
+   "recipients": [],
+   "description": "Bauman's analysis of non-enrolling (specialist) teacher requirements under the 2002 ratios",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "A true copy of the assessment prepared by Mr. Bauman is attached as"
+    }
+   ],
+   "content_check": "'Analysis of Applying Previous Collective Agreement Parameters to Non-Enrolling Staffing Requirements' table (speech-language pathology, teachers of the ...)"
+  },
+  {
+   "label": "E",
+   "file": "doc-3jzkx9.pdf",
+   "kind": "chart",
+   "date": "2014",
+   "author": "Surrey School District",
+   "recipients": [],
+   "description": "Chart of the change in operating staff FTE, including educational assistants, 2001-02 to 2013-14",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Now produced and shown to me and attached as Exhibit “E” to this affidavit is a true"
+    }
+   ],
+   "content_check": "line chart 'Change in Operating Staff FTE' 2001-02 to 2013-14 by staff category"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "2002 collective agreement class size and composition language in force",
+   "date": "2002",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "The 2002 collective agreement language imposed class size maximums",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Surrey has 561 FTE educational assistants",
+   "date": "2001",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "In 2001-02 we had 561",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Province begins full-day kindergarten",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    28
+   ],
+   "quote": "In 2010, the Province began full day kindergarten",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Surrey has 848 students with a severe behaviour designation",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    16
+   ],
+   "quote": "In 2012/13 Surrey had 848 students with a severe behaviour designation",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "BCSC judgment restores the 2002 collective agreement terms",
+   "date": "2014-01-27",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "The January 27, 2014 judgment of the British Columbia Supreme Court",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "District prepares school impact assessments of the 2002 language",
+   "date": "2014",
+   "precision": "approximate",
+   "paragraphs": [
+    5,
+    6,
+    19
+   ],
+   "quote": "and staff in our District office have conducted a preliminary analysis of impacts",
+   "exhibits": [
+    "A",
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Bauman analyses non-enrolling ratio requirements (273.15 FTE)",
+   "date": "2014",
+   "precision": "approximate",
+   "paragraphs": [
+    20
+   ],
+   "quote": "asked Brad Bauman, Director of Instruction, to carry out an",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "New Surrey secondary school expected to open",
+   "date": "2016-09",
+   "precision": "month",
+   "paragraphs": [
+    12
+   ],
+   "quote": "which will not open until at least September",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Lord Tweedsmuir projected 800 students over capacity",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    12
+   ],
+   "quote": "projected to grow to 800 students over",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "BCSC judgment of January 27, 2014",
+  "2002 BCTF collective agreement"
+ ]
+}

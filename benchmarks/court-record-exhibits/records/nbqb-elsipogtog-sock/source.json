@@ -1,0 +1,29 @@
+{
+ "url": "https://s3.documentcloud.org/documents/816029/elsipogtog-v-attorney-general-of-canada.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/816029",
+ "court": "Court of Queen's Bench of New Brunswick",
+ "court_level": "superior_trial",
+ "jurisdiction": "NB",
+ "court_file": "FC-935-13 (Fredericton)",
+ "document_title": "Affidavit of Arren James Sock sworn October 2013, Elsipogtog First Nation v. Attorney General of Canada (interlocutory injunction against the CRA statutory set-off of federal program funding) (CBC upload)",
+ "retrieved": "2026-09-24",
+ "record_id": "nbqb-elsipogtog-sock",
+ "source_file": "hdc-816029.pdf",
+ "page_range": [
+  1,
+  9
+ ],
+ "source_sha256": "6e4c97885d50ad2b2169c4427019fc1931fd36a617e5923d685fa2c844cd494c",
+ "source_pages": 46,
+ "sources": [
+  {
+   "file": "hdc-816029.pdf",
+   "url": "https://s3.documentcloud.org/documents/816029/elsipogtog-v-attorney-general-of-canada.pdf",
+   "sha256": "6e4c97885d50ad2b2169c4427019fc1931fd36a617e5923d685fa2c844cd494c",
+   "pages": 46
+  }
+ ],
+ "affidavit_ocr": "tesseract-cli",
+ "blank": "A=0.37,0.08,0.63,0.24 B=0.51,0.08,0.79,0.235 C=0.47,0.16,0.735,0.30",
+ "blank_only": true
+}

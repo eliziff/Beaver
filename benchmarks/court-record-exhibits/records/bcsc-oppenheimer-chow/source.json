@@ -1,0 +1,21 @@
+{
+ "url": "https://s3.documentcloud.org/documents/1305525/affidavit-of-vpd-insp-howard-chow-re-oppenheimer.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/1305525",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-146797 (Vancouver Registry)",
+ "document_title": "Affidavit #1 of Howard Chow made September 22, 2014, Vancouver Board of Parks and Recreation v. Williams et al. (Oppenheimer Park encampment injunction) (CBC upload)",
+ "retrieved": "2026-09-24",
+ "record_id": "bcsc-oppenheimer-chow",
+ "source_file": "hdc-1305525.pdf",
+ "page_range": [
+  1,
+  37
+ ],
+ "source_sha256": "972469009a71179f73065846b0751d56b90ae65bb40a6bec11e1962a94f10184",
+ "source_pages": 37,
+ "affidavit_ocr": "tesseract-cli",
+ "covers": "A=6,B=8,C=13,D=15,E=26,F=28,G=30",
+ "drop": "35,36,37"
+}

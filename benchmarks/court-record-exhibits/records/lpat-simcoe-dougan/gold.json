@@ -1,0 +1,282 @@
+{
+ "record_id": "lpat-simcoe-dougan",
+ "court": "Local Planning Appeal Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "PL190022",
+ "subject": "planning",
+ "family": "lpat-simcoe-errc",
+ "proceeding": "Nicholyn Farms Inc., Edward Krajcir and Friends of Simcoe Forests Inc. v. Ministry of Municipal Affairs and Housing and County of Simcoe: appeal of County of Simcoe Official Plan Amendment No. 2 (ERRC)",
+ "document": "Joint affidavit of James Dougan, Mary Anne Young and Karl Konze affirmed March 22, 2019 (Appeal Record of Friends of Simcoe Forests Inc., Tab 6)",
+ "deponent": "James Dougan, Mary Anne Young and Karl Konze",
+ "deponent_role": "Ecologists, Dougan & Associates, retained by the appellant FSF",
+ "sworn_date": "2019-03-22",
+ "notes": "Same CELA appeal record as lpat-simcoe-wagner; multi mode over page ranges with --blank per exhibit and --blank-only (split.py's text-stamp detector otherwise redacted whole OCR blocks of Konze's CV). Stamps sit on each exhibit's first page (C and E at the page foot). Page-number-only separator pages 244, 258, 260, 264, 268, 286 left out. B, D and F are the three signed LPAT Acknowledgment of Expert's Duty forms (same form, different signatories).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-n5e3p6.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "James Dougan",
+   "recipients": [],
+   "description": "Curriculum vitae of James Dougan",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit ‘A’ is a copy of my Curriculum Vitae"
+    }
+   ],
+   "content_check": "'JAMES (JIM) DOUGAN, B.Sc., M.Sc., OALA CURRICULUM VITAE', 13 pp"
+  },
+  {
+   "label": "B",
+   "file": "doc-wsp6q8.pdf",
+   "kind": "court_filing",
+   "date": "2019-03-22",
+   "author": "James Dougan",
+   "recipients": [
+    "Local Planning Appeal Tribunal"
+   ],
+   "description": "Dougan's signed Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit ‘B’ is a copy of my signed Acknowledgement of Expert’s Duty Form dated March 22, 2019"
+    }
+   ],
+   "content_check": "LPAT 'ACKNOWLEDGMENT OF EXPERT'S DUTY' PL190022: 'My name is James Dougan. I live in the municipality of Mapleton'"
+  },
+  {
+   "label": "C",
+   "file": "doc-suz7cr.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Mary Anne Young",
+   "recipients": [],
+   "description": "Curriculum vitae of Mary Anne Young",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached as Exhibit ‘C’ is a copy of my Curriculum Vitae"
+    }
+   ],
+   "content_check": "'Curriculum vitae Mary Anne Young is a graduate from the Landscape Architecture program'"
+  },
+  {
+   "label": "D",
+   "file": "doc-eze8m9.pdf",
+   "kind": "court_filing",
+   "date": "2019-03-22",
+   "author": "Mary Anne Young",
+   "recipients": [
+    "Local Planning Appeal Tribunal"
+   ],
+   "description": "Young's signed Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached as Exhibit ‘D’ is a copy of my signed Acknowledgement of Expert’s Duty Form dated March 22, 2019"
+    }
+   ],
+   "content_check": "LPAT acknowledgment form: 'My name is Mary Anne Young. I live in the municipality of Guelph'"
+  },
+  {
+   "label": "E",
+   "file": "doc-p8f6kq.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Karl Konze",
+   "recipients": [],
+   "description": "Curriculum vitae of Karl Konze",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached as Exhibit ‘E’ is a copy of my Curriculum Vitae"
+    }
+   ],
+   "content_check": "'Karl Konze B.Sc, Senior Wildlife Ecologist Project Manager Karl has 35 years of experience'"
+  },
+  {
+   "label": "F",
+   "file": "doc-gykwvp.pdf",
+   "kind": "court_filing",
+   "date": "2019-03-22",
+   "author": "Karl Konze",
+   "recipients": [
+    "Local Planning Appeal Tribunal"
+   ],
+   "description": "Konze's signed Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached as Exhibit ‘F’ is a copy of my signed Acknowledgement of Expert’s Duty Form dated March 22, 2019"
+    }
+   ],
+   "content_check": "LPAT acknowledgment form: 'My name is Karl Konze. I live in the municipality of Guelph'"
+  },
+  {
+   "label": "G",
+   "file": "doc-nu3rv5.pdf",
+   "kind": "report",
+   "date": "2017-06-16",
+   "author": "Dougan & Associates",
+   "recipients": [
+    "Friends of Simcoe Forests Inc. (Bob and Mary Wagner)"
+   ],
+   "description": "Dougan & Associates' June 16, 2017 peer review of GHD's Scoped EIS",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached as Exhibit ‘G’ is a copy of our peer review dated June 16, 2017"
+    }
+   ],
+   "content_check": "'June 16, 2017 Friends of Simcoe Forests Inc. c/o Bob and Mary Wagner ... Re: Peer Review of Scoped Environmental Impact Study', 17 pp"
+  },
+  {
+   "label": "H",
+   "file": "doc-5adnxm.pdf",
+   "kind": "letter",
+   "date": "2018-03-02",
+   "author": "Dougan & Associates",
+   "recipients": [
+    "Aldo Ingraldi (MMAH)"
+   ],
+   "description": "Letter report of March 2, 2018 to MMAH on impacts to the Regional Natural Heritage System",
+   "references": [
+    {
+     "paragraph": 74,
+     "quote": "Attached as Exhibit ‘H’ is a copy of the report to MMAH dated March 2, 2018"
+    }
+   ],
+   "content_check": "'March 2, 2018 Aldo Ingraldi, MCIP, RPP Senior Planner ... Re: Impacts to Regional Natural Heritage System by Proposed County of Simcoe ERRC'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "GHD issues the Scoped Environmental Impact Study",
+   "date": "2016-11-17",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "November 17, 2016 prepared by GHD Ltd.",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "FSF retains Dougan & Associates for a peer review",
+   "date": "2017-03",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "In March 2017, we were retained by Friends of Simcoe Forests",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Deponents visit the site",
+   "date": "2017-05-03",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "We all participated in a site visit on May 3, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Deponents confirm GHD's spotted salamander egg mass observations on site",
+   "date": "2017-05-03",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "We confirmed these observations while on site on May 3, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Deponents complete their peer review of GHD's EIS",
+   "date": "2017-06-16",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "We completed a peer review of GHD’s EIS on June 16, 2017",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Young testifies as an expert at the OMB on urban forestry",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    15
+   ],
+   "quote": "I testified as an expert witness in 2017 at the OMB regarding urban forestry",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Konze testifies at the OMB Dundas Storage Facility hearing",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    20
+   ],
+   "quote": "in 2009 (OMB File No.: PL090372)",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "GHD's Amended Scoped EIS",
+   "date": "2018-02-01",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "Amended Scoped Environmental Impact Study Report dated February 1, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Deponents send a letter report to MMAH",
+   "date": "2018-03-02",
+   "precision": "day",
+   "paragraphs": [
+    74
+   ],
+   "quote": "We provided a letter report to the Ministry of Municipal Affairs and Housing (“MMAH”) on March 2, 2018",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Deponents sign their Acknowledgments of Expert's Duty",
+   "date": "2019-03-22",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    16,
+    21
+   ],
+   "quote": "Acknowledgement of Expert’s Duty Form dated March 22, 2019",
+   "exhibits": [
+    "B",
+    "D",
+    "F"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "GHD Scoped Environmental Impact Study, November 17, 2016",
+  "GHD Amended Scoped Environmental Impact Study, February 1, 2018",
+  "Simcoe County ONE SITE - ONE SOLUTION (2016) study"
+ ]
+}

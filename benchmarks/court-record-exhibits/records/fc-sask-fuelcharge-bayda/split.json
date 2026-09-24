@@ -1,0 +1,131 @@
+{
+ "record_id": "fc-sask-fuelcharge-bayda",
+ "multi_file": true,
+ "affidavit_pages": [
+  34,
+  35,
+  36
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-yp5efe.pdf",
+   "source_files": [
+    {
+     "file": "hdc-24794216.pdf",
+     "pages": [
+      38,
+      39
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "38": [
+       [
+        299.88,
+        162.35999999999999,
+        550.8000000000001,
+        273.23999999999995
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    38,
+    39
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 2447
+  },
+  {
+   "label": "B",
+   "file": "doc-5yrfvh.pdf",
+   "source_files": [
+    {
+     "file": "hdc-24794216.pdf",
+     "pages": [
+      41,
+      42
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "41": [
+       [
+        183.6,
+        0.0,
+        428.4,
+        122.76
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    41,
+    42
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 6387
+  },
+  {
+   "label": "C",
+   "file": "doc-dxzmc3.pdf",
+   "source_files": [
+    {
+     "file": "hdc-24794216.pdf",
+     "pages": [
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "44": [
+       [
+        312.12,
+        142.56,
+        556.9200000000001,
+        253.44
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 13971
+  }
+ ],
+ "leak_audit": [
+  {
+   "label": "B",
+   "problem": "first page of hdc-24794216.pdf names 8"
+  }
+ ]
+}

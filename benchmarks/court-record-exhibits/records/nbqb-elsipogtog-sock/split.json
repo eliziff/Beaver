@@ -1,0 +1,221 @@
+{
+ "record_id": "nbqb-elsipogtog-sock",
+ "multi_file": true,
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  "hdc-816029.pdf:10",
+  "hdc-816029.pdf:11",
+  "hdc-816029.pdf:12",
+  "hdc-816029.pdf:13",
+  "hdc-816029.pdf:14",
+  "hdc-816029.pdf:15",
+  "hdc-816029.pdf:16",
+  "hdc-816029.pdf:17",
+  "hdc-816029.pdf:18",
+  "hdc-816029.pdf:19",
+  "hdc-816029.pdf:20",
+  "hdc-816029.pdf:21",
+  "hdc-816029.pdf:22",
+  "hdc-816029.pdf:23",
+  "hdc-816029.pdf:24",
+  "hdc-816029.pdf:25",
+  "hdc-816029.pdf:26",
+  "hdc-816029.pdf:27",
+  "hdc-816029.pdf:28",
+  "hdc-816029.pdf:29",
+  "hdc-816029.pdf:30",
+  "hdc-816029.pdf:31",
+  "hdc-816029.pdf:32",
+  "hdc-816029.pdf:33",
+  "hdc-816029.pdf:34",
+  "hdc-816029.pdf:35",
+  "hdc-816029.pdf:36",
+  "hdc-816029.pdf:37",
+  "hdc-816029.pdf:38",
+  "hdc-816029.pdf:39",
+  "hdc-816029.pdf:40",
+  "hdc-816029.pdf:41",
+  "hdc-816029.pdf:42",
+  "hdc-816029.pdf:43",
+  "hdc-816029.pdf:44",
+  "hdc-816029.pdf:45",
+  "hdc-816029.pdf:46"
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zkfcas.pdf",
+   "source_files": [
+    {
+     "file": "hdc-816029.pdf",
+     "pages": [
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "10": [
+       [
+        226.44,
+        63.36,
+        385.56,
+        190.07999999999998
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 190
+  },
+  {
+   "label": "B",
+   "file": "doc-brfjwk.pdf",
+   "source_files": [
+    {
+     "file": "hdc-816029.pdf",
+     "pages": [
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "30": [
+       [
+        312.12,
+        63.36,
+        483.48,
+        186.11999999999998
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 130
+  },
+  {
+   "label": "C",
+   "file": "doc-ggwuxn.pdf",
+   "source_files": [
+    {
+     "file": "hdc-816029.pdf",
+     "pages": [
+      44,
+      45,
+      46
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "44": [
+       [
+        287.64,
+        126.72,
+        449.82,
+        237.6
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    44,
+    45,
+    46
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 26
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-brfjwk.pdf",
+  "doc-ggwuxn.pdf",
+  "doc-zkfcas.pdf"
+ ]
+}

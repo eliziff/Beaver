@@ -1,0 +1,1436 @@
+{
+ "record_id": "fc-sfm-gabel",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-956-21 / T-1412-21",
+ "subject": "environmental",
+ "family": "safe-food-matters-chlorpyrifos",
+ "proceeding": "Safe Food Matters Inc. and Prevent Cancer Now v. Attorney General of Canada and Minister of Health: judicial review of the PMRA's chlorpyrifos re-evaluation decisions (applicants' documentary evidence)",
+ "document": "Affidavit of Elizabeth Gabel affirmed November 17, 2021 (Applicants' Record, Volumes 4-6, Tab 10)",
+ "deponent": "Elizabeth Gabel",
+ "deponent_role": "Legal administrative assistant, Ecojustice Canada (applicants' counsel)",
+ "sworn_date": "2021-11-17",
+ "notes": "DocumentCloud uploads of Applicants' Record vols 4, 5 and 6 (T-121-22): multi mode over page ranges of the three volumes (affidavit vol 4 pp 23-33; exhibits from each typed cover to the page before the next, per the record index). Labels A1-A13, B1-B15, C1-C14, D1-D3, E, F do not match split.py's label pattern, so every cover is named with --covers (all typed 'This is Exhibit \"X\" referred to in the affidavit of Elizabeth Gabel'). Several exhibits are excerpts (C1-C7, C9-C11, per the affidavit). C2's file is the February 2002 IRED printed in the 2006 decision document. Stray margin letters (A.-F.) sit at the top of affidavit pages.",
+ "exhibits": [
+  {
+   "label": "A1",
+   "file": "doc-7ua32q.pdf",
+   "kind": "public_record",
+   "date": "1999-06-29",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "PMRA Re-evaluation Document REV99-01, Re-evaluation of Organophosphate Pesticides",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "dated June 29, 1999, is attached as Exhibit “A1”"
+    }
+   ],
+   "content_check": "'Re-evaluation Document REV99-01 Re-evaluation of Organophosphate Pesticides'"
+  },
+  {
+   "label": "A2",
+   "file": "doc-eaptc5.pdf",
+   "kind": "public_record",
+   "date": "2000-06-08",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2000-01, Update on Re-evaluation of Chlorpyrifos in Canada",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "dated June 8, 2000, is attached as Exhibit “A2”"
+    }
+   ],
+   "content_check": "PMRA 'Re-evaluation Note' REV2000-01"
+  },
+  {
+   "label": "A3",
+   "file": "doc-hvd4vh.pdf",
+   "kind": "public_record",
+   "date": "2000-09-28",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2000-05, Chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "dated September 28, 2000, is attached as Exhibit “A3”"
+    }
+   ],
+   "content_check": "PMRA 'Re-evaluation Note' REV2000-05 Chlorpyrifos"
+  },
+  {
+   "label": "A4",
+   "file": "doc-n7zgdx.pdf",
+   "kind": "public_record",
+   "date": "2001-12-07",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2001-05, Update on the Re-evaluation of the Organophosphate Pesticides",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "dated December 7, 2001, is attached as Exhibit “A4”"
+    }
+   ],
+   "content_check": "PMRA 'Re-evaluation Note REV2001-05'"
+  },
+  {
+   "label": "A5",
+   "file": "doc-fq36tk.pdf",
+   "kind": "public_record",
+   "date": "2002-09-25",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2002-05, Status of the Re-evaluation of Organophosphate Pesticides in Canada and the U.S.",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "dated September 25, 2002, is attached as Exhibit “A5”"
+    }
+   ],
+   "content_check": "PMRA 'Re-evaluation Note' REV2002-05 on OP status"
+  },
+  {
+   "label": "A6",
+   "file": "doc-bh69c5.pdf",
+   "kind": "public_record",
+   "date": "2003-03-18",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Proposed Acceptability for Continuing Registration PACR2003-03, Phase 2 of the Re-evaluation of Chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "dated March 18, 2003, is attached as Exhibit “A6”"
+    }
+   ],
+   "content_check": "'Proposed Acceptability for Continuing Registration' chlorpyrifos phase 2, 61 pp"
+  },
+  {
+   "label": "A7",
+   "file": "doc-sgju9h.pdf",
+   "kind": "public_record",
+   "date": "2007-01-05",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2007-01, Update on the Re-evaluation of Chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "dated January 5, 2007, is attached as Exhibit “A7”"
+    }
+   ],
+   "content_check": "PMRA 'Re-evaluation Note R[EV2007-01]' chlorpyrifos update, 48 pp"
+  },
+  {
+   "label": "A8",
+   "file": "doc-rrqy67.pdf",
+   "kind": "public_record",
+   "date": "2007-07-19",
+   "author": "Health Canada PMRA",
+   "recipients": [
+    "David Suzuki Foundation"
+   ],
+   "description": "Re-evaluation Note REV2007-09, PMRA's response to the David Suzuki Foundation's request for special reviews",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "dated July 19, 2007, is attached as Exhibit “A8”"
+    }
+   ],
+   "content_check": "PMRA 'Re-evaluation Note' responding to special review requests, 59 pp"
+  },
+  {
+   "label": "A9",
+   "file": "doc-pbvwnc.pdf",
+   "kind": "public_record",
+   "date": "2019-05-31",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Proposed Re-evaluation Decision PRVD2019-05, chlorpyrifos updated environmental risk assessment",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "dated May 31, 2019, is attached as Exhibit “A9”"
+    }
+   ],
+   "content_check": "'Proposed Re-evaluation Decision' chlorpyrifos environmental, 92 pp"
+  },
+  {
+   "label": "A10",
+   "file": "doc-mbbbhy.pdf",
+   "kind": "public_record",
+   "date": "2020-12-10",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Decision RVD2020-14, chlorpyrifos (environment)",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "dated December 10, 2020, is attached as Exhibit “A10”"
+    }
+   ],
+   "content_check": "'Re-evaluation Decision RVD2020-14 Chlorpyrifos and Its Associated End-use Products (Environment) ... 10 December 2020'"
+  },
+  {
+   "label": "A11",
+   "file": "doc-49hg8v.pdf",
+   "kind": "public_record",
+   "date": "2021-05-13",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Re-evaluation Note REV2021-02, Update on the Re-evaluation of Chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "dated May 13, 2021, is attached as Exhibit “A11”"
+    }
+   ],
+   "content_check": "'Re-evaluation Note REV2021-02 Update on the Re-evaluation of Chlorpyrifos ... 13 May 2021'"
+  },
+  {
+   "label": "A12",
+   "file": "doc-q72gh6.pdf",
+   "kind": "notice",
+   "date": "2019-06-04",
+   "author": "Health Canada PMRA",
+   "recipients": [
+    "Chlorpyrifos registrants"
+   ],
+   "description": "June 2019 s. 19(1)(a) PCPA Announcement of Data Call-In (2002-0746)",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "This notice is attached as Exhibit “A12”"
+    }
+   ],
+   "content_check": "'Paragraph 19(1)a ... Announcement of Data Call-In Chlorpyrifos'"
+  },
+  {
+   "label": "A13",
+   "file": "doc-hj4ft8.pdf",
+   "kind": "notice",
+   "date": "2021-02-10",
+   "author": "Health Canada PMRA",
+   "recipients": [
+    "Chlorpyrifos registrants"
+   ],
+   "description": "February 2021 s. 19(1)(a) PCPA Announcement of Data Call-In (2019-3275)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "This notice is attached as Exhibit “A13”"
+    }
+   ],
+   "content_check": "'Announcement of Data Call-In Active Ingredient: Chlorpyrifos Reference Number: 2019-3275 Date Sent: 10 February 2021'"
+  },
+  {
+   "label": "B1",
+   "file": "doc-xrsvbv.pdf",
+   "kind": "public_record",
+   "date": "2016-12-21",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Proposal PRO2016-04, Policy on Cancellations and Amendments Following Re-evaluation and Special Review",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "This regulatory proposal is attached as Exhibit “B1”"
+    }
+   ],
+   "content_check": "'Regulatory Proposal PRO2016-04 Policy on Cancellations and Amendments'"
+  },
+  {
+   "label": "B2",
+   "file": "doc-msvzzh.pdf",
+   "kind": "webpage",
+   "date": "2018-03-07",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Summary of public comments on PRO2016-04 (webpage saved as PDF on August 19, 2021)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "This summary is attached as Exhibit “B2”"
+    }
+   ],
+   "content_check": "'Summary of Public Comments received on Regulatory Proposal PRO2016-04'"
+  },
+  {
+   "label": "B3",
+   "file": "doc-2efkdf.pdf",
+   "kind": "public_record",
+   "date": "2018-03-07",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Directive DIR2018-01, final Policy on Cancellations and Amendments",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "was published on the same day and is attached as Exhibit “B3”"
+    }
+   ],
+   "content_check": "'Regulatory Directive DIR2018-01 Policy on Cancellations and Amendments'"
+  },
+  {
+   "label": "B4",
+   "file": "doc-pxvzcq.pdf",
+   "kind": "public_record",
+   "date": "2001-03-30",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Directive DIR2001-03, PMRA Re-evaluation Program",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "dated March 30, 2001, is attached as Exhibit “B4”"
+    }
+   ],
+   "content_check": "'Regulatory Directive DIR2001-03 PMRA Re-evaluation Program'"
+  },
+  {
+   "label": "B5",
+   "file": "doc-u224d8.pdf",
+   "kind": "webpage",
+   "date": "2021-04-16",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "PMRA webpage on its re-evaluation program, last modified April 16, 2021",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "last modified on April 16, 2021, is attached as Exhibit “B5”"
+    }
+   ],
+   "content_check": "'Re-evaluation Program - Canada.ca' printout"
+  },
+  {
+   "label": "B6",
+   "file": "doc-kbyy4h.pdf",
+   "kind": "public_record",
+   "date": "2016-11-29",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Directive DIR2016-04, Management of Pesticides Re-evaluation Policy",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "dated November 29, 2016, is attached as Exhibit “B6”"
+    }
+   ],
+   "content_check": "'Regulatory Directive DIR2016-04 ... 29 November 2016'"
+  },
+  {
+   "label": "B7",
+   "file": "doc-tvsaq9.pdf",
+   "kind": "public_record",
+   "date": "2012-06-21",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Directive DIR2012-02, Re-evaluation Program Cyclical Re-evaluation",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "dated June 21, 2012, is attached as Exhibit “B7”"
+    }
+   ],
+   "content_check": "'Regulatory Directive DIR2012-02 ... 21 June 2012'"
+  },
+  {
+   "label": "B8",
+   "file": "doc-jvrr9x.pdf",
+   "kind": "report",
+   "date": "2010",
+   "author": "Health Canada (Dr. Marc Saner)",
+   "recipients": [],
+   "description": "Health Canada's 'A Primer on Scientific Risk Assessment at Health Canada'",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "dated 2010, is attached as Exhibit “B8”"
+    }
+   ],
+   "content_check": "'A Primer on Scientific Risk Assessment at Health Canada Prepared by Dr. Marc Saner'"
+  },
+  {
+   "label": "B9",
+   "file": "doc-ucgqxj.pdf",
+   "kind": "public_record",
+   "date": "2017-03-08",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Regulatory Directive DIR2017-01, Management of Submissions Policy",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "dated March 8, 2017, is attached as Exhibit “B9”"
+    }
+   ],
+   "content_check": "'Regulatory Directive DIR2017-01 Management of Submissions Policy'"
+  },
+  {
+   "label": "B10",
+   "file": "doc-kunk6p.pdf",
+   "kind": "public_record",
+   "date": "2021-07-28",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "PMRA guidance 'A Framework for Risk Assessment and Risk Management of Pest Control Products'",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "dated July 28, 2021, is attached as Exhibit “B10”"
+    }
+   ],
+   "content_check": "'A Framework for Risk Assessment and Risk Management of Pest Control Products PMRA Guidance Document'"
+  },
+  {
+   "label": "B11",
+   "file": "doc-3j6h36.pdf",
+   "kind": "public_record",
+   "date": "2003-07-28",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Notice SPN2003-03, Assessing Exposure from Pesticides in Food",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "dated July 28, 2003, is attached as Exhibit “B11”"
+    }
+   ],
+   "content_check": "'Science Policy Notice SPN2003-03 Assessing Exposure from Pesticides in Food'"
+  },
+  {
+   "label": "B12",
+   "file": "doc-p7tey2.pdf",
+   "kind": "public_record",
+   "date": "2002-01-03",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Notice SPN2002-01, Children's Health Priorities within the PMRA",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "dated January 3, 2002, is attached as Exhibit “B12”"
+    }
+   ],
+   "content_check": "'Science Policy Notice SPN2002-01 Children's Health Priorities'"
+  },
+  {
+   "label": "B13",
+   "file": "doc-g5qpyr.pdf",
+   "kind": "public_record",
+   "date": "2008-07-29",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Note SPN2008-01, uncertainty factors and the PCPA factor in human health risk assessment",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "dated July 29, 2008, is attached as Exhibit “B13”"
+    }
+   ],
+   "content_check": "'SPN2008-01 Science Policy Note The Application of Uncertainty Factors'"
+  },
+  {
+   "label": "B14",
+   "file": "doc-3dsxze.pdf",
+   "kind": "public_record",
+   "date": "2004-04-30",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Notice SPN2004-01, Estimating the Water Component of a Dietary Exposure Assessment",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "dated April 30, 2004, is attached as Exhibit “B14”"
+    }
+   ],
+   "content_check": "'Science Policy Notice SPN2004-01 Estimating the Water Component'"
+  },
+  {
+   "label": "B15",
+   "file": "doc-bacr59.pdf",
+   "kind": "public_record",
+   "date": "2003-07-28",
+   "author": "Health Canada PMRA",
+   "recipients": [],
+   "description": "Science Policy Notice SPN2003-04, General Principles for Aggregate Exposure and Risk Assessments",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "dated July 28, 2003, is attached as Exhibit “B15”"
+    }
+   ],
+   "content_check": "'Science Policy Notice SPN2003-04 General Principles for Performing Aggregate Exposure'"
+  },
+  {
+   "label": "C1",
+   "file": "doc-7netkb.pdf",
+   "kind": "report",
+   "date": "2002-06-10",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Cover page and executive summary of the EPA Revised OP Cumulative Risk Assessment",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "is attached as Exhibit “C1”"
+    }
+   ],
+   "content_check": "'U.S. Environmental Protection Agency Revised OP (Organophosphate) Cumulative Risk Assessment June 10, 2002 Executive Summary'"
+  },
+  {
+   "label": "C2",
+   "file": "doc-n2x2y6.pdf",
+   "kind": "public_record",
+   "date": "2006-07-31",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the EPA Interim Reregistration Eligibility Decision for Chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "An excerpt of this document is attached as Exhibit “C2”"
+    }
+   ],
+   "content_check": "'Interim Reregistration Eligibility Decision' chlorpyrifos, EPA 738-R-01-007, dated February 2002 on its cover"
+  },
+  {
+   "label": "C3",
+   "file": "doc-2u6frx.pdf",
+   "kind": "minutes",
+   "date": "2008-09-16",
+   "author": "FIFRA Scientific Advisory Panel (EPA)",
+   "recipients": [],
+   "description": "Excerpt of the minutes of the September 16-18, 2008 FIFRA Scientific Advisory Panel meeting on chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "An excerpt from this document is attached as Exhibit “C3”"
+    }
+   ],
+   "content_check": "EPA Office of Prevention, Pesticides and Toxic Substances transmittal, December 17, 2008"
+  },
+  {
+   "label": "C4",
+   "file": "doc-8tqku3.pdf",
+   "kind": "report",
+   "date": "2008-08-21",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the EPA Science Issue Paper: Chlorpyrifos Hazard and Dose Response Characterization",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "An excerpt from this document is attached as Exhibit “C4”"
+    }
+   ],
+   "content_check": "'Draft, Do Not Cite Science Issue Paper: Chlorpyrifos Hazard and Dose Response Characterization August 21, 2008' (first page blank scan)"
+  },
+  {
+   "label": "C5",
+   "file": "doc-7vv6ez.pdf",
+   "kind": "report",
+   "date": "2011-06-30",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the EPA Chlorpyrifos Preliminary Human Health Risk Assessment for Registration Review",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "An excerpt from this document is attached as Exhibit “C5”"
+    }
+   ],
+   "content_check": "'Chlorpyrifos Preliminary Human Health Risk Assessment DP No. D388070'"
+  },
+  {
+   "label": "C6",
+   "file": "doc-t6wayw.pdf",
+   "kind": "report",
+   "date": "2012-04-10",
+   "author": "FIFRA Scientific Advisory Panel (EPA)",
+   "recipients": [],
+   "description": "Excerpt of the FIFRA SAP Draft Issue Paper: Scientific Issues Concerning Health Effects of Chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "An excerpt of this document is attached as Exhibit “C6”"
+    }
+   ],
+   "content_check": "'Meeting of the FIFRA Scientific Advisory Panel Draft Issue Paper ... April 10-13, 2012'"
+  },
+  {
+   "label": "C7",
+   "file": "doc-frtqjm.pdf",
+   "kind": "minutes",
+   "date": "2012-07-11",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the minutes of the April 10-12, 2012 FIFRA SAP meeting on chlorpyrifos health effects",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "An excerpt from this document is attached as Exhibit “C7”"
+    }
+   ],
+   "content_check": "EPA Office of Chemical Safety and Pollution Prevention memorandum July 11, 2012"
+  },
+  {
+   "label": "C8",
+   "file": "doc-8nnbbb.pdf",
+   "kind": "public_record",
+   "date": "2015-11-06",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "EPA's 2015 Notice of Proposed Rulemaking, Chlorpyrifos Tolerance Revocations (Federal Register)",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "This document is attached as Exhibit “C8”"
+    }
+   ],
+   "content_check": "'FEDERAL REGISTER Vol. 80 No. 215 Part IV Friday, November 6, 2015 Environmental Protection Agency 40 CFR Part 180'"
+  },
+  {
+   "label": "C9",
+   "file": "doc-8afckw.pdf",
+   "kind": "report",
+   "date": "2016-04-14",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the EPA memorandum Chlorpyrifos Refined Drinking Water Assessment for Registration Review",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "An excerpt of this document is attached as Exhibit “C9”"
+    }
+   ],
+   "content_check": "'April 14, 2016 MEMORANDUM ... OFFICE OF CHEMICAL SAFETY'"
+  },
+  {
+   "label": "C10",
+   "file": "doc-qg47nm.pdf",
+   "kind": "minutes",
+   "date": "2016-07-20",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the EPA memorandum transmitting the minutes of the April 19-21, 2016 SAP meeting on chlorpyrifos biomonitoring data",
+   "references": [
+    {
+     "paragraph": 40,
+     "quote": "An excerpt from this document is attached as Exhibit “C10”"
+    }
+   ],
+   "content_check": "'July 20, 2016 MEMORANDUM OFFICE OF CHEMICAL SAFETY AND POLLUTION PREVENTION'"
+  },
+  {
+   "label": "C11",
+   "file": "doc-386ry4.pdf",
+   "kind": "report",
+   "date": "2014-12-29",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "Excerpt of the EPA's 2014 Chlorpyrifos Revised Human Health Risk Assessment for Registration Review",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "An excerpt from this document is attached as Exhibit “C11”"
+    }
+   ],
+   "content_check": "EPA memorandum 'Date: December 29, 2014' (OCR-garbled letterhead)"
+  },
+  {
+   "label": "C12",
+   "file": "doc-n3ebay.pdf",
+   "kind": "report",
+   "date": "2016-11-03",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "EPA's 2016 Chlorpyrifos Revised Human Health Risk Assessment for Registration Review",
+   "references": [
+    {
+     "paragraph": 42,
+     "quote": "This document is attached as Exhibit “C12”"
+    }
+   ],
+   "content_check": "EPA Office of Chemical Safety and Pollution Prevention memorandum, 41 pp"
+  },
+  {
+   "label": "C13",
+   "file": "doc-ku72ux.pdf",
+   "kind": "public_record",
+   "date": "2016-11-17",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "EPA's Notice of Data Availability and Request for Comment on chlorpyrifos tolerance revocations (81 FR 222)",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "This document is attached as Exhibit “C13”"
+    }
+   ],
+   "content_check": "'Federal Register/Vol. 81, No. 222/Thursday, November 17, 2016/Proposed Rules'"
+  },
+  {
+   "label": "C14",
+   "file": "doc-vcuz2b.pdf",
+   "kind": "public_record",
+   "date": "2021-08-30",
+   "author": "U.S. Environmental Protection Agency",
+   "recipients": [],
+   "description": "EPA's Final Rule, Chlorpyrifos Tolerance Revocations",
+   "references": [
+    {
+     "paragraph": 44,
+     "quote": "This document is attached as Exhibit “C14”"
+    }
+   ],
+   "content_check": "'Federal Register/Vol. 86, No. 165/Monday, August 30, 2021/Rules and Regulations'"
+  },
+  {
+   "label": "D1",
+   "file": "doc-h9fct8.pdf",
+   "kind": "report",
+   "date": "2019-07-31",
+   "author": "European Food Safety Authority",
+   "recipients": [
+    "European Commission"
+   ],
+   "description": "EFSA statement on the human health assessment of chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "This document is attached as Exhibit “D1”"
+    }
+   ],
+   "content_check": "'STATEMENT APPROVED: 31 July 2019 doi: 10.2903/j.efsa.2019.5809'"
+  },
+  {
+   "label": "D2",
+   "file": "doc-jt7rx4.pdf",
+   "kind": "report",
+   "date": "2019-11-08",
+   "author": "European Food Safety Authority",
+   "recipients": [],
+   "description": "EFSA updated statement on chlorpyrifos-methyl",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "dated November 8, 2019, is attached as Exhibit “D2”"
+    }
+   ],
+   "content_check": "'STATEMENT APPROVED: 8 November 2019 doi: 10.2903/j.efsa.2019.5908'"
+  },
+  {
+   "label": "D3",
+   "file": "doc-ycq3c3.pdf",
+   "kind": "public_record",
+   "date": "2020-01-10",
+   "author": "European Commission",
+   "recipients": [],
+   "description": "Commission Implementing Regulation (EU) 2020/18 not renewing the approval of chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "Attached as Exhibit “D3” is the document titled"
+    }
+   ],
+   "content_check": "'Official Journal of the European Union COMMISSION IMPLEMENTING REGULATION (EU) 2020/18 of 10 January 2020'"
+  },
+  {
+   "label": "E",
+   "file": "doc-prs6qn.pdf",
+   "kind": "letter",
+   "date": "2021-03-05",
+   "author": "Attorneys General of New York, California and seven other states and D.C.",
+   "recipients": [
+    "Elissa Reaves, Acting Director, EPA Pesticide Re-Evaluation Division"
+   ],
+   "description": "State attorneys general's comments on EPA's proposed interim registration review decision for chlorpyrifos",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "A copy of the letter is attached as Exhibit “E”"
+    }
+   ],
+   "content_check": "'March 5, 2021 Re: Notice of Availability for Comment on EPA's Proposed Interim Registration Review Decision'"
+  },
+  {
+   "label": "F",
+   "file": "doc-c8yrhn.pdf",
+   "kind": "report",
+   "date": "2015",
+   "author": "Office of the Auditor General of Canada (Commissioner of the Environment and Sustainable Development)",
+   "recipients": [],
+   "description": "2015 Fall Reports of the CESD, Report 1 - Pesticide Safety",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "and is attached as Exhibit “F”"
+    }
+   ],
+   "content_check": "'Office of the Auditor General of Canada REPORT 1 Pesticide Safety Reports of the Commissioner of the Environment and Sustainable Development'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent employed by Ecojustice Canada",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been employed by Ecojustice Canada since 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "PMRA issues REV99-01 on organophosphate re-evaluation",
+   "date": "1999-06-29",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "dated June 29, 1999, is attached as Exhibit “A1”",
+   "exhibits": [
+    "A1"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "PMRA issues REV2000-01 chlorpyrifos update",
+   "date": "2000-06-08",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "dated June 8, 2000, is attached as Exhibit “A2”",
+   "exhibits": [
+    "A2"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "PMRA issues REV2000-05 on chlorpyrifos",
+   "date": "2000-09-28",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "dated September 28, 2000, is attached as Exhibit “A3”",
+   "exhibits": [
+    "A3"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "PMRA issues DIR2001-03 re-evaluation program directive",
+   "date": "2001-03-30",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "dated March 30, 2001, is attached as Exhibit “B4”",
+   "exhibits": [
+    "B4"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "PMRA issues REV2001-05 OP update",
+   "date": "2001-12-07",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "dated December 7, 2001, is attached as Exhibit “A4”",
+   "exhibits": [
+    "A4"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "PMRA issues SPN2002-01 on children's health priorities",
+   "date": "2002-01-03",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "dated January 3, 2002, is attached as Exhibit “B12”",
+   "exhibits": [
+    "B12"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "EPA issues Revised OP Cumulative Risk Assessment",
+   "date": "2002-06-10",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "Revised OP (Organophosphate) Cumulative Risk Assessment”, dated June 10, 2002",
+   "exhibits": [
+    "C1"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "PMRA issues REV2002-05 on OP status in Canada and the U.S.",
+   "date": "2002-09-25",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "dated September 25, 2002, is attached as Exhibit “A5”",
+   "exhibits": [
+    "A5"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "PMRA issues PACR2003-03, phase 2 of the chlorpyrifos re-evaluation",
+   "date": "2003-03-18",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "dated March 18, 2003, is attached as Exhibit “A6”",
+   "exhibits": [
+    "A6"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "PMRA issues SPN2003-03 and SPN2003-04",
+   "date": "2003-07-28",
+   "precision": "day",
+   "paragraphs": [
+    26,
+    30
+   ],
+   "quote": "dated July 28, 2003, is attached as Exhibit “B11”",
+   "exhibits": [
+    "B11",
+    "B15"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "PMRA issues SPN2004-01 on drinking water exposure",
+   "date": "2004-04-30",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "dated April 30, 2004, is attached as Exhibit “B14”",
+   "exhibits": [
+    "B14"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "EPA issues the chlorpyrifos Interim Reregistration Eligibility Decision",
+   "date": "2006-07-31",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "“Interim Registration Eligibility Decision for Chlorpyrifos”, dated July 31, 2006",
+   "exhibits": [
+    "C2"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "PMRA issues REV2007-01 chlorpyrifos update",
+   "date": "2007-01-05",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "dated January 5, 2007, is attached as Exhibit “A7”",
+   "exhibits": [
+    "A7"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "PMRA responds to the David Suzuki Foundation's special review requests (REV2007-09)",
+   "date": "2007-07-19",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "dated July 19, 2007, is attached as Exhibit “A8”",
+   "exhibits": [
+    "A8"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "PMRA issues SPN2008-01 on uncertainty factors",
+   "date": "2008-07-29",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "dated July 29, 2008, is attached as Exhibit “B13”",
+   "exhibits": [
+    "B13"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "EPA issues the chlorpyrifos hazard and dose response science issue paper",
+   "date": "2008-08-21",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "Chlorpyrifos Hazard and Dose Response Characterization”, dated August 21, 2008",
+   "exhibits": [
+    "C4"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "FIFRA Scientific Advisory Panel meets on chlorpyrifos toxicity",
+   "date": "2008-09-16",
+   "precision": "range",
+   "paragraphs": [
+    33
+   ],
+   "quote": "dated September 16-18, 2008, being the Minutes of the FIFRA Scientific Advisory Panel Meeting",
+   "exhibits": [
+    "C3"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Health Canada publishes its risk assessment primer",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    23
+   ],
+   "quote": "dated 2010, is attached as Exhibit “B8”",
+   "exhibits": [
+    "B8"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "EPA issues its preliminary chlorpyrifos human health risk assessment",
+   "date": "2011-06-30",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "Preliminary Human Health Risk Assessment for Registration Review”, dated June 30, 2011",
+   "exhibits": [
+    "C5"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "FIFRA SAP meets on chlorpyrifos health effects",
+   "date": "2012-04-10",
+   "precision": "range",
+   "paragraphs": [
+    36,
+    37
+   ],
+   "quote": "held on April 10-12, 2012 on “Chlorpyrifos Health Effects”",
+   "exhibits": [
+    "C6",
+    "C7"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "PMRA issues DIR2012-02 cyclical re-evaluation directive",
+   "date": "2012-06-21",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "dated June 21, 2012, is attached as Exhibit “B7”",
+   "exhibits": [
+    "B7"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "EPA transmits the minutes of the April 2012 SAP meeting",
+   "date": "2012-07-11",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "“Chlorpyrifos Health Effects”, dated July 11, 2012",
+   "exhibits": [
+    "C7"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "EPA issues its revised chlorpyrifos human health risk assessment",
+   "date": "2014-12-29",
+   "precision": "day",
+   "paragraphs": [
+    41
+   ],
+   "quote": "Revised Human Health Risk Assessment for Registration Review”, dated December 29, 2014",
+   "exhibits": [
+    "C11"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "CESD Fall 2015 report on pesticide safety",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    49
+   ],
+   "quote": "2015 Fall Reports of the Commissioner of the Environment and Sustainable Development",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "EPA proposes revoking all chlorpyrifos tolerances",
+   "date": "2015-11-06",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "Revocations”, dated November 6, 2015",
+   "exhibits": [
+    "C8"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "EPA issues the refined drinking water assessment",
+   "date": "2016-04-14",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "Chlorpyrifos Refined Drinking Water Assessment for Registration Review”, dated April 14, 2016",
+   "exhibits": [
+    "C9"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "FIFRA SAP meets on chlorpyrifos biomonitoring data",
+   "date": "2016-04-19",
+   "precision": "range",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Transmittal of Meeting Minutes of the April 19-21, 2016 SAP Meeting",
+   "exhibits": [
+    "C10"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "EPA transmits the April 2016 SAP minutes",
+   "date": "2016-07-20",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "Chlorpyrifos Analysis of Biomonitoring Data”, dated July 20, 2016",
+   "exhibits": [
+    "C10"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "EPA issues its 2016 revised human health risk assessment",
+   "date": "2016-11-03",
+   "precision": "day",
+   "paragraphs": [
+    42
+   ],
+   "quote": "Registration Review”, dated November 3, 2016",
+   "exhibits": [
+    "C12"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "PMRA issues DIR2016-04 re-evaluation policy",
+   "date": "2016-11-29",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "dated November 29, 2016, is attached as Exhibit “B6”",
+   "exhibits": [
+    "B6"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "EPA publishes a Notice of Data Availability on chlorpyrifos tolerance revocations",
+   "date": "2016-11-17",
+   "precision": "day",
+   "paragraphs": [
+    43
+   ],
+   "quote": "Volume 81, No. 222, dated November 17, 2016",
+   "exhibits": [
+    "C13"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "PMRA publishes PRO2016-04 on cancellations and amendments",
+   "date": "2016-12-21",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Special Review”, dated December 21, 2016",
+   "exhibits": [
+    "B1"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "PMRA issues DIR2017-01 submissions policy",
+   "date": "2017-03-08",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "dated March 8, 2017, is attached as Exhibit “B9”",
+   "exhibits": [
+    "B9"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "PMRA publishes the summary of comments on PRO2016-04 and final policy DIR2018-01",
+   "date": "2018-03-07",
+   "precision": "day",
+   "paragraphs": [
+    17,
+    18
+   ],
+   "quote": "was published on the same day and is attached as Exhibit “B3”",
+   "exhibits": [
+    "B2",
+    "B3"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "PMRA issues PRVD2019-05 proposed decision on chlorpyrifos (environment)",
+   "date": "2019-05-31",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "dated May 31, 2019, is attached as Exhibit “A9”",
+   "exhibits": [
+    "A9"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "PMRA sends chlorpyrifos registrants a data call-in",
+   "date": "2019-06-04",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "In June 2019, the PMRA sent a notice to Chlorpyrifos registrants",
+   "exhibits": [
+    "A12"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "European Commission asks EFSA for a statement on chlorpyrifos",
+   "date": "2019-07",
+   "precision": "month",
+   "paragraphs": [
+    45
+   ],
+   "quote": "In July 2019, the European Commission asked the European Food Safety Authority",
+   "exhibits": [
+    "D1"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "EFSA publishes its chlorpyrifos statement",
+   "date": "2019-07-31",
+   "precision": "day",
+   "paragraphs": [
+    45
+   ],
+   "quote": "pesticides peer review of the active substance chlorpyrifos”, dated July 31, 2019",
+   "exhibits": [
+    "D1"
+   ]
+  },
+  {
+   "id": "e40",
+   "description": "EFSA publishes its updated chlorpyrifos-methyl statement",
+   "date": "2019-11-08",
+   "precision": "day",
+   "paragraphs": [
+    46
+   ],
+   "quote": "dated November 8, 2019, is attached as Exhibit “D2”",
+   "exhibits": [
+    "D2"
+   ]
+  },
+  {
+   "id": "e41",
+   "description": "EU declines to renew the approval of chlorpyrifos (Regulation 2020/18)",
+   "date": "2020-01-10",
+   "precision": "day",
+   "paragraphs": [
+    47
+   ],
+   "quote": "Commission Implementing Regulation (EU) 2020/18 of 10 January 2020",
+   "exhibits": [
+    "D3"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "PMRA issues Re-evaluation Decision RVD2020-14 (environment)",
+   "date": "2020-12-10",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "dated December 10, 2020, is attached as Exhibit “A10”",
+   "exhibits": [
+    "A10"
+   ]
+  },
+  {
+   "id": "e43",
+   "description": "PMRA sends registrants a second data call-in",
+   "date": "2021-02-10",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "In February 2021, the PMRA sent a notice to Chlorpyrifos registrants",
+   "exhibits": [
+    "A13"
+   ]
+  },
+  {
+   "id": "e44",
+   "description": "State attorneys general comment to EPA on chlorpyrifos",
+   "date": "2021-03-05",
+   "precision": "day",
+   "paragraphs": [
+    48
+   ],
+   "quote": "On March 5, 2021, the Attorneys General of New York, California, Hawaii",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e45",
+   "description": "PMRA re-evaluation program webpage last modified",
+   "date": "2021-04-16",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "last modified on April 16, 2021, is attached as Exhibit “B5”",
+   "exhibits": [
+    "B5"
+   ]
+  },
+  {
+   "id": "e46",
+   "description": "PMRA issues REV2021-02 chlorpyrifos update",
+   "date": "2021-05-13",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "dated May 13, 2021, is attached as Exhibit “A11”",
+   "exhibits": [
+    "A11"
+   ]
+  },
+  {
+   "id": "e47",
+   "description": "PMRA publishes its risk assessment and risk management framework",
+   "date": "2021-07-28",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "dated July 28, 2021, is attached as Exhibit “B10”",
+   "exhibits": [
+    "B10"
+   ]
+  },
+  {
+   "id": "e48",
+   "description": "Deponent saves the PRO2016-04 comments summary as PDF",
+   "date": "2021-08-19",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "I saved a PDF version of the webpage on August 19, 2021",
+   "exhibits": [
+    "B2"
+   ]
+  },
+  {
+   "id": "e49",
+   "description": "EPA final rule revoking chlorpyrifos tolerances",
+   "date": "2021-08-30",
+   "precision": "day",
+   "paragraphs": [
+    44
+   ],
+   "quote": "“Chlorpyrifos Tolerance Revocations”, dated August 30, 2021",
+   "exhibits": [
+    "C14"
+   ]
+  },
+  {
+   "id": "e50",
+   "description": "Deponent obtains the CESD report from the Auditor General's office",
+   "date": "2021-09-22",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "obtained from the Office of the Auditor General of Canada on September 22, 2021",
+   "exhibits": [
+    "F"
+   ]
+  }
+ ],
+ "referenced_not_attached": []
+}

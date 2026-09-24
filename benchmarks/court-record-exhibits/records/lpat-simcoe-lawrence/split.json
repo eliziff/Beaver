@@ -1,0 +1,349 @@
+{
+ "record_id": "lpat-simcoe-lawrence",
+ "multi_file": true,
+ "affidavit_pages": [
+  127,
+  128,
+  129,
+  130,
+  131,
+  132,
+  133,
+  134,
+  135,
+  136,
+  137,
+  138,
+  139,
+  140,
+  141,
+  142,
+  143,
+  144,
+  145,
+  146,
+  147,
+  148,
+  149,
+  150,
+  151,
+  152,
+  153,
+  154,
+  155,
+  156,
+  157,
+  158,
+  159,
+  160,
+  161,
+  162,
+  163
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  "lpat-simcoe-appeal-record.pdf:172",
+  "lpat-simcoe-appeal-record.pdf:173",
+  "lpat-simcoe-appeal-record.pdf:174",
+  "lpat-simcoe-appeal-record.pdf:175",
+  "lpat-simcoe-appeal-record.pdf:176",
+  "lpat-simcoe-appeal-record.pdf:177",
+  "lpat-simcoe-appeal-record.pdf:178",
+  "lpat-simcoe-appeal-record.pdf:179",
+  "lpat-simcoe-appeal-record.pdf:180",
+  "lpat-simcoe-appeal-record.pdf:181",
+  "lpat-simcoe-appeal-record.pdf:182",
+  "lpat-simcoe-appeal-record.pdf:183",
+  "lpat-simcoe-appeal-record.pdf:184",
+  "lpat-simcoe-appeal-record.pdf:185",
+  "lpat-simcoe-appeal-record.pdf:186",
+  "lpat-simcoe-appeal-record.pdf:187",
+  "lpat-simcoe-appeal-record.pdf:188",
+  "lpat-simcoe-appeal-record.pdf:189",
+  "lpat-simcoe-appeal-record.pdf:190",
+  "lpat-simcoe-appeal-record.pdf:191",
+  "lpat-simcoe-appeal-record.pdf:192",
+  "lpat-simcoe-appeal-record.pdf:193",
+  "lpat-simcoe-appeal-record.pdf:194",
+  "lpat-simcoe-appeal-record.pdf:195",
+  "lpat-simcoe-appeal-record.pdf:196",
+  "lpat-simcoe-appeal-record.pdf:197",
+  "lpat-simcoe-appeal-record.pdf:198",
+  "lpat-simcoe-appeal-record.pdf:199",
+  "lpat-simcoe-appeal-record.pdf:202",
+  "lpat-simcoe-appeal-record.pdf:203",
+  "lpat-simcoe-appeal-record.pdf:204",
+  "lpat-simcoe-appeal-record.pdf:205",
+  "lpat-simcoe-appeal-record.pdf:206",
+  "lpat-simcoe-appeal-record.pdf:207",
+  "lpat-simcoe-appeal-record.pdf:208",
+  "lpat-simcoe-appeal-record.pdf:209",
+  "lpat-simcoe-appeal-record.pdf:210",
+  "lpat-simcoe-appeal-record.pdf:211"
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dex63e.pdf",
+   "source_files": [
+    {
+     "file": "lpat-simcoe-appeal-record.pdf",
+     "pages": [
+      165,
+      166,
+      167,
+      168
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "165": [
+       [
+        381.40375,
+        3.96,
+        600.25,
+        122.76
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    165,
+    166,
+    167,
+    168
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 13611
+  },
+  {
+   "label": "B",
+   "file": "doc-b5hbg8.pdf",
+   "source_files": [
+    {
+     "file": "lpat-simcoe-appeal-record.pdf",
+     "pages": [
+      169
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "169": [
+       [
+        373.625,
+        7.92,
+        603.3125,
+        130.68
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    169
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 963
+  },
+  {
+   "label": "C",
+   "file": "doc-gp927g.pdf",
+   "source_files": [
+    {
+     "file": "lpat-simcoe-appeal-record.pdf",
+     "pages": [
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180,
+      181,
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198,
+      199
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "171": [
+       [
+        196.0,
+        19.8,
+        441.0,
+        150.48
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    171,
+    172,
+    173,
+    174,
+    175,
+    176,
+    177,
+    178,
+    179,
+    180,
+    181,
+    182,
+    183,
+    184,
+    185,
+    186,
+    187,
+    188,
+    189,
+    190,
+    191,
+    192,
+    193,
+    194,
+    195,
+    196,
+    197,
+    198,
+    199
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 2255
+  },
+  {
+   "label": "D",
+   "file": "doc-hkuq9v.pdf",
+   "source_files": [
+    {
+     "file": "lpat-simcoe-appeal-record.pdf",
+     "pages": [
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210,
+      211
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "201": [
+       [
+        220.5,
+        23.759999999999998,
+        459.375,
+        150.48
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    201,
+    202,
+    203,
+    204,
+    205,
+    206,
+    207,
+    208,
+    209,
+    210,
+    211
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 2381
+  },
+  {
+   "label": "E",
+   "file": "doc-c8p24s.pdf",
+   "source_files": [
+    {
+     "file": "lpat-simcoe-appeal-record.pdf",
+     "pages": [
+      213
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "213": [
+       [
+        0.0,
+        0.0,
+        133.056,
+        367.5
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    213
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 2044
+  },
+  {
+   "label": "F",
+   "file": "doc-86gq3g.pdf",
+   "source_files": [
+    {
+     "file": "lpat-simcoe-appeal-record.pdf",
+     "pages": [
+      215
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "215": [
+       [
+        0.0,
+        0.0,
+        133.056,
+        367.5
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    215
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 766
+  }
+ ],
+ "leak_audit": []
+}

@@ -1,0 +1,234 @@
+{
+ "record_id": "lpat-simcoe-lawrence",
+ "court": "Local Planning Appeal Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "PL190022",
+ "subject": "planning",
+ "family": "lpat-simcoe-errc",
+ "proceeding": "Nicholyn Farms Inc., Edward Krajcir and Friends of Simcoe Forests Inc. v. Ministry of Municipal Affairs and Housing and County of Simcoe: appeal of County of Simcoe Official Plan Amendment No. 2 (ERRC)",
+ "document": "Affidavit of Jennifer Lawrence affirmed March 27, 2019 (Appeal Record of Friends of Simcoe Forests Inc., Tab 5; the index says 'to be affirmed', the posted copy has the jurat)",
+ "deponent": "Jennifer Lawrence",
+ "deponent_role": "Registered Professional Planner, President of Jennifer Lawrence & Associates, retained by the appellant FSF",
+ "sworn_date": "2019-03-27",
+ "notes": "Same CELA appeal record as lpat-simcoe-wagner; multi mode with --blank per exhibit and --blank-only. E and F are landscape figures whose stamps run up the left edge; the blank clips a few words of the leftmost figure labels. Page-number-only separators 170, 200, 212, 214 left out.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dex63e.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Jennifer Lawrence",
+   "recipients": [],
+   "description": "Curriculum vitae of Jennifer Lawrence",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached as Exhibit “A” is a copy of my Curriculum Vitae"
+    }
+   ],
+   "content_check": "'Jennifer Lawrence, MCIP, RPP 8 Fieldgate Street, Dundas' CV, 4 pp"
+  },
+  {
+   "label": "B",
+   "file": "doc-b5hbg8.pdf",
+   "kind": "court_filing",
+   "date": "2019-03-25",
+   "author": "Jennifer Lawrence",
+   "recipients": [
+    "Local Planning Appeal Tribunal"
+   ],
+   "description": "Signed LPAT Acknowledgment of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit “B” is a copy of the signed Acknowledgment of Expert’s Duty"
+    }
+   ],
+   "content_check": "LPAT form: 'My name is Jennifer Lawrence. I live in the city of Hamilton'; date handwritten over as March 25/28, 2019"
+  },
+  {
+   "label": "C",
+   "file": "doc-gp927g.pdf",
+   "kind": "report",
+   "date": "2017-06-05",
+   "author": "Jennifer Lawrence & Associates",
+   "recipients": [
+    "Friends of Simcoe Forests Inc. (Mary Wagner)"
+   ],
+   "description": "Planning report of June 5, 2017 on the site selection reports, Scoped EIS and PJR",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit “C” is a copy of my planning report dated June 5, 2017"
+    }
+   ],
+   "content_check": "'June 5, 2017 Friends of Simcoe Forests Inc. c/o Mrs. Mary Wagner ... Re: County of Simcoe Environmental Resource Recovery Centre'"
+  },
+  {
+   "label": "D",
+   "file": "doc-hkuq9v.pdf",
+   "kind": "report",
+   "date": "2018-04-19",
+   "author": "Jennifer Lawrence & Associates",
+   "recipients": [
+    "Friends of Simcoe Forests Inc. (Mary Wagner)"
+   ],
+   "description": "Planning report of April 19, 2018 on the Amended Scoped EIS and Amended PJR",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit “D” is a copy of my planning report dated April 19, 2018"
+    }
+   ],
+   "content_check": "'April 19, 2018 Friends of Simcoe Forests Inc. ... As outlined in my letter of June 5, 2017'"
+  },
+  {
+   "label": "E",
+   "file": "doc-c8p24s.pdf",
+   "kind": "chart",
+   "date": "2015-07-23",
+   "author": "County of Simcoe",
+   "recipients": [],
+   "description": "Screen 1 evaluation criteria diagram from the Part 2 Long List Evaluation report",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached as Exhibit “E” is a copy of a diagram depicting Screen 1"
+    }
+   ],
+   "content_check": "'Figure 4 SCREEN 1 - EVALUATION CRITERIA COUNTY OF SIMCOE MATERIALS MANAGEMENT FACILITY PART 2 - LONG LIST EVALUATION'"
+  },
+  {
+   "label": "F",
+   "file": "doc-86gq3g.pdf",
+   "kind": "chart",
+   "date": "2015-07-23",
+   "author": "County of Simcoe",
+   "recipients": [],
+   "description": "Screen 2 evaluation criteria diagram from the same report",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached as Exhibit “F” is a copy of a diagram depicting Screen 2"
+    }
+   ],
+   "content_check": "'Figure 5 SCREEN 2 - EVALUATION CRITERIA' (site layout, topography...)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent graduates from the University of Waterloo",
+   "date": "1994",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I received a Bachelor of Environmental Studies from the University of Waterloo in 1994",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Deponent founds Jennifer Lawrence & Associates",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have been the President at Jennifer Lawrence & Associates Inc. since 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "County's Part 2 Long List Evaluation report with Screen 1 and 2 criteria",
+   "date": "2015-07-23",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "Long List Evaluation report (July 23, 2015)",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "GHD's Scoped EIS",
+   "date": "2016-11-17",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the Scoped Environmental Impact Study dated November 17, 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Deponent's first planning report",
+   "date": "2017-06-05",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Scoped EIS and PJR is dated June 5, 2017",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "GHD's Planning Justification Report",
+   "date": "2017-11-17",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the Planning Justification Report dated November 17, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "GHD's Amended Scoped EIS and Amended PJR",
+   "date": "2018-02-01",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the Amended Planning Justification Report dated February 1, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Deponent's second planning report",
+   "date": "2018-04-19",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Amended Scoped EIS and Amended PJR is dated April 19, 2018",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Deponent signs the Acknowledgment of Expert's Duty",
+   "date": "2019-03-25",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "form dated March 25, 2019",
+   "exhibits": [
+    "B"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "GHD Scoped EIS (November 17, 2016), Amended Scoped EIS and Amended PJR (February 1, 2018), PJR (November 17, 2017)",
+  "Affidavit of James Dougan, Mary Anne Young and Karl Konze (March 22, 2019)",
+  "Guide to Environmental Assessment Requirements for Waste Management Projects (March 15, 2007)"
+ ]
+}

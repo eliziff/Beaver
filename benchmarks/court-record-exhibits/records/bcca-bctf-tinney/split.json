@@ -1,0 +1,168 @@
+{
+ "record_id": "bcca-bctf-tinney",
+ "multi_file": true,
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  "hdc-1018465.pdf:15",
+  "hdc-1018465.pdf:16",
+  "hdc-1018465.pdf:18",
+  "hdc-1018465.pdf:19",
+  "hdc-1018465.pdf:20",
+  "hdc-1018465.pdf:22",
+  "hdc-1018465.pdf:23",
+  "hdc-1018465.pdf:24",
+  "hdc-1018465.pdf:26",
+  "hdc-1018465.pdf:27",
+  "hdc-1018465.pdf:28",
+  "hdc-1018465.pdf:29"
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-x9sjm3.pdf",
+   "source_files": [
+    {
+     "file": "hdc-1018465.pdf",
+     "pages": [
+      15,
+      16
+     ],
+     "cover_page": 14,
+     "stamp_page": null
+    }
+   ],
+   "source_pages": [
+    15,
+    16
+   ],
+   "cover_page": 14,
+   "stamp_page": null,
+   "text_chars": 17
+  },
+  {
+   "label": "B",
+   "file": "doc-4xh77v.pdf",
+   "source_files": [
+    {
+     "file": "hdc-1018465.pdf",
+     "pages": [
+      18,
+      19,
+      20
+     ],
+     "cover_page": 17,
+     "stamp_page": null
+    }
+   ],
+   "source_pages": [
+    18,
+    19,
+    20
+   ],
+   "cover_page": 17,
+   "stamp_page": null,
+   "text_chars": 26
+  },
+  {
+   "label": "C",
+   "file": "doc-9pwjrm.pdf",
+   "source_files": [
+    {
+     "file": "hdc-1018465.pdf",
+     "pages": [
+      22,
+      23,
+      24
+     ],
+     "cover_page": 21,
+     "stamp_page": null
+    }
+   ],
+   "source_pages": [
+    22,
+    23,
+    24
+   ],
+   "cover_page": 21,
+   "stamp_page": null,
+   "text_chars": 26
+  },
+  {
+   "label": "D",
+   "file": "doc-g5xwmm.pdf",
+   "source_files": [
+    {
+     "file": "hdc-1018465.pdf",
+     "pages": [
+      26,
+      27,
+      28
+     ],
+     "cover_page": 25,
+     "stamp_page": null
+    }
+   ],
+   "source_pages": [
+    26,
+    27,
+    28
+   ],
+   "cover_page": 25,
+   "stamp_page": null,
+   "text_chars": 26
+  },
+  {
+   "label": "E",
+   "file": "doc-3jzkx9.pdf",
+   "source_files": [
+    {
+     "file": "hdc-1018465.pdf",
+     "pages": [
+      29
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "blank": {
+      "29": [
+       [
+        771.12,
+        88.79219787597656,
+        962.64,
+        220.44959472656248
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    29
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 8
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-3jzkx9.pdf",
+  "doc-4xh77v.pdf",
+  "doc-9pwjrm.pdf",
+  "doc-g5xwmm.pdf",
+  "doc-x9sjm3.pdf"
+ ]
+}

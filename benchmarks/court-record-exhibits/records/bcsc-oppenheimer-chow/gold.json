@@ -1,0 +1,282 @@
+{
+ "record_id": "bcsc-oppenheimer-chow",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-146797 (Vancouver Registry)",
+ "subject": "municipal",
+ "proceeding": "Vancouver Board of Parks and Recreation v. Brody Williams et al.: application for an injunction removing the Oppenheimer Park encampment",
+ "document": "Affidavit #1 of Howard Chow made September 22, 2014",
+ "deponent": "Howard Chow",
+ "deponent_role": "Inspector, Vancouver Police Department",
+ "sworn_date": "2014-09-22",
+ "notes": "CBC DocumentCloud upload, scanned without a text layer: affidavit OCR'd with --ocr-affidavit --ocr-cli; each exhibit opens with a typed stamp-only cover page (--covers by page). The posted copy ends with G's complaint records followed by three uncovered photographs (pages 35-37), dropped because the affidavit describes no photographs there; Exhibit H is missing. All exhibits OCR'd; D's rotated tables OCR poorly.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-zh6877.pdf",
+   "kind": "photograph",
+   "date": "2014-09-06",
+   "author": "Unknown",
+   "recipients": [],
+   "description": "Aerial photograph of Oppenheimer Park taken September 6, 2014",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "is an aerial photograph of the Park taken on September 6,"
+    }
+   ],
+   "content_check": "aerial photo of the park full of tents (image only)"
+  },
+  {
+   "label": "B",
+   "file": "doc-cq3dbt.pdf",
+   "kind": "report",
+   "date": "2014-09-09",
+   "author": "Vancouver Police Department (Constables Nemeth and Rehana)",
+   "recipients": [],
+   "description": "Police memorandum of September 9, 2014 on the condition of the Park, with photographs",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "a Police Memorandum prepared on September 9, 2014 detailing the condition of the Park on"
+    }
+   ],
+   "content_check": "'Oppenheimer Evening Report: Tuesday, September 9 2014.09.09', 'Police Observations: 219 Tents counted'"
+  },
+  {
+   "label": "C",
+   "file": "doc-9fxhsw.pdf",
+   "kind": "chart",
+   "date": "2014-09-18",
+   "author": "Vancouver Police Department",
+   "recipients": [],
+   "description": "List of police calls involving the Park, July 17 to September 18, 2014",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "a list of police calls"
+    }
+   ],
+   "content_check": "'OPPENHEIMER PARK Call Counts JULY 17 - SEPTEMBER 18, 2014'"
+  },
+  {
+   "label": "D",
+   "file": "doc-ax93qz.pdf",
+   "kind": "spreadsheet",
+   "date": "2014-09-18",
+   "author": "Vancouver Police Department",
+   "recipients": [],
+   "description": "Further detailed list of those police calls",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "a further list providing more detail of those calls"
+    }
+   ],
+   "content_check": "ten rotated table pages of call records (OCR garbled)"
+  },
+  {
+   "label": "E",
+   "file": "doc-cg5zru.pdf",
+   "kind": "chart",
+   "date": "2014-08-05",
+   "author": "Vancouver Police Department",
+   "recipients": [],
+   "description": "List of the more serious police calls, July 17 to August 5, 2014",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "more serious police calls for the period from July 17 to August 5, 2014"
+    }
+   ],
+   "content_check": "'Criminal incidents in Oppenheimer Park during encampment July 17 to August 5th'"
+  },
+  {
+   "label": "F",
+   "file": "doc-wnzu2d.pdf",
+   "kind": "chart",
+   "date": "2014-09-18",
+   "author": "Vancouver Police Department",
+   "recipients": [],
+   "description": "Chart of police calls to the Park by date, July 17 to September 18, 2014",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "is a chart showing the police calls to the Park between July 17 and"
+    }
+   ],
+   "content_check": "rotated bar chart with dates 2014/07/19 ..."
+  },
+  {
+   "label": "G",
+   "file": "doc-qr2f94.pdf",
+   "kind": "chart",
+   "date": "2014-09",
+   "author": "Vancouver Police Department",
+   "recipients": [],
+   "description": "Chart of formal public complaints about the encampment",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "chart showing some of the formal complaints made by the public since the encampment has"
+    }
+   ],
+   "content_check": "'Complaints Received By VPD From VA Intell Reports 14-124854 July 26th' and City 311 request details"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Protesters set up the encampment and Long House in Oppenheimer Park",
+   "date": "2014-07-17",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "2014 protestors created an encampment in Oppenheimer Park",
+   "exhibits": [
+    "C",
+    "D",
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Musqueam representatives ask the protesters to decamp",
+   "date": "2014-07-21",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "representatives from the Musqueam First Nation",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Encampment reaches about 45 tents",
+   "date": "2014-07-24",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "encampment had grown to approximately 45 tents in the Park",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Encampment reaches about 70 tents",
+   "date": "2014-07-29",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "encampment had grown to approximately 70 tents in the Park",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "VPD overtime for policing the Park exceeds $55,000",
+   "date": "2014-07-19",
+   "precision": "range",
+   "paragraphs": [
+    21
+   ],
+   "quote": "July 19 and August 31, 2014 totals over $55,000",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Assault calls rise after August 27",
+   "date": "2014-08-27",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "have occurred in the period since August 27, 2014",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Aerial photograph of the Park",
+   "date": "2014-09-06",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "aerial photograph of the Park taken on September 6,",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Police memorandum on the Park's condition",
+   "date": "2014-09-09",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Police Memorandum prepared on September 9, 2014",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "364 police calls and 170 documented incidents",
+   "date": "2014-09-18",
+   "precision": "range",
+   "paragraphs": [
+    9
+   ],
+   "quote": "364 calls to the police regarding the Park",
+   "exhibits": [
+    "C",
+    "D"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Man in 'kill mode' arrested under the Mental Health Act",
+   "date": "2014-09-21",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "at approximately 5 a.m. a mentally disturbed",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Over 200 tents and 150 overnight residents at swearing",
+   "date": "2014-09-22",
+   "precision": "day",
+   "paragraphs": [
+    7,
+    8
+   ],
+   "quote": "over 200 tents are now observed at the Park on a continuous basis",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Public complaints about the encampment",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    20
+   ],
+   "quote": "the public in the area surrounding the Park",
+   "exhibits": [
+    "G"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Exhibit H: chart and graph of VPD overtime costs at the Park, July 19 to August 31, 2014 (not in the posted copy)"
+ ]
+}

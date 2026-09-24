@@ -1,0 +1,30 @@
+{
+ "url": "https://s3.documentcloud.org/documents/886182/response-to-civil-claim-of-furlong-filed-23-sept.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/886182",
+ "court": "Supreme Court of British Columbia",
+ "court_level": "superior_trial",
+ "jurisdiction": "BC",
+ "court_file": "S-128358 (Vancouver Registry)",
+ "document_title": "1st Affidavit of John Furlong made December 5, 2013, Furlong v. Robinson, McLeod, Smith and Vancouver Free Press Publishing Corp. (CBC DocumentCloud upload)",
+ "retrieved": "2026-09-24",
+ "record_id": "bcsc-furlong-robinson",
+ "source_file": "hdc-886182.pdf",
+ "page_range": [
+  1,
+  8
+ ],
+ "source_sha256": "b9c58f5767f200cfc8d1e5a4fd8e7bd7e029080380ad02af6b0dbac48af3e450",
+ "source_pages": 52,
+ "sources": [
+  {
+   "file": "hdc-886182.pdf",
+   "url": "https://s3.documentcloud.org/documents/886182/response-to-civil-claim-of-furlong-filed-23-sept.pdf",
+   "sha256": "b9c58f5767f200cfc8d1e5a4fd8e7bd7e029080380ad02af6b0dbac48af3e450",
+   "pages": 52
+  }
+ ],
+ "affidavit_ocr": "tesseract-cli",
+ "covers": "E",
+ "blank": "A=0.22,0.015,0.6,0.165 B=0.32,0.015,0.69,0.165 C=0.33,0.045,0.72,0.178 D=0.28,0.06,0.66,0.195",
+ "blank_only": true
+}

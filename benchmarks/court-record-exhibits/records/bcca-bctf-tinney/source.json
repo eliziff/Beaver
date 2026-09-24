@@ -1,0 +1,30 @@
+{
+ "url": "https://s3.documentcloud.org/documents/1018465/affidavit-of-jordantinney.pdf",
+ "landing_url": "https://www.documentcloud.org/documents/1018465",
+ "court": "Court of Appeal for British Columbia",
+ "court_level": "appellate",
+ "jurisdiction": "BC",
+ "court_file": "CA041558",
+ "document_title": "Affidavit of Jordan Tinney sworn February 12, 2014, British Columbia Teachers' Federation v. Her Majesty the Queen in right of the Province of British Columbia (application for a stay pending appeal) (CBC upload)",
+ "retrieved": "2026-09-24",
+ "record_id": "bcca-bctf-tinney",
+ "source_file": "hdc-1018465.pdf",
+ "page_range": [
+  1,
+  13
+ ],
+ "source_sha256": "53536a6c61e2ef41926e9439408b5ed19a67beafe3473d257c32152832bdb703",
+ "source_pages": 29,
+ "sources": [
+  {
+   "file": "hdc-1018465.pdf",
+   "url": "https://s3.documentcloud.org/documents/1018465/affidavit-of-jordantinney.pdf",
+   "sha256": "53536a6c61e2ef41926e9439408b5ed19a67beafe3473d257c32152832bdb703",
+   "pages": 29
+  }
+ ],
+ "affidavit_ocr": "tesseract-cli",
+ "covers": "A,B,C,D",
+ "blank": "E=0.765,0.145,0.955,0.36",
+ "blank_only": true
+}

@@ -236,6 +236,10 @@ def split_multi(a, out_dir):
                 pages = list(range(lo, hi + 1))
             if k == 0:
                 whole, rects, found = file_cover(src[pages[0]], label, label in by_eye)
+                if a.blank_only and label in blanks:
+                    # The --blank rect already removes the scanned stamp and its OCR text; the text-stamp
+                    # detector would also take whole OCR blocks of content that mention "city of" etc.
+                    whole, rects = False, []
                 if found and found != label:
                     audit.append({"label": label, "problem": f"first page of {os.path.basename(path)} names {found}"})
                 if whole:
@@ -312,6 +316,8 @@ def split_multi(a, out_dir):
         meta["covers"] = a.covers
     if a.blank:
         meta["blank"] = " ".join(a.blank)
+        if a.blank_only:
+            meta["blank_only"] = True
     json.dump(meta, open(os.path.join(out_dir, "source.json"), "w", encoding="utf-8"), indent=1)
     print(json.dumps({"record": a.record_id, "affidavit_pages": len(body), "exhibits": [(e["label"], e["file"], sum(len(p["pages"]) for p in e["source_files"])) for e in split],
                       "scanned_pages": len(scanned), "leaks": len(audit)}, indent=None))
@@ -331,6 +337,7 @@ def main():
     ap.add_argument("--covers", help="A=9,B=15: whole-page exhibit covers read by eye (handwritten or scanned labels)")
     ap.add_argument("--relabel", help="IT=U: fix a misread stamp label without turning its page into a whole-page cover")
     ap.add_argument("--drop", help="1143,1178: source pages left out of every file (a cover the source repeats inside its exhibit)")
+    ap.add_argument("--blank-only", action="store_true", help="multi mode: for labels given --blank, skip the text-stamp redaction (the blank alone removes the stamp)")
     ap.add_argument("--blank", nargs="+", help="multi mode: A=x0,y0,x1,y1[;...] page fractions of the exhibit's first page whited out through the scan (a handwritten stamp in the image); A=t:... removes only the text there")
     a = ap.parse_args()
     if (a.multi or a.manifest) and a.record_id is None:

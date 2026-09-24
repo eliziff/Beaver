@@ -1,0 +1,329 @@
+{
+ "record_id": "hrto-opseu-cox",
+ "court": "Human Rights Tribunal of Ontario",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "2010-06032-I",
+ "subject": "employment",
+ "proceeding": "Leroy Cox v. Ontario Public Service Employees Union and Her Majesty the Queen in right of Ontario (Ministry of Community Safety and Correctional Services): applicant's response to the respondents' request for summary dismissal",
+ "document": "Affidavit of Leroy Cox affirmed February 9, 2012",
+ "deponent": "Leroy Cox",
+ "deponent_role": "Applicant; correctional officer at the Toronto Jail",
+ "sworn_date": "2012-02-09",
+ "notes": "CBC DocumentCloud upload; entirely scanned without a text layer: affidavit OCR'd with --ocr-affidavit --ocr-cli (paragraph numbers 3-7, 11-27 print apart from their text), exhibit covers are whole typed pages read by eye (--covers by page), page 10 (blank) dropped, all six exhibits OCR'd by ocr_exhibits.py. A is a handwritten letter written sideways and E a doctor's handwritten note: their OCR is noise. B and D are hate letters printed in run-together capitals.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-5bsan3.pdf",
+   "kind": "letter",
+   "date": "2010-04-01",
+   "author": "Anonymous",
+   "recipients": [
+    "Toronto Jail"
+   ],
+   "description": "Racist hate letter of April 1, 2010 naming the deponent",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Attached as Exhibit A to this my affidavit is a true copy of the April 1, 2010, letter."
+    }
+   ],
+   "content_check": "two scanned pages of a handwritten letter written sideways (OCR noise)"
+  },
+  {
+   "label": "B",
+   "file": "doc-543t7b.pdf",
+   "kind": "letter",
+   "date": "2010-11-30",
+   "author": "Anonymous",
+   "recipients": [
+    "Toronto Jail"
+   ],
+   "description": "Racist letter of November 30, 2010 threatening African-Canadian officers who relocated or were off work",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit B to this my affidavit is a true copy of"
+    }
+   ],
+   "content_check": "typed run-together capitals: 'UGG4BINLADEMIS BACK ... THEW ALZ SARE SHOOTING UP'"
+  },
+  {
+   "label": "C",
+   "file": "doc-yjf6aq.pdf",
+   "kind": "report",
+   "date": "2011-03-08",
+   "author": "Leroy Cox",
+   "recipients": [
+    "Ms. R. Buhagiar, Superintendent, Toronto Jail"
+   ],
+   "description": "Deponent's occurrence report of March 8, 2011 on a swastika with 'snake' and 'rat'",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached as Exhibit C to this my affidavit"
+    }
+   ],
+   "content_check": "Ontario 'Occurrence Report / Rapport d'incident' to Superintendent R. Buhagiar, Toronto Jail, 03/08/2011, handwritten"
+  },
+  {
+   "label": "D",
+   "file": "doc-wyfb2m.pdf",
+   "kind": "letter",
+   "date": "2011-07-18",
+   "author": "Anonymous",
+   "recipients": [
+    "Toronto Jail"
+   ],
+   "description": "Racist letter of July 18, 2011 threatening the deponent",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached as Exhibit D to this my affidavit is a true copy of the July 18, 2011, letter."
+    }
+   ],
+   "content_check": "typed run-together capitals: 'THISTSASUMMARYOP[THE]LAS PT WOUPDA...'"
+  },
+  {
+   "label": "E",
+   "file": "doc-9kfxzy.pdf",
+   "kind": "other",
+   "date": "2011-08-22",
+   "author": "Deponent's family doctor",
+   "recipients": [],
+   "description": "Family doctor's note of August 22, 2011 recommending medical leave",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached as Exhibit E to this my affidavit is a true copy of a note from my family"
+    }
+   ],
+   "content_check": "scanned handwritten doctor's note (OCR noise)"
+  },
+  {
+   "label": "F",
+   "file": "doc-2dj45z.pdf",
+   "kind": "other",
+   "date": "2010-05-28",
+   "author": "Chris Cosier",
+   "recipients": [],
+   "description": "Signed statement of former OPSEU Local 530 President Chris Cosier",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Attached as Exhibit F to this my affidavit is a copy of a signed statement from"
+    }
+   ],
+   "content_check": "'Statement of Chris Cosier 1. This statement pertains only to events that occurred prior to my becoming an Operational Manager at the Toronto Jail. 2. I am the former Union Local 530, OPSEU President' DATED 28th MAY 2010"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent begins as a correctional officer at the Toronto Jail",
+   "date": "2004-07",
+   "precision": "month",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I began working as a correctional officer at the Toronto Jail in July 2004",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Racist graffiti appears in staff areas",
+   "date": "2004",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "racist graffiti began to appear in staff",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Racist hate mail begins arriving at the Toronto Jail; grievances filed",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "In 2005, racist hate mail began arriving at the Toronto Jail",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Deponent on unpaid leave",
+   "date": "2009-10-08",
+   "precision": "range",
+   "paragraphs": [
+    5
+   ],
+   "quote": "was on an unpaid leave of absence from October 8,",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Hate letter of April 1, 2010 naming the deponent",
+   "date": "2010-04-01",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The first incident occurred on April 1, 2010",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "OPSEU obstructs the employer's section 22 review",
+   "date": "2010-05",
+   "precision": "approximate",
+   "paragraphs": [
+    22
+   ],
+   "quote": "In and around May 2010, I was advised by former Local Union President Chris Cosier",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Further racist letter received",
+   "date": "2010-11-30",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On November 30, 2010, a further racist letter was received at the Toronto Jail",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Grievance decision of Vice-Chair Albertyn",
+   "date": "2010-12-16",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    6
+   ],
+   "quote": "The December 16, 2010, decision finalized my grievance",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Racist letter threatening African-Canadian officers, not shared with the deponent",
+   "date": "2010-12",
+   "precision": "month",
+   "paragraphs": [
+    10
+   ],
+   "quote": "in December 2010, a piece of",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Deponent returns to work",
+   "date": "2011-01-14",
+   "precision": "day",
+   "paragraphs": [
+    5,
+    10
+   ],
+   "quote": "I returned to work on January 14",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Swastika with 'snake' and 'rat' found; occurrence report",
+   "date": "2011-03-08",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On March 8, 2011, while I was working in the programs area",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Hate letter of July 18, 2011 threatening the deponent",
+   "date": "2011-07-18",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "On July 18, 2011, another piece of racist hate mail was received at the jail",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Deponent takes time off for his safety",
+   "date": "2011-07-20",
+   "precision": "range",
+   "paragraphs": [
+    15
+   ],
+   "quote": "I remained off from July 20",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Deponent meets Deputy Superintendent Debris and asks for a transfer",
+   "date": "2011-07-25",
+   "precision": "day",
+   "paragraphs": [
+    16,
+    17
+   ],
+   "quote": "Upon my return to work on July 25, 2011, I met with Deputy Superintendent Debris",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Accommodation request denied",
+   "date": "2011-08-10",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On August 10, 2011, I met with Deputy Superintendent",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Doctor's note recommending medical leave",
+   "date": "2011-08-22",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "doctor dated August 22, 2011",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Medical leave",
+   "date": "2011-08-22",
+   "precision": "range",
+   "paragraphs": [
+    19
+   ],
+   "quote": "My medical leave of absence was from August 22, 2011, to January 14",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Vice-Chair Albertyn's grievance decision of December 16, 2010",
+  "December 2010 racist letter (not given to the deponent)",
+  "Racist letter received during the deponent's 2011-12 medical leave"
+ ]
+}

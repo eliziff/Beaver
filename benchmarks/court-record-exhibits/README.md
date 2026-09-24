@@ -59,6 +59,10 @@ level, subject, court and site, so gaps in breadth stay visible.
    stamp that is part of the scan image; `--blank A=t:...` removes only the
    text there (an invisible typed filing label over a picture that must
    stay). Both are kept in `split.json` and replayed by `rebuild.py`.
+   `--blank-only` skips the text-stamp redaction for labels given `--blank`
+   (on OCR'd scans it otherwise wipes content blocks that mention "city
+   of" and the like), and `--ocr-cli` makes `--ocr-affidavit` use the
+   tesseract executable, which keeps the lines PyMuPDF's OCR drops.
    For a motion record, use `--pages` for the one affidavit and its exhibits
    (from the record's index). `meta.json` holds `url`, `landing_url`, `court`,
    `court_level`, `jurisdiction`, `court_file`, `document_title` and

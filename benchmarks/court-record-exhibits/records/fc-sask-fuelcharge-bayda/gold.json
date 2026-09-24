@@ -1,0 +1,144 @@
+{
+ "record_id": "fc-sask-fuelcharge-bayda",
+ "court": "Federal Court",
+ "court_level": "federal_trial",
+ "jurisdiction": "federal",
+ "court_file": "T-1674-24",
+ "subject": "tax",
+ "family": "sask-fuelcharge-t1674-24",
+ "proceeding": "Government of Saskatchewan v. Attorney General of Canada: motion for a stay and interlocutory injunction restraining CRA from collecting the federal fuel charge pending judicial review",
+ "document": "Affidavit of Chris Bayda sworn July 4, 2024 (Motion Record, Tab 3)",
+ "deponent": "Chris Bayda",
+ "deponent_role": "Provincial Comptroller for Saskatchewan",
+ "sworn_date": "2024-07-04",
+ "notes": "Same motion record as fc-sask-fuelcharge-marier and -wilson (Lane H had rejected it for image stamps; the first Lane I agent dropped Bayda because split.py's text-stamp detector wiped content blocks matching 'Province of'). Rebuilt in multi mode with --blank per exhibit (stamp rects from the OCR'd stamp words) and the new --blank-only, which leaves the content intact. Typed EXHIBIT dividers (37, 40, 43) sit outside the page ranges. Leak B is split.py reading the stamp's 'B' as '8' (a label check, not a leak; the stamp is blanked). C's own 'exhibit A' is the CRA officer's affidavit of service referring to its attached requirement to pay; C is the same document as fc-sask-fuelcharge-wilson's Exhibit I.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-yp5efe.pdf",
+   "kind": "letter",
+   "date": "2014-10-08",
+   "author": "Chris Bayda, Provincial Comptroller (Ministry of Finance)",
+   "recipients": [
+    "The Manager, Royal Bank of Canada, Regina"
+   ],
+   "description": "Deponent's letter of October 8, 2014 authorizing the opening of the RBC high interest savings account for the general revenue fund",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A copy of my letter dated October 8, 2014 to RBC is attached"
+    }
+   ],
+   "content_check": "'Government of Saskatchewan October 8, 2014 The Manager Royal Bank of Canada ... Re: Opening Bank Account Ministry of Finance RBC High Interest Savings Account'"
+  },
+  {
+   "label": "B",
+   "file": "doc-5yrfvh.pdf",
+   "kind": "agreement",
+   "date": "2014-10-16",
+   "author": "Royal Bank of Canada",
+   "recipients": [
+    "Province of Saskatchewan"
+   ],
+   "description": "CAD Deposit Interest Agreement - Tiered Rates/Entire Balance between RBC and the Province",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Balance between RBC and the Province of Saskatchewan dated October 16, 2014 is attached"
+    }
+   ],
+   "content_check": "RBC 'E-FORM 604 ... CAD DEPOSIT INTEREST AGREEMENT TIERED RATES / ENTIRE BALANCE' to Province of Saskatchewan, 2350 Albert Street"
+  },
+  {
+   "label": "C",
+   "file": "doc-dxzmc3.pdf",
+   "kind": "affidavit",
+   "date": "2024-06-25",
+   "author": "Claire Dutil (CRA)",
+   "recipients": [
+    "Royal Bank of Canada"
+   ],
+   "description": "CRA's Requirement to Pay and Affidavit of Personal Service on RBC, June 25, 2024",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "a copy of which Requirement to Pay and Affidavit of Service"
+    }
+   ],
+   "content_check": "'June 25, 2024 ROYAL BANK OF CANADA 3RD PARTY DEMANDS ... AFFIDAVIT OF PERSONAL SERVICE ... I, Claire Dutil, an officer of the Canada Revenue Agency' with the requirement to pay"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "General revenue fund continued under the Financial Administration Act, 1993",
+   "date": "1993-05-31",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "May 31, 1993, the consolidated fund established under The Financial Administration Act was",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Deponent authorizes opening an RBC account for the general revenue fund",
+   "date": "2014-10-08",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "By letter dated October 8, 2014, I authorized the Ministry of Finance for Saskatchewan",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "RBC Account opened with a deposit interest agreement",
+   "date": "2014-10-16",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On October 16, 2014, RBC bank account 00008-102-XXX-8 (the \"RBC Account\")",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CRA serves a Requirement to Pay $28,259,069.24 on RBC",
+   "date": "2024-06-25",
+   "precision": "day",
+   "paragraphs": [
+    10,
+    12
+   ],
+   "quote": "Canada Revenue Agency (\"CRA\") dated June 25, 2024",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "RBC tells the deponent of the Requirement to Pay and sends a copy",
+   "date": "2024-06-26",
+   "precision": "day",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "On June 26, 2024, I was informed by Brett Geoffrey",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Brett Geoffrey's June 26, 2024 email to the deponent"
+ ],
+ "leak_waivers": [
+  "B"
+ ]
+}

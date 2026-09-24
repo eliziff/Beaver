@@ -1,0 +1,599 @@
+{
+ "record_id": "lpat-simcoe-wagner",
+ "court": "Local Planning Appeal Tribunal",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "PL190022",
+ "subject": "planning",
+ "family": "lpat-simcoe-errc",
+ "proceeding": "Nicholyn Farms Inc., Edward Krajcir and Friends of Simcoe Forests Inc. v. Ministry of Municipal Affairs and Housing and County of Simcoe: appeal of County of Simcoe Official Plan Amendment No. 2 (ERRC)",
+ "document": "Affidavit of Mary Teresa Wagner affirmed March 22, 2019 (Appeal Record of Friends of Simcoe Forests Inc., Tab 4)",
+ "deponent": "Mary Teresa Wagner",
+ "deponent_role": "President, Friends of Simcoe Forests Inc. (appellant)",
+ "sworn_date": "2019-03-22",
+ "notes": "Leak G is split.py reading the stamp label as GO (not a mismatch; the stamp is blanked). CELA-posted appeal record; exhibits are scanned pages with an OCR layer, each first page carrying the commissioner's stamp inside the image: multi mode over page ranges of the one PDF with --blank per exhibit and --blank-only (no text-stamp block redaction, which had wiped letter text on G; rects located from the OCR'd stamp words, laneI/stampbox.py, and checked by eye); the blanks also remove the text under the stamp on B, G, L and P (right-hand parts of lines). Blank separator pages 96, 102, 106, 108, 110, 118, 122 left out. Affidavit's jurat page (9) text is OCR garble at the top; the reference to P reads 'Exhibit if F)17' and O reads '0'.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-4ga4sa.pdf",
+   "kind": "corporate_record",
+   "date": "2016-06-09",
+   "author": "Ontario Ministry of Government Services",
+   "recipients": [
+    "Friends of Simcoe Forests Inc."
+   ],
+   "description": "FSF's Letters Patent / articles of incorporation",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A copy of FSF’s Articles of Incorporation is"
+    }
+   ],
+   "content_check": "'LETTERS PATENT ... JUNE 09 JUIN, 2016' application for incorporation of Friends of Simcoe Forests Inc., Ontario corporation 1954692"
+  },
+  {
+   "label": "B",
+   "file": "doc-qf2vg2.pdf",
+   "kind": "email_chain",
+   "date": "2016-09-13",
+   "author": "Suzanne Robinson (MNRF)",
+   "recipients": [
+    "Mary Wagner"
+   ],
+   "description": "Email thread: deponent's September 9, 2016 email to MNRF and Ms. Robinson's September 13, 2016 reply on the EIS",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "September 9, 2016 and her email response to me dated September 13, 2016"
+    }
+   ],
+   "content_check": "'Fwd: EIS for Freele Tract Springwater Township' Robinson reply Sept 13, 2016 re ECAs; forwarded to CELA Mar 17, 2019"
+  },
+  {
+   "label": "C",
+   "file": "doc-q55nyk.pdf",
+   "kind": "letter",
+   "date": "2016-11-28",
+   "author": "Mary Wagner",
+   "recipients": [
+    "Rob McCullough",
+    "Debbie Korolnek"
+   ],
+   "description": "Deponent's letter of November 28, 2016 to County staff on the ERRC siting and health and safety concerns",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "and Ms. Korolneck dated November 28, 2016 is attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "'Nov. 28th, 2016 Mr. McCullogh and Ms. Korolnek, I am concerned upon reading...'"
+  },
+  {
+   "label": "D",
+   "file": "doc-qyc53p.pdf",
+   "kind": "letter",
+   "date": "2017-05-02",
+   "author": "Mary Wagner (for FSF)",
+   "recipients": [
+    "John Daly, County Clerk"
+   ],
+   "description": "FSF letter of May 2, 2017 opposing the Official Plan amendment, with the Dougan and Lawrence expert reports",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of the letter I sent Mr. Daly dated May 2,"
+    }
+   ],
+   "content_check": "'May 2, 2017 Mr. John Daly, County Clerk ... Re: Proposed County Official Plan Amendment' with scanned attachments"
+  },
+  {
+   "label": "E",
+   "file": "doc-knaw9n.pdf",
+   "kind": "transcript",
+   "date": "2017-05-09",
+   "author": "County of Simcoe",
+   "recipients": [],
+   "description": "Transcript of the May 9, 2017 public meeting on the Official Plan amendment",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "transcript of the public meeting on May 9, 2017 is attached as  Exhibit “E”"
+    }
+   ],
+   "content_check": "'Transcription of the May 9, 2017 Public Meeting Official Plan Amendment File No. SC-OPA-1602'"
+  },
+  {
+   "label": "F",
+   "file": "doc-zxxn6z.pdf",
+   "kind": "email_chain",
+   "date": "2017-05-18",
+   "author": "Mary Wagner",
+   "recipients": [
+    "John Daly"
+   ],
+   "description": "Deponent's May 18, 2017 email to Mr. Daly on setbacks from near neighbours (as forwarded by the County)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Mr. Daly on May 18, 2017, is attached as Exhibit “F”"
+    }
+   ],
+   "content_check": "Daly forward May 18, 2017 9:08 AM of Wagner's 8:16 AM email 'setbacks from near neighbours from proposed ERRC site'"
+  },
+  {
+   "label": "G",
+   "file": "doc-23zp79.pdf",
+   "kind": "letter",
+   "date": "2017-05-18",
+   "author": "Mary Wagner",
+   "recipients": [
+    "John Daly"
+   ],
+   "description": "Deponent's letter of May 18, 2017 on fire hazard and the lack of an emergency response plan (the affidavit misdates it May 18, 2018)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "letter I emailed Mr. Daly dated May 18, 2018 is attached as Exhibit “G”"
+    }
+   ],
+   "content_check": "Wagner cover email May 18, 2017 7:24 AM 'ERRC potential fire threat to neighbours' and letter 'May 18, 2017 Mr. John Daly'"
+  },
+  {
+   "label": "H",
+   "file": "doc-ehxksc.pdf",
+   "kind": "email_chain",
+   "date": "2017-05-18",
+   "author": "Mary Wagner",
+   "recipients": [
+    "Kim Benner (MNRF)",
+    "John Daly"
+   ],
+   "description": "Email thread with the deponent's May 18, 2017 email on salamander egg masses and amphibian pools",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "my email to Mr. Daly and Ms. Benner dated May 18, 2017, is attached as"
+    }
+   ],
+   "content_check": "'Sent: Thursday, May 18, 2017 7:48 AM To: Benner, Kim (MNRF)... Subject: Re: Simcoe County Freele Tract Garbage transfer project'"
+  },
+  {
+   "label": "I",
+   "file": "doc-ydegfq.pdf",
+   "kind": "email",
+   "date": "2017-06-28",
+   "author": "Mary Wagner",
+   "recipients": [
+    "John Daly"
+   ],
+   "description": "Deponent's June 28, 2017 email with questions on the Ernst & Young report and ERRC expansion",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "June 28, 2017 is attached as Exhibit “I”"
+    }
+   ],
+   "content_check": "'Sent: Wednesday, June 28, 2017 12:49 PM ... Subject: ERRC public questions'"
+  },
+  {
+   "label": "J",
+   "file": "doc-d72h2r.pdf",
+   "kind": "letter",
+   "date": "2017-07-13",
+   "author": "Rob McCullough (County of Simcoe Solid Waste Management)",
+   "recipients": [
+    "Mary Wagner"
+   ],
+   "description": "Mr. McCullough's July 13, 2017 response",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "sent me dated July 13, 2017 is attached as Exhibit “J”"
+    }
+   ],
+   "content_check": "'July 13, 2017 Mary Wagner ... RE: Response to your email of June 28, 2017'"
+  },
+  {
+   "label": "K",
+   "file": "doc-zya5hz.pdf",
+   "kind": "letter",
+   "date": "2018-03-05",
+   "author": "Mary Wagner (for FSF)",
+   "recipients": [
+    "Bill Mauro",
+    "Kathleen Wynne",
+    "other MPPs"
+   ],
+   "description": "FSF letter of March 5, 2018 (emailed March 6) on the Growth Plan Natural Heritage System and Greenbelt expansion",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Chaperon and Mr. John Daly dated March 5, 2018 is attached as Exhibit “K”"
+    }
+   ],
+   "content_check": "email March 6, 2018 8:29 AM 'Re: Grow the Greenbelt to Simcoe County' with letter 'March 5, 2018 Protecting Water Consultations'"
+  },
+  {
+   "label": "L",
+   "file": "doc-wmqhhu.pdf",
+   "kind": "email",
+   "date": "2018-03-06",
+   "author": "Mary Wagner",
+   "recipients": [
+    "John Daly",
+    "Renee Chaperon",
+    "Bill French",
+    "Don Allen"
+   ],
+   "description": "Deponent's March 6, 2018 email on ERRC site selection and the Growth Plan 2017",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "and Customer Service at the County of Simcoe is attached at Exhibit “L”"
+    }
+   ],
+   "content_check": "'Sent: Tuesday, March 06, 2018 1:40 PM ... Subject: ERRC site selection'"
+  },
+  {
+   "label": "M",
+   "file": "doc-tknjsf.pdf",
+   "kind": "email",
+   "date": "2018-03-23",
+   "author": "Mary Wagner",
+   "recipients": [
+    "John Daly",
+    "Bill French",
+    "Don Allen",
+    "County Customer Service"
+   ],
+   "description": "Deponent's March 23, 2018 email on fire hazards of an ERRC inside a forest",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Community Safety & Correctional Services’ Customer Service is attached at"
+    }
+   ],
+   "content_check": "'Sent: Friday, March 23, 2018 4:43 PM ... Subject: ERRC fire hazard concerns'"
+  },
+  {
+   "label": "N",
+   "file": "doc-a7xxk9.pdf",
+   "kind": "email",
+   "date": "2018-03-29",
+   "author": "Tiffany Thompson (County of Simcoe)",
+   "recipients": [
+    "Mary Wagner"
+   ],
+   "description": "Ms. Thompson's March 29, 2018 response pointing to GHD's amended Facilities Characteristic Report",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "A copy of Ms. Thompson email response to me dated March 29,"
+    }
+   ],
+   "content_check": "'From: ERRC Sent: Thursday, March 29, 2018 9:31 AM ... Tiffany Thompson BES MCIP RPP Planner III'"
+  },
+  {
+   "label": "O",
+   "file": "doc-vbxw6q.pdf",
+   "kind": "letter",
+   "date": "2018-07-12",
+   "author": "Mary Wagner (for FSF)",
+   "recipients": [
+    "Ross Lashbrook (MMAH)"
+   ],
+   "description": "FSF letter of July 12, 2018 to MMAH enclosing the expert letters and reports",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Mr. Lash brook dated July 12, 2018, is attached at Exhibit"
+    }
+   ],
+   "content_check": "'July 12, 2018 Ministry of Municipal Affairs ... Attn: Ross Lashbrook, Manager' signed Mary Wagner, President, FSF Inc."
+  },
+  {
+   "label": "P",
+   "file": "doc-u65bqh.pdf",
+   "kind": "letter",
+   "date": "2018-08-31",
+   "author": "Mary Wagner",
+   "recipients": [
+    "Aldo Ingraldi (MMAH)"
+   ],
+   "description": "Deponent's letter emailed August 31, 2018 setting out points opposing the ERRC site",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "of the letter I emailed Mr. Ingraldi dated August 31, 2018 is attached at Exhibit"
+    }
+   ],
+   "content_check": "'Sent: Friday, August 31, 2018 7:28 AM To: Ingraldi, Aldo (MMAH) Subject: MMA County of Simcoe OPA applicati[on]' with Points 1-..."
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "FSF incorporated; deponent becomes its President",
+   "date": "2016-06-09",
+   "precision": "day",
+   "paragraphs": [
+    2,
+    10
+   ],
+   "quote": "The FSF was established on June 9, 2016",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Deponent emails MNRF about the EIS process",
+   "date": "2016-09-09",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about September 9, 2016, I sent an email to Ms. Suzanne Robinson",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "MNRF replies that ECAs are required and the County leads consultation",
+   "date": "2016-09-13",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "13, 2016, I received an email response from Ms. Robinson at the MNRF",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Deponent writes to County staff about the ERRC siting",
+   "date": "2016-11-28",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about November 28, 2016, I sent a letter to Mr. Rob McCullough",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "FSF receives the Canada 150 John Graves Simcoe Medal",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In 2017, FSF received the Canada 150 John Graves Simcoe Medal",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "FSF letter to the County Clerk opposing the amendment, with expert reports",
+   "date": "2017-05-02",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about May 2, 2017, I sent a letter to Mr. John Daly",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Deponent presents at the public meeting",
+   "date": "2017-05-09",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about May 9, 2017, I made an oral presentation at the public meeting",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Deponent emails Mr. Daly about setbacks",
+   "date": "2017-05-18",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about May 18, 2017, I sent an email to Mr. John Daly regarding setbacks",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Deponent emails a letter on fire hazard and emergency response",
+   "date": "2017-05-18",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about May 18, 2017, I emailed a letter dated May 18, 2017, to Mr. John",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Deponent emails MNRF and the County about salamander egg masses",
+   "date": "2017-05-18",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about May 18, 2017, I sent an email to Mr. John Daly and Ms. Kim",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Deponent emails questions on the Ernst & Young report",
+   "date": "2017-06-28",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about June 28, 2017, I emailed Mr. John Daly with questions",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "County responds with vague answers",
+   "date": "2017-07-13",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "I received a letter from Mr. Rob McCullough",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "GHD amended Facilities Characteristic Report",
+   "date": "2018-02-01",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "amended Facilities Characteristic Report dated",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "FSF letter to MPPs on the Growth Plan and Greenbelt",
+   "date": "2018-03-06",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about March 6, 2018, I emailed a letter dated March 5, 2018 on behalf",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Deponent emails the County on site selection",
+   "date": "2018-03-06",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about March 6, 2018, I sent an email to Mr. John Daly, Ms. Renee",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Deponent emails about fire hazards",
+   "date": "2018-03-23",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about March 23, 2018, I sent an email to Mr. John Daly, Mr. Bill French",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "County planner responds",
+   "date": "2018-03-29",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about March 29, 2018,",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "FSF letter to MMAH with expert reports",
+   "date": "2018-07-12",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about July 12, 2018, I sent a letter on behalf of FSF to Mr. Ross",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Deponent emails MMAH her points against the site",
+   "date": "2018-08-31",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "On or about August 31, 2018, I emailed a letter to Mr. Aldo Ingraldi",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Minister approves Official Plan Amendment No. 2",
+   "date": "2018-11-30",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "On or about November 30, 2018, the Minister of MMAH approved Amendment No.",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "FSF appeals Amendment No. 2 to the LPAT",
+   "date": "2019-01-19",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On or about January 19, 2019, the FSF appealed Amendment No. 2",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Deponent attends two public consultation sessions",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    16
+   ],
+   "quote": "I participated in 2 public consultation sessions regarding the proposed ERRC facility",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Expert reports of Dougan & Associates and Jennifer Lawrence & Associates attached to the May 2, 2017 and July 12, 2018 letters (only partly included)",
+  "GHD amended Facilities Characteristic Report dated February 1, 2018"
+ ],
+ "leak_waivers": [
+  "G"
+ ]
+}
