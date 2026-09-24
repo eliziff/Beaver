@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ApplicationError, type ApplicationScope } from "../applicationError";
+import type { ResearchFinding } from "../researchChat";
 import type { ResearchFile } from "../researchFile";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import { researchFindingReferenceSchema, type ResearchFindingReference } from "../researchFindingReference";
@@ -17,6 +18,7 @@ const paging = { offset: z.number().int().min(0).max(1_000_000).default(0),
   limit: z.number().int().min(1).max(50).default(20) };
 const readInput = z.object({ column_index: z.number().int().nonnegative().optional(), ...paging }).strict();
 const findingsInput = z.object({ pattern: z.string().trim().min(1).max(256).optional(), sourceIds: z.array(z.string()).optional(),
+  references: z.array(researchFindingReferenceSchema).min(1).max(50).optional(),
   reference: researchFindingReferenceSchema.optional(), chatId: tabularDtos.id.optional(), ...paging,
   evidence_id: z.string().min(1).max(200).optional(),
   text_offset: z.number().int().min(0).max(10_000_000).default(0),
@@ -30,8 +32,19 @@ const updateInput = tabularDtos.update.pick({ title: true, columns_config: true,
 
 export async function readResearchFindings(dependencies: { sources: SourceWorkspaceApplication;
   scope: ApplicationScope; workspaceId: string; subjects?: ResearchSubject[]; findingRefs?: ResearchFindingReference[] }, input: z.input<typeof findingsInput>): Promise<BeaverOutcome> {
-  const options = findingsInput.parse(input), { sources, scope, workspaceId } = dependencies,
-    page = await sources.findings(scope, workspaceId, { ...options, references: dependencies.findingRefs,
+  const options = findingsInput.parse(input), { sources, scope, workspaceId } = dependencies;
+  if (options.references) {
+    if (options.reference || options.pattern || options.evidence_id)
+      throw new ApplicationError(400, "Batch finding references cannot be combined with a single reference or pattern");
+    const read = await sources.readFindings(scope, workspaceId), findings: ResearchFinding[] = [];
+    for (const reference of options.references.slice(options.offset, options.offset + options.limit)) {
+      const page = await read.list({ reference, references: dependencies.findingRefs, subjects: dependencies.subjects, offset: 0, limit: 1 });
+      if (!page.items.length) throw new ApplicationError(404, "A selected finding is unavailable in this scope");
+      findings.push(page.items[0]);
+    }
+    return findingBatch(findings, options.references, options.offset, options.limit);
+  }
+  const page = await sources.findings(scope, workspaceId, { ...options, references: dependencies.findingRefs,
       ...(!options.reference ? { subjects: dependencies.subjects } : {}) }),
     permitted = researchResultFilter({ subjects: dependencies.subjects ?? [], restricted: !!dependencies.subjects }),
     metadata = (finding: typeof page.items[number]) => ({ reference: finding.reference, kind: finding.kind,
@@ -39,7 +52,7 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
       sourceId: finding.sourceId, resource: finding.resource, question: finding.question.title, claim_count: finding.answer.claims.length });
   if (!options.reference) {
     const items = page.items.map((finding) => ({ ...metadata(finding),
-      preview: (finding.answer.summary ?? finding.answer.claims[0]?.text ?? "").slice(0, 300) }));
+      preview: findingPreview(finding, options.pattern) }));
     while (items.length > 1 && JSON.stringify(items).length > 48_000) items.pop();
     const next_offset = options.offset + items.length < page.total ? options.offset + items.length + 1 : null;
     return { result: toolText({ ok: true, research_file_id: workspaceId, items, total: page.total,
@@ -72,6 +85,63 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
   return { result: toolText({ ok: true, research_file_id: workspaceId, ...payload,
     evidence: evidence.map(modelEvidencePassage), ...(evidence.length < finding.evidence.length
       ? { read_support: { ...nextRead, pattern: "Use an evidence_id from the answer" } } : {}) }), evidence };
+}
+
+/** A search hit shows the matching saved text, not an unrelated first sentence. */
+export function findingPreview(finding: ResearchFinding, pattern?: string, max = 300) {
+  const texts = [...finding.answer.claims.map(({ text }) => text), finding.answer.summary ?? "",
+    finding.question.title, finding.question.prompt], needle = pattern?.toLowerCase(),
+    text = (needle && texts.find(text => text.toLowerCase().includes(needle))) ||
+      finding.answer.summary || finding.answer.claims[0]?.text || String(finding.answer.value ?? ""),
+    at = needle ? text.toLowerCase().indexOf(needle) : 0,
+    start = Math.max(0, at - Math.min(70, Math.max(0, max - (needle?.length ?? 0) - 2))),
+    end = Math.min(text.length, start + max - (start ? 1 : 0) - 1);
+  return `${start ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
+}
+
+/** Whole findings first, then unique exact support. Deferred items retain an ordinary Read path. */
+function findingBatch(findings: ResearchFinding[], references: ResearchFindingReference[], offset: number, limit: number): BeaverOutcome {
+  const items: Record<string, unknown>[] = [], evidence: LegalEvidenceReceipt[] = [],
+    support = new Map<string, { receipt: LegalEvidenceReceipt; reference: ResearchFindingReference }>(),
+    nextRead = { file_path: "findings", finding_refs: references, offset: offset + limit + 1, limit },
+    budget = 50_000, reserve = JSON.stringify(nextRead).length + 1_000;
+  if (reserve > budget / 2) throw new ApplicationError(413, "Select fewer finding references in this batch");
+  let size = reserve;
+  for (const finding of findings) {
+    const read = { file_path: "findings", section: JSON.stringify(finding.reference), offset: 1 };
+    let item: Record<string, unknown> = { reference: finding.reference, resource: finding.resource,
+      question: finding.question, result: finding.answer, read };
+    let length = JSON.stringify(modelToolData(item)).length + 1;
+    if (length > budget - reserve) {
+      item = { reference: finding.reference, preview: findingPreview(finding), deferred: true, read };
+      length = JSON.stringify(item).length + 1;
+    }
+    if (size + length > budget) break;
+    items.push(item); size += length;
+    if (!item.deferred) for (const receipt of finding.evidence) {
+      if (finding.answer.claims.some(claim => claim.evidence_ids.includes(receipt.evidence_id)) && !support.has(receipt.evidence_id))
+        support.set(receipt.evidence_id, { receipt, reference: finding.reference });
+    }
+  }
+  const deferred: { evidence_id: string; read: { file_path: string; section: string; pattern: string } }[] = [];
+  // Reserve every omitted-support locator before adding passage text, so no continuation is lost.
+  const links = [...support.values()].map(({ receipt, reference }) => ({ evidence_id: receipt.evidence_id,
+    read: { file_path: "findings", section: JSON.stringify(reference), pattern: receipt.evidence_id } }));
+  size += JSON.stringify(links).length;
+  if (size > budget) {
+    // The claims themselves still identify their support and carry a single-finding read path.
+    return { result: toolText({ items, total: references.length, evidence: [],
+      next_read: offset + items.length < references.length ? { ...nextRead, offset: offset + items.length + 1 } : null,
+      read_support: "Read an item's read path, with pattern set to its evidence_id, for exact support." }) };
+  }
+  for (const [index, { receipt }] of [...support.values()].entries()) {
+    const length = JSON.stringify(modelEvidencePassage(receipt)).length + 1;
+    if (size + length <= budget) { evidence.push(receipt); size += length; }
+    else deferred.push(links[index]);
+  }
+  return { result: toolText({ items, total: references.length, evidence: evidence.map(modelEvidencePassage),
+    ...(deferred.length ? { omitted_evidence: deferred } : {}),
+    next_read: offset + items.length < references.length ? { ...nextRead, offset: offset + items.length + 1 } : null }), evidence };
 }
 
 export function createResearchTableTool<Context>(dependencies: {

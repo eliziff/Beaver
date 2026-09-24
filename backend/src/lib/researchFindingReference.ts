@@ -8,3 +8,14 @@ export const researchFindingReferenceSchema = z.discriminatedUnion("kind", [
     columnIndex: z.number().int().min(0).max(10_000) }).strict(),
 ]);
 export type ResearchFindingReference = z.infer<typeof researchFindingReferenceSchema>;
+
+/** Wire form for the existing Read tool; the shared Zod contract validates each reference. */
+export const researchFindingReferenceToolSchema = {
+  type: "object", required: ["kind"], additionalProperties: false,
+  properties: {
+    kind: { type: "string", enum: ["answer", "cell"] },
+    chatId: { type: "string" }, answerId: { type: "string" }, resource: { type: "string" },
+    reviewId: { type: "string" }, rowId: { type: "string" }, columnIndex: { type: "integer", minimum: 0 },
+    claimIndices: { type: "array", items: { type: "integer", minimum: 0 }, minItems: 1, maxItems: 500 },
+  },
+};
