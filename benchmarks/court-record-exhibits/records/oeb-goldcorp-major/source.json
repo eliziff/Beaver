@@ -1,0 +1,19 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/312673/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2011-0361",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2011-0361",
+ "document_title": "GoldCorp_Submission_Affidavit_LMajor_20111205",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-goldcorp-major",
+ "source_file": "doeb-312673.pdf",
+ "page_range": [
+  1,
+  153
+ ],
+ "source_sha256": "bcf4f2cf05128be219bd257f341982f75110e08116054efdcb15f0841d642cce",
+ "source_pages": 153,
+ "covers": "A=8,B=10,C=27,D=29,E=31,F=42,G=48,H=54,I=58,J=62,K=69,L=74,M=80,N=86,O=92,P=106,Q=113,R=120,S=127,T=131,U=133,V=140,W=143,X=146,Y=150"
+}

@@ -1,0 +1,19 @@
+{
+ "url": "https://ag-pssg-sharedservices-ex.objectstore.gov.bc.ca/ag-pssg-cc-exh-prod-bkt-ex/143%20-%20Affidavit%20No.1%20of%20Bal%20Bamra%20affirmed%20October%2014%202020_Redacted.pdf\nhttps://ag-pssg-sharedservices-ex.objectstore.gov.bc.ca/ag-pssg-cc-exh-prod-bkt-ex/389%20-%20Affidavit%20No.1%20of%20P.%20Tawtel%20made%20December%2014%202020_Redacted.pdf",
+ "landing_url": "https://www.cullencommission.ca/exhibits/",
+ "court": "Commission of Inquiry into Money Laundering in British Columbia (Cullen Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "BC",
+ "court_file": "Cullen Commission Exhibit 143",
+ "document_title": "Affidavit No.1 of Bal Bamra",
+ "retrieved": "2026-09-24",
+ "record_id": "bccomm-cullen-bamra",
+ "source_file": "cul-143.pdf",
+ "page_range": [
+  1,
+  41
+ ],
+ "source_sha256": "8cbc43f3b852ec538bf27c62834ddf73ffe57c4d99810d99dd678f7dfd066adc",
+ "source_pages": 41,
+ "covers": "A=5,B=7,C=9,D=15,E=18,F=21,G=25,H=27,I=30,J=34,K=36,L=38,M=40"
+}

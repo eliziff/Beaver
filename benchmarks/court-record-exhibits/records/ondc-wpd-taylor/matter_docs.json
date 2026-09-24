@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/ondc-wpd-mcfarlane/oeb-dec-order-sumac.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/487056/File/document",
+  "title": "OEB Decision and Order, wpd Sumac Ridge (EB-2013-0442, July 16, 2015)",
+  "kind": "court_order",
+  "relation": "OEB proceeding in which the affidavit was filed"
+ },
+ {
+  "file": "raw/matter/ondc-wpd-mcfarlane/ckl-submission.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/472507/File/document",
+  "title": "City of Kawartha Lakes submission to the OEB (April 2, 2015)",
+  "kind": "court_filing",
+  "relation": "covering submission for the affidavits"
+ }
+]

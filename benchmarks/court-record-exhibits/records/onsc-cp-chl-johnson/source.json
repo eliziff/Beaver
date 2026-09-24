@@ -1,0 +1,18 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2022/04/Motion-Record-Volume-1-Certification.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "document_title": "Motion Record (Certification), Volume 1 of 4: Affidavit of Dr. Jay Johnson affirmed December 2, 2020",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-chl-johnson",
+ "source_file": "e4-motion-record-volume-1-certification.pdf",
+ "page_range": [
+  147,
+  235
+ ],
+ "source_sha256": "a9578437f45140897ec1c08378668c286f77d1358b1fd1fe29b5a2d5f6c37acd",
+ "source_pages": 598
+}

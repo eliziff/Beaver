@@ -1,0 +1,86 @@
+{
+ "record_id": "onsc-cp-chl-hammett",
+ "affidavit_pages": [
+  33,
+  34,
+  35,
+  36,
+  37
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  45,
+  46,
+  48,
+  49,
+  50,
+  54,
+  55
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-km6ngp.pdf",
+   "source_pages": [
+    39,
+    40,
+    41,
+    42,
+    43
+   ],
+   "cover_page": 38,
+   "stamp_page": null,
+   "text_chars": 12185
+  },
+  {
+   "label": "B",
+   "file": "doc-bzkvf5.pdf",
+   "source_pages": [
+    45,
+    46
+   ],
+   "cover_page": 44,
+   "stamp_page": null,
+   "text_chars": 17
+  },
+  {
+   "label": "C",
+   "file": "doc-ksqqj2.pdf",
+   "source_pages": [
+    48,
+    49,
+    50
+   ],
+   "cover_page": 47,
+   "stamp_page": null,
+   "text_chars": 26
+  },
+  {
+   "label": "D",
+   "file": "doc-6m7fsj.pdf",
+   "source_pages": [
+    52
+   ],
+   "cover_page": 51,
+   "stamp_page": null,
+   "text_chars": 2153
+  },
+  {
+   "label": "E",
+   "file": "doc-e5kgnq.pdf",
+   "source_pages": [
+    54,
+    55
+   ],
+   "cover_page": 53,
+   "stamp_page": null,
+   "text_chars": 17
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-bzkvf5.pdf",
+  "doc-e5kgnq.pdf",
+  "doc-ksqqj2.pdf"
+ ]
+}

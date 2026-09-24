@@ -1,0 +1,46 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949739",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/View/2949856",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2016 (OF-Fac-Gas-T211-2015-05-01; A76418)",
+ "document_title": "Affidavit (d\u00e9claration solennelle) of Grand Chef Konrad Sioui, April 18, 2016 (Conseil de la Nation huronne-wendat evidence, TransCanada Vaughan Mainline Expansion)",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-vaughan-sioui",
+ "source_file": "rdsi-2949739.pdf",
+ "page_range": [
+  1,
+  4
+ ],
+ "source_sha256": "19b1b77e053f38d44aec02deb0c8847a0f8b45e1b11e1b6351aec14cc6290f8e",
+ "source_pages": 4,
+ "sources": [
+  {
+   "file": "rdsi-2949739.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949739",
+   "sha256": "19b1b77e053f38d44aec02deb0c8847a0f8b45e1b11e1b6351aec14cc6290f8e",
+   "pages": 4
+  },
+  {
+   "file": "rdsi-2948973.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2948973",
+   "sha256": "666c0f8a15c92d7df6b9b0ac0e3926785d6b01d2bbe9244777df8343dfcc93fa",
+   "pages": 6
+  },
+  {
+   "file": "rdsi-2949412.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949412",
+   "sha256": "ae55ac646cd8cdf1302783370fa716af8149ae829e0611c93f16ac551994228a",
+   "pages": 1
+  },
+  {
+   "file": "rdsi-2949188.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949188",
+   "sha256": "afcb0b8e20059aa1f9353e9bd440e81dd3c147731f81a8e8f2fcd2def1231245",
+   "pages": 2
+  }
+ ],
+ "affidavit_ocr": true,
+ "blank": "1=t:0.3,0.05,0.98,0.18 2=t:0.1,0.08,0.6,0.19"
+}

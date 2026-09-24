@@ -1,0 +1,19 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2021/12/Motion-Record-REVISED-Motion-For-Independent-Review-Panel-Evidence.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "document_title": "Motion Record (revised) re Independent Review Panel evidence, Affidavit of Catherine MacDonald sworn November 29, 2021",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-chl-macdonald1",
+ "source_file": "e4-motion-record-revised-motion-for-independent-review-panel-ev.pdf",
+ "page_range": [
+  13,
+  159
+ ],
+ "source_sha256": "0c0d3a10e92c86f78fa4135caca79e876e08cf91b613e295216f0936b222f7fa",
+ "source_pages": 185,
+ "covers": "A=18,B=72,C=143,D=148,E=151,F=155"
+}

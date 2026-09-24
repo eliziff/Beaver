@@ -1,0 +1,19 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/372105/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2010-0377",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2010-0377, EB-2010-0378, EB-2010-0379, EB-2011-0004, EB-2011-0043",
+ "document_title": "Northwatch_RRFE_Motion_Review_20121107.pdf (Motion Record of Northwatch)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-rrfe-lloyd",
+ "source_file": "doeb-372105.pdf",
+ "page_range": [
+  12,
+  158
+ ],
+ "source_sha256": "940490fa2462ccb837ed08966ba5977f8db6a290113fd718b0e940e58b344ed0",
+ "source_pages": 158,
+ "covers": "A=17,B=47,C=61,D=72,E=118,F=120,G=128,H=131,I=134,J=148"
+}

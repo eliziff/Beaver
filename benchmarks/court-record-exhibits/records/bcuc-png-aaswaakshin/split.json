@@ -1,0 +1,94 @@
+{
+ "record_id": "bcuc-png-aaswaakshin",
+ "affidavit_pages": [
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hmx6sq.pdf",
+   "source_pages": [
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+   ],
+   "cover_page": null,
+   "stamp_page": 8,
+   "text_chars": 38600
+  },
+  {
+   "label": "B",
+   "file": "doc-up669p.pdf",
+   "source_pages": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+   ],
+   "cover_page": null,
+   "stamp_page": 24,
+   "text_chars": 26312
+  },
+  {
+   "label": "C",
+   "file": "doc-w7vxha.pdf",
+   "source_pages": [
+    37,
+    38,
+    39
+   ],
+   "cover_page": null,
+   "stamp_page": 37,
+   "text_chars": 6093
+  },
+  {
+   "label": "D",
+   "file": "doc-68wc89.pdf",
+   "source_pages": [
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49
+   ],
+   "cover_page": null,
+   "stamp_page": 40,
+   "text_chars": 29744
+  }
+ ],
+ "leak_audit": []
+}

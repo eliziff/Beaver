@@ -1,0 +1,155 @@
+{
+ "record_id": "neb-vaughan-sioui",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2016 (OF-Fac-Gas-T211-2015-05-01)",
+ "subject": "indigenous_rights",
+ "language": "fr",
+ "proceeding": "TransCanada PipeLines Limited, Vaughan Mainline Expansion Project, Hearing GH-001-2016: written evidence of the Conseil de la Nation huronne-wendat",
+ "document": "Affidavit (solemn declaration) of Grand Chief Konrad Sioui, April 18, 2016",
+ "deponent": "Konrad Sioui",
+ "deponent_role": "Grand Chief of the Conseil de la Nation huronne-wendat (Wendake, Quebec)",
+ "sworn_date": "2016-04-18",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-xebeug.pdf",
+   "kind": "minutes",
+   "date": "2015-06-15",
+   "author": "Conseil de la Nation huronne-wendat",
+   "recipients": [],
+   "description": "Council resolution no. 6598 of June 15, 2015 on the protection of Huron-Wendat archaeological sites in Ontario",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Le Conseil de la Nation huronne-wendat a adopté le 15 juin 2015 une résolution portant"
+    }
+   ],
+   "content_check": "6 scanned pages: copy of resolution 6598, session of June 15, 2015 ('Position of the Huron-Wendat Nation regarding the archaeological and cultural heritage of the ancestral lands located in Ontario'); typed filing header removed (text only)"
+  },
+  {
+   "label": "2",
+   "file": "doc-c5zfsh.pdf",
+   "kind": "map",
+   "date": "2016-02",
+   "author": "Conseil de la Nation huronne-wendat",
+   "recipients": [],
+   "description": "Map of the recognized Huron-Wendat archaeological sites in the project area",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "«Voir piéce 2 jointe au présent affidavit»."
+    }
+   ],
+   "content_check": "1 page: map 'Répartition des sites archéologiques hurons-wendat dans l'aire du projet', Vaughan Mainline Extension, February 2016; typed filing header removed (text only)"
+  },
+  {
+   "label": "3",
+   "file": "doc-u4x95r.pdf",
+   "kind": "spreadsheet",
+   "date": "",
+   "author": "Ronald Williamson (archaeologist)",
+   "recipients": [],
+   "description": "List describing the nature of the sites shown on the map, studied by archaeologist Ronald Williamson",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "«Voir piéce 3 jointe au présent affidavit»."
+    }
+   ],
+   "content_check": "2 landscape pages: table of Borden-numbered sites (name, date of visit, period, site type, comments, documentation, artifacts), e.g. AiGw-26, AkGv-266, AlGv-231 Damiani village"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Treaty between the Huron-Wendat Nation and the Crown",
+   "date": "1760",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "conclu en 1760",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Deponent is Chief and Vice-Grand-Chief of the Nation",
+   "date": "1984",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "1984 a 1987",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Deponent becomes Grand Chief",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "le Grand Chef du Conseil de la Nation",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Council adopts resolution 6598 on protecting Huron-Wendat archaeological sites in Ontario",
+   "date": "2015-06-15",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "a adopté le 15 juin 2015 une résolution portant",
+   "exhibits": [
+    "1"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Twelve recognized Huron-Wendat archaeological sites identified in the project area",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    11
+   ],
+   "quote": "L’aire du projet inclut 12 sites archéologiques d’origine huronne-wendat reconnus",
+   "exhibits": [
+    "2"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Archaeologist Ronald Williamson studies and describes the sites",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "a été étudiée et décrite par\nl’'archéologue Ronald Williamson",
+   "exhibits": [
+    "3"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Nation sends monitors to the early stages of TransCanada's archaeological assessment",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    20
+   ],
+   "quote": "a envoyé des surveillants pour",
+   "exhibits": []
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "Will-say statement of Ron Williamson and its Appendices A and B (filed separately in A76418)"
+ ],
+ "notes": "French-language affidavit (solemn declaration), scanned: --ocr-affidavit (English Tesseract model; accents read). Multi-file REGDOCS filing A76418: pièces 1-3 posted as separate PDFs. Pièces 1 and 2 carry a typed filing header ('Pièce N Joint à l'affidavit...') removed as text only (--blank N=t:...); pièce 3 has none. Exhibits 1 and 2 OCR'd."
+}

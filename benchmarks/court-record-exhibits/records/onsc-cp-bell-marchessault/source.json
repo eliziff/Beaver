@@ -1,0 +1,19 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2018/12/Motion-Record-of-the-Responding-Defendant-Oct-31-2018.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-590105-00CP",
+ "document_title": "Motion Record of the Responding Defendant (certification and summary judgment), Affidavit of Robert Marchessault sworn October 31, 2018",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-bell-marchessault",
+ "source_file": "e4-motion-record-of-the-responding-defendant-oct-31-2018.pdf",
+ "page_range": [
+  9,
+  353
+ ],
+ "source_sha256": "2dcd56d63efeba946aff7efed61e728d8f7c2734c22ff89828ffe4f254760bcb",
+ "source_pages": 478,
+ "covers": "A=31,B=85,C=100,D=118,E=121,F=124,G=147,H=156,I=165,J=256,K=259,L=287,M=291,N=295,O=297,P=299,Q=301,R=303,S=306,T=308,U=310,V=312,W=315"
+}

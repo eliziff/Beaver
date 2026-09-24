@@ -1,0 +1,1446 @@
+{
+ "record_id": "bccomm-cullen-wenezenkiyolland",
+ "court": "Commission of Inquiry into Money Laundering in British Columbia (Cullen Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "BC",
+ "court_file": "Cullen Commission Exhibit 922",
+ "subject": "regulatory",
+ "family": "cullen-commission",
+ "proceeding": "Public inquiry into money laundering in British Columbia: former Associate Deputy Minister of Finance on the oversight of GPEB and BCLC, the anti-money-laundering strategy, source-of-funds directions and JIGIT (2013-2017)",
+ "document": "Affidavit no. 1 of Cheryl Wenezenki-Yolland sworn April 8, 2021 (Commission Exhibit 922, redacted)",
+ "deponent": "Cheryl Wenezenki-Yolland",
+ "deponent_role": "Former Associate Deputy Minister, BC Ministry of Finance (June 2013 - July 2017), responsible for GPEB and liaison to BCLC",
+ "sworn_date": "2021-04-08",
+ "notes": "688-page commission exhibit; text covers detected by split.py. N and S are two copies of the same 2015/16 mandate letter (GPEB4686) attached twice: same_text_as.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-btxu8h.pdf",
+   "kind": "other",
+   "date": "2015-10",
+   "author": "Cheryl Wenezenki-Yolland",
+   "recipients": [],
+   "description": "Extracts from Wenezenki-Yolland's electronic calendar as Associate Deputy Minister",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached to this affidavit \nand marked Exhibit \"A\" are true copies of extracts from the calendar"
+    }
+   ],
+   "content_check": "12 pages of calendar entries: 'October 8, 2015 Continued Thursday 10:15 AM - 11:00 AM ... October 9, 2015 Friday' through 2016"
+  },
+  {
+   "label": "B",
+   "file": "doc-dq2m6u.pdf",
+   "kind": "other",
+   "date": "2014-06",
+   "author": "Government of British Columbia",
+   "recipients": [],
+   "description": "'Taxpayer Accountability Principles' (June 2014), describing the Crown Agency Accountability Framework",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached to this affidavit and marked Exhibit \"B\" is a true copy of"
+    }
+   ],
+   "content_check": "9 pages: BRITISH COLUMBIA ... 'Executive summary Provincial public sector organizations in B.C. will operate under new taxpayer accountability principles'"
+  },
+  {
+   "label": "C",
+   "file": "doc-2gb3r9.pdf",
+   "kind": "report",
+   "date": "2013",
+   "author": "Ministry of Energy, Mines and Natural Gas / GPEB / BCLC",
+   "recipients": [
+    "Cheryl Wenezenki-Yolland",
+    "Minister de Jong"
+   ],
+   "description": "Gaming transition binder (GPEB4330)",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Attached to this Affidavit and marked as Exhibit \"C\""
+    }
+   ],
+   "content_check": "68 pages: 'Ministry of Energy, Mines and Natural Gas Gaming Policy and Enforcement Branch (GPEB) British Columbia Lottery Corporation (BCLC) Transition Materials'"
+  },
+  {
+   "label": "D",
+   "file": "doc-uteqxg.pdf",
+   "kind": "other",
+   "date": "2013-06",
+   "author": "Doug Scott (GPEB)",
+   "recipients": [],
+   "description": "Doug Scott's June 2013 GPEB orientation presentation (GPEB4336)",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached to this affidavit and marked as Exhibit \"D\" (GPEB4336)"
+    },
+    {
+     "paragraph": 198,
+     "quote": "attached to \nthis affidavit as Exhibit \"D\" (GPEB4336)"
+    }
+   ],
+   "content_check": "25 pages: 'Gaming Policy and Enforcement Branch Transition Notes Fiscal Year 2013/14 Ministry of Finance'"
+  },
+  {
+   "label": "E",
+   "file": "doc-pqhpae.pdf",
+   "kind": "other",
+   "date": "2013-06",
+   "author": "Michael Graydon (BCLC)",
+   "recipients": [],
+   "description": "Michael Graydon's BCLC orientation presentation (GPEB4332)",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached to this affidavit and marked as Exhibit \n\"E\" (GPEB4332)"
+    }
+   ],
+   "content_check": "19 pages: BCLC 'playing it right' slides 'Overview BCLC conducts, manages and operates lottery, casino, bingo'"
+  },
+  {
+   "label": "F",
+   "file": "doc-6tkjdz.pdf",
+   "kind": "report",
+   "date": "2013-06-14",
+   "author": "BC Ministry of Finance",
+   "recipients": [],
+   "description": "Ministry of Finance Revised 2013/14 - 2015/16 Service Plan",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Attached to this affidavit and marked Exhibit \"F\" is a true copy of the Ministry of Finance"
+    }
+   ],
+   "content_check": "33 pages: 'Ministry of Finance REVISED 2013/14 - 2015/16 SERVICE PLAN'"
+  },
+  {
+   "label": "G",
+   "file": "doc-fgmcd9.pdf",
+   "kind": "other",
+   "date": "2014-09",
+   "author": "John Mazure; Cheryl Wenezenki-Yolland",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "September 2014 briefing note proposing a broader-perspective review approach for gaming proposals (GPEB4387)",
+   "references": [
+    {
+     "paragraph": 43,
+     "quote": "Attached \nto this affidavit and marked Exhibit \"G\" (GPEB4387)"
+    }
+   ],
+   "content_check": "12 pages: 'Ministry of Finance BRIEFING DOCUMENT To: Honourable Michael de Jong, Q.C. Minister of Finance GPEB4387.0001 Initiated by: John Mazure'"
+  },
+  {
+   "label": "H",
+   "file": "doc-heurm3.pdf",
+   "kind": "report",
+   "date": "2013-10-01",
+   "author": "Provincial Health Officer",
+   "recipients": [],
+   "description": "PHO report 'Lower the Stakes: A Public Health Approach to Gambling in British Columbia'",
+   "references": [
+    {
+     "paragraph": 46,
+     "quote": "Attached to this affidavit and marked Exhibit \"H\" is a true \ncopy of the PHO's Report"
+    }
+   ],
+   "content_check": "95 pages: 'Lower the Stakes A Public Health Approach to Gambling in British Columbia ... Provincial Health Officer's 2009 Annual Report'"
+  },
+  {
+   "label": "I",
+   "file": "doc-bn2qsg.pdf",
+   "kind": "report",
+   "date": "2015-02",
+   "author": "Government of British Columbia",
+   "recipients": [],
+   "description": "Government response to the PHO report: 'Responsible and Problem Gambling in British Columbia: A Plan for Public Health and Gambling'",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "Attached to this affidavit and marked Exhibit \"I\" is a true \ncopy of that response"
+    }
+   ],
+   "content_check": "29 pages: BRITISH COLUMBIA ... TABLE OF CONTENTS EXECUTIVE SUMMARY"
+  },
+  {
+   "label": "J",
+   "file": "doc-qyaght.pdf",
+   "kind": "other",
+   "date": "2013-10",
+   "author": "Ministry of Finance",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "Decision Note approved by Minister de Jong authorizing the Crown Review of BCLC (GPEB4345)",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "Attached to this affidavit and marked \nExhibit \"J\" (GPEB4345)"
+    }
+   ],
+   "content_check": "4 pages: 'Ministry of Finance DECISION NOTE To: Honourable Michael de Jong, Q.C. Minister of Finance GPEB4345.0001'"
+  },
+  {
+   "label": "K",
+   "file": "doc-m37ufd.pdf",
+   "kind": "report",
+   "date": "2014",
+   "author": "Internal Audit and Advisory Services, Ministry of Finance",
+   "recipients": [],
+   "description": "IAAS Crown Review report on BCLC",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "Attached to this affidavit and marked \nExhibit \"K\" is a true copy of their report"
+    }
+   ],
+   "content_check": "67 pages: 'British Columbia Lottery Corporation ... Ministry of Finance Appendix I ... Review of the British Columbia Lottery Corporation'"
+  },
+  {
+   "label": "L",
+   "file": "doc-j8eah3.pdf",
+   "kind": "report",
+   "date": "2014-11",
+   "author": "Strategic Human Resources Branch, Ministry of Finance",
+   "recipients": [],
+   "description": "Summary report of the internal review of GPEB (GPEB4085)",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "summary report, a true copy of which is attached to this affidavit and marked Exhibit \"L\""
+    }
+   ],
+   "content_check": "29 pages: 'Ministry of Finance Corporate Services Division Prepared by: Strategic Human Resources Branch November 2014 GPEB4085.0001'"
+  },
+  {
+   "label": "M",
+   "file": "doc-rk4tdz.pdf",
+   "kind": "report",
+   "date": "2014-09-15",
+   "author": "Malysh Associates Consulting Inc.",
+   "recipients": [
+    "GPEB-AML Working Group"
+   ],
+   "description": "Malysh Report on client due diligence in BC casinos (GPEB0709)",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "attached to this affidavit and marked Exhibit \"M\" (GPEB0709)"
+    }
+   ],
+   "content_check": "32 pages: 'GPEB-AML WORKING GROUP Client Due Diligence in BC Casinos September 15, 2014 Private & Confidential MALYSH ASSOCIATES CONSULTING INC'"
+  },
+  {
+   "label": "N",
+   "file": "doc-jadyq2.pdf",
+   "kind": "letter",
+   "date": "2015-02-05",
+   "author": "Minister Michael de Jong",
+   "recipients": [
+    "Bud Smith, Chair, BCLC Board"
+   ],
+   "description": "2015/2016 Mandate letter from Minister de Jong to BCLC Board Chair Bud Smith (GPEB4686)",
+   "references": [
+    {
+     "paragraph": 94,
+     "quote": "Attached to this affidavit and marked Exhibit \"N\" (GPEB4686)"
+    }
+   ],
+   "content_check": "12 pages: 'GPEB4686.0001 ... Bud Smith, Chair Board of Directors British Columbia Lottery Corporation ... Re: 2015/16 Mandate Letter'",
+   "same_text_as": [
+    "S"
+   ]
+  },
+  {
+   "label": "O",
+   "file": "doc-mjbfgj.pdf",
+   "kind": "other",
+   "date": "2015-05",
+   "author": "John Mazure (GPEB)",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "Revised May 2015 briefing note on the Exploring Common Ground workshop, adding that recommendations would reach the Minister by fall 2015",
+   "references": [
+    {
+     "paragraph": 102,
+     "quote": "Attached to this affidavit and marked as Exhibit \"O\" is a true copy of a revised briefing note"
+    }
+   ],
+   "content_check": "3 pages: 'Ministry of Finance Gaming Policy and Enforcement Branch BRIEFING DOCUMENT To: Honourable Michael de Jong' (dates May 14/15, June 4 2015)"
+  },
+  {
+   "label": "P",
+   "file": "doc-yw4mgr.pdf",
+   "kind": "email_chain",
+   "date": "2015-08-28",
+   "author": "Len Meilleur; Cheryl Wenezenki-Yolland",
+   "recipients": [],
+   "description": "August 28, 2015 e-mail exchange between Wenezenki-Yolland and Meilleur (GPEB4414 pp. 1-10)",
+   "references": [
+    {
+     "paragraph": 113,
+     "quote": "marked as Exhibit \"P\" (GPEB4414, pp.1-10)"
+    },
+    {
+     "paragraph": 114,
+     "quote": "marked as Exhibit \"P\""
+    }
+   ],
+   "content_check": "10 pages: 'Meilleur, Len FIN:EX ... Friday, August 28, 2015 10:58 AM To Wenezenki-Yolland, Cheryl GPEB4414.0001'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-t2x89z.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Len Meilleur (believed)",
+   "recipients": [],
+   "description": "Four further pages of GPEB4414, believed to be Meilleur's own notes",
+   "references": [
+    {
+     "paragraph": 115,
+     "quote": "Attached to this affidavit and marked as Exhibit \"Q\" (GPEB4414, pp.11-14)"
+    }
+   ],
+   "content_check": "4 pages: bullet notes, partly redacted 'R2 PII Ongoing investigations/active intelligence'"
+  },
+  {
+   "label": "R",
+   "file": "doc-rxeth4.pdf",
+   "kind": "email_chain",
+   "date": "2015-08-31",
+   "author": "Len Meilleur; Cheryl Wenezenki-Yolland",
+   "recipients": [],
+   "description": "August 31, 2015 e-mail exchange in which Wenezenki-Yolland raised concern about study versus action (GPEB4722)",
+   "references": [
+    {
+     "paragraph": 117,
+     "quote": "and marked Exhibit \"R\" (GPEB4722)"
+    }
+   ],
+   "content_check": "2 pages: 'Meilleur, Len FIN:EX Monday, August 31, 2015 11:02 AM Swan, Angela'"
+  },
+  {
+   "label": "S",
+   "file": "doc-yz6qmf.pdf",
+   "kind": "letter",
+   "date": "2015-02-05",
+   "author": "Minister Michael de Jong",
+   "recipients": [
+    "Bud Smith, Chair, BCLC Board"
+   ],
+   "description": "2015/2016 Mandate Letter (GPEB4686), attached again",
+   "references": [
+    {
+     "paragraph": 125,
+     "quote": "attached to this affidavit \nas Exhibit \"S\" (GPEB4686)"
+    }
+   ],
+   "content_check": "12 pages: 'Bud Smith, Chair ... Re: 2015/16 Mandate Letter ... GPEB4686.0001' (second copy of N)",
+   "same_text_as": [
+    "N"
+   ]
+  },
+  {
+   "label": "T",
+   "file": "doc-x73z7j.pdf",
+   "kind": "letter",
+   "date": "2015-08-07",
+   "author": "John Mazure (GPEB)",
+   "recipients": [
+    "Jim Lightbody, CEO, BCLC"
+   ],
+   "description": "Mazure's August 7, 2015 letter asking BCLC to implement financial-industry customer due diligence focused on source of wealth and funds (GPEB0762)",
+   "references": [
+    {
+     "paragraph": 131,
+     "quote": "marked Exhibit \"T\" (GPEB0762)"
+    }
+   ],
+   "content_check": "2 pages: 'GPEB0762.0001 ... August 7, 2015 Jim Lightbody CEO and President British Columbia Lottery Corporation'"
+  },
+  {
+   "label": "U",
+   "file": "doc-bx4vw6.pdf",
+   "kind": "letter",
+   "date": "2015-08-24",
+   "author": "Jim Lightbody (BCLC)",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "Lightbody's August 24, 2015 letter to the Minister responding to Mazure's letter (BCLC0004514)",
+   "references": [
+    {
+     "paragraph": 132,
+     "quote": "Attached to this affidavit and marked Exhibit \"U\""
+    }
+   ],
+   "content_check": "2 pages: 'August 24, 2015 Office of the Minister & House Leader Ministry of Finance ... Attention: Hon. Michael de Jong'"
+  },
+  {
+   "label": "V",
+   "file": "doc-9c8wkm.pdf",
+   "kind": "other",
+   "date": "2015-10",
+   "author": "GPEB",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "Briefing note setting out options for a dedicated gaming policing unit (GPEB0785)",
+   "references": [
+    {
+     "paragraph": 141,
+     "quote": "affidavit and marked Exhibit \"V\" (GPEB0785)"
+    }
+   ],
+   "content_check": "10 pages: 'Ministry of Finance BRIEFING DOCUMENT Honourable Michael de Jong ... Date Required: Sept. 28, 2015 Oct. 9, 2015'"
+  },
+  {
+   "label": "W",
+   "file": "doc-p53cpd.pdf",
+   "kind": "other",
+   "date": "2016-01-08",
+   "author": "Minister Michael de Jong",
+   "recipients": [
+    "Cheryl Wenezenki-Yolland"
+   ],
+   "description": "Minister's January 8, 2016 memorandum on requesting an increased cost containment ratio for BCLC (GPEB4431)",
+   "references": [
+    {
+     "paragraph": 146,
+     "quote": "and marked Exhibit \"W' (GPEB4431)"
+    }
+   ],
+   "content_check": "1 page: 'GPEB4431.0001 Ministry of Finance Office of the Minister To: Cheryl Wenezenki-Yolland Associate Deputy Minister and Chief Records Officer'"
+  },
+  {
+   "label": "X",
+   "file": "doc-ud7bmh.pdf",
+   "kind": "other",
+   "date": "2016-01-11",
+   "author": "Cheryl Wenezenki-Yolland",
+   "recipients": [
+    "Jim Lightbody, CEO, BCLC"
+   ],
+   "description": "Wenezenki-Yolland's memorandum to Lightbody advising of the Minister's decision (GPEB4430)",
+   "references": [
+    {
+     "paragraph": 146,
+     "quote": "and marked Exhibit \"X\" (GPEB4430)"
+    }
+   ],
+   "content_check": "1 page: 'Ministry of Finance To: Jim Lightbody, CEO BC Lottery Corporation Re: Treasury Board Submission' (refers to January 8, 2016; dated January 11, 2016)"
+  },
+  {
+   "label": "Y",
+   "file": "doc-r549gn.pdf",
+   "kind": "other",
+   "date": "2016-03-14",
+   "author": "GPEB",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "Ministerial briefing package proposing the Joint Illegal Gaming Investigation Team (GPEB0859)",
+   "references": [
+    {
+     "paragraph": 147,
+     "quote": "marked Exhibit \"Y\" \n(GPEB0859)"
+    }
+   ],
+   "content_check": "14 pages: 'Ministry of Finance BRIEFING DOCUMENT ... Date Required: ... March 14'"
+  },
+  {
+   "label": "Z",
+   "file": "doc-atebqf.pdf",
+   "kind": "letter",
+   "date": "2015-10-01",
+   "author": "Minister Michael de Jong",
+   "recipients": [
+    "Bud Smith, Chair, BCLC Board"
+   ],
+   "description": "Minister's October 1, 2015 letter of direction to BCLC (GPEB0775)",
+   "references": [
+    {
+     "paragraph": 150,
+     "quote": "Attached to this affidavit and marked Exhibit \"Z\" {GPEB0775)"
+    }
+   ],
+   "content_check": "4 pages: 'Bud Smith, Chair Board of Directors British Columbia Lottery Corporation 74 West Seymour Street Kamloops ... Re: Anti-Money Laundering'"
+  },
+  {
+   "label": "AA",
+   "file": "doc-5jeguv.pdf",
+   "kind": "letter",
+   "date": "2016-01-15",
+   "author": "John Mazure (GPEB)",
+   "recipients": [
+    "Jim Lightbody, CEO, BCLC"
+   ],
+   "description": "Mazure's January 15, 2016 letter on the continuing prevalence of SCTs (GPEB0806)",
+   "references": [
+    {
+     "paragraph": 155,
+     "quote": "marked Exhibit \"AA\" (GPEB0806)"
+    }
+   ],
+   "content_check": "4 pages: 'BRITISH COLUMBIA January 15, 2016 Jim Lightbody CEO and President'"
+  },
+  {
+   "label": "BB",
+   "file": "doc-9h8v36.pdf",
+   "kind": "letter",
+   "date": "2016-01-29",
+   "author": "Minister Michael de Jong",
+   "recipients": [
+    "Bud Smith, Chair, BCLC Board"
+   ],
+   "description": "2016/2017 Mandate letter to BCLC (GPEB3903)",
+   "references": [
+    {
+     "paragraph": 156,
+     "quote": "Attached to this affidavit and marked Exhibit \"BB\" (GPEB3903)"
+    }
+   ],
+   "content_check": "12 pages: 'GPEB3903.0001 JAN 29 2016 Bud Smith, Chair Board of Directors'"
+  },
+  {
+   "label": "CC",
+   "file": "doc-c795n9.pdf",
+   "kind": "letter",
+   "date": "2016-07-14",
+   "author": "John Mazure (GPEB)",
+   "recipients": [
+    "Jim Lightbody, CEO, BCLC"
+   ],
+   "description": "Mazure's July 14, 2016 letter on the need for a source-of-funds protocol (GPEB0885)",
+   "references": [
+    {
+     "paragraph": 157,
+     "quote": "marked Exhibit \"CC\" (GPEB0885)"
+    }
+   ],
+   "content_check": "2 pages: 'BRITISH COLUMBIA July 14, 2016 Jim Lightbody, CEO and President'"
+  },
+  {
+   "label": "DD",
+   "file": "doc-3acheu.pdf",
+   "kind": "letter",
+   "date": "2016-08-03",
+   "author": "Jim Lightbody (BCLC)",
+   "recipients": [
+    "John Mazure (GPEB)"
+   ],
+   "description": "Lightbody's August 3, 2016 response to Mazure (GPEB0899)",
+   "references": [
+    {
+     "paragraph": 159,
+     "quote": "marked Exhibit \"DD\" (GPEB0899)"
+    }
+   ],
+   "content_check": "2 pages: 'August 3, 2016 Gaming Policy & Enforcement Branch ... Attention: John Mazure'"
+  },
+  {
+   "label": "EE",
+   "file": "doc-jsatuv.pdf",
+   "kind": "report",
+   "date": "2016-07-26",
+   "author": "MNP LLP",
+   "recipients": [
+    "Dave Boychuk, GPEB"
+   ],
+   "description": "MNP Report on due diligence practices in BC casinos (BCLC0000225)",
+   "references": [
+    {
+     "paragraph": 166,
+     "quote": "marked Exhibit \n\"EE\" (BCLC0000225)"
+    }
+   ],
+   "content_check": "25 pages: 'BCLC0000225 MNP ... British Columbia Gaming Policy Enforcement Branch PREPARED FOR: Dave Boychuk'"
+  },
+  {
+   "label": "FF",
+   "file": "doc-9mhn2t.pdf",
+   "kind": "other",
+   "date": "2016-10-05",
+   "author": "Jim Lightbody (BCLC); John Mazure (GPEB)",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "October 2016 Briefing Document on GPEB/BCLC roles and responsibilities, with draft agreement (GPEB4449 pp. 116-131)",
+   "references": [
+    {
+     "paragraph": 183,
+     "quote": "marked Exhibit \"FF' (GPEB4449, pp.116-"
+    }
+   ],
+   "content_check": "16 pages: 'Briefing Document BCLC BRIEFING DOCUMENT To: Minister Michael de Jong Prepared By: Jim Lightbody' (dated October 5, 2016)"
+  },
+  {
+   "label": "GG",
+   "file": "doc-ycxya3.pdf",
+   "kind": "other",
+   "date": "2016-11-08",
+   "author": "GPEB",
+   "recipients": [
+    "Cheryl Wenezenki-Yolland"
+   ],
+   "description": "Briefing Document on the scope of the Minister's and General Manager's authority over BCLC (GPEB5059)",
+   "references": [
+    {
+     "paragraph": 197,
+     "quote": "marked Exhibit \"GG\" (GPEB5059)"
+    }
+   ],
+   "content_check": "6 pages: 'Ministry of Finance BRIEFING DOCUMENT Cheryl Wenezenki-Yolland Associate Deputy Minister Date Requested: Oct. 19, 2016 Date Required: Nov. 8, 2016'"
+  },
+  {
+   "label": "HH",
+   "file": "doc-qn5cvq.pdf",
+   "kind": "letter",
+   "date": "2016-12",
+   "author": "Minister Michael de Jong",
+   "recipients": [
+    "Bud Smith, BCLC Board"
+   ],
+   "description": "2017/2018 Mandate Letter to BCLC (GPEB4319)",
+   "references": [
+    {
+     "paragraph": 200,
+     "quote": "marked Exhibit \"HH\" (GPEB4319)"
+    }
+   ],
+   "content_check": "8 pages: 'BRITISH COLUMBIA GPEB4319.0001 355179 Bud Smith Board of Directors British Columbia Lottery Corporation'"
+  },
+  {
+   "label": "II",
+   "file": "doc-hu8kjr.pdf",
+   "kind": "report",
+   "date": "2017-02",
+   "author": "BC Ministry of Finance",
+   "recipients": [],
+   "description": "Ministry of Finance 2017/18 - 2019/20 Service Plan",
+   "references": [
+    {
+     "paragraph": 201,
+     "quote": "Exhibit \"II\""
+    }
+   ],
+   "content_check": "26 pages: 'Ministry of Finance 2017/18 - 2019/20 SERVICE PLAN February 2017'"
+  },
+  {
+   "label": "JJ",
+   "file": "doc-x7yugb.pdf",
+   "kind": "email_chain",
+   "date": "2017-01-13",
+   "author": "Michele Jaggi-Smith; John Mazure; Cheryl Wenezenki-Yolland",
+   "recipients": [],
+   "description": "E-mail chain confirming that the joint briefing note could set out the different perspectives (GPEB5083)",
+   "references": [
+    {
+     "paragraph": 203,
+     "quote": "marked Exhibit \"JJ\" (GPEB5083)"
+    }
+   ],
+   "content_check": "2 pages: 'Jaggi-Smith, Michele FIN:EX Friday, January 13, 2017 9:31 AM Meilleur, Len; Henderson, Jef[f]'"
+  },
+  {
+   "label": "KK",
+   "file": "doc-xwfsd5.pdf",
+   "kind": "other",
+   "date": "2014-02-07",
+   "author": "John Mazure (GPEB)",
+   "recipients": [
+    "Minister Michael de Jong"
+   ],
+   "description": "Briefing Document requesting a 'housekeeping' amendment to the Gaming Control Act (GPEB4669)",
+   "references": [
+    {
+     "paragraph": 224,
+     "quote": "marked Exhibit \"KK\" (GPEB4669)"
+    }
+   ],
+   "content_check": "5 pages: 'Ministry of Finance BRIEFING DOCUMENT To: Honourable Michael de Jong ... GPEB4669.0001 Initiated by: John Mazure Date Prepared: F[ebruary 7, 2014]'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Wenezenki-Yolland first employed by the BC Public Service",
+   "date": "1985",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I was first employed by the BC Public Service in 1985",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Returns to the core public service",
+   "date": "1999",
+   "precision": "year",
+   "paragraphs": [
+    4
+   ],
+   "quote": "I returned to the core public service in 1999",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Provincial Health Officer's 2009 report on gambling (published 2013)",
+   "date": "2013-10-01",
+   "precision": "day",
+   "paragraphs": [
+    46
+   ],
+   "quote": "which was released on October 1, 2013",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Joins the Ministry of Finance as Associate Deputy Minister",
+   "date": "2013-06",
+   "precision": "month",
+   "paragraphs": [
+    5
+   ],
+   "quote": "In June 2013, I joined the Ministry of Finance as an Associate Deputy Minister",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Service Plan 2013/14-2015/16 released",
+   "date": "2013-06-14",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "Service Plan released June 14, 2013",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Orientation briefings by Doug Scott (GPEB) and Michael Graydon (BCLC)",
+   "date": "2013-06",
+   "precision": "month",
+   "paragraphs": [
+    22
+   ],
+   "quote": "In June 2013, I received in-person orientation",
+   "exhibits": [
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Transition binder provided to her and the Minister",
+   "date": "2013",
+   "precision": "approximate",
+   "paragraphs": [
+    21
+   ],
+   "quote": "A transition binder was provided to me and Minister de Jong",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Doug Scott leaves GPEB",
+   "date": "2013",
+   "precision": "approximate",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Mr. Scott left this role in the fall of 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "John Mazure becomes General Manager of GPEB",
+   "date": "2013-10",
+   "precision": "month",
+   "paragraphs": [
+    26
+   ],
+   "quote": "When John Mazure became General Manager of GPEB in October 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Minister approves a Crown Review of BCLC",
+   "date": "2013-10",
+   "precision": "month",
+   "paragraphs": [
+    49
+   ],
+   "quote": "In October 2013, Minister de Jong \napproved a Crown Review of BCLC",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Government commits to review all major Crown corporations",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    49
+   ],
+   "quote": "In 2011, the Provincial Government committed",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Proposed bet limit increase discussed",
+   "date": "2013",
+   "precision": "approximate",
+   "paragraphs": [
+    54
+   ],
+   "quote": "I recall discussions about a proposed bet limit increase in late 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Housekeeping Gaming Control Act amendment briefing",
+   "date": "2014-02-07",
+   "precision": "day",
+   "paragraphs": [
+    224
+   ],
+   "quote": "GPEB brought forward a \nBriefing Document which was sent up to the Minister",
+   "exhibits": [
+    "KK"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "BCLC's new customer due diligence policies take effect",
+   "date": "2014-02",
+   "precision": "month",
+   "paragraphs": [
+    86
+   ],
+   "quote": "diligence policies had come into effect in February 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Taxpayer Accountability Principles issued",
+   "date": "2014-06",
+   "precision": "month",
+   "paragraphs": [
+    18
+   ],
+   "quote": "dated June 2014",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Graydon resigns as CEO of BCLC; succeeded by Jim Lightbody",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    17
+   ],
+   "quote": "After his \nresignation in 2014, Mr. Graydon was succeeded by Jim Lightbody",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Mazure and Wenezenki-Yolland brief the Minister on a broader review approach",
+   "date": "2014-09",
+   "precision": "month",
+   "paragraphs": [
+    43
+   ],
+   "quote": "In September 2014, Mr. Mazure and I provided \nthe Minister a briefing note",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Strategic Human Resources reports on the internal review of GPEB",
+   "date": "2014-09",
+   "precision": "month",
+   "paragraphs": [
+    64
+   ],
+   "quote": "In September 2014, Strategic Human Resources produced a report",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Malysh Report produced",
+   "date": "2014-09",
+   "precision": "month",
+   "paragraphs": [
+    82
+   ],
+   "quote": "After the Malysh \nReport was produced in September 2014",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Terminations of Larry Vander Graaf and Joe Schalk approved",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    70
+   ],
+   "quote": "I approved the proposed terminations",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "IAAS completes the BCLC Crown Review",
+   "date": "2014",
+   "precision": "approximate",
+   "paragraphs": [
+    53
+   ],
+   "quote": "IMS completed their Crown Review in late 2014",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Gaming Control Act amendment enacted",
+   "date": "2014",
+   "precision": "approximate",
+   "paragraphs": [
+    224
+   ],
+   "quote": "enacted in the fall of 2014",
+   "exhibits": [
+    "KK"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Desmarais (BCLC) presentation on rising SCTs; hawala explanation",
+   "date": "2015-01",
+   "precision": "month",
+   "paragraphs": [
+    96,
+    97
+   ],
+   "quote": "delivered presentations in January \n2015",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Minister's 2015/16 mandate letter to BCLC",
+   "date": "2015-02-05",
+   "precision": "day",
+   "paragraphs": [
+    94,
+    125
+   ],
+   "quote": "dated \nFebruary 5, 2015",
+   "exhibits": [
+    "N",
+    "S"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Government response to the PHO report released",
+   "date": "2015-02",
+   "precision": "month",
+   "paragraphs": [
+    48
+   ],
+   "quote": "The work culminated in the release in February 2015",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Mazure prepares briefing note on the stakeholder workshop",
+   "date": "2015-05",
+   "precision": "month",
+   "paragraphs": [
+    101,
+    102
+   ],
+   "quote": "In \nMay 2015, Mr. Mazure prepared a briefing note",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Exploring Common Ground workshop held",
+   "date": "2015-06",
+   "precision": "month",
+   "paragraphs": [
+    100
+   ],
+   "quote": "which was held in June 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "Wenezenki-Yolland on vacation",
+   "date": "2015-07-10",
+   "precision": "range",
+   "paragraphs": [
+    103
+   ],
+   "quote": "I left on July 10, 2015 and \nreturned from vacation on August 27, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Mazure's letter to BCLC on source-of-funds due diligence",
+   "date": "2015-08-07",
+   "precision": "day",
+   "paragraphs": [
+    131
+   ],
+   "quote": "Mr. Mazure had sent a letter to Jim Lightbody dated August 7, 2015",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "Lightbody's letter to the Minister pushing back",
+   "date": "2015-08-24",
+   "precision": "day",
+   "paragraphs": [
+    132
+   ],
+   "quote": "On August 24, 2015, Mr. Lightbody sent a letter to Minister de Jong",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Meilleur briefs her on the SCT spike and the RCMP River Rock investigation",
+   "date": "2015-08-27",
+   "precision": "day",
+   "paragraphs": [
+    106,
+    107
+   ],
+   "quote": "during the August 27, 2015 briefing",
+   "exhibits": []
+  },
+  {
+   "id": "e32",
+   "description": "E-mail exchange with Meilleur",
+   "date": "2015-08-28",
+   "precision": "day",
+   "paragraphs": [
+    113
+   ],
+   "quote": "email exchange between \nmyself and Mr. Meilleur on August 28, 2015",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "E-mail exchange with Meilleur about study versus action",
+   "date": "2015-08-31",
+   "precision": "day",
+   "paragraphs": [
+    117
+   ],
+   "quote": "on August 31, 2015 in which I raised this concern",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "Kim Henderson replaces Milburn as Deputy Minister",
+   "date": "2015-09",
+   "precision": "approximate",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In approximately September 2015, Kim Henderson replaced Mr. Milburn",
+   "exhibits": []
+  },
+  {
+   "id": "e35",
+   "description": "GPEB engages MNP to evaluate casino due diligence",
+   "date": "2015-09",
+   "precision": "month",
+   "paragraphs": [
+    161
+   ],
+   "quote": "In September 2015, GPEB engaged MNP LLP",
+   "exhibits": []
+  },
+  {
+   "id": "e36",
+   "description": "September 2015 ministerial briefing on the AML strategy",
+   "date": "2015-09",
+   "precision": "month",
+   "paragraphs": [
+    135
+   ],
+   "quote": "the briefing with the Minister took place in \nSeptember 2015",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "Minister's letter of direction to BCLC",
+   "date": "2015-10-01",
+   "precision": "day",
+   "paragraphs": [
+    150
+   ],
+   "quote": "letter of \ndirection issued by Minister de Jong to BCLC Chair Bud Smith dated October 1, 2015",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "Phone call with BCLC Chair Bud Smith",
+   "date": "2015-10-09",
+   "precision": "day",
+   "paragraphs": [
+    153
+   ],
+   "quote": "I recall a phone call with BCLC Board Chair Bud Smith on October 9, 2015",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "Meeting of Ministers, RCMP and officials on a gaming policing unit",
+   "date": "2015-10",
+   "precision": "approximate",
+   "paragraphs": [
+    143
+   ],
+   "quote": "In approximately October 2015, there was a meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "Minister's memorandum on BCLC cost containment ratio",
+   "date": "2016-01-08",
+   "precision": "day",
+   "paragraphs": [
+    146
+   ],
+   "quote": "memorandum from the Minister to \nme dated January 8, 2016",
+   "exhibits": [
+    "W",
+    "X"
+   ]
+  },
+  {
+   "id": "e41",
+   "description": "Mazure's letter to Lightbody on continuing SCTs",
+   "date": "2016-01-15",
+   "precision": "day",
+   "paragraphs": [
+    155
+   ],
+   "quote": "On January 15, 2016, John Mazure sent a letter to Jim Lightbody",
+   "exhibits": [
+    "AA"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "2016/17 mandate letter to BCLC",
+   "date": "2016-01-29",
+   "precision": "day",
+   "paragraphs": [
+    156
+   ],
+   "quote": "On January 29, 2016, Minister de Jong issued the 2016/2017 Mandate letter",
+   "exhibits": [
+    "BB"
+   ]
+  },
+  {
+   "id": "e43",
+   "description": "Athana Mentzelopoulos becomes Deputy Minister",
+   "date": "2016-03",
+   "precision": "approximate",
+   "paragraphs": [
+    13
+   ],
+   "quote": "In approximately March 2016, Athana Mentzelopoulos replaced Ms. Henderson",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "description": "Ministerial briefing proposing JIGIT",
+   "date": "2016-03-14",
+   "precision": "approximate",
+   "paragraphs": [
+    147
+   ],
+   "quote": "on or about March \n14, 2016",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e45",
+   "description": "Meeting with the Minister and Mazure on the AML strategy and MNP",
+   "date": "2016-04-04",
+   "precision": "day",
+   "paragraphs": [
+    162
+   ],
+   "quote": "on April 4, 2016",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e46",
+   "description": "JIGIT publicly announced",
+   "date": "2016-04-11",
+   "precision": "day",
+   "paragraphs": [
+    148
+   ],
+   "quote": "publicly announced on April \n11, 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e47",
+   "description": "MNP exit meeting with GPEB and BCLC",
+   "date": "2016-07-11",
+   "precision": "approximate",
+   "paragraphs": [
+    164
+   ],
+   "quote": "likely took place on July 11, 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e48",
+   "description": "Mazure's letter to Lightbody on a source-of-funds protocol",
+   "date": "2016-07-14",
+   "precision": "day",
+   "paragraphs": [
+    157
+   ],
+   "quote": "On July 14, 2016, Mr. Mazure sent a letter to Mr. Lightbody",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e49",
+   "description": "MNP Report concluded",
+   "date": "2016-07-26",
+   "precision": "day",
+   "paragraphs": [
+    166
+   ],
+   "quote": "The report was concluded on July 26, 2016",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e50",
+   "description": "Lightbody responds to Mazure",
+   "date": "2016-08-03",
+   "precision": "day",
+   "paragraphs": [
+    159
+   ],
+   "quote": "On August 3, 2016, Mr. Lightbody responded by letter to Mr. Mazure",
+   "exhibits": [
+    "DD"
+   ]
+  },
+  {
+   "id": "e51",
+   "description": "GPEB pre-briefing",
+   "date": "2016-10-04",
+   "precision": "day",
+   "paragraphs": [
+    173
+   ],
+   "quote": "On October 4, 2016, GPEB provided me with a pre-",
+   "exhibits": []
+  },
+  {
+   "id": "e52",
+   "description": "Pre-briefing to Deputy Minister Mentzelopoulos",
+   "date": "2016-10-07",
+   "precision": "day",
+   "paragraphs": [
+    174
+   ],
+   "quote": "On October 7, 2016, a pre-briefing was provided",
+   "exhibits": []
+  },
+  {
+   "id": "e53",
+   "description": "Mazure pre-briefs the Minister",
+   "date": "2016-10-12",
+   "precision": "day",
+   "paragraphs": [
+    175
+   ],
+   "quote": "On October 12, 2016, Mr. Mazure provided a pre-briefing",
+   "exhibits": []
+  },
+  {
+   "id": "e54",
+   "description": "Briefing of the Minister with BCLC on the MNP Report and roles",
+   "date": "2016-10-13",
+   "precision": "day",
+   "paragraphs": [
+    176,
+    183
+   ],
+   "quote": "The October 13, 2016 briefing with the Minister was attended by",
+   "exhibits": [
+    "FF"
+   ]
+  },
+  {
+   "id": "e55",
+   "description": "Briefing on the Minister's and GM's authority over BCLC",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    197
+   ],
+   "quote": "I requested a briefing that would clarify the scope",
+   "exhibits": [
+    "GG"
+   ]
+  },
+  {
+   "id": "e56",
+   "description": "2017/18 mandate letter to BCLC",
+   "date": "2016-12",
+   "precision": "month",
+   "paragraphs": [
+    200
+   ],
+   "quote": "In December 2016, the Minister issued the 2017/2018 Mandate Letter",
+   "exhibits": [
+    "HH"
+   ]
+  },
+  {
+   "id": "e57",
+   "description": "Proposal for a directive on unsourced cash discussed with Mazure",
+   "date": "2017-01",
+   "precision": "month",
+   "paragraphs": [
+    202,
+    203
+   ],
+   "quote": "In January 2017, I spoke again with Mr. Mazure",
+   "exhibits": [
+    "JJ"
+   ]
+  },
+  {
+   "id": "e58",
+   "description": "Ministry Service Plan 2017/18-2019/20 released",
+   "date": "2017-02",
+   "precision": "month",
+   "paragraphs": [
+    201
+   ],
+   "quote": "released in February 2017",
+   "exhibits": [
+    "II"
+   ]
+  },
+  {
+   "id": "e59",
+   "description": "Joint briefing of Ministers de Jong and Morris on JIGIT",
+   "date": "2017-03-13",
+   "precision": "day",
+   "paragraphs": [
+    213
+   ],
+   "quote": "That meeting occurred on March 13, 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e60",
+   "description": "No further policy initiatives before the May 2017 election",
+   "date": "2017-05",
+   "precision": "approximate",
+   "paragraphs": [
+    207
+   ],
+   "quote": "the government would not be pursuing any further policy \ninitiatives before the upcoming May 2017 provincial election",
+   "exhibits": []
+  },
+  {
+   "id": "e61",
+   "description": "Wenezenki-Yolland terminated without cause after the change in government",
+   "date": "2017-07",
+   "precision": "approximate",
+   "paragraphs": [
+    5,
+    227
+   ],
+   "quote": "I was one of several executives terminated following the change in government",
+   "exhibits": []
+  },
+  {
+   "id": "e62",
+   "description": "Peter German's 'Dirty Money' Report",
+   "date": "2018-03-31",
+   "precision": "day",
+   "paragraphs": [
+    228
+   ],
+   "quote": "March 31, 2018 \"Dirty \nMoney\" Report",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Commission Exhibit 544 (Graydon letter to Mazure on bet limits)",
+  "Commission Exhibits 546, 547, 548, 549 (GPEB internal review, Steenvoorden report, review briefing note, termination briefing note)",
+  "Commission Exhibit 542 (February 6, 2015 Briefing Document)",
+  "Commission Exhibit 550 (draft May 2015 briefing note)",
+  "Commission Exhibits 552, 553 (September 2015 Strategy Document and draft directives)",
+  "Commission Exhibits 554, 555, 582, 584, 556 (2016-2017 briefing documents and presentation)",
+  "Peter German's March 31, 2018 'Dirty Money' Report",
+  "Kroeker Report (2011)"
+ ]
+}

@@ -1,0 +1,108 @@
+{
+ "record_id": "nlsc-cfl-clarke2023a",
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7
+ ],
+ "divider_pages": [
+  8,
+  31,
+  55,
+  58
+ ],
+ "scanned_pages": [
+  8,
+  31,
+  55,
+  58
+ ],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-sfmgh9.pdf",
+   "source_pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+   ],
+   "cover_page": 9,
+   "stamp_page": null,
+   "text_chars": 33553
+  },
+  {
+   "label": "B",
+   "file": "doc-wk4dx9.pdf",
+   "source_pages": [
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54
+   ],
+   "cover_page": 32,
+   "stamp_page": null,
+   "text_chars": 44933
+  },
+  {
+   "label": "C",
+   "file": "doc-4stuya.pdf",
+   "source_pages": [
+    57
+   ],
+   "cover_page": 56,
+   "stamp_page": null,
+   "text_chars": 2708
+  },
+  {
+   "label": "D",
+   "file": "doc-wad4mw.pdf",
+   "source_pages": [
+    60
+   ],
+   "cover_page": 59,
+   "stamp_page": null,
+   "text_chars": 1504
+  }
+ ],
+ "leak_audit": []
+}

@@ -1,0 +1,336 @@
+{
+ "record_id": "nlsc-cfl-clarke2023a",
+ "court": "Supreme Court of Newfoundland and Labrador (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NL",
+ "court_file": "2022 01G 0709",
+ "subject": "insolvency",
+ "family": "canada-fluorspar-ccaa",
+ "proceeding": "Canada Fluorspar (NL) Inc., Canada Fluorspar Inc. and Newspar CCAA proceedings: Monitor's application to add CFI Newspar Holdings Inc. and extend the stay of proceedings (heard May 18, 2023)",
+ "document": "Affidavit of Phil Clarke sworn May 9, 2023",
+ "deponent": "Phil Clarke",
+ "deponent_role": "Senior Vice President, Grant Thornton Limited (Court-appointed Monitor)",
+ "sworn_date": "2023-05-09",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-sfmgh9.pdf",
+   "kind": "court_order",
+   "date": "2022-02-21",
+   "author": "Supreme Court of Newfoundland and Labrador (Chief Justice Raymond P. Whalen)",
+   "recipients": [],
+   "description": "Order of February 21, 2022 appointing Grant Thornton Limited Interim Receiver of the Company",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "pursuant to an Order of this Honourable Court dated the 21st of February 2022^ attached hereto\nas Exhibit \"A\""
+    }
+   ],
+   "content_check": "21 scanned pages: Interim Receivership Order on the application of PricewaterhouseCoopers Inc. as receiver of Bridging Finance, before Chief Justice Whalen, with Schedule A and the Interim Receiver's Certificate form"
+  },
+  {
+   "label": "B",
+   "file": "doc-wk4dx9.pdf",
+   "kind": "court_order",
+   "date": "2022-03-18",
+   "author": "Supreme Court of Newfoundland and Labrador",
+   "recipients": [],
+   "description": "Amended and Restated Initial Order of March 18, 2022 appointing GTL Monitor",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "Amended and Restated Initial Order of this Honourable Court issued on the 18th\nof March 2022 attached hereto as Exhibit \"B\""
+    }
+   ],
+   "content_check": "22 scanned pages: CCAA order on the application of Canada Fluorspar (NL) Inc. and Canada Fluorspar Inc. (Monitor powers, DIP Lender charge, Administration Charge, Schedule of defined terms)"
+  },
+  {
+   "label": "C",
+   "file": "doc-4stuya.pdf",
+   "kind": "letter",
+   "date": "2022-10",
+   "author": "Grant Thornton Limited (Monitor)",
+   "recipients": [],
+   "description": "Letter describing the Material Adverse Change that left the Successful Bidder unable to close",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "as a result of a Material Adverse Change, as outlined In Exhibit <<C\""
+    }
+   ],
+   "content_check": "1 scanned page: Grant Thornton letter of October 2022 to PricewaterhouseCoopers Inc. and the NL Department of Industry, Energy and Technology: the Successful Bidder has not paid the $1,400,000 deposit top-up"
+  },
+  {
+   "label": "D",
+   "file": "doc-wad4mw.pdf",
+   "kind": "financial_statement",
+   "date": "2023-05",
+   "author": "Grant Thornton Limited (Monitor)",
+   "recipients": [],
+   "description": "Revised Cashflow showing the Monitor can fund the extension without increasing the DIP",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "The revised Cashflow is\nattached as Exhibit \"D\""
+    }
+   ],
+   "content_check": "1 page: Canada Fluorspar Inc. cash flow projection (CCAA care and maintenance, SISP), weekly, to June 24, 2023"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Bridging Finance Inc. demands on the Newspar-guaranteed debt",
+   "date": "2022-02",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "Bridging Finance Inc., had demanded on the\ndebt back in February 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "GTL appointed Interim Receiver of the Company",
+   "date": "2022-02-21",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "GTL was appointed Interim Receiver of the Company",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "GTL applies as Interim Receiver to place the Company under the CCAA",
+   "date": "2022-03-08",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "on the 8th of March 2022, GTL applied to the\nHonourable Supreme Court",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Initial CCAA order granted",
+   "date": "2022-03-11",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "initially on the llth of\nMarch 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Amended and Restated Initial Order issued; GTL appointed Monitor",
+   "date": "2022-03-18",
+   "precision": "day",
+   "paragraphs": [
+    3,
+    4
+   ],
+   "quote": "GTL wa's further appointed as Monitor for CFI",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "GTL applies to extend the SISP dates and the stay to September 2, 2022",
+   "date": "2022-05-31",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "on the 31st of May 2022, GTL applied to the Honourable\nSupreme Court",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Amended ARIO granted",
+   "date": "2022-06-10",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "That order was granted, on the 10th of June 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "GTL applies to extend the SISP dates and the stay to October 17, 2022",
+   "date": "2022-08-24",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "on the 24th day of August 2022, GTL applied to this\nHonorable Court",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "2nd Amended ARIO granted",
+   "date": "2022-08-30",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "That order was granted on the 30th\nday of August 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Monitor's First Confidential Report and Fifth Report on the SISP",
+   "date": "2022-10-05",
+   "precision": "range",
+   "paragraphs": [
+    10
+   ],
+   "quote": "Monitor's First Confidential Report dated October 5, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Clarke affidavit of October 6, 2022 on the SISP",
+   "date": "2022-10-06",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "the affidavit of Phil Clarke, CPA CA, CIRP, LIT dated October 6,\n2022",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Material Adverse Change: Successful Bidder cannot close by October 7 or 17, 2022; transaction terminated",
+   "date": "2022-10",
+   "precision": "month",
+   "paragraphs": [
+    12,
+    13
+   ],
+   "quote": "the Successful\nBidder Is unable to complete the transaction by October 7, 2022, or October 17,2022",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "GTL applies to extend the stay; 3rd Amended ARIO granted the same day",
+   "date": "2022-10-12",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "on the 12th day of October 2022, GTL applied to this\nHonorable Court",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Guarantee indebtedness to Bridging Finance stands at $73,128,742",
+   "date": "2022-10-17",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "$73,128,742 as of October 17, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Monitor solicits new bids from SISP participants after termination",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    14
+   ],
+   "quote": "the Monitor has been working diligently to solicits bids",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Letter of Intent entered into with the new Purchaser",
+   "date": "2023-02-13",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "a Letter of Intent was entered into on February 13,2023",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "GTL applies to extend the stay to May 31, 2023",
+   "date": "2023-02-16",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "on the 16th day of February 2023, GTL applied to this\nHonorable Court",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "4th Amended ARIO granted; GTL carries on its work under it",
+   "date": "2023-02-21",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "That order was granted on the 21st day of February 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Parties conclude CFI Newspar must be added to the CCAA proceedings",
+   "date": "2023",
+   "precision": "approximate",
+   "paragraphs": [
+    16,
+    17,
+    18
+   ],
+   "quote": "It became apparent to alt parties that CFI Newspar Holdings Inc.",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Monitor's Eighth Report",
+   "date": "2023-05-12",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "the Monitors Eighth Report dated May 12,2023",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Revised cash flow shows the extension needs no DIP increase",
+   "date": "2023-05",
+   "precision": "month",
+   "paragraphs": [
+    28
+   ],
+   "quote": "The Revised Cashflow shows that the Monitor has sufficient cash",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "Affidavit of Phil Clarke dated October 6, 2022",
+  "Monitor's First Confidential Report dated October 5, 2022",
+  "Monitor's Fifth Report dated October 6, 2022",
+  "Monitor's First Report",
+  "Monitor's Eighth Report dated May 12, 2023",
+  "The within application"
+ ],
+ "notes": "Scanned with a poor OCR text layer (source's own). TAB divider pages and typed covers stripped."
+}

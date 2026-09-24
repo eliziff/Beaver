@@ -1,0 +1,324 @@
+{
+ "record_id": "onca-barrick-magrofa",
+ "court": "Court of Appeal for Ontario",
+ "court_level": "appellate",
+ "jurisdiction": "ON",
+ "court_file": "COA-25-CV-0229 (CV-22-00-690649-0000; CV-24-00-714148-0000)",
+ "subject": "transnational_tort",
+ "proceeding": "John et al. v. Barrick Gold Corporation (and Petro et al. v. Barrick): appeal from the stay of the Tanzanian plaintiffs' actions; plaintiffs' motion to adduce fresh evidence on appeal",
+ "document": "Affidavit of Marrinette Magrofa #1 sworn November 6, 2025",
+ "deponent": "Marrinette Magrofa",
+ "deponent_role": "Law clerk at Phillips Barristers, counsel to the plaintiffs/appellants",
+ "sworn_date": "2025-11-06",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-fs584y.pdf",
+   "kind": "report",
+   "date": "2025-10-20",
+   "author": "Amnesty International",
+   "recipients": [],
+   "description": "Amnesty International research briefing of October 20, 2025, 'Unopposed, unchecked, unjust: Wave of terror sweeps Tanzania ahead of 2025 vote'",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "Attached as Exhibit “A” is a report by Amnesty International dated October 20, 2025"
+    }
+   ],
+   "content_check": "29-page Amnesty research briefing with cover photo, contents, executive summary on the 2025 Tanzanian election"
+  },
+  {
+   "label": "B",
+   "file": "doc-zb7fac.pdf",
+   "kind": "public_record",
+   "date": "2025-10-31",
+   "author": "Global Affairs Canada",
+   "recipients": [],
+   "description": "Joint statement of the Foreign Ministers of Canada, the U.K. and Norway on the situation in Tanzania, October 31, 2025",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "The statement is attached as\nExhibit “B”"
+    }
+   ],
+   "content_check": "Canada.ca Global Affairs page: joint statement by Foreign Ministers of Canada, Norway and the UK, October 31, 2025"
+  },
+  {
+   "label": "C",
+   "file": "doc-m3wmqm.pdf",
+   "kind": "webpage",
+   "date": "2025-11-03",
+   "author": "Geoffrey York, The Globe and Mail",
+   "recipients": [],
+   "description": "Globe and Mail article 'Canada, allies raise doubts over Tanzanian election as president claims landslide victory', November 3, 2025",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit “C” is a Globe and Mail article"
+    }
+   ],
+   "content_check": "Globe and Mail web article by Geoffrey York, published November 3, 2025"
+  },
+  {
+   "label": "D",
+   "file": "doc-4kzcm5.pdf",
+   "kind": "webpage",
+   "date": "2025-08-17",
+   "author": "The Sunday Times",
+   "recipients": [],
+   "description": "Sunday Times article 'The $1bn gold mine bringing death to desperate villagers', August 17, 2025, obtained through CFM Lawyers' subscription",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "Attached as Exhibit “D” is a copy of the same\nSunday Times article"
+    }
+   ],
+   "content_check": "17 pages: Sunday Times web article on North Mara (Chacha hung from a bridge), with reader comments"
+  },
+  {
+   "label": "E",
+   "file": "doc-6hdqsm.pdf",
+   "kind": "letter",
+   "date": "2025-08",
+   "author": "Grant Beringer, Barrick",
+   "recipients": [],
+   "description": "Undated letter from Grant Beringer (Group Sustainability Executive, Barrick) responding to The Sunday Times, referring to emails of August 8 and 11, 2025",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibit “E” is a letter on Barrick letterhead"
+    }
+   ],
+   "content_check": "2 pages on Barrick Mining Corporation letterhead: 'Dear Mr. Denton, We refer to your emails dated 8 and 11 August 2025'"
+  },
+  {
+   "label": "F",
+   "file": "doc-cxfggr.pdf",
+   "kind": "notice",
+   "date": "2025-09-29",
+   "author": "Barrick Mining Corporation",
+   "recipients": [],
+   "description": "Barrick press release 'Barrick Announces Leadership Transition', September 29, 2025",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Attached as Exhibit “F” is a press release on Barrick’s website"
+    }
+   ],
+   "content_check": "Press release: Mark Hill appointed Group COO and Interim President & CEO, Toronto, September 29, 2025"
+  },
+  {
+   "label": "G",
+   "file": "doc-488zc9.pdf",
+   "kind": "webpage",
+   "date": "2025-11-05",
+   "author": "LinkedIn",
+   "recipients": [],
+   "description": "LinkedIn profile of Mark Hill",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached as Exhibit “G” is a copy of the LinkedIn profile of Mark Hill"
+    }
+   ],
+   "content_check": "LinkedIn profile printout: Mark Hill, COO Latin America & Asia Pacific, Barrick"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Justice Morgan hears Barrick's motion to stay",
+   "date": "2024-10-15",
+   "precision": "range",
+   "paragraphs": [
+    2,
+    3
+   ],
+   "quote": "motion to stay before Justice Morgan on October 15-17, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Allegations of police shootings, disappearances and torture at North Mara continue after the stay hearing",
+   "date": "2024-10-17",
+   "precision": "range",
+   "paragraphs": [
+    11
+   ],
+   "quote": "In the period between October 17, 2024 and present, allegations ofpolice shootings",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Search period of High Court matters begins",
+   "date": "2024-10-01",
+   "precision": "day",
+   "paragraphs": [
+    18,
+    19
+   ],
+   "quote": "dating back to October 1, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Opposition presidential candidate Tundu Lissu arrested and charged with treason",
+   "date": "2025-04",
+   "precision": "month",
+   "paragraphs": [
+    6
+   ],
+   "quote": "the arrest in April 2025 of opposition presidential candidate\nTundu Lissu",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Sunday Times emails to Barrick",
+   "date": "2025-08-08",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "refers to\nemails dated August 8 and 11, 2025",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Sunday Times publishes article on North Mara; Barrick posts response",
+   "date": "2025-08-17",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "“The $1bn gold mine bringing death to\ndesperate villagers” dated August 17, 2025",
+   "exhibits": [
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "CFM obtains the Sunday Times article by subscription",
+   "date": "2025-08-19",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "obtained by CFM Lawyers’ subscription on August 19, 2025",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Barrick announces leadership transition: Mark Hill interim CEO after Bristow departs",
+   "date": "2025-09-29",
+   "precision": "day",
+   "paragraphs": [
+    20,
+    21
+   ],
+   "quote": "“Barrick\nAnnounces Leadership Transition”, dated September 29, 2025",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Amnesty International publishes its Tanzania report",
+   "date": "2025-10-20",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "a report by Amnesty International dated October 20, 2025",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Laiser searches the High Court registry in Musoma: no suits found",
+   "date": "2025-10-27",
+   "precision": "range",
+   "paragraphs": [
+    19
+   ],
+   "quote": "on October 27 and 28, 2025, he attended at the court\nregistry",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Tanzanian national elections held; protests and fatalities",
+   "date": "2025-10-28",
+   "precision": "range",
+   "paragraphs": [
+    7
+   ],
+   "quote": "national elections of\nOctober 28 and 29",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Foreign Ministers of Canada, U.K. and Norway issue joint statement",
+   "date": "2025-10-31",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On October 31, 2025, the Foreign Minister of Canada",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Globe and Mail reports allies doubt the election result",
+   "date": "2025-11-03",
+   "precision": "day",
+   "paragraphs": [
+    9,
+    10
+   ],
+   "quote": "dated November 3, 2025",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Deponent accesses the webpages and documents",
+   "date": "2025-11-05",
+   "precision": "day",
+   "paragraphs": [
+    8,
+    12,
+    22
+   ],
+   "quote": "On November 5, 2025, I accessed a webpage on Barrick’s website",
+   "exhibits": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "Barrick webpage 'Response to The Sunday Times' dated August 17, 2025",
+  "Amnesty International 2020 report 'Lawfare: Repression by Law ahead of Tanzania's General Elections' (quoted inside Exhibit A)"
+ ],
+ "notes": "Scanned affidavit and scanned exhibit covers: --ocr-affidavit, --covers by page (A=21 ... G=83). Appellate fresh-evidence motion record from cfmlawyers.ca."
+}

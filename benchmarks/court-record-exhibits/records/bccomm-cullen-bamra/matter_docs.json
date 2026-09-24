@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/bccomm-cullen-bamra/alderson-affidavit.pdf",
+  "url": "https://ag-pssg-sharedservices-ex.objectstore.gov.bc.ca/ag-pssg-cc-exh-prod-bkt-ex/1025%20-%20Affidavit%20of%20Ross%20Alderson%20sworn%2019%20March%202021.pdf",
+  "title": "Affidavit of Ross Alderson sworn 19 March 2021 (Commission Exhibit 1025)",
+  "kind": "affidavit",
+  "relation": "same inquiry; the complainant's version of the Kroeker allegations"
+ },
+ {
+  "file": "raw/matter/bccomm-cullen-bamra/tottenham-affidavit1.pdf",
+  "url": "https://ag-pssg-sharedservices-ex.objectstore.gov.bc.ca/ag-pssg-cc-exh-prod-bkt-ex/148%20-%20Affidavit%20No.1%20of%20Daryl%20Tottenham%20sworn%20October%2030%202020_Redacted.pdf",
+  "title": "Affidavit No. 1 of Daryl Tottenham sworn October 30, 2020 (Commission Exhibit 148)",
+  "kind": "affidavit",
+  "relation": "same inquiry, BCLC colleague at the same STR meetings"
+ }
+]

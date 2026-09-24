@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/bcuc-png-aaswaakshin/g-152-21.pdf",
+  "url": "https://docs.bcuc.com/documents/proceedings/2021/doc_62718_a-11-g-152-21-reg-timetable.pdf",
+  "title": "BCUC Order G-152-21 (regulatory timetable on consultation)",
+  "kind": "court_order",
+  "relation": "the order the affidavit responds to"
+ },
+ {
+  "file": "raw/matter/bcuc-png-aaswaakshin/decision-c-4-21.pdf",
+  "url": "https://docs.bcuc.com/documents/other/2021/doc_63387_png-salvus-to-galloway-cpcn-decision-and-c-4-21.pdf",
+  "title": "BCUC Decision and Order C-4-21 granting the CPCN",
+  "kind": "court_order",
+  "relation": "final decision in the proceeding"
+ },
+ {
+  "file": "raw/matter/bcuc-png-aaswaakshin/c2-3-withdrawal.pdf",
+  "url": "https://docs.bcuc.com/documents/proceedings/2021/doc_63140_c2-3-laxkw'alaam-band-withdrawal-from-proceeding.pdf",
+  "title": "Lax Kw'alaams Band withdrawal from proceeding (C2-3)",
+  "kind": "letter",
+  "relation": "same party, later filing"
+ }
+]

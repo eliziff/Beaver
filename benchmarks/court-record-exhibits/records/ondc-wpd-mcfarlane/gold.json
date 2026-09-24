@@ -1,0 +1,284 @@
+{
+ "record_id": "ondc-wpd-mcfarlane",
+ "court": "Ontario Superior Court of Justice (Divisional Court)",
+ "court_level": "superior_divisional",
+ "jurisdiction": "ON",
+ "court_file": "Divisional Court File No. 37/15 (filed with the OEB in EB-2013-0442)",
+ "subject": "municipal",
+ "family": "wpd-sumac-ridge-kawartha",
+ "proceeding": "wpd Sumac Ridge Wind Inc. v. Corporation of the City of Kawartha Lakes: judicial review concerning the City's refusal to permit upgrades to Wild Turkey Road for the Sumac Ridge Wind Project; the City's evidence on the road's uncertain legal status (forced road, Quarter Sessions road or 1850 township road)",
+ "document": "Affidavit of Diane McFarlane sworn March 9, 2015 (copy filed with the Ontario Energy Board, EB-2013-0442)",
+ "deponent": "Diane McFarlane",
+ "deponent_role": "Land Management Coordinator, City of Kawartha Lakes",
+ "sworn_date": "2015-03-09",
+ "notes": "Source: copy of the Divisional Court affidavit filed at the OEB (rds.oeb.ca 472508). Covers read by eye (A read '4', B '8'); each cover is followed by a blank page, left in the file; --drop 258 (backsheet). C, E, F, G scanned (OCR'd).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-wu7raw.pdf",
+   "kind": "court_order",
+   "date": "2015-02-19",
+   "author": "Environmental Review Tribunal",
+   "recipients": [],
+   "description": "ERT decision dismissing the appeals of the Sumac Ridge Wind Project renewable energy approval",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A copy of the ERT de‐\ncision dismissing the appeal is attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "209 pages: 'Cham Shan Temple v. Director, Ministry of the Environment In the matter of appeals by Cham Shan Temple, Cransley Home Farm Limited and Manvers Wind Concerns filed December 23, 2013'"
+  },
+  {
+   "label": "B",
+   "file": "doc-zmq7ty.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Service Ontario",
+   "recipients": [],
+   "description": "Property Index map and parcel registers for five properties bordering Wild Turkey Road between Ballyduff and Gray Roads",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "I have attached as Exhibit “B” a copy of the Service Ontario Proper‐"
+    }
+   ],
+   "content_check": "11 pages: 'PROPERTY INDEX MAP THIS IS NOT A PLAN OF SURVEY' and parcel registers (PINs 0158-0164)"
+  },
+  {
+   "label": "C",
+   "file": "doc-mazhtw.pdf",
+   "kind": "map",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Plans of reference 9R2356 and 9R926 depicting a forced road near Wild Turkey Road",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Copies of the \nplans of reference are attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "3 pages, scanned survey plans ('9R2356 PLAN ... TOWNSHIP OF MANVERS')"
+  },
+  {
+   "label": "D",
+   "file": "doc-q57uer.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Service Ontario",
+   "recipients": [],
+   "description": "Property Index map and parcel registers for PINs 0187, 0370 and 0371 south of Ballyduff Road",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "I also attach as Exhibit “D”, a copy of the Service Ontario Property Index map"
+    }
+   ],
+   "content_check": "5 pages: 'PROPERTY INDEX MAP ...' and parcel registers (PINs 0187, 0370, 0371)"
+  },
+  {
+   "label": "E",
+   "file": "doc-xcpcs4.pdf",
+   "kind": "public_record",
+   "date": "1882",
+   "author": "Township of Manvers",
+   "recipients": [],
+   "description": "1882 public highway by-law MVB5513 as registered (largely illegible)",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "The by‐\nlaw as registered is attached as Exhibit “E”"
+    }
+   ],
+   "content_check": "3 pages, scanned handwritten by-law faxed 10/29/2014 by an engineering office; mostly illegible"
+  },
+  {
+   "label": "F",
+   "file": "doc-qa6pht.pdf",
+   "kind": "court_order",
+   "date": "1839-07-09",
+   "author": "Magistrates of Quarter Sessions",
+   "recipients": [],
+   "description": "Petition and Magistrates' order of July 9, 1839 for a road between Lots 14/15, Concession 6",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Attached as Exhibit “F” is a copy of the Magistrates order"
+    }
+   ],
+   "content_check": "5 pages, image-only: 1839 handwritten petition with sketch map of a 'new road'"
+  },
+  {
+   "label": "G",
+   "file": "doc-gtyen3.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Herman Wimellbacher, O.L.S.",
+   "recipients": [
+    "Environmental Review Tribunal"
+   ],
+   "description": "Wimellbacher's witness statement at the ERT hearing",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "witness statement which is attached as Exhibit “G”"
+    }
+   ],
+   "content_check": "4 pages, image-only (OCR): WITNESS STATEMENT OF HERMAN WIMMELBACHER, licensed land surveyor, Coe Fisher Cameron, Lindsay"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Magistrates' order on the Quarter Sessions road petition",
+   "date": "1839-07-09",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "dated the 9th of July, 1839",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Township of Manvers road by-law establishing a road surveyed by N. Powers",
+   "date": "1850",
+   "precision": "year",
+   "paragraphs": [
+    24,
+    25
+   ],
+   "quote": "a \nroad by‐law from 1850",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Public highway by-law registered on title",
+   "date": "1882",
+   "precision": "year",
+   "paragraphs": [
+    16
+   ],
+   "quote": "registered on title in 1882 (By‐law MVB5513)",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Township of Manvers leaves Durham County for Victoria County",
+   "date": "1974",
+   "precision": "year",
+   "paragraphs": [
+    17
+   ],
+   "quote": "The Town‐\nship of Manvers was part of Durham County until 1974",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "McFarlane becomes candidate member of the Appraisal Institute of Canada",
+   "date": "2002",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Appraisal Institute of \nCanada since 2002",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "McFarlane hired to set up the City's Land Management Department",
+   "date": "2006",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I was hired by the City of Kawartha Lakes in 2006",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "McFarlane hired to head the department",
+   "date": "2007-03-12",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On March 12, 2007, I was hired to head",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Wimellbacher contacts McFarlane about Wild Turkey Road",
+   "date": "2014-11",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "Recently, in November, 2014, I was contacted by a local Ontario Land Surveyor",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "ERT hearing of the appeals",
+   "date": "2014-11-17",
+   "precision": "range",
+   "paragraphs": [
+    9
+   ],
+   "quote": "from November 17th, 2014 to January 23rd, 2015",
+   "exhibits": [
+    "A",
+    "G"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "ERT dismisses the appeal (issue date February 19, 2015)",
+   "date": "2015-02-19",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "the ERT de‐\ncision dismissing the appeal",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "40-year title search requested",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "I  subsequently  requested  that  a  40  year  title  search  be  performed",
+   "exhibits": [
+    "B",
+    "D"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Clerk's office discovers the 1850-1851 Manvers by-laws",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    24
+   ],
+   "quote": "recently a staff member in the Clerk’s office at the City discovered",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "40-year title search",
+  "Township of Manvers 1850-1851 by-laws",
+  "1882 public highway by-law MVB5513 (original)",
+  "Magistrate's order in response to the Quarter Sessions petition"
+ ]
+}

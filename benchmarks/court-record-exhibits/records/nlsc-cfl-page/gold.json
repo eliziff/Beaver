@@ -1,0 +1,300 @@
+{
+ "record_id": "nlsc-cfl-page",
+ "court": "Supreme Court of Newfoundland and Labrador (General Division)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NL",
+ "court_file": "2022 01G 0709",
+ "subject": "insolvency",
+ "family": "canada-fluorspar-ccaa",
+ "proceeding": "PricewaterhouseCoopers Inc., as receiver and manager of Bridging Finance Inc. and Bridging Income Fund LP v. Canada Fluorspar (NL) Inc. and Canada Fluorspar Inc.: application to appoint an interim receiver",
+ "document": "Affidavit of Graham Page affirmed February 19, 2022",
+ "deponent": "Graham Page",
+ "deponent_role": "Director, Consulting and Deals, PricewaterhouseCoopers Inc. (court-appointed receiver and manager of Bridging Finance Inc.)",
+ "sworn_date": "2022-02-19",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ktpbsj.pdf",
+   "kind": "court_order",
+   "date": "2021-04-30",
+   "author": "Ontario Superior Court of Justice (Commercial List)",
+   "recipients": [],
+   "description": "Original Appointment Order of April 30, 2021 appointing PwC receiver and manager of Bridging Finance and related funds",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto and marked as Exhibit A is a copy of the original Appointment \nOrder."
+    }
+   ],
+   "content_check": "20 pages: Ontario Superior Court (Commercial List) order, Court File CV-21-00661458-00CL, Friday the 30th, appointing the Receiver under s. 129 of the Securities Act, with the Receiver's certificate form and backsheet"
+  },
+  {
+   "label": "B",
+   "file": "doc-zrckfb.pdf",
+   "kind": "agreement",
+   "date": "2018-02-01",
+   "author": "Sprott Bridging Income Fund LP (by Bridging Finance Inc.), Canada Fluorspar (NL) Inc., Newspar and Canada Fluorspar Inc.",
+   "recipients": [],
+   "description": "Second Amended and Restated Credit Agreement of February 1, 2018 summarizing the Bridging Loan",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Attached hereto and marked as Exhibit B is a copy of \nthe Second Amended and Restated Credit Agreement, dated February 1, 2018"
+    }
+   ],
+   "content_check": "72 pages: Second Amended and Restated Loan Agreement dated February 1, 2018 with signature pages and Schedules A-H (material project agreements, permitted encumbrances, mineral titles, insurance, monthly reporting form)"
+  },
+  {
+   "label": "C",
+   "file": "doc-5nfrab.pdf",
+   "kind": "agreement",
+   "date": "2017-01-31",
+   "author": "Canada Fluorspar (NL) Inc., Newspar and Bridging Finance Inc. (as Agent)",
+   "recipients": [],
+   "description": "The Bridging Security: general security agreement and debenture over CFI's present and after-acquired property",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Attached hereto and marked as Exhibit \nC is a copy of the Bridging Security"
+    }
+   ],
+   "content_check": "49 pages: General Security Agreement dated January 31, 2017 between Canada Fluorspar (NL) Inc. (Borrower), Newspar (Co-Covenantor) and Bridging Finance Inc. as Agent, with later security documents"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Golden Gate acquires Canada Fluorspar Inc. and begins equity injections",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    9,
+    21,
+    29
+   ],
+   "quote": "100% owned by Golden Gate Capital (\"Golden Gate\") since 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "AGS Fluorspar Project discovered",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    12
+   ],
+   "quote": "This is known as \nthe AGS Fluorspar Project, discovered in 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "First Bridging term loan (CAD$27M) under the Credit Agreement",
+   "date": "2017-02-02",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "pursuant to a Credit \nAgreement dated February 2, 2017",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CFI grants the Bridging Security",
+   "date": "2017-01-31",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "granting a security interest in favour of Bridging",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "NL Loan agreement (CAD$17M) with the Province",
+   "date": "2017-03-30",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "pursuant to a loan agreement dated March \n",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Second term loan (CAD$20M) under the Amended and Restated Credit Agreement",
+   "date": "2017-08-01",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "Amended and Restated Credit Agreement dated August 1, 2017",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Third term loan (CAD$8M) under the Second Amended and Restated Credit Agreement",
+   "date": "2018-02-01",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "Second \nAmended and Restated Credit Agreement dated February 1, 2018",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Amended and Restated Intercreditor Agreement and HSBC trade invoice facility",
+   "date": "2018-05-25",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Amended and Restated Intercreditor Agreement dated May 25, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Shipments begin from the Marystown pier",
+   "date": "2018",
+   "precision": "year",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Since 2018, shipments have been loaded from a pier in Marystown",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Ontario court appoints PwC receiver and manager of Bridging (Appointment Orders)",
+   "date": "2021-04-30",
+   "precision": "range",
+   "paragraphs": [
+    6,
+    7
+   ],
+   "quote": "dated April 30, 2021, \nMay 3, 2021, and May 14, 2021",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "CFI loads its first shipment from the Blue Beach Marine Terminal",
+   "date": "2021-07",
+   "precision": "month",
+   "paragraphs": [
+    15
+   ],
+   "quote": "in July \n2021, CFI loaded its first shipment",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "NL Loan maturity extended to December 31, 2022",
+   "date": "2021-11-29",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On November 29, 2021 the maturity date of NL Loan was extended",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Operational and COVID-19 problems impede production",
+   "date": "2021-11",
+   "precision": "range",
+   "paragraphs": [
+    28,
+    30
+   ],
+   "quote": "particularly in the colder months of November \n2021 to January 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Golden Gate tells Bridging it will inject no more cash",
+   "date": "2022-01",
+   "precision": "month",
+   "paragraphs": [
+    30
+   ],
+   "quote": "In late January 2022, Golden Gate first advised Bridging",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Bridging holds discussions with CFI, Golden Gate and other secured lenders",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    34,
+    41
+   ],
+   "quote": "Bridging has also held discussions with CFI, Golden Gate and other secured lenders",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "CFI intends to terminate some 260 employees",
+   "date": "2022-02",
+   "precision": "approximate",
+   "paragraphs": [
+    36
+   ],
+   "quote": "CFI intends to terminate some \n260 employees at the beginning of this week",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Bridging to send notice of intention to enforce security under BIA s. 244",
+   "date": "2022-02-21",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "We anticipate such notice being sent on Monday, February 21, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Last payroll CFI can fund",
+   "date": "2022-02-23",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "the payroll that needs \nto be funded on Wednesday, February 23",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Bridging Loans mature",
+   "date": "2022-03",
+   "precision": "month",
+   "paragraphs": [
+    32
+   ],
+   "quote": "The Bridging Loans are set to mature in March 2022",
+   "exhibits": [
+    "B"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "Appointment Orders of May 3, 2021 and May 14, 2021",
+  "HSBC general security agreement (HSBC GSA)",
+  "NL Security (general security agreement and debenture in favour of the Province)",
+  "Trade Invoice Recourse Financing Facility Agreement dated May 25, 2018"
+ ],
+ "notes": "Born-digital affidavit (DocuSign); exhibits scanned with a text layer. Covers 'This is Exhibit A referred to...' stripped."
+}

@@ -1,0 +1,75 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297006",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/View/4297114",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2022 (C22591)",
+ "document_title": "Affidavit in Support of Evidence of Matthew General sworn December 16, 2022 (Duncan's First Nation written evidence, NorthRiver NEBC Connector Project)",
+ "retrieved": "2026-09-24",
+ "record_id": "cer-northriver-general",
+ "source_file": "rdmg-4297006.pdf",
+ "page_range": [
+  1,
+  3
+ ],
+ "source_sha256": "4f7f55302caced0d8bbe5a3c3d82d872233716ab9bfdf1980a83be7ab90e9714",
+ "source_pages": 3,
+ "sources": [
+  {
+   "file": "rdmg-4297006.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297006",
+   "sha256": "4f7f55302caced0d8bbe5a3c3d82d872233716ab9bfdf1980a83be7ab90e9714",
+   "pages": 3
+  },
+  {
+   "file": "rdmg-4297115.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297115",
+   "sha256": "3e8cf2813fe155910b3b0743ecfd4d42983b1ff72e2a2b59bcb378bf4fb08b05",
+   "pages": 5
+  },
+  {
+   "file": "rdmg-4297680.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297680",
+   "sha256": "5c3721a388fd0e33e3e62e3639275875744732375376a972edf1bf7b75aa8a3b",
+   "pages": 137
+  },
+  {
+   "file": "rdmg-4297875.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297875",
+   "sha256": "6fbb45af94d223e3377e33d779545fefbac559b4405c7e9a9181544d8218c50b",
+   "pages": 91
+  },
+  {
+   "file": "rdmg-4297876.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297876",
+   "sha256": "8ed6ad4ada6411dc962c727cebeeab73c85415beed65b3875f1e81b8bfba06dc",
+   "pages": 8
+  },
+  {
+   "file": "rdmg-4297007.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297007",
+   "sha256": "8e3b809e1dc7e2212c045e475d6ad50bc07868a32761c5e93a695ce2bb2392e0",
+   "pages": 16
+  },
+  {
+   "file": "rdmg-4297782.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297782",
+   "sha256": "d87d4db0d356d5f3ceeb69bce5074c1b449760b0d7346d45c9d2afbca9c3bda4",
+   "pages": 5
+  },
+  {
+   "file": "rdmg-4297783.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297783",
+   "sha256": "b759dc18637579ab1401ac83e52853df7ef07d9ffa545e25a3deffd77e597312",
+   "pages": 14
+  },
+  {
+   "file": "rdmg-4297784.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/4297784",
+   "sha256": "cac19f3f80704d12013344d914a46e0dbdf1d980104c9063fe6b937d44849732",
+   "pages": 5
+  }
+ ],
+ "blank": "A=0.42,0.09,0.86,0.185;0.46,0.185,0.86,0.222 B=0.3,0,0.95,0.125 C=0.28,0,0.72,0.08;0.45,0.08,0.72,0.108 D=0.2,0,0.7,0.125 E=0.22,0,0.68,0.15 F=0.25,0,0.8,0.118 G=0.28,0,0.86,0.125 H=0.2,0,0.92,0.108"
+}

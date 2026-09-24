@@ -1,0 +1,18 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2021/12/Reply-Motion-Record-re-Certification.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "document_title": "Reply Motion Record (Certification), Affidavit of Daniel Carcillo sworn November 26, 2021",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-chl-carcillo",
+ "source_file": "e4-reply-motion-record-re-certification.pdf",
+ "page_range": [
+  6,
+  32
+ ],
+ "source_sha256": "40072ec44955353546098821192b3e4087852097cf2385079ae01798e2ac5386",
+ "source_pages": 265
+}

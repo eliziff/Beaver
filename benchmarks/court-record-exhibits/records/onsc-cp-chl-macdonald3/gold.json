@@ -1,0 +1,229 @@
+{
+ "record_id": "onsc-cp-chl-macdonald3",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo, Taylor and Quirk v. Ontario Major Junior Hockey League, Canadian Hockey League et al.: plaintiffs' motion for approval of an individual issues protocol",
+ "document": "Affidavit of Catherine MacDonald sworn June 5, 2023",
+ "deponent": "Catherine MacDonald",
+ "deponent_role": "Law clerk, Koskie Minsky LLP (plaintiffs' counsel)",
+ "sworn_date": "2023-06-05",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-pfc9vk.pdf",
+   "kind": "text_messages",
+   "date": "2021-12-30",
+   "author": "Former CHL player (name redacted)",
+   "recipients": [
+    "James Sayce"
+   ],
+   "description": "Screenshots of a survey of former CHL players, sent to Sayce by a former player",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of the screenshots, redacting the player's name, are attached as Exhibit"
+    }
+   ],
+   "content_check": "28 pages: screenshots of the 'CHL Past Player Survey / Sondage concernant les anciens joueurs de la LCH', image-only, OCR noisy"
+  },
+  {
+   "label": "B",
+   "file": "doc-xkehhn.pdf",
+   "kind": "notice",
+   "date": "2022-10-13",
+   "author": "Hockey Canada",
+   "recipients": [],
+   "description": "Hockey Canada news release 'Hockey Canada Welcomes Interim Governance Review'",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the news release is attached as Exhibit"
+    }
+   ],
+   "content_check": "1 page: 'NR.058.22 | October 13, 2022 ... Hockey Canada has received ... Interim Report'"
+  },
+  {
+   "label": "C",
+   "file": "doc-rsfksx.pdf",
+   "kind": "report",
+   "date": "2022-09-30",
+   "author": "The Honourable Thomas Cromwell, C.C.",
+   "recipients": [
+    "Hockey Canada"
+   ],
+   "description": "Interim report of the independent governance review of Hockey Canada",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "A copy of the report is  attached at Exhibit"
+    }
+   ],
+   "content_check": "108 pages: 'The Honourable Thomas Cromwell, C.C. 30 September 2022 Interim Report Hockey Canada Governance Review'"
+  },
+  {
+   "label": "D",
+   "file": "doc-s5gp8c.pdf",
+   "kind": "notice",
+   "date": "2022-11-04",
+   "author": "Hockey Canada",
+   "recipients": [],
+   "description": "Hockey Canada news release on the final independent governance review",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copy of the news release is attached as Exhibit D"
+    }
+   ],
+   "content_check": "4 pages: OCR'd 'HOCKEY CANADA RELEASES FINAL INDEPENDENT GOVERNANCE REVIEW ... NR.065.22 November 4, 2022'"
+  },
+  {
+   "label": "E",
+   "file": "doc-gnff23.pdf",
+   "kind": "report",
+   "date": "2022-10-31",
+   "author": "The Honourable Thomas Cromwell, C.C.",
+   "recipients": [
+    "Hockey Canada"
+   ],
+   "description": "Final report of the independent governance review of Hockey Canada",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copy of the report is attached at Exhibit E"
+    }
+   ],
+   "content_check": "221 pages: 'The Honourable Thomas Cromwell, C.C. 31 October 2022 Final Report Hockey Canada Governance Review'"
+  },
+  {
+   "label": "F",
+   "file": "doc-9n3aej.pdf",
+   "kind": "webpage",
+   "date": "2023-04-03",
+   "author": "La Presse",
+   "recipients": [],
+   "description": "La Presse article 'Le rêve brisé de Carl Latulippe', with English translation",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the article, with English translation, is attached at Exhibit F"
+    }
+   ],
+   "content_check": "14 pages: 'Sévices dans la LHJMQ Le rêve brisé de Carl Latulippe PHOTO OLIVIER JEAN, LA PRESSE' plus translation"
+  },
+  {
+   "label": "G",
+   "file": "doc-73t8uv.pdf",
+   "kind": "notice",
+   "date": "2023-04-03",
+   "author": "Quebec Major Junior Hockey League",
+   "recipients": [],
+   "description": "QMJHL statement on the La Presse article, in English and French",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A copy of the  news release, in English and in French, is attached as Exhibit G"
+    }
+   ],
+   "content_check": "2 pages: 'QMJHL statement on article published in La Presse (April 3, 2023)' and the French version"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Sayce receives screenshots of a survey of former CHL players",
+   "date": "2021-12-30",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "On December 30, 2021, James Sayce received a series of screenshots",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Cromwell interim governance report delivered",
+   "date": "2022-09-30",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "interim report from the ongoing  independent third-party governance review",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Hockey Canada releases the interim governance review",
+   "date": "2022-10-13",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On October 13, 2022, Hockey Canada issued a news release",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Cromwell final governance report",
+   "date": "2022-10-31",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "the final report from the independent third- party governance review",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Hockey Canada releases the final governance review",
+   "date": "2022-11-04",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On November 4, 2022, Hockey Canada issued a news release",
+   "exhibits": [
+    "D",
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "La Presse publishes 'Le rêve brisé de Carl Latulippe'",
+   "date": "2023-04-03",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On April 3, 2023, La Presse published an article",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "QMJHL issues a statement on the La Presse article",
+   "date": "2023-04-03",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On April 3, 2023, the Quebec Major Junior Hockey League issued a news release",
+   "exhibits": [
+    "G"
+   ]
+  }
+ ]
+}

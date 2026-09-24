@@ -1,0 +1,18 @@
+{
+ "url": "https://assets.kmlaw.ca/wp-content/uploads/2018/12/Motion-Record-of-the-Plaintiff-Certification-Summary-Judgment-volume-2-of-2-3.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-590105-00CP",
+ "document_title": "Motion Record of the Plaintiff (Certification and Summary Judgment), Volume 2: Affidavit of Philip Cross sworn July 20, 2018",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-bell-cross",
+ "source_file": "e2-km2018-vol2.pdf",
+ "page_range": [
+  67,
+  232
+ ],
+ "source_sha256": "615ff92856a92192054cf5251bebd0741c6272670350b7c10026e1db3799f36b",
+ "source_pages": 247
+}

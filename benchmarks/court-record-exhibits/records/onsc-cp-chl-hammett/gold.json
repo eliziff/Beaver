@@ -1,0 +1,230 @@
+{
+ "record_id": "onsc-cp-chl-hammett",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al. (proposed class action for hazing and abuse of major junior players): former WHL player's reply evidence on certification",
+ "document": "Affidavit of Brad Hammett sworn November 26, 2021 (jurat day left blank; date from the record index)",
+ "deponent": "Brad Hammett",
+ "deponent_role": "Former WHL player, class member",
+ "sworn_date": "2021-11-26",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-km6ngp.pdf",
+   "kind": "email_chain",
+   "date": "2020-06-24",
+   "author": "Ron Robison",
+   "recipients": [
+    "Brad Hammett"
+   ],
+   "description": "Email exchange with Robison confirming Hammett would get an unredacted copy of the investigation report",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "A copy of the email exchange  with Mr. Robison setting out the above is attached to this affidavit as Exhibit"
+    }
+   ],
+   "content_check": "5 pages: 'From: Ron Robison Date: 2020-06-24 4:16 PM ... Subject: Re: Brad Hammett Sexual and Physical Abuse of former WHL Player'"
+  },
+  {
+   "label": "B",
+   "file": "doc-bzkvf5.pdf",
+   "kind": "notice",
+   "date": "2020-06-26",
+   "author": "Canadian Hockey League",
+   "recipients": [],
+   "description": "CHL press release describing the investigation",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "I attach a CHL press release at Exhibit"
+    }
+   ],
+   "content_check": "2 pages: OCR'd press release 'JUNE 26, 2020 CHL announces Independent Review Panel' (record index dates it July 26, 2020)"
+  },
+  {
+   "label": "C",
+   "file": "doc-ksqqj2.pdf",
+   "kind": "webpage",
+   "date": "2020-06-26",
+   "author": "Rick Westhead, TSN/CTV",
+   "recipients": [],
+   "description": "Westhead's coverage of Hammett's story",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "Mr. Westhead's coverage is attached at Exhibit"
+    }
+   ],
+   "content_check": "3 pages: TSN article printout 'Hammett joining proposed class-action lawsuit against the CHL', image-only"
+  },
+  {
+   "label": "D",
+   "file": "doc-6m7fsj.pdf",
+   "kind": "email",
+   "date": "2020-07-02",
+   "author": "Ron Robison",
+   "recipients": [
+    "Brad Hammett"
+   ],
+   "description": "Robison's July 2, 2020 email ending Hammett's involvement in the internal investigation",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "This email is attached at Exhibit"
+    }
+   ],
+   "content_check": "2 pages: 'From: Ron Robison Sent: July 2, 2020 7:21 PM Cc: Richard Doerksen Subject: WHL Investigation'"
+  },
+  {
+   "label": "E",
+   "file": "doc-e5kgnq.pdf",
+   "kind": "letter",
+   "date": "2020-07-07",
+   "author": "Brian Beresh (Alberta criminal defence lawyer)",
+   "recipients": [
+    "Brad Hammett"
+   ],
+   "description": "Threatening letter alleging defamatory false accusations",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A copy of this letter is attached at Exhibit"
+    }
+   ],
+   "content_check": "2 pages: lawyer's letter, image-only"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Hammett sexually abused while playing in the WHL",
+   "date": "1980",
+   "precision": "approximate",
+   "paragraphs": [
+    7
+   ],
+   "quote": "the abuse I suffered in the early 1980s",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Hammett emails the WHL describing his abuse",
+   "date": "2020-06-20",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "On June 20, 2020, I sent the WHL general email address an email",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Call with Robison and Doerksen; promise of an unredacted report",
+   "date": "2020-06-24",
+   "precision": "day",
+   "paragraphs": [
+    3,
+    4
+   ],
+   "quote": "This phone call took  place on June 24, 2020",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Hammett contacts Sheldon Kennedy",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    5
+   ],
+   "quote": "They also suggested that I get in touch with Sheldon Kennedy, which I did",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Hammett's interview airs on CTV National News",
+   "date": "2020-06-25",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "which was aired on CTV national  news on June 25, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Hammett's name published; CHL announces its investigation",
+   "date": "2020-06-26",
+   "precision": "day",
+   "paragraphs": [
+    6,
+    8
+   ],
+   "quote": "I agreed to have my  name published on June 26, 2020",
+   "exhibits": [
+    "B",
+    "C"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Robison emails that Hammett will no longer be involved in the investigation",
+   "date": "2020-07-02",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "Mr. Robison emailed me on July 2, 2020",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Hammett receives a letter threatening defamation proceedings",
+   "date": "2020-07-07",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "dated July 7, 2020",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Hammett swears his Original Affidavit",
+   "date": "2020-08-11",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "dated August 11, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "NHL team tells Hammett it no longer needs his scouting services",
+   "date": "2020",
+   "precision": "approximate",
+   "paragraphs": [
+    11
+   ],
+   "quote": "I received communications from one NHL team saying they no longer needed my  services",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Hammett's Original Affidavit dated August 11, 2020",
+  "Affidavit of Ron Robison (WHL) responding to certification",
+  "Hammett's June 20, 2020 email to the WHL"
+ ]
+}

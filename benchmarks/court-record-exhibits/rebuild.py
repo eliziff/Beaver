@@ -102,7 +102,10 @@ def rebuild(rid, backup):
                 for t in ex.get("redact_text", []):
                     for q in pages:
                         redact[q] = redact.get(q, []) + doc[q].search_for(t)
-                pdf.insert_pdf(clean_copy(doc, pages, redact))
+                for q, rs in part.get("redact_rects", {}).items():  # an invisible typed label's text
+                    redact[int(q) - 1] = redact.get(int(q) - 1, []) + [fitz.Rect(r) for r in rs]
+                blank = {int(q) - 1: rs for q, rs in part.get("blank", {}).items()}  # a scanned-in stamp whited out
+                pdf.insert_pdf(clean_copy(doc, pages, redact, blank))
             pdf.set_metadata({}); pdf.set_toc([])
             try:
                 pdf.set_page_labels([])

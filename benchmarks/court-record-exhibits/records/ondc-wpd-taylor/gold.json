@@ -1,0 +1,1306 @@
+{
+ "record_id": "ondc-wpd-taylor",
+ "court": "Ontario Superior Court of Justice (Divisional Court)",
+ "court_level": "superior_divisional",
+ "jurisdiction": "ON",
+ "court_file": "Divisional Court File No. 37/15 (filed with the OEB in EB-2013-0442)",
+ "subject": "municipal",
+ "family": "wpd-sumac-ridge-kawartha",
+ "proceeding": "wpd Sumac Ridge Wind Inc. v. Corporation of the City of Kawartha Lakes: judicial review of the City's refusal to open Wild Turkey Road, its development-charge and fire-services by-laws and template development agreement for wind projects; the City's principal responding affidavit",
+ "document": "Affidavit of Ron Taylor sworn March 9, 2015 (copy filed with the Ontario Energy Board, EB-2013-0442)",
+ "deponent": "Ron Taylor",
+ "deponent_role": "Director of Development Services, City of Kawartha Lakes",
+ "sworn_date": "2015-03-09",
+ "notes": "1,416-page source (126 MB). Covers read by eye (B read '8', I/L '1', Q 'C', II 'll'); each cover is followed by a blank page, left in the file; --drop 1416 (backsheet). V (Dahme e-mail of August 20, 2013) is attached but never cited in the affidavit (para 65 describes the contact). CC is the interim ERT decision of October 31, 2014 (ondc-wpd-mcfarlane A is the final February 19, 2015 decision). BB's posted pages show the February 27-28, 2014 e-mails although the affidavit says the chain runs to March 6.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ep6pnt.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Juan Rojas (City of Kawartha Lakes)",
+   "recipients": [],
+   "description": "Map showing approximate turbine locations and nearby open and unopened roads",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "is attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "1 page (after blank): map with Gray Rd, Ballyduff Rd, Waite Rd, Pit Rd; Transverse Mercator NAD83"
+  },
+  {
+   "label": "B",
+   "file": "doc-s9r92t.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Land registry office",
+   "recipients": [],
+   "description": "Land registry documents evidencing wpd's leases of the Project lands",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "attached as Exhibit “B”"
+    }
+   ],
+   "content_check": "112 pages: PROPERTY INDEX MAP and parcel registers / registered leases"
+  },
+  {
+   "label": "C",
+   "file": "doc-azddhy.pdf",
+   "kind": "report",
+   "date": "2012-02",
+   "author": "Urban & Environmental Management Inc.",
+   "recipients": [
+    "City of Kawartha Lakes"
+   ],
+   "description": "City's 2012 Transportation Master Plan",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Transportation  Master  Plan  and  2011  Road  Needs  Study  are  attached  to  this \naffidavit as Exhibits “C” and “D” respectively"
+    }
+   ],
+   "content_check": "202 pages: 'February 2012 Urban & Environmental Management Inc. ... Niagara Falls'"
+  },
+  {
+   "label": "D",
+   "file": "doc-qff8kq.pdf",
+   "kind": "report",
+   "date": "2012-03-20",
+   "author": "City of Kawartha Lakes",
+   "recipients": [],
+   "description": "City's 2011 Road Needs Study (with staff report ENG2012-001)",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Exhibits “C” and “D” respectively"
+    }
+   ],
+   "content_check": "136 pages: 'THE CORPORATION OF THE CITY OF KAWARTHA LAKES REPORT ENG2012-001 Date: March 20, 2012'"
+  },
+  {
+   "label": "E",
+   "file": "doc-7rnaz6.pdf",
+   "kind": "minutes",
+   "date": "2013-03-26",
+   "author": "City of Kawartha Lakes Council",
+   "recipients": [],
+   "description": "City resolution declaring it 'not a willing host' for industrial wind projects",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Attached as Exhibit “E” is a copy of"
+    }
+   ],
+   "content_check": "26 pages: 'REGULAR COUNCIL MEETING DATE: TUESDAY, MARCH 26, 2013'"
+  },
+  {
+   "label": "F",
+   "file": "doc-ggezed.pdf",
+   "kind": "other",
+   "date": "2013-05-30",
+   "author": "National Post",
+   "recipients": [],
+   "description": "May 30, 2013 National Post article on how municipal concerns changed FIT contract awards",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Attached  as  Exhibit  “F”  to  this \naffidavit is a copy of a May 30th, 2013 article"
+    }
+   ],
+   "content_check": "4 pages, image-only newspaper article (OCR)"
+  },
+  {
+   "label": "G",
+   "file": "doc-62cxue.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Ontario Ministry of Energy",
+   "recipients": [
+    "Municipalities"
+   ],
+   "description": "Renewable Energy Development: A Guide for Municipalities, Updated for FIT 2.0",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "attached as Exhibits “G” and “H” respectively"
+    }
+   ],
+   "content_check": "56 pages: 'RENEWABLE ENERGY DEVELOPMENT: A GUIDE FOR MUNICIPALITIES Updated for FIT 2.0'"
+  },
+  {
+   "label": "H",
+   "file": "doc-2zcxxs.pdf",
+   "kind": "report",
+   "date": "2013-10-09",
+   "author": "Ontario Power Authority",
+   "recipients": [],
+   "description": "OPA Summary of Changes from FIT 2.1 to 3.0",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "attached as Exhibits “G” and “H” respectively"
+    }
+   ],
+   "content_check": "8 pages: 'SUMMARY OF CHANGES FROM FIT 2.1 TO FINAL FIT 3.0 October 9, 2013'"
+  },
+  {
+   "label": "I",
+   "file": "doc-jvme9s.pdf",
+   "kind": "other",
+   "date": "2013-02-19",
+   "author": "Lieutenant Governor of Ontario",
+   "recipients": [],
+   "description": "Speech from the Throne opening the Second Session of the 40th Parliament of Ontario",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "a  copy  of  which  is \nattached as Exhibit “I”"
+    }
+   ],
+   "content_check": "18 pages, image-only (OCR): Speech from the Throne, February 19, 2013"
+  },
+  {
+   "label": "J",
+   "file": "doc-emajjx.pdf",
+   "kind": "other",
+   "date": "2013-08-16",
+   "author": "London Free Press",
+   "recipients": [],
+   "description": "August 16, 2013 London Free Press article: 61 municipalities had passed unwilling-host resolutions",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "Attached as Exhibit \n“J”  to  this  affidavit  is  an  August  16th,  2013  article"
+    }
+   ],
+   "content_check": "6 pages, image-only newspaper article (OCR)"
+  },
+  {
+   "label": "K",
+   "file": "doc-qw3su9.pdf",
+   "kind": "court_order",
+   "date": "2013-12-11",
+   "author": "Ontario Ministry of the Environment",
+   "recipients": [
+    "wpd Sumac Ridge Wind Inc."
+   ],
+   "description": "Renewable Energy Approval (REA Permit) for the Sumac Ridge Wind Project",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "A copy of the REA Permit is attached as Exhibit \n“K”"
+    }
+   ],
+   "content_check": "22 pages: 'NUMBER 8037-9AYKBK Ministry of the Environment RENEWABLE ENERGY APPROVAL'"
+  },
+  {
+   "label": "L",
+   "file": "doc-v98thh.pdf",
+   "kind": "notice",
+   "date": "2010-09",
+   "author": "wpd Canada Corp.",
+   "recipients": [],
+   "description": "Notice of Proposal and Notice of a Public Meeting commencing the REA process",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "Notice of \nProposal and Notice of a Public Meeting, attached as Exhibit “L”"
+    }
+   ],
+   "content_check": "2 pages: 'NOTICE OF A PROPOSAL & NOTICE OF A PUBLIC MEETING By wpd Canada Corp. to Engage in a Renewable Energy Project'"
+  },
+  {
+   "label": "M",
+   "file": "doc-eqsrf9.pdf",
+   "kind": "email_chain",
+   "date": "2012-01-17",
+   "author": "wpd Canada; City of Kawartha Lakes staff",
+   "recipients": [
+    "Ron Taylor"
+   ],
+   "description": "Correspondence to set up the June 7, 2012 meeting between wpd and City staff",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "A copy of the \ncorrespondence to set up the meeting is attached as Exhibit “M”"
+    }
+   ],
+   "content_check": "12 pages of e-mails ('Hi Ron, Jonathan ...')"
+  },
+  {
+   "label": "N",
+   "file": "doc-v9urt6.pdf",
+   "kind": "report",
+   "date": "2012-06",
+   "author": "wpd Canada",
+   "recipients": [
+    "Ministry of the Environment"
+   ],
+   "description": "Pages 2-3 of wpd's Project Description Report listing required approvals",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "A copy of pages 2–3 of the Project Description \nReport is attached as Exhibit “N”"
+    }
+   ],
+   "content_check": "8 pages: 'Project Description Report Sumac Ridge Wind Project Submission to: Ministry of the Environment Renewable Energy'"
+  },
+  {
+   "label": "O",
+   "file": "doc-ubsnaa.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Ontario Ministry of the Environment",
+   "recipients": [],
+   "description": "Technical Guide to Renewable Energy Approvals",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "A copy of the Technical Guide is attached as Exhibit “O”"
+    }
+   ],
+   "content_check": "268 pages: 'Technical Guide to Renewable Energy Approvals'"
+  },
+  {
+   "label": "P",
+   "file": "doc-abgsv7.pdf",
+   "kind": "letter",
+   "date": "2012-09",
+   "author": "wpd Canada Corporation",
+   "recipients": [
+    "City of Kawartha Lakes Planning"
+   ],
+   "description": "Undated wpd letter (about September 2012) stating wpd will need to upgrade Wild Turkey Road",
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "Attached as Exhibit “P” is a copy of the \nletter from wpd"
+    }
+   ],
+   "content_check": "2 pages: 'wpd Canada Corporation 2233 Argentia Road ... City of Ka[wartha Lakes]'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-e8ux59.pdf",
+   "kind": "report",
+   "date": "2013-02-05",
+   "author": "Ron Taylor (City of Kawartha Lakes)",
+   "recipients": [
+    "City Council"
+   ],
+   "description": "Council Report PLAN2013-003 with minutes of the February 5, 2013 Council meeting",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "Attached as Exhibit “Q” is a copy of Council \nReport PLAN2013‐003"
+    },
+    {
+     "paragraph": 105,
+     "quote": "previously attached as Exhibit \n“Q” to my affidavit"
+    }
+   ],
+   "content_check": "38 pages: 'COUNCIL REPORT Report Number PLAN2013-003 Date: February 5, 2013'"
+  },
+  {
+   "label": "R",
+   "file": "doc-29sx7y.pdf",
+   "kind": "letter",
+   "date": "2013-05-31",
+   "author": "Stikeman Elliott LLP (for wpd)",
+   "recipients": [
+    "City of Kawartha Lakes"
+   ],
+   "description": "wpd's May 31, 2013 letter requesting to apply for road improvements to Wild Turkey Road",
+   "references": [
+    {
+     "paragraph": 58,
+     "quote": "Attached as Exhibit “R” is a copy of the May 31, \n2013 letter from wpd"
+    }
+   ],
+   "content_check": "2 pages: 'STIKEMAN ELLIOTT Stikeman Elliott LLP Barristers & Solicitors'"
+  },
+  {
+   "label": "S",
+   "file": "doc-zwwxx4.pdf",
+   "kind": "map",
+   "date": "2014-05",
+   "author": "wpd Canada",
+   "recipients": [],
+   "description": "Map of wpd's preferred route 'Alternative 1A'",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "A copy of a map depicting wpd’s preferred route, “Alternative 1A,” is attached as \nExhibit “S”"
+    }
+   ],
+   "content_check": "2 pages: 'wpd Canada - Upgrades to Wild Turkey Road Class Environmental Assessment - MCEA Schedule B May 2014 ... Figure 7'"
+  },
+  {
+   "label": "T",
+   "file": "doc-6jauhz.pdf",
+   "kind": "minutes",
+   "date": "2013-07-09",
+   "author": "City of Kawartha Lakes Council",
+   "recipients": [],
+   "description": "Minutes of the July 9, 2013 Council meeting",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "Attached as Exhibit “T” is a \ntrue  copy  of  the  meeting  minutes"
+    }
+   ],
+   "content_check": "22 pages: 'REGULAR COUNCIL MEETING DATE: TUESDAY, JULY 09, 2013'"
+  },
+  {
+   "label": "U",
+   "file": "doc-5k6tgu.pdf",
+   "kind": "letter",
+   "date": "2015-01-20",
+   "author": "Ron Taylor",
+   "recipients": [
+    "Polley Faith LLP (Andrew Faith)"
+   ],
+   "description": "Taylor's January 20, 2015 letter to Andrew Faith",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "A  copy  of  my  letter  of  January  20,  2015  is \nattached as Exhibit “U”"
+    }
+   ],
+   "content_check": "4 pages: 'January 20, 2015 Polley Faith LLP The Victory Building 80 Richmond Street West'"
+  },
+  {
+   "label": "V",
+   "file": "doc-cgwfk9.pdf",
+   "kind": "email",
+   "date": "2013-08-20",
+   "author": "Harry Dahme",
+   "recipients": [],
+   "description": "Dahme's August 20, 2013 note on his contact with wpd's counsel about Sumac Ridge (not cited by letter in the affidavit; paragraph 65 narrates the contact)",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "he was contacted by Mr. Patrick Duffy"
+    }
+   ],
+   "content_check": "2 pages: 'Dahme, Harry From: Dahme, Harry August-20-13 12:00 PM ... Subject: Sumac Ridge'"
+  },
+  {
+   "label": "W",
+   "file": "doc-pwnjx7.pdf",
+   "kind": "letter",
+   "date": "2014-01-21",
+   "author": "Kevin Surette (wpd)",
+   "recipients": [
+    "Bryan Robinson",
+    "Juan Rojas"
+   ],
+   "description": "wpd's January 21, 2014 letters and Notice of Commencement of an MCEA",
+   "references": [
+    {
+     "paragraph": 68,
+     "quote": "A  copy  of  the  letters  and  Notice  of \nCommencement are attached as Exhibit “W”"
+    }
+   ],
+   "content_check": "6 pages: 'January 21, 2014 Mr. Bryan Robinson, P.Eng. Manager, Capital Projects City of Kawartha Lakes'"
+  },
+  {
+   "label": "X",
+   "file": "doc-fkuk83.pdf",
+   "kind": "email",
+   "date": "2014-01-29",
+   "author": "Juan Rojas",
+   "recipients": [
+    "Ron Taylor"
+   ],
+   "description": "Surette e-mail of January 29, 2014 confirming the January 23 conversation (forwarded by Rojas)",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "A copy  of  an  email  from  Mr. Surette,  dated  January  29,  2014"
+    }
+   ],
+   "content_check": "2 pages: 'Linda Russell From: ... Hi Ron, Juan Rojas January 29, 2014 12:57 PM Ron Taylor'"
+  },
+  {
+   "label": "Y",
+   "file": "doc-w2bend.pdf",
+   "kind": "letter",
+   "date": "2014-02-04",
+   "author": "Harry Dahme (Gowlings)",
+   "recipients": [
+    "Stikeman Elliott (counsel to wpd)"
+   ],
+   "description": "Dahme's February 4, 2014 letter objecting to the Notice of Commencement",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "A copy \nof Mr. Dahme’s February 4 correspondence is attached as Exhibit “Y”"
+    }
+   ],
+   "content_check": "2 pages: 'gowlings ... February 4, 2014 VIA EMAIL Stikeman Elliott'"
+  },
+  {
+   "label": "Z",
+   "file": "doc-u9q5e2.pdf",
+   "kind": "email_chain",
+   "date": "2014-02-27",
+   "author": "Ron Taylor; Kevin Surette",
+   "recipients": [],
+   "description": "Correspondence between Taylor and Surette (February 6-27, 2014)",
+   "references": [
+    {
+     "paragraph": 73,
+     "quote": "A  copy  of  the \ncorrespondence between myself and Mr. Surette is attached as Exhibit “Z”"
+    }
+   ],
+   "content_check": "2 pages: 'From: Kevin Surette Sent: Thursday, February 27, 2014 3:50 PM To: Ron Taylor'"
+  },
+  {
+   "label": "AA",
+   "file": "doc-wrhue3.pdf",
+   "kind": "notice",
+   "date": "2014-02-06",
+   "author": "wpd Canada / PLW Planning",
+   "recipients": [],
+   "description": "Revised Notice of Commencement backdated to February 6",
+   "references": [
+    {
+     "paragraph": 74,
+     "quote": "A copy of the revised Notice of Commencement \nis attached as Exhibit “AA”"
+    }
+   ],
+   "content_check": "2 pages: Notice ('www.municipalea2014.ca Leigh Whyte PLW Planning & Environment')"
+  },
+  {
+   "label": "BB",
+   "file": "doc-7bhftf.pdf",
+   "kind": "email_chain",
+   "date": "2014-02-28",
+   "author": "Kevin Surette; Juan Rojas",
+   "recipients": [],
+   "description": "E-mail chain (Feb 27 - Mar 6, 2014) setting out access-road alternatives",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "A copy of the email \nchain that runs through to March 6, 2014 is attached as Exhibit “BB”"
+    }
+   ],
+   "content_check": "12 pages: 'From: Kevin Surette Sent: Friday, February 28, 2014 3:19 PM To: Juan Rojas'"
+  },
+  {
+   "label": "CC",
+   "file": "doc-yp39vd.pdf",
+   "kind": "court_order",
+   "date": "2014-10-31",
+   "author": "Environmental Review Tribunal",
+   "recipients": [],
+   "description": "ERT decision of October 31, 2014 in Cham Shan Temple v. Director outlining the adjournment of the Sumac Ridge appeals",
+   "references": [
+    {
+     "paragraph": 79,
+     "quote": "A  copy  of  the  ERT  decision  outlining  these  events  is \nattached as Exhibit “CC”"
+    }
+   ],
+   "content_check": "16 pages: 'ISSUE DATE: October 31, 2014 ... Cham Shan Temple v. Director, Ministry of the Environment In the matter of appeals by Cham Shan Temple, Cransley'"
+  },
+  {
+   "label": "DD",
+   "file": "doc-4gpz9k.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "wpd Canada",
+   "recipients": [
+    "Ministry of the Environment"
+   ],
+   "description": "Section 2.3 of wpd's Decommissioning Plan Report",
+   "references": [
+    {
+     "paragraph": 82,
+     "quote": "A copy of s. 2.3 of \nthe Decommissioning Plan Report is attached as Exhibit “DD”"
+    }
+   ],
+   "content_check": "8 pages: 'Decommissioning Plan Report Sumac Ridge Wind Project'"
+  },
+  {
+   "label": "EE",
+   "file": "doc-2j898u.pdf",
+   "kind": "email",
+   "date": "2014-03-21",
+   "author": "Joshua Vaidhyan (wpd)",
+   "recipients": [
+    "Ron Taylor",
+    "Linda Russell"
+   ],
+   "description": "Vaidhyan's e-mail thanking City staff and attaching wpd's minutes of the March 19, 2014 meeting",
+   "references": [
+    {
+     "paragraph": 85,
+     "quote": "Attached as Exhibit “EE” is a copy of the email of Joshua Vaidhyan"
+    }
+   ],
+   "content_check": "6 pages: 'From: Joshua Vaidhyan Sent: Friday, March 21, 2014 5:18 PM To: Ron Taylor'"
+  },
+  {
+   "label": "FF",
+   "file": "doc-khqedk.pdf",
+   "kind": "minutes",
+   "date": "2014-03-25",
+   "author": "City of Kawartha Lakes Council",
+   "recipients": [],
+   "description": "Staff report and minutes of the March 25, 2014 Council meeting resolving not to open Wild Turkey Road",
+   "references": [
+    {
+     "paragraph": 86,
+     "quote": "Attached as Exhibit “FF” \nis  a  copy  of  the  City  staff  report"
+    }
+   ],
+   "content_check": "22 pages: 'REGULAR COUNCIL MEETING DATE: TUESDAY, MARCH 25, 2014'"
+  },
+  {
+   "label": "GG",
+   "file": "doc-8aqd77.pdf",
+   "kind": "notice",
+   "date": "2014-09-18",
+   "author": "wpd Canada",
+   "recipients": [
+    "Mark Fisher, Clerk, City of Kawartha Lakes"
+   ],
+   "description": "wpd's Notice of Completion of the MCEA with covering letter",
+   "references": [
+    {
+     "paragraph": 89,
+     "quote": "Attached  as  Exhibit  “GG”  is  a  copy  of  wpd’s  Notice  of \nCompletion"
+    }
+   ],
+   "content_check": "2 pages: 'September 18, 2014 Mr. Mark Fisher Clerk, Office of the CAO City of Kawartha Lakes'"
+  },
+  {
+   "label": "HH",
+   "file": "doc-8gt92v.pdf",
+   "kind": "report",
+   "date": "2014-09",
+   "author": "wpd Canada",
+   "recipients": [],
+   "description": "wpd's Project File Report (purported MCEA)",
+   "references": [
+    {
+     "paragraph": 89,
+     "quote": "Attached as Exhibit “HH” is a copy of wpd’s “Project File Report”"
+    }
+   ],
+   "content_check": "166 pages: 'PROJECT FILE REPORT Upgrades to Wild Turkey Road to Facilitate the Development of the Sumac Ridge Wind Energy Pr[oject]'"
+  },
+  {
+   "label": "II",
+   "file": "doc-a6mnt8.pdf",
+   "kind": "letter",
+   "date": "2014-10-17",
+   "author": "Ron Taylor",
+   "recipients": [
+    "Kevin Surette (wpd)",
+    "Leigh Whyte (PLW)"
+   ],
+   "description": "Taylor's October 17, 2014 letter on the selection of Alternative 1A",
+   "references": [
+    {
+     "paragraph": 94,
+     "quote": "Attached as Exhibit “II” is a true copy of my letter to wpd"
+    }
+   ],
+   "content_check": "4 pages: 'City of Kawartha Lakes ... October 17, 2014 via email Development Services - Planning Division'"
+  },
+  {
+   "label": "JJ",
+   "file": "doc-4vc2wn.pdf",
+   "kind": "other",
+   "date": "2014-10-14",
+   "author": "City of Kawartha Lakes",
+   "recipients": [],
+   "description": "Fire Services By-law 2014-273",
+   "references": [
+    {
+     "paragraph": 102,
+     "quote": "Attached as Exhibit \n“JJ” is a copy of the City’s By‐law 2014‐273"
+    }
+   ],
+   "content_check": "2 pages: 'APPENDIX A THE CORPORATION OF THE CITY OF KAWARTHA LAKES BY-LAW 2014-273'"
+  },
+  {
+   "label": "KK",
+   "file": "doc-earxyn.pdf",
+   "kind": "other",
+   "date": "2014-10-27",
+   "author": "City of Kawartha Lakes",
+   "recipients": [],
+   "description": "Development Charges By-law 2014-238 (office consolidation)",
+   "references": [
+    {
+     "paragraph": 111,
+     "quote": "Attached  as  Exhibit  “KK”  is  a  copy  of  the  City’s \nDevelopment Charges By‐law 2014‐238"
+    }
+   ],
+   "content_check": "26 pages: 'OFFICE CONSOLIDATION OF BY-LAW 2014-238 Consolidated on October 27'"
+  },
+  {
+   "label": "LL",
+   "file": "doc-nuuaax.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "City of Kawartha Lakes",
+   "recipients": [],
+   "description": "Development Charges Amendment By-law 2014-264",
+   "references": [
+    {
+     "paragraph": 111,
+     "quote": "Attached as Exhibit “LL” is a copy of the \nCity’s Development Charges Amendment By‐law 2014‐264"
+    }
+   ],
+   "content_check": "8 pages: 'BY-LAW 2014-264 A BY-LAW TO AMEND BY-LAW 2014-238'"
+  },
+  {
+   "label": "MM",
+   "file": "doc-bnvhwx.pdf",
+   "kind": "report",
+   "date": "2014-09-09",
+   "author": "City of Kawartha Lakes staff",
+   "recipients": [
+    "City Council"
+   ],
+   "description": "Staff report PLAN2014-054 and the Template Development Agreement",
+   "references": [
+    {
+     "paragraph": 117,
+     "quote": "A copy of the staff report PLAN2014‐054 and Template are attached \nas Exhibits “MM”"
+    }
+   ],
+   "content_check": "22 pages: 'Council Report Report Number PLAN2014-054 Date: September 9, 2014'"
+  },
+  {
+   "label": "NN",
+   "file": "doc-nrjc6f.pdf",
+   "kind": "minutes",
+   "date": "2014-09-09",
+   "author": "City of Kawartha Lakes Council",
+   "recipients": [],
+   "description": "Minutes of the September 9, 2014 Council meeting approving the Template",
+   "references": [
+    {
+     "paragraph": 123,
+     "quote": "A copy of the Minutes of the Council meeting held on September 9, \n2014 recording this resolution is attached as Exhibit “NN”"
+    }
+   ],
+   "content_check": "30 pages: 'REGULAR COUNCIL MEETING DATE: TUESDAY, SEPTEMBER 09, 2014'"
+  },
+  {
+   "label": "OO",
+   "file": "doc-s2bmef.pdf",
+   "kind": "notice",
+   "date": "2014-02",
+   "author": "Ontario Power Authority",
+   "recipients": [],
+   "description": "OPA Notice on extending the Milestone Date for Commercial Operation for projects under REA appeal",
+   "references": [
+    {
+     "paragraph": 126,
+     "quote": "Attached as Exhibit “OO” is a \ncopy of the Ontario Power Authority Notice"
+    }
+   ],
+   "content_check": "1 page, image-only (OCR): OPA notice"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Taylor employed by the City of Pickering",
+   "date": "1994",
+   "precision": "range",
+   "paragraphs": [
+    6
+   ],
+   "quote": "from 1994–2010",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Taylor joins the City of Kawartha Lakes",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    6
+   ],
+   "quote": "I have been at the City since 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "O. Reg. 359/09 REA regime removes municipal land-use authority over renewables",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    32
+   ],
+   "quote": "In 2010, when Ontario Regulation 359/09 came into force",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "wpd commences the REA process with a Notice of Proposal",
+   "date": "2010-09",
+   "precision": "month",
+   "paragraphs": [
+    48
+   ],
+   "quote": "wpd  commenced  the  REA  approval  process  in  September  2010",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "City's Road Needs Study",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    10,
+    44
+   ],
+   "quote": "A 2011 review of the City’s road needs",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "wpd contacts the City to schedule a meeting",
+   "date": "2012-01-17",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "on January 17, 2012 wpd contacted the City",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "City completes the Transportation Master Plan",
+   "date": "2012-02",
+   "precision": "month",
+   "paragraphs": [
+    10,
+    44
+   ],
+   "quote": "The Transportation Master Plan was completed in February 2012",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Meeting of wpd and City staff; alteration of Wild Turkey Road requires City approval",
+   "date": "2012-06-07",
+   "precision": "day",
+   "paragraphs": [
+    49,
+    50
+   ],
+   "quote": "The meeting was not held until \nJune  7,  2012",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "wpd submits its REA application",
+   "date": "2012-06",
+   "precision": "approximate",
+   "paragraphs": [
+    51
+   ],
+   "quote": "wpd submitted an REA application on or about late June 2012",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "wpd's undated letter on upgrading Wild Turkey Road",
+   "date": "2012-09",
+   "precision": "approximate",
+   "paragraphs": [
+    55
+   ],
+   "quote": "On  or  about  September  2012,  wpd  sent  an  undated  letter",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Taylor provides Report PLAN2013-003 to Council",
+   "date": "2013-02-05",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "On February 5, 2013, I provided Report Number PLAN2013‐003 to Council",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Speech from the Throne on willing hosts",
+   "date": "2013-02-19",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "February  19,  2013",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Council declares the City 'not a willing host'",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    29,
+    36
+   ],
+   "quote": "has passed a resolution declaring that it is \n“not a willing host”",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "National Post article on FIT changes",
+   "date": "2013-05-30",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "May 30th, 2013 article from the National Post",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "wpd's counsel asks to apply for road improvements",
+   "date": "2013-05-31",
+   "precision": "day",
+   "paragraphs": [
+    58
+   ],
+   "quote": "On May 31, 2013, wpd sent a letter to the City through their \nsolicitor",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Council closed meeting and resolution that wpd's request is premature",
+   "date": "2013-07-09",
+   "precision": "day",
+   "paragraphs": [
+    63,
+    64
+   ],
+   "quote": "On  July  9,  2013,  Council  held  a  closed  meeting",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "wpd's counsel contacts the City's outside counsel Dahme",
+   "date": "2013-08",
+   "precision": "month",
+   "paragraphs": [
+    65
+   ],
+   "quote": "in \nAugust 2013, he was contacted by Mr. Patrick Duffy",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "London Free Press article: 61 unwilling-host municipalities",
+   "date": "2013-08-16",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "August  16th,  2013  article",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "REA Permit issued to wpd",
+   "date": "2013-12-11",
+   "precision": "day",
+   "paragraphs": [
+    37,
+    66
+   ],
+   "quote": "on December 11, 2013",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Cham Shan Temple appeals the REA to the ERT",
+   "date": "2013-12",
+   "precision": "approximate",
+   "paragraphs": [
+    66
+   ],
+   "quote": "The approval was appealed shortly thereafter",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "wpd letters and Notice of Commencement of an MCEA",
+   "date": "2014-01-21",
+   "precision": "day",
+   "paragraphs": [
+    67,
+    68
+   ],
+   "quote": "On  January  21,  2014,  City  engineering  staff  members",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Rojas tells Surette the City objects",
+   "date": "2014-01-23",
+   "precision": "day",
+   "paragraphs": [
+    69
+   ],
+   "quote": "two days later on January 23, 2014",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Surette e-mail confirming the conversation",
+   "date": "2014-01-29",
+   "precision": "day",
+   "paragraphs": [
+    69
+   ],
+   "quote": "dated  January  29,  2014",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Dahme letter to wpd's counsel",
+   "date": "2014-02-04",
+   "precision": "day",
+   "paragraphs": [
+    70,
+    71
+   ],
+   "quote": "On February 4, 2014, Mr. Dahme wrote to wpd’s legal counsel",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Surette admits the notice was already published; Taylor replies",
+   "date": "2014-02-06",
+   "precision": "day",
+   "paragraphs": [
+    72,
+    73
+   ],
+   "quote": "On February 6, 2014, Mr. Surette emailed Mr. Rojas",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Revised Notice of Commencement backdated to February 6",
+   "date": "2014-02",
+   "precision": "approximate",
+   "paragraphs": [
+    74
+   ],
+   "quote": "wpd issued a revised Notice of Commencement \nbackdated  to  February  6",
+   "exhibits": [
+    "AA"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "OPA announces MDOC extension for projects under appeal",
+   "date": "2014-02",
+   "precision": "month",
+   "paragraphs": [
+    126
+   ],
+   "quote": "In February 2014, the Ontario Power Authority",
+   "exhibits": [
+    "OO"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "Surette responds to Taylor",
+   "date": "2014-02-27",
+   "precision": "day",
+   "paragraphs": [
+    75
+   ],
+   "quote": "Mr. Surette responded to my email weeks later on February 27, 2014",
+   "exhibits": [
+    "Z"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Surette sends access-road alternatives to Rojas",
+   "date": "2014-02-27",
+   "precision": "range",
+   "paragraphs": [
+    76
+   ],
+   "quote": "On February 27th and 28th, Mr. Surette emailed Mr. Rojas",
+   "exhibits": [
+    "BB"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "ERT appeal adjourned for an overlooked noise receptor",
+   "date": "2014-04",
+   "precision": "approximate",
+   "paragraphs": [
+    78
+   ],
+   "quote": "adjourned until late April 2014",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "City staff meet wpd and give advance copy of staff report",
+   "date": "2014-03-19",
+   "precision": "day",
+   "paragraphs": [
+    84
+   ],
+   "quote": "met with wpd representatives on March 19, 2014",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "Vaidhyan e-mails minutes of the meeting",
+   "date": "2014-03-21",
+   "precision": "approximate",
+   "paragraphs": [
+    85
+   ],
+   "quote": "thanking \nCity staff for meeting with wpd",
+   "exhibits": [
+    "EE"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Council resolves not to open Wild Turkey Road",
+   "date": "2014-03-25",
+   "precision": "day",
+   "paragraphs": [
+    86
+   ],
+   "quote": "Council ultimately resolved not to open Wild Turkey Road",
+   "exhibits": [
+    "FF"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "Council approves the Template Development Agreement",
+   "date": "2014-09-09",
+   "precision": "day",
+   "paragraphs": [
+    22,
+    123
+   ],
+   "quote": "September 9th, 2014 resolution",
+   "exhibits": [
+    "MM",
+    "NN"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "wpd files a Notice of Completion of its MCEA",
+   "date": "2014-09-18",
+   "precision": "day",
+   "paragraphs": [
+    89
+   ],
+   "quote": "on  September  18,  2014",
+   "exhibits": [
+    "GG",
+    "HH"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "Fire Services By-law enacted",
+   "date": "2014-10-14",
+   "precision": "day",
+   "paragraphs": [
+    102
+   ],
+   "quote": "On October 14, 2014, the City enacted the Fire Services By‐law",
+   "exhibits": [
+    "JJ"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "Taylor writes to Surette and Whyte",
+   "date": "2014-10-17",
+   "precision": "day",
+   "paragraphs": [
+    94
+   ],
+   "quote": "On October 17, 2014, I sent a letter to Kevin Surette",
+   "exhibits": [
+    "II"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "ERT decision on the adjournment",
+   "date": "2014-10-31",
+   "precision": "day",
+   "paragraphs": [
+    79
+   ],
+   "quote": "According  to  the  ERT  decision  dated  October  31,  2014",
+   "exhibits": [
+    "CC"
+   ]
+  },
+  {
+   "id": "e39",
+   "description": "Polley Faith letter accusing the City of refusing to consider the MCEA",
+   "date": "2014-11-28",
+   "precision": "day",
+   "paragraphs": [
+    95
+   ],
+   "quote": "On  November  28,  2014,  Polly  Faith  sent  a  letter",
+   "exhibits": []
+  },
+  {
+   "id": "e40",
+   "description": "Conference call with the Ministry: Wild Turkey Road outside the REA",
+   "date": "2014-12-18",
+   "precision": "day",
+   "paragraphs": [
+    43
+   ],
+   "quote": "December  18,  2014",
+   "exhibits": []
+  },
+  {
+   "id": "e41",
+   "description": "Taylor's letter to Andrew Faith",
+   "date": "2015-01-20",
+   "precision": "day",
+   "paragraphs": [
+    65,
+    95
+   ],
+   "quote": "On January 20, 2015, I sent a letter",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e42",
+   "description": "IESO letter on MDOC",
+   "date": "2015-01-28",
+   "precision": "day",
+   "paragraphs": [
+    128
+   ],
+   "quote": "dated  January  28, \n2015",
+   "exhibits": []
+  },
+  {
+   "id": "e43",
+   "description": "MacRae affidavit sworn for wpd",
+   "date": "2015-02-02",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "sworn February \n2,  2015",
+   "exhibits": []
+  },
+  {
+   "id": "e44",
+   "description": "ERT appeal dismissed",
+   "date": "2015-02-19",
+   "precision": "day",
+   "paragraphs": [
+    66
+   ],
+   "quote": "The appeal was recently dismissed on February 19, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e45",
+   "description": "DC By-laws 2014-238 and 2014-264 adopted",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    16,
+    111
+   ],
+   "quote": "By‐Law 2014‐238 and 2014‐264",
+   "exhibits": [
+    "KK",
+    "LL"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Affidavit of Mr. MacRae sworn February 2, 2015 (and its Exhibit XX, IESO letter of January 28, 2015)",
+  "Affidavits of Juan Rojas, Mark Pankhurst, Adam Found, Diane McFarlane and Anneliese Grieve",
+  "Dahme letter of February 4, 2014 is Exhibit Y; Polley Faith letter of November 28, 2014",
+  "Ontario Regulation 359/09"
+ ]
+}

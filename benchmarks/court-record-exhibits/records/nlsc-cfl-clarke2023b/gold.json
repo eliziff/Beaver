@@ -1,0 +1,333 @@
+{
+ "record_id": "nlsc-cfl-clarke2023b",
+ "court": "Supreme Court of Newfoundland and Labrador (in Bankruptcy and Insolvency)",
+ "court_level": "superior_trial",
+ "jurisdiction": "NL",
+ "court_file": "2022 01G 0709",
+ "subject": "insolvency",
+ "family": "canada-fluorspar-ccaa",
+ "proceeding": "Canada Fluorspar CCAA proceedings (ResidualCo 92834 Newfoundland and Labrador Inc.): Monitor's application heard October 25, 2023",
+ "document": "Affidavit of Phil Clarke sworn September 26, 2023",
+ "deponent": "Phil Clarke",
+ "deponent_role": "Senior Vice President, Grant Thornton Limited (Court-appointed Monitor)",
+ "sworn_date": "2023-09-26",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-uwvfea.pdf",
+   "kind": "court_order",
+   "date": "2022-02-21",
+   "author": "Supreme Court of Newfoundland and Labrador",
+   "recipients": [],
+   "description": "Order of February 21, 2022 appointing GTL Interim Receiver of Canada Fluorspar Inc. and Canada Fluorspar (NL) Inc.",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "dated the 21st of February 2022, attached hereto as Exhibit \"A\""
+    }
+   ],
+   "content_check": "21 scanned pages: Interim Receivership Order (Schedule 1) on the application of PricewaterhouseCoopers Inc. as receiver of Bridging Finance, with Schedule A defined terms and the Interim Receiver's Certificate form"
+  },
+  {
+   "label": "B",
+   "file": "doc-sbrydb.pdf",
+   "kind": "court_order",
+   "date": "2022-03-18",
+   "author": "Supreme Court of Newfoundland and Labrador",
+   "recipients": [],
+   "description": "Amended and Restated Initial Order of March 18, 2022 appointing GTL Monitor of Canada Fluorspar Inc., Canada Fluorspar (NL) Inc. and Newspar",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "issued on the 18th of March 2022 attached hereto as Exhibit \"B\""
+    }
+   ],
+   "content_check": "22 scanned pages: CCAA order on the application of Canada Fluorspar (NL) Inc. and Canada Fluorspar Inc.; Monitor powers, DIP Lender and Administration charges, Schedule A defined terms"
+  },
+  {
+   "label": "C",
+   "file": "doc-8evwc3.pdf",
+   "kind": "court_order",
+   "date": "2023-06-07",
+   "author": "Supreme Court of Newfoundland and Labrador",
+   "recipients": [],
+   "description": "Approval and Reverse Vesting Order of June 7, 2023 approving the sale to the Purchaser and issuing the 6th Amended ARIO",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "extending the CCAA stay period under the 31st day of October, 2023, as outlined in Exhibit\n\"c\""
+    }
+   ],
+   "content_check": "23 scanned pages: Approval and Reverse Vesting Order on GTL's application (ResidualCo, Share Purchase Agreement), with the form of Monitor's Certificate, Schedule B encumbrances to be deleted and Schedule C permitted encumbrances"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "GTL appointed Interim Receiver of Canada Fluorspar",
+   "date": "2022-02-21",
+   "precision": "day",
+   "paragraphs": [
+    2
+   ],
+   "quote": "GTL was appointed Interim Receiver of Canada\nFluorspar Inc.",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "GTL applies as Interim Receiver for a CCAA order",
+   "date": "2022-03-08",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On the 8th of March 2022, GTL applied to the Honourable Supreme Court",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Initial CCAA order granted",
+   "date": "2022-03-11",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "initially on\nthe 11th of March 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Amended and Restated Initial Order issued; GTL appointed Monitor",
+   "date": "2022-03-18",
+   "precision": "day",
+   "paragraphs": [
+    3,
+    4
+   ],
+   "quote": "GTL was further appointed as Monitor for Canada Fluorspar Inc.",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Period covered by the Monitor's accounts begins",
+   "date": "2022-03-01",
+   "precision": "range",
+   "paragraphs": [
+    22,
+    23
+   ],
+   "quote": "for the period of March 1, 2022 to August 29, 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "GTL applies to extend the SISP and the stay to September 2, 2022",
+   "date": "2022-05-31",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On the 31st day of May 2022, GTL applied",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Amended ARIO granted",
+   "date": "2022-06-10",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "order was granted, on the 10th of June 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "GTL applies to extend the SISP and the stay to October 17, 2022",
+   "date": "2022-08-24",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On the 24th day of August, 2022, GTL applied",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Amended ARIO #2 granted",
+   "date": "2022-08-30",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "That order was granted, on the 30th day of August 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "GTL applies to extend the stay to February 26, 2023; Amended ARIO #3 granted",
+   "date": "2022-10-12",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "On the 12th day of October 2022, GTL applied",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "GTL applies to extend the stay to May 31, 2023",
+   "date": "2023-02-16",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On the 16th day of February 2023, GTL applied",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Amended ARIO #4 granted",
+   "date": "2023-02-21",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "granted, on the 21st day of February 2023",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Stay extended to June 16, 2023 and CFI Newspar Holdings added (Amended ARIO #5)",
+   "date": "2023-05-18",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On the 18th day of May 2023, GTL applied",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Court issues the Approval and Reverse Vesting Order and the 6th Amended ARIO; 92834 added as ResidualCo applicant",
+   "date": "2023-06-07",
+   "precision": "day",
+   "paragraphs": [
+    10,
+    11
+   ],
+   "quote": "On the 7th day of June,2023, the court issued the Approval and Reverse Vesting Order",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Monitor's work to close the Transaction and administer the estate since the ARVO",
+   "date": "2023-06-07",
+   "precision": "range",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Between the period of June 7, 2023 to present",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Transaction closes (Closing Date)",
+   "date": "2023-06-13",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "on June 13, 2023 (the \"Closing Date\")",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Monitor repays the DIP Lenders $8,013,429",
+   "date": "2023-06-21",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "on June 21, 2023, the amount of $8,013,429.00",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Monitor submits amended 2020 and 2021 T2 returns to CRA",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "The Monitor submitted to Canada Revenue Agency (\"CRA\") an amendment",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Monitor obtains an independent legal opinion on Bridging's security",
+   "date": "",
+   "precision": "undated",
+   "paragraphs": [
+    12
+   ],
+   "quote": "Obtained an independent legal opinion with respect to Bridging's security",
+   "exhibits": []
+  },
+  {
+   "id": "e20",
+   "description": "Stay under Amended ARIO #6 expires",
+   "date": "2023-10-31",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "the Stay Period will expire on October 31 , 2023",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Monitor proposes a Claims Identification Process",
+   "date": "2023-09",
+   "precision": "approximate",
+   "paragraphs": [
+    16,
+    17,
+    18
+   ],
+   "quote": "The Monitor believes it appropriate at this time to undertake a process",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Monitor proposes an interim distribution of about $13,500,000 to Bridging with a $3,000,000 holdback",
+   "date": "2023-09",
+   "precision": "approximate",
+   "paragraphs": [
+    19,
+    21
+   ],
+   "quote": "The Monitor proposes to make an interim distribution",
+   "exhibits": []
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [
+  "The within application",
+  "Monitor's Tenth Report (Appendix J revised cashflow, Appendix K Monitor's accounts)",
+  "Separate affidavit of McInnes Cooper on counsel's fees",
+  "Share Purchase Agreement between CFI and the Purchaser",
+  "Monitor's Certificate"
+ ],
+ "notes": "Scanned with the source's OCR layer. Unreadable TAB divider pages (source pages 10, 33, 57) dropped with --drop."
+}

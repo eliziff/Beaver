@@ -1,0 +1,223 @@
+{
+ "record_id": "onsc-cp-chl-macdonald1",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al.: plaintiffs' motion for production of the Independent Review Panel report and to summons the panel members",
+ "document": "Affidavit of Catherine MacDonald sworn November 29, 2021",
+ "deponent": "Catherine MacDonald",
+ "deponent_role": "Legal assistant at Koskie Minsky LLP (class counsel)",
+ "sworn_date": "2021-11-29",
+ "notes": "Leak B is the cover of Exhibit A to the Dan MacKenzie affidavit nested inside the defendants' cross-motion materials (Exhibit B), not a MacDonald exhibit label.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-bw3ck5.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Koskie Minsky LLP (plaintiffs)",
+   "recipients": [],
+   "description": "Amended Statement of Claim in the action",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "Attached hereto as Exhibit \"A\" is a copy of the  Amended Statement of Claim"
+    }
+   ],
+   "content_check": "53 pages: amended statement of claim, Carcillo and Taylor v. OHL, CHL, WHL, QMJHL and teams"
+  },
+  {
+   "label": "B",
+   "file": "doc-ruv4ys.pdf",
+   "kind": "court_filing",
+   "date": "2020-12-30",
+   "author": "Bennett Jones LLP (defendants)",
+   "recipients": [],
+   "description": "Defendants' cross-motion materials (strike, jurisdiction, abuse of process)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "A copy of the Defendants' cross-motion materials are attached to this affidavit as  Exhibit"
+    }
+   ],
+   "content_check": "70 pages: notice of cross-motion and the affidavit of Dan MacKenzie sworn December 30, 2020 with its exhibits"
+  },
+  {
+   "label": "C",
+   "file": "doc-wvfdsq.pdf",
+   "kind": "court_order",
+   "date": "2021-01-04",
+   "author": "Justice Perell",
+   "recipients": [],
+   "description": "Case management direction dated January 4, 2021",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "A case management direction dated  January 4, 2021 is attached hereto as Exhibit \"C\""
+    }
+   ],
+   "content_check": "4 pages: 'FILE/DIRECTION/ORDER BEFORE JUSTICE PERELL'"
+  },
+  {
+   "label": "D",
+   "file": "doc-h3vq2y.pdf",
+   "kind": "notice",
+   "date": "2020-06-26",
+   "author": "Canadian Hockey League",
+   "recipients": [],
+   "description": "CHL press release of June 26, 2020 announcing an Independent Review Panel",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "A copy of the  June 26, 2020 press release is attached hereto as Exhibit \"D\""
+    }
+   ],
+   "content_check": "2 pages: press release printout, image-only"
+  },
+  {
+   "label": "E",
+   "file": "doc-2a3zwp.pdf",
+   "kind": "notice",
+   "date": "2020-07-23",
+   "author": "Canadian Hockey League",
+   "recipients": [],
+   "description": "CHL press release of July 23, 2020 naming the panel members",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "A copy of the July 23, 2020 press release is attached hereto as Exhibit \"E\""
+    }
+   ],
+   "content_check": "3 pages: press release printout, image-only"
+  },
+  {
+   "label": "F",
+   "file": "doc-qqyks7.pdf",
+   "kind": "webpage",
+   "date": "2021-02-01",
+   "author": "Radio-Canada / CBC",
+   "recipients": [],
+   "description": "News report that the panel report was delivered to CHL president Dan MacKenzie",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "A  copy of this news report is attached to my affidavit as Exhibit \"F\""
+    }
+   ],
+   "content_check": "4 pages: 'Harcèlements et abus au hockey junior : le rapport reste confidentiel pour le moment | Radio-Canada.ca' (printed 11/29/21)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "CHL announces an Independent Review Panel",
+   "date": "2020-06-26",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "The CHL released a press release on June 26, 2020",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "CHL announces the panel members (Theriault, Kennedy, Sauvageau)",
+   "date": "2020-07-23",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On July 23, 2020, the CHL released a press release",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Plaintiffs serve their certification motion materials",
+   "date": "2020-12-07",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "On December 7, 2020, the Plaintiff served their motion materials for certification",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Defendants serve their cross-motion to strike, stay or dismiss",
+   "date": "2020-12-30",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On December 30, 2020, the Defendants served their cross-motion",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Case management direction issued",
+   "date": "2021-01-04",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "A case management direction dated  January 4, 2021",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "News report that the panel report was provided to CHL president MacKenzie",
+   "date": "2021-02-01",
+   "precision": "approximate",
+   "paragraphs": [
+    9
+   ],
+   "quote": "On or around February 1, 2021, a CBC news report confirmed",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Certification motion and cross-motion scheduled before Perell J.",
+   "date": "2022-02-14",
+   "precision": "range",
+   "paragraphs": [
+    6
+   ],
+   "quote": "scheduled to  be heard by Perell J. over February 14 to 18, 2022",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Koskie Minsky retained to bring the class action",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Koskie Minsky LLP was retained by the proposed representative plaintiffs",
+   "exhibits": [
+    "A"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Plaintiffs' certification motion materials served December 7, 2020",
+  "Independent Review Panel Report",
+  "Overlapping Alberta action"
+ ],
+ "leak_waivers": [
+  "B"
+ ]
+}

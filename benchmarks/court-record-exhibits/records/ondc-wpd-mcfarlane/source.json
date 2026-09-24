@@ -1,0 +1,20 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/472508/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2013-0442",
+ "court": "Ontario Superior Court of Justice (Divisional Court)",
+ "court_level": "superior_divisional",
+ "jurisdiction": "ON",
+ "court_file": "Divisional Court File No. 37/15 (filed with the OEB in EB-2013-0442)",
+ "document_title": "wpd Sumac_CKL Affidavit_Diane McFarlane_20150402",
+ "retrieved": "2026-09-24",
+ "record_id": "ondc-wpd-mcfarlane",
+ "source_file": "doeb-472508.pdf",
+ "page_range": [
+  1,
+  258
+ ],
+ "source_sha256": "cdca9627000d9bcded13fe27bca6b6420289ad4702746a8e5eb22a9954e789a4",
+ "source_pages": 258,
+ "covers": "A=11,B=221,C=233,D=237,E=243,F=247,G=253",
+ "drop": "258"
+}

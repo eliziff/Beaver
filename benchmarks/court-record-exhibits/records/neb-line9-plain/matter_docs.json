@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/neb-line9-plain/ruling-23-afn.pdf",
+  "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2428805",
+  "title": "NEB Ruling no. 23 to Aamjiwnaang First Nation (OH-002-2013)",
+  "kind": "court_order",
+  "relation": "same hearing, later ruling on AFN's motion"
+ },
+ {
+  "file": "raw/matter/neb-line9-plain/afn-letter-written-evidence.pdf",
+  "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/1044200",
+  "title": "AFN letter re Written Evidence of AFN (C1-8-1)",
+  "kind": "letter",
+  "relation": "covering letter for AFN's evidence filing"
+ }
+]

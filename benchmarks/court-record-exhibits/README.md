@@ -53,7 +53,12 @@ level, subject, court and site, so gaps in breadth stay visible.
    B=<file1>+<file2> ...` (or `--manifest m.json`); each file's own cover or
    stamp is stripped as in one PDF, `--covers A,B` names first pages read by
    eye as covers, and `meta.json`'s `urls` maps each file's basename to its
-   URL so `rebuild.py` can fetch every part.
+   URL so `rebuild.py` can fetch every part. `A=f.pdf:3-9` takes a page
+   range of a file that holds several exhibits. `--blank A=x0,y0,x1,y1`
+   (page fractions of the exhibit's first page) whites out a handwritten
+   stamp that is part of the scan image; `--blank A=t:...` removes only the
+   text there (an invisible typed filing label over a picture that must
+   stay). Both are kept in `split.json` and replayed by `rebuild.py`.
    For a motion record, use `--pages` for the one affidavit and its exhibits
    (from the record's index). `meta.json` holds `url`, `landing_url`, `court`,
    `court_level`, `jurisdiction`, `court_file`, `document_title` and

@@ -1,0 +1,285 @@
+{
+ "record_id": "bcuc-png-aaswaakshin",
+ "court": "British Columbia Utilities Commission",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "BC",
+ "court_file": "Pacific Northern Gas Ltd. CPCN, Salvus to Galloway Upgrade Project (Project No. 1599200; Exhibit C2-2)",
+ "subject": "indigenous_rights",
+ "proceeding": "Pacific Northern Gas Ltd. application for a Certificate of Public Convenience and Necessity for the Salvus to Galloway Upgrade Project: Lax Kw'alaams Band evidence on the adequacy of Crown consultation (Order G-152-21)",
+ "document": "Affidavit #1 of Neegann Aaswaakshin made June 1, 2021 (public redacted copy filed June 2, 2021, Exhibit C2-2)",
+ "deponent": "Neegann Aaswaakshin",
+ "deponent_role": "Director of Lands, Resources and Stewardship, Lax Kw'alaams Band",
+ "sworn_date": "2021-06-01",
+ "notes": "--pages 2-49 (Ratcliff covering letter requesting confidentiality excluded). Paragraph 1 and 10 numbers OCR as 'I.' and 'I 0.'.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hmx6sq.pdf",
+   "kind": "letter",
+   "date": "2020-11-02",
+   "author": "Lax Kw'alaams Band",
+   "recipients": [
+    "BC Oil and Gas Commission (Sandy O'Flaherty)",
+    "Pacific Northern Gas"
+   ],
+   "description": "Lax Kw'alaams letter of November 2, 2020 to PNG and the OGC on the breakdown in consultation",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "a copy of which is attached to this Affidavit as Exhibit \"A\""
+    }
+   ],
+   "content_check": "Lax Kw'alaams Band letterhead, November 2, 2020, to Sandy O'Flaherty, First Nation Liaison Officer, BC Oil and Gas Commission"
+  },
+  {
+   "label": "B",
+   "file": "doc-up669p.pdf",
+   "kind": "letter",
+   "date": "2021-03-08",
+   "author": "Lax Kw'alaams Business Development LP",
+   "recipients": [
+    "BC Oil and Gas Commission (Sandy O'Flaherty)"
+   ],
+   "description": "Lax Kw'alaams letter of March 8, 2021 outlining outstanding concerns",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "attached to this Affidavit as Exhibit \"B\""
+    }
+   ],
+   "content_check": "LAX KW'ALAAMS BUSINESS DEVELOPMENT LP, SENT VIA EMAIL March 8, 2021, to Sandy O'Flaherty, OGC"
+  },
+  {
+   "label": "C",
+   "file": "doc-w7vxha.pdf",
+   "kind": "letter",
+   "date": "2021-04-27",
+   "author": "Lax Kw'alaams Band",
+   "recipients": [
+    "BC Oil and Gas Commission (Ryan Stark)"
+   ],
+   "description": "Lax Kw'alaams letter of April 27, 2021",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "letters \ndated April 27, 2021, and May 7th copies of which are attached to this affidavit as Exhibits \"C\""
+    }
+   ],
+   "content_check": "Lax Kw'alaams Band, SENT VIA EMAIL April 27, 2021, to Ryan Stark, Manager, Decision Support, BC OGC"
+  },
+  {
+   "label": "D",
+   "file": "doc-68wc89.pdf",
+   "kind": "letter",
+   "date": "2021-05-07",
+   "author": "Lax Kw'alaams Band",
+   "recipients": [
+    "BC Oil and Gas Commission",
+    "Pacific Northern Gas"
+   ],
+   "description": "Lax Kw'alaams letter of May 7, 2021 with technical comments on Segment 4 of the Project",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "and \"D\" respectively"
+    }
+   ],
+   "content_check": "'RE: Salvus to Galloway Pipeline Works - Segment 4 Please find enclosed the Lax Kw'alaams Band's comments on outstanding technical concerns' (May 7, 2021)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "OGC notifies Lax Kw'alaams of the Salvus to Galloway project",
+   "date": "2020-07-30",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "On July 30, 2020, the BC Oil and Gas Commission (\"OGC\") sent a letter dated July 28",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "PNG provides a fact sheet and a high-level presentation",
+   "date": "2020-09-03",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "on September 3 a basic presentation was made to us",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Lax Kw'alaams provides comments and questions to PNG and the OGC",
+   "date": "2020-09-22",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "On September 22, 2020, Lax Kw'alaams provided land management and environmental",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "PNG second high-level presentation; assurance of meaningful engagement",
+   "date": "2020-09-28",
+   "precision": "day",
+   "paragraphs": [
+    11
+   ],
+   "quote": "On September 28, 2020, PNG made another general and very high-level presentation",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "PNG responds and provides the Construction Environmental Management Plan",
+   "date": "2020-09-30",
+   "precision": "range",
+   "paragraphs": [
+    12
+   ],
+   "quote": "PNG responded on September 30 and October 2, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Lax Kw'alaams begins reviewing PNG's responses",
+   "date": "2020-10-05",
+   "precision": "approximate",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Around October 5, 2020, Lax Kw'alaams began working to review PNG's responses",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "OGC concludes consultation",
+   "date": "2020-10-07",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "on October 7, 2020, the OGC sent a letter to Lax Kw'alaams",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Permit issued to PNG",
+   "date": "2020-10-09",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "on October 9, 2020, the Commission issued the Permit to PNG",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Lax Kw'alaams tells PNG a formal response is coming",
+   "date": "2020-10-14",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "On October 14, 2020, five business days after receiving the Plan from PNG",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "PNG sends notification of works with the approved permit",
+   "date": "2020-10-15",
+   "precision": "day",
+   "paragraphs": [
+    15,
+    17
+   ],
+   "quote": "On October 15, 2020, PNG sent Lax Kw'alaams notification of works",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Lax Kw'alaams letter to PNG and OGC",
+   "date": "2020-11-02",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "letter dated November 2, 2020 that Lax Kw'alaams sent to \nPNG and the OGC",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Lax Kw'alaams letter outlining numerous concerns",
+   "date": "2021-03-08",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "an additional letter dated March 8, 2021",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Meeting where OGC says it does not deal with rights of way",
+   "date": "2021-04-23",
+   "precision": "day",
+   "paragraphs": [
+    25,
+    26
+   ],
+   "quote": "On April 23, 2021, Lax Kw'alaams first discovered that the Oil and Gas Commission was",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Lax Kw'alaams letter",
+   "date": "2021-04-27",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "dated April 27, 2021",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Lax Kw'alaams letter",
+   "date": "2021-05-07",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "and May 7th",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Lax Kw'alaams hires Greg McDade Q.C.",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Lax \nKw'alaams hired an external lawyer, Greg McDade Q.C.",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "BC Oil and Gas Commission letter of July 28, 2020",
+  "OGC letter of October 7, 2020 concluding consultation",
+  "PNG Construction Environmental Management Plan",
+  "OGC permit issued October 9, 2020",
+  "BCUC Order G-152-21"
+ ]
+}

@@ -1,0 +1,957 @@
+{
+ "record_id": "oeb-goldcorp-major",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2011-0361 / EB-2011-0376",
+ "subject": "administrative",
+ "proceeding": "Goldcorp Canada Ltd. and Goldcorp Inc. application under s. 19 of the Ontario Energy Board Act, 1998 for a declaration that provisions of the Transmission System Code (bypass compensation, s. 11.2) are ultra vires; evidence of Hydro One's delay in the Connection and Cost Recovery Agreement for Goldcorp's 115 kV line at Red Lake",
+ "document": "Affidavit of Luc Major sworn December 1, 2011 (filed with Goldcorp's submission, RDS 312673)",
+ "deponent": "Luc Major",
+ "deponent_role": "Consultant to Goldcorp Red Lake Gold Mines on its dealings with Hydro One",
+ "sworn_date": "2011-12-01",
+ "notes": "Covers OCR-noisy (H read as 'IT', I as '!', O as '0'): --covers by page. All 25 exhibits are e-mails printed from Goldcorp counsel's system.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-5r933z.pdf",
+   "kind": "email",
+   "date": "2011-08-30",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen (HONI)"
+   ],
+   "description": "Major's e-mail of August 30, 2011 informing Hakkarainen of his involvement",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Exhibit A to my affidavit is my e-mail dated August"
+    }
+   ],
+   "content_check": "1 page: From Luc Major, Tuesday, August 30, 2011 9:22AM, Subject: HONI Power Line & Switchyard Take-over"
+  },
+  {
+   "label": "B",
+   "file": "doc-cawkwh.pdf",
+   "kind": "email",
+   "date": "2011-08-30",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's response e-mail of August 30, 2011 and enclosures",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Exhibit B to my affidavit is Timo Hakkarainen's"
+    }
+   ],
+   "content_check": "16 pages: Hakkarainen, Tuesday, August 30, 2011 4:25 PM, RE: HONI Power Line & Switchyard Take-over, with attachments"
+  },
+  {
+   "label": "C",
+   "file": "doc-4bbz9a.pdf",
+   "kind": "email",
+   "date": "2011-09-14",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen (HONI)"
+   ],
+   "description": "Major's September 14, 2011 follow-up on voicemails about the draft CCRA",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Exhibit C to my affidavit is my e-mail to Timo"
+    }
+   ],
+   "content_check": "1 page: Major, Wednesday, September 14, 2011 9:36AM, Subject: Draft CCRA 'I have left messages on your voice mail'"
+  },
+  {
+   "label": "D",
+   "file": "doc-rdjy7t.pdf",
+   "kind": "email",
+   "date": "2011-09-14",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's responding e-mail of September 14, 2011",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Exhibit D to my affidavit is Timo Hakkarainen's"
+    }
+   ],
+   "content_check": "1 page: Hakkarainen, September 14, 2011 9:46AM, RE: Draft CCRA 'We are working on it'"
+  },
+  {
+   "label": "E",
+   "file": "doc-p9a73h.pdf",
+   "kind": "email",
+   "date": "2011-10-04",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's October 4, 2011 e-mail and enclosures",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "Exhibit E to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "10 pages: Hakkarainen, Tuesday, October 04, 2011 4:28 PM, FW: Goldcorp's 115 kV Transmission Line from South of Harry's Corner to Balmer"
+  },
+  {
+   "label": "F",
+   "file": "doc-t38k2b.pdf",
+   "kind": "email",
+   "date": "2011-10-06",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen (HONI)"
+   ],
+   "description": "Major's October 6, 2011 reply to Hakkarainen's October 4 e-mail",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "Exhibit F to my affidavit is my e-mail dated October 6"
+    }
+   ],
+   "content_check": "5 pages: Major, Thursday, October 06, 2011 3:58 PM, RE: Goldcorp's 115 kV Transmission Line"
+  },
+  {
+   "label": "G",
+   "file": "doc-nwy84s.pdf",
+   "kind": "email",
+   "date": "2011-10-14",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major",
+    "Curtis Pedwell"
+   ],
+   "description": "Hakkarainen's October 14, 2011 e-mail providing one year of actual meter data and coincident peak for Red Lake, Balmer and Campbell",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "Exhibit G to my affidavit is Timo Hakkarainen's to me"
+    }
+   ],
+   "content_check": "5 pages: Hakkarainen, Friday, October 14, 2011 3:10PM, Goldcorp's Load Assignment for 2011 - Question from Conference call"
+  },
+  {
+   "label": "H",
+   "file": "doc-wmpyz3.pdf",
+   "kind": "email_chain",
+   "date": "2011-10-17",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's October 17 e-mail and chain respecting power factor",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "Exhibit H to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "3 pages: Hakkarainen, Monday, October 17, 2011 11:43AM, RE: Goldcorp's Load Assignment for 2011"
+  },
+  {
+   "label": "I",
+   "file": "doc-hunkdc.pdf",
+   "kind": "email",
+   "date": "2011-10-17",
+   "author": "Luc Major",
+   "recipients": [
+    "Curtis Pedwell",
+    "Dale Kosie"
+   ],
+   "description": "Major's October 17, 2011 e-mail to Pedwell expressing frustration at HONI's delays",
+   "references": [
+    {
+     "paragraph": 22,
+     "quote": "Exhibit I to my affidavit is my e-mail to Curtis Pedwell"
+    }
+   ],
+   "content_check": "3 pages: Major, Monday, October 17, 2011 12:36 PM, To: Curtis Pedwell; Dale Kosie"
+  },
+  {
+   "label": "J",
+   "file": "doc-73sjjm.pdf",
+   "kind": "email",
+   "date": "2011-10-21",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's October 21, 2011 e-mail providing power factor information and enclosures",
+   "references": [
+    {
+     "paragraph": 23,
+     "quote": "Exhibit J to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "6 pages: Hakkarainen, Friday, October 21, 2011 4:10PM, RE: Goldcorp's Load Assignment for 2011"
+  },
+  {
+   "label": "K",
+   "file": "doc-u76k3x.pdf",
+   "kind": "email",
+   "date": "2011-11-01",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's November 1, 2011 e-mail on how the load forecast is progressing",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Exhibit K to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "4 pages: Hakkarainen, Tuesday, November 01, 2011 3:37 PM"
+  },
+  {
+   "label": "L",
+   "file": "doc-2d24k2.pdf",
+   "kind": "email",
+   "date": "2011-11-03",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen (HONI)"
+   ],
+   "description": "Major's November 3, 2011 e-mail providing Goldcorp's load forecast and enclosures",
+   "references": [
+    {
+     "paragraph": 25,
+     "quote": "Exhibit L to my affidavit is my e-mail to Timo"
+    }
+   ],
+   "content_check": "5 pages: Major, Thursday, November 03, 2011 6:03 PM"
+  },
+  {
+   "label": "M",
+   "file": "doc-8wgffe.pdf",
+   "kind": "email",
+   "date": "2011-11-04",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's November 4, 2011 e-mail asking whether Goldcorp seeks a 10- or 15-year CCRA",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "Exhibit M to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "5 pages: Hakkarainen, Friday, November 04, 2011 3:10PM"
+  },
+  {
+   "label": "N",
+   "file": "doc-nsegyk.pdf",
+   "kind": "email",
+   "date": "2011-11-07",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Curtis Pedwell",
+    "Luc Major"
+   ],
+   "description": "Hakkarainen's November 7, 2011 e-mail to Pedwell that HONI will true up any revenue shortfall",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "Exhibit N to my affidavit is Time Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "5 pages: Hakkarainen, Monday, November 07, 2011 11:34AM, To: Curtis Pedwell; Luc Major"
+  },
+  {
+   "label": "O",
+   "file": "doc-enbcvq.pdf",
+   "kind": "email",
+   "date": "2011-11-09",
+   "author": "Gord Caul (HONI)",
+   "recipients": [
+    "Rich Baggerman (HONI)"
+   ],
+   "description": "Caul's November 9, 2011 internal HONI e-mail providing Goldcorp's load assignment for 2011",
+   "references": [
+    {
+     "paragraph": 28,
+     "quote": "of HONI's e-\nmail of November 9, 2011 to Rich Baggerman"
+    }
+   ],
+   "content_check": "12 pages: gord.caul@HydroOne.com, Wednesday, November 09, 2011 3:20 PM, To rich.baggerman, FW: Goldcorp's Load Assignment for 2011"
+  },
+  {
+   "label": "P",
+   "file": "doc-7cu2fa.pdf",
+   "kind": "email",
+   "date": "2011-11-10",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen (HONI)"
+   ],
+   "description": "Major's November 10, 2011 e-mail attaching Goldcorp's 15-year load forecast",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "Exhibit P to my affidavit is my e-mail to Time"
+    }
+   ],
+   "content_check": "6 pages: Major, Thursday, November 10, 2011 3:22PM"
+  },
+  {
+   "label": "Q",
+   "file": "doc-6grsuk.pdf",
+   "kind": "email",
+   "date": "2011-11-10",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Curtis Pedwell",
+    "Luc Major",
+    "Dale Kosie"
+   ],
+   "description": "Hakkarainen's November 10, 2011 e-mail enclosing a spreadsheet of Balmer CTS loads at a 95% coincident load factor",
+   "references": [
+    {
+     "paragraph": 30,
+     "quote": "Exhibit Q to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "6 pages: Hakkarainen, Thursday, November 10, 2011 4:37PM, FW: Goldcorp's Load Assignment"
+  },
+  {
+   "label": "R",
+   "file": "doc-7qgcms.pdf",
+   "kind": "email",
+   "date": "2011-11-10",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen (HONI)"
+   ],
+   "description": "Major's same-day reply to Hakkarainen's November 10 e-mail",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Exhibit R to my affidavit is my e-mail replying to Timo"
+    }
+   ],
+   "content_check": "6 pages: Major, Thursday, November 10, 2011 7:04PM"
+  },
+  {
+   "label": "S",
+   "file": "doc-cmv6ee.pdf",
+   "kind": "email",
+   "date": "2011-11-14",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Raj Ghai",
+    "Luc Major",
+    "Curtis Pedwell"
+   ],
+   "description": "Hakkarainen's November 14, 2011 e-mail enclosing minutes of the November 11 conference call",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Exhibit S to my affidavit is an e-mail from Timo"
+    }
+   ],
+   "content_check": "3 pages: Hakkarainen, Monday, November 14, 2011 2:32 PM"
+  },
+  {
+   "label": "T",
+   "file": "doc-yz3wec.pdf",
+   "kind": "email",
+   "date": "2011-11-16",
+   "author": "Luc Major",
+   "recipients": [
+    "Timo Hakkarainen",
+    "Raj Ghai",
+    "Curtis Pedwell",
+    "Dale Kosie"
+   ],
+   "description": "Major's November 16, 2011 e-mail re power factor",
+   "references": [
+    {
+     "paragraph": 33,
+     "quote": "Exhibit T to my affidavit is my e-mail to Timo"
+    }
+   ],
+   "content_check": "1 page: Major, Wednesday, November 16, 2011 2:50PM, RE: Goldcorp RLGM Minutes of N[ovember 11]"
+  },
+  {
+   "label": "U",
+   "file": "doc-zu2pr8.pdf",
+   "kind": "email",
+   "date": "2011-11-22",
+   "author": "Raj Ghai (HONI)",
+   "recipients": [
+    "Luc Major",
+    "Curtis Pedwell",
+    "Dale Kosie"
+   ],
+   "description": "Ghai's November 22, 2011 e-mail correcting the duplicated '2023' in a spreadsheet, with enclosures",
+   "references": [
+    {
+     "paragraph": 34,
+     "quote": "Exhibit U to my affidavit is an e-mail from Raj Ghai"
+    }
+   ],
+   "content_check": "6 pages: raj.ghai, Tuesday, November 22, 2011 11:36 AM"
+  },
+  {
+   "label": "V",
+   "file": "doc-2mwquz.pdf",
+   "kind": "email",
+   "date": "2011-11-22",
+   "author": "Luc Major",
+   "recipients": [
+    "Raj Ghai (HONI)"
+   ],
+   "description": "Major's November 22, 2011 reply asking when Goldcorp may expect the CCRA",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "Exhibit V to my affidavit is my e-mail of November 22"
+    }
+   ],
+   "content_check": "2 pages: Major, Tuesday, November 22, 2011 2:02 PM"
+  },
+  {
+   "label": "W",
+   "file": "doc-98n3ey.pdf",
+   "kind": "email",
+   "date": "2011-11-23",
+   "author": "Raj Ghai (HONI)",
+   "recipients": [
+    "Luc Major"
+   ],
+   "description": "Ghai's November 23, 2011 e-mail that Goldcorp will not see the CCRA until next month",
+   "references": [
+    {
+     "paragraph": 36,
+     "quote": "Exhibit W to my affidavit is Raj Ghai's e-mail to me"
+    }
+   ],
+   "content_check": "2 pages: raj.ghai, Wednesday, November 23, 2011 1:28 PM"
+  },
+  {
+   "label": "X",
+   "file": "doc-299wc6.pdf",
+   "kind": "email",
+   "date": "2011-11-26",
+   "author": "Luc Major",
+   "recipients": [
+    "Raj Ghai",
+    "Timo Hakkarainen"
+   ],
+   "description": "Major's November 26, 2011 request for a draft copy of the CCRA",
+   "references": [
+    {
+     "paragraph": 37,
+     "quote": "Exhibit X to my affidavit is my e-mail to Raj Ghai"
+    }
+   ],
+   "content_check": "3 pages: Major, Saturday, November 26, 2011 12:44 PM"
+  },
+  {
+   "label": "Y",
+   "file": "doc-h43htf.pdf",
+   "kind": "email",
+   "date": "2011-11-28",
+   "author": "Timo Hakkarainen (HONI)",
+   "recipients": [
+    "Luc Major",
+    "Raj Ghai"
+   ],
+   "description": "Hakkarainen's November 28, 2011 e-mail that a draft CCRA is very close to ready",
+   "references": [
+    {
+     "paragraph": 38,
+     "quote": "Exhibit Y to my affidavit is Timo Hakkarainen's e-mail"
+    }
+   ],
+   "content_check": "3 pages: Hakkarainen, Monday, November 28, 2011 4:19 PM"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Major transferred to Campbell Mine with Placer Dome",
+   "date": "1993",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I got transferred to Campbell Mine in 1993",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Major works at Goldcorp as Chief Electrician/Project Co-ordinator",
+   "date": "2004",
+   "precision": "range",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I worked at Goldcorp from 2004 to 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Major begins consulting on Goldcorp's electricity needs",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "Since 2007 I have been involved",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Major begins work on the 115 kV transmission line project",
+   "date": "2009-11",
+   "precision": "month",
+   "paragraphs": [
+    3
+   ],
+   "quote": "since November 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Board grants Goldcorp leave to construct the 115 kV line (EB-2011-0106)",
+   "date": "2011-07-20",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Board's July 20, 2011 order in EB-2011-0106",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Pedwell assigns Major to negotiate the CCRA with HONI",
+   "date": "2011-07",
+   "precision": "month",
+   "paragraphs": [
+    4
+   ],
+   "quote": "In late July, 2011, after receiving the Board's July 20, 2011 order",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Major tries to contact Hakkarainen, who is on vacation",
+   "date": "2011-07",
+   "precision": "approximate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "In late July, 2011 I tried to contact Timo Hakkarainen",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Major informs Hakkarainen of his involvement",
+   "date": "2011-08-30",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "is my e-mail dated August \n30",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Hakkarainen responds with enclosures",
+   "date": "2011-08-30",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "Response e-mail dated August 30, 2011",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Major follows up on voicemails about the draft CCRA",
+   "date": "2011-09-14",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Hakkarainen of September 14, 2011 following up on voicemails",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Hakkarainen replies that HONI is working on it",
+   "date": "2011-09-14",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "responding e-mail dated September 14, 2011",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "HONI says Goldcorp's load forecasts are unrealistic",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    6
+   ],
+   "quote": "they told me the load forecasts were unrealistic",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "HONI asks for a 15-year rather than 10-year forecast",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "HONI came back saying it needed a 15 year forecast",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Hakkarainen e-mails with enclosures",
+   "date": "2011-10-04",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "to me dated October 4, 2011 and enclosures",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Major replies to Hakkarainen",
+   "date": "2011-10-06",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "my e-mail dated October 6, \n2011 replying",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Conference call with HONI; Goldcorp agrees to treat Cochenour separately",
+   "date": "2011-10-07",
+   "precision": "approximate",
+   "paragraphs": [
+    8
+   ],
+   "quote": "We then had a conference \ncall with them",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Hakkarainen provides one year of meter data and coincident peak",
+   "date": "2011-10-14",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "of October 14, 2011 providing me with one year actual meter data",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Hakkarainen e-mails on power factor",
+   "date": "2011-10-17",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "respecting power factor",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Major e-mails Pedwell his frustration at HONI's delays",
+   "date": "2011-10-17",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "dated October 17, 2011 expressing my frustration",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Hakkarainen provides power factor information",
+   "date": "2011-10-21",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "to me dated October 21, 2011 providing power factor information",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "HONI asks for the spreadsheet in kW rather than kVA",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    9
+   ],
+   "quote": "HONI asked for me to change the spreadsheet to show",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Hakkarainen asks how the load forecast is progressing",
+   "date": "2011-11-01",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "dated November 1, 2011 re how load forecast is progressing",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Major provides Goldcorp's load forecast",
+   "date": "2011-11-03",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "Hakkarainen dated November 3, 2011 providing Goldcorp's load forecast",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "Hakkarainen asks whether a 10- or 15-year CCRA is sought",
+   "date": "2011-11-04",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "to me of November 4, 2011 requesting clarification",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "Hakkarainen tells Pedwell HONI will true up any revenue shortfall",
+   "date": "2011-11-07",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "to Curtis Pedwell of November 7, 2011 informing him",
+   "exhibits": [
+    "N"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Caul sends Baggerman Goldcorp's load assignment for 2011",
+   "date": "2011-11-09",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "mail of November 9, 2011 to Rich Baggerman",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "Major sends Goldcorp's 15-year load forecast",
+   "date": "2011-11-10",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "Hakkarainen of November 10, 2011 attaching Gold corp's 15 year Load Forecast",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "Hakkarainen sends Balmer CTS loads at a 95% coincident load factor",
+   "date": "2011-11-10",
+   "precision": "day",
+   "paragraphs": [
+    30
+   ],
+   "quote": "dated November 10, 2011 enclosing a spreadsheet",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Major replies the same day",
+   "date": "2011-11-10",
+   "precision": "day",
+   "paragraphs": [
+    31
+   ],
+   "quote": "replying to his e-mail of same day",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "Conference call held with HONI",
+   "date": "2011-11-11",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "conference call held \non November 11, 2011",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e31",
+   "description": "Hakkarainen circulates minutes of the conference call",
+   "date": "2011-11-14",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Hakkarainen dated November 14, 2011 enclosing Minutes",
+   "exhibits": [
+    "S"
+   ]
+  },
+  {
+   "id": "e32",
+   "description": "Major e-mails re power factor",
+   "date": "2011-11-16",
+   "precision": "day",
+   "paragraphs": [
+    33
+   ],
+   "quote": "Hakkarainen of November 16, 2011 re power factor",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e33",
+   "description": "Ghai corrects the duplicated 2023 in the spreadsheet",
+   "date": "2011-11-22",
+   "precision": "day",
+   "paragraphs": [
+    34
+   ],
+   "quote": "HONI dated November 22, 2011 correcting a spreadsheet",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e34",
+   "description": "Major asks when Goldcorp may expect the CCRA",
+   "date": "2011-11-22",
+   "precision": "day",
+   "paragraphs": [
+    35
+   ],
+   "quote": "inquiring about when Goldcorp may expect the CCRA",
+   "exhibits": [
+    "V"
+   ]
+  },
+  {
+   "id": "e35",
+   "description": "Ghai says the CCRA will come next month",
+   "date": "2011-11-23",
+   "precision": "day",
+   "paragraphs": [
+    36
+   ],
+   "quote": "dated November 23, 2011 indicating that Goldcorp will not see the CCRA",
+   "exhibits": [
+    "W"
+   ]
+  },
+  {
+   "id": "e36",
+   "description": "Major requests a draft copy of the CCRA",
+   "date": "2011-11-26",
+   "precision": "day",
+   "paragraphs": [
+    37
+   ],
+   "quote": "dated November 26, 2011 requesting a draft copy of the CCRA",
+   "exhibits": [
+    "X"
+   ]
+  },
+  {
+   "id": "e37",
+   "description": "Hakkarainen says a draft CCRA is very close to ready",
+   "date": "2011-11-28",
+   "precision": "day",
+   "paragraphs": [
+    38
+   ],
+   "quote": "of November 28, 2011 indicating that",
+   "exhibits": [
+    "Y"
+   ]
+  },
+  {
+   "id": "e38",
+   "description": "115 kV line required to be connected",
+   "date": "2012",
+   "precision": "approximate",
+   "paragraphs": [
+    11
+   ],
+   "quote": "will not be connected by 2012 Q1 when it is required",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "OEB order of July 20, 2011 in EB-2011-0106 granting leave to construct the 115 kV line (Appendix A conditions of approval)",
+  "Transmission System Code s. 11.2",
+  "Draft Connection and Cost Recovery Agreement (not yet provided by HONI)"
+ ]
+}

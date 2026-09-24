@@ -1,0 +1,629 @@
+{
+ "record_id": "onsc-cp-leroux-simmons",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-17-573091-00CP",
+ "subject": "class_action",
+ "proceeding": "Leroux v. Her Majesty the Queen in right of Ontario (proposed class action over waits for adult developmental services and Passport funding): Crown's responding evidence on certification",
+ "document": "Affidavit of Barbara Simmons sworn December 15, 2017",
+ "deponent": "Barbara Simmons",
+ "deponent_role": "Director, Community Supports Policy Branch, Ministry of Community and Social Services",
+ "sworn_date": "2017-12-15",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-8yss6f.pdf",
+   "kind": "other",
+   "date": "2011-06",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Passport Guideline and Addendum dated June 2011",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached hereto and marked as Exhibit \"A\" is a copy"
+    }
+   ],
+   "content_check": "49 pages: 'Passport Guidelines ... should be read in conjunction with the July 1, 2013 Addendum'; June 2011 guideline"
+  },
+  {
+   "label": "B",
+   "file": "doc-fzdj8c.pdf",
+   "kind": "other",
+   "date": "2014-10-01",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Current Passport Guideline and Addendum effective October 1, 2014",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "Attached hereto and  marked as Exhibit \"B\" is a copy of the current Passport Guideline"
+    }
+   ],
+   "content_check": "18 pages: 'Passport Program Guidelines for Adults with a Developmental Disability and their Caregivers Effective October 1, 2014'"
+  },
+  {
+   "label": "C",
+   "file": "doc-h75f7g.pdf",
+   "kind": "other",
+   "date": "2011-07",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Application for Developmental Services and Supports (ADSS)",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "marked as Exhibit \"C\" is a copy of the Application for Developmental Services and Supports"
+    }
+   ],
+   "content_check": "37 pages: blank ADSS form 'July, 2011 Version 2, 2014' (affidavit says June 2011)"
+  },
+  {
+   "label": "D",
+   "file": "doc-ax54k3.pdf",
+   "kind": "other",
+   "date": "2009-03-19",
+   "author": null,
+   "recipients": [],
+   "description": "Supports Intensity Scale dated March 19, 2009",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "Exhibit \"D\" is a copy of the Supports Intensity Scale"
+    }
+   ],
+   "content_check": "8 pages: scanned 'Supports Intensity Scale Interview and Profile Form - Adult Version' (blank form)"
+  },
+  {
+   "label": "E",
+   "file": "doc-enput5.pdf",
+   "kind": "other",
+   "date": "2016-01-25",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Policy Directives for Application Entities dated January 25, 2016",
+   "references": [
+    {
+     "paragraph": 60,
+     "quote": "Exhibit \"E\" is a copy of the Policy Directives for Application Entities"
+    }
+   ],
+   "content_check": "29 pages: ontario.ca web printout 'Policy Directives for Application Entities'"
+  },
+  {
+   "label": "F",
+   "file": "doc-9gd62a.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Developmental Services Ontario",
+   "recipients": [],
+   "description": "Assessor Summary Report form",
+   "references": [
+    {
+     "paragraph": 61,
+     "quote": "marked as Exhibit \"F\" is a copy of the Assessor Summary Report"
+    }
+   ],
+   "content_check": "9 pages: blank 'Assessor Summary Report - Developmental Services Ontario' template"
+  },
+  {
+   "label": "G",
+   "file": "doc-r26q2s.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Developmental Services: Services/Supports Available for Request",
+   "references": [
+    {
+     "paragraph": 63,
+     "quote": "Exhibit \"G\" is a copy of the  Developmental Services: Services/Supports Available for Request"
+    }
+   ],
+   "content_check": "1 page: list 'A. Community Participation Supports B. Residential Supports C. Caregiver Respite ...'"
+  },
+  {
+   "label": "H",
+   "file": "doc-9xhcfm.pdf",
+   "kind": "other",
+   "date": "2011-12",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Interim Guidelines for Transforming Local DS Prioritization and Service Linking Practices, December 2011",
+   "references": [
+    {
+     "paragraph": 70,
+     "quote": "Exhibit \"H\" is a copy of the Interim Guidelines"
+    },
+    {
+     "paragraph": 84,
+     "quote": "See Exhibit \"H,\" a copy of the Interim Guidelines"
+    }
+   ],
+   "content_check": "8 pages: 'Developmental Services Implementation Project Office ... Interim Guidelines for Transforming Local DS Prioritization'"
+  },
+  {
+   "label": "I",
+   "file": "doc-rkwezz.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Appendix: Overview of Risk-based Factors Considered for the Ministry's Prioritization Tool",
+   "references": [
+    {
+     "paragraph": 73,
+     "quote": "Exhibit \"I\" is a copy of the document titled Appendix"
+    }
+   ],
+   "content_check": "1 page: 'Appendix: Overview of Risk-based Factors Considered in the Ministry's Prioritization Tool'"
+  },
+  {
+   "label": "J",
+   "file": "doc-qf32ct.pdf",
+   "kind": "other",
+   "date": "2017-03",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Guidelines for DS Community-based Prioritization Process re: Prioritization Validation, March 2017",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "Exhibit \"J\" is a copy of the Guidelines for DS Community-based Prioritization Process"
+    }
+   ],
+   "content_check": "8 pages: 'Guidelines for DS Community-based Prioritization Process re: Prioritization Validation', footers March 2017"
+  },
+  {
+   "label": "K",
+   "file": "doc-eu3dux.pdf",
+   "kind": "other",
+   "date": "2014-06",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Adult Developmental Services Urgent Response Guidelines",
+   "references": [
+    {
+     "paragraph": 90,
+     "quote": "Attached hereto and marked as Exhibit \"K\" is a  copy of the Adult Developmental Services Urgent Response Guidelines"
+    }
+   ],
+   "content_check": "29 pages: 'Confidential ADULT DEVELOPMENTAL SERVICES - URGENT RESPONSE GUIDELINES ... June 2014' (affidavit says March 2014; the record index says June 2014)"
+  },
+  {
+   "label": "L",
+   "file": "doc-vtvd46.pdf",
+   "kind": "other",
+   "date": "2017-05",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Interim Terms of Reference for Service System Planning, May 2017",
+   "references": [
+    {
+     "paragraph": 102,
+     "quote": "Attached hereto and marked as Exhibit \"L\""
+    }
+   ],
+   "content_check": "10 pages: 'Service System Planning Interim Terms of Reference May 2017'"
+  },
+  {
+   "label": "M",
+   "file": "doc-ztrdw2.pdf",
+   "kind": "letter",
+   "date": "2014-10-28",
+   "author": "Ministry of Community and Social Services",
+   "recipients": [
+    "Select Committee on Developmental Services"
+   ],
+   "description": "Comprehensive Government Response to the Select Committee on Developmental Services, October 28, 2014",
+   "references": [
+    {
+     "paragraph": 106,
+     "quote": "Exhibit \"M\" is a copy of the Comprehensive Government Response"
+    }
+   ],
+   "content_check": "40 pages: Minister's Office letter dated October 28, 2014 with the government response"
+  },
+  {
+   "label": "N",
+   "file": "doc-4d8ecr.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "Ministry of Community and Social Services",
+   "recipients": [],
+   "description": "Ministry's responses to the Auditor General: Supportive Services for People with Disabilities",
+   "references": [
+    {
+     "paragraph": 107,
+     "quote": "Exhibit \"N\" is a copy of the responses"
+    }
+   ],
+   "content_check": "75 pages: Auditor General report section 'Ministry of Community and Social Services Supportive Services for People with Disabilities' with ministry responses (index: 2011-2016 follow-ups)"
+  },
+  {
+   "label": "O",
+   "file": "doc-xusvr8.pdf",
+   "kind": "letter",
+   "date": "2016-07-04",
+   "author": "Deputy Minister, Ministry of Community and Social Services",
+   "recipients": [
+    "Paul Dube, Ombudsman of Ontario"
+   ],
+   "description": "Ministry's response to the Preliminary Ombudsman's Report, July 4, 2016",
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "Exhibit \"0\" is the Ministry of  Community and Social Services Response"
+    }
+   ],
+   "content_check": "33 pages: Deputy Minister's letter to Ombudsman Paul Dube dated July 4, 2016"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "First facility for persons with developmental disabilities opens in Orillia",
+   "date": "1876",
+   "precision": "year",
+   "paragraphs": [
+    20
+   ],
+   "quote": "with the first facility for those with a developmental disability opening in Orillia in  1876",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Provincial Secretary Welch publishes Community Living for the Mentally Retarded in Ontario",
+   "date": "1973",
+   "precision": "year",
+   "paragraphs": [
+    22
+   ],
+   "quote": "In 1973, the Honourable Robert Welch",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Developmental Services Act transfers responsibility from the Ministry of Health to MCSS",
+   "date": "1974",
+   "precision": "year",
+   "paragraphs": [
+    23
+   ],
+   "quote": "In 1974, the Developmental Services Act transferred responsibility",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Government begins closing provincially run facilities",
+   "date": "1977",
+   "precision": "year",
+   "paragraphs": [
+    23
+   ],
+   "quote": "The government began closing its provincially-run facilities in 1977",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "MCSS publishes Challenges and Opportunities strategic plan",
+   "date": "1987",
+   "precision": "year",
+   "paragraphs": [
+    24
+   ],
+   "quote": "In 1987, MCSS published Challenges and Opportunities",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Multi-year plan to close the three remaining facilities developed",
+   "date": "2000",
+   "precision": "year",
+   "paragraphs": [
+    25
+   ],
+   "quote": "By 2000, three facilities remained and a multi-year plan was developed",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "2004 budget announces transformation of developmental services",
+   "date": "2004",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "In the 2004 Ontario budget, the government announced",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "MCSS announces $9.4 million for Passport to Community Living",
+   "date": "2005-07-15",
+   "precision": "day",
+   "paragraphs": [
+    28
+   ],
+   "quote": "On July 15, 2005, MCSS announced $9.4 million in additional funding",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Last facilities closed",
+   "date": "2009-03",
+   "precision": "month",
+   "paragraphs": [
+    27
+   ],
+   "quote": "The last  facilities were closed by March 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "SIPDDA enacted to replace the Developmental Services Act",
+   "date": "2008",
+   "precision": "year",
+   "paragraphs": [
+    30
+   ],
+   "quote": "In 2008, the government enacted SIPDDA",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Most SIPDDA provisions proclaimed in force",
+   "date": "2010",
+   "precision": "range",
+   "paragraphs": [
+    30
+   ],
+   "quote": "Most of the provisions of SIPDDA were proclaimed in force in 2010 and 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Passport Guideline and Addendum issued",
+   "date": "2011-06",
+   "precision": "month",
+   "paragraphs": [
+    31
+   ],
+   "quote": "Passport Guideline and Addendum dated June 2011",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "First phase of SIPDDA in effect; DSOs become single point of access and service changes begin",
+   "date": "2011-07-01",
+   "precision": "day",
+   "paragraphs": [
+    33,
+    69
+   ],
+   "quote": "At the time the first phase of SIPDDA came into effect in July 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "MCSS releases Interim Guidelines for Transforming Local DS Prioritization and Service Linking Practices",
+   "date": "2011-12",
+   "precision": "month",
+   "paragraphs": [
+    70,
+    83
+   ],
+   "quote": "in December 2011, MCSS released the Interim  Guidelines",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Each region expected to have a consistent prioritization method",
+   "date": "2012-07",
+   "precision": "month",
+   "paragraphs": [
+    70
+   ],
+   "quote": "consistent method of prioritization by July 2012",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Urgent response process and guidelines introduced",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    90
+   ],
+   "quote": "In 2014, MCSS introduced an urgent response process",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "2014 budget invests $810 million in developmental services over three years",
+   "date": "2014",
+   "precision": "year",
+   "paragraphs": [
+    100
+   ],
+   "quote": "The 2014 Provincial Budget investment of $810 million",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Provincial prioritization tool introduced for Passport funding",
+   "date": "2014-04",
+   "precision": "month",
+   "paragraphs": [
+    72
+   ],
+   "quote": "In April 2014, a provincial prioritization tool was introduced for Passport funding",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Current Passport Guideline takes effect",
+   "date": "2014-10-01",
+   "precision": "day",
+   "paragraphs": [
+    51
+   ],
+   "quote": "current Passport Guideline and Addendum effective October  1, 2014",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Government responds to the Select Committee on Developmental Services",
+   "date": "2014-10-28",
+   "precision": "day",
+   "paragraphs": [
+    106
+   ],
+   "quote": "Comprehensive Government Response to the Select Committee on Developmental Services dated October 28, 2014",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Policy Directives for Application Entities issued",
+   "date": "2016-01-25",
+   "precision": "day",
+   "paragraphs": [
+    60
+   ],
+   "quote": "Policy Directives for Application Entities dated January 25, 2016",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "MCSS responds to the Preliminary Ombudsman's Report",
+   "date": "2016-07-04",
+   "precision": "day",
+   "paragraphs": [
+    108
+   ],
+   "quote": "Response to the Preliminary Ombudsman's Report dated July 4,  2016",
+   "exhibits": [
+    "O"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "MCSS streamlines ODSP applications for DSO-eligible applicants",
+   "date": "2016-09-01",
+   "precision": "day",
+   "paragraphs": [
+    48
+   ],
+   "quote": "Starting September 1, 2016, MCSS streamlined the process",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "6,000 additions to the Passport service registry in 2016-17",
+   "date": "2016",
+   "precision": "range",
+   "paragraphs": [
+    86
+   ],
+   "quote": "There were  6,000 additions to the service registry for Passport in 2016-17",
+   "exhibits": []
+  },
+  {
+   "id": "e25",
+   "description": "Prioritization tool extended to all adult developmental services; DS Matching Algorithm in use",
+   "date": "2017-03-30",
+   "precision": "day",
+   "paragraphs": [
+    73,
+    84
+   ],
+   "quote": "Starting March 30, 2017, the DS Matching Algorithm Tool",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "Guidelines for community-based prioritization validation issued",
+   "date": "2017-03",
+   "precision": "month",
+   "paragraphs": [
+    78
+   ],
+   "quote": "Prioritization Validation dated March 2017",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e27",
+   "description": "15,700 unfulfilled residential requests and 13,500 respite/community requests as of March 31, 2017",
+   "date": "2017-03-31",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "As of March 31, 2017 there were 15,700 unfulfilled requests",
+   "exhibits": []
+  },
+  {
+   "id": "e28",
+   "description": "MCSS releases Service System Planning Interim Terms of Reference",
+   "date": "2017-05",
+   "precision": "month",
+   "paragraphs": [
+    102
+   ],
+   "quote": "In May 2017, MCSS released a new Services System Planning Interim Terms of Reference",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e29",
+   "description": "Simmons becomes Director of the Community Supports Policy Branch",
+   "date": "2013-10",
+   "precision": "month",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since October  2013",
+   "exhibits": []
+  },
+  {
+   "id": "e30",
+   "description": "MCSS responds to the Auditor General's report",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    107
+   ],
+   "quote": "MCSS has provided a response to the Auditor General's report",
+   "exhibits": [
+    "N"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Statement of Claim",
+  "Plaintiff's motion record (affidavit of Ms. Tovee and its Exhibits C, D, E, F: Select Committee, Auditor General and Ombudsman reports)",
+  "Community Living for the Mentally Retarded in Ontario: A New Policy Focus (1973)",
+  "Challenges and Opportunities (1987)",
+  "Opportunities and Action"
+ ]
+}

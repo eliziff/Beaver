@@ -1,0 +1,526 @@
+{
+ "record_id": "neb-line9-plain",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-002-2013 (OF-Fac-Oil-E101-2012-10 02)",
+ "subject": "indigenous_rights",
+ "family": "neb-line9b-oh-002-2013",
+ "proceeding": "Enbridge Pipelines Inc. Line 9B Reversal and Line 9 Capacity Expansion Project (Hearing Order OH-002-2013): written evidence of Aamjiwnaang First Nation, intervenor, on Aboriginal and treaty rights, cumulative pollution in Sarnia's Chemical Valley and the Crown's duty to consult",
+ "document": "Written Evidence of Aamjiwnaang First Nation: (Sworn) Affidavit of Chief Chris Plain, August 2013 (REGDOCS C1-6-1, exhibits C1-6-2 to C1-6-13)",
+ "deponent": "Chris Plain",
+ "deponent_role": "Chief of Aamjiwnaang First Nation (intervenor)",
+ "sworn_date": "2013-08-08",
+ "notes": "Multi-file source: affidavit and each exhibit posted as separate REGDOCS files; every exhibit opens with a whole-page cover (--covers all). Body header dated August 6, 2013; covers say sworn August 8, 2013 (L cover undated). B-E, H-J image-only (OCR'd).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-ez6dht.pdf",
+   "kind": "report",
+   "date": "1989",
+   "author": "Neal Ferris",
+   "recipients": [],
+   "description": "Excerpts from Dr. Neal Ferris' 1989 master's thesis on Southwestern Ontario Ojibwa settlement-subsistence strategies",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Exhibit “A” contains excerpts from Dr. Neal Ferris’ 1989 University"
+    },
+    {
+     "paragraph": 19,
+     "quote": "which is also included in Exhibit A"
+    }
+   ],
+   "content_check": "4 pages of thesis text: '4. THE OJIBWA IN SOUTHWESTERN ONTARIO, 1700-1800 ... Archaeological evidence from southwestern Ontario documents a continuing occupation'"
+  },
+  {
+   "label": "B",
+   "file": "doc-jyjtub.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "John Borrows",
+   "recipients": [],
+   "description": "Excerpt from John Borrows' book Canada's Indigenous Constitution",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "I have included an excerpt from his book as Exhibit “B”"
+    }
+   ],
+   "content_check": "7 pages, image-only: book cover 'CANADA'S INDIGENOUS CONSTITUTION JOHN BORROWS' and excerpt pages"
+  },
+  {
+   "label": "C",
+   "file": "doc-ze3wch.pdf",
+   "kind": "report",
+   "date": "2009-05-20",
+   "author": "Neal Ferris",
+   "recipients": [
+    "Chippewa of the Thames First Nation"
+   ],
+   "description": "Research paper by Professor Neal Ferris on the ancestors' way of life and seasonal harvesting cycles",
+   "references": [
+    {
+     "paragraph": 21,
+     "quote": "seasonal harvesting cycles attached as Exhibit “C”"
+    },
+    {
+     "paragraph": 22,
+     "quote": "At\npage 8 of Exhibit C"
+    }
+   ],
+   "content_check": "22 pages, image-only: 'A Consideration of the Location of Bear Creek Ojibwa Reserve, Sydenham River, Ontario ... Dr. Neal Ferris ... May 20, 2009'"
+  },
+  {
+   "label": "D",
+   "file": "doc-xe6dsm.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Aamjiwnaang First Nation",
+   "recipients": [],
+   "description": "AFN's Consultation Protocol, including a map of the traditional territory",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "Consultation Protocol is attached as Exhibit “D”"
+    },
+    {
+     "paragraph": 80,
+     "quote": "which is set out in Exhibit D"
+    }
+   ],
+   "content_check": "11 pages, image-only: 'Consultation Protocol—Aamjiwnaang 1. Preamble The Aamjiwnaang First Nation, formerly known as the Sarnia Indian Reserve 45'"
+  },
+  {
+   "label": "E",
+   "file": "doc-97qmts.pdf",
+   "kind": "agreement",
+   "date": "1827-07-10",
+   "author": "British Crown; Chippewa Nation",
+   "recipients": [],
+   "description": "Treaty 29 of July 10, 1827, signed by the Chippewas and the Crown",
+   "references": [
+    {
+     "paragraph": 27,
+     "quote": "is attached as Exhibit “E”"
+    }
+   ],
+   "content_check": "6 pages, image-only: 'SCHEDULE \"B-1\" No. 29. This Indenture, made the tenth day of July, in the year of Our Lord one thousand eight hundred and twenty-seven'"
+  },
+  {
+   "label": "F",
+   "file": "doc-syg6t2.pdf",
+   "kind": "report",
+   "date": "2013-08-05",
+   "author": "Eagle Sun Consulting (Dr. James N. Tanner)",
+   "recipients": [
+    "Aamjiwnaang First Nation"
+   ],
+   "description": "Eagle Sun's preliminary traditional land use study (TLUS) of AFN members near Line 9",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "The TLUS is attached as Exhibit “F”"
+    },
+    {
+     "paragraph": 87,
+     "quote": "preliminary TLUS attached as Exhibit F"
+    }
+   ],
+   "content_check": "28 pages: 'Preliminary Traditional Land Use Study Aamjiwnaang First Nation August 5, 2013 Eagle Sun Consulting Dr. James N. Tanner, PhD'"
+  },
+  {
+   "label": "G",
+   "file": "doc-6vhe6h.pdf",
+   "kind": "report",
+   "date": "2007-10",
+   "author": "Ecojustice",
+   "recipients": [],
+   "description": "Ecojustice's October 2007 report Exposing Canada's Chemical Valley on cumulative air pollution in Sarnia",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "Attached to my\naffidavit as Exhibit “G” is an October 2007 report"
+    },
+    {
+     "paragraph": 52,
+     "quote": "attached as Exhibit G to my affidavit"
+    }
+   ],
+   "content_check": "32 pages: 'Exposing Canada's Chemical Valley An Investigation of Cumulative Air Pollution Emissions in the Sarnia, Ontario Area'"
+  },
+  {
+   "label": "H",
+   "file": "doc-uh862y.pdf",
+   "kind": "report",
+   "date": "2011-01-05",
+   "author": "Ontario Ministry of the Environment",
+   "recipients": [],
+   "description": "MOE Technical Memorandum on the Aamjiwnaang community air monitoring station, results for September 2008 - August 2009",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "Exhibit “H” is a January 5, 2011 Technical Memorandum"
+    }
+   ],
+   "content_check": "57 pages, image-only: 'Technical Memorandum Aamjiwnaang First Nation Community Air Monitoring Station Results for September 2008 - August 2009 ... January 5, 2011'"
+  },
+  {
+   "label": "I",
+   "file": "doc-mwpzb8.pdf",
+   "kind": "report",
+   "date": "2005-10",
+   "author": "Constanze A. Mackenzie, Ada Lockridge, Margaret Keith",
+   "recipients": [],
+   "description": "Environmental Health Perspectives article 'Declining Sex Ratio in a First Nation Community' (October 2005)",
+   "references": [
+    {
+     "paragraph": 51,
+     "quote": "Attached to my affidavit as Exhibit “I” is an article entitled “Declining"
+    }
+   ],
+   "content_check": "2 pages, image-only: 'Research Declining Sex Ratio in a First Nation Community ... Environmental Health Perspectives ... 1295'"
+  },
+  {
+   "label": "J",
+   "file": "doc-hzzhap.pdf",
+   "kind": "court_filing",
+   "date": "2013-04-26",
+   "author": "Enbridge Pipelines Inc.",
+   "recipients": [
+    "National Energy Board"
+   ],
+   "description": "Enbridge's application to the NEB for the Sarnia Terminal Tank 217 Project",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "Enbridge’s application is attached as Exhibit “J”"
+    }
+   ],
+   "content_check": "5 pages, image-only: 'Application Pursuant to Section 58 of NEB Act ... Submission Title: Sarnia Terminal Tank 217 Project'"
+  },
+  {
+   "label": "K",
+   "file": "doc-tqss5k.pdf",
+   "kind": "report",
+   "date": null,
+   "author": "prepared for Enbridge Pipelines Inc.",
+   "recipients": [],
+   "description": "ESEIA submitted by Enbridge for the Sarnia Terminal Tank 217 Project",
+   "references": [
+    {
+     "paragraph": 66,
+     "quote": "attached as Exhibit “K”"
+    }
+   ],
+   "content_check": "80 pages: 'ENVIRONMENTAL AND SOCIO-ECONOMIC ASSESSMENT FOR THE PROPOSED ENBRIDGE PIPELINES INC. SARNIA TERMINAL TA[NK 217]'"
+  },
+  {
+   "label": "L",
+   "file": "doc-h2upp6.pdf",
+   "kind": "court_filing",
+   "date": null,
+   "author": "Enbridge Pipelines Inc.",
+   "recipients": [
+    "Ontario Ministry of Energy"
+   ],
+   "description": "Attachment 1 of Enbridge's response to MOE IR No. 1.1 in the Line 9A hearing (shipments North Westover to Sarnia 2011-2012)",
+   "references": [
+    {
+     "paragraph": 75,
+     "quote": "which is attached as Exhibit “L”"
+    }
+   ],
+   "content_check": "3 pages: 'Enbridge Pipelines Inc. Line 9 Reversal Phase 1 Project ... OH-005-2011 Enbridge Response to Ontario Ministry of Energy'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Neal Ferris's master's thesis on Southwestern Ontario Ojibwa",
+   "date": "1989",
+   "precision": "year",
+   "paragraphs": [
+    16
+   ],
+   "quote": "1989 University",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Negotiations between the Chippewa and the British Crown",
+   "date": "1818",
+   "precision": "range",
+   "paragraphs": [
+    25
+   ],
+   "quote": "from 1818 to 1825",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Treaty 27 1/2 signed",
+   "date": "1825",
+   "precision": "year",
+   "paragraphs": [
+    26
+   ],
+   "quote": "In 1825, negotiations with the British Crown culminated with the",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Treaty 29 signed",
+   "date": "1827-07-10",
+   "precision": "day",
+   "paragraphs": [
+    27
+   ],
+   "quote": "A copy of Treaty 29 \ndated July 10, 1827",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Large-scale industrial development encroaches on the reserve",
+   "date": "1950",
+   "precision": "approximate",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Beginning in the 1950s, we began to",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Line 9 built without consulting AFN",
+   "date": "1975",
+   "precision": "year",
+   "paragraphs": [
+    45,
+    57
+   ],
+   "quote": "The Crown did not consult with AFN before Line 9 was built in 1975",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Line 9 put into service",
+   "date": "1976",
+   "precision": "year",
+   "paragraphs": [
+    45
+   ],
+   "quote": "put into service in 1976",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Male birth proportion declines in AFN (study period)",
+   "date": "1994",
+   "precision": "range",
+   "paragraphs": [
+    51
+   ],
+   "quote": "from 1994 - 2003",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Chris Plain first elected Chief",
+   "date": "2005-01-14",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I was first elected Chief of AFN on January 14, 2005",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Enbridge Sarnia Terminal releases 18,233 kg of air pollutants",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    48
+   ],
+   "quote": "total of 18,233 kg of air pollutants in 2005",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Sex-ratio article published in Environmental Health Perspectives",
+   "date": "2005-10",
+   "precision": "month",
+   "paragraphs": [
+    51
+   ],
+   "quote": "published in Environmental\nHealth Perspectives in October 2005",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "AFN Environment Committee health survey",
+   "date": "2006",
+   "precision": "year",
+   "paragraphs": [
+    52
+   ],
+   "quote": "carried out in 2006",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Ecojustice publishes Exposing Canada's Chemical Valley",
+   "date": "2007-10",
+   "precision": "month",
+   "paragraphs": [
+    47
+   ],
+   "quote": "October 2007 report prepared by Ecojustice",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Air-quality exceedances recorded at the reserve monitoring station",
+   "date": "2008-09",
+   "precision": "range",
+   "paragraphs": [
+    50
+   ],
+   "quote": "on our reserve from \nSeptember 2008 – August 2009",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "MOE issues Technical Memorandum on the AFN air monitoring station",
+   "date": "2011-01-05",
+   "precision": "day",
+   "paragraphs": [
+    49
+   ],
+   "quote": "January 5, 2011 Technical Memorandum prepared by the",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "Enbridge ships 133 bpd and 0 bpd North Westover to Sarnia",
+   "date": "2011",
+   "precision": "range",
+   "paragraphs": [
+    75
+   ],
+   "quote": "Enbridge shipped 133 bpd and 0 bpd from",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Enbridge applies for the Sarnia Terminal Tank 217 Project",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    65
+   ],
+   "quote": "Enbridge has sought approval to construct an additional storage tank at the",
+   "exhibits": [
+    "J",
+    "K"
+   ]
+  },
+  {
+   "id": "e18",
+   "description": "Enbridge applies to reverse Line 9B and expand Line 9 capacity",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    4
+   ],
+   "quote": "has applied \nto the National Energy Board (“NEB”) for authorization to reverse a section",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "Eagle Sun preliminary TLUS of AFN land use near Line 9",
+   "date": "2013-08-05",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "We engaged Eagle Sun Consulting to perform a “preliminary”",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "Line 5 expansion planned for Q2 2013",
+   "date": "2013",
+   "precision": "approximate",
+   "paragraphs": [
+    62
+   ],
+   "quote": "540,000 bpd in Q2 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Line 6B expansion planned for Q1 2014",
+   "date": "2014",
+   "precision": "approximate",
+   "paragraphs": [
+    62
+   ],
+   "quote": "approximately 500,000 bpd in Q1 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "AFN told Enbridge its members use lands near Line 9",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    87
+   ],
+   "quote": "We have specifically told Enbridge that its members use lands and",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "No communication between AFN and the federal Crown about the Project",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    79
+   ],
+   "quote": "there \nhas been no communication between AFN and the federal Crown about this",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Enbridge's Line 9B Reversal and Line 9 Capacity Expansion application and ESEIA",
+  "Affidavit of Chief Joe Miskokomon (Chippewas of the Thames First Nation) and its exhibits",
+  "Enbridge responses to AFN/COTTFN Information Request No. 1 and NEB IR No. 1",
+  "NEB Letter of Decision, Line 9 Reversal Phase I (OH-005-2011)"
+ ]
+}

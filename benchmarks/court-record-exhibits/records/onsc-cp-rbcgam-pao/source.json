@@ -1,0 +1,19 @@
+{
+ "url": "https://www.siskinds.com/cmsfiles/PDF/Securities/MutualFunds/RBC-Motion-Record-Plaintiff-Volume-3-27-AUG-2026.pdf",
+ "landing_url": "https://www.siskinds.com/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-00611743-00CP",
+ "document_title": "Consolidated Motion Record of the Plaintiff (Volume 3 of 3), Affidavit of Gigi Pao affirmed June 23, 2026",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-rbcgam-pao",
+ "source_file": "e13-rbc-motion-record-plaintiff-volume-3-27-aug-2026.pdf",
+ "page_range": [
+  56,
+  396
+ ],
+ "source_sha256": "52f11fb7e4c56198f5a4b501c80c9571c2a9ac5b51dee18ad91ed82817a20d02",
+ "source_pages": 398,
+ "covers": "A=67,B=118,C=196,D=288"
+}

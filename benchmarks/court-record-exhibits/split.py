@@ -11,6 +11,10 @@ file's first page is checked for a cover (sworn identification, or a bare
 names labels whose first page is a cover read by eye. meta.json's "urls"
 maps each file's basename to its URL; source.json then lists every file
 under "sources" and each exhibit in split.json lists its "source_files".
+"f.pdf:3-9" takes pages 3-9 of a file that holds several exhibits. --blank
+A=x0,y0,x1,y1 whites out a region of the exhibit's first page (page
+fractions) through the scan itself, for a handwritten stamp that is part of
+the image; the rectangle is kept in split.json for rebuild.py.
 
 --pages selects the affidavit-plus-exhibits run inside a larger motion or
 application record (1-based, inclusive). The output directory receives:
@@ -104,7 +108,8 @@ def page_range(spec, n):
     return int(a) - 1, min(int(b), n) - 1
 
 
-def clean_copy(src, pages, redact=None):
+def clean_copy(src, pages, redact=None, blank=None):
+    """blank: {page: [rects]} whited out through the page image too (a stamp scanned into the picture)."""
     out = fitz.open()
     for p in pages:
         out.insert_pdf(src, from_page=p, to_page=p, annots=False, links=False)
@@ -116,6 +121,10 @@ def clean_copy(src, pages, redact=None):
             page.add_redact_annot(rect + (-2, -2, 2, 2), fill=(1, 1, 1))
         if rects:
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+        if (blank or {}).get(p):
+            for rect in blank[p]:
+                page.add_redact_annot(fitz.Rect(rect), fill=(1, 1, 1))
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS)
     out.set_metadata({})
     out.set_toc([])
     try:
@@ -185,6 +194,13 @@ def split_multi(a, out_dir):
         aff_path = a.multi
         specs = [(l.strip().upper(), f.split("+")) for l, f in (e.split("=", 1) for e in a.exhibit)]
     by_eye = {l.strip().upper() for l in (a.covers or "").split(",") if l.strip()}
+    # "A=t:..." removes only the text there (an invisible typed label over a picture that must stay).
+    blanks = {l.strip().upper(): (v.startswith("t:"), [[float(x) for x in r.split(",")] for r in v.removeprefix("t:").split(";")])
+              for l, v in (b.split("=", 1) for b in a.blank or [])}
+    # "f.pdf:3-9" takes a page range of a file that holds several exhibits.
+    def file_range(spec):
+        m = re.match(r"^(.*):(\d+)-(\d+)$", spec)
+        return (m.group(1), int(m.group(2)) - 1, int(m.group(3)) - 1) if m else (spec, None, None)
     docs = {}
     def src_of(path):
         if path not in docs:
@@ -201,24 +217,36 @@ def split_multi(a, out_dir):
     split, audit, scanned = [], [], []
     for label, paths in specs:
         parts, pdf, bare = [], fitz.open(), []
-        for k, path in enumerate(paths):
+        for k, spec in enumerate(paths):
+            path, lo, hi = file_range(spec)
             src = src_of(path)
             folios = record_folios(src, 0, len(src) - 1)
             pages, cover, stamp, rects = list(range(len(src))), None, None, []
+            if lo is not None:
+                pages = list(range(lo, hi + 1))
             if k == 0:
-                whole, rects, found = file_cover(src[0], label, label in by_eye)
+                whole, rects, found = file_cover(src[pages[0]], label, label in by_eye)
                 if found and found != label:
                     audit.append({"label": label, "problem": f"first page of {os.path.basename(path)} names {found}"})
                 if whole:
-                    cover, pages = 1, pages[1:]
+                    cover, pages = pages[0] + 1, pages[1:]
                 elif rects:
-                    stamp = 1
-                elif len(norm(src[0].get_text())) < NEEDS_OCR_CHARS:
+                    stamp = pages[0] + 1
+                elif len(norm(src[pages[0]].get_text())) < NEEDS_OCR_CHARS and label not in blanks:
                     audit.append({"label": label, "problem": f"first page of {os.path.basename(path)} has no text: check it for a cover by eye (--covers {label})"})
             scanned += [f"{os.path.basename(path)}:{q + 1}" for q in pages if len(norm(src[q].get_text())) < NEEDS_OCR_CHARS and src[q].get_images()]
             redact = {q: list(folios.get(q, [])) for q in pages}
             if stamp:
-                redact[0] += rects
+                redact[stamp - 1] += rects
+            blank, text_only = {}, {}
+            if k == 0 and label in blanks and pages:
+                r = src[pages[0]].rect
+                rs = [[r.x0 + x0 * r.width, r.y0 + y0 * r.height, r.x0 + x1 * r.width, r.y0 + y1 * r.height] for x0, y0, x1, y1 in blanks[label][1]]
+                if blanks[label][0]:
+                    text_only[pages[0]] = rs
+                    redact[pages[0]] = redact.get(pages[0], []) + [fitz.Rect(x) for x in rs]
+                else:
+                    blank[pages[0]] = rs
             # Pièces are often stamped bare ("P-3" in a corner) with no cover; blank the token
             # (listed under redact_text, which rebuild.py replays on every page).
             if k == 0 and "-" in label and pages and re.search(rf"(?<![A-Za-z0-9-]){re.escape(label)}(?![0-9])", src[pages[0]].get_text()):
@@ -226,8 +254,10 @@ def split_multi(a, out_dir):
             for q in pages:
                 for t in bare:
                     redact[q] = redact.get(q, []) + src[q].search_for(t)
-            pdf.insert_pdf(clean_copy(src, pages, redact))
-            parts.append({"file": os.path.basename(path), "pages": [q + 1 for q in pages], "cover_page": cover, "stamp_page": stamp})
+            pdf.insert_pdf(clean_copy(src, pages, redact, blank))
+            parts.append({"file": os.path.basename(path), "pages": [q + 1 for q in pages], "cover_page": cover, "stamp_page": stamp,
+                          **({"blank": {str(q + 1): rs for q, rs in blank.items()}} if blank else {}),
+                          **({"redact_rects": {str(q + 1): rs for q, rs in text_only.items()}} if text_only else {})})
         if not len(pdf):
             audit.append({"label": label, "problem": "exhibit has no pages after its cover"})
             continue
@@ -270,6 +300,8 @@ def split_multi(a, out_dir):
         meta["affidavit_ocr"] = True
     if a.covers:
         meta["covers"] = a.covers
+    if a.blank:
+        meta["blank"] = " ".join(a.blank)
     json.dump(meta, open(os.path.join(out_dir, "source.json"), "w", encoding="utf-8"), indent=1)
     print(json.dumps({"record": a.record_id, "affidavit_pages": len(body), "exhibits": [(e["label"], e["file"], sum(len(p["pages"]) for p in e["source_files"])) for e in split],
                       "scanned_pages": len(scanned), "leaks": len(audit)}, indent=None))
@@ -288,6 +320,7 @@ def main():
     ap.add_argument("--covers", help="A=9,B=15: whole-page exhibit covers read by eye (handwritten or scanned labels)")
     ap.add_argument("--relabel", help="IT=U: fix a misread stamp label without turning its page into a whole-page cover")
     ap.add_argument("--drop", help="1143,1178: source pages left out of every file (a cover the source repeats inside its exhibit)")
+    ap.add_argument("--blank", nargs="+", help="multi mode: A=x0,y0,x1,y1[;...] page fractions of the exhibit's first page whited out through the scan (a handwritten stamp in the image); A=t:... removes only the text there")
     a = ap.parse_args()
     if (a.multi or a.manifest) and a.record_id is None:
         a.pdf, a.record_id = None, a.pdf  # split.py <id> --multi aff.pdf --exhibit ...

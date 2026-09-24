@@ -1,0 +1,361 @@
+{
+ "record_id": "onsc-cp-rbcgam-pao",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-00611743-00CP",
+ "subject": "securities",
+ "proceeding": "Ross v. RBC Global Asset Management Inc. and RBC Investor Services Trust (class action over mutual fund trailing commissions paid to discount brokers): motion for first notice of a $45 million settlement",
+ "document": "Affidavit of Gigi Pao affirmed June 23, 2026",
+ "deponent": "Gigi Pao",
+ "deponent_role": "Associate, Siskinds LLP (class counsel)",
+ "sworn_date": "2026-06-23",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-jk5355.pdf",
+   "kind": "court_filing",
+   "date": "2024-09-24",
+   "author": "Siskinds LLP (plaintiff)",
+   "recipients": [],
+   "description": "Second Fresh as Amended Statement of Claim filed September 24, 2024",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "Attached hereto  as Exhibit \"A\" is a copy of the Second Fresh as Amended Statement of Claim"
+    }
+   ],
+   "content_check": "50 pages, OCR'd: 'SECOND FRESH AS AMENDED STATEMENT OF CLAIM Notice of action issued on December 28, 2018' (filing stamp illegible, so the September 24, 2024 date is not in the text)"
+  },
+  {
+   "label": "B",
+   "file": "doc-d5pnc6.pdf",
+   "kind": "court_order",
+   "date": "2024-07-25",
+   "author": "Justice Akbarali",
+   "recipients": [],
+   "description": "Certification Order dated July 25, 2024",
+   "references": [
+    {
+     "paragraph": 14,
+     "quote": "Attached hereto as Exhibit \"B\" is a copy of the Certification Order"
+    }
+   ],
+   "content_check": "77 pages, OCR'd: 'THE HONOURABLE JUSTICE AKBARALI THURSDAY THE 25th DAY OF JULY, 2024 ... ORDER (CERTIFICATION, NOTICE AND OPT-OUT)'"
+  },
+  {
+   "label": "C",
+   "file": "doc-dq8kav.pdf",
+   "kind": "court_order",
+   "date": "2024-10-01",
+   "author": "Justice Akbarali",
+   "recipients": [],
+   "description": "First notice order of October 1, 2024 in the TDAM Action",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached hereto as  Exhibit \"C\" is a copy of the Order of Justice Akbarali dated October 1, 2024 in the TDAM Action"
+    }
+   ],
+   "content_check": "91 pages: order in Westwood v. TD Asset Management (CV-18-595380-00CP) headed 'Tuesday, the _____ day of October 2024' (day left blank in the attached copy), with the settlement agreement made September 11, 2024 and notice schedules"
+  },
+  {
+   "label": "D",
+   "file": "doc-6xpgcu.pdf",
+   "kind": "court_order",
+   "date": "2025-09-03",
+   "author": "Justice Leiper",
+   "recipients": [],
+   "description": "First notice order of September 3, 2025 in the CIBC Action",
+   "references": [
+    {
+     "paragraph": 32,
+     "quote": "Attached hereto as Exhibit \"D\" is a copy of the Order of Justice Leiper dated September 3, 2025 in the CIBC Action"
+    }
+   ],
+   "content_check": "108 pages, OCR'd: 'JUSTICE JANET LEIPER Wednesday the 3rd day of September, 2025 ... STEPHEN POZGAJ ... CANADIAN IMPERIAL BANK OF COMMERCE' order with schedules"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Action initiated by Notice of Action",
+   "date": "2018-12-28",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "On December 28, 2018, this Action was initiated by Notice of Action",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Statement of Claim filed",
+   "date": "2019-01-25",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "The Statement of Claim was filed on January 25, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Justice Belobaba approves the litigation funding agreement",
+   "date": "2019-10-21",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "approved the Funding Agreement by Order dated October 21, 2019",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Frayce Action filed against discount brokers",
+   "date": "2020-03-27",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "On March 27, 2020, a related proposed class action was filed",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Plaintiff delivers certification motion",
+   "date": "2021-09-02",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On September 2, 2021, the Plaintiff delivered his notice of motion for certification",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Frayce Action severed; Wallace Action against RBC DI created",
+   "date": "2022-08-22",
+   "precision": "day",
+   "paragraphs": [
+    23
+   ],
+   "quote": "On August 22, 2022, the Ontario Superior Court of Justice",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "DeJong Action filed against the Defendants",
+   "date": "2022-12-07",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "On December 7, 2022, a related class proceeding was filed against the Defendants",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Certification denied in the Frayce Action",
+   "date": "2023-01-20",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "On January 20, 2023, the Superior Court dismissed the plaintiffs' motion for certification",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "DeJong Action temporarily stayed",
+   "date": "2023-08-01",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "By Order dated August 1, 2023, Justice  Akbarali granted the temporary stay",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Divisional Court dismisses the Frayce certification appeal",
+   "date": "2024-01-24",
+   "precision": "day",
+   "paragraphs": [
+    25
+   ],
+   "quote": "On January 24, 2024, the Ontario Divisional Court dismissed the plaintiffs' appeal",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Action certified as a class proceeding",
+   "date": "2024-07-25",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "By Order dated July 25, 2024, the Honourable Justice Akbarali certified the Action",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Second Fresh as Amended Statement of Claim filed",
+   "date": "2024-09-24",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "Second Fresh as Amended Statement of Claim filed on September 24, 2024",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "TDAM Action settled",
+   "date": "2024-09",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "which  were settled in September 2024 and August 2025 respectively",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "First notice order in the TDAM Action",
+   "date": "2024-10-01",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Order of Justice Akbarali dated October 1, 2024 in the TDAM Action",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "Opt-out period expires with no opt-outs",
+   "date": "2024-11-12",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "expired as of November 12, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "TDAM settlement approved",
+   "date": "2024-12-10",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "approved by Order of the Honourable Justice Akbarali on December 10, 2024",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "CIBC Action settled",
+   "date": "2025-08",
+   "precision": "month",
+   "paragraphs": [
+    19
+   ],
+   "quote": "which  were settled in September 2024 and August 2025 respectively",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Wallace Action discontinued on consent",
+   "date": "2025-09-02",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "On September 2, 2025, the Superior Court issued an order on consent discontinuing the  Wallace Action",
+   "exhibits": []
+  },
+  {
+   "id": "e19",
+   "description": "First notice order in the CIBC Action",
+   "date": "2025-09-03",
+   "precision": "day",
+   "paragraphs": [
+    32
+   ],
+   "quote": "Order of Justice Leiper dated September 3, 2025 in the CIBC Action",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "CIBC settlement approved",
+   "date": "2025-11-05",
+   "precision": "day",
+   "paragraphs": [
+    19
+   ],
+   "quote": "approved by Order of the Honourable Justice Leiper on  November 5, 2025",
+   "exhibits": []
+  },
+  {
+   "id": "e21",
+   "description": "Settlement Agreement signed ($45 million)",
+   "date": "2026-06-19",
+   "precision": "day",
+   "paragraphs": [
+    4,
+    27
+   ],
+   "quote": "the Settlement Agreement between the Plaintiff and the Defendants dated June 19, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e22",
+   "description": "Distribution Protocol and summary to be posted on Siskinds' website",
+   "date": "2026-07-28",
+   "precision": "day",
+   "paragraphs": [
+    40
+   ],
+   "quote": "will be posted on our website on or before July 28, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e23",
+   "description": "Objection deadline",
+   "date": "2026-08-18",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "which is August 18, 2026",
+   "exhibits": []
+  },
+  {
+   "id": "e24",
+   "description": "Settlement approval motion scheduled",
+   "date": "2026-09-08",
+   "precision": "day",
+   "paragraphs": [
+    39
+   ],
+   "quote": "scheduled date for the settlement approval motion of September 8, 2026",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Settlement Agreement dated June 19, 2026 (Schedule 1 to the First Order)",
+  "Notice of Action (December 28, 2018) and Statement of Claim (January 25, 2019)",
+  "Funding Agreement and Justice Belobaba's approval order of October 21, 2019",
+  "Order of August 1, 2023 staying the DeJong Action",
+  "Plan of Notice and forms of First Notice"
+ ]
+}

@@ -1,0 +1,198 @@
+{
+ "record_id": "onsc-cp-chl-carcillo",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al. (proposed class action for hazing and abuse of major junior players): representative plaintiff's reply evidence on certification",
+ "document": "Affidavit of Daniel Carcillo sworn November 26, 2021 (reply; jurat day left blank, date from the record index and backsheet)",
+ "deponent": "Daniel Carcillo",
+ "deponent_role": "Proposed representative plaintiff; former Sarnia Sting player",
+ "sworn_date": "2021-11-26",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dfyj6a.pdf",
+   "kind": "webpage",
+   "date": "2018-11-29",
+   "author": "Jamie Strashin, CBC News",
+   "recipients": [],
+   "description": "CBC News article in which Branch admitted the CHL had failed Carcillo and his teammates",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "I attach an article published by Jamie Strashin of CBC News dated November 29"
+    }
+   ],
+   "content_check": "5 pages: CBC article printout, image-only (DocuSign header only in the text layer)"
+  },
+  {
+   "label": "B",
+   "file": "doc-f5ru29.pdf",
+   "kind": "transcript",
+   "date": null,
+   "author": "CBC News",
+   "recipients": [],
+   "description": "Excerpted transcript of the embedded CBC National interviews with Carcillo and Branch",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "I also attach an excerpted transcript of the embedded CBC National"
+    }
+   ],
+   "content_check": "2 pages: 'Transcribed Excerpts of Video Interviews (embedded at https://www.cbc.ca/sports/hockey/nhl/david-branch-daniel-carcillo-ohl-sarnia-sting-haze...)'"
+  },
+  {
+   "label": "C",
+   "file": "doc-zknnev.pdf",
+   "kind": "webpage",
+   "date": "2014-03-19",
+   "author": "Yahoo News",
+   "recipients": [],
+   "description": "2014 Yahoo News article on the ineffectiveness of the Player Liaison Program",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "I attach a news article from Yahoo News from 2014"
+    }
+   ],
+   "content_check": "7 pages: 'Junior hockey needs overhaul when 'it's not easy to ask for help'' (news.yahoo.com, printed 11/26/21)"
+  },
+  {
+   "label": "D",
+   "file": "doc-mkkdy6.pdf",
+   "kind": "text_messages",
+   "date": "2019-12",
+   "author": "Daniel Carcillo",
+   "recipients": [
+    "David Branch"
+   ],
+   "description": "Carcillo's last text messages with Branch after their December 2019 meeting",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "I attach my last text messages between me and Mr. Branch at Exhibit"
+    }
+   ],
+   "content_check": "4 pages: text-message screenshots, image-only"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Carcillo and teammates report hazing abuse on the Sarnia Sting to the OHL",
+   "date": "2003",
+   "precision": "year",
+   "paragraphs": [
+    2,
+    4
+   ],
+   "quote": "what happened after I reported my abuse  in 2003",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Yahoo News article on the Player Liaison Program",
+   "date": "2014-03-19",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "I attach a news article from Yahoo News from 2014",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Carcillo goes public with abuse allegations; Branch publicly apologizes",
+   "date": "2018",
+   "precision": "approximate",
+   "paragraphs": [
+    6
+   ],
+   "quote": "I went public with detailed allegations of abuse while I played for the Sarnia Sting  in late 2018",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "CBC News article in which Branch admits the CHL failed the players",
+   "date": "2018-11-29",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "CBC News dated November 29,  2018",
+   "exhibits": [
+    "A",
+    "B"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Carcillo meets Branch in Toronto to offer help with the Player Liaison Program",
+   "date": "2019-12",
+   "precision": "month",
+   "paragraphs": [
+    8,
+    9
+   ],
+   "quote": "I thanked him for meeting with me in December 2019",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Carcillo swears his Original Affidavit supporting certification",
+   "date": "2020-08-27",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I swore an affidavit in  support of my certification motion on August 27, 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Carcillo commences the class proceeding",
+   "date": "2020",
+   "precision": "year",
+   "paragraphs": [
+    12
+   ],
+   "quote": "until I commenced this lawsuit in 2020",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Branch swears his responding affidavit",
+   "date": "2021-11-01",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "David  Branch swore an affidavit dated November 1, 2021",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Carcillo tries to contact Branch after the meeting; no response",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    11
+   ],
+   "quote": "I tried to contact Mr. Branch after  our meeting, he simply did not respond to me",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Carcillo's Original Affidavit sworn August 27, 2020",
+  "Affidavit of David Branch sworn November 1, 2021"
+ ]
+}

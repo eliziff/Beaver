@@ -1,0 +1,427 @@
+{
+ "record_id": "bccomm-cullen-bamra",
+ "court": "Commission of Inquiry into Money Laundering in British Columbia (Cullen Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "BC",
+ "court_file": "Cullen Commission Exhibit 143",
+ "subject": "regulatory",
+ "family": "cullen-commission",
+ "proceeding": "Public inquiry into money laundering in British Columbia: BCLC evidence on the anonymous complaint that VP Robert Kroeker told the AML unit to 'ease up' on cash conditions (GPEB investigation)",
+ "document": "Affidavit No. 1 of Bal (Baljinder) Bamra affirmed October 14, 2020 (Commission Exhibit 143, redacted)",
+ "deponent": "Baljinder (Bal) Bamra",
+ "deponent_role": "Manager, Anti-Money Laundering Intelligence, British Columbia Lottery Corporation",
+ "sworn_date": "2020-10-14",
+ "notes": "Commission exhibit PDF (redacted); whole-page covers read by eye (--covers). C-M are Bamra's typed STR Monthly Trends Review meeting notes, told apart by meeting date.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-hny7rf.pdf",
+   "kind": "email_chain",
+   "date": "2019-07-04",
+   "author": "Bal Bamra; Sam Cooper (Global News)",
+   "recipients": [
+    "Kevin deBruyckere",
+    "Daryl Tottenham"
+   ],
+   "description": "E-mail chain originating with Global News reporter Sam Cooper's request for comment on a GPEB investigation, forwarded by Bamra",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"A\" is a true copy"
+    }
+   ],
+   "content_check": "1 page: From Bal Bamra, Thur 2019-07-04 5:09:22 PM, to deBruyckere/Tottenham, Fwd: GPEB investigation into former manager at BCLC"
+  },
+  {
+   "label": "B",
+   "file": "doc-vfntk4.pdf",
+   "kind": "email",
+   "date": "2019-09-04",
+   "author": "Cary Skrine (GPEB)",
+   "recipients": [
+    "Bal Bamra",
+    "Kevin deBruyckere"
+   ],
+   "description": "Skrine's September 4, 2019 e-mail requesting an interview and describing the complaint about Kroeker",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit \"B\" is a true copy of the"
+    },
+    {
+     "paragraph": 8,
+     "quote": "In Mr. Skrine's email (Exhibit \"B\")"
+    },
+    {
+     "paragraph": 9,
+     "quote": "My receipt of the email attached as Exhibit \"B\""
+    },
+    {
+     "paragraph": 11,
+     "quote": "I participated in the GPEB interview requested in Exhibit \"B\""
+    }
+   ],
+   "content_check": "1 page: Skrine, September 4, 2019 3:01 PM, GPEB INV# 103684 - R. Kroeker - Allegations of Inappropriate Interference with BCLC"
+  },
+  {
+   "label": "C",
+   "file": "doc-adzeqf.pdf",
+   "kind": "minutes",
+   "date": "2016-11-21",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2016-11-21",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "5 pages: 'Date: November 21, 2016 Participants: Bal Bamra Daryl Tottenham Rob Kroeker Ross Alderson ... STR Monthly Trend Review Meeting' with STR charts"
+  },
+  {
+   "label": "D",
+   "file": "doc-gsqu97.pdf",
+   "kind": "minutes",
+   "date": "2016-12-21",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2016-12-21",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "2 pages: 'Date: December 21, 2016 ... Ross Alderson - Absent'"
+  },
+  {
+   "label": "E",
+   "file": "doc-h4fac6.pdf",
+   "kind": "minutes",
+   "date": "2017-01-16",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-01-16",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "2 pages: 'STR Monthly Trend Review Meeting Date: January 16, 2017 Participants: Bal Bamra Daryl Tottenham Kris Gade Ross Alderson Laird Robinson'"
+  },
+  {
+   "label": "F",
+   "file": "doc-psgvrt.pdf",
+   "kind": "minutes",
+   "date": "2017-01-18",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-01-18",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "3 pages: 'Date: January 18, 2017 Participants: Bal Bamra Daryl Tottenham Ross Alderson Rob Kroeker'"
+  },
+  {
+   "label": "G",
+   "file": "doc-e8pygx.pdf",
+   "kind": "minutes",
+   "date": "2017-03-13",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-03-13",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "1 page: 'Meeting: STR Committee Date: March 13, 2017 ... Attendance: Kris Gade, Bal Bamra, Daryl Tottenham, Ross Alderson'"
+  },
+  {
+   "label": "H",
+   "file": "doc-kr7ppf.pdf",
+   "kind": "minutes",
+   "date": "2017-03-23",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-03-23",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "2 pages: 'Date: March 23, 2017 Participants: Bal Bamra Daryl Tottenham Ross Alderson Rob Kroeker'"
+  },
+  {
+   "label": "I",
+   "file": "doc-ny9jsy.pdf",
+   "kind": "minutes",
+   "date": "2017-07-19",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-07-19",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "3 pages: 'Date: July 19, 2017 ... Rob Kroeker'"
+  },
+  {
+   "label": "J",
+   "file": "doc-bquj45.pdf",
+   "kind": "minutes",
+   "date": "2017-08-16",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-08-16",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "1 page: 'Date: August 16, 2017'"
+  },
+  {
+   "label": "K",
+   "file": "doc-rbbx35.pdf",
+   "kind": "minutes",
+   "date": "2017-09-14",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-09-14",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "1 page: 'STR / Cash Conditions Monthly Trend Review Meeting Date: September 14, 2017 Participants: Bal Bamra Daryl Tottenham Kris Gade'"
+  },
+  {
+   "label": "L",
+   "file": "doc-4upy96.pdf",
+   "kind": "minutes",
+   "date": "2017-09-21",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-09-21",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "1 page: 'STR / Cash Conditions Monthly Trend Review Meeting Date: September 21, 2017'"
+  },
+  {
+   "label": "M",
+   "file": "doc-qqzk7t.pdf",
+   "kind": "minutes",
+   "date": "2017-10-31",
+   "author": "Bal Bamra (BCLC)",
+   "recipients": [],
+   "description": "Bamra's notes of the STR Monthly Trends Review meeting of 2017-10-31",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "Attached as Exhibits \"C\" to \"M\" are true copies of these notes"
+    }
+   ],
+   "content_check": "1 page: 'STR / Cash Conditions Monthly Trend Review Meeting Date: October 31, 2017 Participants: Bal Bamra Daryl Tottenham Rob Kroeker'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Bamra begins working for BCLC",
+   "date": "1998-07",
+   "precision": "month",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have worked for BCLC in various roles since July 1998",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Bamra joins the BCLC AML team as Manager of Cash Alternatives and Special Projects",
+   "date": "2015",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "In 2015 I joined the BCLC",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Bamra's role transitions to Manager of AML Intelligence after a reorganization",
+   "date": "2016",
+   "precision": "approximate",
+   "paragraphs": [
+    2
+   ],
+   "quote": "After approximately \none year in that role there was a re-organization",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Period in which the Alleged Instructions were said to have been given",
+   "date": "2016-12",
+   "precision": "range",
+   "paragraphs": [
+    11
+   ],
+   "quote": "sometime between December 2016 and October 2017",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "STR Monthly Trends Review meeting",
+   "date": "2016-11-21",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "I also included November 2016 in my review",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "STR Monthly Trends Review meetings held, Dec 2016 - Oct 2017; Bamra's notes record no Alleged Instructions",
+   "date": "2016-12",
+   "precision": "range",
+   "paragraphs": [
+    15
+   ],
+   "quote": "none of the notes \ncontain any reference to Mr. Kroeker giving the Alleged Instructions",
+   "exhibits": [
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Anonymous complaint to GPEB about Kroeker",
+   "date": "2019-02-20",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "GPEB received an anonymous complaint \non February 20, 2019",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "Global News reporter Sam Cooper e-mails Bamra about a GPEB investigation",
+   "date": "2019-07-04",
+   "precision": "day",
+   "paragraphs": [
+    5
+   ],
+   "quote": "On July 4, 2019, I received an email from Sam Cooper",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Bamra forwards Cooper's e-mail to Tottenham and deBruyckere",
+   "date": "2019-07-04",
+   "precision": "day",
+   "paragraphs": [
+    6
+   ],
+   "quote": "I forwarded the email \nto Daryl Tottenham",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "deBruyckere confirms with GPEB that it is investigating Kroeker",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "had confirmed that GPEB was investigating a complaint about \nMr. Kroeker",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Skrine (GPEB) e-mails Bamra requesting an interview",
+   "date": "2019-09-04",
+   "precision": "day",
+   "paragraphs": [
+    7
+   ],
+   "quote": "until September 4, 2019, when Cary Skrine of the GPEB sent me an email",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Bamra interviewed by GPEB investigators Skrine and Akin",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    11,
+    16
+   ],
+   "quote": "I participated in the GPEB interview requested in Exhibit \"B\"",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Bamra reviews his STR meeting notes",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    15
+   ],
+   "quote": "I have reviewed all of my notes from the STR Monthly Trends Meetings",
+   "exhibits": [
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Anonymous complaint to GPEB of February 20, 2019 about Robert Kroeker"
+ ]
+}

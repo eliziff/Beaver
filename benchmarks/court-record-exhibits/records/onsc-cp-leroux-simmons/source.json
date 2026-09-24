@@ -1,0 +1,19 @@
+{
+ "url": "https://kmlaw.ca/wp-content/uploads/2018/03/Responding-Motion-Record.pdf",
+ "landing_url": "https://kmlaw.ca/",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-17-573091-00CP",
+ "document_title": "Responding Motion Record of the Defendant (certification), Affidavit of Barbara Simmons sworn December 15, 2017",
+ "retrieved": "2026-09-24",
+ "record_id": "onsc-cp-leroux-simmons",
+ "source_file": "e4-responding-motion-record.pdf",
+ "page_range": [
+  5,
+  411
+ ],
+ "source_sha256": "bd3acb0afe602faae3fc8a036fb713ad4d86a234ecd3487e3d057520c478ec29",
+ "source_pages": 411,
+ "covers": "A=42,B=92,C=111,D=149,E=158,F=188,G=198,H=200,I=209,J=211,K=220,L=250,M=261,N=302,O=378"
+}

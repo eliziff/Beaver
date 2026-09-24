@@ -1,0 +1,127 @@
+{
+ "record_id": "onsc-cp-bell-cross",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-590105-00CP",
+ "subject": "pensions",
+ "family": "austin-bell-pension",
+ "proceeding": "Austin v. Bell Canada et al. (class action over the 2017 Bell Canada Pension Plan indexation): plaintiff's expert evidence on how Statistics Canada determines and publishes the CPI, certification and summary judgment",
+ "document": "Affidavit of Philip Cross sworn July 20, 2018",
+ "deponent": "Philip Cross",
+ "deponent_role": "Expert retained by class counsel; former Chief Economic Analyst, Statistics Canada",
+ "sworn_date": "2018-07-20",
+ "notes": "Exhibits B and C are the same Statistics Canada publications attached to the Randhawa affidavit in this proceeding (cross-record duplicates).",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-42pp2f.pdf",
+   "kind": "report",
+   "date": "2018-07",
+   "author": "Philip Cross",
+   "recipients": [
+    "Koskie Minsky LLP"
+   ],
+   "description": "Cross's expert report on the Consumer Price Index",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of my report is attached as Exhibit \"A\""
+    }
+   ],
+   "content_check": "7 pages: 'Background for Philip Cross I worked at Statistics Canada for 36 years ... I was retained by Koskie Minsky to answer the following questions. 1. What is the Consumer Price Index?'"
+  },
+  {
+   "label": "B",
+   "file": "doc-uhfz6b.pdf",
+   "kind": "report",
+   "date": "2016-10",
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "The Consumer Price Index, Statistics Canada Catalogue no. 62-001-X, October 2016",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "which is referenced in my report is attached as Exhibit \"B\""
+    }
+   ],
+   "content_check": "60 pages: 'Catalogue no. 62-001-X The Consumer Price Index October 2016'"
+  },
+  {
+   "label": "C",
+   "file": "doc-zd9k4s.pdf",
+   "kind": "report",
+   "date": "2015-12-18",
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "The Canadian Consumer Price Index Reference Paper, Catalogue no. 62-553-X",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "which is referenced in my report is attached as Exhibit  \"C\""
+    }
+   ],
+   "content_check": "91 pages: 'Catalogue no. 62-553-X ... The Canadian Consumer Price Index Reference Paper Release date: December 18, 2015'"
+  },
+  {
+   "label": "D",
+   "file": "doc-bjcts4.pdf",
+   "kind": "court_filing",
+   "date": "2018-07-20",
+   "author": "Philip Cross",
+   "recipients": [],
+   "description": "Cross's Acknowledgement of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Attached as Exhibit \"D\" is a copy of my Acknowledgement of Expert's Duty"
+    }
+   ],
+   "content_check": "2 pages: 'ACKNOWLEDGMENT OF EXPERT'S DUTY 1. My name is Philip Cross'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Cross retained by Koskie Minsky and McKenzie Lake for the plaintiff",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been retained by Koskie Minsky LLP and McKenzie Lake Lawyers LLP",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Cross prepares his expert report",
+   "date": "2018-07",
+   "precision": "approximate",
+   "paragraphs": [
+    2
+   ],
+   "quote": "A copy of my report is attached as Exhibit",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Cross signs his Acknowledgement of Expert's Duty",
+   "date": "2018-07-20",
+   "precision": "approximate",
+   "paragraphs": [
+    5
+   ],
+   "quote": "Attached as Exhibit \"D\" is a copy of my Acknowledgement of Expert's Duty",
+   "exhibits": [
+    "D"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Curriculum vitae (said to be an appendix to the report; not found in Exhibit A)"
+ ]
+}

@@ -1,0 +1,767 @@
+{
+ "record_id": "onsc-cp-bell-marchessault",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-18-590105-00CP",
+ "subject": "pensions",
+ "family": "austin-bell-pension",
+ "proceeding": "Austin v. Bell Canada et al. (class action over the 2017 indexation of Bell Canada Pension Plan pensions): defendants' responding evidence on certification and summary judgment",
+ "document": "Affidavit of Robert Marchessault sworn October 31, 2018",
+ "deponent": "Robert Marchessault",
+ "deponent_role": "Director of Pension and Actuarial Services, BCE",
+ "sworn_date": "2018-10-31",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-dedbrc.pdf",
+   "kind": "agreement",
+   "date": "2013-05-01",
+   "author": "Bell Canada",
+   "recipients": [],
+   "description": "Current Bell Canada Pension Plan text, as last restated May 1, 2013",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Attached as Exhibit \"A\" is the copy of the current Plan"
+    }
+   ],
+   "content_check": "53 pages: 'BELL CANADA PENSION PLAN Effective January 1, 2005 including amendments up to July 1, 2012 Restated May 1, 2013'"
+  },
+  {
+   "label": "B",
+   "file": "doc-bq5yj3.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Sections 7 and 8 of the Pension Benefits Standards Act, 1985",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "Attached as Exhibit \"B\" are copies of sections 7 and 8 of the PBSA"
+    }
+   ],
+   "content_check": "14 pages: Justice Laws consolidation of the PBSA (broken font encoding in the text layer)"
+  },
+  {
+   "label": "C",
+   "file": "doc-kjnyyz.pdf",
+   "kind": "report",
+   "date": "2004-09",
+   "author": "Morneau Shepell",
+   "recipients": [],
+   "description": "Morneau Shepell's Summary of the Plan Document",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "Summary of the Plan Document, which is attached as Exhibit \"C\""
+    }
+   ],
+   "content_check": "17 pages: 'September 2004 ... Pension Plan for Employees of Bell Canada Summary of the Plan Document'"
+  },
+  {
+   "label": "D",
+   "file": "doc-xvuqxu.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "Bell Canada Pension Plan",
+   "recipients": [],
+   "description": "A cheque issued by the Plan to a pensioner",
+   "references": [
+    {
+     "paragraph": 16,
+     "quote": "Attached as Exhibit \"D\" is a copy of a check issued to a pensioner"
+    }
+   ],
+   "content_check": "2 pages: scanned pension cheque (image-only)"
+  },
+  {
+   "label": "E",
+   "file": "doc-6fn3u4.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Statistics Canada",
+   "recipients": [],
+   "description": "Statistics Canada CPI table for October 2015 and October 2016",
+   "references": [
+    {
+     "paragraph": 31,
+     "quote": "Attached as Exhibit \"E\" is a copy of the CPI published by Statistics Canada"
+    }
+   ],
+   "content_check": "2 pages: 'Table 5 The Consumer Price Index for Canada, All-items CPI, not seasonally adjusted'"
+  },
+  {
+   "label": "F",
+   "file": "doc-yruyd2.pdf",
+   "kind": "spreadsheet",
+   "date": null,
+   "author": "Eric Deslauriers (Bell)",
+   "recipients": [],
+   "description": "Spreadsheet recording Bell's Pension Index calculation each year since 1997",
+   "references": [
+    {
+     "paragraph": 39,
+     "quote": "I attach a copy of that spreadsheet as Exhibit \"F\""
+    }
+   ],
+   "content_check": "22 pages: 'Indexation Bell 2018-01-01 CPI (2002 = 100) a) CPI for October 2017 130.9 ...' year by year"
+  },
+  {
+   "label": "G",
+   "file": "doc-gabmgj.pdf",
+   "kind": "notice",
+   "date": "2017",
+   "author": "Morneau Shepell / BCE Group of Companies",
+   "recipients": [
+    "Leslie J. Austin"
+   ],
+   "description": "Mr. Austin's annual pension statement for 2017",
+   "references": [
+    {
+     "paragraph": 54,
+     "quote": "Attached as Exhibit \"G\" is a copy of the annual statement for Mr. Austin"
+    }
+   ],
+   "content_check": "8 pages: 'BCE Group of Companies LESLIE J AUSTIN ... You will find enclosed a statement that shows the pension'"
+  },
+  {
+   "label": "H",
+   "file": "doc-h38xjy.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Section 7.2 of the PBSA (Pension Information Committee mandate)",
+   "references": [
+    {
+     "paragraph": 55,
+     "quote": "Attached as Exhibit \"H\" is a copy ofs. 7.2 of the PBSA"
+    }
+   ],
+   "content_check": "8 pages: PBSA consolidation (broken font encoding, same statute as B, different sections)"
+  },
+  {
+   "label": "I",
+   "file": "doc-qmkuw5.pdf",
+   "kind": "report",
+   "date": "2016-12-31",
+   "author": "Pension Information Committee",
+   "recipients": [],
+   "description": "PIC annual reports as at December 31, 2016 and the prior years",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "Attached as Exhibit \"I\" is a copy of the PIC Report dated December 31, 2016"
+    }
+   ],
+   "content_check": "90 pages: '2017 Pension Information Committee Report Bell Canada Pension Plan' and earlier reports"
+  },
+  {
+   "label": "J",
+   "file": "doc-4ux93s.pdf",
+   "kind": "report",
+   "date": "1998-12",
+   "author": "Pension Information Committee",
+   "recipients": [],
+   "description": "Excerpts of the December 1998 PIC report",
+   "references": [
+    {
+     "paragraph": 59,
+     "quote": "Attached as Exhibit \"J\" is a copy of the relevant excerpts of the 1998 PIC report"
+    }
+   ],
+   "content_check": "2 pages: scanned 1998 PIC report excerpt (image-only)"
+  },
+  {
+   "label": "K",
+   "file": "doc-88dy9z.pdf",
+   "kind": "agreement",
+   "date": "1975",
+   "author": "Bell Canada",
+   "recipients": [],
+   "description": "Bell Canada Pension Plan text from 1975 (effective 1977)",
+   "references": [
+    {
+     "paragraph": 62,
+     "quote": "Attached as Exhibit \"K\" is a copy of the Plan text from 1975"
+    }
+   ],
+   "content_check": "27 pages: scanned 1975 Plan text (image-only)"
+  },
+  {
+   "label": "L",
+   "file": "doc-kzjw9a.pdf",
+   "kind": "webpage",
+   "date": "2018-10-29",
+   "author": "Bell Pensioners' Group",
+   "recipients": [],
+   "description": "Screenshot of the BPG website home page",
+   "references": [
+    {
+     "paragraph": 69,
+     "quote": "Attached as Exhibit \"L\" is screenshot of the home page"
+    }
+   ],
+   "content_check": "3 pages: screenshot, image-only"
+  },
+  {
+   "label": "M",
+   "file": "doc-b6bh9h.pdf",
+   "kind": "webpage",
+   "date": "2018-10-29",
+   "author": "Bell Pensioners' Group",
+   "recipients": [],
+   "description": "Screenshot of the BPG 'Historical' page",
+   "references": [
+    {
+     "paragraph": 71,
+     "quote": "Attached as Exhibit \"M\" is a screenshot of the \"Historical\" page"
+    }
+   ],
+   "content_check": "3 pages: 'Historical Bell Pensioners' Group (BPG) was formed in 1995'"
+  },
+  {
+   "label": "N",
+   "file": "doc-een4ye.pdf",
+   "kind": "webpage",
+   "date": "2018-10-29",
+   "author": "Bell Pensioners' Group",
+   "recipients": [],
+   "description": "Screenshot of the BPG 'Who can become a member' page",
+   "references": [
+    {
+     "paragraph": 72,
+     "quote": "Attached as Exhibit \"N\" is a screenshot of the \"Who can become a member\" page"
+    }
+   ],
+   "content_check": "1 page: 'Who Is Eligible To Join BPG?'"
+  },
+  {
+   "label": "O",
+   "file": "doc-f7tvc5.pdf",
+   "kind": "webpage",
+   "date": "2018-10-29",
+   "author": "Bell Pensioners' Group",
+   "recipients": [],
+   "description": "Screenshot of the national BPG Facebook group",
+   "references": [
+    {
+     "paragraph": 73,
+     "quote": "Attached as Exhibit \"0\" is a screenshot of the national BPG Facebook group"
+    }
+   ],
+   "content_check": "1 page: Facebook screenshot, image-only"
+  },
+  {
+   "label": "P",
+   "file": "doc-tpd974.pdf",
+   "kind": "email_chain",
+   "date": "2017-01-16",
+   "author": "Eleanor Marshall (Bell)",
+   "recipients": [
+    "Patte Seaton (BPG)"
+   ],
+   "description": "Email exchange between Ms. Seaton and Ms. Marshall, January 15-16, 2017",
+   "references": [
+    {
+     "paragraph": 74,
+     "quote": "Attached as Exhibit \"P\" is the email exchange between Ms. Seaton and Ms. Marshall"
+    }
+   ],
+   "content_check": "1 page: 'From: Marshall, Eleanor Sent: Mon, 16 Jan 2017 09:30:42 To: 'Patte Seaton'; Marchessault, Robert'"
+  },
+  {
+   "label": "Q",
+   "file": "doc-pmsbc2.pdf",
+   "kind": "webpage",
+   "date": "2017-01-16",
+   "author": "Leslie Austin",
+   "recipients": [],
+   "description": "Screenshot of Mr. Austin's January 16, 2017 post in the BPG Facebook group",
+   "references": [
+    {
+     "paragraph": 75,
+     "quote": "Attached as Exhibit \"Q\" is a screenshot of Mr. Austin's January 16, 2017 post"
+    }
+   ],
+   "content_check": "1 page: Facebook screenshot, image-only"
+  },
+  {
+   "label": "R",
+   "file": "doc-bdqaay.pdf",
+   "kind": "webpage",
+   "date": "2018-01-18",
+   "author": "Bell Pensioners' Group",
+   "recipients": [],
+   "description": "Screenshot of BPG's January 18, 2018 Facebook post with Ms. Seaton's comment",
+   "references": [
+    {
+     "paragraph": 77,
+     "quote": "Attached as Exhibit \"R\" is a screenshot of the January 18, 2018 BPG post"
+    }
+   ],
+   "content_check": "2 pages: Facebook screenshots, image-only"
+  },
+  {
+   "label": "S",
+   "file": "doc-hjayqd.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "BPG Pension Committee",
+   "recipients": [],
+   "description": "Screenshot of the Pension Committee's post on the BPG website",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "Attached as Exhibit \"S\" is a screenshot of the post by the Pension Committee"
+    }
+   ],
+   "content_check": "1 page: 'Class action on Bell's interpretation of the 2017 indexation ...'"
+  },
+  {
+   "label": "T",
+   "file": "doc-q85sk3.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Robert Marchessault",
+   "recipients": [],
+   "description": "Table of retiree deaths over 18 months and the corresponding adjustment",
+   "references": [
+    {
+     "paragraph": 89,
+     "quote": "Attached as Exhibit \"T\" is a copy of a table I prepared"
+    }
+   ],
+   "content_check": "1 page: 'C- Missed Payments McNeil - Expert BCE Results $12.628M $11.006M'"
+  },
+  {
+   "label": "U",
+   "file": "doc-43tqe6.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Robert Marchessault",
+   "recipients": [],
+   "description": "Table of 2016 retirees and the pro-rata adjustment (cost to plan)",
+   "references": [
+    {
+     "paragraph": 100,
+     "quote": "Attached as Exhibit \"U\" is a copy of a table I prepared"
+    }
+   ],
+   "content_check": "1 page: 'A- Cost to the Plan McNeil - Expert BCE Results $108.468M $103.313M'"
+  },
+  {
+   "label": "V",
+   "file": "doc-ewyexd.pdf",
+   "kind": "chart",
+   "date": null,
+   "author": "Robert Marchessault",
+   "recipients": [],
+   "description": "Chart deriving the cost-to-pensioners estimate",
+   "references": [
+    {
+     "paragraph": 102,
+     "quote": "Attached as Exhibit \"V\" is a chart outlining how I derived this amount"
+    }
+   ],
+   "content_check": "2 pages: 'B- Cost to the Pensioners McNeil - Expert BCE Results $124.942M ... $136.897M $109.627M'"
+  },
+  {
+   "label": "W",
+   "file": "doc-p7mtms.pdf",
+   "kind": "report",
+   "date": "2017-10",
+   "author": "Office of the Superintendent of Financial Institutions",
+   "recipients": [],
+   "description": "OSFI Instruction Guide for the Preparation of Actuarial Reports for Defined Benefit Pension Plans, October 2017",
+   "references": [
+    {
+     "paragraph": 108,
+     "quote": "Attached as Exhibit \"W\" is a copy of the OSFI Instruction Guide"
+    }
+   ],
+   "content_check": "38 pages: 'Instruction Guide Subject: Preparation of Actuarial Reports for Defined Benefit Pension Plans October 2017'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Bell Canada Pension Plan first established",
+   "date": "1919",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "The Plan was first established in 1919",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Plan provides indexation tied to CPP/QPP cost-of-living adjustment",
+   "date": "1977",
+   "precision": "year",
+   "paragraphs": [
+    61,
+    62
+   ],
+   "quote": "Beginning in 1977, the indexation for pensioners was calculated",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Austin begins employment with Bell",
+   "date": "1976-09-06",
+   "precision": "day",
+   "paragraphs": [
+    65
+   ],
+   "quote": "Mr. Austin commenced employment with Bell on September 6, 1976",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Pension Information Committee created",
+   "date": "1988",
+   "precision": "year",
+   "paragraphs": [
+    55
+   ],
+   "quote": "The PIC was created in 1988",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Plan amended to introduce the Pension Index definition",
+   "date": "1988-12-21",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "As of December 21, 1988, amendments to the Plan were made",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Bell Pensioners' Group incorporated",
+   "date": "1995",
+   "precision": "year",
+   "paragraphs": [
+    69
+   ],
+   "quote": "incorporated in 1995",
+   "exhibits": [
+    "M"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Austin goes on short-term disability",
+   "date": "1997-06-02",
+   "precision": "day",
+   "paragraphs": [
+    65
+   ],
+   "quote": "on June 2, 1997",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Pension Index calculated at 1.4684% and indexation 1% for 1998; PIC report mailed",
+   "date": "1998-12",
+   "precision": "month",
+   "paragraphs": [
+    58,
+    59
+   ],
+   "quote": "The PIC issued a report in December 1998",
+   "exhibits": [
+    "J",
+    "F"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Austin goes on long-term disability",
+   "date": "1998-06-24",
+   "precision": "day",
+   "paragraphs": [
+    65
+   ],
+   "quote": "on long-term disability coverage on June 24, 1998",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Marchessault joins Bell as Senior Consultant",
+   "date": "1999",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I have worked at Bell since 1999",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Bell retains Morneau Shepell to administer the Plan",
+   "date": "2002",
+   "precision": "year",
+   "paragraphs": [
+    11
+   ],
+   "quote": "Since 2002, Bell Canada has retained Morneau Shepell Ltd",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Annual statements first sent to members",
+   "date": "2004",
+   "precision": "year",
+   "paragraphs": [
+    54
+   ],
+   "quote": "The annual statement has been sent out since 2004",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "Marchessault takes his present role",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    3
+   ],
+   "quote": "I have been in my present role since 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e14",
+   "description": "Austin returns to work at 65",
+   "date": "2012-05-31",
+   "precision": "day",
+   "paragraphs": [
+    66
+   ],
+   "quote": "on May 31, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Austin retires; pension payments begin December 2012",
+   "date": "2012-09-30",
+   "precision": "day",
+   "paragraphs": [
+    66
+   ],
+   "quote": "his retirement date was September 30, 2012",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Plan last restated",
+   "date": "2013-05-01",
+   "precision": "day",
+   "paragraphs": [
+    9
+   ],
+   "quote": "as last restated on May 1, 2013",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Last actuarial valuation before the 2017 increase",
+   "date": "2016-12-31",
+   "precision": "day",
+   "paragraphs": [
+    20
+   ],
+   "quote": "As of December 31, 2016, the date of the last actuarial valuation",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "1,593 new retirees in 2016",
+   "date": "2016",
+   "precision": "year",
+   "paragraphs": [
+    88
+   ],
+   "quote": "2016 was a significant retirement year for Bell, with 1,593 new retirees",
+   "exhibits": [
+    "U"
+   ]
+  },
+  {
+   "id": "e19",
+   "description": "Bell calculates the 2017 Pension Index at 1.4937% and indexation at 1%",
+   "date": "2017-01-01",
+   "precision": "day",
+   "paragraphs": [
+    31,
+    33,
+    36
+   ],
+   "quote": "Therefore, Bell calculated the Pension Index for 2017 to be 1.4937%",
+   "exhibits": [
+    "E",
+    "F"
+   ]
+  },
+  {
+   "id": "e20",
+   "description": "PIC report as at December 31, 2016 describes the 1.49% Pension Index",
+   "date": "2016-12-31",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "The December 31, 2016 report describes the Pension Index of 1.49% for 2017",
+   "exhibits": [
+    "I"
+   ]
+  },
+  {
+   "id": "e21",
+   "description": "Patte Seaton contacts Marchessault about the 2017 indexation",
+   "date": "2017-01-15",
+   "precision": "day",
+   "paragraphs": [
+    74
+   ],
+   "quote": "On January 15, 2017, 1was contacted by Patte Seaton",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e22",
+   "description": "Eleanor Marshall replies to Seaton",
+   "date": "2017-01-16",
+   "precision": "day",
+   "paragraphs": [
+    74
+   ],
+   "quote": "replied to Ms. Seaton on January 16, 2017",
+   "exhibits": [
+    "P"
+   ]
+  },
+  {
+   "id": "e23",
+   "description": "Austin posts in the BPG Facebook group questioning the calculation",
+   "date": "2017-01-16",
+   "precision": "day",
+   "paragraphs": [
+    75
+   ],
+   "quote": "On January 16, 2017, Mr. Austin published a post in the BPG Facebook Group",
+   "exhibits": [
+    "Q"
+   ]
+  },
+  {
+   "id": "e24",
+   "description": "BPG obtains legal opinion on the indexation",
+   "date": "2017",
+   "precision": "approximate",
+   "paragraphs": [
+    77
+   ],
+   "quote": "BPG did spend money to seek an expert legal opinion in the Spring of 20 17",
+   "exhibits": [
+    "R"
+   ]
+  },
+  {
+   "id": "e25",
+   "description": "943 retiree deaths in 2017",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    89
+   ],
+   "quote": "There were 943 retiree deaths in 2017",
+   "exhibits": [
+    "T"
+   ]
+  },
+  {
+   "id": "e26",
+   "description": "3,765 members request a mailed PIC report",
+   "date": "2017",
+   "precision": "year",
+   "paragraphs": [
+    57
+   ],
+   "quote": "In 2017, 3,765 members requested a mailed report",
+   "exhibits": []
+  },
+  {
+   "id": "e27",
+   "description": "BPG posts that no further action is warranted",
+   "date": "2018-01-18",
+   "precision": "day",
+   "paragraphs": [
+    76
+   ],
+   "quote": "On January 18, 2018, the BPG published a post in the BPG Facebook Group",
+   "exhibits": [
+    "R",
+    "S"
+   ]
+  },
+  {
+   "id": "e28",
+   "description": "McNeil memorandum on the value of the payment adjustment",
+   "date": "2018-07-24",
+   "precision": "day",
+   "paragraphs": [
+    97
+   ],
+   "quote": "Memorandum of Cameron McNeil dated July 24, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e29",
+   "description": "Screenshots of BPG website and Facebook taken",
+   "date": "2018-10-29",
+   "precision": "day",
+   "paragraphs": [
+    69
+   ],
+   "quote": "as of October 29, 2018",
+   "exhibits": [
+    "L",
+    "M",
+    "N",
+    "O"
+   ]
+  },
+  {
+   "id": "e30",
+   "description": "PIC three-year term ends; new members elected for term beginning January 1, 2019",
+   "date": "2018-12",
+   "precision": "month",
+   "paragraphs": [
+    67
+   ],
+   "quote": "The next three-year term ends in December 2018",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Statement of Claim",
+  "Affidavit of Leslie Austin (his 2017 annual statement exhibit)",
+  "Memorandum/report of Cameron McNeil dated July 24, 2018",
+  "Bell actuarial valuation report as at December 31, 2016",
+  "1988 Plan amendments"
+ ]
+}

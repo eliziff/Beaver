@@ -1,0 +1,20 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/472568/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2013-0442",
+ "court": "Ontario Superior Court of Justice (Divisional Court)",
+ "court_level": "superior_divisional",
+ "jurisdiction": "ON",
+ "court_file": "Divisional Court File No. 37/15 (filed with the OEB in EB-2013-0442)",
+ "document_title": "City of Kawartha Lakes_Affidavit_Ron Taylor_20150402",
+ "retrieved": "2026-09-24",
+ "record_id": "ondc-wpd-taylor",
+ "source_file": "doeb-472568.pdf",
+ "page_range": [
+  1,
+  1416
+ ],
+ "source_sha256": "f6d97f797f42a5a75ed332b88167ed2247e4606cbdf0aab45fee19ab0ac85316",
+ "source_pages": 1416,
+ "covers": "A=41,B=45,C=159,D=363,E=501,F=529,G=535,H=593,I=603,J=623,K=631,L=655,M=659,N=673,O=683,P=953,Q=957,R=997,S=1001,T=1005,U=1029,V=1035,W=1039,X=1047,Y=1051,Z=1055,AA=1059,BB=1063,CC=1077,DD=1095,EE=1105,FF=1113,GG=1137,HH=1141,II=1309,JJ=1315,KK=1319,LL=1347,MM=1357,NN=1381,OO=1413",
+ "drop": "1416"
+}

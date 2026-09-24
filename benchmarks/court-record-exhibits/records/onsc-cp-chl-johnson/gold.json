@@ -1,0 +1,105 @@
+{
+ "record_id": "onsc-cp-chl-johnson",
+ "court": "Ontario Superior Court of Justice",
+ "court_level": "superior_trial",
+ "jurisdiction": "ON",
+ "court_file": "CV-20-00642705-00CP",
+ "subject": "class_action",
+ "family": "carcillo-chl-hazing",
+ "proceeding": "Carcillo and Taylor v. Ontario Major Junior Hockey League, Canadian Hockey League et al.: plaintiffs' expert evidence on sport hazing for certification",
+ "document": "Affidavit of Dr. Jay Johnson affirmed December 2020 (day left blank; the record index gives December 2, 2020)",
+ "deponent": "Jay Johnson",
+ "deponent_role": "Associate Professor, Faculty of Kinesiology and Recreation Management, University of Manitoba; expert retained by class counsel",
+ "sworn_date": "2020-12-02",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-r7b7jq.pdf",
+   "kind": "report",
+   "date": "2020-12",
+   "author": "Dr. Jay Johnson",
+   "recipients": [
+    "Koskie Minsky LLP"
+   ],
+   "description": "Johnson's expert report on hazing in sport",
+   "references": [
+    {
+     "paragraph": 2,
+     "quote": "A copy of my report is attached to this Affidavit as Exhibit"
+    }
+   ],
+   "content_check": "49 pages: 'I am Dr. jay johnson, a Professor at the University of Manitoba ... an expert in the area of sport hazing, initiations'"
+  },
+  {
+   "label": "B",
+   "file": "doc-k37yz5.pdf",
+   "kind": "other",
+   "date": "2020",
+   "author": "Dr. Jay Johnson",
+   "recipients": [],
+   "description": "Johnson's curriculum vitae",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "My curriculum vitae is attached to this Affidavit as Exhibit \"B\""
+    }
+   ],
+   "content_check": "31 pages: 'Dr. jay johnson 2020 CURRICULUM VITAE ASSOCIATE PROFESSOR FACULTY OF KINESIOLOGY AND RECREATION MANAGEMENT'"
+  },
+  {
+   "label": "C",
+   "file": "doc-qb6qr4.pdf",
+   "kind": "court_filing",
+   "date": "2020-12",
+   "author": "Dr. Jay Johnson",
+   "recipients": [],
+   "description": "Johnson's Acknowledgement of Expert's Duty",
+   "references": [
+    {
+     "paragraph": 4,
+     "quote": "My Acknowledgement of Expert's Duty is attached to this Affidavit as Exhibit"
+    }
+   ],
+   "content_check": "3 pages: Form 53 acknowledgment in Carcillo v. OHL (CV-20-642705-00CP)"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Johnson retained by Koskie Minsky to give an expert opinion for certification",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    1
+   ],
+   "quote": "I have been retained by Koskie Minsky LLP to provide my unbiased expert  opinion",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Johnson prepares his expert report on sport hazing",
+   "date": "2020-12",
+   "precision": "approximate",
+   "paragraphs": [
+    2
+   ],
+   "quote": "A copy of my report is attached to this Affidavit as Exhibit",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Johnson signs his Acknowledgement of Expert's Duty",
+   "date": "2020-12",
+   "precision": "approximate",
+   "paragraphs": [
+    4
+   ],
+   "quote": "My Acknowledgement of Expert's Duty is attached to this Affidavit as Exhibit",
+   "exhibits": [
+    "C"
+   ]
+  }
+ ]
+}

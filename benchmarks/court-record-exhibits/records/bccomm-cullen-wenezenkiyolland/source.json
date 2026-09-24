@@ -1,0 +1,18 @@
+{
+ "url": "https://ag-pssg-sharedservices-ex.objectstore.gov.bc.ca/ag-pssg-cc-exh-prod-bkt-ex/922%20-%20Affidavit%20no.%201%20of%20Cheryl%20Wenezenki-Yolland%20sworn%20on%20April%208%202021_Redacted.pdf",
+ "landing_url": "https://www.cullencommission.ca/exhibits/",
+ "court": "Commission of Inquiry into Money Laundering in British Columbia (Cullen Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "BC",
+ "court_file": "Cullen Commission Exhibit 922",
+ "document_title": "Affidavit no. 1 of Cheryl Wenezenki-Yolland sworn on April 8 2021",
+ "retrieved": "2026-09-24",
+ "record_id": "bccomm-cullen-wenezenkiyolland",
+ "source_file": "cul-922.pdf",
+ "page_range": [
+  1,
+  688
+ ],
+ "source_sha256": "2a43d5d8b51d2459fc46c3a60ffe2d412af41c9a7c5b8c886a03c70075380ee0",
+ "source_pages": 688
+}

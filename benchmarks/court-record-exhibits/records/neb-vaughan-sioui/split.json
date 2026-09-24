@@ -1,0 +1,117 @@
+{
+ "record_id": "neb-vaughan-sioui",
+ "multi_file": true,
+ "affidavit_pages": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "divider_pages": [],
+ "scanned_pages": [
+  "rdsi-2948973.pdf:2",
+  "rdsi-2948973.pdf:3",
+  "rdsi-2948973.pdf:4",
+  "rdsi-2948973.pdf:5",
+  "rdsi-2948973.pdf:6"
+ ],
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-xebeug.pdf",
+   "source_files": [
+    {
+     "file": "rdsi-2948973.pdf",
+     "pages": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "redact_rects": {
+      "1": [
+       [
+        183.27599487304687,
+        50.29200134277344,
+        598.7015832519531,
+        181.05120483398437
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 53
+  },
+  {
+   "label": "2",
+   "file": "doc-c5zfsh.pdf",
+   "source_files": [
+    {
+     "file": "rdsi-2949412.pdf",
+     "pages": [
+      1
+     ],
+     "cover_page": null,
+     "stamp_page": null,
+     "redact_rects": {
+      "1": [
+       [
+        61.2,
+        63.36,
+        367.2,
+        150.48
+       ]
+      ]
+     }
+    }
+   ],
+   "source_pages": [
+    1
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 8
+  },
+  {
+   "label": "3",
+   "file": "doc-u4x95r.pdf",
+   "source_files": [
+    {
+     "file": "rdsi-2949188.pdf",
+     "pages": [
+      1,
+      2
+     ],
+     "cover_page": null,
+     "stamp_page": null
+    }
+   ],
+   "source_pages": [
+    1,
+    2
+   ],
+   "cover_page": null,
+   "stamp_page": null,
+   "text_chars": 5418
+  }
+ ],
+ "leak_audit": [],
+ "ocr_files": [
+  "doc-c5zfsh.pdf",
+  "doc-xebeug.pdf"
+ ]
+}

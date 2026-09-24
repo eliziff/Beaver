@@ -1,0 +1,252 @@
+{
+ "record_id": "cer-northriver-general",
+ "court": "Canada Energy Regulator (Commission)",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2022 (C22591)",
+ "subject": "indigenous_rights",
+ "family": "cer-northriver-nebc",
+ "proceeding": "NorthRiver Midstream NEBC Connector GP Inc., Application for the NEBC Connector Project, Hearing Order OH-001-2022: written evidence of intervenor Duncan's First Nation",
+ "document": "Affidavit in Support of Evidence of Matthew General sworn December 16, 2022",
+ "deponent": "Matthew General",
+ "deponent_role": "Contract technical support to Duncan's First Nation (traditional land and resource use studies)",
+ "sworn_date": "2022-12-16",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-fcyq39.pdf",
+   "kind": "letter",
+   "date": "2022-12-15",
+   "author": "Matthew General for Duncan's First Nation",
+   "recipients": [],
+   "description": "Memorandum describing why Duncan's First Nation participates in the hearing and the relevance of each evidence document",
+   "references": [
+    {
+     "paragraph": 3,
+     "quote": "Attached as Exhibit \"A\" to my affidavit is a memorandum authored by me on behalf of\nDuncan's First Nation"
+    }
+   ],
+   "content_check": "5 pages: memorandum of December 15, 2022 from Matthew General to the CER Secretary, 'Submission of DFN Indigenous Knowledge and Science Documents' (handwritten commissioner's stamp whited out)"
+  },
+  {
+   "label": "B",
+   "file": "doc-s39zwc.pdf",
+   "kind": "report",
+   "date": "2019",
+   "author": "Matthew General for Duncan's First Nation",
+   "recipients": [],
+   "description": "Duncan's First Nation 2019 Clear Hills - Chinchaga Refuge Indigenous Knowledge Survey (the Chinchaga Survey)",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"B\"\nooDuncan's First Nation 2019 Clear Hills - Chinchaga Refuge"
+    }
+   ],
+   "content_check": "137 pages: DFN 2019 Clear Hills-Chinchaga Refuge Indigenous Knowledge Survey for the NGTL North Central Corridor Loop and North Corridor Expansion projects"
+  },
+  {
+   "label": "C",
+   "file": "doc-tgevfb.pdf",
+   "kind": "report",
+   "date": "2019-11",
+   "author": "Matthew General for Duncan's First Nation",
+   "recipients": [],
+   "description": "DFN Community Observations and Perspective on the potential impacts of NGTL's projects on the Treaty right to hunt large game",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"C\"\n\"Duncan's First Nation Community Observations and\nPerspective on the Potential Impacts"
+    }
+   ],
+   "content_check": "91 pages: 'Duncan's First Nation Community Observations and Perspective on the Potential Impacts of the Nova Gas Transmission Ltd. ...', November 2019, with photographs"
+  },
+  {
+   "label": "D",
+   "file": "doc-zn6ywj.pdf",
+   "kind": "map",
+   "date": "2011",
+   "author": "Duncan's First Nation",
+   "recipients": [],
+   "description": "Appendix 1 to the Chinchaga Survey: 2009/2011 DFN Sustenance/Big Game Hunting Areas",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"D\"\n\"200912011: DFN Sustenance/Big Game Hunting Areas\""
+    }
+   ],
+   "content_check": "8 pages: 'Appendix 1' title page and 2009/2011 DFN sustenance and big game hunting area maps"
+  },
+  {
+   "label": "E",
+   "file": "doc-gadusn.pdf",
+   "kind": "map",
+   "date": "2012",
+   "author": "Duncan's First Nation",
+   "recipients": [],
+   "description": "Appendix 2 to the Chinchaga Survey: 2012 DFN identified traditional land and resource use sites and areas",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"E\"\n\"2012 DFN Identified Example Traditional Land and\nResource Use Sites and Area\""
+    }
+   ],
+   "content_check": "16 pages: 'Appendix 2' title page and 2012 traditional land and resource use site maps"
+  },
+  {
+   "label": "F",
+   "file": "doc-b7d9jg.pdf",
+   "kind": "map",
+   "date": "2019",
+   "author": "Duncan's First Nation",
+   "recipients": [],
+   "description": "Appendix 3 to the Chinchaga Survey: 2018/19 large game hunting areas used by DFN members in the Wapiti-Little Smoky Fan and Clear Hills-Chinchaga Refuge",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"F\"\n\"2018/19 Large Game Hunting Areas Recently Utilized"
+    }
+   ],
+   "content_check": "5 pages: 'Appendix 3' title page and 2018/19 hunting area maps"
+  },
+  {
+   "label": "G",
+   "file": "doc-ub7scy.pdf",
+   "kind": "map",
+   "date": "2019",
+   "author": "Duncan's First Nation",
+   "recipients": [],
+   "description": "Appendix 4 to the Chinchaga Survey: DFN large game hunting and cultural practice areas in the traditional territory and Peace River Basin",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"G\"\n\"Identified DFN Large Game Hunting Areas and Cultural\nPractice Areas"
+    }
+   ],
+   "content_check": "14 pages: 'Appendix 4' title page and maps of hunting and cultural practice areas (2009/11, 2012, 2018/19)"
+  },
+  {
+   "label": "H",
+   "file": "doc-2dgbxs.pdf",
+   "kind": "map",
+   "date": "2019",
+   "author": "Duncan's First Nation",
+   "recipients": [],
+   "description": "Appendix 5 to the Chinchaga Survey: magnified projection correlating DFN geo-spatial data with NGTL project areas",
+   "references": [
+    {
+     "paragraph": 5,
+     "quote": "Exhibit \"H\"\n\"Magnified Projection: Correlation of Identified DFN Geo-"
+    }
+   ],
+   "content_check": "5 pages: 'Appendix 5' title page and magnified projection maps"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Deponent retained by Duncan's First Nation to study its traditional land use and rights (except 2013-2016)",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "Since 2OO9,with the exception of a period between 2013 and 2016",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "2009/2011 sustenance and big game hunting areas mapped",
+   "date": "2009",
+   "precision": "range",
+   "paragraphs": [
+    5
+   ],
+   "quote": "200912011: DFN Sustenance/Big Game Hunting Areas",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "2012 traditional land and resource use sites identified",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    5
+   ],
+   "quote": "2012 DFN Identified Example Traditional Land and\nResource Use Sites",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "2018/19 large game hunting areas used by DFN members documented",
+   "date": "2018",
+   "precision": "range",
+   "paragraphs": [
+    5
+   ],
+   "quote": "2018/19 Large Game Hunting Areas Recently Utilized",
+   "exhibits": [
+    "F",
+    "G"
+   ]
+  },
+  {
+   "id": "e5",
+   "description": "Written Evidence prepared for the GH-002-2019 NGTL North Corridor Expansion Project hearing",
+   "date": "2019",
+   "precision": "year",
+   "paragraphs": [
+    5,
+    7
+   ],
+   "quote": "The Written Evidence r.vas originally prepared for use in the GH-002-2019 public hearing",
+   "exhibits": [
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Memorandum on DFN's participation and its evidence",
+   "date": "2022-12-15",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "a memorandum authored by me on behalf of\nDuncan's First Nation",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Written evidence to be filed in the OH-001-2022 hearing",
+   "date": "2022-12-16",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "will be filed as written evidence in the Public Hearing on Dec. 16,2022",
+   "exhibits": [
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+   ]
+  }
+ ],
+ "leak_waivers": [],
+ "referenced_not_attached": [],
+ "notes": "Multi-file REGDOCS filing C22591: affidavit and Exhibits A-H posted as separate PDFs. Handwritten commissioner's stamps are part of each exhibit's first-page scan: whited out with --blank (page fractions) through the image. Exhibits carry the source's own OCR text layer."
+}

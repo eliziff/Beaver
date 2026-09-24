@@ -1,0 +1,23 @@
+[
+ {
+  "file": "raw/matter/oeb-goldcorp-major/goldcorp-application-rev.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/301919/File/document",
+  "title": "Goldcorp bypass compensation application (revised, Nov 10, 2011)",
+  "kind": "court_filing",
+  "relation": "the application the affidavit supports"
+ },
+ {
+  "file": "raw/matter/oeb-goldcorp-major/goldcorp-submission.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/312684/File/document",
+  "title": "Goldcorp submission (Dec 5, 2011)",
+  "kind": "court_filing",
+  "relation": "filed with the affidavit"
+ },
+ {
+  "file": "raw/matter/oeb-goldcorp-major/bdstaff-submission.pdf",
+  "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/315002/File/document",
+  "title": "OEB staff submissions (Dec 15, 2011)",
+  "kind": "court_filing",
+  "relation": "same proceeding"
+ }
+]
