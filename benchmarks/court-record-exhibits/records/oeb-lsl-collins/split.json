@@ -1,0 +1,92 @@
+{
+ "record_id": "oeb-lsl-collins",
+ "affidavit_pages": [
+  49,
+  50,
+  51,
+  52,
+  53,
+  54,
+  55
+ ],
+ "divider_pages": [],
+ "scanned_pages": [],
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-5dzm4y.pdf",
+   "source_pages": [
+    57,
+    58,
+    59,
+    60,
+    61
+   ],
+   "cover_page": 56,
+   "stamp_page": null,
+   "text_chars": 11823
+  },
+  {
+   "label": "B",
+   "file": "doc-zfhhjz.pdf",
+   "source_pages": [
+    63,
+    64,
+    65
+   ],
+   "cover_page": 62,
+   "stamp_page": null,
+   "text_chars": 4915
+  },
+  {
+   "label": "C",
+   "file": "doc-fw74pw.pdf",
+   "source_pages": [
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83
+   ],
+   "cover_page": 66,
+   "stamp_page": null,
+   "text_chars": 33499
+  },
+  {
+   "label": "D",
+   "file": "doc-b8upwz.pdf",
+   "source_pages": [
+    85,
+    86
+   ],
+   "cover_page": 84,
+   "stamp_page": null,
+   "text_chars": 2676
+  },
+  {
+   "label": "E",
+   "file": "doc-y2eerz.pdf",
+   "source_pages": [
+    88,
+    89,
+    90
+   ],
+   "cover_page": 87,
+   "stamp_page": null,
+   "text_chars": 5453
+  }
+ ],
+ "leak_audit": []
+}

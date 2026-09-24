@@ -1,0 +1,70 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765161",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/Filing/A69653",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GHW-001-2014 (TransCanada King's North Connection Pipeline Project)",
+ "document_title": "C15-12-02 Vaughan Third Affidavit of Jack Graziosi",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-vaughan-graziosi3",
+ "source_file": "vgz-aff.pdf",
+ "page_range": [
+  1,
+  8
+ ],
+ "source_sha256": "290d16682b71263ce194b3d71c61bc6fdd742a1b2c6371c396676614fb1dcdb5",
+ "source_pages": 8,
+ "sources": [
+  {
+   "file": "vgz-aff.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765161",
+   "sha256": "290d16682b71263ce194b3d71c61bc6fdd742a1b2c6371c396676614fb1dcdb5",
+   "pages": 8
+  },
+  {
+   "file": "vgz-1.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765162",
+   "sha256": "d1312d4328f3568057c8d7333f7daaa6975d6190bc681f2493ba052a4b543b83",
+   "pages": 239
+  },
+  {
+   "file": "vgz-2.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765163",
+   "sha256": "f2afb50dddd0f1f54d9719b40aaf63051afee2c93b44d75fc3affd35d17fa77e",
+   "pages": 102
+  },
+  {
+   "file": "vgz-3.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765606",
+   "sha256": "6a13fb420deb09f79fe765dd4bfee830fe71bb8587fe2fa9283cf2f89b939e0a",
+   "pages": 57
+  },
+  {
+   "file": "vgz-4.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765273",
+   "sha256": "b5de6fceeefff38c0c3e0f8302205a2880f85bf91936ba0c0c7fb0d535dd7e84",
+   "pages": 21
+  },
+  {
+   "file": "vgz-5.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765823",
+   "sha256": "ca0a9a74d0fb7f69c79bfb736a52ee563cd68484f769c64058fc1810d11b9a44",
+   "pages": 8
+  },
+  {
+   "file": "vgz-6.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765164",
+   "sha256": "3abb3027d1513fe5d313a1428558811366e0b16d0dd827f522662a9c71d4f3ce",
+   "pages": 37
+  },
+  {
+   "file": "vgz-7.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765934",
+   "sha256": "c832fe6c683d7143f856b3f9836981721358282ee4984ebda79df0bbbe166f5d",
+   "pages": 15
+  }
+ ],
+ "affidavit_ocr": true,
+ "covers": "1,2,3,4,5,6,7"
+}

@@ -1,0 +1,19 @@
+{
+ "url": "https://www.rds.oeb.ca/CMWebDrawer/Record/607869/File/document",
+ "landing_url": "https://www.rds.oeb.ca/CMWebDrawer/Record?q=CaseNumber=EB-2017-0364",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2017-0364",
+ "document_title": "BLP First Nations_EVD_20180507 (Intervenor Evidence: affidavits of Chiefs Desmoulin, Michano and Collins)",
+ "retrieved": "2026-09-24",
+ "record_id": "oeb-lsl-collins",
+ "source_file": "doeb-607869.pdf",
+ "page_range": [
+  49,
+  90
+ ],
+ "source_sha256": "9630566b5075e185e8b31700d9443cd4f4764a5e843ade25bfe56df9e6c4c2d0",
+ "source_pages": 90,
+ "covers": "A=56,B=62,C=66,D=84,E=87"
+}

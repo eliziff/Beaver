@@ -1,0 +1,426 @@
+{
+ "record_id": "neb-tmx-planes",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2014 (Trans Mountain Expansion Project, OF-Fac-Oil-T260-2013-03-02)",
+ "subject": "indigenous_rights",
+ "family": "neb-tmx-oh-001-2014",
+ "proceeding": "Trans Mountain Expansion Project (Hearing Order OH-001-2014): written evidence of T'Sou-ke First Nation, intervenor, on Aboriginal and Douglas Treaty rights, marine shipping impacts and Crown consultation",
+ "document": "Sworn Affidavit of Chief Gordon Planes affirmed May 25, 2015 (REGDOCS C359-4-2, exhibits C359-4-3 to -14)",
+ "deponent": "Gordon Planes",
+ "deponent_role": "Elected Chief of T'Sou-ke First Nation",
+ "sworn_date": "2015-05-25",
+ "notes": "Multi-file source (raw/tsok-*.pdf); every exhibit opens with a whole-page commissioner's cover: --covers all. The jurat page is not in the posted affidavit (sworn date from the covers). Footnote 11 cites the AIP as 'Exhibit G' although paragraph 49 attaches it as Exhibit H. B, G, L image-only; H 366 pp partly scanned.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-5tu5pt.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Province of British Columbia / Canada",
+   "recipients": [],
+   "description": "Map of T'Sou-ke (Te'mexw Treaty Association) asserted traditional territory",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "A map showing the location of our \nTerritory is attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "1 page: 'T'Sou-ke (Te'mexw Treaty Association) Asserted Traditional Territory' map"
+  },
+  {
+   "label": "B",
+   "file": "doc-etjvb6.pdf",
+   "kind": "public_record",
+   "date": "1877",
+   "author": "Indian Reserve Commission",
+   "recipients": [],
+   "description": "Indian Reserve Commission's 1877 Minute of Decisions creating T'Sou-ke's reserves",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "is attached as Exhibit “B” to my affidavit"
+    }
+   ],
+   "content_check": "4 pages, image-only handwritten: 'Indian Reserve Commission British Columbia Minute of Decisions'"
+  },
+  {
+   "label": "C",
+   "file": "doc-m5kj3d.pdf",
+   "kind": "map",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Historical map of T'Sou-ke's reserves",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "A historical map \nshowing T’Sou-ke’s reserves is attached as Exhibit “C”"
+    }
+   ],
+   "content_check": "1 page historical map"
+  },
+  {
+   "label": "D",
+   "file": "doc-g9ayn4.pdf",
+   "kind": "agreement",
+   "date": "1850",
+   "author": "James Douglas (Hudson's Bay Company); Family of Soke",
+   "recipients": [],
+   "description": "Relevant Douglas Treaties",
+   "references": [
+    {
+     "paragraph": 41,
+     "quote": "A copy of the relevant Treaties \nis attached as Exhibit “D”"
+    }
+   ],
+   "content_check": "1 page: Douglas Treaty text"
+  },
+  {
+   "label": "E",
+   "file": "doc-hbm82g.pdf",
+   "kind": "agreement",
+   "date": "1855-01-26",
+   "author": "United States (Gov. Isaac Stevens); tribes",
+   "recipients": [],
+   "description": "Point No Point Treaty",
+   "references": [
+    {
+     "paragraph": 45,
+     "quote": "A copy of the Point \nno Point Treaty is attached as Exhibit “E”"
+    }
+   ],
+   "content_check": "5 pages: Treaty of Point No Point text"
+  },
+  {
+   "label": "F",
+   "file": "doc-tqh67v.pdf",
+   "kind": "webpage",
+   "date": null,
+   "author": "Aboriginal Affairs and Northern Development Canada",
+   "recipients": [],
+   "description": "AANDC web page describing the six stages of BC treaty negotiation",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "stages is attached as Exhibit “F”"
+    }
+   ],
+   "content_check": "1 page web printout"
+  },
+  {
+   "label": "G",
+   "file": "doc-tuy4dc.pdf",
+   "kind": "agreement",
+   "date": "2013",
+   "author": "T'Sou-ke First Nation; Province of British Columbia",
+   "recipients": [],
+   "description": "Incremental Treaty Agreement (transfer of two 60-hectare parcels)",
+   "references": [
+    {
+     "paragraph": 48,
+     "quote": "The Incremental Treaty Agreement is attached as Exhibit “G”"
+    }
+   ],
+   "content_check": "33 pages, image-only (OCR'd): Incremental Treaty Agreement"
+  },
+  {
+   "label": "H",
+   "file": "doc-6ed94x.pdf",
+   "kind": "agreement",
+   "date": "2015-04",
+   "author": "Te'mexw Treaty Association; Canada; British Columbia",
+   "recipients": [],
+   "description": "Te'mexw Treaty Agreement-in-Principle",
+   "references": [
+    {
+     "paragraph": 49,
+     "quote": "The AIP is attached as Exhibit “H”"
+    }
+   ],
+   "content_check": "365 pages: Te'mexw Treaty Association Agreement in Principle"
+  },
+  {
+   "label": "I",
+   "file": "doc-9tf7nn.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Trans Mountain",
+   "recipients": [],
+   "description": "Map of the Project's marine shipping route",
+   "references": [
+    {
+     "paragraph": 53,
+     "quote": "A map showing the Project’s \nmarine shipping route is attached as Exhibit “I”"
+    }
+   ],
+   "content_check": "1 page marine shipping route map"
+  },
+  {
+   "label": "J",
+   "file": "doc-58sbfs.pdf",
+   "kind": "webpage",
+   "date": "2015-04-17",
+   "author": null,
+   "recipients": [],
+   "description": "April 17, 2015 news article on the slow response to the April 9, 2015 English Bay oil spill",
+   "references": [
+    {
+     "paragraph": 56,
+     "quote": "is attached as Exhibit “J” to my affidavit"
+    }
+   ],
+   "content_check": "11 pages: news article printout"
+  },
+  {
+   "label": "K",
+   "file": "doc-tje3jk.pdf",
+   "kind": "letter",
+   "date": "2014-11-28",
+   "author": "T'Sou-ke and 11 other First Nations",
+   "recipients": [
+    "Minister of Natural Resources",
+    "Minister of the Environment"
+   ],
+   "description": "Joint First Nations letter of November 28, 2014 on the regulatory review and lack of consultation",
+   "references": [
+    {
+     "paragraph": 64,
+     "quote": "A copy of the November 28, 2014 letter is attached \nto as Exhibit “K”"
+    }
+   ],
+   "content_check": "1 page letter"
+  },
+  {
+   "label": "L",
+   "file": "doc-frpg66.pdf",
+   "kind": "letter",
+   "date": "2015-02-06",
+   "author": "Timothy Gardiner (Natural Resources Canada)",
+   "recipients": [
+    "T'Sou-ke First Nation"
+   ],
+   "description": "NRCan letter of February 6, 2015 on the federal approach to Crown consultation",
+   "references": [
+    {
+     "paragraph": 65,
+     "quote": "This February 6, 2015 letter \nis attached as Exhibit “L”"
+    }
+   ],
+   "content_check": "6 pages, image-only (OCR'd): NRCan facsimile cover page February 6, 2015 from Timothy Gardiner, 'Approach to Crown Consultations for the Trans Mountain Pipeline Expansion Project'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Douglas Treaties made with James Douglas",
+   "date": "1850",
+   "precision": "range",
+   "paragraphs": [
+    41
+   ],
+   "quote": "between 1850 and 1854",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Point No Point Treaty signed",
+   "date": "1855-01-26",
+   "precision": "day",
+   "paragraphs": [
+    45
+   ],
+   "quote": "signed January 26, 1855",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "T'Sou-ke reserves created by the Joint Reserve Commission",
+   "date": "1877",
+   "precision": "year",
+   "paragraphs": [
+    9
+   ],
+   "quote": "created in 1877 through the Joint Reserve Commission",
+   "exhibits": [
+    "B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Original Trans Mountain pipeline built",
+   "date": "1952",
+   "precision": "year",
+   "paragraphs": [
+    61
+   ],
+   "quote": "The original Trans Mountain pipeline was built in 1952",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "TTA enters modern treaty negotiations",
+   "date": "1995",
+   "precision": "year",
+   "paragraphs": [
+    46
+   ],
+   "quote": "with the Crown in 1995",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Kinder Morgan buys the existing pipeline without consulting T'Sou-ke",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    62
+   ],
+   "quote": "When Kinder Morgan purchased the Existing Pipeline from the BC Gas Company \nin 2005",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "Planes elected Chief",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    1
+   ],
+   "quote": "have been an elected Chief of T’Sou-ke since 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "T'Sou-ke becomes BC's largest solar-producing community",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    38
+   ],
+   "quote": "In 2009, T’Sou-ke became the largest solar energy producing",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "T'Sou-ke signs an Incremental Treaty Agreement",
+   "date": "2013",
+   "precision": "year",
+   "paragraphs": [
+    48
+   ],
+   "quote": "In 2013, T’Sou-ke signed an Incremental Treaty Agreement",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "NEB releases its List of Issues",
+   "date": "2014-04-02",
+   "precision": "day",
+   "paragraphs": [
+    69
+   ],
+   "quote": "On April 2, 2014, the NEB released its List of Issues",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "Joint letter of 12 First Nations on consultation",
+   "date": "2014-11-28",
+   "precision": "day",
+   "paragraphs": [
+    64
+   ],
+   "quote": "On \nNovember 28, 2014, T’Sou-ke signed a letter",
+   "exhibits": [
+    "K"
+   ]
+  },
+  {
+   "id": "e12",
+   "description": "Firelight Group interviews 33 T'Sou-ke members",
+   "date": "2015-01",
+   "precision": "range",
+   "paragraphs": [
+    24
+   ],
+   "quote": "in January and February 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "NRCan letter on the federal approach to consultation",
+   "date": "2015-02-06",
+   "precision": "day",
+   "paragraphs": [
+    65
+   ],
+   "quote": "This February 6, 2015 letter",
+   "exhibits": [
+    "L"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "English Bay oil spill",
+   "date": "2015-04-09",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "an April 9, 2015 oil spill in English Bay",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e15",
+   "description": "News article on the slow spill response",
+   "date": "2015-04-17",
+   "precision": "day",
+   "paragraphs": [
+    56
+   ],
+   "quote": "A news article dated April 17, \n2015",
+   "exhibits": [
+    "J"
+   ]
+  },
+  {
+   "id": "e16",
+   "description": "TTA and the Crown sign the Te'mexw Agreement-in-Principle",
+   "date": "2015-04",
+   "precision": "month",
+   "paragraphs": [
+    49
+   ],
+   "quote": "In April 2015, the TTA and the Crown signed an AIP",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e17",
+   "description": "Traditional Marine Use Study dated",
+   "date": "2015-04-27",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "dated April 27, 2015",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Firelight Group Traditional Marine Resource Knowledge and Use Study Report dated April 27, 2015 (filed separately)",
+  "NEB List of Issues and attachment to Board letter of April 2, 2014",
+  "Trans Mountain TERMPOL report and Application Volume 8A"
+ ]
+}

@@ -1,0 +1,99 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785018",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/Filing/A70201",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2014 (Trans Mountain Expansion Project)",
+ "document_title": "C359-4-2 T'Sou-ke Nation - Sworn Affidavit of Chief Gordon Planes",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-tmx-planes",
+ "source_file": "tsok-aff.pdf",
+ "page_range": [
+  1,
+  18
+ ],
+ "source_sha256": "3afca5fb639b57bcd94abf01993f4d4006dc72d503c1e9def5acd9caa510e879",
+ "source_pages": 18,
+ "sources": [
+  {
+   "file": "tsok-aff.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785018",
+   "sha256": "3afca5fb639b57bcd94abf01993f4d4006dc72d503c1e9def5acd9caa510e879",
+   "pages": 18
+  },
+  {
+   "file": "tsok-A.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785360",
+   "sha256": "91ca349001289879b9172faf6c4778c4d5728d769d81c8b094692d3f7e39e038",
+   "pages": 2
+  },
+  {
+   "file": "tsok-B.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785019",
+   "sha256": "023aab68999b298d08a4eb0ce758c485928cb78c11c147044927304a06237636",
+   "pages": 5
+  },
+  {
+   "file": "tsok-C.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785361",
+   "sha256": "38d68ff3da8e0f0c800adebabac7788cea57aba002ed338cf4f41212c97c1bc6",
+   "pages": 2
+  },
+  {
+   "file": "tsok-D.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2784584",
+   "sha256": "e3d680331789b95a8ba63947b09bdcd39765ce4f8ea5272d6ea827832c8e4fe3",
+   "pages": 2
+  },
+  {
+   "file": "tsok-E.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785245",
+   "sha256": "f87556518aab46fe9c02050d61816a8c72ea7222dd7ea1c1bfc573f71f53066c",
+   "pages": 6
+  },
+  {
+   "file": "tsok-F.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2784694",
+   "sha256": "610c6f87172753ea7845e9faa8d8928402cad8662f8be0b696075b3308f9ad75",
+   "pages": 2
+  },
+  {
+   "file": "tsok-G.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785246",
+   "sha256": "36d2c9c7110c1f94cc1191fce5e98c5cfdffd080ddeb9fba51c3ba3a41b777a1",
+   "pages": 34
+  },
+  {
+   "file": "tsok-H.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785362",
+   "sha256": "2d6fb3fa0d9647928a622d69054e4c5303ef4c88de60423605980f2a42fe460e",
+   "pages": 366
+  },
+  {
+   "file": "tsok-I.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2784695",
+   "sha256": "e3637b21e1ddadfa996d733322c3f02ac429460175592e46d410b53087f25c7f",
+   "pages": 2
+  },
+  {
+   "file": "tsok-J.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2784470",
+   "sha256": "62d27916d21426dd21756c952714ac36d5146ee9ad693fe617655fa9e3b49770",
+   "pages": 12
+  },
+  {
+   "file": "tsok-K.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2784471",
+   "sha256": "7a3fd871919e553550c90b1a8f0eabbbcd3097c6004910afbca83c592b61e078",
+   "pages": 2
+  },
+  {
+   "file": "tsok-L.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785247",
+   "sha256": "573b4f4b2c53386d71ce376ee29d2bb9e09afdff4e622bea6fd151afc6f83226",
+   "pages": 7
+  }
+ ],
+ "covers": "A,B,C,D,E,F,G,H,I,J,K,L"
+}

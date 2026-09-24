@@ -1,0 +1,228 @@
+{
+ "record_id": "oeb-lsl-collins",
+ "court": "Ontario Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "ON",
+ "court_file": "EB-2017-0364",
+ "subject": "indigenous_rights",
+ "proceeding": "Hydro One Networks Inc. leave to construct the Lake Superior Link transmission line: NextBridge's motion to dismiss; evidence of intervenor BLP First Nations (Bamkushwada LP and Biigtigong Nishnaabeg, Pays Plat, Fort William, Pic Mobert, Red Rock) on delay, the duty to consult and exclusivity with NextBridge",
+ "document": "Affidavit of Chief Peter Collins sworn May 4, 2018 (BLP First Nations intervenor evidence, filed May 7, 2018, RDS 607869)",
+ "deponent": "Peter Collins",
+ "deponent_role": "Chief of Fort William First Nation; President of Bamkushwada General Partner Inc.",
+ "sworn_date": "2018-05-04",
+ "notes": "--pages 49-90 (the Desmoulin and Michano affidavits earlier in the same PDF have two exhibits each and are not built); tab-style covers ('Exhibit A to Chief Collins Affidavit ... This is Exhibit') read by eye: --covers A=56,B=62,C=66,D=84,E=87. Exhibit B is a May 31, 2011 Ministry of Energy letter; the affidavit describes it as the consultation list of aboriginal entities.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-5dzm4y.pdf",
+   "kind": "letter",
+   "date": "2018-03-05",
+   "author": "Common Voice Northwest (Iain Angus)",
+   "recipients": [],
+   "description": "Letter from Common Voice Northwest on training of about 300 local, mostly Indigenous, people for the EWT project",
+   "references": [
+    {
+     "paragraph": 7,
+     "quote": "Attached as Exhibit A \nis a letter from Common Voice Northwest"
+    }
+   ],
+   "content_check": "5 pages: 'Common Voice Northwest 672 Churchill Place, Thunder Bay ... Executive Director: Iain Angus' dated March 5, 2018"
+  },
+  {
+   "label": "B",
+   "file": "doc-zfhhjz.pdf",
+   "kind": "letter",
+   "date": "2011-05-31",
+   "author": "Ontario Ministry of Energy",
+   "recipients": [
+    "Michael Lyle, Ontario Power Authority"
+   ],
+   "description": "Ministry of Energy letter listing the aboriginal communities to be consulted on the East-West Tie",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "Attached as Exhibit B is this consultation list"
+    }
+   ],
+   "content_check": "3 pages: 'Ministry of Energy ... Transmission and Distribution Policy Branch May 31, 2011 Michael Lyle ... Re: East-West Tie'"
+  },
+  {
+   "label": "C",
+   "file": "doc-fw74pw.pdf",
+   "kind": "email_chain",
+   "date": null,
+   "author": "MOECC, MOE, HONI and NextBridge",
+   "recipients": [],
+   "description": "Correspondence among MOECC, MOE, HONI and NextBridge on use of the NextBridge EA for the LSL (NextBridge Appendices 2, 5-10)",
+   "references": [
+    {
+     "paragraph": 24,
+     "quote": "(Exhibit C)"
+    }
+   ],
+   "content_check": "17 pages: MOECC and other letters (dated October 31 and November 14, 2017, March 14 and 16, 2018; the April 10, 2018 MOECC letter cited in para 24 is not legible in the text layer)"
+  },
+  {
+   "label": "D",
+   "file": "doc-b8upwz.pdf",
+   "kind": "letter",
+   "date": "2011-03-29",
+   "author": "Ontario Minister of Energy",
+   "recipients": [
+    "Cynthia Chaplin, Chair, Ontario Energy Board"
+   ],
+   "description": "Minister of Energy's March 29, 2011 letter requiring Indigenous participation in the transmission project",
+   "references": [
+    {
+     "paragraph": 26,
+     "quote": "That letter is attached as Exhibit D"
+    }
+   ],
+   "content_check": "2 pages: 'Ministry of Energy Office of the Minister ... MAR 29 2011 Ms Cynthia Chaplin Chair Ontario Energy Board'"
+  },
+  {
+   "label": "E",
+   "file": "doc-y2eerz.pdf",
+   "kind": "letter",
+   "date": "2018-03-05",
+   "author": "Bamkushwada LP (Chief Peter Collins)",
+   "recipients": [
+    "Christine Goulais, Hydro One Networks Inc."
+   ],
+   "description": "BLP's March 5, 2018 letter informing HONI of its exclusivity obligation with NextBridge",
+   "references": [
+    {
+     "paragraph": 29,
+     "quote": "That letter is attached as \nExhibit E"
+    }
+   ],
+   "content_check": "3 pages: 'BAMKUSHWADA March 5, 2018 Christine Goulais Senior Manager, Indigenous Relations Hydro One Networks Inc.'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Minister of Energy requires Indigenous participation in the transmission project",
+   "date": "2011-03-29",
+   "precision": "day",
+   "paragraphs": [
+    26
+   ],
+   "quote": "The MOE in a letter dated March 29, 2011 to the OEB",
+   "exhibits": [
+    "D"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "BLP First Nations partnered with HONI and GLPT for designation",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    27
+   ],
+   "quote": "the BLP First Nations were partnered with HONI",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Collins becomes Chief of Fort William First Nation",
+   "date": "2015-04-15",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since April 15, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Collins becomes President of Bamkushwada General Partner",
+   "date": "2015-11-05",
+   "precision": "day",
+   "paragraphs": [
+    1
+   ],
+   "quote": "since November 5, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "BLP informs HONI of its exclusivity obligation with NextBridge",
+   "date": "2018-03-05",
+   "precision": "day",
+   "paragraphs": [
+    29
+   ],
+   "quote": "In a letter dated March 5, 2018, BLP First Nations \ninformed HONI",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "Meeting in Thunder Bay between BLP First Nations and HONI on consultation",
+   "date": "2018-04-06",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "There was a meeting in Thunder Bay on April 6, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "MOECC letter treats the LSL as a new undertaking",
+   "date": "2018-04-10",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "dated AprillO, 2018",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e8",
+   "description": "OEB Procedural Order No. 1 recognizes BLP First Nations as intervenor",
+   "date": "2018-04-27",
+   "precision": "day",
+   "paragraphs": [
+    4
+   ],
+   "quote": "Procedural Order No.1 dated April 27, 2018",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Supercom training of about 300 local people for EWT work",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    7
+   ],
+   "quote": "Approximately 300 local people",
+   "exhibits": [
+    "A"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Consultation and accommodation with NextBridge over almost five years",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    15,
+    34
+   ],
+   "quote": "took place over an \nalmost five year period",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "OEB Procedural Order No. 1 of April 27, 2018",
+  "NextBridge Additional Material (Appendices 2, 4-10)",
+  "NextBridge East-West Tie environmental assessment, TEK and TLUS information"
+ ]
+}

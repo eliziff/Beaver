@@ -1,0 +1,16 @@
+[
+ {
+  "file": "raw/matter/neb-vaughan-graziosi3/vaughan-final-argument.pdf",
+  "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765495",
+  "title": "City of Vaughan final argument, GHW-001-2014 (C15-12-10)",
+  "kind": "court_filing",
+  "relation": "same filing, later document"
+ },
+ {
+  "file": "raw/matter/neb-vaughan-graziosi3/vaughan-cover-letter.pdf",
+  "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2765380",
+  "title": "City of Vaughan cover letter (C15-12-01)",
+  "kind": "letter",
+  "relation": "covering letter of the affidavit filing"
+ }
+]

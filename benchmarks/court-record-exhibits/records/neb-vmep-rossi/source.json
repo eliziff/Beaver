@@ -1,0 +1,69 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949374",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/Filing/A76581",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2016 (TransCanada Vaughan Mainline Expansion Project)",
+ "document_title": "A76581-1 VMEP Rossi Affidavit - April 25 2016 Executed",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-vmep-rossi",
+ "source_file": "vros-aff.pdf",
+ "page_range": [
+  1,
+  6
+ ],
+ "source_sha256": "9f54035cebcd9abf10c189274f9008b1cec3555ee15dd19b98c5c0fbae02a911",
+ "source_pages": 6,
+ "sources": [
+  {
+   "file": "vros-aff.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949374",
+   "sha256": "9f54035cebcd9abf10c189274f9008b1cec3555ee15dd19b98c5c0fbae02a911",
+   "pages": 6
+  },
+  {
+   "file": "vros-1.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949924",
+   "sha256": "cb0af738145f651ea50fce6c5ca581e2c6ce17d6fc4d67c2149d2d0dafeb5c7b",
+   "pages": 1
+  },
+  {
+   "file": "vros-2.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2950030",
+   "sha256": "e2bd1974c9677a3733200ac785d76ca047561ce8cf6074855a6772e7df8a2b55",
+   "pages": 56
+  },
+  {
+   "file": "vros-3.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949925",
+   "sha256": "721d730bf0e5cab18fda0c67c8179d6722c2be5fb33bfeb2c54f19c3cc73325a",
+   "pages": 1
+  },
+  {
+   "file": "vros-4.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949462",
+   "sha256": "8a886a897deb0eb4bb4835462c3b3bf395a1e51051864cec0db103ea516c8ee9",
+   "pages": 63
+  },
+  {
+   "file": "vros-5A.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949926",
+   "sha256": "94d5b94185626f655546b47a472e6af051f87265eb90f7ce4d8b8962cd7563c0",
+   "pages": 25
+  },
+  {
+   "file": "vros-5B.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949463",
+   "sha256": "d0cbcf3b7e75ff9e8bdf5a0cb8183d8aaa0245765c9078ab2a7f03e2e0f11975",
+   "pages": 89
+  },
+  {
+   "file": "vros-6.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949691",
+   "sha256": "e8d2022305eac6f7af4e1499e604630bbe8c342a9aa90dfa2f0f16bce10325d6",
+   "pages": 12
+  }
+ ],
+ "affidavit_ocr": true
+}

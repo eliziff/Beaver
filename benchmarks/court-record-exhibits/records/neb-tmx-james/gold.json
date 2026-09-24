@@ -1,0 +1,343 @@
+{
+ "record_id": "neb-tmx-james",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2014 (Trans Mountain Expansion Project, OF-Fac-Oil-T260-2013-03-02)",
+ "subject": "indigenous_rights",
+ "family": "neb-tmx-oh-001-2014",
+ "proceeding": "Trans Mountain Expansion Project (Hearing Order OH-001-2014): written evidence of Shxw'owhamel First Nation on Aboriginal rights and title, pipeline risks to Ohamil IR 1 and Crown consultation",
+ "document": "Sworn Affidavit of Alfred James affirmed May 26, 2015 (REGDOCS C312-7-2, exhibits C312-7-3 to -11)",
+ "deponent": "Alfred James",
+ "deponent_role": "Community Development Worker, Shxw'owhamel First Nation",
+ "sworn_date": "2015-05-26",
+ "notes": "Multi-file source (raw/shxw-*.pdf); each exhibit opens with a whole-page commissioner's cover: --covers all. The posted cover of Exhibit I reads 'Exhibit H' (a source error; the file is the Crown's May 15, 2015 letter the affidavit calls Exhibit I). The posted affidavit ends at paragraph 90 without a jurat page (date from the covers). F and G are the same joint letter and NRCan letter as neb-tmx-planes K and L.",
+ "exhibits": [
+  {
+   "label": "A",
+   "file": "doc-9dtx6r.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Sto:lo",
+   "recipients": [],
+   "description": "Map of S'olh Temexw (Sto:lo territory)",
+   "references": [
+    {
+     "paragraph": 11,
+     "quote": "A map of S’olh Téméxw is attached as Exhibit “A”"
+    }
+   ],
+   "content_check": "1 page, map of Sto:lo traditional territory (image)"
+  },
+  {
+   "label": "B",
+   "file": "doc-s4qv4q.pdf",
+   "kind": "map",
+   "date": null,
+   "author": null,
+   "recipients": [],
+   "description": "Tit Tribe boundary map",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "A map of the Tit Tribe boundary map is attached as \nExhibit “B”"
+    }
+   ],
+   "content_check": "1 page map: 'COQUIHALLA SUMMIT RECREATION AREA ... BRIDAL VEIL FALLS PARK ...'"
+  },
+  {
+   "label": "C",
+   "file": "doc-fvpxw4.pdf",
+   "kind": "map",
+   "date": "2014",
+   "author": "Ecotrust Canada",
+   "recipients": [],
+   "description": "Map of the density of Shxw'owhamel use and occupancy sites near the Project",
+   "references": [
+    {
+     "paragraph": 35,
+     "quote": "is attached as Exhibit “C” to this affidavit"
+    }
+   ],
+   "content_check": "1 page density map (image)"
+  },
+  {
+   "label": "D",
+   "file": "doc-322bxj.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Trans Mountain",
+   "recipients": [],
+   "description": "Trans Mountain Route Detail Map of Line 1 and proposed Line 2 near Ohamil 1",
+   "references": [
+    {
+     "paragraph": 47,
+     "quote": "is attached to my affidavit as Exhibit “D”"
+    }
+   ],
+   "content_check": "1 page route detail map"
+  },
+  {
+   "label": "E",
+   "file": "doc-rjfbu9.pdf",
+   "kind": "report",
+   "date": "2012-11",
+   "author": "National Energy Board",
+   "recipients": [],
+   "description": "NEB investigation report on the 2012 Sumas Tank 121 leak",
+   "references": [
+    {
+     "paragraph": 70,
+     "quote": "The NEB’s investigation of the Sumas leak is attached to my affidavit as \nExhibit “E”"
+    }
+   ],
+   "content_check": "28 pages: 'November, 2012 Investigation under the National Energy Board Act In the Matter of: 2012-01-24 Trans Mountain Pipeline ULC Sumas Tank 121 Leak'"
+  },
+  {
+   "label": "F",
+   "file": "doc-3qhxqf.pdf",
+   "kind": "letter",
+   "date": "2014-11-28",
+   "author": "Shxw'owhamel and 11 other First Nations",
+   "recipients": [
+    "Minister of Natural Resources Greg Rickford"
+   ],
+   "description": "Joint First Nations letter of November 28, 2014 on the regulatory review and lack of consultation",
+   "references": [
+    {
+     "paragraph": 75,
+     "quote": "A copy of the \nNovember 28, 2014 letter is attached as Exhibit “F”"
+    }
+   ],
+   "content_check": "1 page: 'To: Hon. Greg Rickford Minister of Natural Resources ... cc.: Prime Minister Stephen Harper, NEB Chair Peter Watson'"
+  },
+  {
+   "label": "G",
+   "file": "doc-4xnkh9.pdf",
+   "kind": "letter",
+   "date": "2015-02-06",
+   "author": "Timothy Gardiner (Natural Resources Canada)",
+   "recipients": [
+    "Shxw'owhamel First Nation"
+   ],
+   "description": "NRCan letter of February 6, 2015 on the Crown's approach to consultation",
+   "references": [
+    {
+     "paragraph": 76,
+     "quote": "This February 6, 2015 letter \nis attached as Exhibit “G”"
+    }
+   ],
+   "content_check": "6 pages, image-only (OCR'd): NRCan facsimile of February 6, 2015 with the consultation-approach letter"
+  },
+  {
+   "label": "H",
+   "file": "doc-3tzydy.pdf",
+   "kind": "letter",
+   "date": "2015-03-18",
+   "author": "Shxw'owhamel and three other First Nations",
+   "recipients": [
+    "The Crown"
+   ],
+   "description": "March 18, 2015 letter on the Crown's unilateral approach to consultation",
+   "references": [
+    {
+     "paragraph": 78,
+     "quote": "The \nMarch 18 letter is attached as Exhibit “H”"
+    }
+   ],
+   "content_check": "4 pages, image-only (OCR'd) letter"
+  },
+  {
+   "label": "I",
+   "file": "doc-yjqf85.pdf",
+   "kind": "letter",
+   "date": "2015-05-15",
+   "author": "The Crown (Natural Resources Canada)",
+   "recipients": [
+    "Shxw'owhamel First Nation"
+   ],
+   "description": "Crown's May 15, 2015 reply relying on the NEB process",
+   "references": [
+    {
+     "paragraph": 79,
+     "quote": "The Crown’s May 15 \nletter is attached to my affidavit as Exhibit “I”"
+    }
+   ],
+   "content_check": "2 pages, image-only (OCR'd) letter; its posted cover says 'Exhibit H'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "1858 gold rush",
+   "date": "1858",
+   "precision": "year",
+   "paragraphs": [
+    36
+   ],
+   "quote": "1858 gold rush",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Line 1 built without consulting Shxw'owhamel; homes and pithouses destroyed",
+   "date": "1952",
+   "precision": "year",
+   "paragraphs": [
+    72
+   ],
+   "quote": "Line 1 was built in 1952",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "Construction of Line 1 (per the TUS)",
+   "date": "1953",
+   "precision": "year",
+   "paragraphs": [
+    36
+   ],
+   "quote": "The construction of the Line 1 in 1953",
+   "exhibits": []
+  },
+  {
+   "id": "e4",
+   "description": "Kinder Morgan buys Line 1 without consulting Shxw'owhamel",
+   "date": "2005",
+   "precision": "year",
+   "paragraphs": [
+    73
+   ],
+   "quote": "Kinder Morgan purchased the Line 1 from the BC Gas Company in 2005",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Burnaby spill of 250,000 litres",
+   "date": "2007",
+   "precision": "year",
+   "paragraphs": [
+    70
+   ],
+   "quote": "The largest was in Burnaby in 2007",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "James sits on the Si:yam Council",
+   "date": "2010",
+   "precision": "range",
+   "paragraphs": [
+    4
+   ],
+   "quote": "from 2010-2012",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "James becomes Community Development Worker",
+   "date": "2011",
+   "precision": "year",
+   "paragraphs": [
+    2
+   ],
+   "quote": "I have held this position \nsince 2011",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "Sumas terminal leak of 110,000 litres",
+   "date": "2012",
+   "precision": "year",
+   "paragraphs": [
+    68,
+    69
+   ],
+   "quote": "in 2012, 110,000 litres of oil leaked",
+   "exhibits": [
+    "E"
+   ]
+  },
+  {
+   "id": "e9",
+   "description": "Ecotrust interviews 48 members for the TUS",
+   "date": "2014-01",
+   "precision": "range",
+   "paragraphs": [
+    34
+   ],
+   "quote": "From January to December 2014, Ecotrust Canada interviewed 48 of our",
+   "exhibits": [
+    "C"
+   ]
+  },
+  {
+   "id": "e10",
+   "description": "Joint letter of 12 First Nations on consultation",
+   "date": "2014-11-28",
+   "precision": "day",
+   "paragraphs": [
+    75
+   ],
+   "quote": "On November 28, 2014, Shxw’ōwhámel signed a letter",
+   "exhibits": [
+    "F"
+   ]
+  },
+  {
+   "id": "e11",
+   "description": "Members ratify the Land Code",
+   "date": "2014-12-14",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On December 14, 2014, Shxw’ōwhámel community members voted 95%",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "NRCan letter on the Crown's approach to consultation",
+   "date": "2015-02-06",
+   "precision": "day",
+   "paragraphs": [
+    76
+   ],
+   "quote": "This February 6, 2015 letter",
+   "exhibits": [
+    "G"
+   ]
+  },
+  {
+   "id": "e13",
+   "description": "Four First Nations write to the Crown on consultation",
+   "date": "2015-03-18",
+   "precision": "day",
+   "paragraphs": [
+    78
+   ],
+   "quote": "On March 18, 2015, by way of letter",
+   "exhibits": [
+    "H"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "Crown replies relying on the NEB process",
+   "date": "2015-05-15",
+   "precision": "day",
+   "paragraphs": [
+    79
+   ],
+   "quote": "May 15, 2015",
+   "exhibits": [
+    "I"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Shxw'owhamel Traditional Use and Occupancy Study (Ecotrust Canada, March 2015)",
+  "Expert reports: Piteau groundwater report, Accufacts pipeline report, Collier aquatic resources report, EmergWest spill report, SRRMC cultural heritage impact assessment",
+  "Trans Mountain response to NEB IR No. 1"
+ ]
+}

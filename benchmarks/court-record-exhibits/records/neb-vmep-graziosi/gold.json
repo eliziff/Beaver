@@ -1,0 +1,279 @@
+{
+ "record_id": "neb-vmep-graziosi",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2016 (TransCanada Vaughan Mainline Expansion Project)",
+ "subject": "municipal",
+ "family": "neb-vmep-vaughan",
+ "proceeding": "TransCanada PipeLines Limited s. 58 application for the Vaughan Mainline Expansion Pipeline Project: City of Vaughan's infrastructure evidence on depth of cover at road crossings, natural heritage compensation and multi-use recreational pathways",
+ "document": "Affidavit of Jack Graziosi sworn April 18, 2016 (REGDOCS A76403-2, exhibits A76403-3 to -12)",
+ "deponent": "Jack Graziosi",
+ "deponent_role": "Director of Infrastructure Delivery, Public Works Portfolio, City of Vaughan",
+ "sworn_date": "2016-04-18",
+ "notes": "Multi-file source (raw/vgr-*.pdf); numbered exhibits carry no covers. Exhibits 8.2.a-8.2.d (labels upper-cased 8.2.A-8.2.D by split.py) are four posted parts of the Design Standard Drawings, mostly image-only; leak waivers 8.2.C/8.2.D = split's no-text first-page flag, checked by eye (drawings, no label). 15.2 and 15.3 are the two network maps of the Pedestrian and Bicycle Master Plan. Affidavit scanned: --ocr-affidavit. Sibling of neb-vmep-rossi; the 2015 third Graziosi affidavit (neb-vaughan-graziosi3) is in a different hearing.",
+ "exhibits": [
+  {
+   "label": "8.1",
+   "file": "doc-hmehxk.pdf",
+   "kind": "report",
+   "date": "2004-03",
+   "author": "City of Vaughan Engineering Department",
+   "recipients": [],
+   "description": "Design Criteria 'Partners with The Environment' (March 2004)",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "attached hereto as Exhibits 8.1, 8.2.a, 8.2.b, 8.2.c and 8.2.d"
+    }
+   ],
+   "content_check": "110 pages: 'DESIGN CRITERIA \"Partners With The Environment\" March 2004'"
+  },
+  {
+   "label": "8.2.A",
+   "file": "doc-6bu39h.pdf",
+   "kind": "other",
+   "date": "2004-03",
+   "author": "City of Vaughan Engineering Department",
+   "recipients": [],
+   "description": "Design Standard Drawings, part 8.2.a",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "attached hereto as Exhibits 8.1, 8.2.a, 8.2.b, 8.2.c and 8.2.d"
+    }
+   ],
+   "content_check": "30 pages: 'City of Vaughan Engineering Department DESIGN STANDARD DRAWINGS March 2004' (part a), 14 of 30 pages image-only"
+  },
+  {
+   "label": "8.2.B",
+   "file": "doc-ps84jz.pdf",
+   "kind": "other",
+   "date": "2004-03",
+   "author": "City of Vaughan Engineering Department",
+   "recipients": [],
+   "description": "Design Standard Drawings, part 8.2.b",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "attached hereto as Exhibits 8.1, 8.2.a, 8.2.b, 8.2.c and 8.2.d"
+    }
+   ],
+   "content_check": "30 pages of standard drawings (part b, road cross-sections e.g. 'MINOR COLLECTOR ROAD'), mostly image-only"
+  },
+  {
+   "label": "8.2.C",
+   "file": "doc-k2fj8m.pdf",
+   "kind": "other",
+   "date": "2004-03",
+   "author": "City of Vaughan Engineering Department",
+   "recipients": [],
+   "description": "Design Standard Drawings, part 8.2.c",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "attached hereto as Exhibits 8.1, 8.2.a, 8.2.b, 8.2.c and 8.2.d"
+    }
+   ],
+   "content_check": "30 pages of standard drawings (part c), image-only"
+  },
+  {
+   "label": "8.2.D",
+   "file": "doc-yjamcr.pdf",
+   "kind": "other",
+   "date": "2004-03",
+   "author": "City of Vaughan Engineering Department",
+   "recipients": [],
+   "description": "Design Standard Drawings, part 8.2.d",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "attached hereto as Exhibits 8.1, 8.2.a, 8.2.b, 8.2.c and 8.2.d"
+    }
+   ],
+   "content_check": "30 pages of standard drawings (part d), mostly image-only"
+  },
+  {
+   "label": "15.1",
+   "file": "doc-fbwpgf.pdf",
+   "kind": "report",
+   "date": "2007-01",
+   "author": "Marshall Macklin Monaghan for the City of Vaughan",
+   "recipients": [],
+   "description": "City of Vaughan Pedestrian and Bicycle Master Plan Study (January 2007)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "attached hereto as Exhibits 15.1, 15.2 and 15.3"
+    }
+   ],
+   "content_check": "55 pages: 'January 2007 PEDESTRIAN AND BICYCLE MASTER PLAN STUDY Prepared by: ... Marshall Macklin Monaghan'"
+  },
+  {
+   "label": "15.2",
+   "file": "doc-3z2ye4.pdf",
+   "kind": "map",
+   "date": "2007-01",
+   "author": "City of Vaughan",
+   "recipients": [],
+   "description": "Pedestrian and Bicycle Master Plan network map (facility types)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "attached hereto as Exhibits 15.1, 15.2 and 15.3"
+    }
+   ],
+   "content_check": "1 page map of Vaughan roads (Nashville Rd, Rutherford Rd, Highway 427 ...)"
+  },
+  {
+   "label": "15.3",
+   "file": "doc-97h4gn.pdf",
+   "kind": "map",
+   "date": "2007-01",
+   "author": "City of Vaughan",
+   "recipients": [],
+   "description": "Pedestrian and Bicycle Master Plan network map (implementation priorities)",
+   "references": [
+    {
+     "paragraph": 15,
+     "quote": "attached hereto as Exhibits 15.1, 15.2 and 15.3"
+    }
+   ],
+   "content_check": "1 page map of Vaughan roads, second network map"
+  },
+  {
+   "label": "17.1",
+   "file": "doc-gh478s.pdf",
+   "kind": "report",
+   "date": "2013-06",
+   "author": "City of Vaughan",
+   "recipients": [],
+   "description": "Active Together Master Plan - Parks, Recreation & Libraries (2013 review and update)",
+   "references": [
+    {
+     "paragraph": 17,
+     "quote": "which provides direction for the municipal provision of Community Services and Facilities"
+    }
+   ],
+   "content_check": "171 pages: 'Active Together Master Plan Parks, Recreation & Libraries 2013 Review & Update'"
+  },
+  {
+   "label": "19.1",
+   "file": "doc-2t73z5.pdf",
+   "kind": "map",
+   "date": null,
+   "author": "Golder Associates for TransCanada; marked up by the City of Vaughan",
+   "recipients": [],
+   "description": "Marked-up Vaughan Mainline Expansion map of segments requested for multi-use pathways",
+   "references": [
+    {
+     "paragraph": 19,
+     "quote": "attached hereto as Exhibit 19.1"
+    }
+   ],
+   "content_check": "1 page map: 'Segments of the VME requested for Community Multi-use Recreational Pathways implementation as identified by the City of Vaughan'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Vaughan Engineering issues its Design Criteria",
+   "date": "2004-03",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "in March 2004",
+   "exhibits": [
+    "8.1",
+    "8.2.A",
+    "8.2.B",
+    "8.2.C",
+    "8.2.D"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "Vaughan produces the Pedestrian and Bicycle Master Plan Study",
+   "date": "2007-01",
+   "precision": "month",
+   "paragraphs": [
+    15
+   ],
+   "quote": "in January 2007",
+   "exhibits": [
+    "15.1",
+    "15.2",
+    "15.3"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "Vaughan produces the Active Together Master Plan",
+   "date": "2013-06",
+   "precision": "month",
+   "paragraphs": [
+    17
+   ],
+   "quote": "in June 2013",
+   "exhibits": [
+    "17.1"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Vaughan-TransCanada meeting on depth of cover at road crossings",
+   "date": "2016-04-01",
+   "precision": "day",
+   "paragraphs": [
+    10
+   ],
+   "quote": "April 1, 2016 meeting",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "TransCanada agrees to provide calculated depths but has not done so",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    10
+   ],
+   "quote": "TransCanada agreed to provide calculated depths under road crossings",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Enbridge pipeline crossing at Great Gulf Drive completed at over 4 m cover",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    11
+   ],
+   "quote": "an Enbridge Gas pipeline crossing at Great Gulf Drive was completed",
+   "exhibits": []
+  },
+  {
+   "id": "e7",
+   "description": "TransCanada says pathway and pipeline right-of-way can coexist",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    19
+   ],
+   "quote": "TransCanada has indicated it supports development of a Community Multi-Use Recreational Pathway",
+   "exhibits": [
+    "19.1"
+   ]
+  }
+ ],
+ "referenced_not_attached": [
+  "Meeting Minutes of April 1, 2016 between Vaughan and TransCanada (TransCanada response to Vaughan IR 1.6)",
+  "TransCanada responses to Vaughan IRs 1.5.2, 1.7.3, 1-8 to 1-10 and Table NEB 1.1.1",
+  "AMEC (2002) Focus Rural Area Woodland Ecosystem Assessment"
+ ],
+ "leak_waivers": [
+  "8.2.C",
+  "8.2.D"
+ ]
+}

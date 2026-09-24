@@ -1,0 +1,81 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786124",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/Filing/A70294",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "OH-001-2014 (Trans Mountain Expansion Project)",
+ "document_title": "C312-7-2 Sworn Affidavit of Alfred James, Shxw'owhamel First Nation",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-tmx-james",
+ "source_file": "shxw-aff.pdf",
+ "page_range": [
+  1,
+  19
+ ],
+ "source_sha256": "b4b517b6bc476235b6141d8fb4e68d3c3d1a83689029f73f92ced7433a1d1bbb",
+ "source_pages": 19,
+ "sources": [
+  {
+   "file": "shxw-aff.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786124",
+   "sha256": "b4b517b6bc476235b6141d8fb4e68d3c3d1a83689029f73f92ced7433a1d1bbb",
+   "pages": 19
+  },
+  {
+   "file": "shxw-A.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786303",
+   "sha256": "a786fba8211cb519a95ba874d543e7f9ecb15e81ede9e5997a3e0ed787b6fec8",
+   "pages": 2
+  },
+  {
+   "file": "shxw-B.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785106",
+   "sha256": "ba7a85c06d6036c4fb4a1d26ab08b3adae49244384e8a3f780b95bb0c259d88a",
+   "pages": 2
+  },
+  {
+   "file": "shxw-C.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786601",
+   "sha256": "d5185c7ce6114b876d33e20e7c542209f9c907555d2f062d407d4aa6c95654c1",
+   "pages": 2
+  },
+  {
+   "file": "shxw-D.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2784891",
+   "sha256": "b8a7995acf221429f2df90b11abc0675b73c12c2046265d01cb6a49a5f474576",
+   "pages": 2
+  },
+  {
+   "file": "shxw-E.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2785107",
+   "sha256": "242c57d6755c318a43f5a6ec7fd1e3bc6ba5fc97f030ec200ba1a43f59533c25",
+   "pages": 29
+  },
+  {
+   "file": "shxw-F.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786125",
+   "sha256": "c50c5d6fd5159c7319e73ebdf71214b71ca55bb90f4da2380e19f9e8169225c5",
+   "pages": 2
+  },
+  {
+   "file": "shxw-G.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786602",
+   "sha256": "0a50d35886dc4aca7cff3b139be48cc34a4e5c017c174937f6d037b6e047f044",
+   "pages": 7
+  },
+  {
+   "file": "shxw-H.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786498",
+   "sha256": "87a2c437c3723e598beec70f430e09a7678dada743faa1040df603a3bbe3d758",
+   "pages": 5
+  },
+  {
+   "file": "shxw-I.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2786304",
+   "sha256": "13bd5b443b8d450e3d671645e8593a413eb2d00dedcab8deb7cee42ed2c977f9",
+   "pages": 3
+  }
+ ],
+ "covers": "A,B,C,D,E,F,G,H,I"
+}

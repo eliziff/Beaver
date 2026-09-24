@@ -1,0 +1,219 @@
+{
+ "record_id": "neb-vmep-rossi",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2016 (TransCanada Vaughan Mainline Expansion Project)",
+ "subject": "municipal",
+ "family": "neb-vmep-vaughan",
+ "proceeding": "TransCanada PipeLines Limited s. 58 application for the Vaughan Mainline Expansion Pipeline Project: City of Vaughan's planning evidence on the Greenbelt, natural heritage network and whitebelt growth lands",
+ "document": "Affidavit of Melissa Rossi sworn April 25, 2016 (REGDOCS A76581-1, exhibits A76581-2 to -8)",
+ "deponent": "Melissa Rossi",
+ "deponent_role": "Manager, Policy Planning, City of Vaughan",
+ "sworn_date": "2016-04-25",
+ "notes": "Multi-file source (raw/vros-*.pdf); exhibits carry no covers or stamps. Affidavit scanned: --ocr-affidavit. Leak waiver 4: split flagged the image-only Greenbelt Plan cover page, checked by eye (no exhibit label). Paragraph 7 number OCRs as 'Ts' (reference paragraph null). The affidavit cites 'Exhibit 5' once; the filing posts it as 5A (York Region staff report / Council clause) and 5B (2041 Preferred Growth Scenario land budget attachment).",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-2m689k.pdf",
+   "kind": "map",
+   "date": "2016-04-21",
+   "author": "TransCanada",
+   "recipients": [],
+   "description": "Map of the proposed pipeline through Vaughan's Greenbelt Blocks, with the GTA West corridor",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "(Exhibit 1)"
+    },
+    {
+     "paragraph": 8,
+     "quote": "Exhibit 1 provides a comprehensive illustration"
+    }
+   ],
+   "content_check": "1 page map: 'HKP 0 KM ... HKP 11.717 KM Access Road', proposed pipeline right-of-way and GTA West study area"
+  },
+  {
+   "label": "2",
+   "file": "doc-rjybty.pdf",
+   "kind": "public_record",
+   "date": "2014",
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Provincial Policy Statement 2014",
+   "references": [
+    {
+     "paragraph": null,
+     "quote": "(Exhibit 2)"
+    }
+   ],
+   "content_check": "56 pages: 'Provincial Policy Statement 2014 Under the Planning Act'"
+  },
+  {
+   "label": "3",
+   "file": "doc-h6a8xx.pdf",
+   "kind": "map",
+   "date": "2014-12",
+   "author": "Ontario Ministry of Transportation (GTA West study)",
+   "recipients": [],
+   "description": "GTA West Map 2-2 'Short List of Route Alternatives and Potential Interchange Locations'",
+   "references": [
+    {
+     "paragraph": 8,
+     "quote": "(Exhibit 3)"
+    }
+   ],
+   "content_check": "1 page map: GTA West 'SHORT LIST OF ROUTE ALTERNATIVES AND POTENTIAL INTERCHANGE LOCATIONS'"
+  },
+  {
+   "label": "4",
+   "file": "doc-xetzbe.pdf",
+   "kind": "public_record",
+   "date": "2005",
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Greenbelt Plan 2005",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "Policy 4.2.1 of the Greenbelt Plan (Exhibit 4)"
+    }
+   ],
+   "content_check": "63 pages, cover image-only: 'greenbelt PLAN 2005' (Ontario)"
+  },
+  {
+   "label": "5A",
+   "file": "doc-n5kdd3.pdf",
+   "kind": "report",
+   "date": "2015-11-19",
+   "author": "Regional Municipality of York",
+   "recipients": [],
+   "description": "York Region Council clause/staff report adopting the '2041 Preferred Growth Scenario'",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "(Exhibit 5)"
+    }
+   ],
+   "content_check": "25 pages: 'Clause 12 in Report No. 17 of Committee of the Whole was adopted, without amendment, by the Council of The Regional Municipality of York'"
+  },
+  {
+   "label": "5B",
+   "file": "doc-hj6zt4.pdf",
+   "kind": "report",
+   "date": "2015-11",
+   "author": "York Region Long Range Planning",
+   "recipients": [],
+   "description": "York Region 2041 Preferred Growth Scenario land budget (Attachment 4)",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "(Exhibit 5)"
+    }
+   ],
+   "content_check": "89 pages: 'York Region 2041 Preferred Growth Scenario Land Budget Attachment 4 November 2015'"
+  },
+  {
+   "label": "6",
+   "file": "doc-f45sbd.pdf",
+   "kind": "minutes",
+   "date": "2014-05-27",
+   "author": "City of Vaughan Council",
+   "recipients": [],
+   "description": "Council extract approving the Block 55 Community Plan",
+   "references": [
+    {
+     "paragraph": 12,
+     "quote": "(Exhibit 6)"
+    }
+   ],
+   "content_check": "12 pages: 'CITY OF VAUGHAN EXTRACT FROM COUNCIL MEETING MINUTES OF MAY 27, 2014'"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "Council approves the Block 55 Community Plan",
+   "date": "2014-05-27",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "approved by Council on May 27, 2014",
+   "exhibits": [
+    "6"
+   ]
+  },
+  {
+   "id": "e2",
+   "description": "GTA West shortlist of route alternatives map",
+   "date": "2014-12",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "December 2014",
+   "exhibits": [
+    "3"
+   ]
+  },
+  {
+   "id": "e3",
+   "description": "York Regional Council adopts the 2041 Preferred Growth Scenario",
+   "date": "2015-11-19",
+   "precision": "day",
+   "paragraphs": [
+    12
+   ],
+   "quote": "On November 19, 2015, Regional Council adopted",
+   "exhibits": [
+    "5A",
+    "5B"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "GTA West Corridor EA suspended",
+   "date": "2015-12-16",
+   "precision": "day",
+   "paragraphs": [
+    8
+   ],
+   "quote": "suspended as of December 16, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "TransCanada's proposed route as of March 2016",
+   "date": "2016-03",
+   "precision": "month",
+   "paragraphs": [
+    8
+   ],
+   "quote": "The proposed TCPL route (as of March 2016)",
+   "exhibits": [
+    "1"
+   ]
+  },
+  {
+   "id": "e6",
+   "description": "GTA West EA anticipated to resume",
+   "date": "2016",
+   "precision": "approximate",
+   "paragraphs": [
+    8
+   ],
+   "quote": "anticipated to resume in spring 2016",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Municipal Act, 2001",
+  "Vaughan Official Plan 2010",
+  "Growth Plan (2014)",
+  "TransCanada written evidence and IR responses"
+ ],
+ "leak_waivers": [
+  "4"
+ ]
+}

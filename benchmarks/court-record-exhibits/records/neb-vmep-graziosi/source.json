@@ -1,0 +1,87 @@
+{
+ "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949180",
+ "landing_url": "https://apps.cer-rec.gc.ca/REGDOCS/Item/Filing/A76403",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GH-001-2016 (TransCanada Vaughan Mainline Expansion Project)",
+ "document_title": "A76403-2 VMEP Affidavit of J Graziosi - April 18 2016 Executed",
+ "retrieved": "2026-09-24",
+ "record_id": "neb-vmep-graziosi",
+ "source_file": "vgr-aff.pdf",
+ "page_range": [
+  1,
+  12
+ ],
+ "source_sha256": "ece943431d5874a7148f6efe2e8a3c368d92dfec5eaaa14621bb2632ffb3fcb9",
+ "source_pages": 12,
+ "sources": [
+  {
+   "file": "vgr-aff.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949180",
+   "sha256": "ece943431d5874a7148f6efe2e8a3c368d92dfec5eaaa14621bb2632ffb3fcb9",
+   "pages": 12
+  },
+  {
+   "file": "vgr-8.1.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949960",
+   "sha256": "4cc81cf1c494a83d5e202ebc7894f3078166a3898d14cf79b254ecbb5a103801",
+   "pages": 110
+  },
+  {
+   "file": "vgr-8.2.a.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949621",
+   "sha256": "82319788b1af77e3ec1c8d1bde54171845816aa2a3f3d6343786698a25e99558",
+   "pages": 30
+  },
+  {
+   "file": "vgr-8.2.b.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949181",
+   "sha256": "204cd93d358439cfc15770e01fa67c8069dff2d5de4c6bb9f81f523933a6f948",
+   "pages": 30
+  },
+  {
+   "file": "vgr-8.2.c.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949081",
+   "sha256": "f0bf6e09c03bfe601a7d0524c10d5d29cbef6041cc887307d0041e47c28a1ab4",
+   "pages": 30
+  },
+  {
+   "file": "vgr-8.2.d.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949842",
+   "sha256": "b705eb378f84d113edc97274da6a6c8d96969926c125e764633d5acb513f53f3",
+   "pages": 30
+  },
+  {
+   "file": "vgr-15.1.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949622",
+   "sha256": "3132d1e41d02c4ccf179d8675e7eb20b1dd93d76e1a00bd8d246e97bccb9ccfe",
+   "pages": 55
+  },
+  {
+   "file": "vgr-15.2.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949843",
+   "sha256": "86b50a6d94f134b35bf774b152fe71e657f16d8ea83931b212c130824bd54981",
+   "pages": 1
+  },
+  {
+   "file": "vgr-15.3.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949729",
+   "sha256": "3f6f1701daaa199aa17b5ba8fbbf70db7fa03f440a8548d889635e550a2f3767",
+   "pages": 1
+  },
+  {
+   "file": "vgr-17.1.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949844",
+   "sha256": "6edca91a24d911b32c6c0a7feed3ea463ae4cb9bab118f689d1d996d0e8dae2a",
+   "pages": 171
+  },
+  {
+   "file": "vgr-19.1.pdf",
+   "url": "https://apps.cer-rec.gc.ca/REGDOCS/File/Download/2949404",
+   "sha256": "a18643ee0424d1afda549c736d95eac536377c3a8d9a83419d8bec8a19502eaf",
+   "pages": 1
+  }
+ ],
+ "affidavit_ocr": true
+}

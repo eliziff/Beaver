@@ -1,0 +1,342 @@
+{
+ "record_id": "neb-vaughan-graziosi3",
+ "court": "National Energy Board",
+ "court_level": "administrative_tribunal",
+ "jurisdiction": "federal",
+ "court_file": "GHW-001-2014 (TransCanada King's North Connection Pipeline Project)",
+ "subject": "municipal",
+ "proceeding": "TransCanada PipeLines Limited application for the King's North Connection Pipeline Project (Hearing Order GHW-001-2014): City of Vaughan's evidence that the pipeline route conflicts with planned Street A crossing Highway 427 in Block 59",
+ "document": "Third Affidavit of Jack Graziosi sworn April 23, 2015 (REGDOCS C15-12-02, exhibits C15-12-03 to -09)",
+ "deponent": "Jack Graziosi",
+ "deponent_role": "Director of Capital Delivery and Asset Management, Public Works Commission, City of Vaughan",
+ "sworn_date": "2015-04-23",
+ "notes": "Multi-file source: affidavit and each exhibit posted separately (raw/vgz-*.pdf). Each exhibit opens with a typed tab page ('Exhibit 1 to Affidavit of Jack Graziosi dated April 23, 2015'): --covers all. Affidavit scanned: --ocr-affidavit. Numeric labels 1-7.",
+ "exhibits": [
+  {
+   "label": "1",
+   "file": "doc-yd6p5y.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Municipal Act, 2001",
+   "references": [
+    {
+     "paragraph": 6,
+     "quote": "a \ncopy of which is attached hereto as Exhibit 1"
+    }
+   ],
+   "content_check": "238 pages: text of the Municipal Act, 2001, S.O. 2001, c. 25"
+  },
+  {
+   "label": "2",
+   "file": "doc-5acb4w.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Planning Act, R.S.O. 1990, c. P.13",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "attached hereto as Exhibit 2"
+    }
+   ],
+   "content_check": "101 pages: text of the Planning Act"
+  },
+  {
+   "label": "3",
+   "file": "doc-4vjtn2.pdf",
+   "kind": "public_record",
+   "date": "2014",
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Provincial Policy Statement",
+   "references": [
+    {
+     "paragraph": 9,
+     "quote": "attached hereto as Exhibit 3"
+    }
+   ],
+   "content_check": "56 pages: Provincial Policy Statement"
+  },
+  {
+   "label": "4",
+   "file": "doc-f6dvbm.pdf",
+   "kind": "public_record",
+   "date": null,
+   "author": "Province of Ontario",
+   "recipients": [],
+   "description": "Ontario Municipal Board Act",
+   "references": [
+    {
+     "paragraph": 10,
+     "quote": "attached hereto as Exhibit 4"
+    }
+   ],
+   "content_check": "20 pages: text of the Ontario Municipal Board Act"
+  },
+  {
+   "label": "5",
+   "file": "doc-gvqtz7.pdf",
+   "kind": "other",
+   "date": "2010-04-22",
+   "author": "City of Vaughan",
+   "recipients": [],
+   "description": "Presentation at the first Statutory Public Open House on the West Vaughan Employment Area Secondary Plan",
+   "references": [
+    {
+     "paragraph": 13,
+     "quote": "the presentation attached hereto as Exhibit\n5"
+    }
+   ],
+   "content_check": "7 pages: WVEASP open house presentation slides, April 22, 2010"
+  },
+  {
+   "label": "6",
+   "file": "doc-8gqbgr.pdf",
+   "kind": "court_order",
+   "date": "2014-06-04",
+   "author": "Ontario Municipal Board",
+   "recipients": [],
+   "description": "OMB decision approving the WVEASP",
+   "references": [
+    {
+     "paragraph": 18,
+     "quote": "a copy of\nwhich is attached hereto as Exhibit 6"
+    }
+   ],
+   "content_check": "36 pages: Ontario Municipal Board decision on the West Vaughan Employment Area Secondary Plan"
+  },
+  {
+   "label": "7",
+   "file": "doc-xp3thu.pdf",
+   "kind": "other",
+   "date": null,
+   "author": "City of Vaughan",
+   "recipients": [],
+   "description": "West Vaughan Employment Area Secondary Plan (Policy 2.6.1, Block Plans)",
+   "references": [
+    {
+     "paragraph": 20,
+     "quote": "attached hereto as Exhibit 7"
+    }
+   ],
+   "content_check": "14 pages: West Vaughan Employment Area Secondary Plan text"
+  }
+ ],
+ "events": [
+  {
+   "id": "e1",
+   "description": "York Region Official Plan passed",
+   "date": "2009",
+   "precision": "year",
+   "paragraphs": [
+    12
+   ],
+   "quote": "York Region's current Official Plan was passed in 2009",
+   "exhibits": []
+  },
+  {
+   "id": "e2",
+   "description": "Vaughan Official Plan passed; WVEASP work begins",
+   "date": "2010",
+   "precision": "year",
+   "paragraphs": [
+    13
+   ],
+   "quote": "Vaughan's current Official Plan was passed in 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e3",
+   "description": "First Statutory Public Open House on the WVEASP",
+   "date": "2010-04-22",
+   "precision": "day",
+   "paragraphs": [
+    13
+   ],
+   "quote": "The first Statutory Public Open House was undertaken on April 22, 2010",
+   "exhibits": [
+    "5"
+   ]
+  },
+  {
+   "id": "e4",
+   "description": "Committee of the Whole public hearing on the WVEASP",
+   "date": "2010-06-14",
+   "precision": "day",
+   "paragraphs": [
+    14
+   ],
+   "quote": "was held on June 14, 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e5",
+   "description": "Special Committee of the Whole on the WVEASP",
+   "date": "2010-08-31",
+   "precision": "day",
+   "paragraphs": [
+    15
+   ],
+   "quote": "was held\non August 31, 2010",
+   "exhibits": []
+  },
+  {
+   "id": "e6",
+   "description": "Vaughan adopts the WVEASP",
+   "date": "2010-09-07",
+   "precision": "day",
+   "paragraphs": [
+    16
+   ],
+   "quote": "Vaughan adopted the WVEASP on September 7, 2010",
+   "exhibits": [
+    "7"
+   ]
+  },
+  {
+   "id": "e7",
+   "description": "Committee of the Whole considers WVEASP modifications",
+   "date": "2013-01-15",
+   "precision": "day",
+   "paragraphs": [
+    17
+   ],
+   "quote": "met on January 15, 2013",
+   "exhibits": []
+  },
+  {
+   "id": "e8",
+   "description": "WVEASP mediated at the OMB",
+   "date": "2013-07-17",
+   "precision": "range",
+   "paragraphs": [
+    18
+   ],
+   "quote": "(July 17 and 18, 2013)",
+   "exhibits": []
+  },
+  {
+   "id": "e9",
+   "description": "Motion for Partial Approval heard at the OMB",
+   "date": "2014-02-12",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "On February 12, 2014, a Motion for Partial Approval was heard",
+   "exhibits": []
+  },
+  {
+   "id": "e10",
+   "description": "Vaughan receives the Block 59 Plan application",
+   "date": "2014-04",
+   "precision": "month",
+   "paragraphs": [
+    20
+   ],
+   "quote": "In April, 2014, Vaughan received a\nBlock Plan application submission",
+   "exhibits": []
+  },
+  {
+   "id": "e11",
+   "description": "TransCanada (Lehman) e-mails that its routes are consistent with the Block Plan",
+   "date": "2014-05-19",
+   "precision": "day",
+   "paragraphs": [
+    21
+   ],
+   "quote": "On May 19, 2014, Vaughan received correspondence via email from Mr. Bob Lehman",
+   "exhibits": []
+  },
+  {
+   "id": "e12",
+   "description": "Notice of Commencement of the Street A MCEA",
+   "date": "2014-05-27",
+   "precision": "day",
+   "paragraphs": [
+    22
+   ],
+   "quote": "The Notice of Commencement was\nissued on May 27, 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e13",
+   "description": "OMB approves the WVEASP",
+   "date": "2014-06-04",
+   "precision": "day",
+   "paragraphs": [
+    18
+   ],
+   "quote": "The OMB issued a written decision approving the WVEASP on June 4, 2014",
+   "exhibits": [
+    "6"
+   ]
+  },
+  {
+   "id": "e14",
+   "description": "First MCEA public meeting",
+   "date": "2014-06",
+   "precision": "month",
+   "paragraphs": [
+    23
+   ],
+   "quote": "A first public meeting was held in June 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e15",
+   "description": "Committee of the Whole public hearing on the Block 59 Plan",
+   "date": "2014-06-17",
+   "precision": "day",
+   "paragraphs": [
+    24
+   ],
+   "quote": "Hearing on June 17, 2014",
+   "exhibits": []
+  },
+  {
+   "id": "e16",
+   "description": "Second MCEA public meeting: preferred planning alternative",
+   "date": null,
+   "precision": "undated",
+   "paragraphs": [
+    25
+   ],
+   "quote": "second public meeting was held for the MCEA",
+   "exhibits": []
+  },
+  {
+   "id": "e17",
+   "description": "Vaughan files evidence in the hearing",
+   "date": "2015-03-12",
+   "precision": "day",
+   "paragraphs": [
+    3
+   ],
+   "quote": "Vaughan filed evidence in the Hearing on March 12, 2015 and March 19, 2015",
+   "exhibits": []
+  },
+  {
+   "id": "e18",
+   "description": "Mandatory MCEA meeting: Central Design Concept preferred for Street A",
+   "date": "2015-03",
+   "precision": "month",
+   "paragraphs": [
+    26,
+    28,
+    29
+   ],
+   "quote": "In March 2015, a mandatory public meeting was held",
+   "exhibits": []
+  }
+ ],
+ "referenced_not_attached": [
+  "Vaughan's earlier evidence and IR responses (A4J5L1-A4J5L6, A4J8S8-S9)",
+  "TransCanada Reply Evidence s. 5.3 and response to NEB IR 2.5",
+  "York Region Official Plan and Transportation Master Plan",
+  "Bob Lehman e-mail of May 19, 2014"
+ ]
+}
