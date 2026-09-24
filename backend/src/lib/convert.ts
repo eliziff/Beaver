@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { accessSync, constants, realpathSync } from "node:fs";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,11 +10,31 @@ import { createParser, elAttrs, elChildren, elName, getTextContent, type XNode }
 import { decodeXmlText } from "./text";
 import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "./zip";
 import { isolatedProcessEnv } from "./subprocessEnv";
-import { resolveSofficeBinary } from "./libreOfficeRuntime";
 
 const MAX_OFFICE_BYTES = 100 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 256 * 1024 * 1024;
 const execute = promisify(execFile);
+
+/** Shared by PDF conversion and Word candidate verification. Prefer the actual
+ * application over a package manager's shell wrapper. */
+export function resolveSofficeBinary(): string | null {
+  const windows = process.platform === "win32";
+  const names = windows ? ["soffice.exe", "soffice.com"] : ["soffice", "libreoffice"];
+  const candidates = [...new Set([
+    process.env.SOFFICE_BINARY_PATH, process.env.LIBREOFFICE_BINARY_PATH, process.env.LIBRE_OFFICE_EXE,
+    ...[process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].filter(Boolean)
+      .map(d => path.join(d!, "LibreOffice", "program", "soffice.exe")),
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    path.join(process.env.HOME ?? "", "Applications/LibreOffice.app/Contents/MacOS/soffice"),
+    ...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean).flatMap(d => names.map(n => path.join(d, n))),
+    "/usr/bin/soffice", "/usr/bin/libreoffice", "/opt/libreoffice/program/soffice",
+    "/snap/bin/libreoffice", "/opt/libreoffice7.6/program/soffice",
+  ].filter((s): s is string => !!s))];
+  const selected = candidates.find(file => {
+    try { accessSync(file, constants.X_OK); return true; } catch { return false; }
+  });
+  return selected ? realpathSync(selected) : null;
+}
 
 function xmlElements(nodes: XNode[], wanted: string): XNode[] {
   return nodes.flatMap((node) => [

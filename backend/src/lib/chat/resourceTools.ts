@@ -119,7 +119,7 @@ export const RESOURCE_TOOLS = [
   ),
   tool(
     "Edit",
-    "Replace exact text in the current DOCX using the user's tracked/direct editing setting. old_string must be unique unless replace_all is true. Load edit_docx_advanced for mechanical text operations or inserting blocks; load word_uno for styles, formatting, tables, and sections.",
+    "Replace exact text in the current DOCX using the user's tracked/direct editing setting. old_string must be unique unless replace_all is true. Load edit_docx_advanced for mechanical text operations or inserting blocks; load word_python for styles, formatting, tables, and sections.",
     {
       file_path: {
         type: "string",

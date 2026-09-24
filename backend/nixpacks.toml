@@ -1,2 +1,9 @@
 [phases.setup]
-nixPkgs = ["...", "libreoffice"]
+nixPkgs = ["...", "libreoffice", "python312"]
+
+# word_python: a private interpreter with the pinned requirements (the backend probes it before use).
+[phases.install]
+cmds = ["...", "python3 -m venv /app/.word-python && /app/.word-python/bin/pip install --no-cache-dir -r scripts/word_python/requirements.txt"]
+
+[variables]
+BEAVER_WORD_PYTHON = "/app/.word-python/bin/python"

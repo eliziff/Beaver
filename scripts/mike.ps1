@@ -226,6 +226,22 @@ function Resolve-LegalStructureNative {
     throw 'Legal structure native module is missing. Build native/legal-structure-node once for this platform.'
 }
 
+function Get-WordEditingStatus {
+    $scripts = Join-Path $Backend 'scripts\word_python'
+    $python = @((Get-ConfigValue 'BEAVER_WORD_PYTHON'), (Get-ConfigValue 'BEAVER_PYTHON'),
+        (Resolve-Application @('python.exe', 'python3'))) | Where-Object { $_ } | Select-Object -First 1
+    $install = "run '$(if ($python) { $python } else { 'python' }) -m pip install -r $scripts\requirements.txt' or set BEAVER_WORD_PYTHON"
+    if (-not $python) { return "unavailable: install Python 3.10+, then $install" }
+    try { $probe = & $python -I (Join-Path $scripts 'probe.py') | Select-Object -Last 1 | ConvertFrom-Json }
+    catch { $probe = $null }
+    if (-not $probe.ok) { return "unavailable: $python $(if ($probe) { $probe.error } else { 'did not run' }); $install" }
+    $office = @((Get-ConfigValue 'SOFFICE_BINARY_PATH'), (Get-ConfigValue 'LIBREOFFICE_BINARY_PATH'),
+        (Join-Path $env:ProgramFiles 'LibreOffice\program\soffice.exe'), (Resolve-Application @('soffice.exe', 'soffice'))) |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1
+    if (-not $office) { return 'unavailable: install LibreOffice (it verifies Word candidates) or set SOFFICE_BINARY_PATH' }
+    return "ready (Python $($probe.python) at $python, python-docx $($probe.packages.'python-docx'), lxml $($probe.packages.lxml); LibreOffice $office)"
+}
+
 function Get-ConfigValue([string]$Name) {
     $value = [Environment]::GetEnvironmentVariable($Name)
     if ($null -ne $value -and $value.Trim()) {
@@ -430,6 +446,7 @@ function Invoke-Doctor {
         Write-Host "ERROR: $($_.Exception.Message)"
         $failed = $true
     }
+    Write-Host "Word editing (word_python): $(Get-WordEditingStatus)"
     foreach ($build in $Builds) {
         if (Test-Path -LiteralPath $build.Path -PathType Leaf) {
             Write-Host "$($build.Name) build: present"
