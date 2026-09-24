@@ -201,5 +201,7 @@ describe.skipIf(!available())("word_python", () => {
     for (const mode of ["direct", "tracked"])
       await expect(runWordPython(bytes, { action: "preview", mode,
         program: "def edit(doc):\n    doc.paragraphs[0].text = 'Changed.'" }, signal)).rejects.toThrow(/changed nothing/u);
+    await expect(runWordPython(bytes, { action: "preview", mode: "direct",
+      program: "replace_text(doc.paragraphs[0], 'Clause 5', 'Clause 6')" }, signal)).rejects.toThrow(/Text not found in paragraph/u);
   }, 120_000);
 });
