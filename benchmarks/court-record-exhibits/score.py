@@ -14,6 +14,10 @@
       when its date agrees at the gold precision and it either cites one of
       the event's exhibit files or shares >= 30% of the event's content words.
 
+  python score.py timeline <predictions.json> --reference DIR [--embed BGE_DIR]
+      Chronology quality against complete files-only reference chronologies:
+      recall/precision by meaning, duplicate rows, cross-document linking, order.
+
   python score.py events <predictions.json> [--embed BGE_DIR] [--threshold T]
       Chronology creation scored by meaning: rows citing an event's files are
       paired one-to-one with gold events by description similarity; dates do
@@ -113,6 +117,17 @@ def lexical(a, b):
     return 2 * both / (len(wa) + len(wb)) if both else 0.0
 
 
+def similarity(embed_dir):
+    """bge-small cosine when a model dir is given, else content-word F1."""
+    if not embed_dir:
+        return lexical
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fastmatch import Embedder
+    emb, cache = Embedder(embed_dir, pooling="cls", max_len=96), {}
+    vec = lambda t: cache[t] if t in cache else cache.setdefault(t, emb.embed(t))
+    return lambda a, b: float(vec(a) @ vec(b))
+
+
 def events(preds, embed_dir=None, threshold=None):
     """Chronology creation scored by meaning. A row may match a gold event only if it cites one of
     the event's exhibit files. Rows and events are then paired one-to-one by description similarity
@@ -120,13 +135,7 @@ def events(preds, embed_dir=None, threshold=None):
     clears the threshold. Dates never gate a match; date agreement is reported for the matched pairs."""
     from scipy.optimize import linear_sum_assignment
     import numpy as np
-    sim = lexical
-    if embed_dir:
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from fastmatch import Embedder
-        emb, cache = Embedder(embed_dir, pooling="cls", max_len=96), {}
-        vec = lambda t: cache[t] if t in cache else cache.setdefault(t, emb.embed(t))
-        sim = lambda a, b: float(vec(a) @ vec(b))
+    sim = similarity(embed_dir)
     # Calibrated on an independent reviewer's descriptions of the same events (2026-09-24): at 0.70 every
     # same-event pair passes and 8% of different-event pairs from the same record do; lexical 0.25 keeps all and passes 6%.
     threshold = threshold if threshold is not None else (0.70 if embed_dir else 0.25)
@@ -152,6 +161,54 @@ def events(preds, embed_dir=None, threshold=None):
     print(f"evidence coverage (a row cites the event's file) {covered / max(gold_n, 1):.3f}; matched pairs: date agrees {dated / max(tp, 1):.3f}, "
           f"mean similarity {sum(sims) / max(len(sims), 1):.3f}")
     print(f"events precision {p:.3f} recall {r:.3f} F1 {2 * p * r / max(p + r, 1e-9):.3f}")
+
+
+def timeline(preds, ref_dir, embed_dir=None, threshold=None):
+    """Chronology quality against complete reference chronologies (<ref_dir>/<record>.json, same row shape;
+    a strong files-only reader's list). Rows pair one-to-one with reference events as in events(). Beyond
+    recall and precision it scores what makes a list a chronology: linking (a matched row cites every file
+    the reference event rests on), duplication (an unpaired row that restates an already-paired event) and
+    order (pairs of matched events whose row order agrees with the reference dates)."""
+    from scipy.optimize import linear_sum_assignment
+    import numpy as np
+    sim = similarity(embed_dir)
+    threshold = threshold if threshold is not None else (0.70 if embed_dir else 0.25)
+    tp = rows_n = ref_n = dup = multi = linked = agree = pairs = 0
+    jac = []
+    for rid, rows in preds.items():
+        p = os.path.join(ref_dir, rid + ".json")
+        if not os.path.exists(p):
+            continue
+        ref = json.load(open(p, encoding="utf-8"))
+        rows_n += len(rows); ref_n += len(ref)
+        if not rows or not ref:
+            continue
+        m = np.zeros((len(rows), len(ref)))
+        for i, r in enumerate(rows):
+            for j, e in enumerate(ref):
+                if set(e["files"]) & set(r.get("files", [])):
+                    m[i, j] = sim(r.get("description", ""), e["description"])
+        got = [(i, j) for i, j in zip(*linear_sum_assignment(-m)) if m[i, j] >= threshold]
+        tp += len(got)
+        paired_rows, paired_refs = {i for i, _ in got}, {j for _, j in got}
+        dup += sum(1 for i in range(len(rows)) if i not in paired_rows and any(m[i, j] >= threshold for j in paired_refs))
+        for i, j in got:
+            a, b = set(rows[i].get("files", [])), set(ref[j]["files"])
+            jac.append(len(a & b) / len(a | b))
+            if len(b) > 1:
+                multi += 1; linked += b <= a
+        pos = {i: k for k, i in enumerate(sorted(range(len(rows)), key=lambda i: str(rows[i].get("date") or "~")))}
+        for x in range(len(got)):
+            for y in range(x + 1, len(got)):
+                (i1, j1), (i2, j2) = got[x], got[y]
+                d1, d2 = ref[j1]["date"], ref[j2]["date"]
+                if d1 and d2 and d1 != d2:
+                    pairs += 1; agree += (pos[i1] < pos[i2]) == (d1 < d2)
+    p, r = tp / max(rows_n, 1), tp / max(ref_n, 1)
+    print(f"reference events matched {tp} of {ref_n}, {rows_n} rows ({'bge-small' if embed_dir else 'lexical'} >= {threshold})")
+    print(f"timeline precision {p:.3f} recall {r:.3f} F1 {2 * p * r / max(p + r, 1e-9):.3f}; duplicate rows {dup / max(rows_n, 1):.3f}")
+    print(f"linking: file Jaccard {sum(jac) / max(len(jac), 1):.3f}, multi-document events fully cited {linked}/{multi}; "
+          f"order agreement {agree / max(pairs, 1):.3f} over {pairs} pairs")
 
 
 def manifest(record):
@@ -198,5 +255,6 @@ if __name__ == "__main__":
     arg = lambda n: sys.argv[sys.argv.index(n) + 1] if n in sys.argv else None
     {"exhibits": lambda: exhibits(preds), "chronology": lambda: chronology(preds, "--with-affidavit" in sys.argv),
      "events": lambda: events(preds, arg("--embed"), float(arg("--threshold")) if arg("--threshold") else None),
+     "timeline": lambda: timeline(preds, arg("--reference"), arg("--embed"), float(arg("--threshold")) if arg("--threshold") else None),
      "haystack-exhibits": lambda: haystack_exhibits(preds),
      "haystack-chronology": lambda: haystack_chronology(preds, "--with-affidavit" in sys.argv)}[task]()
