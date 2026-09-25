@@ -138,3 +138,109 @@ direction ("my email to X" vs X's email to me), or "respectively" order.
   `--overfit 50 --steps 300` gate in `mc_ft.py` before any fold run.
 - LLM reranking in the browser is WebGPU-only (CPU WASM is minutes per record); not measured on WebGPU.
 - Recall@5 of the shortlist is 0.928: the ceiling of any top-5 reranker.
+
+## Evaluation on the doubled benchmark (2026-09-24)
+
+v6 as shipped (no script changes), rebuilt over all **243 records with data, 2,687 files** (120 old records,
+1,427 files; 123 new, 1,260 files). Steps, all in the scratchpad `assoc/`: `exhibit_inputs.py` -> `inputs.json`
+(243), `folds.json` regenerated from `common.folds` (grouped by family / court file, 536-539 files per fold;
+`kinds.py` reads it), `refs.py`, `cache_base.py`, `feats2.py`, `feats3.py`, `feats6.py`, `kinds.py`,
+`models.py base,sim,fs,order,seg,kind,dir --save v6_243`, `export.py v6_243`, `score.py exhibits`. The caches have
+no per-record extend mode, so every one was recomputed (about 3 minutes in all). Evaluation helpers
+(scratchpad only): `old120.json` (the old record ids), `gen.py` (train-old/test-new, below), `report243.py`
+(tables from score.py's per-record lines, so twins count as in the official score), `timing_new.py`.
+
+**Overall, grouped 5-fold by record: 2227/2687 = 0.829** (official; `common.accuracy` 0.825, label top-1 0.737).
+
+**Train on the old 120, test on the new 123:** the kind classifiers (the only supervised feature) get their own
+cache `feats_kindgen`: old records out of fold within the old records' own grouped folds, new records from
+classifiers trained on all old records; the listwise model is fitted on the old records only.
+
+| split | records | files | 5-fold (243) | train-old/test-new | 5-fold within old 120 only |
+|---|---|---|---|---|---|
+| old 120 | 120 | 1,427 | 1198/1427 = 0.840 | - | 1193/1427 = 0.836 |
+| new | 123 | 1,260 | 1029/1260 = 0.817 | **1032/1260 = 0.819** | - |
+| new, group shared with an old record | 22 | 212 | 188/212 = 0.887 | 184/212 = 0.868 | - |
+| new, unseen proceeding | 101 | 1,048 | 841/1048 = 0.802 | 848/1048 = 0.809 | - |
+
+The new half scores what the 5-fold gives it (0.819 vs 0.817): doubling the training data does not move the
+168-weight linear model, and the true generalization number sits 0.02 below the old records. 22 new records share
+a family / court file with an old record (sibling affidavits); on the 101 in unseen proceedings the test-new number
+is 0.809. The old-120 number re-run on today's inputs (0.836) is above the 0.823 logged for v6: 139 exhibit texts in
+23 old records were OCR'd after the 2026-09-23 `inputs.json` (e.g. onsc-trinity-hodge 10/18 -> 18/18,
+onca-roe-caldwell 2/4 -> 4/4), and the refit reweights the rest (+/- a few files per record).
+
+By area of law, court level and jurisdiction (values with < 40 files pooled as "other"):
+
+| subject | records old/new | files old/new | 5-fold, all | 5-fold, new only | train-old/test-new |
+|---|---|---|---|---|---|
+| insolvency | 63/25 | 742/244 | 0.837 | 0.852 | 0.824 |
+| charter | 29/8 | 397/38 | 0.857 | 0.895 | 0.947 |
+| class_action | 16/18 | 153/151 | 0.845 | 0.874 | 0.874 |
+| other (9 subjects: tax, planning, real property, pensions, ...) | 0/17 | 0/166 | 0.747 | 0.747 | 0.783 |
+| administrative | 5/7 | 44/93 | 0.854 | 0.839 | 0.817 |
+| indigenous_rights | 1/11 | 9/111 | 0.692 | 0.685 | 0.721 |
+| environmental | 0/6 | 0/108 | 0.889 | 0.889 | 0.917 |
+| human_rights | 5/3 | 75/31 | 0.943 | 1.000 | 0.935 |
+| municipal | 0/9 | 0/102 | 0.706 | 0.706 | 0.706 |
+| regulatory | 0/7 | 0/92 | 0.870 | 0.870 | 0.891 |
+| securities | 0/6 | 0/66 | 0.848 | 0.848 | 0.848 |
+| employment | 1/6 | 7/58 | 0.677 | 0.724 | 0.672 |
+
+| court_level | records old/new | files old/new | 5-fold, all | 5-fold, new only | train-old/test-new |
+|---|---|---|---|---|---|
+| superior_trial | 93/66 | 1,114/650 | 0.822 | 0.800 | 0.806 |
+| administrative_tribunal | 5/34 | 75/336 | 0.830 | 0.810 | 0.792 |
+| federal_trial | 14/18 | 178/211 | 0.859 | 0.882 | 0.905 |
+| superior_divisional | 2/2 | 12/48 | 0.817 | 0.812 | 0.812 |
+| appellate | 4/3 | 40/15 | 0.818 | 0.800 | 0.800 |
+| apex_appellate | 2/0 | 8/0 | 1.000 | - | - |
+
+| jurisdiction | records old/new | files old/new | 5-fold, all | 5-fold, new only | train-old/test-new |
+|---|---|---|---|---|---|
+| ON | 40/51 | 482/528 | 0.837 | 0.820 | 0.814 |
+| federal | 22/37 | 264/363 | 0.837 | 0.818 | 0.824 |
+| AB | 20/4 | 252/89 | 0.824 | 0.843 | 0.865 |
+| BC | 15/6 | 156/71 | 0.762 | 0.746 | 0.789 |
+| MB | 7/7 | 98/97 | 0.862 | 0.825 | 0.773 |
+| NS | 7/7 | 48/65 | 0.850 | 0.815 | 0.846 |
+| SK | 4/3 | 58/13 | 0.775 | 0.615 | 0.615 |
+| NL | 2/5 | 41/20 | 0.820 | 1.000 | 1.000 |
+| other (NB, PE) | 3/3 | 28/14 | 0.810 | 0.714 | 0.857 |
+
+Areas with no old record at all (environmental, regulatory, securities: 0.85-0.92 train-old/test-new) score like
+the trained-on areas, so the method carries across areas of law. The weak areas trace to a few records and to
+the energy-regulator (CER/NEB) written-evidence format rather than to subject: municipal (0.706; 30 wrong) is 20
+wrong in neb-vmep-graziosi 1/10, ondc-wpd-mcfarlane 1/7 and bcsc-oppenheimer-chow 2/7; indigenous_rights (0.692;
+37 wrong) is 12 in cer-poucecoupe-general 2/14, 10 in abkb-odl-palandjian 22/32, 5 in cer-northriver-general 3/8,
+4 in neb-tmx-planes 8/12; real property is one record, onsc-9448-lasry (9/30).
+
+**Confidence gate** (5-fold scores; min of row and column softmax at the Hungarian pick, twin-aware correctness):
+
+| part | files >= 0.5 | their accuracy | files < 0.5 | their accuracy |
+|---|---|---|---|---|
+| all 243 | 1,678/2,687 (62.4%) | 0.948 | 1,009 (37.6%) | 0.631 |
+| old 120 | 887/1,427 (62.2%) | 0.957 | 540 (37.8%) | 0.646 |
+| new 123 | 791/1,260 (62.8%) | 0.937 | 469 (37.2%) | 0.614 |
+
+The gate holds its calibration on new records (the same 37% flagged, confident picks still ~94% right).
+
+**Cost on the new records** (`timing_new.py` = `timing.py` restricted to them; single-core Python, loaded laptop,
+IDLE priority): per record median 0.22 s, mean 0.32 s, p90 0.61 s, max 1.9 s (bccomm-cullen-wenezenkiyolland,
+37 files); unchanged from the old records.
+
+**What the pipeline could not read.** Every record under the data root ran end to end; none failed. The 8 ct-*
+records (ct-8x-fraser, ct-ccc-robles, ct-cippic-kleinbrodt, ct-jamp-juneja, ct-jamp-seaby, ct-rave-gamble,
+ct-rave-pazaratz, ct-whitecap-wicks) exist only as JSON in the repo's `records/` (gold, source, split, matter docs;
+no affidavit or files) and are not under the data root, so `exhibit_inputs.py` never sees them. But `refs.py` finds no affidavit
+mention for 55 of 2,687 labels (26 records), concentrated in label formats its mention pattern does not know:
+onsc-9448-lasry's O1-O7 (13 labels unmentioned; the affidavit is also a noisy OCR scan with a missing paragraph
+start), neb-vmep-graziosi's dotted numbers 8.1, 8.2.A-8.2.D, 15.1 (10 of 10 unmentioned), and cer-poucecoupe-general,
+whose written evidence cites its exhibits as a list of references rather than "Exhibit X" (3 unmentioned; A-N).
+`affiant.py` finds no affiant name in 11 records (abqb-bdc-singh2018, bcca-bctf-tinney, bccomm-cullen-bamra,
+bcsc-1281805-mann, cer-poucecoupe-general, neb-vaughan-sioui, nssc-bluelobster-dunning, nssc-chesterbasin-santimaw,
+onsc-clc-pps-policy, onsc-clc-pps-research, onsc-uoft-encampment-delorenzi), so the direction feature is off there.
+28 exhibit texts are near-empty (image-only, under 50 characters: 24 old, 4 new).
+
+Next, from this read: dotted and letter-digit labels ("8.2.A", "O1") in the mention pattern, and the tribunal
+"written evidence" citation style, are the extraction gaps the new records exposed.
