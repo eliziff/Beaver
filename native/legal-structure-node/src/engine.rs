@@ -225,6 +225,84 @@ pub fn legal_source_viewer<'a>(
     ))
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayoutLine {
+    /// "heading", "list_item" or "paragraph".
+    kind: &'static str,
+    /// Nesting from the enumerator grammar: I. is 0, A. under it 1, 1. under that 2.
+    level: usize,
+    /// The enumerator ("(a)", "II.") when the grammar found one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    marker: Option<String>,
+    /// The line after its enumerator.
+    text: String,
+}
+
+/// An enumerator's style: "(a)" and "a." differ, as do I. and A. A lone I, V or X is
+/// a Roman numeral unless letters of that case came first.
+fn enumerator_style(marker: &str, seen: &[(bool, u8)]) -> Option<(bool, u8)> {
+    let paren = marker.starts_with('(');
+    let body = marker.trim_start_matches('(').trim_end_matches(['.', ')']);
+    let roman = |upper: bool| body.chars().all(|c| if upper { "IVXLCDM".contains(c) } else { "ivxlcdm".contains(c) });
+    let style = if body.chars().all(|c| c.is_ascii_digit() || c == '.') { 0 }
+        else if roman(true) && !(body.len() == 1 && seen.contains(&(paren, 1)) && !seen.contains(&(paren, 3))) { 3 }
+        else if roman(false) && !(body.len() == 1 && seen.contains(&(paren, 2)) && !seen.contains(&(paren, 4))) { 4 }
+        else if body.chars().count() == 1 && body.chars().all(char::is_uppercase) { 1 }
+        else if body.chars().count() == 1 && body.chars().all(char::is_lowercase) { 2 }
+        else { return None };
+    Some((paren, style))
+}
+
+/// Nesting by first appearance: the first enumerator style is level 0, the next new one 1.
+fn style_level(seen: &mut Vec<(bool, u8)>, style: (bool, u8)) -> usize {
+    seen.iter().position(|value| *value == style).unwrap_or_else(|| { seen.push(style); seen.len() - 1 })
+}
+
+/// Lays out plain source text one line at a time. The enumerator grammar finds list
+/// items; a short title-case or capitalised line without a citation is a heading (the
+/// test the PDF parser applies to headings). Levels follow the order enumerator styles
+/// first appear in: headings across the document, list items within each list.
+#[cfg(feature = "legalpdf")]
+pub fn text_layout(text: &str) -> Vec<LayoutLine> {
+    let markers = legal_structure::detect_structure_candidate_runs(text).into_iter()
+        .flat_map(|run| { let grammar = run.grammar;
+            run.markers.into_iter().map(move |marker| (marker.marker_range.start, (grammar, marker))) })
+        .collect::<std::collections::HashMap<_, _>>();
+    let (mut layout, mut offset) = (Vec::new(), 0);
+    let (mut headings, mut items) = (Vec::new(), Vec::new());
+    for line in text.split('\n') {
+        let start = offset + line.chars().take_while(|c| c.is_whitespace()).count();
+        offset += line.chars().count() + 1;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        let found = markers.get(&start);
+        let numeric = matches!(found, Some((legal_structure::CandidateGrammar::Numeric, _)));
+        // The grammar's enumerator, or a heading's own ("II. Analysis").
+        let length = match found {
+            Some((_, marker)) if !numeric => marker.content_start.saturating_sub(start),
+            _ => trimmed.split_whitespace().next()
+                .filter(|word| enumerator_style(word, &headings).is_some() && word.ends_with(['.', ')'])
+                    && trimmed.split_whitespace().nth(1).is_some())
+                .map_or(0, |word| word.chars().count()),
+        };
+        let marker = (length > 0).then(|| trimmed.chars().take(length).collect::<String>().trim().to_owned());
+        let body = trimmed.chars().skip(length).collect::<String>().trim().to_owned();
+        let (kind, level) = if !numeric && legal_pdf_support::heading_text_plausible(&body) {
+            items.clear();
+            ("heading", marker.as_deref().and_then(|value| enumerator_style(value, &headings))
+                .map_or(0, |style| style_level(&mut headings, style)))
+        } else if let Some(style) = marker.as_deref().filter(|_| found.is_some() && !numeric)
+            .and_then(|value| enumerator_style(value, &items)) {
+            ("list_item", style_level(&mut items, style))
+        } else { items.clear(); ("paragraph", 0) };
+        // Paragraph numbers ([12], 12.) stay part of the paragraph's own text.
+        let (marker, text) = if kind == "paragraph" { (None, trimmed.to_owned()) } else { (marker, body) };
+        layout.push(LayoutLine { kind, level, marker, text });
+    }
+    layout
+}
+
 pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
     document.query.table_cells(document.structure())
 }

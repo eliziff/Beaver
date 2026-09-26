@@ -231,6 +231,9 @@ type StructureAddon = {
       documentRevision: string;
     };
   documentTableCells(document: NativeDocument): SpreadsheetCellSpan[];
+  /** Plain text line by line as headings, list items and paragraphs, with nesting levels. */
+  textLayout(text: string): Array<{ kind: "heading" | "list_item" | "paragraph"; level: number;
+    marker?: string; text: string }>;
   textFragmentPlan(blockText: string, quotes: string[], pdf: boolean,
     publisherMayAnnotateLegalReference: boolean,
     splitHtmlSourceBlocks: boolean,
