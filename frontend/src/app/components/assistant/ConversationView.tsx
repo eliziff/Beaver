@@ -58,6 +58,9 @@ function without<T>(items: Set<T>, item: T) {
     next.delete(item); return next;
 }
 
+/** How many messages mount at once: the latest when a chat opens, and each batch above them. */
+const MOUNTED_MESSAGES = 40;
+
 export const ConversationView = forwardRef<ChatInputHandle, Props>(function ConversationView(
     {
         chatId, session, handleChat, cancel, onSubmit = handleChat,
@@ -89,6 +92,24 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
             ?.startWorkflowDocumentSelection(...args),
     }), []);
 
+    // Only recent messages are mounted, so a chat of any length opens, updates and holds memory
+    // like a short one. Earlier messages mount in batches as the reader scrolls up to them (the
+    // scroll anchor below keeps their place), and a message opened from search is always mounted.
+    const [earliest, setEarliest] = useState<{ chatId?: string | null; index: number } | null>(null);
+    const searchIndex = searchMessageId ? messages.findIndex(({ id }) => id === searchMessageId) : -1;
+    const shownFrom = Math.min(earliest && earliest.chatId === chatId ? earliest.index
+        : Math.max(0, messages.length - MOUNTED_MESSAGES), searchIndex < 0 ? Infinity : searchIndex);
+    const earlierRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const sentinel = earlierRef.current, container = messagesContainerRef.current;
+        if (!sentinel || !container) return;
+        const observer = new IntersectionObserver(([entry]) => {
+            if (entry?.isIntersecting) setEarliest({ chatId,
+                index: Math.max(0, shownFrom - MOUNTED_MESSAGES) });
+        }, { root: container, rootMargin: "1200px 0px 0px 0px" });
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [chatId, shownFrom]);
     const lastUserIndex = messages.findLastIndex(({ role }) => role === "user");
     const lastAssistantIndex = messages.findLastIndex(({ role }) => role === "assistant");
     const latestAssistant = messages[lastAssistantIndex];
@@ -177,6 +198,10 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         onEditError?.(args);
     };
     const mergedStatuses = { ...resolvedEditStatuses, ...editState.statuses };
+    // Defined here rather than inline in the loop, so each message receives the same
+    // functions from one render to the next and finished messages are not re-rendered.
+    const docReloading = (id: string) => editState.docIds.has(id) || !!isDocReloading?.(id);
+    const editReloading = (id: string) => editState.editIds.has(id) || !!isEditReloading?.(id);
     // The reading column is a plain CSS measure: side panels take their space, the column is
     // never wider than the room it has, and its width never depends on the dock's state.
     const columnClass = gutterVisible ? "ms-auto me-0" : "mx-auto";
@@ -193,7 +218,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                     <div className={`${CHAT_COLUMN_CLASS} min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-4 pt-6 md:px-8 md:pt-8"} ${columnClass}`}
                         style={{ paddingBottom: 116 }}>
                         <div className="space-y-6 md:space-y-8">
-                            {messages.map((message, index) => (
+                            {shownFrom > 0 && <div ref={earlierRef} aria-hidden="true" className="h-px" />}
+                            {messages.slice(shownFrom).map((message, offset) => { const index = shownFrom + offset; return (
                                 <div key={message.id} data-message-id={message.id}
                                     style={index < lastUserIndex && message.id !== searchMessageId ? {
                                         contentVisibility: "auto",
@@ -218,10 +244,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                             onEditViewClick={onEditViewClick} onOpenDocument={onOpenDocument}
                                             onEditResolveStart={handleEditResolveStart}
                                             onEditResolved={handleEditResolved} onEditError={handleEditError}
-                                            isDocReloading={(id) => editState.docIds.has(id) ||
-                                                !!isDocReloading?.(id)}
-                                            isEditReloading={(id) => editState.editIds.has(id) ||
-                                                !!isEditReloading?.(id)}
+                                            isDocReloading={docReloading}
+                                            isEditReloading={editReloading}
                                             resolvedEditStatuses={mergedStatuses} />
                                     )}
                                     {message.role === "assistant" && message.turnStatus && (
@@ -232,7 +256,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                         </div>
                                     )}
                                 </div>
-                            ))}
+                            ); })}
                             {afterMessages}
                             <div ref={messagesEndRef} />
                         </div>

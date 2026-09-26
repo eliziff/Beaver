@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { realpathSync } from "node:fs";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { precompressedAssets } from "./scripts/precompressed-assets.mjs";
 
@@ -18,7 +19,9 @@ export default defineConfig(({ mode }) => {
         : mode === "authorities" ? { authorities: pages.authorities }
             : { main: pages.main, word: pages.word };
     return {
-        plugins: [react(), precompressedAssets(), {
+        // React Compiler memoizes components and hooks at build time, so a render re-runs
+        // only what changed. Code that breaks the Rules of React is left uncompiled.
+        plugins: [react(), babel({ presets: [reactCompilerPreset()] }), precompressedAssets(), {
             name: "embedded-court-records-route",
             configureServer(server) {
                 server.middlewares.use((request, _response, next) => {
