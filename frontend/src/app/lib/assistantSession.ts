@@ -143,6 +143,8 @@ export type AssistantSessionEvent =
   | { type: "live_replay_started"; chatId: string; runId: string }
   | { type: "run_started"; runId: string; chatId?: string; message: Message; options?: AssistantTurnOptions }
   | { type: "protocol"; runId: string; chatId?: string; event: ProtocolEvent }
+  /** Several events applied in order as one update: a stream's events arriving within one frame. */
+  | { type: "batch"; events: AssistantSessionEvent[] }
   | { type: "run_finished"; runId: string }
   | { type: "run_interrupted"; runId: string; status: "cancelled" | "interrupted" }
   | { type: "run_failed"; runId: string; message?: string; rejected?: RejectedAssistantTurn; removeOptimistic?: boolean }
@@ -455,6 +457,7 @@ export function createAssistantSessionState(args: { chatId?: string; messages?: 
 }
 
 export function assistantSessionReducer(state: AssistantSessionState, event: AssistantSessionEvent): AssistantSessionState {
+  if (event.type === "batch") return event.events.reduce(assistantSessionReducer, state);
   if (event.type === "transcript_loaded") return loadTranscript(state, event);
   if (event.type === "live_replay_started") {
     const index = state.messages.findLastIndex((message) => message.role === "assistant");
