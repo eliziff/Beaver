@@ -121,6 +121,7 @@ export function PdfCanvas({
     const pageCacheRef = useRef<ReturnType<typeof createPdfPageCache> | null>(null);
     const quoteGenerationRef = useRef(0);
     const navigationRef = useRef(0);
+    const focusedRequestRef = useRef<number | undefined>(undefined);
     const quoteList = quotes ?? [];
     const quoteKey = JSON.stringify(quoteList);
     const [preparing, setPreparing] = useState(true);
@@ -691,12 +692,15 @@ export function PdfCanvas({
         const scroll = scrollRef.current, focus = editorRef.current?.focus;
         const mark = editorRef.current?.marks.find(mark => mark.id === focus?.id);
         const layout = layoutRef.current;
-        if (scroll && mark && layout) {
+        // A new layout (zoom, resize) completes a pending request; it does not replay one
+        // already shown, which would pull the reader back to a mark they scrolled away from.
+        if (scroll && mark && layout && focus && focusedRequestRef.current !== focus.request) {
             const request = ++navigationRef.current;
             quoteGenerationRef.current += 1;
             void layout.preparePage(mark.fragments[0].pageNumber).then((ready) => {
                 if (!ready || layoutRef.current !== layout || navigationRef.current !== request) return;
                 focusPdfAnnotation(scroll, layout.pages.map(page => page.wrapper), mark);
+                focusedRequestRef.current = focus.request;
                 layout.schedule();
             });
         }
