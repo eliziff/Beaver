@@ -169,7 +169,7 @@ export function ResearchChanges({ file, mutations, review, documents, onChanged,
               </div>
             </>}
         </details>; })}
-        {chain?.loading && <p role="status" className="text-gray-500">Loading changes…</p>}
+        {chain?.loading && <p role="status" className="beaver-loading-indicator text-gray-500">Loading changes…</p>}
         {!!chain?.error && <p role="alert" className="text-red-700">Could not load changes. <button type="button" className="underline"
           onClick={() => void pages.fetchPage("history", null, false)}>Retry</button></p>}
         {!chain?.loading && !chain?.error && !visible.length && <p className="text-gray-500">{reviewing ? "No pending changes." : "No changes yet."}</p>}

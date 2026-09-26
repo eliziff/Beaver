@@ -8,7 +8,7 @@ export type ReadSubagentGroup = { id: string; label: string; panels: ReadSubagen
 function AgentStatus({ panels }: { panels: ReadSubagentPanel[] }) {
     let status = null;
     if (panels.some(({ status }) => status === "running")) {
-        status = <span role="status" title="Working"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" /><span className="sr-only">Working</span></span>;
+        status = <span role="status" title="Working" className="beaver-loading-indicator"><LoaderCircle className="size-3 motion-safe:animate-spin" aria-hidden="true" /><span className="sr-only">Working</span></span>;
     } else if (panels.some(({ status }) => status === "interrupted")) {
         status = <span title="Stopped"><CircleStop className="size-3 text-gray-400" aria-hidden="true" /><span className="sr-only">Stopped</span></span>;
     } else if (panels.every(({ status }) => status === "completed")) {

@@ -1,3 +1,4 @@
+import { beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 
@@ -27,3 +28,6 @@ const readBlob = <T>(blob: Blob, method: "readAsArrayBuffer" | "readAsText") =>
     });
 Blob.prototype.arrayBuffer ??= function () { return readBlob(this, "readAsArrayBuffer"); };
 Blob.prototype.text ??= function () { return readBlob(this, "readAsText"); };
+
+// Per-tab UI state (for example whether the assistant dock is open) must not carry between tests.
+beforeEach(() => sessionStorage.clear());

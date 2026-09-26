@@ -30,16 +30,16 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
     ? { projectId: file.document.project_id } : { library: "files" }), [file?.document.project_id]);
   useEffect(() => { if (open) setSelectedDocuments(file ? [file.document] : []); }, [open, file]);
   async function choose(id: string) {
-    setBusy(true); setStatus("");
-    try { await workspace.open(id); setOpen(false); }
+    setBusy(true);
+    try { await workspace.open(id); setStatus(""); setOpen(false); }
     catch (reason) { setStatus(errorMessage(reason, "Could not open research")); }
     finally { setBusy(false); }
   }
   async function rename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!file) return; const title = String(new FormData(event.currentTarget).get("title") ?? "").trim();
-    if (!title) return; setBusy(true); setStatus("");
+    if (!title) return; setBusy(true);
     try { await directory.renameDocument(file.document.id, `${title.replace(/\.research\.md$/iu, "")}.research.md`);
-      await workspace.refresh(); setRenameOpen(false); }
+      await workspace.refresh(); setStatus(""); setRenameOpen(false); }
     catch (reason) { setStatus(errorMessage(reason, "Could not rename workspace")); }
     finally { setBusy(false); }
   }

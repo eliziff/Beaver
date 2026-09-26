@@ -81,7 +81,7 @@ export function FolderBrowser({ list, createFolder, rootLabel, onSelect, onBack,
             {page.loading ? "Loading…" : "Load more"}
         </button>}
         {page.loading && !folders.length && <p role="status"
-            className="px-3 py-8 text-center text-sm text-gray-500">Loading folders…</p>}
+            className="beaver-loading-indicator px-3 py-8 text-center text-sm text-gray-500">Loading folders…</p>}
         {page.error && !page.loading && <button type="button" onClick={() => void page.reload()}
             className="min-h-10 w-full rounded px-3 text-sm text-red-700 hover:bg-red-50">
             Unable to load folders. Try again

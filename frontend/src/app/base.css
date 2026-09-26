@@ -305,3 +305,21 @@ textarea,
         animation-iteration-count: 1 !important;
     }
 }
+
+/* Transient states paint only once they have lasted 150 ms, so the quick work most clicks
+   start never flashes. CSS only: no timers, no extra React renders.
+   A loading placeholder reserves its layout at once but stays invisible until then. */
+.beaver-loading-indicator {
+    animation: beaver-loading-reveal 0s 150ms both;
+}
+
+@keyframes beaver-loading-reveal {
+    from { visibility: hidden; }
+    to { visibility: visible; }
+}
+
+/* A control disables at once but looks disabled only after the same delay; re-enabling
+   shows at once. */
+:is(button, input, select, textarea, fieldset):disabled {
+    transition: opacity 0s 150ms, color 0s 150ms, background-color 0s 150ms, border-color 0s 150ms;
+}

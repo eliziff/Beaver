@@ -6,6 +6,7 @@ import { WorkflowSkeuoIcon } from "@/app/components/shared/AppSidebarSkeuoIcons"
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { CHAT_COLUMN_CLASS } from "./chatLayout";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
+import { rememberDockOpen, rememberedDockOpen } from "./assistantDockLayout";
 import type { LibraryKind, Document } from "@/app/lib/api/documents";
 import { workflowDocumentTab, workflowMessage, type AssistantWorkflowLaunch,
     type WorkflowSelection } from "../workflows/workflowRoutes";
@@ -26,7 +27,8 @@ export function InitialView({
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const [dockTab, setDockTab] = useState(initialWorkflow ? "workflows" : "sources");
-    const [dockOpen, setDockOpen] = useState(!!initialWorkflow);
+    const [dockOpen, setDockOpen] = useState(() => !!initialWorkflow || rememberedDockOpen());
+    useEffect(() => rememberDockOpen(dockOpen), [dockOpen]);
     const [libraryKind, setLibraryKind] = useState<LibraryKind>("files");
     const [workflowDocuments, setWorkflowDocuments] = useState<Document[]>(initialDocuments);
     const chatInputRef = useRef<ChatInputHandle>(null);

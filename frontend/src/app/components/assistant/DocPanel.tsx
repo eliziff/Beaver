@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { ContextualWorkflowLauncher } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
@@ -14,13 +14,11 @@ import { useEditResolution } from "./EditCard";
 import { SourcesWorkspaceProvider, useSourcesWorkspaceOrNull } from "../legal/SourcesWorkspace";
 import { useReaderCapture } from "../shared/useReaderCapture";
 
-const ResearchWorkspaceHost = lazy(async () => ({
-  default: (await import("../legal/ResearchWorkspaceHost")).ResearchWorkspaceHost,
-}));
+import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 
 function ResearchDocument({ documentId, projectId }: { documentId: string; projectId?: string }) {
   return <SourcesWorkspaceProvider fileId={documentId} projectId={projectId}>
-    <Suspense fallback={null}><ResearchWorkspaceHost projectId={projectId} embedded open inline onOpenChange={() => undefined} /></Suspense>
+    <ResearchWorkspaceHost projectId={projectId} embedded open inline onOpenChange={() => undefined} />
   </SourcesWorkspaceProvider>;
 }
 

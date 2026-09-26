@@ -347,7 +347,7 @@ export function DocxView({
                 data-version-id={versionId ?? ""}
             >
                 {preparing && (
-                    <div className="absolute inset-0 flex items-center justify-center" role="status" aria-label="Loading document">
+                    <div className="beaver-loading-indicator absolute inset-0 flex items-center justify-center" role="status" aria-label="Loading document">
                         <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
                     </div>
                 )}

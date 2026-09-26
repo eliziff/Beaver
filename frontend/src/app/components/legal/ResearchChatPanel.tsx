@@ -48,7 +48,7 @@ export function ResearchChatPanel() {
     </div>
     {error && <p role="alert" className="px-3 text-sm text-red-700">{error}</p>}
     {file && <p className="px-3 text-xs text-gray-500">Whole workspace</p>}
-    {loading ? <p role="status" className="p-3 text-sm">Opening chat…</p> : chatId ? <ChatView
+    {loading ? <p role="status" className="beaver-loading-indicator p-3 text-sm">Opening chat…</p> : chatId ? <ChatView
       chatId={chatId} researchFileId={id} projectId={file?.document.project_id ?? undefined}
       session={assistant.state} ready={assistant.chatLoad.status === "loaded"}
       handleChat={async (message, options) => {

@@ -113,7 +113,7 @@ function LibraryFiles({ query, sourceIndex, busy, save, onError, onNeedFile, onS
     const { file: researchFile, mutations } = useSourcesWorkspace();
     const [reading, setReading] = useState<Citation | null>(null);
     const documents = usePagedQuery<Document>((cursor, signal) => listLibraryDocuments({ q: query, cursor }, signal),
-        [query], true, libraryDocumentsCollection(query));
+        [query], true, libraryDocumentsCollection(query), { scope: "library", query });
     const files = documents.items.filter((item) => !isResearchDocument(item));
     if (documents.error) return <CollectionState error>Your library could not be opened.</CollectionState>;
     if (documents.loading && !files.length) return <CollectionState loading>Loading…</CollectionState>;
@@ -254,8 +254,8 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
         const text = (name: string) => form.get(name)?.toString().trim() || undefined;
         const query = searchQuery.trim();
         if (!query) return;
+        // Earlier results stay on screen until these replace them.
         setSearching(true);
-        setSearched(false);
         setNotInstalled(false);
         setError(null);
         try {
