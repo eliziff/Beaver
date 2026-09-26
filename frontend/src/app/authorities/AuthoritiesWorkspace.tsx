@@ -1,3 +1,4 @@
+import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress, StepSection } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
@@ -148,7 +149,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     quote?: string; bytes?: Uint8Array; error?: string }>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
   const [stubWarning, setStubWarning] = useState(false);
-  const [recognitionAsked, setRecognitionAsked] = useState(false), [recognizePages, setRecognizePages] = useState("");
+  const [recognitionAsked, setRecognitionAsked] = useState(false);
   const [recognizeScope, setRecognizeScope] =
     useState<AuthoritiesBuildSettings["scannedPdfPolicy"]>("cited-pages");
   const scanRequest = useRef<AbortController | null>(null);
@@ -275,11 +276,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }, []);
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
-  const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
-    (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256 &&
-      draftRef.current?.state.settings.scannedPdfPolicy !== "page-margin") void ocr.begin([file]); });
-  // Recognition starts as soon as a scan is found, unless the book keeps the scan as
-  // images; the step then only lists what is still unrecognized.
+  const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`);
+  useEffect(() => {
+    if (scannedSources.checking || draft?.state.settings.scannedPdfPolicy === "page-margin") return;
+    const pending = scannedSources.files.filter(file => ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256);
+    if (pending.length) void ocr.begin(pending);
+  }, [scannedSources.checking, scannedSources.files, draft?.state.settings.scannedPdfPolicy, ocr.tracked, ocr.begin]);
   const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
   // The step only interrupts once a scan is known to be unrecognized, so a book whose
   // sources are all readable moves on without a dialog the reader never needed. Recognition
@@ -617,7 +619,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       }
       return { added, failures };
     }), ({ added, failures }) => {
-      setMessage(`Added ${added} PDF${added === 1 ? "" : "s"} from the folder`);
+      setMessage(""); autoFetchToast(added);
       if (failures.length) setError(failures.join("\n"));
     },
     "", "Adding PDFs from the folder");
@@ -731,22 +733,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   /** Next applies the choice, starts the reading it asks for, and hands the reader on. */
   function applyRecognition() {
-    const chosen = recognizePages.trim() ? pageList(recognizePages) : undefined;
-    if (chosen === null) return;
-    setRecognitionAsked(false);
+    const finish = () => {
+      if (recognizeScope === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false);
+      else void ocr.begin(unrecognized.filter(({ role }) => ocr.tracked[role]?.state !== "running"));
+      act({ type: "set-stage", stage: "highlights" }, () => setRecognitionAsked(false));
+    };
     if (recognizeScope !== draftRef.current?.state.settings.scannedPdfPolicy)
-      act({ type: "set-settings", settings: { scannedPdfPolicy: recognizeScope } });
-    if (recognizeScope === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false);
-    // Each scan reads only the chosen pages it lacks text on, so a page past a shorter
-    // file's end cannot fail the others.
-    else if (chosen) for (const file of unrecognized) {
-      const pages = chosen.filter(page => file.textlessPages.includes(page));
-      if (pages.length) void ocr.begin([file], pages);
-    }
-    // Reading already under way is left alone; only a scan that is not being read is started.
-    else void ocr.begin(unrecognized.filter(({ role }) => ocr.tracked[role]?.state !== "running"));
-    advance("highlights");
+      act({ type: "set-settings", settings: { scannedPdfPolicy: recognizeScope } }, finish);
+    else finish();
   }
+
   /** The PDFs a draft cites are gathered as soon as its citations are known, not on request. */
   async function gatherSources(attempts: number): Promise<void> {
     const current = draftRef.current;
@@ -953,8 +949,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         }} />}
       <Modal open={recognitionAsked} onClose={() => setRecognitionAsked(false)} size="xl"
         breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
-        primaryAction={{ label: "Next", onClick: applyRecognition,
-          disabled: recognizeScope !== "page-margin" && recognizePages.trim() !== "" && !pageList(recognizePages) }}>
+        primaryAction={{ label: "Next", onClick: applyRecognition, disabled: busy }}>
         <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
           their pages so passages can be marked and the book can be searched. It keeps running in the
           background while you work on the highlights.</p>
@@ -977,13 +972,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
             </label>)}
           </div>
         </fieldset>
-        <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">Pages
-          <Input value={recognizePages} onChange={event => setRecognizePages(event.target.value)}
-            disabled={recognizeScope === "page-margin"} placeholder="All scanned pages"
-            aria-label="Pages to recognize" aria-invalid={recognizePages.trim() !== "" && !pageList(recognizePages)}
-            className="h-8 w-44 border-gray-400 text-sm" /></label>
-        {recognizeScope !== "page-margin" && recognizePages.trim() !== "" && !pageList(recognizePages) &&
-          <p role="alert" className="mt-1 text-sm text-red-800">Enter pages such as 3, 5-8.</p>}
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
@@ -1735,17 +1723,6 @@ const pageRanges = (pages: number[]) => pages.reduce<number[][]>((runs, page) =>
   if (last && page === last[1] + 1) last[1] = page; else runs.push([page, page]);
   return runs;
 }, []).map(([from, to]) => from === to ? `${from}` : `${from}–${to}`).join(", ");
-/** Pages typed as "3, 5-8" (the form pageRanges shows): sorted and distinct, or null if unreadable. */
-function pageList(text: string) {
-  const pages = new Set<number>();
-  for (const part of text.split(",")) {
-    const match = /^\s*(\d{1,5})\s*(?:[-–]\s*(\d{1,5})\s*)?$/u.exec(part);
-    const from = Number(match?.[1]), to = Number(match?.[2] ?? match?.[1]);
-    if (!match || from < 1 || to < from || to - from > 2_000) return null;
-    for (let page = from; page <= to; page += 1) pages.add(page);
-  }
-  return [...pages].sort((first, second) => first - second);
-}
 const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs"]);
 const STEPS = [{ value: "citations", label: "Citations" }, { value: "sources", label: "Sources" },
   { value: "highlights", label: "Highlights" }, { value: "build", label: "Build book" }] as const;

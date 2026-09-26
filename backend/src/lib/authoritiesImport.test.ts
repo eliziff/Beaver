@@ -4,7 +4,8 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { structureNative } from "./structureNative";
-import { Document, Packer, Paragraph } from "docx";
+import { Document, Packer, Paragraph, TextRun, FootnoteReferenceRun } from "docx";
+import { authorityPassageTargets } from "./authoritiesBuild";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -12,6 +13,23 @@ import os from "node:os";
 import path from "node:path";
 
 const scope = { userId: "user-1" };
+
+it('preserves the reported hyphenated quotation and a second quotation at the same citation', async () => {
+  const quotes = ['no evidence indicating that the mental condi-\ntion of the accused is inherently dangerous in any\nway.',
+    'his mental condition poses no threat to public safety'];
+  const bytes = await Packer.toBuffer(new Document({
+    footnotes: { 1: { children: [new Paragraph('R. v. Bouchard-Lebrun, 2011 SCC 58 at para 83.')] } },
+    sections: [{ children: [new Paragraph({ children: [
+      new TextRun(`“${quotes[0]}” and “${quotes[1]}”`), new FootnoteReferenceRun(1),
+    ] })] }],
+  }));
+  const state = await importStandaloneAuthoritiesFile({ filename: 'Brief.docx', fileType: 'docx', bytes, modified: 0 });
+  expect(state.authorityOrder).toHaveLength(1);
+  expect(authorityPassageTargets(state, state.authorityOrder[0])).toEqual([
+    expect.objectContaining({ locatorKind: 'paragraph', locator: '83',
+      exactQuotes: quotes.map(quote => quote.replace(/\s+/g, ' ')) }),
+  ]);
+});
 let aliasDirectory: string | null = null;
 
 afterEach(async () => {

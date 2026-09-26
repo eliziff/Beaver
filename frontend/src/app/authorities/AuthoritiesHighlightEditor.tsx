@@ -15,28 +15,28 @@ import type { AuthoritiesAction, AuthoritiesProduct } from './types';
 /** Text recognition for one scanned source, watched where the source is being used. */
 export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
   const action = (label: string, act: () => void) => <button type="button"
-    className="min-h-6 rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600"
+    className="h-7 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
     onClick={act}>{label}</button>;
   const total = status.textlessPages.length;
   const pending = status.state === 'running' || status.state === 'paused';
-  return <div className="col-span-full grid gap-1 text-xs">
+  return <div className="col-span-full grid min-w-0 gap-1.5 text-xs">
     <div className="flex flex-wrap items-center gap-2">
-      <span className={cn('min-w-0 truncate', status.state === 'done' ? 'text-green-800'
+      <span role="status" className={cn('min-w-0', status.state === 'done' ? 'text-green-800'
         : status.state === 'failed' ? 'text-red-800' : 'text-gray-600')}>
         {status.state === 'done' ? 'Text recognition complete'
           : status.state === 'failed' ? status.error || 'Text recognition failed'
-          : status.state === 'paused' ? `Text recognition paused — ${status.recognized} of ${total} pages read`
+          : status.state === 'paused' ? `OCR paused · ${status.recognized}/${total} pages`
           : status.state === 'cancelled' ? 'Text recognition cancelled'
-          : `Recognizing ${status.pages?.length ? 'the cited pages' : 'every scanned page'} — ${status
-            .recognized} of ${total} pages read`}</span>
+          : `Recognizing text · ${status.recognized}/${total} pages`}</span>
       <span className="ms-auto flex shrink-0 gap-1">
         {status.state === 'running' && action('Pause', () => ocr.stop([status.role], true))}
         {['paused', 'failed', 'cancelled'].includes(status.state) && action('Resume', () => void ocr.begin([status], status.pages?.length ? status.pages : undefined))}
         {pending && action('Cancel', () => void ocr.stop([status.role], false))}
       </span>
     </div>
-    {pending && <progress value={status.recognized} max={total} aria-label={`Pages recognized in ${status.name}`}
-      className="h-1.5 w-full appearance-none overflow-hidden rounded-full bg-gray-200 [&::-moz-progress-bar]:bg-red-700 [&::-webkit-progress-bar]:bg-gray-200 [&::-webkit-progress-value]:bg-red-700" />}
+    {pending && <progress value={status.recognized} max={total}
+      aria-label={`Pages recognized in ${status.name}`}
+      className="h-0.5 w-full appearance-none overflow-hidden rounded-full bg-gray-100 [&::-moz-progress-bar]:bg-gray-500 [&::-webkit-progress-bar]:bg-gray-100 [&::-webkit-progress-value]:bg-gray-500" />}
   </div>;
 }
 
@@ -91,6 +91,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
   const [pdf, setPdf] = useState<{ role: string; bytes: Uint8Array } | null>(null);
   const [tool, setTool] = useState<AnnotationTool>('select');
+  const [highlightSelection, setHighlightSelection] = useState(0);
   const [selectedId, setSelectedId] = useState<string|null>(null);
   const [focus, setFocus] = useState<{ id: string; request: number }>();
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
@@ -101,6 +102,10 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
   const current = documents[role], marks = current?.history[current.position] ?? [];
+  const [displayedCount, setDisplayedCount] = useState<number>();
+  if (!loading && current && current.review !== 'preparing' && displayedCount !== marks.length)
+    setDisplayedCount(marks.length);
+  const visibleError = error || current?.warning || textError;
   const dirty = Object.values(documents).some(document => document.saved !== document.history[document.position]);
   const disabled = loading || !current;
   const changeDocument = (update: (document: OpenPdf) => OpenPdf) => setDocuments(values => {
@@ -144,11 +149,12 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       setLoading(false);
       if (loaded && loaded.review !== 'preparing') return;
       const saved = base.state.authorities[source.authorityId].annotations?.[role];
-      const replaced = !!saved && saved.sourceSha256 !== hash;
-      let set = saved && !replaced ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
+      if (saved && saved.sourceSha256 !== hash)
+        throw new Error('Saved highlights belong to a different PDF. Relink the original PDF before editing them.');
+      let set = saved ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
       if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
-      let warning = replaced ? 'The PDF changed; highlights start from this version.' : '';
-      const automatic = (!saved || replaced) && base.state.settings.passageMarking !== 'none';
+      let warning = '';
+      const automatic = !saved && base.state.settings.passageMarking !== 'none';
       const initial: OpenPdf = {set,history:[set.marks],position:0,warning,
         saved:set.marks,review:automatic?'preparing':'ready'};
       if (!loaded) setDocuments(values => ({...values,[role]:values[role] ?? initial}));
@@ -162,7 +168,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
             .pageMarked.join(', ')} because that paragraph's text was not found.`;
         } catch (cause) {
           abort.signal.throwIfAborted(); set=emptyAnnotationSet(hash);
-          warning=`Automatic highlights could not be prepared. You can mark this PDF manually. ${errorMessage(cause)}`;
+          warning=errorMessage(cause);
         }
       }
       abort.signal.throwIfAborted();
@@ -178,7 +184,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       const text = await host.readSourceText?.(base, role, signal, [page]);
       return text?.pages.find(item => item.pageNumber === page);
     } catch (cause) {
-      if (!signal.aborted) setTextError(`Text selection could not be prepared. ${errorMessage(cause)}`);
+      if (!signal.aborted) setTextError(errorMessage(cause));
       return undefined;
     }
   }, [role, recognition?.state, recognition?.recognized, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -262,15 +268,15 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <div className="flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {pdf ? <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
               loading={loading} loadRecognizedText={pdf.role === role && host.readSourceText ? loadRecognizedText : undefined}
-              annotationEditor={{marks: pdf.role === role ? marks : [],tool,selectedId,focus,disabled: disabled || pdf.role !== role,
+              annotationEditor={{marks: pdf.role === role ? marks : [],tool,selectedId,focus,highlightSelection,disabled: disabled || pdf.role !== role,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
                 }}} />
-              : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
+              : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{!loading && 'PDF unavailable'}</div>}
           </div>
           <aside aria-label="Highlights" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
             <div className="flex items-center justify-between gap-2 px-3 pt-2">
-              <h2 className="text-sm font-semibold">Highlights <span className="font-normal text-gray-500">{marks.length}</span></h2>
+              <h2 className="text-sm font-semibold">Highlights <span className="font-normal text-gray-500">{displayedCount ?? ''}</span></h2>
               <Button type="button" variant="ghost" size="icon-sm" aria-label="Close highlights" disabled={saving||dirty} onClick={close}><X /></Button>
             </div>
         <div className="flex shrink-0 flex-col gap-3 p-3">
@@ -284,7 +290,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <div role="group" aria-label="Highlight tool" className="flex flex-wrap items-center gap-1">
             {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
               {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value} type="button"
-                variant={tool===value?'default':'ghost'} aria-pressed={tool===value} disabled={disabled} onClick={()=>setTool(value)} className="h-8"><Icon />{label}</Button>)}
+                variant={tool===value?'default':'ghost'} aria-pressed={tool===value} disabled={disabled} onPointerDown={event=>{if(value==='highlight')event.preventDefault();}}
+                onClick={()=>{setTool(value);if(value==='highlight')setHighlightSelection(n=>n+1);}} className="h-8"><Icon />{label}</Button>)}
           </div>
           <div className="flex items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Delete selected highlight" disabled={disabled||!selectedId} onClick={()=>selectedId&&remove(selectedId)}><Trash2 /></Button>
@@ -292,14 +299,13 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
           </div>
         </div>
-        {recognition && <div className="mt-2 shrink-0 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2">
+        {recognition && <div className="mt-2 shrink-0 px-3 py-2">
           <SourceOcrProgress status={recognition} ocr={ocr} /></div>}
-            {(error || textError || loading || saving) && <p role={error || textError?'alert':'status'} className="px-3 pb-2 text-sm text-gray-600">
-              {error || textError || (loading?'Preparing PDF…':'Saving…')}
+            {(visibleError || saving) && <p role={visibleError?'alert':'status'} className="px-3 pb-2 text-sm text-gray-600">
+              {visibleError || 'Saving…'}
               {error && dirty && <Button disabled={saving} onClick={()=>void save()}>Retry</Button>}
             </p>}
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {current?.warning && <p role="alert" className="mb-2 rounded-md border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-red-800">{current.warning}</p>}
             <ul className="space-y-1">{marks.map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
               className={cn('flex rounded-md border',mark.id===selectedId?'border-red-700 bg-red-50':'border-gray-200 bg-white hover:border-gray-400')}>
@@ -309,7 +315,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
               </button>
               <Button type="button" variant="ghost" size="icon-sm" className="m-1 shrink-0" disabled={disabled} aria-label={`Delete ${mark.label}`} onClick={()=>remove(mark.id)}><Trash2 /></Button>
             </li>)}</ul>
-            {!marks.length && current && <p className="px-1 py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
+            {current?.review === 'preparing' ? <p role="status" className="px-1 py-4 text-sm text-gray-500">Preparing highlights</p>
+              : !loading && !visibleError && !marks.length && current && <p className="px-1 py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
             </div>
           </aside>
         </div>

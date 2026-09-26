@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
+import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
   FolderInput, FolderSearch, Loader2, Pencil, Plus, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
@@ -110,13 +110,25 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     !styleOfCause.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
-  const rowControl = cn(control, "w-10 justify-center px-1 @min-[44rem]/sources:w-28 @min-[44rem]/sources:px-2.5");
+  const rowControl = cn(control, "w-10 justify-center px-1 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
   const actionLabel = "hidden @min-[44rem]/sources:inline";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
     : rebuildsFromText && authority.source.kind === "resolved";
-  const mark = fromText ? { Icon: FileType2, tone: "text-indigo-700",
+  const missing = needsPdf && !loaded;
+  const missingIssue = sources.map(({ bindingRole }) => sourceIssues[bindingRole]).find(Boolean);
+  const missingLabel = issue ? "File access was denied. Allow access to this PDF to use it."
+    : missingIssue?.status === "changed" ? "The PDF changed. Its source is being refreshed."
+    : missingIssue?.status === "missing" && missingIssue.reason === "deleted"
+      ? "The PDF could not be found. Upload it again."
+    : authority.source.kind === "pending-canlii"
+      ? "Couldn't auto-fetch. Download from CanLII and upload the PDF. (CanLII doesn't let us automate this.)"
+    : sources.length ? "This PDF is unavailable. Upload it again."
+    : "No PDF attached. Upload a PDF for this authority.";
+  const mark = missing ? { Icon: issue ? LockKeyhole : authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
+      tone: "text-red-700", label: missingLabel }
+    : fromText ? { Icon: FileType2, tone: "text-indigo-700",
       label: loaded ? "Built from source text" : "Will be built from source text" }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
@@ -125,7 +137,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     if (name.trim() !== styleOfCause) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: name.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
-    className={cn("group/row grid min-h-12 min-w-0 grid-cols-[1.5rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[30rem]/sources:grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_16.5rem]",
+    className={cn("group/row grid min-h-12 min-w-0 grid-cols-[1.5rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[30rem]/sources:grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_13.75rem]",
       authority.excluded && "opacity-65")}
     onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
       needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
@@ -174,7 +186,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
               <Eye className="h-3.5 w-3.5" /><span className={actionLabel}>View</span></ActionMenu>)
-        : <span className="w-10 @min-[44rem]/sources:w-28" />)}
+        : <span className="w-10 @min-[44rem]/sources:w-[5.625rem]" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
             aria-label={`Upload PDF for ${title}`} title="Upload" onClick={pick}><Upload /><span className={actionLabel}>Upload</span></Button>

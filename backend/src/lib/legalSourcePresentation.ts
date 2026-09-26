@@ -74,6 +74,21 @@ export function decisiaIndexUrl(rawUrl: string | URL) {
   return source;
 }
 
+/** Public decision URLs supported by the shared publisher PDF service. */
+export function publisherPdfSourceUrl(raw: string): URL | null {
+  let url: URL;
+  try { url = new URL(raw); } catch { return null; }
+  const bc = ["www.bccourts.ca", "bccourts.ca"].includes(url.hostname);
+  const validPath = DECISIA_HOSTS.has(url.hostname)
+    ? /^\/[a-z0-9/_-]+\/(?:item\/\d+\/index\.do|\d+\/document\.do)$/i.test(url.pathname)
+    : bc && /^\/jdb-txt\/(?:sc|ca)\/[a-z0-9/_-]+\.(?:htm|html|pdf)$/i.test(url.pathname);
+  if (bc && url.protocol === "http:") url.protocol = "https:";
+  if (url.protocol !== "https:" || url.port || url.username || url.password || !validPath ||
+      /[%\\]/.test(url.pathname)) return null;
+  url.hash = ""; url.search = "";
+  return url;
+}
+
 /** One attribute's value in any quoting style; "" when the attribute is absent. */
 const attributePattern = (name: string) =>
   new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, "iu");

@@ -149,7 +149,9 @@ export function createAuthoritiesRuntimeRouter(
     if (req.body?.prepareOnly === "true") {
       const prepared = await documentProjectionService.preparePdf({ ...reference, bytes,
         ocrProvider: "kraken-lite", pages, signal: abort.signal });
-      return void res.json({ pages: [], pdfProfile: prepared });
+      const text = await documentProjectionService.pdfTextLayer(() => bytes, reference,
+        {pdfProfile:prepared,signal:abort.signal});
+      return void res.json({pages:text});
     }
     // Reading a text layer never starts recognition: it restores the source-bound preparation.
     const profile = req.body?.pdfProfile === undefined ? undefined
