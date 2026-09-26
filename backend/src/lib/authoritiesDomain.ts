@@ -4,7 +4,7 @@ import type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence,
 } from "mike/shared/authorities-contract.d.ts";
 export type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
@@ -12,7 +12,7 @@ export type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence,
 };
 
 import { attachAuthoritySource, attachedAuthoritySources,
@@ -76,6 +76,7 @@ export type AuthoritiesAction =
       replacement: AuthorityOccurrence;
       absorbed?: { ids: string[]; start: number; end: number } }
   | { type: "remove-occurrence"; occurrenceId: string }
+  | { type: "restore-occurrence"; occurrenceId: string }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
@@ -253,6 +254,8 @@ const draftShape = closed<AuthoritiesDraft>({
   occurrences: dictionary(occurrence), authorities: dictionary(authority),
   authorityOrder: list(50_000, nonempty(200)),
   discrepancyDecisions: dictionary(oneOf(AUTHORITIES_ACTION_CHOICES.discrepancy), hash),
+  dismissedOccurrences: maybe(dictionary(closed<AuthoritiesDismissedOccurrence>({
+    occurrence, authority: nullable(authority) }))),
 });
 
 /** Rejects malformed generic JSON before it can enter the typed Authorities reducer. */
@@ -540,6 +543,12 @@ const occurrenceCarryKey = ({ unitId, sourceTextSha256, localOrdinal }: Authorit
   `${unitId}\0${sourceTextSha256}\0${localOrdinal}`;
 const ignoredOccurrenceKey = (item: AuthorityOccurrence) =>
   sha256(`not-citation\0${occurrenceCarryKey(item)}`);
+/** Keeps a citation marked "Not a citation", and the authority it cited, for restoring. */
+const dismiss = (draft: AuthoritiesDraft, item: AuthorityOccurrence) => {
+  const authority = item.authorityId ? draft.authorities[item.authorityId] : undefined;
+  (draft.dismissedOccurrences ??= {})[item.id] = { occurrence: structuredClone(item),
+    authority: authority ? structuredClone(authority) : null };
+};
 
 function groupOccurrences(items: AuthorityOccurrence[]) {
   const groups = new Map<string, AuthorityOccurrence[]>();
@@ -576,7 +585,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
   } : draft.cover;
   const fresh: AuthoritiesDraft = { ...draft, ...structuredClone(review),
     cover: structuredClone(cover), ledger: null,
-    discrepancyDecisions: { ...draft.discrepancyDecisions } };
+    discrepancyDecisions: { ...draft.discrepancyDecisions }, dismissedOccurrences: {} };
   // "Not a citation" holds only while the user leaves that text alone. A citation
   // put back over the same words - by hand, by a span correction, by a split -
   // withdraws the decision, which is otherwise unreachable: its id is a digest of
@@ -588,7 +597,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     const decision = ignoredOccurrenceKey(item);
     if (draft.discrepancyDecisions[decision] !== "ignore") continue;
     if (restored(item)) delete fresh.discrepancyDecisions[decision];
-    else replaceOccurrences(fresh, [item.id], []);
+    else { dismiss(fresh, item); replaceOccurrences(fresh, [item.id], []); }
   }
   for (const { bindingRole } of authoritiesBookPdfs(draft)) {
     if (draft.bindings[bindingRole]) {
@@ -892,7 +901,33 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "remove-occurrence": {
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
       draft.discrepancyDecisions[ignoredOccurrenceKey(occurrence)] = "ignore";
+      dismiss(draft, occurrence);
       replaceOccurrences(draft, [action.occurrenceId], []);
+      break;
+    }
+    case "restore-occurrence": {
+      const saved = draft.dismissedOccurrences?.[action.occurrenceId];
+      if (!saved) throw new AuthoritiesDomainError("This citation cannot be restored.");
+      const item = structuredClone(saved.occurrence);
+      const unit = draft.units.find(({ id }) => id === item.unitId);
+      // Offsets only mean the same words while the text around them is unchanged.
+      if (!unit || unit.occurrenceIds.some((id) => draft.occurrences[id] &&
+          draft.occurrences[id].sourceTextSha256 !== item.sourceTextSha256) ||
+          unit.text.slice(item.start, item.end) !== item.text ||
+          unit.occurrenceIds.some((id) => draft.occurrences[id] &&
+            item.start < draft.occurrences[id].end && draft.occurrences[id].start < item.end)) {
+        throw new AuthoritiesDomainError("The text around this citation has changed. Mark it again.");
+      }
+      if (saved.authority && !draft.authorities[saved.authority.id]) {
+        draft.authorities[saved.authority.id] = structuredClone(saved.authority);
+        draft.authorityOrder.push(saved.authority.id);
+      }
+      if (item.authorityId && !draft.authorities[item.authorityId]) item.authorityId = null;
+      const after = unit.occurrenceIds.findIndex((id) => draft.occurrences[id]?.start >= item.end);
+      draft.occurrences[item.id] = item;
+      unit.occurrenceIds.splice(after < 0 ? unit.occurrenceIds.length : after, 0, item.id);
+      delete draft.discrepancyDecisions[ignoredOccurrenceKey(item)];
+      delete draft.dismissedOccurrences![item.id];
       break;
     }
     case "relink-occurrence": {
@@ -1042,7 +1077,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     "edit-authority", "begin-canlii-handoff"].includes(action.type) && draft.stage !== "citations")
     draft.stage = "sources";
   if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
-  if (draft.import.kind === "document" && ["add-occurrence", "split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence",
+  if (draft.import.kind === "document" && ["add-occurrence", "split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence", "restore-occurrence",
     "relink-occurrence", "set-reference"].includes(action.type)) draft.stage = "citations";
 }
 

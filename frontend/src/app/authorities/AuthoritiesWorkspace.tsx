@@ -876,6 +876,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     </>}>
                     {operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
+                      dismissed={Object.values(draft.state.dismissedOccurrences ?? {})}
                       busy={busy} onSelect={setSelectedId} onAction={act}
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </StepSection>{quotationReview}</>}
@@ -1143,9 +1144,10 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
   </>;
 }
 
-function CitationReview({ occurrences, units, selected, authorities, discrepancies, onSelect,
-  onAction, onReview, busy, onFocusChange }: {
+function CitationReview({ occurrences, units, selected, authorities, discrepancies, dismissed,
+  onSelect, onAction, onReview, busy, onFocusChange }: {
   occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence;
+  dismissed: Array<{ occurrence: AuthorityOccurrence }>;
   units: AuthoritiesProduct["state"]["units"]; authorities: AuthorityIdentity[];
   discrepancies: AuthoritiesDiscrepancy[]; busy: boolean;
   onSelect: (id: string) => void; onAction: ActionHandler;
@@ -1154,12 +1156,23 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
 }) {
   const options = useRef<Array<HTMLButtonElement | null>>([]);
   const locations = useMemo(() => occurrenceLocations(occurrences, units), [occurrences, units]);
-  if (!occurrences.length) return <div className="grid h-80 place-items-center text-sm text-gray-500">No citations found.</div>;
+  // Text marked "Not a citation" stays listed, so a wrong call can be taken back.
+  const notCitations = dismissed.length > 0 && <details className="shrink-0 border-t border-gray-200">
+    <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-600">Not citations ({dismissed.length})</summary>
+    {dismissed.map(({ occurrence }) => <div key={occurrence.id} className="flex items-center gap-2 px-3 py-1 text-xs text-gray-500">
+      <span className="min-w-0 flex-1 truncate line-through" title={occurrence.text}>{occurrence.citation || occurrence.text}</span>
+      <Button type="button" variant="ghost" className="h-7 shrink-0 px-2 text-xs" disabled={busy}
+        onClick={() => onAction({ type: "restore-occurrence", occurrenceId: occurrence.id },
+          () => onSelect(occurrence.id))}>Restore</Button></div>)}
+  </details>;
+  if (!occurrences.length) return <div className="grid h-80 grid-rows-[1fr_auto] text-sm text-gray-500">
+    <p className="place-self-center">No citations found.</p>{notCitations}</div>;
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
   const authorityById = new Map(authorities.map((item) => [item.id, item]));
   const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
   return <div className="authorities-review grid min-h-0 grid-rows-[14rem_auto] overflow-hidden @min-[35rem]:h-[30rem] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)] @min-[35rem]:grid-rows-1">
-    <div className="min-h-0 overflow-y-auto border-b border-gray-200 [scrollbar-width:thin] @min-[35rem]:border-b-0 @min-[35rem]:border-e" role="listbox"
+    <div className="flex min-h-0 flex-col border-b border-gray-200 @min-[35rem]:border-b-0 @min-[35rem]:border-e">
+    <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]" role="listbox"
       aria-label="Citations">
       {occurrences.map((item, index) => {
         const authority = item.authorityId ? authorityById.get(item.authorityId) : undefined;
@@ -1184,7 +1197,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
           <span className="block truncate text-xs text-gray-700">{item.citation}</span>
         </button>;
       })}
-    </div>
+    </div>{notCitations}</div>
     {selected && <CitationEditor key={selected.id} selected={selected} unitText={unitText}
       footnote={unit?.kind === "footnote"} canMerge={(unit?.occurrenceIds.indexOf(selected.id) ?? 0) > 0}
       authorities={authorities} busy={busy} finding={findingByOccurrence.get(selected.id)}

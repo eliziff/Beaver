@@ -43,7 +43,7 @@ export const AUTHORITIES_ACTION_CHOICES = {
 export const AUTHORITIES_TOOL_ACTIONS = [
     "set-authority-span", "set-pinpoint-span", "clear-pinpoint", "add-occurrence",
     "split-occurrence", "merge-occurrence",
-    "remove-occurrence", "relink-occurrence", "set-reference", "add-authority",
+    "remove-occurrence", "restore-occurrence", "relink-occurrence", "set-reference", "add-authority",
     "remove-authority", "exclude-authority",
     "rename-authority", "clear-authority-source", "set-profile", "set-settings",
     "set-output-mode", "set-document-output", "set-cover", "clear-book-part",
@@ -163,7 +163,8 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "split-occurrence": return { type, occurrenceId: text(item.occurrenceId),
       cursor: integer(item.cursor, 1) };
     case "merge-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
-    case "remove-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
+    case "remove-occurrence":
+    case "restore-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
     case "set-authority-span":
     case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
       start: integer(item.start), end: integer(item.end, 1) };
