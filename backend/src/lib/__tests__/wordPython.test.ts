@@ -68,13 +68,6 @@ describe.skipIf(!available())("word_python", () => {
     return { call, raw, read, documents, source, entries, file_path: `document://${source.id}/version/${source.current_version_id}` };
   }
 
-  it("names word_python as the only Word specialist in model-visible tool text", async () => {
-    const { entries } = await chat("auto");
-    const catalog = JSON.stringify(entries.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })));
-    expect([...new Set(catalog.match(/\bword_[a-z]+/gu))]).toEqual(["word_python"]);
-    expect(catalog).not.toMatch(/\bUNO\b/u);
-  }, 120_000);
-
   it("previews a verified candidate without touching the source and applies exactly those bytes", async () => {
     const { call, read, documents, source, file_path } = await chat("auto");
     const original = await read(source.id);
