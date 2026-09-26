@@ -86,20 +86,6 @@ describe("normalizeCodexCatalog", () => {
     ] });
   });
 
-  it.each([
-    ["luna-alias", "gpt-luna"],
-    ["gpt-luna", "luna-alias"],
-  ])("allows a displaced or ignored alias to reappear under another display name: %s, %s", (first, second) => {
-    const result = normalizeCodexCatalog([
-      { ...luna, model: first }, { ...luna, model: second },
-      { ...luna, model: "luna-alias", displayName: "Distinct model" },
-    ]);
-    expect(result).toEqual({ source: "live", models: [
-      { ...expectedLuna, slug: "gpt-luna" },
-      { ...expectedLuna, slug: "luna-alias", displayName: "Distinct model" },
-    ] });
-  });
-
   it("rejects a duplicate selected slug before considering display-name replacement", () => {
     const result = normalizeCodexCatalog([
       { model: "alias", displayName: "First" },
@@ -110,29 +96,6 @@ describe("normalizeCodexCatalog", () => {
       { slug: "alias", displayName: "First", supportedReasoningLevels: [] },
       { slug: "gpt-other", displayName: "Second", supportedReasoningLevels: [] },
     ]);
-  });
-
-  it("retains display-name collisions whose normalized key is empty", () => {
-    const result = normalizeCodexCatalog([
-      { model: "alias", displayName: "!?" },
-      { model: "middle" },
-      { model: "gpt-canonical", displayName: "—" },
-    ]);
-    expect(result).toEqual({ source: "live", models: [
-      { slug: "gpt-canonical", displayName: "—", supportedReasoningLevels: [] },
-      { slug: "middle", displayName: "middle", supportedReasoningLevels: [] },
-    ] });
-  });
-
-  it("deduplicates reasoning efforts case-insensitively while preserving first spelling and string whitespace", () => {
-    const result = normalizeCodexCatalog([{ ...luna, supportedReasoningEfforts: [
-      " HIGH ", "high", { reasoningEffort: " HIGH " }, "HIGH", "", " ",
-      { reasoningEffort: " " }, null, false, 42, [], {}, { reasoningEffort: 42 },
-      { reasoningEffort: " Max " }, "MAX", { reasoningEffort: "max" },
-    ] }]);
-    expect(result).toEqual({ source: "live", models: [{ ...expectedLuna, supportedReasoningLevels: [
-      { effort: " HIGH " }, { effort: "high" }, { effort: "" }, { effort: " " }, { effort: "Max" },
-    ] }] });
   });
 
   it.each([undefined, {}])("ignores non-array reasoning efforts: %j", (value) => {

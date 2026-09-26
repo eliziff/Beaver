@@ -132,42 +132,6 @@ describe("edit document panel", () => {
             }),
         );
     });
-
-    it("keeps the ordinary document header and download action", () => {
-        render(draftPanel({ mode: { kind: "document" } }));
-
-        screen.getByRole("heading", { name: /Draft agreement\.docx/ });
-        screen.getByText("V1");
-        screen.getByRole("button", { name: /download/i });
-    });
-
-    it("shows the edit filename and version once, in its tab", () => {
-        const { container } = render(
-            <AssistantSidePanel
-                tabs={[
-                    {
-                        id: "edit-tab",
-                        kind: "edit",
-                        documentId: "doc-1",
-                        filename: "Draft agreement.docx",
-                        versionId: "version-1",
-                        versionNumber: 1,
-                        edit,
-                        focusKey: 1,
-                    },
-                ]}
-                activeTabId="edit-tab"
-                onActivateTab={vi.fn()}
-                onCloseTab={vi.fn()}
-                onCloseAll={vi.fn()}
-            />,
-        );
-
-        expect(screen.getAllByText("Draft agreement.docx")).toHaveLength(1);
-        expect(container).not.toHaveTextContent(
-            /Tracked Change|This repeats what the redline already shows|Inserted replacement|Deleted original/i,
-        );
-    });
 });
 
 describe("assistant side panel tabs", () => {

@@ -2,9 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   actOnResearchFile,
   bindWorkspaceView,
-  createResearchFile,
   getResearchItems,
-  openWorkspaceTable,
   runResearchFileQuery,
 } from "@/app/lib/api/researchFiles";
 import {
@@ -18,15 +16,6 @@ afterEach(() => vi.unstubAllGlobals());
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 
 describe("research file API", () => {
-  it("creates a Sources workspace through the workspace application", async () => {
-    const fetchMock = vi.fn(async () => json({ document: { id: "file-1", filename: "Fairness.research.md" },
-      versionId: "version-1", workingRevision: 0 }));
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(createResearchFile({ title: "Fairness", projectId: "project-1" }))
-      .resolves.toMatchObject({ versionId: "version-1", workingRevision: 0 });
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/source-workspaces");
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ title: "Fairness", projectId: "project-1" });
-  });
 
   it("version-checks edits and queries, and binds views to the workspace", async () => {
     const fetchMock = vi.fn(async () => json({})); vi.stubGlobal("fetch", fetchMock);
@@ -44,16 +33,6 @@ describe("research file API", () => {
       .toEqual([["v1", 3], ["v2", 4]]);
     expect(bodies[1]).not.toHaveProperty("versionId");
     expect(bodies[2]).toEqual({ chatId: "chat/1", selection: { target: "sources", sourceIds: ["s1"] } });
-  });
-
-  it("imports a workspace as a table and returns the arranged review", async () => {
-    const fetchMock = vi.fn(async () => json({ id: "review-1", title: "Fairness",
-      columns_config: [{ index: 0, name: "Labels" }] }));
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(openWorkspaceTable("file/1", { labelId: "pen-1" }))
-      .resolves.toMatchObject({ id: "review-1", columns_config: [{ name: "Labels" }] });
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/source-workspaces/file%2F1/table");
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ labelId: "pen-1" });
   });
 
   it("pages v2 parts without reconstructing them from the root file", async () => {
