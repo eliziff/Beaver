@@ -22,6 +22,7 @@ import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import {
   assistantSessionReducer,
   createAssistantSessionState,
+  type AssistantSessionEvent,
   type AssistantTurnOptions,
   type ProtocolEvent,
 } from "@/app/lib/assistantSession";
@@ -163,14 +164,30 @@ export function useAssistantChat({
     const { controller: { signal }, runId } = transport;
     signal.throwIfAborted();
     if (!response.ok || !response.body) throw new Error("missing response");
+    const body = response.body;
+    // A model streams many small events a second; the transcript takes them once per frame,
+    // so a long reply re-renders at the display rate instead of once per event.
+    const queued: AssistantSessionEvent[] = [];
+    let frame: ReturnType<typeof setTimeout> | number | null = null;
+    const flush = () => {
+      frame = null;
+      if (queued.length) dispatch({ type: "batch", events: queued.splice(0) });
+    };
+    const post = (event: AssistantSessionEvent) => {
+      queued.push(event);
+      frame ??= typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame(flush) : setTimeout(flush, 16);
+    };
     const resetReplay = (chatId: string) => {
       if (!replay) return;
-      dispatch({ type: "live_replay_started", chatId, runId });
+      post({ type: "live_replay_started", chatId, runId });
       replay = false;
     };
     if (transport.chatId) resetReplay(transport.chatId);
+    // Whatever arrived last is applied before the caller's own updates follow it.
+    try {
     const result = await readAssistantEventStream({
-      body: response.body, signal, expectedChatId: transport.chatId,
+      body, signal, expectedChatId: transport.chatId,
       onEvent: (event, eventChatId) => {
         signal.throwIfAborted();
         const { wordClient, onChatIdChange, setChatTurnInProgress } = streamCallbacks.current;
@@ -195,11 +212,12 @@ export function useAssistantChat({
           }
         }
         if (event.type === "error" && event.accepted === false) transport.rejected = true;
-        dispatch({ type: "protocol", runId, chatId: eventChatId, event });
+        post({ type: "protocol", runId, chatId: eventChatId, event });
       },
     });
     signal.throwIfAborted();
     return result;
+    } finally { flush(); }
   }, []);
 
   const observeTurn = useCallback((

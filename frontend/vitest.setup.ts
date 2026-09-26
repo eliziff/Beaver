@@ -1,5 +1,6 @@
 import { beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
 
 await initializeRuntimeConfig(async () =>
@@ -31,3 +32,7 @@ Blob.prototype.text ??= function () { return readBlob(this, "readAsText"); };
 
 // Per-tab UI state (for example whether the assistant dock is open) must not carry between tests.
 beforeEach(() => sessionStorage.clear());
+
+// The React Compiler's Babel pass makes a lazy module's first import slower under test;
+// waits for such a module get more than Testing Library's default 1 s.
+configure({ asyncUtilTimeout: 5_000 });

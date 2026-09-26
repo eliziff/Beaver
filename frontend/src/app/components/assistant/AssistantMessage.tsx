@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { memo, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, Minimize2 } from "lucide-react";
 import type { WorkflowRunEvent } from "@/app/lib/api/chat";
 import type { Citation } from "@/app/lib/citations";
@@ -41,7 +41,8 @@ interface Props {
     resolvedEditStatuses?: Record<string, "accepted" | "rejected">;
 }
 
-export function AssistantMessage({
+/** A finished message is skipped while a reply streams in below it: its props stay the same. */
+export const AssistantMessage = memo(function AssistantMessage({
     message,
     isStreaming = false,
     onCitationClick,
@@ -326,4 +327,4 @@ export function AssistantMessage({
             </div>
         </div>
     );
-}
+});
