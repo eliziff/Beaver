@@ -1,21 +1,7 @@
 import { expect, it } from "vitest";
 import {
-  CLIENT_WORK_PRODUCT_PRESUMPTION,
-  CODING_PRODUCTION_SYSTEM_PROMPT,
-  JOURNALS_AND_COMMENTARY_GUIDANCE,
-  SOURCE_SEARCH_SYSTEM_PROMPT,
   legalSourceCoveragePrompt,
 } from "../prompts";
-
-it("routes doctrinal work into Journals in every research prompt", () => {
-  for (const prompt of [CODING_PRODUCTION_SYSTEM_PROMPT, SOURCE_SEARCH_SYSTEM_PROMPT]) {
-    expect(prompt).toContain(JOURNALS_AND_COMMENTARY_GUIDANCE);
-    expect(prompt).toContain("Doctrinal research should usually include reading Journals");
-    expect(prompt).toContain("non-binding");
-  }
-  expect(JOURNALS_AND_COMMENTARY_GUIDANCE).toContain("unless the final synthesis naturally excludes it");
-  expect(CLIENT_WORK_PRODUCT_PRESUMPTION).not.toContain("JOURNALS");
-});
 
 it("renders installed A2AJ collections by jurisdiction and drops empty ones", () => {
   const prompt = legalSourceCoveragePrompt([

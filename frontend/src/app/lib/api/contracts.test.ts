@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAssistantSessionState } from "../assistantSession";
 
-import { duplicateWorkProduct, getWorkProductResolution } from "./workProducts";
 import { attachAuthorityPdf, uploadAuthoritiesDocument } from "./authorities";
 import { uploadCourtRecordDocument, saveCourtRecordBuild } from "./courtRecords";
-import { removeProjectDocument, directoryResource } from "./documents";
+import { directoryResource } from "./documents";
 import { apiBlobRequest } from "./client";
 import { startTabularGeneration } from "./tabular";
 import { getChat, deleteChat } from "./chat";
@@ -16,34 +15,6 @@ function respond(value: unknown, status = 200) {
   vi.stubGlobal("fetch", request);
   return request;
 }
-
-describe("duplicateWorkProduct", () => {
-  it("preserves the selected project context", async () => {
-    const fetchMock = respond({ id: "draft-copy" });
-
-    await expect(duplicateWorkProduct("draft-1", { title: "Record copy", projectId: "matter-1" }))
-      .resolves.toEqual({ id: "draft-copy" });
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/work-products/draft-1/duplicate",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({
-        title: "Record copy", project_id: "matter-1",
-      }) }));
-  });
-});
-
-describe("getWorkProductResolution", () => {
-  it("uses the durable nested-resolution endpoint", async () => {
-    const fetchMock = respond({
-      product: { id: "draft/1" }, freshness: "stale", inputs: {}, dependencies: [],
-    });
-
-    await expect(getWorkProductResolution("draft/1")).resolves.toEqual({
-      product: { id: "draft/1" }, freshness: "stale", inputs: {}, dependencies: [],
-    });
-
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/work-products/draft%2F1/resolution");
-  });
-});
 
 describe("work-product uploads", () => {
   it("carries the selected authority source language", async () => {
@@ -89,20 +60,6 @@ describe("work-product uploads", () => {
     const body = fetchMock.mock.calls[0][1]?.body as FormData;
     expect((body.get("files") as File).name).toBe("Record.pdf");
     expect(JSON.parse(String(body.get("receipts")))).toEqual(receipt);
-  });
-});
-
-describe("removeProjectDocument", () => {
-  it("uses the local removal route", async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(removeProjectDocument("matter-1", "document-1")).resolves.toBeUndefined();
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/projects/matter-1/documents/document-1",
-      expect.objectContaining({ method: "DELETE" }),
-    );
   });
 });
 

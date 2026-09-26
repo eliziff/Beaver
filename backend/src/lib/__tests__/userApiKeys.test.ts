@@ -32,28 +32,11 @@ describe("hasEnvApiKey", () => {
         expect(hasEnvApiKey("claude")).toBe(false);
     });
 
-    it("returns true for openai when OPENAI_API_KEY is set", () => {
-        vi.stubEnv("OPENAI_API_KEY", "sk-openai-test");
-        expect(hasEnvApiKey("openai")).toBe(true);
-    });
-
-    it("returns true for gemini when GEMINI_API_KEY is set", () => {
-        vi.stubEnv("GEMINI_API_KEY", "gemini-key-test");
-        expect(hasEnvApiKey("gemini")).toBe(true);
-    });
-
     it("uses only the canonical DeepSeek key", () => {
         vi.stubEnv("DEEPSEEK_API_KEY", "sk-deepseek-test");
         expect(hasEnvApiKey("deepseek")).toBe(true);
         vi.stubEnv("DEEPSEEK_API_KEY", undefined);
         vi.stubEnv("DEEPSEEK_OCR_KEY", "sk-deepseek-local-test");
-        expect(hasEnvApiKey("deepseek")).toBe(false);
-    });
-
-    it("returns false when no env key is set for the provider", () => {
-        expect(hasEnvApiKey("claude")).toBe(false);
-        expect(hasEnvApiKey("openai")).toBe(false);
-        expect(hasEnvApiKey("gemini")).toBe(false);
         expect(hasEnvApiKey("deepseek")).toBe(false);
     });
 

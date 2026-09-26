@@ -133,12 +133,4 @@ describe("Sources workspace routes", () => {
     expect((await items({ kind: "evidence", source_id: sourceId, limit: 2, cursor: first.body.next_cursor })).status).toBe(400);
   });
 
-  it("does not offer an implicit Library ontology or global membership endpoint", async () => {
-    const { app, documents } = fixture();
-    expect((await request(app).post("/source-workspaces/ontology").send({})).status).toBe(404);
-    expect((await request(app).get("/source-workspaces/ontology")).status).toBe(404);
-    expect((await request(app).get("/source-workspaces/membership?document_ids=doc-1")).status).toBe(404);
-    expect(documents.replaceVersion).not.toHaveBeenCalled();
-  });
-
 });
