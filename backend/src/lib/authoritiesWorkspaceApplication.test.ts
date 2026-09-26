@@ -835,8 +835,8 @@ describe("Authorities workspace application", () => {
     expect(runtime.sources.resolve).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["exception", "hash mismatch"] as const)(
-    "offers CanLII in the same preparation call after an original-PDF %s", async (failure) => {
+  it.each(["exception", "hash mismatch", "exception with source text"] as const)(
+    "retains recovery after an original-PDF %s", async (failure) => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: { id: "grant", key: "grant", kind: "case",
         citation: "2009 SCC 32", name: "R v Grant", displayName: null,
@@ -848,15 +848,23 @@ describe("Authorities workspace application", () => {
       citation: "2009 SCC 32", alternateCitation: null, name: "R v Grant", date: "2009-07-17",
        url: "https://publisher.example/grant",
        verifiedPdf: { url: "https://publisher.example/grant.pdf", pdfOnly: false }, language: "en",
-       upstreamLicense: null, searchText: "", native: {} as never, searchNative: {} as never }),
+       upstreamLicense: null, searchText: failure === "exception with source text" ? "[1] These are the source reasons." : "", native: {} as never, searchNative: {} as never }),
       download: async () => {
-        if (failure === "exception") throw new Error("publisher unavailable");
+        if (failure.startsWith("exception")) throw new Error("publisher unavailable");
         return { bytes: corrupt, sourceSha256: "a".repeat(64) };
       } });
     const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
 
     const product = await prepareSources(runtime, imported);
-    expect((product.state as AuthoritiesDraft).authorities.grant.source).toMatchObject({
+    const source = (product.state as AuthoritiesDraft).authorities.grant.source;
+    if (failure === "exception with source text") {
+      expect(source).toMatchObject({ kind: "attached", sources: [{ origin: "reconstructed" }] });
+      if (source.kind !== "attached") throw new Error("text fallback missing");
+      const binding = (product.state as AuthoritiesDraft).bindings[source.sources[0].bindingRole];
+      if (binding.kind !== "document") throw new Error("fallback binding missing");
+      const file = await runtime.documents.read(scope, binding.documentId, null, false);
+      expect((await PDFDocument.load(file!.bytes)).getPageCount()).toBeGreaterThan(0);
+    } else expect(source).toMatchObject({
       kind: "pending-canlii",
       pdfUrl: "https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.pdf",
     });
