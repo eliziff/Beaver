@@ -174,7 +174,11 @@ export function createChatRouter(
     if (Number.isSafeInteger(after) && active &&
         (await chats.get(scope, req.params.chatId))?.transcript_version === after)
       return void res.status(204).send();
-    const detail = await chats.detail(scope, req.params.chatId);
+    // `limit` pages the transcript from its end (`before` a message id for earlier pages);
+    // without it the whole transcript is returned, as before.
+    const limit = Number(req.query.limit), before = typeof req.query.before === "string" ? req.query.before : null;
+    const page = Number.isSafeInteger(limit) && limit > 0 ? { limit: Math.min(limit, 500), before } : undefined;
+    const detail = await chats.detail(scope, req.params.chatId, page);
     if (!detail) return void res.status(404).json({ detail: "Chat not found" });
     res.json({
       chat: {
@@ -182,6 +186,7 @@ export function createChatRouter(
         turn_in_progress: active,
       },
       messages: detail.messages,
+      ...(page && { has_earlier: detail.hasEarlier }),
     });
   }));
 

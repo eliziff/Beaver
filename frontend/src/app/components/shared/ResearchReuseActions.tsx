@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createChat, saveChatDraft } from "@/app/lib/api/chat";
 import { copyFindingsToMemo, type ResearchFindingReference } from "@/app/lib/api/researchFiles";
@@ -16,7 +16,7 @@ export function ResearchReuseActions({ prepare, disabled = false }: {
 }) {
   const workspace = useSourcesWorkspace(), navigate = useNavigate(), busyRef = useRef(false),
     currentWorkspace = useRef(workspace);
-  currentWorkspace.current = workspace;
+  useLayoutEffect(() => { currentWorkspace.current = workspace; }, [workspace]);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState(""), [error, setError] = useState("");
   async function run(action: "copy" | "write") {
     if (busyRef.current || disabled) return;

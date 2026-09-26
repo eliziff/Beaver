@@ -3,7 +3,6 @@ import {
     createContext,
     useCallback,
     useContext,
-    useEffect,
     useMemo,
     useState,
     type ReactNode,
@@ -75,9 +74,7 @@ type LibraryCollectionProps = {
 
 export function LibraryCollectionPage(props: LibraryCollectionProps) {
     const [visited, setVisited] = useState(() => new Set([props.kind]));
-    useEffect(() => {
-        if (!visited.has(props.kind)) setVisited((kinds) => new Set(kinds).add(props.kind));
-    }, [props.kind, visited]);
+    if (!visited.has(props.kind)) setVisited(new Set(visited).add(props.kind));
     return LIBRARY_TABS.filter(({ id }) => id === props.kind || visited.has(id)).map(({ id }) =>
         <div key={id} hidden={id !== props.kind} className="h-full min-h-0">
             <LibraryCollection {...props} kind={id}

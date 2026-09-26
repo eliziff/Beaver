@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";import { Modal } from "../modals/Modal";
+import { useState } from "react";
+import { Modal } from "../modals/Modal";
 import { FieldGroup, FormField } from "../modals/ModalFieldLabel";
 import { Switch } from "../ui/switch";
 import { ModalTextInput } from "../modals/ModalTextInput";
@@ -32,15 +33,21 @@ export function TabularReviewDetailsModal({
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    useEffect(() => {
-        if (!open || !review) return;
-        setTitleDraft(review.title ?? "");
-        setUnderProject(Boolean(review.project_id));
-        setSelectedProjectId(review.project_id ?? "");
-        setSaving(false);
-        setSaved(false);
-        setError(null);
-    }, [open, review]);
+    // Reset the form whenever the modal opens or the review changes.
+    const [syncedWith, setSyncedWith] = useState<{ open: boolean; review: TabularReview | null }>(
+        { open: false, review: null },
+    );
+    if (syncedWith.open !== open || syncedWith.review !== review) {
+        setSyncedWith({ open, review });
+        if (open && review) {
+            setTitleDraft(review.title ?? "");
+            setUnderProject(Boolean(review.project_id));
+            setSelectedProjectId(review.project_id ?? "");
+            setSaving(false);
+            setSaved(false);
+            setError(null);
+        }
+    }
     const trimmedTitle = titleDraft.trim();
     const nextProjectId = underProject ? selectedProjectId : null;
     const hasChanges =        !!review &&        (trimmedTitle !== (review.title ?? "") ||            nextProjectId !== (review.project_id ?? null));    if (!review) return null;

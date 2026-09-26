@@ -31,7 +31,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const labelling = mode === "labels";
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
     const [preview, setPreview] = useState<ResearchTablePreview | null>(null), [plan, setPlan] = useState<ResearchLabelProposal | null>(null);
-    const [restoring, setRestoring] = useState(labelling);
+    const [restoring, setRestoring] = useState(labelling && !!fileId);
     const [draftInput, setDraftInput] = useState<Omit<ResearchTableInput, "design"> | null>(null);
     const [draftRequest, setDraftRequest] = useState<string | undefined>();
     const [adjust, setAdjust] = useState(""), [addition, setAddition] = useState("");
@@ -52,6 +52,14 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const input: ResearchTableInput = { ...(selection ? { selection } : {}), ...(chatId ? { chatId } : {}),
         ...(conversationId && labelling ? { conversationId } : {}), ...(tableId ? { tableId, columnIndex } : {}) };
     const inputKey = JSON.stringify(input);
+    // A different research set or request starts over; the effect below restores a saved draft.
+    const resetKey = JSON.stringify([activeId, inputKey, labelling]);
+    const [resetFor, setResetFor] = useState(resetKey);
+    if (resetFor !== resetKey) {
+        setResetFor(resetKey);
+        setPreview(null); setPlan(null); setFile(null); setDraftInput(null); setDraftRequest(undefined);
+        setBusy(false); setProgress(null); setError(""); setRestoring(labelling && !!activeId);
+    }
     async function propose(instruction = "", repropose = false, which = lane) {
         if (!activeId) return;
         running.current?.abort(); const controller = new AbortController(); running.current = controller;
@@ -78,8 +86,6 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
     const cancel = () => { running.current?.abort(); generation.current++; setBusy(false); setProgress(null); };
     useEffect(() => {
         const controller = new AbortController(), { signal } = controller;
-        setPreview(null); setPlan(null); setFile(null); setDraftInput(null); setDraftRequest(undefined);
-        setBusy(false); setProgress(null); setError(""); setRestoring(labelling && !!activeId);
         if (labelling && activeId) void (async () => {
             const current = await getResearchFile(activeId);
             if (signal.aborted) return;
@@ -165,7 +171,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
         }
         onClose();
     }
-    const onEnter = (action: () => void) => (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
+    const onEnter = (event: React.KeyboardEvent, action: () => void) => { if (event.key === "Enter") { event.preventDefault(); action(); } };
     return <Modal open onClose={() => void close()} size={labelling ? "2xl" : "lg"} breadcrumbs={[...(setName ? [setName] : []), labelling ? "Organize research" : "Create a table"]}
         footerStatus={error ? <p role="alert" className="me-auto text-sm text-red-700">{error}</p>
             : note ? <p role="status" className={`me-auto max-h-20 overflow-y-auto ${META}`}>{note}</p> : undefined}
@@ -215,7 +221,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                                 className="absolute end-2 top-2 text-gray-500" onClick={() => removeColumn(column.index)}><X aria-hidden className="size-3.5" /></Button>
                         </li>)}</ul>
                         <input aria-label="Add a column" value={addition} placeholder="Add a column, e.g. Outcome" className={INPUT}
-                            disabled={busy || creating} onChange={(event) => setAddition(event.target.value)} onKeyDown={onEnter(addColumn)} />
+                            disabled={busy || creating} onChange={(event) => setAddition(event.target.value)} onKeyDown={(event) => onEnter(event, addColumn)} />
                     </>}
                 </div>
                 {!tableId && <label className="flex shrink-0 flex-col gap-1">
@@ -223,7 +229,7 @@ function OpenImportResearchSet({ onClose, fileId, projectId, selection, chatId, 
                         ? labelling ? "Adjust the labels" : "Adjust the table"
                         : labelling ? "How should we group the research? (optional)" : "What should the table include? (optional)"}</span>
                     <input value={adjust} disabled={busy || creating || restoring} className={INPUT} onChange={(event) => setAdjust(event.target.value)}
-                        onKeyDown={onEnter(() => void propose(adjust, proposed || !!adjust.trim()))}
+                        onKeyDown={(event) => onEnter(event, () => void propose(adjust, proposed || !!adjust.trim()))}
                         placeholder={labelling ? "e.g. group by analysis stage" : "e.g. one column for each Grant factor"} />
                 </label>}
             </>}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AlertCircle, X } from "lucide-react";
 import {
   addDocumentToProject,
@@ -80,7 +80,6 @@ export function AddDocumentsModal({
 }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
-  const wasOpen = useRef(false);
   const [selected, setSelected] = useState<Document[]>([]);
   const [uploaded, setUploaded] = useState<Document[]>([]);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
@@ -97,26 +96,26 @@ export function AddDocumentsModal({
     return multiple ? matches : matches.slice(-1);
   };
 
-  useEffect(() => {
-    if (open) setHasOpened(true);
-    if (!open) {
-      wasOpen.current = false;
-      return;
+  const [synced, setSynced] = useState<{ open: boolean; keepMounted: boolean;
+    initial?: Document[]; external?: Document[] } | null>(null);
+  const reset = !synced || synced.open !== open || synced.keepMounted !== keepMounted || synced.initial !== initialSelectedDocuments;
+  if (reset || synced.external !== externalUploadedDocuments) {
+    setSynced({ open, keepMounted, initial: initialSelectedDocuments, external: externalUploadedDocuments });
+    if (reset && open) {
+      const reopened = !!synced?.open;
+      setHasOpened(true);
+      setSelected((current) => selectable(merge(reopened ? current : undefined, initialSelectedDocuments)));
+      setPendingNames([]);
+      setView("documents");
+      setPickedSources([]);
+      setWarning(null);
+      if (!keepMounted) setUploaded([]);
     }
-    setSelected((current) => selectable(merge(wasOpen.current ? current : undefined, initialSelectedDocuments)));
-    setPendingNames([]);
-    setView("documents");
-    setPickedSources([]);
-    setWarning(null);
-    if (!keepMounted) setUploaded([]);
-    wasOpen.current = true;
-  }, [open, keepMounted, initialSelectedDocuments]);
-
-  useEffect(() => {
-    if (!externalUploadedDocuments?.length) return;
-    setUploaded((current) => merge(current, externalUploadedDocuments));
-    if (open) setSelected((current) => selectable(merge(current, externalUploadedDocuments)));
-  }, [externalUploadedDocuments, open]);
+    if ((!synced || synced.open !== open || synced.external !== externalUploadedDocuments) && externalUploadedDocuments?.length) {
+      setUploaded((current) => merge(current, externalUploadedDocuments));
+      if (open) setSelected((current) => selectable(merge(current, externalUploadedDocuments)));
+    }
+  }
 
   if (!open && (!keepMounted || !hasOpened)) return null;
 

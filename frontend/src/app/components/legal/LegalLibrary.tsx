@@ -202,7 +202,8 @@ function LegalLibraryContent({ embedded = false, projectId, onOpenSource, resear
     useEffect(() => {
         getLegalSourceCoverage().then(setCoverage).catch(() => undefined);
     }, []);
-    useEffect(() => { if (researchFileId) setResearchOpen(true); }, [researchFileId]);
+    const [openedFileId, setOpenedFileId] = useState(researchFileId);
+    if (openedFileId !== researchFileId) { setOpenedFileId(researchFileId); if (researchFileId) setResearchOpen(true); }
     const sourceIndex = useMemo(() => new Map(Object.values(researchFile?.state.sources ?? {})
         .map((source) => [researchSourceKey(source.reference), source])), [researchFile]);
     const sourceInFile = (result: LegalSourceSearchResult) =>

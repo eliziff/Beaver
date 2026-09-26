@@ -12,14 +12,15 @@ export function ResearchChatPanel() {
   const [chatId, setChatId] = useState<string>();
   const [chats, setChats] = useState<{ id: string; title: string | null }[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const id = file?.document.id;
+  const [loading, setLoading] = useState(!!id);
   const assistant = useAssistantChat({ chatId, stayInPlace: true, onChatIdChange: setChatId,
     projectId: file?.document.project_id ?? undefined });
-  const id = file?.document.id;
+  const [viewsFor, setViewsFor] = useState(id);
+  if (viewsFor !== id) { setViewsFor(id); setLoading(!!id); setError(""); setChatId(undefined); }
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
-    setLoading(true); setError(""); setChatId(undefined);
-    if (!id) { setLoading(false); return; }
     void getWorkspaceViews(id).then(({ chats }) => {
       if (cancelled) return;
       setChats(chats); setChatId(chats[0]?.id); setLoading(false);
@@ -57,6 +58,7 @@ export function ResearchChatPanel() {
         await refresh(); return result;
       }}
       cancel={assistant.actions.cancel} onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
+      onLoadEarlier={assistant.actions.loadEarlier}
       onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()} layout="panel"
       features={{ contextTools: false, dock: false }} />
       : <p className="p-3 text-sm text-gray-600">Start a chat about this workspace.</p>}

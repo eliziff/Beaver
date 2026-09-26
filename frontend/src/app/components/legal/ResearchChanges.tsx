@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { getResearchItems } from "@/app/lib/api/researchFiles";
 import { researchLabelPath, type ResearchChange, type ResearchFile, type ResearchLabel } from "@/app/lib/researchFiles";
 import { actOnTabularChange, getTabularHistory, updateTabularReview, type ColumnConfig, type TabularDocument, type TabularReview } from "@/app/lib/api/tabular";
@@ -95,13 +95,13 @@ export function ResearchChanges({ file, mutations, review, documents, onChanged,
   const [reviewing, setReviewing] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [undo, setUndo] = useState<string | null>(null), [dismissed, setDismissed] = useState<string | null>(null);
   const pending = file?.state.proposals ?? review?.proposals ?? [], open = historyOpen || reviewing;
-  const historyKey = file?.state.history?.sha256 ?? `${review?.updated_at}:${review?.history_count}`, firstKey = useRef(historyKey);
+  const historyKey = file?.state.history?.sha256 ?? `${review?.updated_at}:${review?.history_count}`, [firstKey] = useState(historyKey);
   const pages = usePagedChains<ResearchChange>(async (_key, cursor, signal) => {
     if (file) { const page = await getResearchItems(file.document.id, { kind: "history", cursor, limit: 50 }, signal);
       return { ...page, items: page.items.flatMap((item) => item.kind === "change" ? [item.value] : []) }; }
     const page = await getTabularHistory(review!.id, Number(cursor ?? 0), signal);
     return { items: page.items, next_cursor: page.next_offset === null ? null : String(page.next_offset) };
-  }, [file?.document.id, review?.id], "history", open || historyKey !== firstKey.current, { history: historyKey });
+  }, [file?.document.id, review?.id], "history", open || historyKey !== firstKey, { history: historyKey });
   const chain = pages.chains.history, changes = chain?.items ?? [],
     visible = reviewing && !historyOpen ? changes.filter(({ status }) => status === "pending") : changes,
     undone = new Set(changes.flatMap(({ undoOf }) => undoOf ?? [])),

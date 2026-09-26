@@ -1,13 +1,21 @@
 import {
     createElement,
     createContext,
+    Fragment,
     useContext,
     type ComponentProps,
     type ElementType,
     type RefObject,
     type ReactNode,
 } from "react";
-import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
+import { jsx, jsxs } from "react/jsx-runtime";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
+import { toJsxRuntime } from "hast-util-to-jsx-runtime";
+import { urlAttributes } from "html-url-attributes";
+import { visit } from "unist-util-visit";
 import type { Root, Element, Text } from "hast";
 import { searchHighlightRanges } from "@/app/lib/searchHighlight";
 import remend from "remend";
@@ -55,17 +63,56 @@ function highlightText(query: string) {
     };
 }
 
-export function GfmMarkdown(props: ComponentProps<typeof ReactMarkdown>) {
-    const { remarkPlugins, rehypePlugins, urlTransform, ...rest } = props;
+// Markdown is parsed once per text, not on every render or mount: parsing is most of the cost
+// of showing a message, and a chat re-mounts its messages whenever it opens or scrolls back.
+// The cached tree already has safe URLs and raw HTML handled; it is only copied when a search
+// highlight or an element filter has to change it.
+const toHast = unified().use(remarkParse).use(remarkGfm).use(remarkRehype, { allowDangerousHtml: true });
+const parsedTrees = new Map<string, Root>();
+const PARSED_TREE_LIMIT = 500;
+
+function parsedTree(markdown: string, skipHtml: boolean) {
+    const key = `${skipHtml ? 1 : 0}\0${markdown}`;
+    let tree = parsedTrees.get(key);
+    if (tree) parsedTrees.delete(key);
+    else {
+        tree = toHast.runSync(toHast.parse(markdown)) as Root;
+        visit(tree, (node, index, parent) => {
+            delete node.position;
+            if (node.type === "raw" && parent && index !== undefined) {
+                if (skipHtml) parent.children.splice(index, 1);
+                else parent.children[index] = { type: "text", value: node.value };
+                return index;
+            }
+            if (node.type !== "element") return;
+            for (const [name, tags] of Object.entries(urlAttributes)) {
+                if (Object.hasOwn(node.properties, name) && (tags === null || tags.includes(node.tagName)))
+                    node.properties[name] = safeAssistantUrl(String(node.properties[name] ?? "")) ?? "";
+            }
+        });
+        if (parsedTrees.size >= PARSED_TREE_LIMIT) parsedTrees.delete(parsedTrees.keys().next().value!);
+    }
+    parsedTrees.set(key, tree);
+    return tree;
+}
+
+export function GfmMarkdown({ children, components, skipHtml = false, allowedElements, unwrapDisallowed }: {
+    children?: string; components?: Components; skipHtml?: boolean;
+    allowedElements?: string[]; unwrapDisallowed?: boolean;
+}) {
     const query = useContext(MessageSearchHighlight).trim();
-    return (
-        <ReactMarkdown
-            {...rest}
-            remarkPlugins={[remarkGfm, ...(remarkPlugins ?? [])]}
-            rehypePlugins={[...(rehypePlugins ?? []), ...(query ? [highlightText(query)] : [])]}
-            urlTransform={urlTransform ?? ((url) => safeAssistantUrl(url) ?? "")}
-        />
-    );
+    let tree = parsedTree(children ?? "", skipHtml);
+    if (query || allowedElements) {
+        tree = structuredClone(tree);
+        if (query) highlightText(query)()(tree);
+        if (allowedElements) visit(tree, "element", (node, index, parent) => {
+            if (allowedElements.includes(node.tagName) || !parent || index === undefined) return;
+            parent.children.splice(index, 1, ...(unwrapDisallowed ? node.children : []));
+            return index;
+        });
+    }
+    return toJsxRuntime(tree, { Fragment, jsx, jsxs, components, ignoreInvalidStyle: true,
+        passKeys: true, passNode: true });
 }
 const LEGAL_CITATION_PILL =
     "not-prose inline-block min-w-0 max-w-full whitespace-normal break-words rounded-md bg-red-800 px-2 py-0.5 align-baseline font-sans text-[0.8125rem] font-medium leading-5 text-red-50 no-underline ring-1 ring-inset ring-red-600/70 [overflow-wrap:anywhere] hover:bg-red-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400";

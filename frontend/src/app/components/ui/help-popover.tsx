@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { CircleHelp } from "lucide-react";
 import { useAnchoredPopover } from "@/app/hooks/useAnchoredPopover";
 import { cn } from "@/app/lib/utils";
@@ -7,13 +7,13 @@ export function HelpPopover({ label, children, className }: {
     label: string; children: ReactNode; className?: string;
 }) {
     const [open, setOpen] = useState(false);
-    const button = useRef<HTMLButtonElement>(null);
+    const [button, setButton] = useState<HTMLButtonElement | null>(null);
     const id = useId();
-    const tooltip = useAnchoredPopover<HTMLSpanElement>({ anchor: button.current, open, below: true,
+    const tooltip = useAnchoredPopover<HTMLSpanElement>({ anchor: button, open, below: true,
         onDismiss: () => setOpen(false) });
     return <span className={cn("inline-flex", className)}
         onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-        <button ref={button} type="button" aria-label={label} aria-expanded={open}
+        <button ref={setButton} type="button" aria-label={label} aria-expanded={open}
             aria-describedby={open ? id : undefined}
             aria-controls={id} onClick={() => setOpen(true)}
             onFocus={() => setOpen(true)} onBlur={(event) => {

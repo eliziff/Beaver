@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { assistantIntent } from "../assistant/assistantIntent";
 import { createPortal } from "react-dom";
@@ -26,9 +26,13 @@ export function ResearchWorkspacePicker({ projectId, rail, onHistory }: { projec
       ? { projectId: projectId ?? file!.document.project_id! } : { library: "files" });
   const [busy, setBusy] = useState(false), [status, setStatus] = useState("");
   const returnToPicker = useRef(false);
-  const directory = useMemo(() => directoryResource(file?.document.project_id
-    ? { projectId: file.document.project_id } : { library: "files" }), [file?.document.project_id]);
-  useEffect(() => { if (open) setSelectedDocuments(file ? [file.document] : []); }, [open, file]);
+  const fileProjectId = file?.document.project_id;
+  const directory = useMemo(() => directoryResource(fileProjectId
+    ? { projectId: fileProjectId } : { library: "files" }), [fileProjectId]);
+  const [selectionFor, setSelectionFor] = useState({ open, file });
+  if (selectionFor.open !== open || selectionFor.file !== file) {
+    setSelectionFor({ open, file }); if (open) setSelectedDocuments(file ? [file.document] : []);
+  }
   async function choose(id: string) {
     setBusy(true);
     try { await workspace.open(id); setStatus(""); setOpen(false); }

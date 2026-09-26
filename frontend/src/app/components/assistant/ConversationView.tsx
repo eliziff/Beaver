@@ -48,6 +48,8 @@ interface Props {
     editModeLabels?: { manual: string; auto: string };
     sendDisabled?: boolean;
     searchMessageId?: string | null;
+    /** Fetches the page of messages before the first one loaded. */
+    onLoadEarlier?: () => Promise<void> | void;
     messageActions?: (messageId: string) => ReactNode;
     afterMessages?: ReactNode;
 }
@@ -70,7 +72,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, dock, showContextTools = true,
         onOpenWorkflows, onOrganize, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
-        editModeLabels, sendDisabled, searchMessageId, messageActions, afterMessages,
+        editModeLabels, sendDisabled, searchMessageId, messageActions, afterMessages, onLoadEarlier,
     }, ref) {
     const { messages, rejectedTurn } = session;
     const messagesContainerRef = useRef<HTMLDivElement>(null),
@@ -94,22 +96,31 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
 
     // Only recent messages are mounted, so a chat of any length opens, updates and holds memory
     // like a short one. Earlier messages mount in batches as the reader scrolls up to them (the
-    // scroll anchor below keeps their place), and a message opened from search is always mounted.
-    const [earliest, setEarliest] = useState<{ chatId?: string | null; index: number } | null>(null);
+    // scroll anchor below keeps their place), and are fetched from the server once all loaded
+    // ones are mounted. A message opened from search is always mounted, fetching back to it.
+    // The first mounted message is held by id: an earlier page shifts every index.
+    const [earliest, setEarliest] = useState<{ chatId?: string | null; id: string } | null>(null);
+    const heldIndex = earliest && earliest.chatId === chatId
+        ? messages.findIndex(({ id }) => id === earliest.id) : -1;
     const searchIndex = searchMessageId ? messages.findIndex(({ id }) => id === searchMessageId) : -1;
-    const shownFrom = Math.min(earliest && earliest.chatId === chatId ? earliest.index
-        : Math.max(0, messages.length - MOUNTED_MESSAGES), searchIndex < 0 ? Infinity : searchIndex);
+    const shownFrom = Math.min(heldIndex >= 0 ? heldIndex : Math.max(0, messages.length - MOUNTED_MESSAGES),
+        searchIndex < 0 ? Infinity : searchIndex);
+    const moreAbove = shownFrom > 0 || !!session.hasEarlier;
     const earlierRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const sentinel = earlierRef.current, container = messagesContainerRef.current;
         if (!sentinel || !container) return;
         const observer = new IntersectionObserver(([entry]) => {
-            if (entry?.isIntersecting) setEarliest({ chatId,
-                index: Math.max(0, shownFrom - MOUNTED_MESSAGES) });
+            if (!entry?.isIntersecting) return;
+            if (shownFrom > 0) setEarliest({ chatId, id: messages[Math.max(0, shownFrom - MOUNTED_MESSAGES)].id });
+            else { if (messages[0]) setEarliest({ chatId, id: messages[0].id }); void onLoadEarlier?.(); }
         }, { root: container, rootMargin: "1200px 0px 0px 0px" });
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [chatId, shownFrom]);
+    }, [chatId, shownFrom, messages, onLoadEarlier]);
+    useEffect(() => {
+        if (searchMessageId && searchIndex < 0 && session.hasEarlier) void onLoadEarlier?.();
+    }, [searchMessageId, searchIndex, session.hasEarlier, messages, onLoadEarlier]);
     const lastUserIndex = messages.findLastIndex(({ role }) => role === "user");
     const lastAssistantIndex = messages.findLastIndex(({ role }) => role === "assistant");
     const latestAssistant = messages[lastAssistantIndex];
@@ -218,7 +229,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                     <div className={`${CHAT_COLUMN_CLASS} min-h-full flex flex-col relative ${layout === "panel" ? "px-4 pt-4" : "px-4 pt-6 md:px-8 md:pt-8"} ${columnClass}`}
                         style={{ paddingBottom: 116 }}>
                         <div className="space-y-6 md:space-y-8">
-                            {shownFrom > 0 && <div ref={earlierRef} aria-hidden="true" className="h-px" />}
+                            {moreAbove && <div ref={earlierRef} aria-hidden="true" className="h-px" />}
                             {messages.slice(shownFrom).map((message, offset) => { const index = shownFrom + offset; return (
                                 <div key={message.id} data-message-id={message.id}
                                     style={index < lastUserIndex && message.id !== searchMessageId ? {

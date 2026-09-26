@@ -51,15 +51,15 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signedOut = !authLoading && !userId;
+  if (signedOut && (profile !== null || loadedUser !== null)) {
+    setProfile(null);
+    setLoadedUser(null);
+  }
   useEffect(() => {
     if (authLoading) return;
-    if (!userId) {
-      request.current += 1;
-      setProfile(null);
-      setLoadedUser(null);
-    } else if (userId !== loadedUser) {
-      void load(userId);
-    }
+    if (!userId) request.current += 1;
+    else if (userId !== loadedUser) void load(userId);
   }, [authLoading, load, loadedUser, userId]);
 
   async function mutate(run: () => Promise<ApiProfile>, propagateMfa = false) {

@@ -96,6 +96,8 @@ interface Props {
     initialWorkflow?: AssistantWorkflowLaunch;
     sendDisabled?: boolean;
     searchMessageId?: string | null;
+    /** Fetches the page of messages before the first one loaded (useAssistantChat's loadEarlier). */
+    onLoadEarlier?: () => Promise<void> | void;
     onUseAnswer?: (messageId: string) => Promise<void>;
 }
 export interface ChatViewHandle {
@@ -196,7 +198,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         projectFileActions,
         initialDocuments,
         initialWorkflow,
-        sendDisabled, searchMessageId, onUseAnswer,
+        sendDisabled, searchMessageId, onUseAnswer, onLoadEarlier,
     },
     ref,
 ) {
@@ -693,6 +695,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         editModeLabels={editModeLabels}
         sendDisabled={sendDisabled}
         searchMessageId={searchMessageId}
+        onLoadEarlier={onLoadEarlier}
         onOrganize={() => setOrganizeOpen(true)}
         />
         <OrganizeChatModal open={organizeOpen} onClose={() => setOrganizeOpen(false)}

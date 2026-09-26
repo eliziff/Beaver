@@ -41,6 +41,7 @@ export function WorkProductAssistantPanel({ product, chatId, onChatIdChange, exp
       {product.title}</span> : undefined, content:
       <ConversationView chatId={assistant.state.chatId} session={assistant.state}
         handleChat={handleChat} cancel={assistant.actions.cancel} sendDisabled={!synced}
+        onLoadEarlier={assistant.actions.loadEarlier}
         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
         layout="panel" showContextTools={false} /> }]}

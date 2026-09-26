@@ -229,8 +229,10 @@ function ResearchSetPicker({ onSelect, onClose }: { onSelect: (id: string, label
     const [picked, setPicked] = useState<Document[]>([]), [file, setFile] = useState<ResearchFile | null>(null);
     const [labelId, setLabelId] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
     const id = picked[0]?.id;
+    const [fileFor, setFileFor] = useState(id);
+    if (fileFor !== id) { setFileFor(id); setFile(null); setLabelId(""); setError(""); }
     useEffect(() => {
-        let active = true; setFile(null); setLabelId(""); setError("");
+        let active = true;
         if (id) void getResearchFile(id).then((next) => { if (active) setFile(next); })
             .catch((reason) => { if (active) setError(String(reason)); });
         return () => { active = false; };
@@ -282,6 +284,11 @@ export function DocTable({
     const { user } = useAuth();
     const [addDocsOpen, setAddDocsOpen] = useState(false);
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+    const [selectionScope, setSelectionScope] = useState(scopeKey);
+    if (selectionScope !== scopeKey) {
+        setSelectionScope(scopeKey);
+        if (selectedDocIds.length) setSelectedDocIds([]);
+    }
     const [renamingDocumentId, setRenamingDocumentId] = useState<string | null>(null);
     const [dragOverSurface, setDragOverSurface] =
         useState<"root" | `version:${string}` | null>(null);
@@ -393,9 +400,6 @@ export function DocTable({
         };
     }, [onCreateFolderActionChange, onUploadActionsChange,
         openAddDocuments, openCreateFolder, openUploadFolder]);
-    useEffect(() => {
-        setSelectedDocIds((current) => (current.length ? [] : current));
-    }, [scopeKey]);
     const [pickerDoc, setPickerDoc] = useState<Document | null>(null);
     async function addDocToWorkspace(doc: Document, workspaceId: string, labelId?: string) {
         try {

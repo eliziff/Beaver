@@ -106,10 +106,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         useSelectedReasoningEffort(draftPreferences.reasoningEffort ?? initialReasoningEffort);
     const [{ showAutoMode, showContextUsage, editMode }, updatePreferences] =
         useAssistantPreferences();
-    const setEditMode = (mode: "manual" | "auto") => {
-        scheduleDraft();
-        updatePreferences((current) => ({ ...current, editMode: mode }));
-    };
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
     const textareaId = useId();
@@ -136,14 +132,34 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             model, reasoningEffort, editMode,
         };
     };
-    saveDraftRef.current = async () => {
-        const draft = draftSnapshot();
-        try {
-            if (onDraftChange) await onDraftChange(draft);
-            else if (draftChatId) await writeChatDraft(draftChatId, draft);
-            setDraftSaveFailed(false);
-        } catch { setDraftSaveFailed(true); }
+    useLayoutEffect(() => {
+        saveDraftRef.current = async () => {
+            const draft = draftSnapshot();
+            try {
+                if (onDraftChange) await onDraftChange(draft);
+                else if (draftChatId) await writeChatDraft(draftChatId, draft);
+                setDraftSaveFailed(false);
+            } catch { setDraftSaveFailed(true); }
+        };
+    });
+    function scheduleDraft() {
+        draftEdited.current = true;
+        if (!draftChatId && !onDraftChange) return;
+        if (draftTimer.current) clearTimeout(draftTimer.current);
+        draftTimer.current = setTimeout(() => { draftTimer.current = null; void saveDraftRef.current(); }, 250);
+    }
+    const setEditMode = (mode: "manual" | "auto") => {
+        scheduleDraft();
+        updatePreferences((current) => ({ ...current, editMode: mode }));
     };
+    function setInputValue(value: string, focus = false, persist = true) {
+        if (!textareaRef.current) return;
+        textareaRef.current.value = value;
+        draftContent.current = value;
+        if (persist) scheduleDraft();
+        setHasValue(!!value.trim());
+        if (focus) textareaRef.current.focus();
+    }
     useLayoutEffect(() => {
         if (!draftChatId) return;
         let active = true;
@@ -163,12 +179,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         if (!draftEdited.current) return;
         scheduleDraft();
     }, [attachedDocs, selectedWorkflow, model, reasoningEffort, editMode]);
-    function scheduleDraft() {
-        draftEdited.current = true;
-        if (!draftChatId && !onDraftChange) return;
-        if (draftTimer.current) clearTimeout(draftTimer.current);
-        draftTimer.current = setTimeout(() => { draftTimer.current = null; void saveDraftRef.current(); }, 250);
-    }
     useEffect(() => () => {
         if (draftTimer.current) { clearTimeout(draftTimer.current); void saveDraftRef.current(); }
     }, []);
@@ -178,15 +188,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         draftCleared.current = false;
         setAttachedDocs((current) => mergeDocuments(current, documents));
         if (dropped) setDroppedDocuments((current) => mergeDocuments(current, documents));
-    }
-
-    function setInputValue(value: string, focus = false, persist = true) {
-        if (!textareaRef.current) return;
-        textareaRef.current.value = value;
-        draftContent.current = value;
-        if (persist) scheduleDraft();
-        setHasValue(!!value.trim());
-        if (focus) textareaRef.current.focus();
     }
 
     function navigatePromptHistory(

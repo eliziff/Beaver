@@ -50,11 +50,13 @@ export type ChatUpdateInput = {
   model?: string | null;
   reasoningEffort?: string | null;
 };
-export type ChatDetail = { chat: ChatRecord; messages: ChatMessageRecord[] };
+export type ChatDetail = { chat: ChatRecord; messages: ChatMessageRecord[]; hasEarlier?: boolean };
+/** The latest `limit` messages, or the `limit` before message `before`. */
+export type ChatPage = { before?: string | null; limit: number };
 export type ChatStore = {
   list(scope: ChatScope, options: ChatListOptions): Promise<ChatRecord[]>; deleted(scope: ChatScope): Promise<ChatRecord[]>;
   create(scope: ChatScope, input: ChatCreateInput): Promise<ChatRecord>; get(scope: ChatScope, id: string): Promise<ChatRecord | null>;
-  detail(scope: ChatScope, id: string): Promise<{ chat: ChatRecord; messages: VisibleChatMessage[] } | null>;
+  detail(scope: ChatScope, id: string, page?: ChatPage): Promise<{ chat: ChatRecord; messages: VisibleChatMessage[]; hasEarlier: boolean } | null>;
   transcript(scope: ChatScope, id: string): Promise<ChatMessageRecord[] | null>;
   commitTurn(scope: ChatScope, id: string, commit: ChatTurnCommit): Promise<ChatCommitResult>;
   appendAssistantEvent(scope: ChatScope, id: string, messageId: string, event: AssistantEvent): Promise<ChatCommitResult>;
@@ -70,7 +72,7 @@ export type ChatMutation = { kind: "turn"; turn: ChatTurnCommit }
 export type ChatRepository = {
   list(options: ChatListOptions): Promise<ChatRecord[]>; deleted(): Promise<ChatRecord[]>;
   purge(cutoff: string): Promise<string[]>; create(input: ChatCreateInput): Promise<ChatRecord>;
-  read(chatId: string, messages?: boolean, deleted?: boolean): Promise<ChatDetail | null>;
+  read(chatId: string, messages?: boolean, deleted?: boolean, page?: ChatPage): Promise<ChatDetail | null>;
   owns(chatId: string): Promise<boolean>; commit(chatId: string, mutation: ChatMutation): Promise<ChatCommitResult>;
   update(chatId: string, input: ChatUpdateInput): Promise<ChatRecord | null>;
   trash(chatId: string, at: string): Promise<boolean>; restore(chatId: string, cutoff: string, at: string): Promise<boolean>;
@@ -123,9 +125,9 @@ export function createChatStore(repositoryFor: CreateChatRepository,
       return repository.create(input);
     },
     async get(scope, chatId) { return (await repositoryFor(scope).read(chatId))?.chat ?? null; },
-    async detail(scope, chatId) {
-      const repository = repositoryFor(scope), detail = await repository.read(chatId, true);
-      return detail && { chat: detail.chat,
+    async detail(scope, chatId, page) {
+      const repository = repositoryFor(scope), detail = await repository.read(chatId, true, false, page);
+      return detail && { chat: detail.chat, hasEarlier: !!detail.hasEarlier,
         messages: visibleChatMessages(await repository.decorate(detail.messages)) };
     },
     async transcript(scope, chatId) {

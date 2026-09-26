@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { CollectionContext } from "@/app/contexts/CollectionContext";
 import { PagedCollection, type Chains, type CollectionLoader, type CollectionSpec } from "@/app/lib/collections";
 
@@ -12,7 +12,12 @@ export function usePagedChains<T>(
     collection?: CollectionSpec,
 ) {
     const cache = useContext(CollectionContext);
-    const loader = useCallback(load, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
+    // Keep the loader stable until a dependency changes (useCallback with a caller-supplied list).
+    const [memo, setMemo] = useState({ load, dependencies });
+    const changed = dependencies.length !== memo.dependencies.length
+        || dependencies.some((value, index) => !Object.is(value, memo.dependencies[index]));
+    if (changed) setMemo({ load, dependencies });
+    const loader = changed ? load : memo.load;
     const key = collection?.key;
     // Only explicit resource identities are reusable. Never infer cache keys from
     // callback names or dependency arrays; unrelated collections can share both.

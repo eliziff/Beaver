@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useState } from "react";
 import type { CollectionSpec } from "@/app/lib/collections";
 import type { Page } from "@/app/lib/api/client";
 import { usePagedChains } from "./usePagedChains";
@@ -21,14 +21,13 @@ export function usePagedQuery<T>(
     collection,
   );
   const chain = chains[key];
-  const previous = useRef<{ scope: string; query: string; items: T[] } | null>(null);
-  const retained = enabled && retention && !chain?.loaded && !chain?.error && previous.current?.scope === retention.scope
-    ? previous.current : null;
-  useLayoutEffect(() => {
-    if (!enabled || !retention || chain?.error || previous.current?.scope !== retention.scope) previous.current = null;
-    if (enabled && retention && chain?.loaded && !chain.error)
-      previous.current = { ...retention, items: chain.items };
-  }, [enabled, retention?.scope, retention?.query, chain]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The last loaded items within the retention scope, shown while a new query loads.
+  const [previous, setPrevious] = useState<{ scope: string; query: string; items: T[] } | null>(null);
+  const kept = enabled && retention && !chain?.error
+    ? chain?.loaded ? { ...retention, items: chain.items } : previous?.scope === retention.scope ? previous : null
+    : null;
+  if (kept?.items !== previous?.items || kept?.query !== previous?.query || kept?.scope !== previous?.scope) setPrevious(kept);
+  const retained = chain?.loaded ? null : kept;
   const loadMore = useCallback(() => chain?.nextCursor && !chain.loading && fetchPage(key, chain.nextCursor, true), [chain, fetchPage]);
   const reload = useCallback(() => fetchPage(key, null, false, true), [fetchPage]);
   const setItems = useCallback((update: T[] | ((current: T[]) => T[])) => {
