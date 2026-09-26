@@ -29,8 +29,8 @@ export function ResearchLabelPicker({ file, kind, itemId, sourceId, labelIds, no
   sourceReference?: ResearchSourceReference }) {
   const [target, setTarget] = useState<ResearchLabelTarget | null>(null),
     [previewLabelIds, setPreviewLabelIds] = useState(labelIds);
-  const editing = useRef(false); editing.current = !!target;
-  useEffect(() => { if (!editing.current) setPreviewLabelIds(labelIds); }, [labelIds]);
+  const [shownLabelIds, setShownLabelIds] = useState(labelIds);
+  if (shownLabelIds !== labelIds) { setShownLabelIds(labelIds); if (!target) setPreviewLabelIds(labelIds); }
   const labelNames = previewLabelIds.map((id) => file?.state.labels[id]?.name).filter(Boolean);
   return <>
     <button type="button" data-source-marker={kind === "source" ? itemId : undefined} draggable={kind === "source" && !!(itemId || sourceReference)} onDragStart={(event) => {

@@ -44,7 +44,8 @@ export function WorkflowPickerContent({ workflows, onSelect, search,
     const [expanded, setExpanded] = useState<string | null>(initialWorkflowId ?? null);
     const [info, setInfo] = useState<WorkflowInfo | null>(null);
 
-    useEffect(() => setExpanded(initialWorkflowId ?? null), [initialWorkflowId]);
+    const [expandedFor, setExpandedFor] = useState(initialWorkflowId);
+    if (expandedFor !== initialWorkflowId) { setExpandedFor(initialWorkflowId); setExpanded(initialWorkflowId ?? null); }
     useEffect(() => {
         if (loading || !initialWorkflowId) return;
         const frame = requestAnimationFrame(() => {

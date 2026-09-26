@@ -1,5 +1,5 @@
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ConfirmPopup } from "@/app/components/popups/ConfirmPopup";
 import { Input } from "@/app/components/ui/input";
 import { MoreActionsMenu } from "./MoreActionsMenu";
@@ -17,9 +17,11 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
   const [title, setTitle] = useState(current?.title ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cancelRename = useRef(false);
-  useEffect(() => {
-    setEditing(false); setTitle(current?.title ?? ""); setConfirmDelete(false);
-  }, [current?.id, current?.title]);
+  const draftKey = JSON.stringify([current?.id, current?.title]);
+  const [seenKey, setSeenKey] = useState(draftKey);
+  if (seenKey !== draftKey) {
+    setSeenKey(draftKey); setEditing(false); setTitle(current?.title ?? ""); setConfirmDelete(false);
+  }
   const commitRename = () => {
     if (!current || !("onRename" in props) || cancelRename.current) {
       cancelRename.current = false; return;

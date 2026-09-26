@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { Modal } from "../modals/Modal";
@@ -23,10 +23,13 @@ export function SelectAssistantProjectModal({
     const [creating, setCreating] = useState(false);
     const navigate = useNavigate();
     const { saveChat } = useChatHistoryContext();
-    useEffect(() => {
-        if (!open) return;
-        setSelectedId(currentProjectId ?? null);
-    }, [currentProjectId, open]);
+    // Reset the choice each time the modal opens or the current project changes while open.
+    const syncKey = open ? currentProjectId ?? null : undefined;
+    const [syncedKey, setSyncedKey] = useState<string | null | undefined>(undefined);
+    if (syncedKey !== syncKey) {
+        setSyncedKey(syncKey);
+        if (open) setSelectedId(currentProjectId ?? null);
+    }
     if (!open) return null;
     async function handleContinue() {
         if (!onSelectProject && !selectedId) return;

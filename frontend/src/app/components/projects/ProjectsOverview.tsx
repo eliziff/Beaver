@@ -1,6 +1,6 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
 import { projectsCollection } from "@/app/lib/collectionKeys";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useDebounced } from "@/app/hooks/useDebounced";
 import { Link, useNavigate } from "react-router-dom";
 import { MessageSquarePlus } from "lucide-react";
@@ -85,7 +85,12 @@ export function ProjectsOverview() {
     const loading = authLoading || page.loading;
     const rows = page.items;
     const initialLoading = loading && rows.length === 0;
-    useEffect(() => setSelectedIds([]), [activeFilter, deferredSearch]);
+    const selectionKey = `${activeFilter}\n${deferredSearch}`;
+    const [selectedFor, setSelectedFor] = useState(selectionKey);
+    if (selectedFor !== selectionKey) {
+        setSelectedFor(selectionKey);
+        setSelectedIds([]);
+    }
     const loadError = page.error ? "Could not load projects." : null;
     const detailsProject =
         detailsProjectId

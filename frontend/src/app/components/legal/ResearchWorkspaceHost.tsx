@@ -22,13 +22,13 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
   // Measured before paint, so the panel never renders a frame without its position.
   useLayoutEffect(() => {
     const dock = floating && open ? document.querySelector<HTMLElement>("[data-assistant-dock]") : null;
-    if (!dock) return setBeside(null);
+    if (!dock) return;
     const measure = () => setBeside(dock.getBoundingClientRect());
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onOpenChange(false); };
     measure();
     const observer = new ResizeObserver(measure); observer.observe(dock);
     window.addEventListener("resize", measure); window.addEventListener("keydown", escape);
-    return () => { observer.disconnect();
+    return () => { observer.disconnect(); setBeside(null);
       window.removeEventListener("resize", measure); window.removeEventListener("keydown", escape); };
   }, [floating, open, onOpenChange]);
   const [rail, setRail] = useState<HTMLElement | null>(null);

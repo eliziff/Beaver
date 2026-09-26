@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { inspectPdf } from "@/app/lib/inspectPdf";
 import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
@@ -128,22 +128,31 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
   return { files, error: errors[0] ?? "" };
 }
 
+type ScanStatus = { key: string; host: AuthoritiesHost; files: ScannedPdf[]; checking: boolean;
+  progress: string; error: string };
+const scanStart = (key: string, host: AuthoritiesHost): ScanStatus =>
+  ({ key, host, files: [], checking: true, progress: "Checking PDFs", error: "" });
+
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
   key: string, found: (file: ScannedPdf) => void) {
-  const [status, setStatus] = useState({ key: "", files: [] as ScannedPdf[], checking: true, progress: "", error: "" });
-  const onFound = useRef(found); onFound.current = found;
+  const [stored, setStatus] = useState<ScanStatus>();
+  const onFound = useEffectEvent(found);
   const cache = useRef<ScanCache>(new Map());
   useEffect(() => {
     const abort = new AbortController();
-    setStatus({ key, files: [], checking: true, progress: "Checking PDFs", error: "" });
+    // Every update starts from this scan's own status, never a previous key's.
+    const update = (patch: Partial<ScanStatus>) => setStatus((current) =>
+      ({ ...(current?.key === key && current.host === host ? current : scanStart(key, host)), ...patch }));
     void (draft && host.readSource ? inspectSources(host, draft, cache.current,
-      (progress) => { if (!abort.signal.aborted) setStatus(current => ({ ...current, progress })); },
-      (file) => { if (!abort.signal.aborted) onFound.current(file); }, abort.signal)
+      (progress) => { if (!abort.signal.aborted) update({ progress }); },
+      (file) => { if (!abort.signal.aborted) onFound(file); }, abort.signal)
       : Promise.resolve({ files: [], error: "" }))
-      .then(({ files, error }) => { if (!abort.signal.aborted) setStatus({ key, files, checking: false, progress: "", error }); })
-      .catch((error: Error) => { if (!abort.signal.aborted) setStatus(current =>
-        ({ ...current, checking: false, progress: "", error: error.message })); });
+      .then(({ files, error }) => { if (!abort.signal.aborted) update({ files, checking: false, progress: "", error }); })
+      .catch((error: Error) => { if (!abort.signal.aborted) update({ checking: false, progress: "", error: error.message }); });
     return () => abort.abort();
   }, [host, key]);
-  return { ...status, checking: status.key !== key || status.checking };
+  // A scan that has not reported yet reads as just started.
+  const { files, checking, progress, error } =
+    stored?.key === key && stored.host === host ? stored : scanStart(key, host);
+  return { key, files, checking, progress, error };
 }

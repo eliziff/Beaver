@@ -47,34 +47,40 @@ const controlClass =
 export default function HistoryPage() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
-  const [filters, setFilters] = useState<AuditHistoryQuery>({});
+  const [request, setRequest] = useState({ filters: {} as AuditHistoryQuery, page: 1 });
+  const { filters, page } = request;
   const [draft, setDraft] = useState<AuditHistoryQuery>({});
+  // Loading and errors are tied to the request they belong to, so a new
+  // request shows as loading (and hides the old error) without an effect.
+  const [loaded, setLoaded] = useState<typeof request | null>(null);
+  const [failure, setFailure] = useState<{ request: typeof request; message: string } | null>(null);
+  const loading = loaded !== request;
+  const error = failure?.request === request ? failure.message : "";
+  const setError = (message: string) => setFailure({ request, message });
+  const setPage = (next: number) =>
+    setRequest((current) => current.page === next ? current : { ...current, page: next });
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    void getAuditHistory({ ...filters, page }, controller.signal)
+    void getAuditHistory({ ...request.filters, page: request.page }, controller.signal)
       .then((result) => {
         setEvents(result.events);
         setTotal(result.total);
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(
-            reason instanceof Error ? reason.message : "Could not load history",
-          );
+          setFailure({
+            request,
+            message: reason instanceof Error ? reason.message : "Could not load history",
+          });
         }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) setLoaded(request);
       });
     return () => controller.abort();
-  }, [filters, page]);
+  }, [request]);
   const pageCount = Math.max(1, Math.ceil(total / 50));
 
   const download = async () => {
@@ -107,8 +113,10 @@ export default function HistoryPage() {
         className="mx-4 mb-3 flex flex-wrap items-end gap-2 md:mx-6"
         onSubmit={(event) => {
           event.preventDefault();
-          setPage(1);
-          setFilters(draft);
+          setRequest((current) =>
+            current.filters === draft && current.page === 1
+              ? current
+              : { filters: draft, page: 1 });
         }}
       >
         <label className="flex min-w-52 flex-1 flex-col gap-1 text-xs text-gray-600">

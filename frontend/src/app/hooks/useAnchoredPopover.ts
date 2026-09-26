@@ -1,12 +1,11 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffectEvent, useLayoutEffect, useRef } from "react";
 
 /** One placement for every anchored panel in the workspace: beside its anchor, inside the viewport,
  *  clear of the assistant dock, re-clamped while the page moves, dismissed on Escape or a click outside. */
 export function useAnchoredPopover<T extends HTMLElement = HTMLDivElement>({ anchor, open = true, onDismiss, below = false, stationary = false }: {
   anchor: HTMLElement | DOMRect | null | undefined; open?: boolean;
   onDismiss: () => void; below?: boolean; stationary?: boolean }) {
-  const node = useRef<T>(null), dismiss = useRef(onDismiss);
-  dismiss.current = onDismiss;
+  const node = useRef<T>(null), dismiss = useEffectEvent(onDismiss);
   useLayoutEffect(() => {
     const panel = node.current; if (!open || !panel) return;
     if (typeof panel.showPopover === "function") try { panel.showPopover(); }
@@ -42,10 +41,10 @@ export function useAnchoredPopover<T extends HTMLElement = HTMLDivElement>({ anc
     panel.querySelector<HTMLElement>("[data-label-select][aria-pressed=true], button")?.focus();
     const outside = (event: PointerEvent) => {
       if (!panel.contains(event.target as Node) &&
-        !(anchor instanceof HTMLElement && anchor.contains(event.target as Node))) dismiss.current();
+        !(anchor instanceof HTMLElement && anchor.contains(event.target as Node))) dismiss();
     };
     const keydown = (event: KeyboardEvent) => { if (event.key === "Escape") {
-      event.preventDefault(); event.stopPropagation(); dismiss.current(); } };
+      event.preventDefault(); event.stopPropagation(); dismiss(); } };
     const observer = !stationary && globalThis.ResizeObserver ? new ResizeObserver(reclamp) : null;
     observer?.observe(panel);
     document.addEventListener("pointerdown", outside);

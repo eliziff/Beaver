@@ -3,6 +3,7 @@ import {
     useCallback,
     useEffect,
     useEffectEvent,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -101,11 +102,14 @@ export function PdfCanvas({
     onUnavailable,
 }: PdfCanvasProps) {
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
-    const recognizedRef = useRef(recognizedPages); recognizedRef.current = recognizedPages;
-    const textLoaderRef = useRef(loadRecognizedText); textLoaderRef.current = loadRecognizedText;
+    const recognizedRef = useRef(recognizedPages), textLoaderRef = useRef(loadRecognizedText);
     const layoutRef = useRef<PdfLayout | null>(null);
     const editorRef = useRef(annotationEditor);
-    editorRef.current = annotationEditor;
+    useLayoutEffect(() => {
+        recognizedRef.current = recognizedPages;
+        textLoaderRef.current = loadRecognizedText;
+        editorRef.current = annotationEditor;
+    });
     const annotationLayerRef = useRef<ReturnType<typeof attachPdfAnnotationLayer> | null>(null);
     const [layoutRevision, setLayoutRevision] = useState(0);
     const [pageInput, setPageInput] = useState("1");
@@ -126,6 +130,8 @@ export function PdfCanvas({
     const [preparing, setPreparing] = useState(true);
     const [zoom, setZoom] = useState(1);
     const [currentPage, setCurrentPage] = useState(1);
+    const [inputPage, setInputPage] = useState(currentPage);
+    if (inputPage !== currentPage) { setInputPage(currentPage); setPageInput(String(currentPage)); }
     const [numPages, setNumPages] = useState(0);
     const [viewerError, setViewerError] = useState<string | null>(null);
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
@@ -676,7 +682,6 @@ export function PdfCanvas({
 
     useEffect(() => { layoutRef.current?.refreshText(); }, [recognizedPages, loadRecognizedText]);
 
-    useEffect(() => setPageInput(String(currentPage)), [currentPage]);
     useEffect(() => {
         const scroll = scrollRef.current;
         const layout = layoutRef.current;

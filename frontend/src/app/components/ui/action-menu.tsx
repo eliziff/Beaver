@@ -32,13 +32,15 @@ export function ActionMenu({
     triggerClassName?: string;
     onOpen?: () => void;
 }) {
-    const [open, setOpen] = useState(false);
+    /** Where the open menu is portaled; null while closed. */
+    const [host, setHost] = useState<Element | null>(null);
+    const open = host !== null;
     const triggerRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const menuId = useId();
 
     function close(restoreFocus = false) {
-        setOpen(false);
+        setHost(null);
         if (restoreFocus) triggerRef.current?.focus();
     }
 
@@ -136,12 +138,12 @@ export function ActionMenu({
                 onClick={(event) => {
                     event.stopPropagation();
                     if (open) close(true);
-                    else { onOpen?.(); setOpen(true); }
+                    else { onOpen?.(); setHost(event.currentTarget.closest(MODAL_BOUNDARY) ?? document.body); }
                 }}
             >
                 {children}
             </button>
-            {open && createPortal(
+            {host && createPortal(
                 <div
                     ref={menuRef}
                     id={menuId}
@@ -169,7 +171,7 @@ export function ActionMenu({
                             {item.label}
                         </button>
                     ))}
-                </div>, triggerRef.current?.closest(MODAL_BOUNDARY) ?? document.body)}
+                </div>, host)}
         </span>
     );
 }

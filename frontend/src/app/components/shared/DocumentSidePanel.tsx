@@ -165,29 +165,31 @@ export function DocumentSidePanel({
                 title: doc.filename }
             : null;
     const captureReady = useReaderCapture(readerBody, captureReference, highlightController);
-    const [savedQuotes, setSavedQuotes] = useState<CitationQuote[]>([]);
     const workspaceFile = sourcesController?.file ?? null;
     const captureKey = captureReference ? researchSourceKey(captureReference) : null;
+    const sourceId = workspaceFile && captureKey ? Object.values(workspaceFile.state.sources)
+        .find(({ reference }) => researchSourceKey(reference) === captureKey)?.id : undefined;
+    const quotesKey = workspaceFile && sourceId ? `${workspaceFile.document.id}:${sourceId}` : null;
+    const [saved, setSaved] = useState<{ key: string; quotes: CitationQuote[] } | null>(null);
+    const savedQuotes = saved && saved.key === quotesKey ? saved.quotes : [];
     useEffect(() => {
-        if (!workspaceFile || !captureKey) { setSavedQuotes([]); return; }
-        const source = Object.values(workspaceFile.state.sources).find(({ reference }) =>
-            researchSourceKey(reference) === captureKey);
-        if (!source) { setSavedQuotes([]); return; }
+        if (!workspaceFile || !sourceId || !quotesKey) return;
         let cancelled = false;
-        void getResearchItems(workspaceFile.document.id, { kind: "passages", sourceId: source.id }).then((page) => {
+        void getResearchItems(workspaceFile.document.id, { kind: "passages", sourceId }).then((page) => {
             if (cancelled) return;
-            setSavedQuotes(page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
+            setSaved({ key: quotesKey, quotes: page.items.flatMap((item) => item.kind === "passage" && item.value.receipt.span_text
                 ? [{ quote: item.value.receipt.span_text, color: workspaceFile.state.labels[item.value.labelIds[0]]?.color ?? "#eab308",
-                      ...(item.value.receipt.locator.kind === "page" ? { page: Number(item.value.receipt.locator.label) } : {}) }] : []));
-        }).catch(() => { if (!cancelled) setSavedQuotes([]); });
+                      ...(item.value.receipt.locator.kind === "page" ? { page: Number(item.value.receipt.locator.label) } : {}) }] : []) });
+        }).catch(() => { if (!cancelled) setSaved({ key: quotesKey, quotes: [] }); });
         return () => { cancelled = true; };
-    }, [workspaceFile, captureKey]);
+    }, [workspaceFile, sourceId, quotesKey]);
     const docId = doc?.id;
-
-    useEffect(() => {
+    const [shownDocId, setShownDocId] = useState(docId);
+    if (shownDocId !== docId) {
+        setShownDocId(docId);
         setVisibleVersionCount(VERSION_PAGE);
         setNameDraft(null);
-    }, [docId]);
+    }
 
     if (!doc) return null;
 

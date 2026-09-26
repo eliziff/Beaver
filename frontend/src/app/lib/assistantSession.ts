@@ -115,6 +115,8 @@ export type AssistantSessionState = {
   run: { id: string; status: "running" | "paused"; chatId?: string; jobId?: string } | null;
   rejectedTurn: RejectedAssistantTurn | null;
   transcriptVersion: number;
+  /** The server holds messages before the first one loaded. */
+  hasEarlier?: boolean;
 };
 
 export type ProtocolEvent =
@@ -139,7 +141,9 @@ export type ProtocolEvent =
   | { type: "error"; message: string; retryable: boolean; accepted?: boolean };
 
 export type AssistantSessionEvent =
-  | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean }
+  | { type: "transcript_loaded"; chatId?: string; messages: AssistantTranscriptMessage[]; active?: boolean; transcriptVersion?: number; preserveRejected?: boolean; hasEarlier?: boolean }
+  /** An earlier page of the transcript, loaded as the reader scrolls back to it. */
+  | { type: "transcript_prepended"; chatId: string; messages: AssistantTranscriptMessage[]; hasEarlier: boolean }
   | { type: "live_replay_started"; chatId: string; runId: string }
   | { type: "run_started"; runId: string; chatId?: string; message: Message; options?: AssistantTurnOptions }
   | { type: "protocol"; runId: string; chatId?: string; event: ProtocolEvent }
@@ -393,15 +397,18 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
   return state;
 }
 
-function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSessionEvent, { type: "transcript_loaded" }>) {
-  let next: AssistantSessionState = { ...state, chatId: event.chatId ?? state.chatId, messages: [], readers: [], pendingInput: null, contextUsage: event.chatId && event.chatId === state.chatId ? state.contextUsage : undefined, compaction: undefined, run: event.active ? state.run : null, rejectedTurn: event.preserveRejected ? state.rejectedTurn : null, transcriptVersion: event.transcriptVersion ?? state.transcriptVersion };
-  event.messages.slice(0, 2_000).forEach((message, index) => {
+/** `ending` is false for an earlier page: its last message is not where the chat stands now. */
+function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSessionEvent, { type: "transcript_loaded" }>, ending = true) {
+  let next: AssistantSessionState = { ...state, chatId: event.chatId ?? state.chatId, messages: [], readers: [], pendingInput: null, contextUsage: event.chatId && event.chatId === state.chatId ? state.contextUsage : undefined, compaction: undefined, run: event.active ? state.run : null, rejectedTurn: event.preserveRejected ? state.rejectedTurn : null, transcriptVersion: event.transcriptVersion ?? state.transcriptVersion, hasEarlier: !!event.hasEarlier };
+  // Each message is built on its own and collected once, so loading is linear in its length.
+  const loaded: AssistantSessionMessage[] = [];
+  event.messages.forEach((message, index) => {
     if (message.role === "user") {
-      next = { ...next, messages: [...next.messages, userMessage({ id: message.id, role: "user", content: typeof message.content === "string" ? message.content : "", files: message.files ?? undefined, workflow: message.workflow ?? undefined, turnId: message.turn_id }, `user:${index}`)] };
+      loaded.push(userMessage({ id: message.id, role: "user", content: typeof message.content === "string" ? message.content : "", files: message.files ?? undefined, workflow: message.workflow ?? undefined, turnId: message.turn_id }, `user:${index}`));
       return;
     }
     const assistant = emptyAssistant(cleanValue(message.id) || `assistant:${index}`, cleanValue(message.turn_id));
-    next = { ...next, messages: [...next.messages, assistant] };
+    next = { ...next, messages: [assistant] };
     const rawEvents = Array.isArray(message.content) ? message.content : [];
     for (const raw of rawEvents) {
       const parsed = parseAssistantProtocolEvent(raw);
@@ -423,7 +430,15 @@ function loadTranscript(state: AssistantSessionState, event: Extract<AssistantSe
     if (complete) {
       next = { ...next, readers: settleReaders(next, "completed", completeActivity) };
     }
+    loaded.push(...next.messages);
   });
+  next = { ...next, messages: loaded };
+  // A reload of the latest page keeps the earlier pages already loaded before it.
+  const overlap = event.chatId === state.chatId && loaded.length
+    ? state.messages.findIndex(({ id }) => id === loaded[0].id) : -1;
+  if (overlap > 0) next = { ...next, messages: [...state.messages.slice(0, overlap), ...loaded],
+    hasEarlier: state.hasEarlier };
+  if (!ending) return next;
   if (event.active) {
     const chatId = event.chatId ?? state.chatId;
     const last = next.messages.at(-1);
@@ -459,6 +474,17 @@ export function createAssistantSessionState(args: { chatId?: string; messages?: 
 export function assistantSessionReducer(state: AssistantSessionState, event: AssistantSessionEvent): AssistantSessionState {
   if (event.type === "batch") return event.events.reduce(assistantSessionReducer, state);
   if (event.type === "transcript_loaded") return loadTranscript(state, event);
+  if (event.type === "transcript_prepended") {
+    if (event.chatId !== state.chatId) return state;
+    const loaded = new Set(state.messages.map(({ id }) => id));
+    const earlier = loadTranscript(createAssistantSessionState({ chatId: event.chatId }),
+      { type: "transcript_loaded", chatId: event.chatId, messages: event.messages }, false);
+    const readers = new Set(state.readers.map(({ id }) => id));
+    return { ...state, hasEarlier: event.hasEarlier,
+      messages: [...earlier.messages.filter(({ id }) => !loaded.has(id)), ...state.messages],
+      readers: [...earlier.readers.filter(({ id }) => !readers.has(id)), ...state.readers]
+        .slice(-ASSISTANT_LIMITS.readers) };
+  }
   if (event.type === "live_replay_started") {
     const index = state.messages.findLastIndex((message) => message.role === "assistant");
     const messages = state.messages.slice();

@@ -313,10 +313,11 @@ function LegalSourceViewerContent({
   const savedPassages = useMemo(() => passagePage?.items.flatMap((item) =>
     item.kind === "passage" ? [item.value] : []) ?? [], [passagePage?.items]);
   const researchLabels = researchFile?.state.labels;
-  useEffect(() => {
-    if (passagePage?.error) setResearchError(errorMessage(
-      passagePage.error, "Could not load saved highlights"));
-  }, [passagePage?.error]);
+  const [shownPassageError, setShownPassageError] = useState<unknown>();
+  if (shownPassageError !== passagePage?.error) {
+    setShownPassageError(passagePage?.error);
+    if (passagePage?.error) setResearchError(errorMessage(passagePage.error, "Could not load saved highlights"));
+  }
   useLayoutEffect(() => {
     if (!root.current || !payload) return;
     const quoteTexts = quotes.map(({ quote }) => quote);

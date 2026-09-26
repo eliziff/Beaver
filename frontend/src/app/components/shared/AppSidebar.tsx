@@ -1,5 +1,5 @@
 import { useNavigationPrefetch } from "@/app/hooks/useNavigationPrefetch";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState,
+import { lazy, Suspense, useEffect, useRef, useState,
   type DragEvent } from "react";
 import { BookOpenCheck, BookOpenText, ChevronRight, Files, History, PanelLeft, Settings, SlidersHorizontal, SquarePen, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -63,10 +63,12 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   const showingSearch = !!search && (searchedChats.loaded || searchedChats.items.length > 0 || !!searchedChats.error);
   const prefetch = useNavigationPrefetch();
   const navigate = useNavigate();
-  useLayoutEffect(() => {
+  const [tabPathname, setTabPathname] = useState(pathname);
+  if (tabPathname !== pathname) {
+    setTabPathname(pathname);
     if (pathname.startsWith("/tabular-reviews")) setHistoryTab("reviews");
     else if (pathname.startsWith("/assistant")) setHistoryTab("assistant");
-  }, [pathname]);
+  }
   useEffect(() => {
     if (!mobileOpen) return;
     const opener = document.activeElement instanceof HTMLElement

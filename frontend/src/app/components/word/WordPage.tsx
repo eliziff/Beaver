@@ -55,6 +55,7 @@ function WordAssistant() {
                         session={assistant.state}
                         handleChat={assistant.actions.handleChat}
                         cancel={assistant.actions.cancel}
+                        onLoadEarlier={assistant.actions.loadEarlier}
                         onRejectedTurnRestored={assistant.actions.clearRejectedTurn}
                         onRetryRejectedTurn={() => void assistant.actions.retryRejectedTurn()}
                         layout="panel"

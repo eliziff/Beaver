@@ -89,7 +89,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const [documents, setDocuments] = useState<TabularDocument[]>([]);
     const initialChat = searchParams.get("chat");
     const [ui, setUiState] = useState(() => ({
-        loading: true,
         generating: false,
         columnModal: undefined as ColumnConfig | null | undefined,
         modal: null as Modal,
@@ -109,12 +108,18 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }));
     const setUi = useCallback((patch: Partial<typeof ui>) =>
         setUiState((current) => ({ ...current, ...patch })), []);
-    useEffect(() => {
+    const [chatParam, setChatParam] = useState(initialChat);
+    if (chatParam !== initialChat) {
+        setChatParam(initialChat);
         setUi({ chatId: initialChat === "new" ? null : initialChat ?? undefined,
             ...(initialChat === null ? {} : { dockTab: "chat" as const }) });
-    }, [initialChat, setUi]);
+    }
+    // Loading is derived from which review/project the loaded data belongs to.
+    const loadKey = JSON.stringify([reviewId, projectId ?? null]);
+    const [loadedKey, setLoadedKey] = useState<string | null>(null);
+    const loading = loadedKey !== loadKey;
     const {
-        loading, generating, columnModal, modal, workflowStatus, deleteStatus,
+        generating, columnModal, modal, workflowStatus, deleteStatus,
         ownerAction, cellView, selectedIds, search, dragOver, uploading, chatId,
         missingProvider, columnRun, dockTab,
     } = ui;
@@ -132,21 +137,21 @@ function TRViewContent({ reviewId, projectId }: Props) {
 
     useEffect(() => {
         let active = true;
-        setUi({ loading: true });
         void getTabularReview(reviewId).then((data) => {
             if (!active) return;
             setReview(data.review);
             setCells(data.cells);
             setDocuments(data.documents);
-            setUi({ loading: false, generating: data.review.is_running === true });
+            setLoadedKey(loadKey);
+            setUi({ generating: data.review.is_running === true });
             const linkedProjectId = projectId ?? data.review.project_id;
             if (linkedProjectId) void getProject(linkedProjectId).then((loaded) => {
                 if (active) setProjects([loaded]);
             }).catch(() => undefined);
             else setProjects([]);
-        }).catch(() => { if (active) setUi({ loading: false }); });
+        }).catch(() => { if (active) setLoadedKey(loadKey); });
         return () => { active = false; };
-    }, [projectId, reviewId, setUi]);
+    }, [loadKey, projectId, reviewId, setUi]);
 
     useEffect(() => {
         if (!generating) return;

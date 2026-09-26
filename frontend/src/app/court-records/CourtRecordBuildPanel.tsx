@@ -39,9 +39,10 @@ export function CourtRecordBuildPanel(props: Props) {
   const previewBytes = pdf?.bytes ?? sourceBytes;
   const previewRoot = useRef<HTMLDivElement>(null);
   const previewExpansion = useReaderExpansion(previewRoot, !!previewBytes || props.profile.cover.generated);
+  if (!source && sourceBytes) setSourceBytes(undefined);
   useEffect(() => {
     let live = true;
-    if (!source) { setSourceBytes(undefined); return; }
+    if (!source) return;
     void source.arrayBuffer().then((bytes) => { if (live) setSourceBytes(new Uint8Array(bytes)); });
     return () => { live = false; };
   }, [source]);

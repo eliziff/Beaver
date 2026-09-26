@@ -93,7 +93,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [tool, setTool] = useState<AnnotationTool>('select');
   const [selectedId, setSelectedId] = useState<string|null>(null);
   const [focus, setFocus] = useState<{ id: string; request: number }>();
-  const [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
   const [error, setError] = useState(''), [textError, setTextError] = useState('');
   const cardRefs = useRef(new Map<string,HTMLLIElement>());
   const source = choices.find(choice => choice.bindingRole === role)!;
@@ -120,12 +120,17 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const remove = (id: string) => { edit(marks => marks.filter(mark => mark.id !== id)); if (selectedId===id) setSelectedId(null); };
   const close = () => { if (!saving && !dirty) onClose(); };
 
+  // Opening another source starts clean. Only the active PDF owns bytes;
+  // mark histories survive source switches independently.
+  const [openFor, setOpenFor] = useState({ role, source, base, host });
+  if (openFor.role !== role || openFor.source !== source || openFor.base !== base || openFor.host !== host) {
+    setOpenFor({ role, source, base, host });
+    setSelectedId(null); setFocus(undefined); setError(''); setTextError('');
+    setPdf(null); setLoading(true);
+  }
   const readDocument = useEffectEvent((key: string) => documents[key]);
   useEffect(() => {
-    setSelectedId(null); setFocus(undefined); setError(''); setTextError('');
-    // Only the active PDF owns bytes. Mark histories survive source switches independently.
-    setPdf(null);
-    const abort = new AbortController(); setLoading(true);
+    const abort = new AbortController();
     void (async () => {
       if (!host.readSource) throw new Error('This source cannot be opened.');
       const blob = await host.readSource(base, source.bindingRole, abort.signal);
@@ -177,7 +182,10 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       return undefined;
     }
   }, [role, recognition?.state, recognition?.recognized, base, host]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => setTextError(''), [loadRecognizedText]);
+  // New recognized text replaces a failed attempt to read it.
+  const textKey = `${role}\n${recognition?.state}\n${recognition?.recognized}`;
+  const [textFor, setTextFor] = useState(textKey);
+  if (textFor !== textKey) { setTextFor(textKey); setTextError(''); }
   useEffect(() => { if(selectedId) cardRefs.current.get(selectedId)?.scrollIntoView({block:'nearest'}); },[selectedId]);
   useEffect(() => {
     if(!dirty) return;

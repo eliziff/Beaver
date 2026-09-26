@@ -33,18 +33,19 @@ export function AuthCallbackPage() {
     const navigate = useNavigate();
     const { refreshSession } = useAuth();
     const started = useRef(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(() => {
+        const query = new URLSearchParams(window.location.search);
+        const providerError = query.get("error_description") || query.get("error");
+        return providerError || (query.get("code")
+            ? null : "The sign-in link is invalid or has expired.");
+    });
 
     useEffect(() => {
         if (started.current) return;
         started.current = true;
         const query = new URLSearchParams(window.location.search);
-        const providerError = query.get("error_description") || query.get("error");
         const code = query.get("code");
-        if (providerError || !code) {
-            setError(providerError || "The sign-in link is invalid or has expired.");
-            return;
-        }
+        if (query.get("error_description") || query.get("error") || !code) return;
         void exchangeAuthCode(code).then(refreshSession).then(() => {
             navigate(safeNext(query.get("next"), "/assistant"), { replace: true });
         }).catch((caught) => setError(errorMessage(caught, "Sign-in could not be completed.")));

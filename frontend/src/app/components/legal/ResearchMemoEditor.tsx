@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Node, type Editor } from "@tiptap/core";
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, useEditorState, type NodeViewProps } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -76,7 +76,8 @@ export default function ResearchMemoEditor({ file, value, onChange, onOpenCitati
   onResolveReference?: (reference: MemoSourceReference) => Promise<string | null>;
   onCitationError?: (message: string) => void;
 }) {
-  const openCitation = useRef(onOpenCitation); openCitation.current = onOpenCitation;
+  const openCitation = useRef(onOpenCitation);
+  useLayoutEffect(() => { openCitation.current = onOpenCitation; }, [onOpenCitation]);
   const editor = useEditor({ extensions: [...memoExtensions.filter((extension) => extension.name !== "memoCitation"),
     MemoCitation.configure({ onOpen: (href: string) => openCitation.current(href) })], content: value, contentType: "markdown",
     shouldRerenderOnTransaction: false, editable: !readOnly,

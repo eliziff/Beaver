@@ -66,16 +66,17 @@ export function InitialView({
                 openDocumentPicker: documentTab === "templates",
             });
     };
+    const addDocs = (documents: Document[]) => {
+        for (const document of documents) chatInputRef.current?.addDoc(document);
+    };
     const dockPanel = (tab: "library" | "workflows" | "sources") => (
         <InitialDockPanel tab={tab} libraryKind={libraryKind}
             active={dockOpen && dockTab === tab}
             workflowDocuments={workflowDocuments}
             onLibraryKindChange={setLibraryKind}
-            onOpenInChat={(documents) => {
-                for (const document of documents) chatInputRef.current?.addDoc(document);
-            }}
+            onOpenInChat={addDocs}
             onOpenWorkflows={(documents) => {
-                for (const document of documents) chatInputRef.current?.addDoc(document);
+                addDocs(documents);
                 setWorkflowDocuments(documents);
                 openDock("workflows");
             }}

@@ -1,5 +1,5 @@
 import { tabularReviewsCollection } from "@/app/lib/collectionKeys";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OwnerOnlyPopup } from "@/app/components/popups/OwnerOnlyPopup";
 import { ProjectSectionTabs, useProjectWorkspace } from "@/app/components/projects/ProjectWorkspace";
@@ -91,7 +91,12 @@ function ReviewCollection({ projectContext }: { projectContext?: ProjectContext 
     const loading = page.loading && reviews.length === 0;
     const reportOwnerOnly = projectContext?.setOwnerOnlyAction ?? setOwnerOnlyAction;
 
-    useEffect(() => setSelectedIds([]), [query, scope]);
+    const selectionKey = `${scope}\n${query}`;
+    const [selectedFor, setSelectedFor] = useState(selectionKey);
+    if (selectedFor !== selectionKey) {
+        setSelectedFor(selectionKey);
+        setSelectedIds([]);
+    }
 
     function owns(review: TabularReview) {
         return !user?.id || review.user_id === user.id;

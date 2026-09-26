@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState,
+import { useEffect, useEffectEvent, useRef, useState,
     type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { GripHorizontal, X } from "lucide-react";
@@ -15,12 +15,7 @@ const clamp = (value: number, min: number, max: number) =>
 
 /** A source opened from a dock workspace floats beside it in its own resizable window. */
 export function LegalSourcePopout({ tab, onClose }: { tab: LegalSourceTab; onClose: () => void }) {
-    const [box, setBox] = useState<Box | null>(null);
-    const gesture = useRef<{ mode: "move" | "resize"; x: number; y: number; box: Box } | null>(null);
-    const dismiss = useRef(onClose);
-    dismiss.current = onClose;
-
-    useLayoutEffect(() => {
+    const [box, setBox] = useState<Box>(() => {
         const dock = document.querySelector<HTMLElement>("[data-assistant-dock]");
         const beside = dock?.getBoundingClientRect();
         const viewportWidth = window.innerWidth, viewportHeight = window.innerHeight;
@@ -28,12 +23,14 @@ export function LegalSourcePopout({ tab, onClose }: { tab: LegalSourceTab; onClo
         const height = Math.max(MIN_HEIGHT, Math.min(beside?.height ?? viewportHeight - EDGE * 2, viewportHeight - EDGE * 2));
         const left = beside ? beside.left - EDGE - width : (viewportWidth - width) / 2;
         const top = beside ? beside.top : (viewportHeight - height) / 2;
-        setBox({
+        return {
             width, height,
             left: clamp(left, EDGE, viewportWidth - width - EDGE),
             top: clamp(top, EDGE, viewportHeight - height - EDGE),
-        });
-    }, []);
+        };
+    });
+    const gesture = useRef<{ mode: "move" | "resize"; x: number; y: number; box: Box } | null>(null);
+    const dismiss = useEffectEvent(() => onClose());
 
     useEffect(() => {
         const move = (event: PointerEvent) => {
@@ -61,10 +58,10 @@ export function LegalSourcePopout({ tab, onClose }: { tab: LegalSourceTab; onClo
     }, []);
 
     useEffect(() => {
-        const fit = () => setBox((current) => current ? { ...current,
+        const fit = () => setBox((current) => ({ ...current,
             left: clamp(current.left, EDGE, window.innerWidth - current.width - EDGE),
             top: clamp(current.top, EDGE, window.innerHeight - current.height - EDGE),
-        } : current);
+        }));
         window.addEventListener("resize", fit);
         return () => window.removeEventListener("resize", fit);
     }, []);
@@ -76,20 +73,20 @@ export function LegalSourcePopout({ tab, onClose }: { tab: LegalSourceTab; onClo
                 ? event.target.closest('dialog, [role="dialog"], [role="alertdialog"]') : null;
             if (nested) return;
             event.preventDefault();
-            dismiss.current();
+            dismiss();
         };
         window.addEventListener("keydown", escape);
         return () => window.removeEventListener("keydown", escape);
     }, []);
 
     function begin(mode: "move" | "resize", event: ReactPointerEvent) {
-        if (!box || event.button !== 0) return;
+        if (event.button !== 0) return;
         gesture.current = { mode, x: event.clientX, y: event.clientY, box };
         document.body.style.userSelect = "none";
     }
 
     function resizeByKey(event: ReactKeyboardEvent) {
-        if (!box || !event.key.startsWith("Arrow")) return;
+        if (!event.key.startsWith("Arrow")) return;
         const step = 24, width = window.innerWidth, height = window.innerHeight;
         event.preventDefault();
         if (event.key === "ArrowLeft") setBox({ ...box, width: clamp(box.width - step, MIN_WIDTH, width - box.left - EDGE) });
@@ -98,7 +95,6 @@ export function LegalSourcePopout({ tab, onClose }: { tab: LegalSourceTab; onClo
         if (event.key === "ArrowDown") setBox({ ...box, height: clamp(box.height + step, MIN_HEIGHT, height - box.top - EDGE) });
     }
 
-    if (!box) return null;
     return createPortal(
         <section aria-label="Source reader" data-floating-reader
             className="fixed z-[220] flex flex-col overflow-hidden rounded-lg border border-gray-300 bg-app-surface shadow-xl"
@@ -107,7 +103,7 @@ export function LegalSourcePopout({ tab, onClose }: { tab: LegalSourceTab; onClo
                 className="flex min-h-8 shrink-0 cursor-move touch-none items-center gap-2 border-b border-gray-200 bg-gray-50 px-2">
                 <GripHorizontal aria-hidden className="size-3.5 shrink-0 text-gray-400" />
                 <span className="min-w-0 flex-1" />
-                <button type="button" aria-label="Close source reader" onClick={() => dismiss.current()}
+                <button type="button" aria-label="Close source reader" onClick={() => onClose()}
                     onPointerDown={(event) => event.stopPropagation()}
                     className="grid size-7 shrink-0 place-items-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900">
                     <X className="size-3.5" aria-hidden />
