@@ -1,6 +1,7 @@
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress, StepSection } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
+import { CANLII_PDF_NAME, folderFileId, folderMatches } from "./folderSources";
 import { authorityName, authorityLabel,
   requiresBilingualSources,
   missingSource, relinkable } from "./authorityPresentation";
@@ -571,6 +572,81 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     void run(() => relinkQueued(id, role), (next) => { if (next) relinkAdopted(next, role); },
       "Source relinked");
   }
+  // Auto-fetch from folder: the reader picks their download folder once and, while the tab
+  // is open, each CanLII PDF saved there is attached to the authority it names.
+  const [watchedFolder, setWatchedFolder] = useState<string>();
+  const folder = useRef<{ handle: WatchedFolder; timer: number } | null>(null);
+  const folderTried = useRef(new Set<string>()), folderScanning = useRef(false);
+  const busyRef = useRef(busy), scanRef = useRef<() => Promise<void>>(async () => {});
+  busyRef.current = busy;
+  useEffect(() => () => { if (folder.current) clearInterval(folder.current.timer); }, []);
+  function stopWatching(text = "") {
+    if (folder.current) clearInterval(folder.current.timer);
+    folder.current = null; setWatchedFolder(undefined);
+    if (text) setMessage(text);
+  }
+  async function attachFromFolder(files: File[], quiet: boolean) {
+    const current = draftRef.current;
+    if (!current) return;
+    const matches = folderMatches(current.state, files)
+      .filter(({ file }) => !folderTried.current.has(folderFileId(file)));
+    if (!matches.length) {
+      if (!quiet) setMessage("No PDF there is named like a CanLII citation (such as 2019abqb666.pdf) " +
+        "for an authority that still needs one.");
+      return;
+    }
+    await run(() => serialized(async () => {
+      let added = 0;
+      for (const { authority, file } of matches) {
+        const latest = draftRef.current;
+        if (latest?.id !== current.id) break;
+        // A file is tried once; one that fails is not retried every scan.
+        folderTried.current.add(folderFileId(file));
+        setMessage(`Attaching ${file.name}`);
+        if (adopt(await host.attach(latest.id, authority.id, latest.revision, { file }))) added += 1;
+      }
+      return added;
+    }), (added) => setMessage(`Added ${added} PDF${added === 1 ? "" : "s"} from the folder`),
+    "", "Adding PDFs from the folder");
+  }
+  scanRef.current = async function scanFolder() {
+    const watched = folder.current?.handle;
+    if (!watched || folderScanning.current || busyRef.current) return;
+    folderScanning.current = true;
+    try {
+      if (await watched.queryPermission?.({ mode: "read" }) === "denied")
+        return stopWatching(`Stopped watching ${watched.name}: access was withdrawn.`);
+      const files: File[] = [];
+      for await (const entry of watched.values())
+        if (entry.kind === "file" && CANLII_PDF_NAME.test(entry.name)) files.push(await entry.getFile());
+      await attachFromFolder(files, true);
+    } catch (caught) { stopWatching(`Stopped watching the folder: ${errorText(caught)}`); }
+    finally { folderScanning.current = false; }
+  };
+  async function watchFolder() {
+    if (folder.current) return stopWatching("Stopped watching the folder.");
+    const picker = (window as FolderPickerWindow).showDirectoryPicker;
+    if (!picker) {
+      // Without folder access (Firefox, Safari) the folder is read once.
+      const input = Object.assign(document.createElement("input"),
+        { type: "file", multiple: true, webkitdirectory: true });
+      input.onchange = () => void attachFromFolder(Array.from(input.files ?? [])
+        .filter((file) => file.webkitRelativePath.split("/").length <= 2), false);
+      input.click();
+      return;
+    }
+    let handle: WatchedFolder;
+    try { handle = await picker({ id: "authorities-downloads", mode: "read", startIn: "downloads" }); }
+    catch (caught) {
+      if ((caught as { name?: string })?.name !== "AbortError") setError(errorText(caught));
+      return;
+    }
+    folderTried.current.clear();
+    folder.current = { handle, timer: window.setInterval(() => void scanRef.current(), 2_000) };
+    setWatchedFolder(handle.name);
+    setMessage(`Watching ${handle.name}: CanLII PDFs saved there are attached to their authorities.`);
+    await scanRef.current();
+  }
   function rename(title: string) {
     if (draft) void run(() => host.drafts.update<AuthoritiesProduct["state"]>(draft.id,
       { revision: draft.revision, title }), adopt);
@@ -728,7 +804,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onLibrary: attachLibraryAvailable
       ? (authorityId: string) => openLibrary({ kind: "authority", authorityId }) : undefined,
     sourceLabel, onAttach: (id: string, file?: File) => attach(id, file && { file }),
-    onRelink: relinkSource };
+    onRelink: relinkSource, onWatchFolder: () => void watchFolder(), watchedFolder };
 
   const settingsAction = <Button type="button" variant="outline" aria-label="Settings"
     className="h-9 w-9 shrink-0 border-gray-400 px-0 sm:w-auto sm:px-4"
@@ -1766,3 +1842,10 @@ function loadPreferences(): StartPreferences {
       ? withProfile(value as StartPreferences, value.profileId!) : DEFAULTS;
   } catch { return DEFAULTS; }
 }
+
+type WatchedFolder = FileSystemDirectoryHandle & {
+  values(): AsyncIterable<FileSystemFileHandle | FileSystemDirectoryHandle>;
+  queryPermission?(options: { mode: "read" }): Promise<PermissionState>;
+};
+type FolderPickerWindow = Window & { showDirectoryPicker?: (options: { id: string; mode: "read";
+  startIn: "downloads" }) => Promise<WatchedFolder> };

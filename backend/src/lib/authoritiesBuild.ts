@@ -326,8 +326,6 @@ export async function renderAuthoritySourcePdf(input: {
     const item = document.addPage([width, height]); pages.push(item); return item;
   };
   let current = page(), y = height - 180;
-  current.drawText(pdfText(input.kind === "legislation" ? "LEGISLATION" : "AUTHORITY"),
-    { x: left, y: height - 72, size: 8, font: sans, color: pdf.rgb(.35, .35, .35) });
   for (const line of wrapped(bold, title, 23, width - left - right)) {
     current.drawText(line, { x: left, y, size: 23, font: bold }); y -= 29;
   }
@@ -336,18 +334,11 @@ export async function renderAuthoritySourcePdf(input: {
     current.drawText(line, { x: left, y, size: 13, font: serif,
       color: pdf.rgb(.2, .2, .2) }); y -= 18;
   }
-  const note = [input.date, "Reconstructed from A2AJ source text", input.sourceUrl]
-    .filter(Boolean).join("  |  ");
-  y -= 12;
-  for (const line of wrapped(sans, note, 8, width - left - right)) {
-    current.drawText(line, { x: left, y, size: 8, font: sans,
-      color: pdf.rgb(.4, .4, .4) }); y -= 11;
-  }
   current.drawLine({ start: { x: left, y: y - 6 }, end: { x: width - right, y: y - 6 },
     thickness: .8, color: pdf.rgb(.6, .6, .6) });
   y -= 34;
-  const paragraphs = input.text.replace(/\r\n?/gu, "\n").split(/\n{2,}/u)
-    .flatMap((part) => part.split(/\n(?=\s*(?:#{1,6}\s+|\[?\d+(?:\]|\.|\))\s+))/u))
+  // A2AJ text puts each paragraph on its own line, so every line break starts one.
+  const paragraphs = input.text.replace(/\r\n?/gu, "\n").split(/\n+/u)
     .map((part) => part.trim()).filter(Boolean);
   for (const raw of paragraphs) {
     const heading = /^#{1,6}\s+/u.test(raw);
