@@ -44,7 +44,7 @@ function httpUrl(rawUrl: string, baseUrl?: URL) {
   }
 }
 
-const DECISIA_HOSTS = new Set([
+export const DECISIA_HOSTS = new Set([
   "coadecisions.ontariocourts.ca",
   "decisia.lexum.com",
   "decision.tcc-cci.gc.ca",
