@@ -73,6 +73,11 @@ export function AuthoritiesHighlights({ product, tabs, host, busy, ocr, onSaved 
   </>;
 }
 
+/** Mark content independent of object key order, to tell whether stored highlights match. */
+const marksKey = (marks: readonly PdfAnnotation[]) => JSON.stringify(marks.map(mark => [mark.id, mark.kind,
+  mark.origin, mark.label, mark.excerpt, mark.rgb, mark.opacity,
+  mark.fragments.map(fragment => [fragment.pageNumber, fragment.rects])]));
+
 function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, ocr, onClose, onSaved }: {
   product: AuthoritiesProduct; choices: Choice[]; host: AuthoritiesHost; ocr: SourceOcrPanel;
   onClose(): void; onSaved(product: AuthoritiesProduct): void;
@@ -191,6 +196,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     });
     if(!entries.length) return;
     setSaving(true);setError('');
+    const before = Object.fromEntries(entries.map(entry => [entry.bindingRole, documents[entry.bindingRole].saved]));
     // One write owns one immutable snapshot; acknowledging it cannot acknowledge later edits.
     saveRequest.current = (async () => {
       try {
@@ -203,7 +209,29 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           return updated;
         });
         onSaved(next);
-      } catch(cause) { setError(errorMessage(cause)); }
+      } catch(cause) {
+        setError(errorMessage(cause));
+        // The write may have committed with its response lost, or an unrelated edit may have
+        // moved the draft on; either way every retry would repeat the same revision conflict.
+        // Continue from the stored revision only while these sources hold what this editor
+        // last saved or just submitted: another reviewer's highlights are never overwritten.
+        try {
+          const stored = await host.drafts.get<AuthoritiesProduct['state']>(base.id);
+          const held = (entry: Entry) => marksKey(stored.state.authorities[entry.authorityId]
+            ?.annotations?.[entry.bindingRole]?.marks ?? []);
+          if (entries.every(entry => held(entry) === marksKey(entry.annotations.marks))) {
+            revision.current = stored.revision; setError('');
+            setDocuments(values => {
+              const updated = {...values};
+              for (const entry of entries) updated[entry.bindingRole] = {
+                ...values[entry.bindingRole], saved:entry.annotations.marks };
+              return updated;
+            });
+            onSaved(stored as AuthoritiesProduct);
+          } else if (entries.every(entry => held(entry) === marksKey(before[entry.bindingRole])))
+            revision.current = stored.revision;
+        } catch { /* offline: Retry resends to the revision last known */ }
+      }
     })();
     try { await saveRequest.current; }
     finally { saveRequest.current = null; setSaving(false); }

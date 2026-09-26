@@ -690,7 +690,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onDownload={download} />;
   const highlightPanel = draft && stage === "highlights" && <AuthoritiesHighlights product={draft} tabs={authorityTabs}
     busy={busy} host={host} ocr={ocr} onSaved={adopt} />;
-  const quotationReview = draft && findingId && discrepancies.length > 0 &&
+  // An open finding stays in place while its quotations are rechecked (items undefined).
+  const quotationReview = draft && findingId && (!currentReview || discrepancies.length > 0) &&
     <QuotationReview items={currentReview?.items} currentId={findingId}
       busy={busy || !currentReview} error={error || currentReview?.error} onSelect={setFindingId}
       onOpenSource={host.readSource ? openFindingSource : undefined}

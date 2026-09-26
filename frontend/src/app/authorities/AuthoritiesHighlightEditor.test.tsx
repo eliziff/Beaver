@@ -128,3 +128,44 @@ it('serializes immutable save snapshots and retains batched edits, undo and retr
     if (original) Object.defineProperty(globalThis,'crypto',original);
   }
 });
+
+it('recovers a save whose response was lost instead of repeating its revision', async () => {
+  const scroll = HTMLElement.prototype.scrollIntoView; HTMLElement.prototype.scrollIntoView = vi.fn();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
+  const {hash, product} = fixture();
+  const writes: Array<Parameters<AuthoritiesHost['act']>> = [];
+  let stored = product;
+  const onSaved = vi.fn();
+  const host = {readSource: async () => new Blob(['%PDF-scan']),
+    prepareAnnotations: async () => ({annotations: emptyAnnotationSet(hash), pageMarked: []}),
+    // The write commits, but its response never arrives.
+    act: async (...args: Parameters<AuthoritiesHost['act']>) => {
+      writes.push(args);
+      const action = args[2];
+      if (action.type === 'set-annotations') stored = {...stored, revision: stored.revision + 1, state: {...stored.state,
+        authorities: Object.fromEntries(Object.entries(stored.state.authorities).map(([id, authority]) => [id,
+          action.entries[0].authorityId === id ? {...authority, annotations: {[action.entries[0].bindingRole]:
+            action.entries[0].annotations}} : authority]))}};
+      throw new Error('Connection lost');
+    },
+    drafts: {get: async () => stored},
+  } as unknown as AuthoritiesHost;
+  const view = render(<AuthoritiesHighlights product={product} tabs={new Map()} host={host}
+    busy={false} ocr={{tracked:{},begin:vi.fn(),stop:vi.fn()}} onSaved={onSaved} />);
+  viewer = undefined as unknown as PdfCanvasProps; // not the previous test's editor
+  try {
+    fireEvent.click(screen.getByRole('button', {name:'Edit in PDF'}));
+    await waitFor(() => expect(viewer?.annotationEditor?.disabled).toBe(false));
+    act(() => viewer.annotationEditor!.onCreate([{pageNumber:1,rects:[[.1,.1,.8,.2]]}],'Kept'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({revision: 2})),
+      {timeout: 5_000});
+    expect(writes).toHaveLength(1);
+    expect(screen.queryByRole('button',{name:'Retry',exact:true})).toBeNull();
+    const closing = new Event('beforeunload',{cancelable:true}); window.dispatchEvent(closing);
+    expect(closing.defaultPrevented).toBe(false);
+  } finally {
+    view.unmount(); HTMLElement.prototype.scrollIntoView = scroll;
+    if (original) Object.defineProperty(globalThis,'crypto',original);
+  }
+});
