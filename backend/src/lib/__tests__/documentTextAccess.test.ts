@@ -2,15 +2,15 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 
 let root = "";
-beforeEach(async () => {
+beforeAll(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "beaver-text-access-"));
   vi.resetModules(); vi.stubEnv("AUTH_MODE", "local"); vi.stubEnv("MIKE_LOCAL_DATA_DIR", root);
 });
-afterEach(async () => {
-  vi.restoreAllMocks();
+afterEach(() => vi.restoreAllMocks());
+afterAll(async () => {
   await (await import("../relationalDatabase")).closeRelationalDatabase();
   vi.unstubAllEnvs(); vi.resetModules(); await rm(root, { recursive: true, force: true });
 });

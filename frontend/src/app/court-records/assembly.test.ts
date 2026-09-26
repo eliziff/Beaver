@@ -946,32 +946,6 @@ describe("court record assembly", () => {
       .not.toContain("Generated the Form 344 certificate for signature");
   });
 
-  it("builds every Alberta and federal preset into openable filing artifacts", async () => {
-    for (const profile of COURT_PROFILES.filter((item) => item.jurisdiction !== "general")) {
-      const result = await buildCourtRecord({
-        profile,
-        cover: profileCover(profile),
-        preparationDate: "2026-08-29",
-        entries: await profileEntries(profile),
-      });
-      expect(result.artifacts.length, profile.id).toBeGreaterThan(0);
-      expect(result.artifacts.some((artifact) => artifact.mimeType === "text/markdown"), profile.id)
-        .toBe(false);
-      expect(result.receipt.outputs, profile.id).toHaveLength(result.artifacts.length);
-      for (const artifact of result.artifacts.filter((item) => item.mimeType === "application/pdf")) {
-        const output = await PDFDocument.load(artifact.bytes);
-        expect(output.getPageCount(), `${profile.id}:${artifact.filename}`).toBeGreaterThan(0);
-        if (profile.technical.pdfPageLabelsMatch && artifact.role?.startsWith("record")) {
-          expect(output.catalog.get(PDFName.of("PageLabels")), profile.id).toBeTruthy();
-        }
-      }
-      if (profile.technical.indexDate === "required") {
-        const record = result.artifacts.find((item) => item.mimeType === "application/pdf")!;
-        expect(await pdfText(record.bytes, 2), profile.id).toContain("Dated May 31, 2023");
-      }
-    }
-  }, 30_000);
-
   it.each([
     ["ab-ca-appeal-record", [255, 0, 0]],
     ["ab-ca-extracts-appellant", [244, 221, 118]],

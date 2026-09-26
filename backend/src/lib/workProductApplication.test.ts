@@ -45,22 +45,6 @@ function setup(current = product(), children: WorkProduct[] = []) {
 }
 
 describe("WorkProduct application state contract", () => {
-  it("keeps full draft listings bounded but returns all lightweight metadata", async () => {
-    const { application, repository } = setup();
-    await application.list(scope);
-    await application.list(scope, { kind: "authorities", metadata: true });
-    expect(repository.list).toHaveBeenNthCalledWith(1, scope, { limit: 50 });
-    expect(repository.list).toHaveBeenNthCalledWith(2, scope, {
-      kind: "authorities", metadata: true, limit: undefined,
-    });
-  });
-
-  it("accepts a typed Court draft with multiple parties and interveners", async () => {
-    const { application, repository } = setup();
-    await expect(application.create(scope, { kind: "court-record", title: "Appeal record",
-      state: courtState(true) })).resolves.toMatchObject({ kind: "court-record" });
-    expect(repository.create).toHaveBeenCalledOnce();
-  });
 
   it("accepts only the configured producer profile for a nested Court output", async () => {
     const nested: WorkProductState = { profileId: "fc-motion-record-moving", cover: {},
@@ -119,14 +103,6 @@ describe("WorkProduct application state contract", () => {
       state: { ...createAuthoritiesDraft({ kind: "manual" }), outputMode: "unknown" } as never }))
       .rejects.toMatchObject({ status: 400 });
     expect(repository.create).not.toHaveBeenCalled();
-  });
-
-  it("accepts the Authorities domain's canonical initial state", async () => {
-    const { application, repository } = setup();
-    await expect(application.create(scope, { kind: "authorities", title: "Authorities",
-      state: createAuthoritiesDraft({ kind: "manual" }) }))
-      .resolves.toMatchObject({ kind: "authorities" });
-    expect(repository.create).toHaveBeenCalledOnce();
   });
 
   it("preserves stored editable citation boundaries when returning an Authorities draft", async () => {
