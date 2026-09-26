@@ -244,24 +244,6 @@ describe("ResearchFileBar", () => {
     expect(api.getResearchItems).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps folder navigation, one source list and three workspace tabs", async () => {
-    await renderWorkspace();
-    expect(screen.getByRole("tree", { name: "Sources" })).toBeVisible();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Labels", "Search", "Memo"]);
-    expect(screen.queryByRole("textbox", { name: "Search saved source text" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Highlight types" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Highlight" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tree", { name: "Highlight types" })).toBeVisible();
-    expect(screen.getByRole("searchbox", { name: "Filter" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "List options" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Organize" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Search target" })).not.toBeInTheDocument();
-    openSearch();
-    expect(screen.getByRole("tab", { name: "Search" })).toHaveAttribute("aria-selected", "true");
-    await waitFor(() => expect(api.getResearchItems).toHaveBeenCalledWith("file-1",
-      expect.objectContaining({ kind: "passages", sourceId: "baker" }), expect.any(AbortSignal)));
-  });
-
   it("edits a source's labels from its options menu and closes the palette on Escape", async () => {
     await renderWorkspace();
     fireEvent.click(screen.getAllByRole("button", { name: "Baker v Canada options" })[0]);

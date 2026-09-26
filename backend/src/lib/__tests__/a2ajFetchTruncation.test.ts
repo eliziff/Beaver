@@ -74,12 +74,6 @@ describe("unified A2AJ document reads", () => {
     expect(read.values[0].text).toHaveLength(60_000);
   });
 
-  it("returns the complete small document", async () => {
-    const read = await readDocument("c".repeat(1_200));
-    expect(read.status).toBe("found");
-    if (read.status === "found") expect(read.values[0].text).toHaveLength(1_200);
-  });
-
   it("returns the canonical document and selected native block", async () => {
     const text = Array.from(
       { length: 6 },

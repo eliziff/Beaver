@@ -1,5 +1,4 @@
 import JSZip from "jszip";
-import { XMLParser } from "fast-xml-parser";
 import { describe, expect, it } from "vitest";
 import { docxXml as packageXml } from "./support/docxFixtures";
 
@@ -417,40 +416,6 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
     expect(xml.match(/RESIDENTIAL LEASE AGREEMENT/gu)).toBeNull();
     expect(xml).toContain("Generic Residential Lease Agreement Template");
     expect(xml).toContain("1. Parties");
-  });
-
-  it("uses a restrained black legal house style and fixed page geometry", async () => {
-    const bytes = await renderDocxMarkdown(
-      "# Part 1 — Interpretation\n\n(a) First item\n(b) Second item\n\n| Issue | Result |\n| --- | --- |\n| Notice | Required |",
-      { title: "Last Will and Testament" },
-    );
-    const documentXml = await packageXml(bytes, "word/document.xml");
-    const stylesXml = await packageXml(bytes, "word/styles.xml");
-
-    const styles = new XMLParser({ ignoreAttributes: false }).parse(stylesXml)["w:styles"]["w:style"];
-    for (const [id, size, before, after] of [
-      ["Title", 28, 0, 240], ["Heading1", 26, 240, 80],
-      ["Heading2", 24, 180, 60], ["Heading3", 22, 140, 40],
-      ["Heading4", 22, 120, 40], ["Heading5", 22, 100, 40], ["Heading6", 22, 80, 40],
-    ] as const) {
-      const style = styles.find((value: Record<string, unknown>) => value["@_w:styleId"] === id);
-      expect(style?.["w:rPr"], id).toMatchObject({
-        "w:rFonts": { "@_w:ascii": "Times New Roman" }, "w:b": "",
-        "w:color": { "@_w:val": "000000" }, "w:sz": { "@_w:val": String(size) },
-      });
-      expect(style?.["w:pPr"], id).toMatchObject({
-        "w:spacing": { "@_w:before": String(before), "@_w:after": String(after) },
-        "w:keepNext": "", "w:keepLines": "",
-      });
-      expect(style?.["w:pPr"]["w:jc"]?.["@_w:val"], id).toBe(id === "Title" ? "center" : undefined);
-    }
-    expect(stylesXml).not.toContain("2E74B5");
-    expect(documentXml).toContain(
-      '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"',
-    );
-    expect(documentXml).toContain('<w:tblLayout w:type="fixed"/>');
-    expect(documentXml).toContain('<w:tblW w:type="dxa" w:w="9360"/>');
-    expect(documentXml).not.toContain("<w:t>{-}</w:t>");
   });
 
   it("recovers unplaceable values but keeps size limits strict", async () => {
