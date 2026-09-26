@@ -27,7 +27,7 @@ import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
 import { initialAuthorityAnnotations, writeAuthorityAnnotations } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperations";
-import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
+import { structureNative, type NativePdfPassageGeometry, type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
@@ -337,22 +337,30 @@ export async function renderAuthoritySourcePdf(input: {
   current.drawLine({ start: { x: left, y: y - 6 }, end: { x: width - right, y: y - 6 },
     thickness: .8, color: pdf.rgb(.6, .6, .6) });
   y -= 34;
-  // A2AJ text puts each paragraph on its own line, so every line break starts one.
-  const paragraphs = input.text.replace(/\r\n?/gu, "\n").split(/\n+/u)
-    .map((part) => part.trim()).filter(Boolean);
-  for (const raw of paragraphs) {
-    const heading = /^#{1,6}\s+/u.test(raw);
-    const clean = raw.replace(/^#{1,6}\s+/u, "")
-      .replace(/\x5b([^\x5d]+)\x5d\([^\s)]+\)/gu, "$1").replace(/[*_`]/gu, "");
-    const font = heading ? bold : serif, size = heading ? 12 : 10.5;
-    const leading = heading ? 16 : 14.5;
-    const lines = wrapped(font, clean, size, width - left - right);
-    if (y - lines.length * leading < bottom + 18) { current = page(); y = height - top; }
-    for (const line of lines) {
+  // A2AJ text puts each paragraph on its own line; the engine's grammar says which lines
+  // are headings or list items and how deeply they nest.
+  const text = input.text.replace(/\r\n?/gu, "\n")
+    .replace(/\x5b([^\x5d]+)\x5d\([^\s)]+\)/gu, "$1").replace(/[*_`]/gu, "");
+  for (const block of structureNative().textLayout(text)) {
+    const heading = block.kind === "heading", item = block.kind === "list_item";
+    const font = heading ? bold : serif;
+    const size = heading ? [13, 12, 11][Math.min(block.level, 2)] : 10.5;
+    const leading = heading ? size + 4 : 14.5;
+    // List items hang their enumerator in a gutter, one step in per level.
+    const indent = item ? 18 * (block.level + 1) : 0, gutter = item ? 22 : 0;
+    const marker = !item && block.marker ? `${block.marker} ` : "";
+    const lines = wrapped(font, marker + block.text, size, width - left - right - indent - gutter);
+    if (heading) y -= 8;
+    // A heading keeps at least two lines of what follows it on its page.
+    const keep = lines.length * leading + (heading ? 2 * 14.5 : 0);
+    if (y - Math.min(keep, 4 * leading) < bottom + 18) { current = page(); y = height - top; }
+    lines.forEach((line, index) => {
       if (y < bottom + leading) { current = page(); y = height - top; }
-      current.drawText(line, { x: left, y, size, font }); y -= leading;
-    }
-    y -= heading ? 7 : 9;
+      if (item && !index && block.marker) current.drawText(pdfText(block.marker),
+        { x: left + indent, y, size, font });
+      current.drawText(line, { x: left + indent + gutter, y, size, font }); y -= leading;
+    });
+    y -= heading ? 4 : item ? 5 : 9;
   }
   pages.forEach((item, index) => {
     if (index) {
