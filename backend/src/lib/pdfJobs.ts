@@ -76,6 +76,9 @@ export function pdfJobHandlers(documents: DocumentStore): Record<string, JobHand
         content.version.source_sha256 !== input.sourceSha256) {
       return { skipped: "source-unavailable" } as Record<string, string>;
     }
+    // A plain inspection queued before whole-document OCR finished must not replace its result.
+    if (job.kind === "pdf.prepare" && !input.ocrProvider && !input.pages?.length && content.pdfProfile?.profile.ocr)
+      return { skipped: "already-recognized" } as Record<string, string>;
     const summary = await preparePdf({
       documentId,
       versionId: documentVersionId,
