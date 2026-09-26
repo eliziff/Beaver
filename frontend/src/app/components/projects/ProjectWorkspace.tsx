@@ -10,19 +10,22 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteProject,
+  exportProjectManifest,
   getProject,
-  getProjectPeople,
   updateProject,
   type Project,
 } from "@/app/lib/api/projects";
 import { listProjectChats, type Chat } from "@/app/lib/api/chat";
+import { downloadBlob } from "@/app/lib/download";
 
 import type { ColumnConfig } from "@/app/lib/api/tabular";
 import type { Document } from "@/app/lib/api/documents";
 
 import { stageNewChatDocuments } from "../assistant/assistantLaunch";
 import type { AssistantWorkflowLaunch } from "../workflows/workflowRoutes";
-import { PeopleModal } from "../modals/PeopleModal";
+import { MemoryEditor } from "../settings/MemoryEditor";
+import { Modal } from "../modals/Modal";
+import { AccessModal } from "../modals/AccessModal";
 import { NewTRModal } from "../tabular/NewTRModal";
 import { createTabularReviewPath } from "../tabular/tabularReviewRoute";
 import { Tabs } from "../ui/tabs";
@@ -49,7 +52,7 @@ type Context = {
   openNewReview: () => void;
   setOwnerOnlyAction: React.Dispatch<React.SetStateAction<string | null>>;
 };
-type Dialog = "people" | "details" | "review" | "delete" | "deleting" | "deleted" | null;
+type Dialog = "memory" | "people" | "details" | "review" | "delete" | "deleting" | "deleted" | null;
 const Workspace = createContext<Context | null>(null);
 const sections = [
   { id: "documents", label: "Documents", path: "" },
@@ -78,6 +81,17 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
   const [ownerOnlyAction, setOwnerOnlyAction] = useState<string | null>(null);
   const [creatingChat, setCreatingChat] = useState(false);
   const [creatingReview, setCreatingReview] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportManifest = async () => {
+    setExporting(true); setExportError(null);
+    try {
+      const manifest = await exportProjectManifest(projectId);
+      downloadBlob(new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }),
+        `beaver-project-${projectId}-manifest.json`);
+    } catch (error) { setExportError(error instanceof Error ? error.message : "Could not export the manifest."); }
+    finally { setExporting(false); }
+  };
   const chatRequest = useRef<Promise<Chat[]> | null>(null);
   const tail = pathname.split("/").filter(Boolean).slice(2);
   const activeSection: ProjectWorkspaceSection = tail[0] === "assistant"
@@ -204,10 +218,16 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
             ? value.setOwnerOnlyAction("delete this project")
             : setDialog("delete")}
           onSearchChange={(search) => setSearches((current) => ({ ...current, [activeSection]: search }))}
+          onOpenMemory={() => setDialog("memory")}
+          onExport={() => void exportManifest()} exporting={exporting}
           onOpenPeople={() => setDialog("people")}
         />
+        {exportError && <p role="alert" className="px-6 py-2 text-sm text-red-600 dark:text-red-400">{exportError}</p>}
         {children}
         {ownerOnlyDialog}
+        <Modal open={dialog === "memory"} onClose={() => setDialog(null)} breadcrumbs={[project?.name || "Project", "Memory"]}>
+          {dialog === "memory" && <MemoryEditor projectId={projectId} />}
+        </Modal>
         <NewTRModal
           open={dialog === "review"}
           onClose={() => setDialog(null)}
@@ -236,16 +256,9 @@ export function ProjectWorkspaceProvider({ projectId, children }: { projectId: s
           onCancel={() => { if (dialog !== "deleting") setDialog(null); }}
           onConfirm={() => void removeProject()} />
         {project && (
-          <PeopleModal
-            open={dialog === "people"}
-            onClose={() => setDialog(null)}
-            resource={project}
-            fetchPeople={getProjectPeople}
-            currentUserEmail={user?.email ?? null}
-            breadcrumb={["Projects", projectBreadcrumbLabel(project), "People"]}
-            onSharedWithChange={project.is_owner === false ? undefined : async (shared_with) =>
-              setProject(await updateProject(projectId, { shared_with }))}
-          />
+          <AccessModal open={dialog === "people"} onClose={() => setDialog(null)}
+            kind="project" resourceId={project.id} title={projectBreadcrumbLabel(project)}
+            onChange={async () => setProject(await getProject(projectId))} />
         )}
       </div>
     </Workspace.Provider>

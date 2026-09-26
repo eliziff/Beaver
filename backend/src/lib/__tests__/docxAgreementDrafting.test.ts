@@ -13,6 +13,17 @@ it("does not duplicate a supplied generated-file extension", () => {
   );
 });
 
+it("preserves Unicode generated names without splitting graphemes or retaining unsafe characters", () => {
+  for (const extension of ["docx", "xlsx", "pptx"]) {
+    expect(safeGeneratedFilename("Re\u0301sume\u0301 中文 العربية", extension))
+      .toBe(`Résumé 中文 العربية.${extension}`);
+    expect(safeGeneratedFilename("a".repeat(63) + "𐐀", extension)).toBe(`${"a".repeat(63)}.${extension}`);
+    expect(safeGeneratedFilename("../Draft\\name\u0000\u202e", extension)).toBe(`Draftname.${extension}`);
+    expect(safeGeneratedFilename("\u0301\u0302", extension)).toBe(`document.${extension}`);
+    expect(safeGeneratedFilename("Ａ①", extension)).toBe(`Ａ①.${extension}`);
+  }
+});
+
 const agreementMarkdown = `# Parties and termination
 
 This Agreement is between {{party_a}} and {{party_b}}.

@@ -21,14 +21,16 @@ export async function renderMarkdownDocx(
   return { filename: safeGeneratedFilename(title, "docx"), bytes, appearances };
 }
 
+const filenameGraphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 export function safeGeneratedFilename(title: string, extension: string) {
-  const safeTitle =
-    title
-      .replace(/\.(?:docx|xlsx|pptx)$/iu, "")
-      .replace(/[^a-zA-Z0-9 -]/g, "")
-      .trim()
-      .slice(0, 64) || "document";
-  return `${safeTitle}.${extension}`;
+  const allowed = title.replace(/\.(?:docx|xlsx|pptx)$/iu, "").normalize("NFC")
+    .replace(/[^\p{L}\p{M}\p{N} -]/gu, "").normalize("NFC").trim();
+  let stem = "";
+  for (const { segment } of filenameGraphemes.segment(allowed)) {
+    if (stem.length + segment.length > 64) break;
+    stem += segment;
+  }
+  return `${/^[\p{M}\s]*$/u.test(stem) ? "document" : stem}.${extension}`;
 }
 
 function xmlEscape(value: unknown) {

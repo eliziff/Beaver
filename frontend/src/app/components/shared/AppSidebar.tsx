@@ -15,6 +15,7 @@ import { APP_SURFACE_ACTIVE_CLASS, APP_SURFACE_HOVER_CLASS }
 import type { Chat } from "@/app/lib/api/chat";
 const RecyclingBinModal = lazy(() => import("@/app/components/assistant/RecyclingBinModal").then(m => ({ default: m.RecyclingBinModal })));
 const AppSettingsModal = lazy(() => import("@/app/components/settings/AppSettingsModal").then(m => ({ default: m.AppSettingsModal })));
+const UploadsModal = lazy(() => import("@/app/components/documents/UploadsModal").then(m => ({ default: m.UploadsModal })));
 const SelectAssistantProjectModal = lazy(() => import("@/app/components/assistant/SelectAssistantProjectModal").then(m => ({ default: m.SelectAssistantProjectModal })));
 import { SearchBar } from "@/app/components/ui/search-bar";
 import { chatSearchPath, useChatSearch } from "@/app/components/assistant/chatSearch";
@@ -42,6 +43,7 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
   const { pathname } = useLocation();
   const [recyclingOpen, setRecyclingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [historyTab, setHistoryTab] = useState(() => pathname.startsWith("/tabular-reviews") ? "reviews" : "assistant");
@@ -359,6 +361,8 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
           <Link to="/history" onClick={closeNavigation} aria-label="Activity log" title="Activity log" className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-gray-200/60">
             <History aria-hidden="true" className="h-4 w-4" />
           </Link>
+          <button type="button" onClick={() => { setUploadsOpen(true); if (mobileOpen) onToggle(); }}
+            className="h-10 rounded-md px-2 text-xs hover:bg-gray-200/60">Uploads</button>
           </div>
         </div>
       </aside>
@@ -374,7 +378,8 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
           <RecyclingBinModal open onClose={() => setRecyclingOpen(false)}
             onRestored={loadChats} />
         )}
-        {settingsOpen && <AppSettingsModal open onClose={() => setSettingsOpen(false)} />}</Suspense>
+        {settingsOpen && <AppSettingsModal open onClose={() => setSettingsOpen(false)} />}
+        {uploadsOpen && <UploadsModal onClose={() => setUploadsOpen(false)} />}</Suspense>
     </>
   );
 }

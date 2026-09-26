@@ -127,7 +127,7 @@ describe("AppSidebar", () => {
     await waitFor(() => expect(close).toHaveFocus());
 
     const first = within(dialog).getByRole("link", { name: "Beaver" });
-    const last = within(dialog).getByRole("link", { name: "Activity log" });
+    const last = within(dialog).getByRole("button", { name: "Uploads" });
     last.focus();
     fireEvent.keyDown(dialog, { key: "Tab" });
     expect(first).toHaveFocus();

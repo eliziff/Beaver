@@ -135,6 +135,7 @@ export async function runWordPython(bytes: Buffer, request: Record<string, unkno
   if (!bytes.length || bytes.length > MAX_BYTES) throw new Error("Word input exceeds the worker limit");
   const snapshot = hash(bytes);
   const program = typeof request.program === "string" ? request.program : "";
+  const author = typeof request.author === "string" && request.author.trim() ? request.author.trim().slice(0, 255) : "Beaver";
   if (!image()) await checkPython(wordPython());
   const root = await mkdtemp(path.join(os.tmpdir(), "beaver-word-python-"));
   const work = path.join(root, "work");
@@ -151,7 +152,7 @@ export async function runWordPython(bytes: Buffer, request: Record<string, unkno
     await mkdir(work);
     await writeFile(path.join(work, "document.docx"), bytes, { flag: "wx", mode: 0o600 });
     const ran = reply(await run({ command: "python", args: [script("sandbox.py")], dir: work, sandbox: true,
-      input: JSON.stringify({ program, mode }), timeoutMs: 60_000 }, signal));
+      input: JSON.stringify({ program, mode, author }), timeoutMs: 60_000 }, signal));
     const output = { result: ran.result, ...(ran.stdout ? { stdout: ran.stdout } : {}),
       ...(Array.isArray(ran.warnings) && ran.warnings.length ? { warnings: ran.warnings } : {}) };
     if (mode === "read-only") return { report: { ok: true, snapshot, mode, ...output } };

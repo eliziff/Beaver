@@ -39,7 +39,6 @@ function fixture() {
     displayName: "Ada",
     organisation: "Acme",
   };
-  let environmentManaged = false;
   const save = vi.fn(async () => undefined);
   const remove = vi.fn(async () => undefined);
   const exported = vi.fn();
@@ -53,7 +52,6 @@ function fixture() {
     credentials: {
       status: async () => STATUS,
       keys: async () => ({}),
-      environmentConfigured: () => environmentManaged,
       save,
     },
     cloud: {
@@ -63,11 +61,11 @@ function fixture() {
       lookup: async () => null,
       setMfaOnLogin: async () => undefined,
       delete: remove,
-      exportData: async (kind) => ({
+    },
+    exportData: async (kind) => ({
         filename: `beaver-${kind}-export-u1.json`,
         data: { kind },
       }),
-    },
     deleteAll: remove,
     recordExport: exported,
   });
@@ -79,7 +77,6 @@ function fixture() {
     save,
     remove,
     exported,
-    manageEnvironmentKey(value: boolean) { environmentManaged = value; },
   };
 }
 
@@ -124,7 +121,7 @@ describe("user routes", () => {
   });
 
   it("guards API-key writes and returns presence-only status", async () => {
-    const { api, save, manageEnvironmentKey } = fixture();
+    const { api, save } = fixture();
     expect((await request(api).get("/user/api-keys")).body).toEqual(STATUS);
 
     const stored = await request(api).put("/user/api-keys/openai")
@@ -132,13 +129,12 @@ describe("user routes", () => {
     expect(stored.status).toBe(200);
     expect(stored.body).toEqual(STATUS);
 
-    manageEnvironmentKey(true);
     expect((await request(api).put("/user/api-keys/openai").send({ api_key: "x" })).status)
-      .toBe(409);
+      .toBe(200);
     mfa.allowed = false;
     expect((await request(api).put("/user/api-keys/openai").send({ api_key: "x" })).status)
       .toBe(403);
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(2);
   });
 
   it("downloads exports and completes destructive operations", async () => {

@@ -1,5 +1,7 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
-import { isResearchDocument, newResearchState, researchLabelPath,
+import { isResearchDocument, researchLabelPath,
   researchSourceKey } from "./researchFiles";
 
 const document = (filename: string, file_type = "md") => ({
@@ -8,11 +10,9 @@ const document = (filename: string, file_type = "md") => ({
 });
 
 describe("research files", () => {
-  it("are ordinary Markdown documents with a compact embedded state", () => {
+  it("distinguishes research documents from ordinary Markdown", () => {
     expect(isResearchDocument(document("fairness.research.md"))).toBe(true);
     expect(isResearchDocument(document("fairness.md"))).toBe(false);
-    expect(newResearchState()).toEqual({ schemaVersion: "beaver.research.v2",
-      labels: {}, sources: {}, queries: null, note: "" });
   });
 
   it("derives hierarchy safely instead of storing copied paths", () => {

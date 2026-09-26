@@ -20,14 +20,15 @@ export type CloudUserAccount = {
   lookup(email: string): Promise<{ email: string; display_name: string | null } | null>;
   setMfaOnLogin(userId: string, enabled: boolean): Promise<void>;
   delete(scope: ApplicationScope): Promise<void>;
-  exportData(kind: UserExportKind, scope: ApplicationScope): Promise<{
-    filename: string; data: unknown;
-  }>;
 };
 
 type Dependencies = {
   preferences: () => Promise<UserPreferencesRepository>;
   credentials: UserCredentials;
+  exportData(kind: UserExportKind, scope: ApplicationScope): Promise<{
+    filename: string; data: unknown;
+  }>;
+
   cloud?: CloudUserAccount;
   connectors?: () => Promise<UserConnectors>;
   deleteAll(kind: UserResourceKind, scope: ApplicationScope): Promise<unknown>;
@@ -94,10 +95,6 @@ export function createUserApplication(dependencies: Dependencies) {
       const save = dependencies.credentials.save;
       if (!save) throw new ApplicationError(501,
         "API-key editing is unavailable in account-free local mode.");
-      if (dependencies.credentials.environmentConfigured(provider)) throw new ApplicationError(
-        409,
-        "This provider is configured by the server environment and cannot be changed from the browser.",
-      );
       await save(scope.userId, provider, value);
       return dependencies.credentials.status(scope.userId);
     },
@@ -114,7 +111,7 @@ export function createUserApplication(dependencies: Dependencies) {
     deleteResource: (scope: ApplicationScope, kind: UserResourceKind) =>
       dependencies.deleteAll(kind, scope),
     async exportData(scope: ApplicationScope, kind: UserExportKind) {
-      const result = await cloud().exportData(kind, scope);
+      const result = await dependencies.exportData(kind, scope);
       dependencies.recordExport?.(kind, scope);
       return result;
     },

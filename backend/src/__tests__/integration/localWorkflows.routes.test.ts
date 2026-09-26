@@ -59,6 +59,48 @@ afterEach(async () => {
 }, 30_000);
 
 describe("account-free workflow catalogue", () => {
+  it("lists and exports an installed revision without restarting the application", async () => {
+    const api = await loadApi();
+    const { runtime } = await import("../../runtime");
+    const { SYSTEM_WORKFLOWS } = await import("../../lib/systemWorkflows");
+    const { sha256 } = await import("../../lib/hash");
+    const { catalog } = await runtime.workflows();
+    const workflows = structuredClone(SYSTEM_WORKFLOWS);
+    workflows[0].metadata.title = "Updated drafting";
+    const bytes = Buffer.from("Reference text");
+    await catalog.install({ schemaVersion: 1, sourceCommit: "a".repeat(40), workflows,
+      assets: [{ workflowId: workflows[0].id, filename: "Reference.txt", sha256: sha256(bytes),
+        sizeBytes: bytes.length, contentType: "text/plain" }] }, async () => bytes);
+    const listed = await request(api).get("/workflows?q=Updated%20drafting");
+    expect(listed.status).toBe(200);
+    expect(listed.body).toHaveLength(1);
+    expect(listed.body[0].metadata.title).toBe("Updated drafting");
+    const detail = await request(api).get(`/workflows/${workflows[0].id}`);
+    expect(detail.body.metadata.title).toBe("Updated drafting");
+    const referenceUrl = `/workflows/${workflows[0].id}/references/Reference.txt`;
+    const reference = await request(api).get(`${referenceUrl}?sha256=${sha256(bytes)}`);
+    expect(reference.status).toBe(200);
+    expect(reference.text).toBe("Reference text");
+    expect((await request(api).get(`${referenceUrl}?sha256=${"0".repeat(64)}`)).status).toBe(404);
+    const exported = await request(api).get(`/workflows/${workflows[0].id}/export`)
+      .buffer(true).parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      });
+    expect(exported.status).toBe(200);
+    const zip = await (await import("jszip")).default.loadAsync(exported.body);
+    const skills = Object.keys(zip.files).filter((name) => name.endsWith("/SKILL.md"));
+    expect(skills.length).toBeGreaterThan(0);
+    for (const skill of skills) {
+      expect(await zip.file(`${skill.slice(0, -"SKILL.md".length)}references/Reference.txt`)?.async("string"))
+        .toBe("Reference text");
+    }
+    expect(JSON.parse(await zip.file("updated-drafting/provenance.json")!.async("string")).sourceCommit)
+      .toBe("a".repeat(40));
+    expect(mocks.supabaseCalls).toBe(0);
+  });
+
   it("lists canonical workflows while preserving each concrete recipe as a variant", async () => {
     const api = await loadApi();
     const [all, general, solicitor, litigator, search] = await Promise.all([

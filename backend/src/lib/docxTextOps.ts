@@ -191,7 +191,7 @@ export async function planTextOps(docText: string, ops: TextOpRequest[]):
  * persistence is the caller's job.
  */
 export async function applyTextOpsToDocx(originalBytes: Buffer,
-  ops: TextOpRequest[]): Promise<ApplyTextOpsResult> {
+  ops: TextOpRequest[], author = "Beaver"): Promise<ApplyTextOpsResult> {
   const docText = await extractDocxBodyText(originalBytes);
   const { replacements, reports } = await planTextOps(docText, ops);
   if (!replacements.length) {
@@ -203,7 +203,7 @@ export async function applyTextOpsToDocx(originalBytes: Buffer,
     exact_start: r.start, exact_end: r.end,
     context_before: "", context_after: "",
   }));
-  const applied = await applyTrackedEdits(originalBytes, edits, { author: "Beaver" });
+  const applied = await applyTrackedEdits(originalBytes, edits, { author });
   return {
     bytes: applied.bytes,
     edits: applied.changes.map(({ id, delId, insId, ...edit }) => ({

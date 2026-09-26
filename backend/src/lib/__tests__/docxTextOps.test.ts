@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderMarkdownDocx } from "../chat/tools/documentOps";
+import { docxXml } from "./support/docxFixtures";
 import {
   applyTextOpsToDocx,
   planTextOps,
@@ -131,7 +132,10 @@ describe("applyTextOpsToDocx end to end", () => {
     const ops: TextOpRequest[] = [
       { op: "uppercase", scope: { kind: "find_text", text: "governing law" } },
     ];
-    const applied = await applyTextOpsToDocx(bytes, ops);
+    const applied = await applyTextOpsToDocx(bytes, ops, "Émilie & Counsel");
+    const xml = await docxXml(applied.bytes);
+    expect(xml).toContain('w:author="Émilie &amp; Counsel"');
+    expect(xml).not.toContain('w:author="Beaver"');
 
     expect(applied.editErrors).toEqual([]);
     expect(applied.replacementCount).toBe(2);

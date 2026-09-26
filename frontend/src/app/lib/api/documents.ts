@@ -1,7 +1,6 @@
 import {
   apiRequest,
   segment,
-  multipartRequest,
   post,
   pagePath,
   patch,
@@ -12,6 +11,8 @@ import {
   type PageQuery,
   type Page,
 } from "@/app/lib/api/client";
+
+import { uploadDocumentSession, uploadVersionSession } from "./uploads";
 
 export type DocumentReaderText = { revision: string;
   slices: Array<{ start: number; end: number; text: string; page: number }> };
@@ -170,9 +171,8 @@ export function directoryResource(scope: DirectoryScope) {
   const folders = `${root}/folders`;
   const documents = `${root}/documents`;
   const uploadDocument = (file: File, folderId?: string | null) =>
-    multipartRequest<Document>(documents, file, {
-      ...(folderId ? { fields: { folder_id: folderId } } : {}),
-    });
+    uploadDocumentSession(file, { project_id: "projectId" in scope ? scope.projectId : null,
+      library_kind: "projectId" in scope || scope.library === "files" ? "file" : "template", folder_id: folderId ?? null });
   const createFolder = (name: string, parentFolderId?: string | null) =>
     post<Folder | LibraryFolder>(folders, {
       name,
@@ -294,11 +294,8 @@ export const uploadDocumentVersion = (
   file: File,
   expectedCurrentVersionId: string,
   expectedWorkingRevision: number,
-) => multipartRequest<DocumentVersion>(
-  `/single-documents/${segment(documentId)}/versions`, file, {
-    fields: { expected_current_version_id: expectedCurrentVersionId,
-      expected_working_revision: String(expectedWorkingRevision) } },
-);
+) => uploadVersionSession(file, { purpose: "version_create", target_document_id: documentId,
+  expected_version_id: expectedCurrentVersionId, expected_working_revision: expectedWorkingRevision });
 export const restoreDocumentVersion = (
   documentId: string,
   versionId: string,
@@ -324,7 +321,7 @@ export const compareDocumentVersions = (
   { baseline_version_id: baselineVersionId },
 ));
 export const uploadStandaloneDocument = (file: File) =>
-  multipartRequest<Document>("/single-documents", file);
+  uploadDocumentSession(file);
 /** Every library file, folders flattened, so one list answers "which of my files is this?". */
 export const listLibraryDocuments = (options: PageQuery = {}, signal?: AbortSignal) =>
   apiRequest<Page<Document>>(pagePath("/single-documents", options), { signal });
@@ -338,7 +335,7 @@ export const getDocumentParseStates = async (documentIds: string[]) => {
   }
   return states;
 };
-export const deleteDocument = (document: Document) =>
+export const deleteDocument = (document: Pick<Document, "id" | "current_version_id" | "current_working_revision" | "project_id" | "folder_id">) =>
   remove<void>(`/single-documents/${segment(document.id)}`, {
     expected_current_version_id: document.current_version_id,
     expected_working_revision: document.current_working_revision,

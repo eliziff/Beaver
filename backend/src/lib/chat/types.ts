@@ -4,6 +4,7 @@ export type WorkflowStore = Map<string, {
   workflow_id: string;
   title: string;
   skill_md: string;
+  references?: Array<{ filename: string; resource: string; read(): Promise<string> }>;
 }>;
 
 export type DocIndex = Record<

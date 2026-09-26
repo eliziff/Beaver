@@ -144,12 +144,18 @@ const value = <T>(result: WriteResult<T>, noun: string) => {
   if (result.status === "missing") return fail(404, `${noun} not found`);
   return fail(409, `${noun} changed; reload and try again`);
 };
-const providerLabel = (provider: Provider) => ({ claude: "Anthropic", openai: "OpenAI",
+const providerLabel = (provider: Provider) => ({ configured: "Configured model", claude: "Anthropic", openai: "OpenAI",
   deepseek: "DeepSeek", openrouter: "OpenRouter", meta: "Meta", codex: "Codex",
   "opencode-go": "OpenCode Go",
   "claude-p": "Anthropic", ollama: "Ollama", gemini: "Gemini" })[provider];
 const modelKey = (model: string, apiKeys: UserApiKeys) => {
   const provider = providerForModel(model);
+  if (provider === "configured") {
+    const declared = getConfiguredModel(model);
+    if (!declared) throw new ApplicationError(422, "The selected model is not configured.");
+    if (configuredAvailable(declared, apiKeys)) return;
+    throw new ApplicationError(422, "The selected model requires an API key.", { code: "missing_api_key", provider, model });
+  }
   if (provider === "codex" || provider === "claude-p" || provider === "ollama" || provider === "opencode-go") return;
   if (apiKeys[provider]?.trim()) return;
   throw new ApplicationError(422,
@@ -601,6 +607,7 @@ export function createTabularApplication(
         return fail(400, "You cannot share a tabular review with yourself.");
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
+      if (current.review.role === "viewer") return fail(403, "You have read-only access to this review.");
       await assertIdle(current.review);
       if (input.cell_answer) {
         if (!input.expected_version || Object.keys(input).some((key) => key !== "cell_answer" && key !== "expected_version"))
@@ -625,9 +632,8 @@ export function createTabularApplication(
             cells: config.arrangement.cells.filter((item) => item.rowId !== rowId || item.columnIndex !== columnIndex) } } } : {}),
           operation: { executor: "human", title: "Use chat answer" } }), "Review");
       }
-      if (!current.review.is_owner && (input.columns_config !== undefined || input.research_file_id !== undefined ||
-          input.arrangement !== undefined))
-        return fail(403, "Only the review owner can change columns");
+      if (current.review.project_id && input.shared_with !== undefined)
+        return fail(409, "Manage access on the parent project.");
       if (!current.review.is_owner && input.shared_with !== undefined)
         return fail(403, "Only the review owner can change sharing");
       if (!current.review.is_owner && input.project_id !== undefined)
@@ -675,6 +681,7 @@ export function createTabularApplication(
       operation?: TabularOperation) {
       const current = await store.detail(scope, reviewId);
       if (!current) return fail(404, "Review not found");
+      if (current.review.role === "viewer") return fail(403, "You have read-only access to this review.");
       await assertIdle(current.review);
       const changed = value(await store.change(scope, reviewId, input.id, input.action, input.expected_version, operation), "Review");
       if (changed.scope_config) await linkWorkspace(scope, reviewId, changed.scope_config, operation);
@@ -826,3 +833,4 @@ ${inventory}`,
 }
 
 export type TabularApplication = ReturnType<typeof createTabularApplication>;
+import { configuredAvailable, getConfiguredModel } from "../llm/registry";

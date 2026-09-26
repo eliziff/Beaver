@@ -19,7 +19,7 @@ export const providerSessionFeatures: Partial<ChatApplicationFeatures> = {
       if (input.provider !== "codex") {
         await deleteProviderSession(input.chatId); return null;
       }
-      const compatibilityKey = providerSessionCompatibilityKey({ schema_version: 5,
+      const compatibilityKey = providerSessionCompatibilityKey({ schema_version: 6, memory_context: input.memoryContextKey ?? null,
         transport: "app-server-v2", model: input.model,
         reasoning_effort: input.reasoningEffort?.trim() || "max",
         service_tier: "default",

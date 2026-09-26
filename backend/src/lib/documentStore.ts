@@ -127,7 +127,7 @@ export type ResolveEditResult = { status: "missing" | "invalid" }
   | { status: "conflict"; editStatus: string }
   | { status: "resolved" | "unchanged"; editStatus: string; versionId: string | null;
       versionNumber: number | null; downloadUrl: string | null };
-export type DocumentFile = { filename: string; fileType: string; expectedSha256?: string } & (
+export type DocumentFile = { filename: string; fileType: string; expectedSha256?: string; uploadSessionId?: string } & (
   { bytes: Buffer } | { path: string; sizeBytes: number }
 );
 export type DocumentPartFile = { name: string; bytes: Buffer; expectedSha256?: string };
@@ -142,6 +142,8 @@ export type DocumentStore = {
     id: string; parse_state: DocumentParseState | null; page_count: number | null;
   }>>;
   create(scope: DocumentScope, input: DocumentFile & { projectId?: string | null;
+    workflowId?: string | null;
+    upload?: { sessionId: string; documentId: string };
     libraryKind?: LibraryKind; folderId?: string | null; provenance?: DocumentProvenance;
     parts?: DocumentPartFile[]; pdfOcrProvider?: LegalPdfOcrProvider | null }):
     Promise<DocumentRecord>;

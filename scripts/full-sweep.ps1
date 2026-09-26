@@ -2,6 +2,8 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+# Keep the desktop responsive while this deliberately long battery runs.
+[Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'BelowNormal'
 $env:NODE_NO_WARNINGS = '1'
 $Repo = Split-Path -Parent $PSScriptRoot
 $Mike = Join-Path $PSScriptRoot 'mike.ps1'
@@ -81,26 +83,49 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
     }
 }
 
+$PreviousEnvironment = @{}
+$RunDirectory = Join-Path $ReceiptDirectory ([Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Force -Path $RunDirectory | Out-Null
+$SweepEnvironment = @{
+    PORT = '3100'
+    AUTH_MODE = 'local'
+    MIKE_LAUNCHER_STATE_DIR = (Join-Path $RunDirectory 'launcher')
+    OPEN_LEGAL_DATA_HOME = (Join-Path $RunDirectory 'legal-data')
+    MIKE_LOCAL_DATA_DIR = (Join-Path $RunDirectory 'library')
+    MIKE_CITATOR_DB = (Join-Path $RunDirectory 'citator.sqlite')
+}
+foreach ($name in $SweepEnvironment.Keys) {
+    $PreviousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+    [Environment]::SetEnvironmentVariable($name, $SweepEnvironment[$name], 'Process')
+}
+
 try {
     Save-Receipt
-    Invoke-Step 'Stop launcher-owned surface' {
-        & $Mike stop
-        if (-not $?) { throw 'Could not stop the local surface.' }
+    Invoke-Step 'Check isolated port' {
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, [int]$env:PORT)
+        try { $listener.Start() } finally { $listener.Stop() }
     }
     Invoke-Step 'Native adapter check' {
         Invoke-Checked cargo @(
             'check', '--manifest-path',
-            (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'), '--offline', '--quiet'
+            (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'), '--offline', '--quiet', '--jobs', '1'
         )
     }
     Invoke-Step 'Native release build' {
         Invoke-Checked cargo @(
             'build', '--manifest-path',
             (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'),
-            '--release', '--offline', '--quiet'
+            '--release', '--offline', '--quiet', '--jobs', '1'
         )
     }
-    Invoke-Step 'Backend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'backend') }
+    Invoke-Step 'Backend tests' {
+        # Tests choose per-case data homes; a global explicit library path overrides them.
+        $libraryDirectory = $env:MIKE_LOCAL_DATA_DIR
+        try {
+            Remove-Item Env:MIKE_LOCAL_DATA_DIR -ErrorAction SilentlyContinue
+            Invoke-Checked npm.cmd @('test', '--prefix', 'backend')
+        } finally { $env:MIKE_LOCAL_DATA_DIR = $libraryDirectory }
+    }
     Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend') }
     Invoke-Step 'Backend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'backend') }
     Invoke-Step 'Frontend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'frontend') }
@@ -122,7 +147,7 @@ try {
             Push-Location (Join-Path $Repo 'backend')
             try {
                 Invoke-Checked npx.cmd @(
-                    'vitest', 'run', 'src/__tests__/integration/liveToolLoop.test.ts'
+                    'vitest', 'run', '--maxWorkers=1', 'src/__tests__/integration/liveToolLoop.test.ts'
                 )
             }
             finally { Pop-Location }
@@ -144,12 +169,15 @@ catch {
 }
 finally {
     try {
-        if (-not $script:SurfaceStarted) {
-            & $Mike start -NoBrowser
-            if (-not $?) { Write-Warning 'FullSweep could not restore the production surface.' }
+        if ($script:SurfaceStarted) {
+            & $Mike stop
+            if (-not $?) { Write-Warning 'FullSweep could not stop its isolated surface.' }
         }
     }
     finally {
+        foreach ($name in $PreviousEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $PreviousEnvironment[$name], 'Process')
+        }
         $Mutex.ReleaseMutex()
         $Mutex.Dispose()
     }

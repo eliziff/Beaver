@@ -5,7 +5,7 @@ import type { DocumentContent, DocumentRecord, DocumentStore } from "./documentS
 
 const RECEIPT = "word-preview.json";
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-type Options = { documents: DocumentStore; userId: string; userEmail?: string;
+type Options = { documents: DocumentStore; userId: string; userEmail?: string; editAuthor?: string;
   matterId?: string | null; docIndex?: Record<string, { document_id: string; filename?: string; version_id?: string | null }>;
   allowedDocumentIds?: Set<string>; editMode?: "manual" | "auto"; turnId?: string;
   onMutationCommitted(): void;
@@ -113,7 +113,8 @@ export function createWordEditApplication(options: Options, execute = runWordPyt
       if (parent) root = { source: parent.source, workingRevision: parent.workingRevision, sourceSha256: parent.sourceSha256 };
     }
     const { file_path: _path, ...request } = input;
-    const result = await execute(source.file.bytes, { ...request, mode,
+    // Tracked changes carry the reader's name; the model cannot choose it.
+    const result = await execute(source.file.bytes, { ...request, mode, author: options.editAuthor || "Beaver",
       ...(input.program !== undefined ? { snapshot: sourceSha256 } : {}) }, signal);
     if (!result.candidate) return { report: result.report };
     // A program that changed nothing leaves nothing to apply; do not file a copy.

@@ -24,7 +24,7 @@ export function ProjectPageHeader({
     onDeleteProject,
     onSearchChange,
     onOpenPeople,
-    booleanSearch,
+    booleanSearch, onOpenMemory, onExport, exporting,
 }: {
     project: Project | null | undefined;
     search: string;
@@ -34,7 +34,8 @@ export function ProjectPageHeader({
     onDeleteProject: () => void;
     onSearchChange: (search: string) => void;
     onOpenPeople: () => void;
-    booleanSearch?: boolean;
+    booleanSearch?: boolean; onOpenMemory?: () => void;
+    onExport?: () => void; exporting?: boolean;
 }) {
     return (
         <PageHeader
@@ -72,6 +73,8 @@ export function ProjectPageHeader({
                     render: (
                         <MoreActionsMenu
                             items={[
+                                ...(onOpenMemory ? [{ label: "Memory", onSelect: onOpenMemory, disabled: !project }] : []),
+                                ...(onExport ? [{ label: exporting ? "Exporting manifest..." : "Export manifest", onSelect: onExport, disabled: !project || exporting }] : []),
                                 {
                                     label: isOwner
                                         ? "Edit details"

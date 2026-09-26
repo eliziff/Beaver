@@ -10,6 +10,7 @@ import {
 } from "react";
 import { workflowRunKey } from "./WorkflowRun";
 import type { ChatInputHandle } from "./ChatInput";
+import { AccessModal } from "../modals/AccessModal";
 import { ConversationView } from "./ConversationView";
 import {
     AssistantSidePanel,
@@ -94,6 +95,8 @@ interface Props {
     projectFileActions?: ReactNode;
     initialDocuments?: Document[];
     initialWorkflow?: AssistantWorkflowLaunch;
+    readOnly?: boolean;
+    onAccessChange?: () => void;
     sendDisabled?: boolean;
     searchMessageId?: string | null;
     /** Fetches the page of messages before the first one loaded (useAssistantChat's loadEarlier). */
@@ -198,7 +201,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         projectFileActions,
         initialDocuments,
         initialWorkflow,
-        sendDisabled, searchMessageId, onUseAnswer, onLoadEarlier,
+        readOnly = false, onAccessChange, sendDisabled, searchMessageId, onUseAnswer, onLoadEarlier,
     },
     ref,
 ) {
@@ -217,6 +220,7 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         initialWorkflow ? "workflows" : projectFiles ? "project-files" : "sources",
     );
     const [activeAgentSlot, setActiveAgentSlot] = useState<string | null>(null);
+    const [accessOpen, setAccessOpen] = useState(false);
     const [organizeOpen, setOrganizeOpen] = useState(false);
     const [projectPickerOpen, setProjectPickerOpen] = useState(false);
     const researchFlowRef = useRef<ChatResearchFlowHandle>(null);
@@ -693,11 +697,15 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
         initialModel={initialModel}
         initialReasoningEffort={initialReasoningEffort}
         editModeLabels={editModeLabels}
+        readOnly={readOnly}
+        onAccess={chatId ? () => setAccessOpen(true) : undefined}
         sendDisabled={sendDisabled}
         searchMessageId={searchMessageId}
         onLoadEarlier={onLoadEarlier}
         onOrganize={() => setOrganizeOpen(true)}
         />
+        {chatId && <AccessModal open={accessOpen} onClose={() => setAccessOpen(false)}
+            kind="chat" resourceId={chatId} title={chatTitle || "Chat"} onChange={onAccessChange} />}
         <OrganizeChatModal open={organizeOpen} onClose={() => setOrganizeOpen(false)}
             projectName={projectName}
             onAddToProject={onProjectChange
