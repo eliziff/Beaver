@@ -30,7 +30,7 @@ def click_text(driver, text: str, root=None):
     xpath = f".//button[normalize-space()='{text}' or @aria-label='{text}']"
     scope = root or driver
     node = WebDriverWait(driver, 30).until(lambda _page: next(
-        (item for item in scope.find_elements(By.XPATH, xpath) if item.is_displayed()), None))
+        (item for item in scope.find_elements(By.XPATH, xpath) if item.is_displayed() and item.is_enabled()), None))
     driver.execute_script("arguments[0].scrollIntoView({block:'center'})", node)
     node.click()
     return node

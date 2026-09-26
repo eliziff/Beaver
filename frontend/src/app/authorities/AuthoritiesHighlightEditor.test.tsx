@@ -44,6 +44,32 @@ function fixture() {
   return {hash, product};
 }
 
+it('preserves saved highlights when their PDF no longer matches instead of regenerating them', async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
+  const {product} = fixture();
+  const saved = {...emptyAnnotationSet('a'.repeat(64)), marks: [{id:'kept',kind:'highlight' as const,
+    origin:'manual' as const,label:'Edited passage',excerpt:'Keep this edit',rgb:[1,1,0] as [number,number,number],
+    opacity:.3,fragments:[{pageNumber:1,rects:[[.1,.1,.8,.2] as [number,number,number,number]]}]}]};
+  product.state.authorities.one.annotations = {one:saved};
+  const prepareAnnotations = vi.fn(), actOnDraft = vi.fn();
+  const host = {readSource: async () => new Blob(['%PDF-scan']), prepareAnnotations,
+    act:actOnDraft} as unknown as AuthoritiesHost;
+  const view = render(<AuthoritiesHighlights product={product} tabs={new Map()} host={host}
+    busy={false} ocr={{tracked:{},begin:vi.fn(),stop:vi.fn()}} onSaved={vi.fn()} />);
+  try {
+    fireEvent.click(screen.getByRole('button', {name:'Edit in PDF'}));
+    await screen.findByText(/Saved highlights belong to a different PDF/);
+    expect(prepareAnnotations).not.toHaveBeenCalled();
+    expect(actOnDraft).not.toHaveBeenCalled();
+    expect(product.state.authorities.one.annotations.one).toEqual(saved);
+    expect(screen.getByRole('button', {name:'Highlight text',exact:true})).toBeDisabled();
+  } finally {
+    view.unmount();
+    if (original) Object.defineProperty(globalThis, 'crypto', original);
+  }
+});
+
 it('opens a readable scan before automatic marks, reads paused OCR and cancels abandoned preparation', async () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
   Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
@@ -61,12 +87,21 @@ it('opens a readable scan before automatic marks, reads paused OCR and cancels a
   try {
     fireEvent.click(screen.getByRole('button', { name: 'Edit in PDF' }));
     await waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Preparing highlights')).toBeVisible();
+    expect(screen.queryByText(/No highlights\./)).toBeNull();
     expect(screen.getByRole('region', { name: 'Authority PDF editor' })).toBeVisible();
     expect(await screen.findByText('Retained OCR')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Highlight text', exact: true })).toBeEnabled();
+    const dialog = screen.getByRole('dialog', { name: 'Highlights' });
+    const selector = screen.getByRole('combobox', { name: 'Authority PDF' });
+    const tool = screen.getByRole('button', { name: 'Highlight text', exact: true });
+    selector.focus();
     const signal = prepare.mock.calls[0][4] as AbortSignal;
     fireEvent.change(screen.getByRole('combobox', { name: 'Authority PDF' }), { target: { value: 'two' } });
     await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('dialog', { name: 'Highlights' })).toBe(dialog);
+    expect(screen.getByRole('button', { name: 'Highlight text', exact: true })).toBe(tool);
+    expect(selector).toHaveFocus();
     expect(signal.aborted).toBe(true);
     await act(async () => { finish({ annotations: emptyAnnotationSet(hash), pageMarked: [] }); });
     expect(screen.getByRole('combobox', { name: 'Authority PDF' })).toHaveValue('two');

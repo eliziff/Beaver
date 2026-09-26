@@ -476,7 +476,8 @@ describe("standalone Authorities sources", () => {
 
 });
 
-it('keeps eager recognition asynchronous and only exposes text after preparation completes', async () => {
+it('prepares recognition once and reads page text locally without uploading the PDF again', async () => {
+  api.apiResponse.mockClear(); fileStore.resolveStandaloneFile.mockClear();
   const file = new File(['%PDF-scan'], 'scan.pdf'), hash = await sha256(file), binding = input(hash, file.size);
   const saved = product(binding); saved.id = 'recognition-test'; saved.state.bindings.scan = binding;
   drafts.get.mockResolvedValue(saved);
@@ -488,14 +489,19 @@ it('keeps eager recognition asynchronous and only exposes text after preparation
     const form = init.body as FormData;
     if (form.get('prepareOnly') === 'true') {
       await prepared;
-      return { json: async () => ({ pages: [], pdfProfile: { cacheKey: 'prepared-source' } }) };
+      return { json: async () => text };
     }
     return { json: async () => form.has('pdfProfile') ? text : { pages: [] } };
   });
   await expect(standaloneAuthoritiesHost.readSourceText!(saved, 'scan')).resolves.toEqual({ pages: [] });
+  expect(api.apiResponse).not.toHaveBeenCalled();
+  expect(fileStore.resolveStandaloneFile).not.toHaveBeenCalled();
   const [job] = await standaloneAuthoritiesHost.sourceOcr!.start(saved.id, ['scan']);
   expect((await standaloneAuthoritiesHost.sourceOcr!.progress([job.documentId!]))[0].done).toBe(false);
   complete();
   await vi.waitFor(async () => expect((await standaloneAuthoritiesHost.sourceOcr!.progress([job.documentId!]))[0].done).toBe(true));
   await expect(standaloneAuthoritiesHost.readSourceText!(saved, 'scan')).resolves.toEqual(text);
+  await expect(standaloneAuthoritiesHost.readSourceText!(saved, 'scan',undefined,[1])).resolves.toEqual(text);
+  expect(api.apiResponse).toHaveBeenCalledTimes(1);
+  expect(fileStore.resolveStandaloneFile).toHaveBeenCalledTimes(1);
 });

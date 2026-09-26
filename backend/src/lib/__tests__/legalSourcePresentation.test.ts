@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { rankedPublisherPdfLinks, verifiedDecisiaPdf } from "../legalSourcePresentation";
+import { publisherPdfSourceUrl, rankedPublisherPdfLinks, verifiedDecisiaPdf } from "../legalSourcePresentation";
+
+it('validates publisher URLs consistently for browser downloads', () => {
+  expect(publisherPdfSourceUrl('http://www.bccourts.ca/jdb-txt/sc/24/0123.htm?tracking=1#para3')?.href)
+    .toBe('https://www.bccourts.ca/jdb-txt/sc/24/0123.htm');
+  expect(publisherPdfSourceUrl('https://decisions.scc-csc.ca/scc-csc/scc-csc/en/7976/document.do')?.hostname)
+    .toBe('decisions.scc-csc.ca');
+  for (const url of ['https://canlii.org/en/ca/scc/doc/2011/2011scc58/2011scc58.pdf',
+    'https://decisions.scc-csc.ca.evil.example/scc/en/7976/document.do',
+    'https://user:password@decisions.scc-csc.ca/scc/en/7976/document.do',
+    'https://decisions.scc-csc.ca:8443/scc/en/7976/document.do',
+    'https://decisions.scc-csc.ca/scc/en/%2f7976/document.do'])
+    expect(publisherPdfSourceUrl(url)).toBeNull();
+});
 
 describe("verified Decisia PDF evidence", () => {
   it("accepts the PDF anchor in the Decisia documents control", () => {

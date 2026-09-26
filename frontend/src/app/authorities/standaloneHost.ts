@@ -16,6 +16,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
+import { prepareSourceText, readSourceText } from './standalonePdfText';
 import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from
   "../../../../backend/src/lib/authoritiesBook";
 
@@ -138,34 +139,24 @@ async function attachPdf(id: string, revision: number, selected: AuthoritiesFile
 }
 
 async function sourceText(product: AuthoritiesProduct, role: string, signal?: AbortSignal,
-  pages?: number[], prepareOnly = false): Promise<PdfRecognizedText & { pdfProfile?: unknown }> {
+  pages?: number[]): Promise<PdfRecognizedText> {
   const input = product.state.bindings[role];
-  if (!input) throw new Error("This source is unavailable.");
-  const file = await resolveExact(input), form = new FormData();
   signal?.throwIfAborted();
-  form.append("draft", JSON.stringify(product.state)); form.append("role", role);
-  form.append("file", file, file.name);
-  if (pages) form.append("pages", JSON.stringify(pages));
-  if (prepareOnly) form.append("prepareOnly", "true");
-  else if (input.kind === "local-file") {
-    const profile = recognitionJobs.get(`${product.id}:${role}:${input.lastSeen.sha256}`)?.profile;
-    if (profile) form.append("pdfProfile", JSON.stringify(profile));
-  }
-  return (await runtimeResponse("source-text", form, false, signal)).json();
+  return input?.kind === 'local-file' && input.lastSeen.sha256 ? readSourceText(input.lastSeen.sha256, pages) : {pages:[]};
 }
 
-type RecognitionJob = { controller: AbortController; progress: PdfProgress; profile?: unknown };
+type RecognitionJob = { controller: AbortController; progress: PdfProgress };
 const recognitionJobs = new Map<string, RecognitionJob>();
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations,
   readSourceText: sourceText,
   sourceOcr: {
-    async start(id, roles, pages) {
+    async start(id, roles, pages, scannedPages) {
       const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
       return roles.map(role => {
         const binding = product.state.bindings[role];
-        if (binding?.kind !== "local-file") throw new Error("This source is unavailable.");
+        if (binding?.kind !== "local-file" || !binding.lastSeen.sha256) throw new Error("This source is unavailable.");
         const documentId = `${id}:${role}:${binding.lastSeen.sha256}`;
         const previous = recognitionJobs.get(documentId);
         if (previous && !previous.controller.signal.aborted && !previous.progress.error)
@@ -174,11 +165,13 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
           done: false, pages: pages ?? [] } as PdfProgress };
         recognitionJobs.set(documentId, job);
         void (async () => {
-          if (pages?.length) job.profile = (await sourceText(product, role, job.controller.signal, pages, true)).pdfProfile;
-          job.progress = { id: documentId, done: false, pages: [] };
-          job.profile = (await sourceText(product, role, job.controller.signal, undefined, true)).pdfProfile;
-          job.progress = { id: documentId, done: true };
-        })().catch((error: Error) => { job.progress = { id: documentId, done: false, error: error.message }; });
+          const file = await resolveExact(binding);
+          await prepareSourceText(product, role, file, pages, scannedPages?.[role], job.controller.signal,
+            recognized => { job.progress = {id:documentId,done:false,recognized}; });
+          job.progress = {...job.progress, done: true};
+        })().catch((error: Error) => {
+          if (!job.controller.signal.aborted) job.progress = {...job.progress, error: error.message};
+        });
         return { role, documentId };
       });
     },
