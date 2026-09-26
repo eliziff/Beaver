@@ -5,7 +5,7 @@ import {
   type CallToolResult,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { NormalizedToolCall, NormalizedToolResult } from "../llm";
+import type { LlmMessage, NormalizedToolCall, NormalizedToolResult } from "../llm";
 import { safeErrorLog } from "../safeError";
 import { jsonRecord } from "../value";
 import type { AskInputsEvent, AssistantEvent } from "./assistantEvents";
@@ -82,21 +82,29 @@ export const toolText = (value: unknown, isError = false): CallToolResult => ({
 });
 export const toolOutcome = (value: unknown): BeaverOutcome => ({ result: toolText(value, jsonRecord(value)?.ok === false) });
 export const failedOutcome = (error: string, detail?: string): BeaverOutcome => toolOutcome({ ok: false, error, ...(detail && { detail }) });
-export const withoutUrls = (value: unknown): unknown => Array.isArray(value)
-  ? value.map(withoutUrls)
+/** Strip host audit fields, not source text or actionable versions/cursors. */
+export const modelToolData = (value: unknown): unknown => Array.isArray(value)
+  ? value.map(modelToolData)
   : value && typeof value === "object"
-    ? Object.fromEntries(Object.entries(value as Record<string, unknown>)
-        .flatMap(([key, item]) => /(?:^|_)(?:url|uri|href)$/iu.test(key)
-          ? [] : [[key, withoutUrls(item)]]))
+    ? Object.fromEntries(Object.entries(value as Record<string, unknown>).flatMap(([key, item]) =>
+      /(?:^|_)(?:url|uri|href)$/iu.test(key) || /(?:sha256|Sha256)$/u.test(key) ||
+      ["sourceFingerprints", "executor_version", "resolver_version", "text_sha256"].includes(key) ||
+      item === "not_run" && /(?:status|verification)$/u.test(key)
+        ? [] : [[key, modelToolData(item)]]))
     : value;
 const visibleText = (result: CallToolResult, definitions = false) => {
   const text = result.content.map((block) => {
     if (block.type !== "text") return JSON.stringify(block);
     if (definitions) return block.text;
-    try { return JSON.stringify(withoutUrls(JSON.parse(block.text))); }
+    try { return JSON.stringify(modelToolData(JSON.parse(block.text))); }
     catch { return block.text; }
   }).join("\n");
   if (text.length <= MAX_MODEL_TOOL_RESULT_CHARS) return { text, truncated: false };
+  try {
+    JSON.parse(text);
+    return { text: JSON.stringify({ ok: false, error: "tool_result_too_large",
+      truncated: true, next: "Use narrower read inputs or a smaller page. No partial JSON was returned; the operation was not undone. Do not repeat completed writes." }), truncated: true };
+  } catch { /* Plain text keeps the existing explicit truncation marker. */ }
   const marker = "\n… tool result truncated; retry with narrower inputs …\n";
   const tail = Math.floor(MAX_MODEL_TOOL_RESULT_CHARS / 4);
   return {
@@ -114,8 +122,8 @@ const normalize = (call: NormalizedToolCall, outcome: BeaverOutcome): Normalized
     tool_use_id: id,
     content: visible.text,
     ...outcome.metadata,
-    status: outcome.metadata?.status ??
-      (visible.truncated ? "truncated" : outcome.result.isError ? "error" : "ok"),
+    status: visible.truncated ? "truncated" : outcome.metadata?.status ??
+      (outcome.result.isError ? "error" : "ok"),
     ...(outcome.terminal && { terminal: true }),
   };
 };
@@ -125,13 +133,24 @@ type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Che
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
 type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
 
+/** Reuse already-discovered schemas in hosted replay; a fresh chat still starts deferred. */
+export function previouslyVisibleTools(messages: readonly LlmMessage[]) {
+  return messages.flatMap(message => message.modelState?.messages ?? []).flatMap(message =>
+    message.role === "assistant" && Array.isArray(message.content) ? message.content.flatMap(part => {
+      if (part.type !== "tool-call") return [];
+      const names = part.toolName === LOAD_TOOLS_NAME ? jsonRecord(part.input)?.names : [];
+      return [part.toolName, ...(Array.isArray(names) ? names.filter((name): name is string => typeof name === "string") : [])];
+    }) : []);
+}
+
 export class TurnToolRegistry<Context> {
   readonly #tools: Compiled<Context>[];
   readonly #byName = new Map<string, Compiled<Context>>();
   readonly #active = new Set<string>();
   #mutated = false;
 
-  constructor(tools: BeaverTool<Context>[]) {
+  constructor(tools: BeaverTool<Context>[], previouslyVisible: readonly string[] = []) {
+    const visible = new Set(previouslyVisible);
     this.#tools = tools.map((candidate) => {
       const parsed = ToolSchema.safeParse(schema(candidate));
       if (!parsed.success) throw new Error(
@@ -150,7 +169,7 @@ export class TurnToolRegistry<Context> {
         }),
       };
       this.#byName.set(name, compiled);
-      if (!candidate.specialist) this.#active.add(name);
+      if (!candidate.specialist || visible.has(name)) this.#active.add(name);
       return compiled;
     });
   }

@@ -17,7 +17,8 @@ export function visibleChatMessages(messages: ChatMessageRecord[]): VisibleChatM
       const visible = publicAssistantEvent(value);
       return visible === null ? [] : [visible];
     });
-    return message.turn_id && !content.length && !complete ? [] : [{
+    return !content.length && !complete && (message.turn_id ||
+      message.content.some(event => event.type === "model_messages")) ? [] : [{
       ...message,
       ...(message.turn_id && { turn_complete: complete }),
       content,

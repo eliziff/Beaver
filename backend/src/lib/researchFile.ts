@@ -325,8 +325,9 @@ export async function pageResearchItems(documents: DocumentStore, scope: Applica
     return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
       ({ kind: "change", index: offset + index, value })), total,
       nextOffset: offset + limit < total ? offset + limit : null }; }
-  if (kind === "queries") { const total = file.state.queries?.count ?? 0,
-    values = offset < total ? (await readResearchQueries(documents, scope, file)).reverse() : [];
+  if (kind === "queries") {
+    const values = (await readResearchQueries(documents, scope, file)).reverse()
+      .filter(query => !sourceIds || query.sourceIds.some(id => sourceIds.includes(id))), total = values.length;
     return { items: values.slice(offset, offset + limit).map((value, index): ResearchPageItem =>
       ({ kind: "query", index: offset + index, value })), total,
       nextOffset: offset + limit < total ? offset + limit : null }; }
@@ -587,10 +588,18 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
           return [id, item.id] as const; }));
         queryLabelIds(next).forEach((id) => { const path = researchLabelPath(state, id);
           if (path) (next.labelPaths ??= {})[id] ??= path; });
+        const searched = [...new Set([...(typeof query.input.resource === "string" ? [query.input.resource] : []),
+          ...query.scan?.sources.map(source => source.resource) ?? []])].flatMap(resource => {
+          const parsed = parseResourceReference(resource), reference = parsed?.kind === "document"
+            ? { provider: "library" as const, kind: "document" as const, id: parsed.documentId, versionId: parsed.versionId }
+            : researchSourceFromResource(resource);
+          return reference ? [addSource(state, reference, sourceByKey)] : [];
+        });
         const saved = researchQuerySources([query]).map((reference) =>
           addSource(state, reference, sourceByKey).id), matched = [...new Set([
             ...query.matchedSourceIds.map((id) => mapped.get(id)!),
-            ...query.evidenceIds.flatMap((id) => evidenceSources.get(id) ?? []), ...saved])];
+            ...query.evidenceIds.flatMap((id) => evidenceSources.get(id) ?? []), ...saved,
+            ...(query.results.length && searched.length === 1 ? [searched[0].id] : [])])];
         next.sourceReferences = next.sourceReferences && Object.fromEntries(Object.entries(
           next.sourceReferences).map(([id, reference]) => [mapped.get(id)!, reference]));
         if (next.sourceFingerprints) { const fingerprints: Record<string, string[]> = {};
@@ -599,14 +608,21 @@ export async function commitResearchFile(documents: DocumentStore, scope: Applic
           next.sourceFingerprints = fingerprints; }
         next.failures = next.failures.map((failure) => ({ ...failure,
           sourceId: mapped.get(failure.sourceId)! }));
-        const value = { ...next, sourceIds: [...new Set([...mapped.values(), ...matched])],
+        for (const source of searched) {
+          const hashes = query.scan?.sources.filter(item => item.resource === researchSourceResource(source.reference))
+            .map(item => item.source_sha256.replace(/^sha256:/u, ""));
+          if (hashes?.length) (next.sourceFingerprints ??= {})[source.id] = [...new Set(hashes)];
+        }
+        const value = { ...next, sourceIds: [...new Set([...mapped.values(), ...searched.map(source => source.id), ...matched])],
           matchedSourceIds: matched };
         if (!validQuery(query.query_id, value))
           throw new ApplicationError(400, "Research query receipt is invalid");
         value.sourceReferences ??= {};
         for (const id of value.sourceIds) value.sourceReferences[id] ??= structuredClone(state.sources[id].reference);
         ledger[query.query_id] = value;
-      }); writeQueries(); }
+      });
+      if (Object.keys(state.sources).length > 10_000) throw new ApplicationError(400, "Research file limits exceeded");
+      writeQueries(); }
     if (action.tables?.length) state.tables = [...new Set([...(state.tables ?? []), ...action.tables])];
     if (action.chats?.length) state.chats = [...new Set([...(state.chats ?? []), ...action.chats])];
   }

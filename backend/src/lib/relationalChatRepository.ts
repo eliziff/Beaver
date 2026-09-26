@@ -99,7 +99,8 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
         AND chat_id=${id} AND role='assistant'`, tx);
       if (!message) return { status: "missing" };
     }
-    const version = current.transcript_version + 1, created = now();
+    const version = current.transcript_version + 1,
+      created = new Date(Math.max(Date.now(), Date.parse(String(current.updated_at)) + 1)).toISOString();
     if (!await changes(sql`UPDATE chats SET updated_at=${created},transcript_version=${version}
       WHERE id=${id} AND transcript_version=${current.transcript_version}`, tx))
       return { status: "conflict", currentVersion: current.transcript_version };
@@ -206,7 +207,7 @@ export const chatRepository: CreateChatRepository = (scope) => ({
     let values: ChatMessageRecord[] = [];
     if (messages) {
       const raw = await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}
-        ORDER BY created_at,id`);
+        ORDER BY created_at,CASE WHEN role='user' THEN 0 ELSE 1 END,id`);
       const events = grouped(await rows<Sequenced>(sql`SELECT e.message_id,
         e.ordinal AS sequence,e.event AS value FROM chat_message_events e
         JOIN chat_messages m ON m.id=e.message_id WHERE m.chat_id=${id}

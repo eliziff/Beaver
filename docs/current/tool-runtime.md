@@ -527,3 +527,124 @@ recorded provider contracts run first; live calls require separate approval.
 - No semantic tool router, opaque mega-dispatch tool, or provider-specific
   canonical schema.
 - No legal-ingestion or corpus-structure refactor in this work.
+
+## Reader handoffs and resumable research
+
+Readers return whole findings plus only their cited exact passages. Shared evidence
+IDs are rendered once across a reader round. Larger findings pages have a `Read`
+continuation (`file_path: "readers"`, `section: reader_id`); oversized supporting
+passages remain available through their existing evidence IDs. Original receipts
+and all observed reads remain durable, independently of what was shown to the
+parent. Model-facing read results omit integrity digests and audit-only fields;
+source text, actionable version IDs, scopes and continuation cursors are preserved.
+Oversized JSON is never middle-sliced and labelled successful.
+
+Search/read history uses the existing query receipts. It is not a prompt diary:
+`Read(file_path: "queries", pattern?, section?, offset?, limit?)` filters the saved
+log by query text and reader ID or source resource; `Read(file_path: query_id)`
+inspects one receipt. Zero-hit source scans retain their source revision, searched
+range, literal-match count, headnote count and truncation status. A repeated,
+completed zero-match literal scan is reused only against the same source revisions
+and range. An unavailable provider is not cached as zero hits. These receipts stay
+associated with their sources when chat research is saved/copied, and table rows
+can inspect their own source's history without preloading query terms.
+
+For exhaustive work over a selected research set, use the existing workspace query
+operation and its `coverage.next_after` continuation. It owns the bounded worklist
+and source-version checks; this change adds no scheduler or second persistence
+store. Corpus `search_sources` remains bounded candidate discovery, not exhaustive
+enumeration. Completing a literal search does not prove semantic absence, and an
+unread or failed source is not a negative finding.
+
+The patterns are conventional: [Anthropic's scoped research agents and artifact
+handoffs](https://www.anthropic.com/engineering/multi-agent-research-system),
+[LangChain's on-demand context offloading](https://www.langchain.com/blog/context-management-for-deepagents),
+and [Scrapy's resumable worklist and duplicate filtering](https://docs.scrapy.org/en/latest/topics/jobs.html).
+These are design precedents, not new runtime dependencies.
+
+
+## Reusing saved research
+
+The research workspace keeps sources, exact passages, authored notes and structured
+findings separate from the operational query log. Chat and table findings remain
+in their existing stores; accepted tables reuse their original results. No new
+agent framework, semantic duplicate detector or research database is required.
+
+`Read(file_path: "findings", pattern, offset, limit)` searches saved questions,
+answer prose and summaries before paging. It returns previews with the original
+finding references. With a returned `section`, `pattern` continues to identify
+an exact supporting evidence ID, not a search over the finding. Source and selected
+claim restrictions apply before either view is returned.
+
+`document_operation(action: "research", document_id, research_action: {
+type: "memo", title, references, mode: "append" })` copies the selected original
+findings into the workspace's existing Markdown memo. `references` are the
+returned chat-answer or table-cell references, including any selected claim
+indices. It does not ask a model to restate answers, re-read sources or retype
+citation URLs. Append is the default; replace is explicit. The same application
+operation is available as `POST /source-workspaces/:id/memo` with `version_id`,
+`working_revision`, `title`, `references` and optional `mode`.
+
+This is a snapshot, not a live transclusion: later edits to a cell or chat do not
+rewrite an authored memo. Exact duplicate prose with the same support is copied
+once within the operation; distinct support is retained. Original passage links
+and the memo write commit together under the existing version/revision check.
+Missing support, forbidden scope, stale revisions and oversized writes fail
+without modifying the memo. The operation does not change labels, source notes
+or explicit highlights. Claimless review outcomes retain their wording and
+coverage with a source-level link, never invented passage evidence for absence.
+Cited table rows use the same renderer as chat answers.
+
+Workspace query history is loaded once on first demand, not in every chat or
+before every table row's first model call. A table result that reuses older
+support loads history at publication to preserve its original query provenance.
+Read/scan consumers await the same supplier; current-turn receipts stay in the
+existing evidence state. The storage format remains the bounded existing JSON
+query part, not an added indexed log. Public history pages remain bounded to 200
+records, and history terms are not appended to model prompts.
+
+These separations follow [Zotero's source-linked annotations and notes](https://www.zotero.org/support/pdf_reader)
+and [LangGraph's distinction between execution checkpoints and cross-thread stored data](https://docs.langchain.com/oss/javascript/langgraph/persistence).
+They are design precedents, not added dependencies or guarantees about legal quality.
+
+## Research context and direct reuse
+
+Hosted chat keeps stable policy in the system prompt and appends changed application
+state through the existing private `model_messages` event. The accepted user turn
+and its initial snapshot commit atomically. Unchanged state is not appended again;
+if compaction removes it, the current state is restored after compaction. Earlier
+SDK messages, signatures and tool-result pairs are not rewritten. Previously used
+or discovered tool definitions stay visible for hosted replay within the current
+scope, while unused specialists remain deferred. Native Codex/Claude Code sessions
+retain their existing ownership. Cache reuse still depends on the provider, model,
+tool catalogue and cache lifetime; this is not a measured billing guarantee.
+
+`Read(file_path="findings", pattern=...)` shows match-centred saved text. A bounded
+`finding_refs` array reads selected findings together, retaining whole findings and
+one copy of each exact supporting passage. `next_read` retains the reference set;
+oversized items/support have an ordinary single-finding read path. Source and
+selected-claim permissions apply before returning a batch. Source wording is never
+abbreviated to fit a result.
+
+Grounded submission deduplicates identical evidence IDs and accepts concise support
+units spanning more than one sentence. Different propositions should still use the
+appropriate support. Unknown handles, invalid fields, damaged evidence, quotation
+mismatches, pinpoint checks and bounded answer sizes remain enforced. A sentence
+counter is not a semantic-support check.
+
+Chat answers, selected table rows and individual completed cells expose **Add to
+memo** and **Write from selection**. Copy uses the existing version-checked memo
+operation without a model call. Chat copying selects the parent answer, not every
+intermediate reader finding. Write opens a fresh chat with the original selected
+finding references and an editable composition draft; it does not send a model turn
+until the user submits. Table copying uses refreshed completed-cell references.
+No new persistence layer or agent framework is introduced.
+
+Validation: the focused backend/frontend tests exercise replay, retries, compaction,
+scopes, batching and UI dispatch. `node scripts/test-research-efficiency.mjs` checks
+the built UI against disposable real local storage with recorded findings and no
+paid model turns, saving desktop/mobile screenshots. It does not substitute for the
+launcher-owned `scripts/mike.ps1 smoke -WithAssistantDock` release gate.
+
+Provider references: [OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)
+and [Anthropic tool-use caching](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-use-with-prompt-caching).

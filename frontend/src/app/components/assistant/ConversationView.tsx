@@ -205,6 +205,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                             workflow={message.workflow} />
                                     ) : (
                                         <AssistantMessage
+                                            actions={message.contentFinal && !session.run ? messageActions?.(message.id) : undefined}
                                             message={message} isStreaming={index === messages.length - 1 &&
                                                 responseInProgress && !message.contentFinal}
                                             onCitationClick={onCitationClick} citationTitle={citationTitle}
@@ -223,7 +224,6 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                                 !!isEditReloading?.(id)}
                                             resolvedEditStatuses={mergedStatuses} />
                                     )}
-                                    {message.role === "assistant" && message.contentFinal && !session.run && messageActions?.(message.id)}
                                     {message.role === "assistant" && message.turnStatus && (
                                         <div role="status" className={`mt-2 flex items-center gap-1.5 text-xs ${message.turnStatus === "interrupted" ? "text-red-700" : "text-gray-500"}`}>
                                             <CircleStop className="size-3.5" aria-hidden="true" />

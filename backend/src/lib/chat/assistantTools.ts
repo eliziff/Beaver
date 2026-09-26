@@ -1,4 +1,6 @@
 import { readDocumentProjection } from "../documentApplication";
+import { readerHandoff } from "./readerHandoff";
+import { queryResources, readQueryHistory, type QueryHistorySource } from "./queryHistory";
 import { collapseProvisionLabels } from "../provisionLabels";
 import { readLegalSourceResource, readLibraryResearchWindow, readResearchWorkspace, restoreResearchEvidence,
   sourceActivityCitations, readResearchContext, readResearchContextInventory, researchResultFilter,
@@ -71,8 +73,6 @@ import {
   legalSourceEvidence,
   modelEvidencePassage,
   modelEvidencePreview,
-  modelResearchQuery,
-  modelResearchQueryPreview,
   readPriorLegalEvidence,
   registerLegalEvidence,
   type LegalEvidenceReceipt,
@@ -228,7 +228,8 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'batch',title,actions:[label/annotate/label-selection/remove-label actions]} groups a change. New labels, filings and edits to model-owned labels apply immediately with History/Undo. Only edits, moves or deletions of human-created or human-approved labels require acceptance. " +
       "{type:'undo',changeId} reverses a recorded change while preserving unrelated work. Read history for change IDs. If the result is pending, tell the user the change is waiting for acceptance; do not report it as completed. " +
       "{type:'note',markdown}; or " +
-      "{type:'memo',title,markdown,mode?:'replace'|'append'} writes the workspace memo with " +
+      "{type:'memo',title,references:[reference from Read findings],mode?:'append'|'replace'} copies original cited findings into the memo without rewriting them; defaults to append. " +
+      "{type:'memo',title,markdown,mode?:'replace'|'append'} writes new prose into the workspace memo with " +
       "verified source links from top-level evidence_ids; use [@evidence_id] for inline citations; " +
       "IDs are opaque: annotate only returned label_id/source_id or matches[].evidence_id." } } : {}),
   }, ["action"]),
@@ -1501,6 +1502,7 @@ export type AssistantToolsDependencies = {
   documents: DocumentStore;
   sources?: SourceWorkspaceApplication;
   researchContext?: ResearchReadContext;
+  queryHistory?: QueryHistorySource;
   operation?: ResearchOperationContext;
   library: LibraryStore;
   projects: ProjectStore;
@@ -1562,6 +1564,7 @@ export function assistantTools<Context extends {
     documents,
     sources,
     researchContext,
+    queryHistory,
     operation: researchOperation,
     library,
     projects,
@@ -1632,6 +1635,8 @@ export function assistantTools<Context extends {
     if (call.name === "Read" && requested === "selection") return researchContext?.subjects
       ? readResearchContextInventory(researchContext, { offset: Number(args.offset) || 1, limit: Number(args.limit) || 20 })
       : fail("No research scope is selected");
+    if (args.finding_refs !== undefined && (requested !== "findings" || args.section || args.pattern))
+      return fail("Use finding_refs with file_path=findings, without section or pattern.");
     if (call.name === "Read" && requested === "findings") {
       if (!sources || !researchContext?.workspace) return fail("Open a Sources workspace to read its findings");
       const reference = args.section ? researchFindingReferenceSchema.parse(JSON.parse(String(args.section))) : undefined,
@@ -1639,7 +1644,8 @@ export function assistantTools<Context extends {
       return readResearchFindings({ sources, scope, workspaceId: researchContext.workspace.documentId,
         findingRefs: researchContext.findingRefs,
         ...(researchContext.restricted ? { subjects: researchContext.subjects ?? [] } : {}) }, {
-        reference, ...(args.pattern ? { evidence_id: String(args.pattern) } : {}),
+        reference, ...(args.finding_refs ? { references: researchFindingReferenceSchema.array().min(1).max(50).parse(args.finding_refs) } : {}),
+        ...(args.pattern ? reference ? { evidence_id: String(args.pattern) } : { pattern: String(args.pattern) } : {}),
         ...(reference ? { text_offset: Number(args.start_char) || 0 }
           : { offset, limit: Math.min(50, limit) }),
       });
@@ -1647,14 +1653,32 @@ export function assistantTools<Context extends {
     if (call.name === "Read" && legalEvidenceState) {
       const inScope = researchResultFilter(researchContext), permittedEvidence = [...legalEvidenceState.evidence.values()]
         .filter(({ receipt }) => inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] }));
-      if (requested === "evidence" || requested === "queries") {
+      if (requested === "readers") {
+        const readers = [...legalEvidenceState.readerResults.values()].filter(event =>
+          !researchContext?.restricted || !!event.grounding?.evidence.length && event.grounding.evidence.every(receipt =>
+            inScope({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] })));
         const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20));
-        const values = requested === "evidence"
-          ? permittedEvidence.slice(offset, offset + limit)
-            .map(({ receipt }) => { const { preview: _preview, ...entry } = modelEvidencePreview(receipt); return entry; })
-          : [...legalEvidenceState.queries.values()].slice(offset, offset + limit).map(modelResearchQueryPreview);
-        const total = requested === "evidence" ? permittedEvidence.length : legalEvidenceState.queries.size;
-        return result({ total, items: values, next_offset: offset + limit < total ? offset + limit + 1 : null });
+        if (!args.section) return result({ items: readers.slice(offset, offset + limit).map(event => ({
+          reader_id: event.id, task: event.task.slice(0, 240), status: event.status,
+          read: { file_path: "readers", section: event.id } })), total: readers.length,
+          next_offset: offset + limit < readers.length ? offset + limit + 1 : null });
+        const event = readers.find(event => event.id === args.section);
+        return event ? result(readerHandoff(event, legalEvidenceState, offset, limit)) : fail("Reader result not found in this scope");
+      }
+      if (requested === "queries" || /^q_/u.test(requested)) {
+        const queries = [...(await queryHistory?.() ?? legalEvidenceState.queries.values())].filter(query =>
+          !researchContext?.restricted || queryResources(query).length > 0 &&
+            queryResources(query).every(resource => inScope({ resource })));
+        return result(readQueryHistory(queries, { file_path: requested,
+          pattern: trimmed(args.pattern), section: trimmed(args.section),
+          offset: Number(args.offset) || 1, limit: Number(args.limit) || 20, start_char: Number(args.start_char) || 0 }));
+      }
+      if (requested === "evidence") {
+        const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20)),
+          values = permittedEvidence.slice(offset, offset + limit).map(({ receipt }) => {
+            const { preview: _preview, ...entry } = modelEvidencePreview(receipt); return entry; });
+        return result({ total: permittedEvidence.length, items: values,
+          next_offset: offset + limit < permittedEvidence.length ? offset + limit + 1 : null });
       }
       if (/^e_/u.test(requested)) {
         const saved = researchContext?.subjects?.flatMap(({ savedEvidence }) => savedEvidence ?? [])
@@ -1664,13 +1688,7 @@ export function assistantTools<Context extends {
         return entry && inScope({ resource: legalEvidenceResourceReference(entry.receipt) ?? "", evidence: [entry.receipt] })
           ? { ...result(modelEvidencePassage(entry.receipt)), evidence: [entry.receipt] } : fail("Evidence unavailable in the selected scope");
       }
-      if (/^q_/u.test(requested)) {
-        const query = legalEvidenceState.queries.get(requested);
-        const offset = Math.max(0, Number(args.offset ?? 1) - 1), limit = Math.min(50, Number(args.limit ?? 20));
-        return query ? result({ ...modelResearchQuery(query), results: query.results.slice(offset, offset + limit),
-          total: query.results.length, next_offset: offset + limit < query.results.length
-            ? offset + limit + 1 : null }) : fail("Search receipt not found");
-      }
+
     }
     const reference = call.name === "Read" ? parseResourceReference(requested) : null;
     const workspaceId = reference?.kind === "document" &&
@@ -1709,6 +1727,7 @@ export function assistantTools<Context extends {
       signal,
       reader: readerAssignment,
       knownSources,
+      priorQueries: queryHistory ?? (() => legalEvidenceState?.queries.values() ?? []),
     });
     if (sourceRead) return sourceRead;
     return runCodingShapeCall(call, args, {
@@ -1979,6 +1998,7 @@ export function assistantTools<Context extends {
           limit: Math.max(1, Math.min(20, Math.trunc(Number(input.limit) || 10))),
         },
         results: resources,
+        ...(Array.isArray(searched.unavailable) ? { unavailable: searched.unavailable.map(String) } : {}),
       }],
     };
   };
@@ -2011,6 +2031,19 @@ export function assistantTools<Context extends {
         typeId: trimmed(command.typeId) || undefined, versionId, workingRevision: edit.workingRevision ?? 0 }, operation);
       Object.assign(edit, { versionId: saved.file.versionId, workingRevision: saved.file.workingRevision });
       return result({ filed: saved.saved, version_id: saved.file.versionId, working_revision: saved.file.workingRevision });
+    }
+    if (command.type === "memo" && command.references !== undefined) {
+      if (command.markdown !== undefined) return fail("Use either saved finding references or new Markdown, not both");
+      const next = await sources.memo(scope, documentId, { versionId, workingRevision: edit.workingRevision ?? 0,
+        title: trimmed(command.title), references: researchFindingReferenceSchema.array().min(1).max(500).parse(command.references),
+        ...(command.mode !== undefined ? { mode: command.mode as "append" | "replace" } : {}) },
+      { operation, assistant: { turnVersionId: edit.turnVersionId, turnId }, signal,
+        findingRefs: researchContext?.findingRefs,
+        ...(researchContext?.restricted ? { subjects: researchContext.subjects ?? [] } : {}) });
+      turnEditState?.set(documentId, { versionId: next.versionId, workingRevision: next.workingRevision,
+        parentVersionId: edit.parentVersionId, turnVersionId: next.versionId });
+      return mutationResult({ ok: true, action: "updated", document_id: documentId, version_id: next.versionId,
+        filename: next.document.filename, resource: resourceReference.document(documentId, next.versionId) });
     }
     if (command.type === "memo") {
       const title = trimmed(command.title), markdown = typeof command.markdown === "string"

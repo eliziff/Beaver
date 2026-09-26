@@ -1,3 +1,4 @@
+import { readQueryHistory } from "../chat/queryHistory";
 import { z } from "zod";
 import { textField } from "../textField";
 import { randomUUID } from "node:crypto";
@@ -5,7 +6,7 @@ import { ApplicationError, type ApplicationScope } from "../applicationError";
 import type { DocumentStore } from "../documentStore";
 import { runChatTurn, type ChatToolContext } from "../chat/turnEngine";
 import { createLegalEvidenceTurnState, legalEvidenceReceiptEvent, modelEvidencePreview,
-  modelResearchQueryPreview, registerLegalEvidence, registerLegalResearchQueries,
+  registerLegalEvidence, registerLegalResearchQueries,
   registerPriorLegalEvidence, registerPriorLegalResearchQueries,
   validateGroundedClaims, type LegalEvidenceReceipt } from "../chat/legalEvidence";
 import { toolText, type BeaverTool, type BeaverOutcome } from "../chat/toolRegistry";
@@ -20,7 +21,7 @@ import type { TabularCellContent, TabularColumn } from "../tabularStore";
 import type { ResearchSubject } from "../researchSelection";
 import { answerJevRow, jevRoutesForColumns, jevConfig, jevPacketFits, JEV_LIMITS, type JevRouting } from "./jev";
 
-type PriorResearch = { passages: ResearchEvidence[]; queries: ResearchQueryReceipt[] };
+type PriorResearch = { passages: ResearchEvidence[]; queries: () => Promise<ResearchQueryReceipt[]> };
 
 export type TabularMeasurement = {
   phase: "read" | "routing" | "jev" | "answer" | "repair" | "cell";
@@ -93,13 +94,13 @@ function summary(column: TabularColumn, value: TabularCellContent["value"]) {
 
 function priorPrompt(prior: PriorResearch | undefined, budget = 8_000) {
   const lines: string[] = [];
-  for (const value of [...prior?.passages.map(({ receipt }) => modelEvidencePreview(receipt)) ?? [],
-    ...prior?.queries.map(modelResearchQueryPreview) ?? []]) {
+  for (const value of prior?.passages.map(({ receipt }) => modelEvidencePreview(receipt)) ?? []) {
     const line = JSON.stringify(value);
     if (line.length + 1 > budget) break;
     lines.push(line); budget -= line.length + 1;
   }
-  return lines.length ? `Saved passages and previous reads for this source:\n${lines.join("\n")}\n\n` : "";
+  const history = prior ? `Saved searches/reads are available through Read(file_path="queries", pattern).\n` : "";
+  return `${lines.length ? `Saved passages for this source:\n${lines.join("\n")}\n` : ""}${history}\n`;
 }
 
 export async function extractTabularAnswers(input: {
@@ -121,8 +122,11 @@ export async function extractTabularAnswers(input: {
     next = () => researchReadCursors(research);
   if (input.prior) {
     registerPriorLegalEvidence(state, input.prior.passages.map(({ receipt }) => receipt));
-    registerPriorLegalResearchQueries(state, input.prior.queries);
   }
+  let priorQueries: Promise<void> | undefined;
+  const loadHistory = () => priorQueries ??= (async () => {
+    if (input.prior) registerPriorLegalResearchQueries(state, await input.prior.queries());
+  })();
   const results: { rank: number; evidence_id: string }[] = [], readEvidence = new Set<string>(), freshEvidence: LegalEvidenceReceipt[] = [],
     known = new Set(state.queries.keys());
   registerLegalResearchQueries(state, [{ call_id: randomUUID(), tool: "Read",
@@ -172,6 +176,8 @@ export async function extractTabularAnswers(input: {
       if (handle) throw new Error(`Reader handles such as ${handle.match(READER_HANDLE)![0]} are internal; write the passage's own paragraph or section number instead`);
       if (!missing && (display.match(CITATION_TOKEN) ?? []).length > 1) throw new Error("The value reads as a citation list. State the answer in plain prose and leave every case name, paragraph and section reference to the claims' evidence_ids");
       const evidenceIds = new Set(claims.flatMap(({ evidence_ids }) => evidence_ids)), fromRead = [...evidenceIds].some(id => readEvidence.has(id));
+      // Preserve search provenance when publishing reused support, without delaying the first model call.
+      if ([...evidenceIds].some(id => state.priorEvidenceIds.has(id))) await loadHistory();
       content = { value, claims, summary: display, flag: args.flag as TabularCellContent["flag"], outcome: missing ? "not_found" : "answered",
         coverage: next().length === 0 ? "complete" : "partial", resource: input.subject.resource,
         query_ids: [...state.queries.values()].filter(({ query_id, results }) => query_id === queryId ? fromRead || missing
@@ -275,16 +281,22 @@ export async function extractTabularAnswers(input: {
               page.result.content.slice(0, -1).filter(block => block.type === "text").map(block => block.text)).join("\n")}\n${JSON.stringify({ next_reads: next() })}${
                 previous ? `\n\nPrevious rejected submission and correction needed:\n${JSON.stringify(previous)}` : ""}` }],
           createTools: (): BeaverTool<ChatToolContext>[] => [
-            ...(next().length ? [{ name: "Read", description: "Read a remaining source page using a cursor in next_reads.",
+            { name: "Read", description: "Read a remaining source page using next_reads, or inspect saved searches on demand with file_path=queries (optional pattern filter) or a query_id. Zero literal matches are not proof of semantic absence.",
               inputSchema: { type: "object" as const, properties: { offset: { type: "integer", minimum: 1 },
-                resource: { type: "string" }, start_char: { type: "integer", minimum: 0 } }, required: ["offset"], additionalProperties: false },
+                file_path: { type: "string", pattern: "^(?:queries|q_[A-Za-z0-9_-]+)$" },
+                pattern: { type: "string", maxLength: 256 }, limit: { type: "integer", minimum: 1, maximum: 50 },
+                resource: { type: "string" }, start_char: { type: "integer", minimum: 0 } }, additionalProperties: false },
               sequential: true, async execute(args: Record<string, unknown>, _context: ChatToolContext, signal: AbortSignal, call: { id: string }) {
+                if (typeof args.file_path === "string") {
+                  await loadHistory();
+                  return { result: toolText(readQueryHistory(state.queries.values(), args)) };
+                }
                 if (!next().length) return { result: toolText({ next_reads: [], coverage: "complete" }) };
-                const page = await read(Number(args.offset), Number(args.start_char ?? 0), signal,
+                const page = await read(Number(args.offset) || 1, Number(args.start_char ?? 0), signal,
                   typeof args.resource === "string" ? args.resource : undefined, call.id);
                 if (!page.result.isError) pages.push(page);
                 return page;
-              } }] : []),
+              } },
             {
               name: "submit_extraction", description: "Submit one cell once. Follow its value schema. Explicit quotations must match their cited passages; directly reused source wording need not be quoted. For not_found use null value and empty claims after complete reading.",
               inputSchema: { type: "object", properties: {
