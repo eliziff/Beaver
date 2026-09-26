@@ -245,8 +245,12 @@ describe("useAssistantChat local transcript boundary", () => {
         { role: "assistant", content: expect.stringContaining("/compact") },
       ]);
 
+    mocks.compactChat.mockResolvedValueOnce({ compacted: true, transcriptVersion: 3,
+      provider: "gemini", summary: "Keep reviewed citations." });
     await act(() => result.current.handleChat({ role: "user", content: "/compact" }));
     expect(mocks.compactChat).toHaveBeenCalledWith("chat-1", expect.any(String));
+    expect(result.current.messages.at(-1)).toMatchObject({ contextCompacted: true,
+      compaction: { provider: "gemini", summary: "Keep reviewed citations.", status: "completed" } });
     expect(mocks.streamChat).not.toHaveBeenCalled();
   });
 

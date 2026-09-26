@@ -25,12 +25,12 @@ const anthropic = (reason = "end_turn") => sse([
   { type: "message_delta", delta: { stop_reason: reason, stop_sequence: null }, usage: { output_tokens: 4 } },
   { type: "message_stop" },
 ]);
-const openai = (incomplete = false) => sse([
+const openai = (incomplete = false, text = "Answer") => sse([
   { type: "response.created", response: { id: "resp_1", created_at: 1, model: "gpt-5.5" } },
   { type: "response.output_item.added", output_index: 0, item: { id: "msg_1", type: "message", role: "assistant", content: [] } },
-  { type: "response.output_text.delta", item_id: "msg_1", output_index: 0, content_index: 0, delta: "Answer" },
+  { type: "response.output_text.delta", item_id: "msg_1", output_index: 0, content_index: 0, delta: text },
   { type: "response.output_item.done", output_index: 0, item: { id: "msg_1", type: "message", role: "assistant",
-    content: [{ type: "output_text", text: "Answer", annotations: [] }] } },
+    content: [{ type: "output_text", text, annotations: [] }] } },
   { type: incomplete ? "response.incomplete" : "response.completed", response: {
     id: "resp_1", created_at: 1, model: "gpt-5.5", status: incomplete ? "incomplete" : "completed",
     incomplete_details: incomplete ? { reason: "max_output_tokens" } : null,
@@ -232,7 +232,7 @@ it.each([false, true])("settles native compaction and keeps it out of prose (fai
     expect(JSON.stringify(saved.mock.calls[0][0])).toContain("Retained research checkpoint");
   }
   expect(JSON.stringify(content.mock.calls)).not.toContain("Retained research checkpoint");
-  expect(statuses.mock.calls).toEqual([["running"], [fail ? "failed" : "completed"]]);
+  expect(statuses.mock.calls.map(([status]) => status)).toEqual(["running", fail ? "failed" : "completed"]);
 });
 
 it("DeepSeek reasoning and tool results survive both a step and a later turn", async () => {
@@ -370,3 +370,112 @@ it.each(["separate", "batched", "unloaded", "reversed", "invalid", "unknown"])(
         .toEqual(["load_tools", "word_python"]);
     }
   });
+it("requests strict tools without rewriting third-party contracts", async () => {
+  const { bodies } = transport([() => openai()]);
+  await streamHosted({ ...params, model: "gpt-5.5", tools: [{ ...read, strict: true }, { ...read, name: "ThirdParty" }] });
+  expect(bodies[0].tools).toMatchObject([{ name: "Read", strict: true }, { name: "ThirdParty", strict: false }]);
+});
+
+it("fails closed on persistence failure even though SDK observer exceptions are swallowed", async () => {
+  const { fetch } = transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
+  const failure = new Error("Database unavailable");
+  await expect(streamHosted({ ...params, runTools: async calls => [{ tool_use_id: calls[0].id, content: "Read a" }],
+    callbacks: { onModelMessages: async () => { throw failure; } } })).rejects.toBe(failure);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it("settles and saves completed tool effects before reporting mid-batch cancellation", async () => {
+  const saved = vi.fn(), controller = new AbortController();
+  const { fetch } = transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
+  await expect(streamHosted({ ...params, abortSignal: controller.signal,
+    runTools: async calls => { controller.abort(new DOMException("Cancelled", "AbortError"));
+      return [{ tool_use_id: calls[0].id, content: "Completed before cancellation" }]; },
+    callbacks: { onModelMessages: saved },
+  })).rejects.toMatchObject({ name: "AbortError" });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(saved.mock.calls[0][0].messages)).toContain("Completed before cancellation");
+});
+
+it("replays steering arriving at an otherwise final response without losing earlier context", async () => {
+  const { bodies } = transport([() => gemini([{ text: "First answer." }]), () => gemini([{ text: "Corrected answer." }])]);
+  let steered = false;
+  const result = await streamHosted({ ...params, tools: [], takeSteering: () => {
+    if (steered) return []; steered = true; return [{ id: "s", text: "Do not change the indemnity." }];
+  } });
+  expect(result.fullText).toContain("Corrected answer.");
+  expect(JSON.stringify(bodies[1].contents)).toContain("Do not change the indemnity.");
+  expect(JSON.stringify(bodies[1].contents)).toContain("First answer.");
+  expect(result.usage?.inputTokens).toBe(24);
+});
+
+it("uses the native compaction summary for display without leaking it into answer prose", async () => {
+  const events = [
+    { type: "message_start", message: { id: "m1", type: "message", role: "assistant", model: "claude-sonnet-4-6",
+      content: [], usage: { input_tokens: 10, output_tokens: 0 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "compaction", content: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "compaction_delta", content: "Retain the indemnity restriction." } },
+    { type: "content_block_stop", index: 0 },
+    { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Answer" } },
+    { type: "content_block_stop", index: 1 },
+    { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } },
+    { type: "message_stop" },
+  ];
+  transport([() => sse(events)]);
+  const compact = vi.fn(), saved = vi.fn();
+  const result = await streamHosted({ ...params, model: "claude-sonnet-4-6", tools: [],
+    callbacks: { onCompaction: compact, onModelMessages: saved } });
+  expect(result.fullText).toBe("Answer");
+  expect(compact).toHaveBeenCalledWith("completed", { provider: "claude", summary: "Retain the indemnity restriction." });
+  expect(saved.mock.calls[0][0].compacted).toBe(true);
+});
+
+
+it("requests a strict OpenAI result schema and returns the parsed object", async () => {
+  const schema = { type: "object", properties: { count: { type: "integer" } }, required: ["count"], additionalProperties: false };
+  const { bodies } = transport([() => openai(false, '{"count":7}')]);
+  const result = await streamHosted({ ...params, model: "gpt-5.5", tools: [], outputSchema: schema });
+  expect(bodies[0].text.format).toMatchObject({ type: "json_schema", strict: true, schema });
+  expect(result.output).toEqual({ count: 7 });
+});
+
+
+it("does not call an exhausted invalid-tool repair loop a successful answer", async () => {
+  const { fetch } = transport([() => gemini([{ functionCall: { name: "MissingTool", args: {} } }])]);
+  const run = vi.fn(async () => []), saved = vi.fn();
+  await expect(streamHosted({ ...params, maxIterations: 1, runTools: run,
+    callbacks: { onModelMessages: saved } })).rejects.toMatchObject({ finishReason: "step-limit" });
+  expect(run).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(saved.mock.calls[0][0].messages.at(-1).content[0].output.type).toBe("error-text");
+});
+
+it("refuses ambiguous duplicate call IDs before any effects", async () => {
+  transport([() => gemini([
+    { functionCall: { id: "duplicate", name: "Read", args: { file: "a" } } },
+    { functionCall: { id: "duplicate", name: "Read", args: { file: "b" } } },
+  ])]);
+  const run = vi.fn(async calls => calls.map((call: any) => ({ tool_use_id: call.id, content: "read", terminal: true })));
+  await expect(streamHosted({ ...params, runTools: run })).rejects.toThrow(/duplicate.*call/i);
+  expect(run).not.toHaveBeenCalled();
+});
+
+it("rejects duplicate result IDs instead of choosing an arbitrary successful result", async () => {
+  transport([() => gemini([{ functionCall: { name: "Read", args: { file: "a" } } }])]);
+  await expect(streamHosted({ ...params, runTools: async calls => [
+    { tool_use_id: calls[0].id, content: "failed", status: "error" },
+    { tool_use_id: calls[0].id, content: "published", terminal: true },
+  ] })).rejects.toThrow(/result/i);
+});
+
+
+it("includes instructions in the local context preflight before making a request", async () => {
+  const { fetch } = transport([() => openai()]);
+  vi.stubEnv("OLLAMA_NUM_CTX", "128");
+  try {
+    await expect(streamHosted({ ...params, model: "ollama:example", tools: [], systemPrompt: "x".repeat(4096) }))
+      .rejects.toThrow(/exceeds.*context/);
+    expect(fetch).not.toHaveBeenCalled();
+  } finally { vi.unstubAllEnvs(); }
+});
+

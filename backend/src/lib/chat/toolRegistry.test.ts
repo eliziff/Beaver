@@ -6,6 +6,7 @@ import {
   MAX_MODEL_TOOL_RESULT_CHARS,
   TurnToolRegistry, previouslyVisibleTools,
   toolText,
+  objectSchema,
   type BeaverOutcome,
   type BeaverTool,
 } from "./toolRegistry";
@@ -52,6 +53,20 @@ describe("TurnToolRegistry", () => {
     );
     expect(batch[0].status).toBe("error");
     expect(payload(batch[0].content).error).toBe("invalid_arguments");
+  });
+
+  it("isolates identical schema IDs across unrelated tools and rejects the wrong shape", async () => {
+    const execute = vi.fn(async () => ({ result: toolText("accepted") }));
+    const definition = (name: string, field: string) => tool(name, { execute, inputSchema: {
+      $id: "https://example.test/request", type: "object", properties: { [field]: { type: "integer" } },
+      required: [field], additionalProperties: false,
+    } });
+    const first = new TurnToolRegistry([definition("first", "a")]);
+    const second = new TurnToolRegistry([definition("second", "b")]);
+    const result = await second.run([call("wrong", "second", { a: 1 }), call("right", "second", { b: 2 })], { order: [] });
+    expect(result.map(item => item.status)).toEqual(["error", "ok"]);
+    expect(execute).toHaveBeenCalledExactlyOnceWith({ b: 2 }, expect.anything(), expect.anything(), expect.anything());
+    expect((await first.run([call("first", "first", { a: 3 })], { order: [] }))[0].status).toBe("ok");
   });
 
   it("shows no activity for a call the schema rejects", () => {
@@ -152,7 +167,7 @@ describe("TurnToolRegistry", () => {
     expect(peak).toBe(4);
   });
 
-  it.each(["parallel", "serial"])("settles started %s work and retains mutations after result delivery fails", async (mode) => {
+  it.each(["parallel", "serial"])("settles started %s work after result delivery fails", async (mode) => {
     let release!: () => void, deliveryFailed!: () => void, settled = false;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const failureObserved = new Promise<void>((resolve) => { deliveryFailed = resolve; });
@@ -184,10 +199,10 @@ describe("TurnToolRegistry", () => {
     expect(context.order.filter((value) => value.startsWith("saved")))
       .toEqual((mode === "serial" ? [0] : [0, 1, 2, 3]).map((index) => `saved ${index}`));
     const [ask] = await registry.run([call("ask", "ask")], context);
-    expect(payload(ask.content).error).toBe("ask_inputs_after_mutation");
+    expect(ask.content).toBe("waiting");
   });
 
-  it("serializes a mixed batch and enforces pause-before-mutation", async () => {
+  it("pauses before subsequent effects while allowing questions after completed edits", async () => {
     const changed = tool("change", {
       sequential: true,
       async execute(_input, context) {
@@ -221,8 +236,8 @@ describe("TurnToolRegistry", () => {
       call("b", "ask"),
     ], context, undefined, (_call, outcome) => outcomes.push(outcome));
     expect(context.order).toEqual(["change", "ask"]);
-    expect(outcomes.every(({ pause }) => !pause)).toBe(true);
-    expect(payload(after[1].content).error).toBe("ask_inputs_after_mutation");
+    expect(outcomes[1].pause?.items).toHaveLength(1);
+    expect(payload(after[0].content).ok).toBe(true);
   });
 
   it("bounds thrown and malformed results and validates structured output", async () => {
@@ -264,6 +279,16 @@ describe("TurnToolRegistry", () => {
     expect(payload(batch[0].content).detail).toBe("Tool execution failed");
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
+  });
+
+  it("preserves an explicit tool error without requiring a success-shaped result", async () => {
+    const registry = new TurnToolRegistry([tool("lookup", {
+      outputSchema: objectSchema({ answer: { type: "string" } }, ["answer"]),
+      async execute() { return { result: toolText("Source unavailable; select another source.", true) }; },
+    })]);
+    expect(await registry.run([call("1", "lookup")], { order: [] })).toEqual([
+      { tool_use_id: "1", status: "error", content: "Source unavailable; select another source." },
+    ]);
   });
 
   it("hides structured URLs and bounds every model-visible result", async () => {

@@ -54,11 +54,16 @@ export function claudePModelSlug(model: string): string | null {
   return CLAUDE_MODEL.test(slug) ? slug : null;
 }
 
-function resolveCli(): { file: string; shell: boolean } {
-  const exe = process.env.APPDATA && path.join(process.env.APPDATA,
-    "npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe");
-  if (exe && existsSync(exe)) return { file: exe, shell: false };
-  return { file: "claude", shell: process.platform === "win32" };
+function resolveCli(): { file: string; prefix: string[] } {
+  if (process.platform !== "win32") return { file: "claude", prefix: [] };
+  const npm = process.env.APPDATA && path.join(process.env.APPDATA, "npm/node_modules/@anthropic-ai/claude-code");
+  const native = [...(npm ? [path.join(npm, "bin/claude.exe")] : []),
+    ...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean).map(dir => path.join(dir, "claude.exe"))]
+    .find(file => existsSync(file));
+  if (native) return { file: native, prefix: [] };
+  const script = npm && path.join(npm, "cli.js");
+  if (script && existsSync(script)) return { file: process.execPath, prefix: [script] };
+  throw new Error("Install Claude Code's native executable on PATH or its standard npm package.");
 }
 
 function authIsolatedEnv(model: string, bridge: McpToolBridge | null) {
@@ -102,7 +107,7 @@ function inputTokens(usage?: NativeUsage): number | null {
 }
 
 type ResultEnvelope = {
-  type?: string; is_error?: boolean; result?: string; session_id?: string;
+  type?: string; is_error?: boolean; result?: string; structured_output?: unknown; session_id?: string;
   usage?: NativeUsage;
   modelUsage?: Record<string, { contextWindow?: number }>;
 };
@@ -214,7 +219,6 @@ async function runClaudeP(params: RunParams) {
     writeFile(mcpFile, JSON.stringify(mcpConfig), { mode: 0o600 }),
   ]);
 
-  const { file, shell } = resolveCli();
   const args = [
     "-p", "--model", params.model,
     "--input-format", "stream-json",
@@ -235,15 +239,17 @@ async function runClaudeP(params: RunParams) {
   if (params.providerSession?.continuationId) {
     args.push("--resume", params.providerSession.continuationId);
   }
+  if (params.outputSchema) args.push("--json-schema", JSON.stringify(params.outputSchema));
   if (params.reasoningEffort) args.push("--effort", params.reasoningEffort);
   if (params.maxIterations !== undefined)
     args.push("--max-turns", String(Math.max(1, Math.trunc(params.maxIterations))));
 
   try {
     throwIfAborted(params.abortSignal);
+    const { file, prefix } = resolveCli();
     return await new Promise<RunState>((resolve, reject) => {
-      const child = spawn(file, args, {
-        shell,
+      const child = spawn(file, [...prefix, ...args], {
+        shell: false,
         cwd: tmpdir(),
         env: authIsolatedEnv(params.model, params.bridge),
         windowsHide: true,
@@ -399,7 +405,9 @@ export async function streamClaudeP(params: StreamChatParams): Promise<StreamCha
     // Final usage is a whole-turn total, not the latest request's context size.
 
     let fullText = state.fullText;
-    const finalText = String(envelope.result ?? "");
+    const finalText = params.outputSchema && envelope.structured_output !== undefined
+      ? JSON.stringify(envelope.structured_output) : String(envelope.result ?? "");
+    if (params.outputSchema) fullText = finalText;
     if (!fullText && finalText) {
       fullText = finalText;
       callbacks.onContentDelta?.(finalText);

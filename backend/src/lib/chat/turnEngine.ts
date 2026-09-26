@@ -5,17 +5,16 @@ import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "./assistantWir
 import { streamChatWithTools, type LlmMessage, type NormalizedToolCall,
   type NormalizedToolResult, type ProviderTurnControl,
   type ProviderContextCheckpoint, type SteeringMessage, type StreamChatResult,
-  type UserApiKeys } from "../llm";
+  type UserApiKeys, type CompactionDetails } from "../llm";
 import { isAbortError, throwIfAborted } from "../llm/abort";
 import { providerErrorCode, safeErrorMessage } from "../safeError";
 import { assistantReadActivity, assistantToolActivityLabel } from "./tools/a2ajTools";
 import { ASK_INPUTS_TOOL } from "./tools/toolSchemas";
-import { publicAssistantEvent, type AssistantEvent, type AskInputsEvent,
+import { publicAssistantEvent, parsePublicAssistantEvent, type AssistantEvent, type AskInputsEvent,
   type PublicAssistantEvent, type ReadSubagentAssignment, type ReadSubagentCheckpoint,
   type ReadSubagentEvent, type ToolActivity, type LegalEvidenceReceiptEvent } from "./assistantEvents";
 import { TurnToolRegistry, previouslyVisibleTools, toolText, type BeaverOutcome,
   type BeaverTool } from "./toolRegistry";
-import { normalizeAskInputsEvent } from "./askInputs";
 import { createLegalEvidenceCitations,
   createLegalEvidenceCitationsFromEntries } from "./citations";
 import { GROUNDED_LEGAL_REPAIR_INSTRUCTION, UNVERIFIED_LEGAL_ANSWER,
@@ -85,6 +84,7 @@ export type ChatToolContext = {
 export type ChatTurnResult = {
   status: "complete" | "paused";
   fullText: string;
+  output?: unknown;
   events: AssistantEvent[];
   citations: Record<string, unknown>[];
   continuationId?: string;
@@ -101,6 +101,7 @@ function contentBoundarySeparator(before: string, after: string) {
 
 export async function runChatTurn(options: {
   model: string;
+  outputSchema?: Record<string, unknown>;
   systemPrompt: string;
   /** Current application state is appended once, not interpolated ahead of cached history. */
   turnContext?: string;
@@ -137,7 +138,7 @@ export async function runChatTurn(options: {
   submissionsComplete?: () => boolean;
   /** Provider receipts, including individual requests when the adapter exposes them. */
   onProviderResult?: (result: StreamChatResult) => void;
-  prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed") => void)
+  prepareMessages?: (onCompaction: (status: "running" | "completed" | "failed", details?: CompactionDetails) => void)
     => Promise<LlmMessage[]>;
   onSubagentEvent?: (event: ReadSubagentEvent) => void;
   onModelMessages?: (event: Extract<AssistantEvent, { type: "model_messages" }>) => void | Promise<void>;
@@ -249,10 +250,10 @@ export async function runChatTurn(options: {
     ...ASK_INPUTS_TOOL,
     sequential: true,
     async execute(input) {
-      const pause = normalizeAskInputsEvent(input);
-      return pause.items.length
-        ? { result: toolText({ ok: true, status: "waiting_for_user" }), pause }
-        : { result: toolText({ ok: false, error: "No questions supplied" }, true) };
+      const pause = parsePublicAssistantEvent({ ...input, type: "ask_inputs" });
+      if (pause.type !== "ask_inputs" || new Set(pause.items.map(item => item.id)).size !== pause.items.length)
+        return { result: toolText({ ok: false, error: "Question IDs must be unique." }, true) };
+      return { result: toolText({ ok: true, status: "waiting_for_user" }), pause };
     },
   };
   const normalizedOutcome = (result: NormalizedToolResult): BeaverOutcome => {
@@ -440,8 +441,8 @@ export async function runChatTurn(options: {
   }));
   const nativeSession = ["codex", "claude-p"].includes(providerForModel(options.model));
   const registry = new TurnToolRegistry([
-    askTool,
-    ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : []),
+    ...(!options.outputSchema ? [askTool,
+      ...(submissionTool === LEGAL_EVIDENCE_TOOL_NAME ? [evidenceTool(evidence)] : [])] : []),
     ...mainTools,
     ...readerTools,
   ], nativeSession ? [] : previouslyVisibleTools(options.messages));
@@ -496,14 +497,14 @@ export async function runChatTurn(options: {
       boundary = false;
       addEvent(paused);
       emit(paused);
-      providerAbort.abort();
+      if (["codex", "claude-p"].includes(providerForModel(options.model))) providerAbort.abort();
     }
     const grounded = chatAnswer ? renderLegalEvidenceAnswer(evidence) : null;
     if (grounded !== null) {
       text = grounded;
       boundary = false;
     }
-    return options.submissionsComplete?.() ? results.map(result => ({ ...result, terminal: true })) : results;
+    return paused || options.submissionsComplete?.() ? results.map(result => ({ ...result, terminal: true })) : results;
   };
   let hasModelMessages = false;
   const callbacks = {
@@ -577,8 +578,9 @@ export async function runChatTurn(options: {
       replaceLastEvent("context_usage", event);
       emit(event);
     },
-    onCompaction(status: "running" | "completed" | "failed") {
-      const event: AssistantEvent = { type: "compaction", status };
+    onCompaction(status: "running" | "completed" | "failed", details?: CompactionDetails) {
+      const event: AssistantEvent = { type: "compaction", status,
+        provider: details?.provider ?? providerForModel(options.model), ...details };
       replaceLastEvent("compaction", event);
       emit(event);
     },
@@ -638,6 +640,7 @@ export async function runChatTurn(options: {
       : activeMessages;
     const result = await streamChatWithTools({
     model: options.model,
+    outputSchema: options.outputSchema,
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),
     messages: [
       ...(continuationId ? repair ? [] : providerMessages.slice(-1) : providerMessages),
@@ -769,7 +772,7 @@ export async function runChatTurn(options: {
   if (receipt) addEvent(receipt);
   if (text) addEvent({ type: "content", text });
   const result: ChatTurnResult = { status: paused ? "paused" : "complete", fullText: text,
-    events, citations, continuationId: providerResult?.continuationId, evidence };
+    output: providerResult?.output, events, citations, continuationId: providerResult?.continuationId, evidence };
   if (!paused) {
     settleToolActivities("completed");
     emit({ type: "content_final", text, citations });

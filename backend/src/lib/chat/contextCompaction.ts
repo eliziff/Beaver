@@ -4,7 +4,7 @@ import {
   estimateContextTokens,
   needsHostCheckpoint,
 } from "../llm/contextWindow";
-import { streamChatWithTools, type LlmMessage, type UserApiKeys } from "../llm";
+import { streamChatWithTools, type LlmMessage, type UserApiKeys, type CompactionDetails } from "../llm";
 import { providerForModel } from "../llm/models";
 import type { Provider } from "../llm/types";
 import { formatChatMessageContent } from "./messageFormatting";
@@ -63,7 +63,7 @@ async function summarize(
   const result = await streamChatWithTools({
     model,
     systemPrompt: CHECKPOINT_PROMPT,
-    messages,
+    messages: [...messages, { role: "user", content: "Write the continuation checkpoint." }],
     maxIterations: 1,
     apiKeys,
     abortSignal: signal,
@@ -81,7 +81,7 @@ export async function compactChatContext(args: {
   apiKeys?: UserApiKeys;
   signal?: AbortSignal;
   force?: boolean;
-  onStatus?: (status: "running" | "completed" | "failed") => void;
+  onStatus?: (status: "running" | "completed" | "failed", details?: CompactionDetails) => void;
 }) {
   let rows = await args.store.transcript(args.scope, args.chatId);
   if (!rows) throw new Error("Chat not found");
@@ -132,7 +132,7 @@ export async function compactChatContext(args: {
     }
     rows = await args.store.transcript(args.scope, args.chatId);
     if (!rows) throw new Error("Chat not found");
-    args.onStatus?.("completed");
+    args.onStatus?.("completed", { summary, provider });
     return { compacted: true, messages: projectChatTranscript(rows, provider, args.model) };
   } catch (error) {
     args.onStatus?.("failed");
