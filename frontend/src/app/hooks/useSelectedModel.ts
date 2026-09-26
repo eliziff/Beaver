@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
     DEFAULT_MODEL_ID,
 } from "../components/assistant/ModelToggle";
@@ -12,7 +12,8 @@ export function useSelectedModel(initial?: string | null): [string, (id: string)
     const { profile, updateProfile } = useUserProfile();
     const persisted = modelOrDefault(initial ?? profile?.lastSelectedChatModel);
     const [model, setModel] = useState(persisted);
-    useEffect(() => setModel(persisted), [persisted]);
+    const [synced, setSynced] = useState(persisted);
+    if (synced !== persisted) { setSynced(persisted); setModel(persisted); }
     return [model, (id) => {
         const next = modelOrDefault(id);
         setModel(next);
@@ -28,7 +29,8 @@ export function useSelectedReasoningEffort(initial?: string | null): [
     const preferred = initial ?? profile?.lastSelectedReasoningEffort;
     const persisted = validEffort(preferred) ? preferred! : undefined;
     const [effort, setEffort] = useState<string | undefined>(persisted);
-    useEffect(() => setEffort(persisted), [persisted]);
+    const [synced, setSynced] = useState(persisted);
+    if (synced !== persisted) { setSynced(persisted); setEffort(persisted); }
     return [effort, (value) => {
         const next = value.trim();
         if (!validEffort(next)) return;

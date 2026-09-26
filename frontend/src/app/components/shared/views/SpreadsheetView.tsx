@@ -255,29 +255,28 @@ export function SpreadsheetView({
     highlightCells,
     rounded = true,
 }: Props) {
-    const [projection, setProjection] =
-        useState<SpreadsheetProjection | null>(null);
-    const [error, setError] = useState(false);
+    const key = `${documentId}:${versionId}`;
+    const [loaded, setLoaded] = useState<{ key: string; projection: SpreadsheetProjection | null } | null>(null);
+    const projection = loaded?.key === key ? loaded.projection : null;
+    const error = loaded?.key === key && !loaded.projection;
     const [sheetIndex, setSheetIndex] = useState(0);
     const target = highlightCells?.[0];
 
     useEffect(() => {
         let live = true;
-        setProjection(null);
-        setError(false);
         void getSpreadsheetProjection(documentId, versionId)
-            .then((value) => { if (live) setProjection(value); })
-            .catch(() => { if (live) setError(true); });
+            .then((value) => { if (live) setLoaded({ key, projection: value }); })
+            .catch(() => { if (live) setLoaded({ key, projection: null }); });
         return () => { live = false; };
-    }, [documentId, versionId]);
+    }, [documentId, versionId, key]);
 
-    useEffect(() => {
-        if (!projection || !target?.sheet) return;
-        const index = projection.sheets.findIndex(
-            ({ name }) => name === target.sheet,
-        );
+    const [sheetFor, setSheetFor] = useState<{ projection: SpreadsheetProjection | null; sheet?: string }>({ projection: null });
+    if (sheetFor.projection !== projection || sheetFor.sheet !== target?.sheet) {
+        setSheetFor({ projection, sheet: target?.sheet });
+        const index = projection && target?.sheet
+            ? projection.sheets.findIndex(({ name }) => name === target.sheet) : -1;
         if (index >= 0) setSheetIndex(index);
-    }, [projection, target?.sheet]);
+    }
 
     const sheet = projection?.sheets[sheetIndex] ?? projection?.sheets[0];
     return (

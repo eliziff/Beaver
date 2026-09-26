@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { getResearchCitation, getResearchFile } from "@/app/lib/api/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
 import { BeaverApiError } from "@/app/lib/api/client";
@@ -24,7 +24,7 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
 }) {
   const key = `beaver.research.memo-draft:${file.document.id}`;
   const [draft, setDraft] = useState(() => readDraft(key, file.state.note));
-  const latest = useRef(draft); latest.current = draft;
+  const latest = useRef(draft);
   const [saving, setSaving] = useState(false), pending = useRef(false);
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false), [confirmReload, setConfirmReload] = useState(false);
@@ -78,8 +78,8 @@ export default function ResearchMemoPane({ file, mutations, onOpenCitation }: {
     const timer = window.setTimeout(() => { void save(); }, 700);
     return () => window.clearTimeout(timer);
   }, [dirty, draft.markdown, draft.base, draft.submitted, saving, error, save]);
-  const flush = useRef(save); flush.current = save;
-  useEffect(() => () => { void flush.current(); }, []);
+  const flush = useEffectEvent(() => { void save(); });
+  useEffect(() => () => flush(), []);
   useEffect(() => {
     if (latest.current.markdown !== latest.current.base || pending.current || latest.current.submitted !== undefined) return;
     updateDraft({ markdown: file.state.note, base: file.state.note });

@@ -20,17 +20,19 @@ export function useWorkflowPickerState(initialWorkflowId?: string, initialAudien
     const [workflows, setWorkflows] = useState([] as WorkflowSelection["workflow"][]);
     const [audience, setAudience] = useState<AudienceFilter>(initialWorkflowId ? "all" : initialAudience);
     const [search, setSearch] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState(false);
     const [loadAttempt, setLoadAttempt] = useState(0);
-    useEffect(() => { if (initialWorkflowId) setAudience("all"); }, [initialWorkflowId]);
+    const [loaded, setLoaded] = useState<{ attempt: number; error: boolean } | null>(null);
+    const loading = loaded?.attempt !== loadAttempt, loadError = !loading && !!loaded?.error;
+    const [audienceWorkflowId, setAudienceWorkflowId] = useState(initialWorkflowId);
+    if (audienceWorkflowId !== initialWorkflowId) {
+        setAudienceWorkflowId(initialWorkflowId);
+        if (initialWorkflowId) setAudience("all");
+    }
     useEffect(() => {
         let active = true;
-        setLoading(true); setLoadError(false);
         listWorkflows({ audience: "all" })
-            .then((items) => { if (active) setWorkflows(items); })
-            .catch(() => { if (active) setLoadError(true); })
-            .finally(() => { if (active) setLoading(false); });
+            .then((items) => { if (active) { setWorkflows(items); setLoaded({ attempt: loadAttempt, error: false }); } })
+            .catch(() => { if (active) setLoaded({ attempt: loadAttempt, error: true }); });
         return () => { active = false; };
     }, [loadAttempt]);
     const retryLoad = () => setLoadAttempt((value) => value + 1);

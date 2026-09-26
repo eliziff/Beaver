@@ -1,10 +1,11 @@
 import { ASSISTANT_GENERIC_ERROR } from "@/app/lib/assistantProtocol";
-import { useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   compactChat,
   generateChatTitle,
   getChat,
+  getEarlierMessages,
   steerChat,
   stopChat,
   stopChatJob,
@@ -105,16 +106,14 @@ export function useAssistantChat({
   const preparedChatRef = useRef(preparedChat);
   const [loadAttempt, retryLoad] = useReducer((attempt: number) => attempt + 1, 0);
   const takePreparedChatRef = useRef(takePreparedChat);
-  takePreparedChatRef.current = takePreparedChat;
-  const pendingMessageRef = useRef<Message | null>(null);
+  const [initialPending] = useState(() => initialChatId
+    ? peekPendingChatMessage?.(initialChatId) ?? null : null);
+  const pendingMessageRef = useRef<Message | null>(initialPending);
   const [state, dispatch] = useReducer(
     assistantSessionReducer,
     undefined,
     () => {
-      const pending = initialChatId
-        ? peekPendingChatMessage?.(initialChatId) ?? null
-        : null;
-      pendingMessageRef.current = pending;
+      const pending = initialPending;
       const initial = createAssistantSessionState({ chatId: initialChatId });
       return pending
         ? assistantSessionReducer(initial, { type: "new_chat", chatId: initialChatId, message: pending })
@@ -123,22 +122,27 @@ export function useAssistantChat({
             messages: preparedChat.detail.messages,
             transcriptVersion: preparedChat.detail.chat.transcript_version ?? 0,
             active: preparedChat.detail.chat.turn_in_progress === true,
+            hasEarlier: !!preparedChat.detail.has_earlier,
           }) : initial;
     },
   );
   const [chatLoad, setChatLoad] = useState<AssistantChatLoad>(() =>
     preparedChat?.detail
       ? { status: "loaded", chatId: initialChatId, chat: preparedChat.detail.chat }
-      : initialChatId && !pendingMessageRef.current
+      : initialChatId && !initialPending
       ? { status: "loading", chatId: initialChatId }
       : { status: "loaded", chatId: initialChatId, chat: null });
   const stateRef = useRef(state);
-  stateRef.current = state;
   const loadGenerationRef = useRef(0);
   const transportRef = useRef<TurnTransport | null>(null);
   const clientToolResultsRef = useRef(new Map<string, Promise<unknown>>());
   const streamCallbacks = useRef({ wordClient, onChatIdChange, setChatTurnInProgress });
-  streamCallbacks.current = { wordClient, onChatIdChange, setChatTurnInProgress };
+  // The latest values, for handlers and effects; set before any of those run.
+  useLayoutEffect(() => {
+    stateRef.current = state;
+    takePreparedChatRef.current = takePreparedChat;
+    streamCallbacks.current = { wordClient, onChatIdChange, setChatTurnInProgress };
+  });
 
   useEffect(() => () => {
     transportRef.current?.controller.abort();
@@ -156,7 +160,8 @@ export function useAssistantChat({
     const version = latest.chat.transcript_version ?? fallbackVersion;
     setChatLoad({ status: "loaded", chatId, chat: latest.chat });
     dispatch({ type: "transcript_loaded", chatId, messages: latest.messages,
-      transcriptVersion: version, active: latest.chat.turn_in_progress === true, preserveRejected });
+      transcriptVersion: version, active: latest.chat.turn_in_progress === true, preserveRejected,
+      hasEarlier: !!latest.has_earlier });
     return version;
   }, []);
 
@@ -583,10 +588,25 @@ export function useAssistantChat({
     submitPendingMessage(message);
   }, [claimPendingChatMessage, initialChatId]);
 
+  // The page before the first message loaded; one request at a time.
+  const loadingEarlier = useRef(false);
+  const loadEarlier = useCallback(async () => {
+    const { chatId, messages, hasEarlier } = stateRef.current, first = messages[0]?.id;
+    if (!chatId || !first || !hasEarlier || loadingEarlier.current) return;
+    loadingEarlier.current = true;
+    try {
+      const page = await getEarlierMessages(chatId, first);
+      dispatch({ type: "transcript_prepended", chatId, messages: page.messages,
+        hasEarlier: !!page.has_earlier });
+    } catch { /* Scrolling back to the top tries again. */ }
+    finally { loadingEarlier.current = false; }
+  }, []);
+
   return {
     state,
     chatLoad,
     actions: {
+      loadEarlier,
       retryLoad,
       handleChat,
       clearRejectedTurn: () => dispatch({ type: "turn_rejected", rejected: null }),

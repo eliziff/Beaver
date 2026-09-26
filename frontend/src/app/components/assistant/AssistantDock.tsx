@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bot, BookOpenText, Folder, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { ASSISTANT_DOCK_CLASS, ASSISTANT_DOCK_DEFAULT_WIDTH, ASSISTANT_DOCK_MAX_WIDTH,
@@ -51,19 +51,13 @@ export function AssistantDock({
     } | null>(null);
     const [compact, setCompact] = useState(() => window.matchMedia?.(compactDock).matches ?? false);
     const dock = useRef<HTMLElement>(null);
-    const changeExpanded = useRef(onExpandedChange);
+    const changeExpanded = useEffectEvent(onExpandedChange);
     const singleTitleId = useId();
     const active = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
     const workspaceOnly = tabs.length === 1 && active?.label === "Workspace";
     const [visited, setVisited] = useState(() => new Set(expanded && active ? [active.id] : []));
     const [dockWidth, setDockWidth] = useState(defaultWidth);
-    changeExpanded.current = onExpandedChange;
-
-    useEffect(() => {
-        if (expanded && active && !visited.has(active.id)) {
-            setVisited((ids) => new Set(ids).add(active.id));
-        }
-    }, [active, expanded, visited]);
+    if (expanded && active && !visited.has(active.id)) setVisited(new Set(visited).add(active.id));
 
     useEffect(() => {
         const media = window.matchMedia?.(compactDock);
@@ -138,7 +132,7 @@ export function AssistantDock({
                 ? event.target.closest('dialog, [role="dialog"], [role="alertdialog"]') : null;
             if (dialog && dialog !== panel) return;
             event.preventDefault();
-            changeExpanded.current(false);
+            changeExpanded(false);
         };
         panel.addEventListener("keydown", closeOnEscape);
         return () => {

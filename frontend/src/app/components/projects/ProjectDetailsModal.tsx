@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";import { Users } from "lucide-react";
+import { useState } from "react";
+import { Users } from "lucide-react";
 import { Modal } from "@/app/components/modals/Modal";
 import { FormField } from "@/app/components/modals/ModalFieldLabel";
 import { ModalTextInput } from "@/app/components/modals/ModalTextInput";
@@ -28,15 +29,21 @@ export function ProjectDetailsModal({
     const [status, setStatus] = useState<
         "idle" | "saving" | "saved" | "error"
     >("idle");
-    useEffect(() => {
-        if (!open || !project) return;
-        setDraft({
-            name: project.name,
-            cm: project.cm_number ?? "",
-            practice: project.practice ?? "",
-        });
-        setStatus("idle");
-    }, [open, project]);
+    // Reset the form whenever the modal opens or the project changes.
+    const [syncedWith, setSyncedWith] = useState<{ open: boolean; project: Project | null }>(
+        { open: false, project: null },
+    );
+    if (syncedWith.open !== open || syncedWith.project !== project) {
+        setSyncedWith({ open, project });
+        if (open && project) {
+            setDraft({
+                name: project.name,
+                cm: project.cm_number ?? "",
+                practice: project.practice ?? "",
+            });
+            setStatus("idle");
+        }
+    }
     const trimmedName = draft.name.trim();
     const trimmedCm = draft.cm.trim();
     const trimmedPractice = draft.practice.trim();

@@ -78,6 +78,7 @@ export function useAssistantChatRoute({
             session: assistant.state,
             handleChat: assistant.actions.handleChat,
             cancel: assistant.actions.cancel,
+            onLoadEarlier: assistant.actions.loadEarlier,
             onRejectedTurnRestored: assistant.actions.clearRejectedTurn,
             onRetryRejectedTurn: () => void assistant.actions.retryRejectedTurn(),
             initialModel: loadedChat?.model ?? null,

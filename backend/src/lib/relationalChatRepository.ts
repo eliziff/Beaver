@@ -201,20 +201,39 @@ export const chatRepository: CreateChatRepository = (scope) => ({
       ${input.workProductId ?? null},${null},${created},${created},${null},0)`);
     return (await findChat(scope, id, false, true))!;
   },
-  async read(id, messages = false, deleted = false) {
+  async read(id, messages = false, deleted = false, page) {
     const chat = await findChat(scope, id, deleted);
     if (!chat) return null;
-    let values: ChatMessageRecord[] = [];
+    let values: ChatMessageRecord[] = [], hasEarlier = false;
     if (messages) {
-      const raw = await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}
-        ORDER BY created_at,CASE WHEN role='user' THEN 0 ELSE 1 END,id`);
-      const events = grouped(await rows<Sequenced>(sql`SELECT e.message_id,
+      const rank = sql`CASE WHEN role='user' THEN 0 ELSE 1 END`;
+      let raw: Row[];
+      if (page) {
+        // A page is the latest `limit` messages, or those before `before`: newest first from
+        // the index, then put back in order. One extra row says whether any remain earlier.
+        let cursor = sql``;
+        if (page.before) {
+          const at = await one(sql`SELECT created_at,role,id FROM chat_messages WHERE chat_id=${id} AND id=${page.before}`);
+          if (!at) return { chat, messages: [], hasEarlier: false };
+          const r = at.role === "user" ? 0 : 1, created = at.created_at as string;
+          cursor = sql` AND (created_at<${created} OR (created_at=${created} AND (${rank}<${r}
+            OR (${rank}=${r} AND id<${String(at.id)}))))`;
+        }
+        raw = (await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}${cursor}
+          ORDER BY created_at DESC,${rank} DESC,id DESC LIMIT ${page.limit + 1}`)).reverse();
+        hasEarlier = raw.length > page.limit;
+        if (hasEarlier) raw.shift();
+      } else raw = await rows(sql`SELECT * FROM chat_messages WHERE chat_id=${id}
+        ORDER BY created_at,${rank},id`);
+      const ids = raw.map((row) => String(row.id));
+      const events = grouped(!ids.length ? [] : await rows<Sequenced>(sql`SELECT e.message_id,
         e.ordinal AS sequence,e.event AS value FROM chat_message_events e
         JOIN chat_messages m ON m.id=e.message_id WHERE m.chat_id=${id}
+        ${page ? sql`AND e.message_id IN (${sql.join(ids)})` : sql``}
         ORDER BY e.message_id,e.ordinal`));
       values = raw.map((row) => chatMessage(row, events.get(String(row.id))));
     }
-    return { chat, messages: values };
+    return { chat, messages: values, hasEarlier };
   },
   async owns(id) { return !!await findChat(scope, id, false, true); },
   commit(id, mutation) { return commitChat(scope, id, mutation); },

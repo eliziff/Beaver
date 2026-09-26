@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ResearchLabelDesign, ResearchLabelProposal } from "@/app/lib/api/researchFiles";
 import type { ResearchAction, ResearchFile } from "@/app/lib/researchFiles";
 import { errorMessage } from "@/app/lib/utils";
@@ -14,7 +14,8 @@ export function ResearchProposalEditor({ file, proposal, design, onChange, disab
   const [opened, setOpened] = useState<Set<string>>(() => new Set());
   const [labelId, setLabelId] = useState<string | null>(null), [typeId, setTypeId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const current = useRef(design); current.current = design;
+  const current = useRef(design);
+  useLayoutEffect(() => { current.current = design; }, [design]);
   const projected = useMemo(() => {
     try { return { tree: researchProposalTree(file, proposal, design), error: "" }; }
     catch (reason) { return { tree: null, error: errorMessage(reason, "Could not display this proposal") }; }
@@ -25,9 +26,10 @@ export function ResearchProposalEditor({ file, proposal, design, onChange, disab
     current.current = next; onChange(next); setError(""); return result.file;
   }
   async function act(action: ResearchAction) { return change(editResearchProposal(current.current, proposal, action)); }
+  function merge(from: string, to: string) { change(mergeResearchProposal(current.current, from, to)); }
   const tree = projected.tree;
-  const preview: ResearchTreePreview | undefined = tree && { ...tree.preview, file: tree.file,
-    ...(!disabled ? { act, merge: (from: string, to: string) => { change(mergeResearchProposal(current.current, from, to)); } } : {}) } || undefined;
+  const preview: ResearchTreePreview | undefined = tree ? { ...tree.preview, file: tree.file,
+    ...(!disabled ? { act, merge } : {}) } : undefined;
   return <fieldset disabled={disabled} className="min-w-0 space-y-4">
     <input aria-label="Organization name" value={design.title}
       className="block w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-gray-900 hover:border-gray-200 focus:border-gray-300"

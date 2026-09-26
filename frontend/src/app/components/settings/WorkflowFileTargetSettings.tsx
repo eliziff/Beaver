@@ -49,8 +49,9 @@ function TargetRow({ label, defaultFolder, target, disabled, onChoose }: {
 }) {
     const [location, setLocation] = useState(target
         ? "Loading location…" : `Library / ${defaultFolder}`);
+    if (!target && location !== `Library / ${defaultFolder}`) setLocation(`Library / ${defaultFolder}`);
     useEffect(() => {
-        if (!target) { setLocation(`Library / ${defaultFolder}`); return; }
+        if (!target) return;
         let active = true;
         const request = target.kind === "library"
             ? getLibraryFolder(target.folderId).then(({ name }) => `Library / ${name}`)

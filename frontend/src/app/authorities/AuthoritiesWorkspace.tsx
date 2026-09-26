@@ -122,7 +122,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualTitle, setManualTitle] = useState("Book of Authorities");
   const [drafts, setDrafts] = useState<WorkProductMetadata[]>([]);
-  const [draftsLoading, setDraftsLoading] = useState(true);
+  // The drafts list is loading until it has been listed for this host and project.
+  const [draftsListedFor, setDraftsListedFor] = useState<{ host: AuthoritiesHost; projectId?: string }>();
+  const draftsLoading = draftsListedFor?.host !== host || draftsListedFor.projectId !== projectId;
   const [restoredScope, setRestoredScope] = useState("");
   const [draft, setDraft] = useState<AuthoritiesProduct>();
   const [selectedId, setSelectedId] = useState("");
@@ -144,7 +146,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     quote?: string; bytes?: Uint8Array; error?: string }>();
-  const ocr = useSourceOcr(host, draft?.id);
+  const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
   const [stubWarning, setStubWarning] = useState(false);
   const [recognitionAsked, setRecognitionAsked] = useState(false), [recognizePages, setRecognizePages] = useState("");
   const [recognizeScope, setRecognizeScope] =
@@ -173,7 +175,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (navigate) {
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
-      scanRequest.current?.abort(); ocr.reset(); setRecognitionAsked(false);
+      scanRequest.current?.abort(); resetOcr(); setRecognitionAsked(false);
       previewRequest.current += 1; setSourcePreview(undefined);
       setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
       setPendingAttachment(undefined); setError(""); setMessage("");
@@ -189,7 +191,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     }
     return true;
-  }, [projectId, host.mode]);
+  }, [projectId, host.mode, resetOcr]);
   const load = useCallback(async (id: string, preserveTab = false, remembered = false) => {
     const request = ++routeRequest.current;
     setLoading(!draftRef.current);
@@ -223,14 +225,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
 
   useEffect(() => {
     let active = true;
-    setDraftsLoading(true);
     const listed = host.drafts.listMetadata
       ? host.drafts.listMetadata("authorities", projectId)
       : host.drafts.list<AuthoritiesProduct["state"]>("authorities", projectId)
         .then((items) => items.map(metadata));
     void listed.then((items) => active && setDrafts(items))
       .catch((caught) => active && setError(errorText(caught)))
-      .finally(() => active && setDraftsLoading(false));
+      .finally(() => active && setDraftsListedFor({ host, projectId }));
     return () => { active = false; };
   }, [projectId, host]);
 
@@ -325,10 +326,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
   useEffect(() => {
     reviewRequest.current?.abort();
-    if (!draftId || !host.review || !reviewKey) { setReview(undefined); return; }
+    // currentReview ignores a stored review for another draft or key, so none is cleared here.
+    if (!draftId || !host.review || !reviewKey) return;
     const request = new AbortController(); reviewRequest.current = request;
     const id = draftId, key = reviewKey;
-    setReview((current) => current?.id === id && current.key === key ? current : undefined);
     void host.review(id, request.signal).then((items) => {
       if (!request.signal.aborted) setReview({ id, key, items, error: "" });
     }).catch((caught) => {
@@ -1231,8 +1232,11 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
     document.addEventListener("selectionchange", update);
     return () => document.removeEventListener("selectionchange", update);
   }, []);
+  // A different span or text drops the remembered selection.
+  const spanKey = `${selected.authoritySpan.start}:${selected.authoritySpan.end}\n${unitText}`;
+  const [selectionFor, setSelectionFor] = useState(spanKey);
+  if (selectionFor !== spanKey) { setSelectionFor(spanKey); setSelection(null); }
   useLayoutEffect(() => {
-    setSelection(null);
     const root = surface.current;
     const marks = root && [...root.querySelectorAll<HTMLElement>("[data-authority-span]")];
     if (!root || !marks?.length) return;

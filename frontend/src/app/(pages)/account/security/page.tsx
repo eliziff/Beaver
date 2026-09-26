@@ -63,24 +63,24 @@ export default function SecurityPage() {
         );
     const reportError = (set: (message: string) => void, fallback: string) =>
         (error: unknown) => set(errorMessage(error, fallback));
-    const refreshMfaState = useCallback(async () => {
-        setStatus(null);
-        try {
-            const [factors, assurance] = await Promise.all([
-                listMfaFactors(), getMfaAssurance(),
-            ]);
-            setMfa({
+    const loadMfaState = useCallback(() =>
+        Promise.all([listMfaFactors(), getMfaAssurance()]).then(
+            ([factors, assurance]) => setMfa({
                 factorId: factors.totp?.[0]?.id ?? null,
                 sessionVerified: assurance.currentLevel === "aal2",
-            });
-        } catch (caught) {
-            setStatus(errorMessage(caught, "Authenticator status could not be loaded."));
-            setMfa({ factorId: null, sessionVerified: false });
-        }
-    }, []);
+            }),
+            (caught: unknown) => {
+                setStatus(errorMessage(caught, "Authenticator status could not be loaded."));
+                setMfa({ factorId: null, sessionVerified: false });
+            },
+        ), []);
     useEffect(() => {
-        void refreshMfaState();
-    }, [refreshMfaState]);
+        void loadMfaState();
+    }, [loadMfaState]);
+    const refreshMfaState = () => {
+        setStatus(null);
+        return loadMfaState();
+    };
     async function startEnrollment() {
         setBusyAction("action");
         setStatus(null);

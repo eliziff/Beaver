@@ -19,11 +19,9 @@ export function useReaderExpansion(target: RefObject<HTMLElement | null>, enable
         document.addEventListener("fullscreenchange", update);
         return () => document.removeEventListener("fullscreenchange", update);
     }, [target]);
+    if (!enabled && fallbackFullscreen) setFallbackFullscreen(false);
     useEffect(() => {
-        if (!enabled) {
-            setFallbackFullscreen(false);
-            if (document.fullscreenElement === target.current) void document.exitFullscreen();
-        }
+        if (!enabled && document.fullscreenElement === target.current) void document.exitFullscreen();
     }, [enabled, target]);
     async function expandReader(next: boolean) {
         if (next) restoreScroll.current = preserveReaderScroll(target.current);

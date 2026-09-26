@@ -20,27 +20,27 @@ export function ProjectChoiceList({
     disabled = false,
 }: Props) {
     const [search, setSearch] = useState("");
-    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [fetched, setFetched] = useState<{ id: string; project: Project | null } | null>(null);
     const page = usePagedQuery(
         (cursor, signal) => listProjects({ q: search, cursor }, signal),
         [search],
         projects === undefined,
         projectsCollection({ q: search }),
     );
+    // The selected project is fetched separately only when it is not listed.
+    const missingId = value && !projects?.some((project) => project.id === value) &&
+        !page.items.some((project) => project.id === value) ? value : null;
+    const selectedProject = missingId && fetched?.id === missingId ? fetched.project : null;
     useEffect(() => {
-        if (!value || projects?.some((project) => project.id === value) ||
-            page.items.some((project) => project.id === value)) {
-            setSelectedProject(null);
-            return;
-        }
+        if (!missingId) return;
         let cancelled = false;
-        getProject(value).then((project) => {
-            if (!cancelled) setSelectedProject(project);
+        getProject(missingId).then((project) => {
+            if (!cancelled) setFetched({ id: missingId, project });
         }).catch(() => {
-            if (!cancelled) setSelectedProject(null);
+            if (!cancelled) setFetched({ id: missingId, project: null });
         });
         return () => { cancelled = true; };
-    }, [page.items, projects, value]);
+    }, [missingId]);
     const visible = useMemo(() => {
         const source = projects ?? page.items;
         const query = search.trim().toLocaleLowerCase();

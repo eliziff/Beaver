@@ -75,13 +75,18 @@ export const listChats = (options?: ChatSearchOptions & {
 }, signal?: AbortSignal) => apiRequest<Chat[]>(pagePath("/chat", options ?? {}), { signal });
 export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${segment(projectId)}/chats`);
-export type ChatDetail = { chat: Chat; messages: AssistantTranscriptMessage[] };
+export type ChatDetail = { chat: Chat; messages: AssistantTranscriptMessage[]; has_earlier?: boolean };
+/** Messages per transcript page: a chat opens with its latest page and loads earlier ones on demand. */
+export const TRANSCRIPT_PAGE = 100;
 export function getChat(chatId: string): Promise<ChatDetail>;
 export function getChat(chatId: string, afterVersion: number): Promise<ChatDetail | undefined>;
 export function getChat(chatId: string, afterVersion?: number) {
   return apiRequest<ChatDetail | undefined>(
-    pagePath(`/chat/${segment(chatId)}`, { after_version: afterVersion }));
+    pagePath(`/chat/${segment(chatId)}`, { after_version: afterVersion, limit: TRANSCRIPT_PAGE }));
 }
+/** The page of messages before `before`, a message id. */
+export const getEarlierMessages = (chatId: string, before: string) => apiRequest<ChatDetail>(
+  pagePath(`/chat/${segment(chatId)}`, { before, limit: TRANSCRIPT_PAGE }));
 export const renameChat = (chatId: string, title: string) =>
   patch<void>(`/chat/${segment(chatId)}`, { title });
 export const updateChatProject = (

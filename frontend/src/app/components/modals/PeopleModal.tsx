@@ -42,11 +42,12 @@ export function PeopleModal({
         Map<string, string | null>
     >(new Map());
     const resourceId = resource?.id ?? null;
-    const sharedWith: string[] = Array.isArray(resource?.shared_with)        ? resource.shared_with        : [];    useEffect(() => {
-        if (!open) return;
-        setError(null);
-        setPending(null);
-    }, [open]);
+    const sharedWith: string[] = Array.isArray(resource?.shared_with)        ? resource.shared_with        : [];
+    const [wasOpen, setWasOpen] = useState(open);
+    if (wasOpen !== open) {
+        setWasOpen(open);
+        if (open) { setError(null); setPending(null); }
+    }
     const sharedKey = sharedWith
         .map((e) => e.toLowerCase())
         .sort()

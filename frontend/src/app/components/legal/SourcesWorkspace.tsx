@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { bindWorkspaceView, ensureSourcesWorkspace, getResearchFile, getResearchItems, getWorkspaceFindings,
   getWorkspaceViews, type ResearchFinding } from "@/app/lib/api/researchFiles";
 import { createChat } from "@/app/lib/api/chat";
@@ -36,7 +36,7 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
   const current = useRef(file), generation = useRef(0);
   const [selection, setSelection] = useState<ResearchSelection>(suppliedSelection ?? ALL_SOURCES);
   const requested = useRef({ fileId, selection: suppliedSelection });
-  requested.current = { fileId, selection: suppliedSelection };
+  useLayoutEffect(() => { requested.current = { fileId, selection: suppliedSelection }; }, [fileId, suppliedSelection]);
   const [loading, setLoading] = useState(!supplied && !!(fileId || restoreLast && localStorage.getItem(memoryKey)));
   const [error, setError] = useState("");
   const changed = useEffectEvent((next: ResearchFile | null) => onChange?.(next));
@@ -150,19 +150,21 @@ function useWorkspaceController({ fileId, file: supplied, projectId, refreshKey,
     return { id, path: `${source.document.project_id ? `/projects/${source.document.project_id}` : ""}/assistant/chat/${id}` };
   }
 
-  const [pen, setPenState] = useState<string | null>(null), [armed, setArmed] = useState(false);
+  const openedId = file?.document.id;
+  const readPen = (id: string | undefined) => id ? localStorage.getItem(`${PEN_KEY}:${id}`) : null;
+  const [pen, setPenState] = useState(() => readPen(openedId)), [penFile, setPenFile] = useState(openedId);
+  if (penFile !== openedId) { setPenFile(openedId); setPenState(readPen(openedId)); }
+  const [armed, setArmed] = useState(false);
   /** Only a mounted reader can capture a selection, so only it can offer highlighting. */
   const [reading, setReading] = useState(false);
   const [highlightError, setHighlightError] = useState("");
   const capture = useRef<(() => HighlightCapture | null) | null>(null);
-  const penFile = useRef(file?.document.id); penFile.current = file?.document.id;
-  const penId = useRef(pen); penId.current = pen;
-  const openedId = file?.document.id;
-  useEffect(() => { setPenState(openedId ? localStorage.getItem(`${PEN_KEY}:${openedId}`) : null); }, [openedId]);
+  const penId = useRef(pen);
+  useLayoutEffect(() => { penId.current = pen; }, [pen]);
   const setPen = useCallback((id: string | null) => {
-    setPenState(id); const key = penFile.current; if (!key) return;
-    if (id) localStorage.setItem(`${PEN_KEY}:${key}`, id); else localStorage.removeItem(`${PEN_KEY}:${key}`);
-  }, []);
+    setPenState(id); if (!openedId) return;
+    if (id) localStorage.setItem(`${PEN_KEY}:${openedId}`, id); else localStorage.removeItem(`${PEN_KEY}:${openedId}`);
+  }, [openedId]);
   const { act } = mutations;
   /** One deliberate write: prepare the source, ensure a pen, save the passage with it. The pen stays active. */
   const runHighlight = useCallback(async (): Promise<boolean> => {

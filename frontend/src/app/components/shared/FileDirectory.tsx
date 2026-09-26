@@ -69,7 +69,8 @@ export function FileDirectory({ documents = EMPTY, projectId, autoFocus = true,
     const [creating, setCreating] = useState(false), [createError, setCreateError] = useState("");
     const committing = useRef(false);
     const naming = !!newDocument;
-    useEffect(() => { if (naming) { setSearch(""); setCreateError(""); } }, [naming]);
+    const [wasNaming, setWasNaming] = useState(naming);
+    if (wasNaming !== naming) { setWasNaming(naming); if (naming) { setSearch(""); setCreateError(""); } }
     const activeTab = showTabs ? tab : "files";
     const query = search.trim();
     const libraryKind = activeTab === "templates" ? "templates" : "files";

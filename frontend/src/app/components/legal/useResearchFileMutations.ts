@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { actOnResearchFile, getResearchFile, runResearchFileQuery } from "@/app/lib/api/researchFiles";
 import { BeaverApiError } from "@/app/lib/api/client";
 import type { ResearchAction, ResearchActionResult, ResearchFile, ResearchQueryInput,
@@ -16,12 +16,14 @@ export function useResearchFileMutations(file: ResearchFile | null,
   onChange: (file: ResearchFile) => void): ResearchFileMutations {
   const current = useRef(file), changed = useRef(onChange), tail = useRef(Promise.resolve()),
     documentId = useRef(file?.document.id), generation = useRef(0);
-  changed.current = onChange;
-  if (documentId.current !== file?.document.id) {
-    documentId.current = file?.document.id; current.current = file;
-    generation.current++; tail.current = Promise.resolve();
-  } else if (file && (!current.current || file.versionId !== current.current.versionId ||
-      file.workingRevision > current.current.workingRevision)) current.current = file;
+  useLayoutEffect(() => {
+    changed.current = onChange;
+    if (documentId.current !== file?.document.id) {
+      documentId.current = file?.document.id; current.current = file;
+      generation.current++; tail.current = Promise.resolve();
+    } else if (file && (!current.current || file.versionId !== current.current.versionId ||
+        file.workingRevision > current.current.workingRevision)) current.current = file;
+  }, [file, onChange]);
 
   const enqueue = useCallback(<T,>(operation: (file: ResearchFile) => Promise<Outcome<T>>, retryConnection = false) => {
     const id = documentId.current, run = generation.current;
