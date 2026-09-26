@@ -301,12 +301,22 @@ export function sourceLocator(pinpoint: AuthorityOccurrence["pinpoints"][number]
 export async function reviewAuthoritiesDiscrepancies(
   draft: AuthoritiesDraft, signal?: AbortSignal,
 ) {
-  const footnotes = new Set(draft.units.filter(({ kind }) => kind === "footnote").map(({ id }) => id));
+  // Only a footnote with one source and a quotation in its proposition can yield a
+  // finding, so no other occurrence's passage is read.
+  const propositions = footnotePropositions(draft.units), footnotes = new Set<string>();
+  for (const unit of draft.units) {
+    const proposition = unit.kind === "footnote" && unit.footnoteId
+      ? propositions.get(unit.footnoteId)?.text : undefined;
+    const occurrence = proposition && markedQuotations(proposition).length
+      ? singleSourceFootnote(draft, unit) : null;
+    if (occurrence) footnotes.add(occurrence.id);
+  }
+  const viewers = new Map<string, ReturnType<ReturnType<typeof structureNative>["legalSourceViewer"]>>();
   const candidates = Object.values(draft.occurrences).flatMap((occurrence) => {
     const authority = occurrence.authorityId ? draft.authorities[occurrence.authorityId] : null;
     const identity = authority?.sourceIdentity, pinpoint = occurrence.pinpoints[0];
     const locator = pinpoint && occurrence.pinpoints.length === 1 ? sourceLocator(pinpoint) : null;
-    return footnotes.has(occurrence.unitId) && identity?.provider === "a2aj" &&
+    return footnotes.has(occurrence.id) && identity?.provider === "a2aj" &&
       (authority?.kind === "case" || authority?.kind === "legislation") && locator
       ? [{ occurrence, authority, identity, locator }] : [];
   });
@@ -323,8 +333,12 @@ export async function reviewAuthoritiesDiscrepancies(
       const selections = values.filter(({ role }) => role === "selected"), selected = selections[0];
       if (!selected || selections.some(value => structureNative().documentRevision(value.documentArtifact) !==
           identity.sourceSha256)) return [];
-      const viewer = structureNative().legalSourceViewer(selected.documentArtifact,
-        locator.kind === "section" ? "section" : "paragraph", 10_000);
+      // Several footnotes quoting one decision share its viewer.
+      const mode = locator.kind === "section" ? "section" : "paragraph";
+      const viewerKey = `${identity.sourceSha256}\0${mode}`;
+      const viewer = viewers.get(viewerKey) ?? structureNative().legalSourceViewer(
+        selected.documentArtifact, mode, 10_000);
+      viewers.set(viewerKey, viewer);
       const alternatives = viewer.slices.flatMap(({ primary, text }) => primary &&
         primary.kind === locator.kind
         ? [{ locator: { kind: primary.kind, label: primary.label }, text }] : []);

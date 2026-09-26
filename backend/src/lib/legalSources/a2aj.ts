@@ -274,9 +274,14 @@ async function document(args: {
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
     citation.toLowerCase(), sourceUrl, args.section?.trim() ?? "",
   ]), sourceUrl = args.sourceUrl?.trim() ?? "", key = cacheKey(sourceUrl);
-  const cached = documents.get(key) ?? (sourceUrl ? documents.get(cacheKey("")) : undefined);
-  if (cached && cached.expires > Date.now() && (!sourceUrl || cached.value.url === sourceUrl)) return cached.value;
-  if (cached) documents.delete(key);
+  const hitKey = documents.has(key) || !sourceUrl ? key : cacheKey("");
+  const cached = documents.get(hitKey);
+  if (cached && cached.expires > Date.now() && (!sourceUrl || cached.value.url === sourceUrl)) {
+    // Least recently used goes first: a book that cites a case on every page keeps it.
+    documents.delete(hitKey); documents.set(hitKey, cached);
+    return cached.value;
+  }
+  if (cached) documents.delete(hitKey);
   const section = args.section?.trim();
   if (section) {
     const full = await document({ ...args, section: undefined });
