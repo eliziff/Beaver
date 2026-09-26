@@ -475,3 +475,27 @@ describe("standalone Authorities sources", () => {
   });
 
 });
+
+it('keeps eager recognition asynchronous and only exposes text after preparation completes', async () => {
+  const file = new File(['%PDF-scan'], 'scan.pdf'), hash = await sha256(file), binding = input(hash, file.size);
+  const saved = product(binding); saved.id = 'recognition-test'; saved.state.bindings.scan = binding;
+  drafts.get.mockResolvedValue(saved);
+  fileStore.resolveStandaloneFile.mockResolvedValue({ status: 'ready', file, input: binding });
+  let complete!: () => void;
+  const prepared = new Promise<void>(resolve => { complete = resolve; });
+  const text = { pages: [{ pageNumber: 1, width: 612, height: 792, lines: [] }] };
+  api.apiResponse.mockImplementation(async (_path, init) => {
+    const form = init.body as FormData;
+    if (form.get('prepareOnly') === 'true') {
+      await prepared;
+      return { json: async () => ({ pages: [], pdfProfile: { cacheKey: 'prepared-source' } }) };
+    }
+    return { json: async () => form.has('pdfProfile') ? text : { pages: [] } };
+  });
+  await expect(standaloneAuthoritiesHost.readSourceText!(saved, 'scan')).resolves.toEqual({ pages: [] });
+  const [job] = await standaloneAuthoritiesHost.sourceOcr!.start(saved.id, ['scan']);
+  expect((await standaloneAuthoritiesHost.sourceOcr!.progress([job.documentId!]))[0].done).toBe(false);
+  complete();
+  await vi.waitFor(async () => expect((await standaloneAuthoritiesHost.sourceOcr!.progress([job.documentId!]))[0].done).toBe(true));
+  await expect(standaloneAuthoritiesHost.readSourceText!(saved, 'scan')).resolves.toEqual(text);
+});
