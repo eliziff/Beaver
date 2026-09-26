@@ -60,7 +60,9 @@ export async function authorityPdfText(input: {
     } else if (!targets.length) recognizedPages = new Set();
     // A paragraph or section on a scan cannot be located until the scan is read.
     // This fallback is disclosed beside the cited-pages option in the UI.
-    if (!recognizedPages || recognizedPages.size) recognized = await projection.preparePdf({ ...options,
+    // A PDF whose pages all carry text has nothing to recognize, and needs no recognizer.
+    if ((native.pagesNeedingOcr?.length ?? 1) && (!recognizedPages || recognizedPages.size))
+      recognized = await projection.preparePdf({ ...options,
       // Recognized pages are held zero-based for indexing; the engine numbers them from one.
       ocrProvider: "kraken-lite", ...(recognizedPages
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
