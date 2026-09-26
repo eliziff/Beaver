@@ -1,8 +1,39 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
+    createUserCredentials,
     getEnvironmentApiKeyStatus,
     hasEnvApiKey,
 } from "../userApiKeys";
+import { DatabaseSync } from "node:sqlite";
+import { readFileSync } from "node:fs";
+import { LocalDatabase } from "../localDatabase";
+import { sql } from "../relational";
+
+it("keeps encrypted personal keys isolated, overrides the server and restores it on removal", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "shared");
+    vi.stubEnv("USER_API_KEYS_ENCRYPTION_SECRET", "test-secret-".repeat(6));
+    const native = new DatabaseSync(":memory:");
+    native.exec(/-- BEAVER_CORE_BEGIN\s*([\s\S]*?)\s*-- BEAVER_CORE_END/u
+        .exec(readFileSync("schema.sql", "utf8"))![1]);
+    const database = new LocalDatabase(native), credentials = createUserCredentials(database);
+    try {
+        await credentials.save!("alice", "openai", "private-value");
+        expect((await credentials.keys("alice")).openai).toBe("private-value");
+        expect((await credentials.keys("bob")).openai).toBe("shared");
+        expect((await credentials.status("alice")).sources.openai).toBe("user");
+        const rows = await database.query(sql`SELECT * FROM user_api_keys`);
+        expect(JSON.stringify(rows)).not.toContain("private-value");
+        // Authentication binds ciphertext to both its owner and provider.
+        await database.query(sql`UPDATE user_api_keys SET user_id=${"bob"}`);
+        await expect(credentials.keys("bob")).rejects.toThrow("could not be read");
+        await credentials.save!("bob", "openai", null);
+        expect((await credentials.keys("bob")).openai).toBe("shared");
+        expect((await credentials.status("bob")).sources.openai).toBe("env");
+    } finally {
+        await database.close();
+        vi.unstubAllEnvs();
+    }
+});
 describe("hasEnvApiKey", () => {
     const envVars = [
         "ANTHROPIC_API_KEY",

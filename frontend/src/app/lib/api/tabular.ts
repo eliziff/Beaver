@@ -11,7 +11,6 @@ import {
 } from "@/app/lib/api/client";
 
 import type { Document } from "@/app/lib/api/documents";
-import type { ProjectPeople } from "@/app/lib/api/projects";
 import type { GroundedAnswer, GroundedEvidence } from "@/app/lib/groundedAnswers";
 import type { ResearchChange, ResearchProposal, ResearchSelection, ResearchSourceReference } from "@/app/lib/researchFiles";
 
@@ -40,6 +39,7 @@ export interface ColumnConfig {
   tags?: string[];
 }
 export interface TabularReview {
+  role?: "viewer" | "editor" | "owner" | null;
   id: string;
   project_id: string | null;
   user_id: string;
@@ -109,8 +109,6 @@ export const updateTabularReview = (
     expected_version?: string;
   },
 ) => patch<TabularReview>(`/tabular-review/${segment(reviewId)}`, payload);
-export const getTabularReviewPeople = (reviewId: string) =>
-  apiRequest<ProjectPeople>(`/tabular-review/${segment(reviewId)}/people`);
 export const getTabularHistory = (reviewId: string, offset = 0, signal?: AbortSignal) =>
   apiRequest<{ items: ResearchChange[]; total: number; next_offset: number | null }>(
     pagePath(`/tabular-review/${segment(reviewId)}/history`, { offset, limit: 50 }), { signal });

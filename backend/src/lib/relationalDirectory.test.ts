@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import type { RelationalDatabase, SqlStatement } from "./relational";
@@ -25,30 +27,24 @@ beforeEach(() => {
     const bindings = Object.fromEntries(statement.params.map((value, i) => [`$${i + 1}`, value]));
     return { rows: native.prepare(statement.text).all(bindings) as T[], changes: 0 };
   }, transaction: async (run) => run(database), close: async () => native.close() };
+  const schema = readFileSync(path.resolve(process.cwd(), "schema.sql"), "utf8");
+  native.exec(/-- BEAVER_CORE_BEGIN\s*([\s\S]*?)\s*-- BEAVER_CORE_END/u.exec(schema)![1]);
   native.exec(`
-    CREATE TABLE projects(id TEXT PRIMARY KEY,user_id TEXT,name TEXT,created_at TEXT,updated_at TEXT);
-    CREATE TABLE project_members(project_id TEXT,email TEXT);
-    CREATE TABLE library_folders(id TEXT PRIMARY KEY,user_id TEXT,library_kind TEXT,name TEXT,
-      parent_folder_id TEXT,created_at TEXT,updated_at TEXT);
-    CREATE TABLE project_subfolders(id TEXT PRIMARY KEY,project_id TEXT,name TEXT,
-      parent_folder_id TEXT,created_at TEXT,updated_at TEXT);
-    CREATE TABLE documents(id TEXT PRIMARY KEY,user_id TEXT,project_id TEXT,library_kind TEXT,
-      filename TEXT,library_folder_id TEXT,folder_id TEXT);
-    INSERT INTO projects VALUES ('owned','alice','Owned','created','updated'),
+    INSERT INTO projects(id,user_id,name,created_at,updated_at) VALUES ('owned','alice','Owned','created','updated'),
       ('shared','bob','Shared','created','updated'),('private','bob','Private','created','updated');
-    INSERT INTO project_members VALUES ('shared','alice@example.com');
+    INSERT INTO project_members(project_id,email) VALUES ('shared','alice@example.com');
   `);
   for (const prefix of ["l", "p"]) {
     for (const [id, name, parent] of [["a", "ALPHA", null], ["b", "alpha", null],
       ["z", "Zulu", null], ["child", "Child", `${prefix}-a`]]) {
       const values = [`${prefix}-${id}`, name, parent, "created", "updated"];
       if (prefix === "l") native.prepare("INSERT INTO library_folders VALUES (?, 'alice', 'file', ?, ?, ?, ?)").run(...values);
-      else native.prepare("INSERT INTO project_subfolders VALUES (?, 'owned', ?, ?, ?, ?)").run(...values);
+      else native.prepare("INSERT INTO project_subfolders(id,project_id,name,parent_folder_id,created_at,updated_at,user_id) VALUES (?, 'owned', ?, ?, ?, ?, 'alice')").run(...values);
     }
     for (const [id, name, parent] of [["a", "ALPHA.pdf", null], ["b", "alpha.pdf", null],
       ["z", "Zulu.pdf", null], ["child", "needle.pdf", `${prefix}-a`],
       ["grandchild", "100%_!.pdf", `${prefix}-child`]]) {
-      native.prepare("INSERT INTO documents VALUES (?, 'alice', ?, 'file', ?, ?, ?)").run(
+      native.prepare("INSERT INTO documents(id,user_id,project_id,library_kind,filename,library_folder_id,folder_id,current_version_id,created_at,updated_at) VALUES (?, 'alice', ?, 'file', ?, ?, ?, 'version', 'created', 'updated')").run(
         `${prefix}-doc-${id}`, prefix === "l" ? null : "owned", name,
         prefix === "l" ? parent : null, prefix === "p" ? parent : null);
     }
@@ -56,12 +52,12 @@ beforeEach(() => {
   native.exec(`
     INSERT INTO library_folders VALUES ('template-folder','alice','template','Template',NULL,'created','updated'),
       ('foreign-folder','bob','file','Foreign',NULL,'created','updated');
-    INSERT INTO project_subfolders VALUES ('shared-folder','shared','Shared',NULL,'created','updated'),
-      ('private-folder','private','Private',NULL,'created','updated');
-    INSERT INTO documents VALUES ('template-doc','alice',NULL,'template','Template.pdf',NULL,NULL),
-      ('foreign-doc','bob',NULL,'file','Foreign.pdf',NULL,NULL),
-      ('shared-doc','bob','shared','file','Shared.pdf',NULL,NULL),
-      ('private-doc','bob','private','file','Private.pdf',NULL,NULL);
+    INSERT INTO project_subfolders(id,project_id,name,parent_folder_id,created_at,updated_at,user_id) VALUES ('shared-folder','shared','Shared',NULL,'created','updated','bob'),
+      ('private-folder','private','Private',NULL,'created','updated','bob');
+    INSERT INTO documents(id,user_id,project_id,library_kind,filename,library_folder_id,folder_id,current_version_id,created_at,updated_at) VALUES ('template-doc','alice',NULL,'template','Template.pdf',NULL,NULL,'version','created','updated'),
+      ('foreign-doc','bob',NULL,'file','Foreign.pdf',NULL,NULL,'version','created','updated'),
+      ('shared-doc','bob','shared','file','Shared.pdf',NULL,NULL,'version','created','updated'),
+      ('private-doc','bob','private','file','Private.pdf',NULL,NULL,'version','created','updated');
   `);
 });
 afterEach(async () => database.close());
@@ -118,10 +114,10 @@ for (const [prefix, read] of [["l", library], ["p", project]] as const) {
       }
     });
     it("continues after a deleted cursor row", async () => {
-      const first = await read({ limit: 1 });
+      const first = await read({ limit: 2 });
       native.prepare(`DELETE FROM ${prefix === "l" ? "library_folders" : "project_subfolders"} WHERE id=?`)
-        .run(`${prefix}-a`);
-      assert.deepEqual(ids(await read({ after: first.nextAfter })), expected.slice(1));
+        .run(`${prefix}-b`);
+      assert.deepEqual(ids(await read({ after: first.nextAfter })), expected.slice(2));
     });
     it("treats folder IDs and search strings as bound data", async () => {
       assert.deepEqual(ids(await read({ parentFolderId: "' OR 1=1 --" })), []);

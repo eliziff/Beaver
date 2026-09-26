@@ -1,27 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users } from "lucide-react";
 import {
   deleteWorkflow,
-  deleteWorkflowShare,
   getWorkflow,
-  listWorkflowShares,
-  shareWorkflow,
   updateWorkflow,
   exportWorkflow,
   type Workflow,
   type WorkflowVariant,
 } from "@/app/lib/api/workflows";
-import { lookupUserByEmail } from "@/app/lib/api/account";
-import type { ProjectPeople } from "@/app/lib/api/projects";
-import { useAuth } from "@/app/contexts/AuthContext";
-import { useUserProfile } from "@/app/contexts/UserProfileContext";
-import { isLocalMode } from "@/app/lib/authMode";
 import { downloadBlob } from "@/app/lib/download";
+import { uploadDocumentSession } from "@/app/lib/api/uploads";
+import { deleteDocument, downloadDocument, uploadDocumentVersion } from "@/app/lib/api/documents";
 import type { ColumnConfig } from "@/app/lib/api/tabular";
 
 import { AddColumnModal } from "../tabular/AddColumnModal";
-import { PeopleModal } from "../modals/PeopleModal";
+import { AccessModal } from "../modals/AccessModal";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { MoreActionsMenu, type MoreActionsMenuItem } from "../shared/MoreActionsMenu";
 import { PageHeader, type PageHeaderAction } from "../shared/PageHeader";
@@ -30,20 +24,24 @@ import { NewWorkflowModal } from "./NewWorkflowModal";
 import { workflowPath } from "./workflowRoutes";
 
 type Modal = "details" | "share" | "delete" | null;
-const normalizeEmail = (email: string) => email.trim().toLowerCase();
 const variantInput = ({ label, result, execution, skill_md, columns_config }: WorkflowVariant) =>
     ({ label, result, execution, skill_md, columns_config });
 
 export function WorkflowDetailPage({ id }: { id: string }) {
     const navigate = useNavigate();
-    const { user } = useAuth();
-    const { profile } = useUserProfile();
     const [workflow, setWorkflow] = useState<Workflow | null>();
     const [modal, setModal] = useState<Modal>(null);
     const [column, setColumn] = useState<ColumnConfig | "new" | null>(null);
     const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-    const [sharedWith, setSharedWith] = useState<string[]>([]);
     const [deleting, setDeleting] = useState(false);
+    const [fileError, setFileError] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
+    async function changeFiles(operation: () => Promise<unknown>) {
+        setUploading(true); setFileError(null);
+        try { await operation(); setWorkflow(await getWorkflow(id)); }
+        catch (error) { setFileError(error instanceof Error ? error.message : "The file could not be updated."); }
+        finally { setUploading(false); }
+    }
     useEffect(() => {
         getWorkflow(id).then((loaded) => {
             if (loaded.is_system) { navigate(`/workflows?workflow=${encodeURIComponent(loaded.id)}`,
@@ -55,27 +53,7 @@ export function WorkflowDetailPage({ id }: { id: string }) {
     }, [id, navigate]);
     const variant = workflow?.launcher.kind === "instructions" ? workflow.launcher.variants[0] : undefined;
     const readOnly = workflow?.is_system !== false || workflow.allow_edit === false;
-    const canShare = !isLocalMode && !readOnly && workflow?.is_owner !== false;
-    const fetchPeople = useCallback(async (): Promise<ProjectPeople> => {
-        const shares = await listWorkflowShares(id);
-        const emails = shares.map(({ shared_with_email }) => normalizeEmail(shared_with_email));
-        setSharedWith(emails);
-        return { owner: { email: user?.email ?? null, display_name: profile?.displayName ?? null },
-            members: await Promise.all(emails.map(async (email) => ({ email, display_name:
-                (await lookupUserByEmail(email).catch(() => null))?.display_name ?? null }))) };
-    }, [id, profile?.displayName, user?.email]);
-    async function changeSharedWith(next: string[]) {
-        const emails = [...new Set(next.map(normalizeEmail).filter(Boolean))];
-        const current = await listWorkflowShares(id);
-        const byEmail = new Map(current.map((share) => [normalizeEmail(share.shared_with_email), share]));
-        await Promise.all([
-            ...current.filter(({ shared_with_email }) => !emails.includes(normalizeEmail(shared_with_email)))
-                .map(({ id: shareId }) => deleteWorkflowShare(id, shareId)),
-            ...(emails.some((email) => !byEmail.has(email)) ? [shareWorkflow(id, {
-                emails: emails.filter((email) => !byEmail.has(email)), allow_edit: false })] : []),
-        ]);
-        setSharedWith(emails);
-    }
+    const canShare = workflow?.is_system === false;
     async function saveVariant(next: WorkflowVariant) {
         if (!workflow || readOnly) return;
         setStatus("saving");
@@ -145,14 +123,38 @@ export function WorkflowDetailPage({ id }: { id: string }) {
                             </button>)}
                     </div>
                 </section>}
+                <section className="mt-6 space-y-3" aria-label="Reference documents">
+                    <h2 className="text-base font-medium text-gray-900">Reference documents</h2>
+                    {!readOnly && <label className="block text-sm text-gray-700">Add files
+                        <input type="file" multiple disabled={uploading} className="mt-2 block w-full"
+                            onChange={(event) => { const files = Array.from(event.target.files ?? []); event.target.value = "";
+                                void changeFiles(async () => { for (const file of files) await uploadDocumentSession(file, { workflow_id: id }); }); }} />
+                    </label>}
+                    {fileError && <p role="alert" className="text-sm text-red-700">{fileError}</p>}
+                    {(workflow.documents ?? []).map((document) => <div key={document.id} className="flex flex-wrap items-center gap-3 text-sm">
+                        <button type="button" className="underline" onClick={() => void downloadDocument(document.id, document.current_version_id)
+                            .then(({ blob, filename }) => downloadBlob(blob, filename ?? document.filename))
+                            .catch(() => setFileError("The file could not be downloaded."))}>{document.filename}</button>
+                        {!readOnly && <>
+                            <label className="text-gray-600">New version
+                                <input type="file" disabled={uploading} aria-label={`Upload a new version of ${document.filename}`}
+                                    onChange={(event) => { const file = event.target.files?.[0]; event.target.value = "";
+                                        if (file) void changeFiles(() => uploadDocumentVersion(document.id, file,
+                                            document.current_version_id, document.current_working_revision)); }} />
+                            </label>
+                            <button type="button" disabled={uploading} aria-label={`Remove ${document.filename}`}
+                                onClick={() => { if (window.confirm(`Remove ${document.filename} from this workflow?`))
+                                    void changeFiles(() => deleteDocument({ ...document, project_id: null, folder_id: null })); }}>Remove</button>
+                        </>}
+                    </div>)}
+                </section>
             </main>}
             {workflow && <>
                 <NewWorkflowModal open={modal === "details"} editWorkflow={workflow}
                     onClose={() => setModal(null)} onUpdated={setWorkflow} />
-                <PeopleModal open={modal === "share"} fetchPeople={fetchPeople}
-                    onClose={() => setModal(null)} resource={{ id, shared_with: sharedWith }}
-                    currentUserEmail={user?.email ?? null} breadcrumb={["Workflows", workflow.metadata.title, "People"]}
-                    onSharedWithChange={changeSharedWith} />
+                <AccessModal open={modal === "share"} onClose={() => setModal(null)}
+                    kind="workflow" resourceId={id} title={workflow.metadata.title}
+                    onChange={async () => setWorkflow(await getWorkflow(id))} />
                 <ConfirmPopup open={modal === "delete"} title="Delete workflow?"
                     message="This permanently deletes the workflow." confirmLabel="Delete workflow"
                     confirmStatus={deleting ? "loading" : "idle"}

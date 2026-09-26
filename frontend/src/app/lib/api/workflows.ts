@@ -26,6 +26,8 @@ export type WorkflowLauncher =
   | { kind: "authorities" }
   | { kind: "court_records" } | { kind: "fix_supras" } | { kind: "quote_check"; variants: WorkflowVariant[] };
 export interface Workflow {
+  documents?: Array<{ id: string; filename: string; current_version_id: string;
+    current_working_revision: number; source_sha256: string; size_bytes: number }>;
   id: string;
   user_id: string | null;
   metadata: {
@@ -49,6 +51,8 @@ export interface Workflow {
   shared_by_name?: string | null;
   allow_edit?: boolean;
   is_owner?: boolean;
+  source_commit?: string;
+  references?: Array<{ filename: string; sha256: string; size_bytes: number; variant_id?: string }>;
 }
 const workflowLists = new Map<string, Promise<Workflow[]>>();
 export const listWorkflows = (options: {
@@ -59,9 +63,10 @@ export const listWorkflows = (options: {
   if (signal) return apiRequest<Workflow[]>(path, { signal });
   const pending = workflowLists.get(path);
   if (pending) return pending;
-  const request = apiRequest<Workflow[]>(path).catch((error) => {
-    workflowLists.delete(path);
-    throw error;
+  const request = apiRequest<Workflow[]>(path).finally(() => {
+    // Deduplicate concurrent reads, but do not freeze an independently
+    // installed catalogue (or another user's grants) for the whole session.
+    if (workflowLists.get(path) === request) workflowLists.delete(path);
   });
   workflowLists.set(path, request);
   return request;
@@ -74,6 +79,8 @@ export const getWorkflow = (workflowId: string) =>
   apiRequest<Workflow>(`/workflows/${segment(workflowId)}`);
 export const exportWorkflow = (workflowId: string) =>
   apiBlobRequest(`/workflows/${segment(workflowId)}/export`);
+export const downloadWorkflowReference = (workflowId: string, filename: string, sha256: string) =>
+  apiBlobRequest(`/workflows/${segment(workflowId)}/references/${segment(filename)}?sha256=${segment(sha256)}`);
 export const createWorkflow = (payload: {
   metadata: {
     title: string;
@@ -105,16 +112,5 @@ export const updateWorkflow = (
 ) => refreshWorkflowLists(patch<Workflow>(`/workflows/${segment(workflowId)}`, payload));
 export const deleteWorkflow = (workflowId: string) =>
   refreshWorkflowLists(remove<void>(`/workflows/${segment(workflowId)}`));
-export const shareWorkflow = (
-  workflowId: string,
-  payload: { emails: string[]; allow_edit: boolean },
-) => post<void>(`/workflows/${segment(workflowId)}/share`, payload);
-export const listWorkflowShares = (workflowId: string) =>
-  apiRequest<{
-    id: string; shared_with_email: string;
-  }[]>(`/workflows/${segment(workflowId)}/shares`);
-export const deleteWorkflowShare = (workflowId: string, shareId: string) =>
-  remove<void>(`/workflows/${segment(workflowId)}/shares/${segment(shareId)}`);
-
 export const streamQuoteCheck = (documentId: string, versionId?: string | null) =>
   streamRequest("/quote-check", { documentId, ...(versionId && { versionId }) }, { accept: "text/event-stream" });

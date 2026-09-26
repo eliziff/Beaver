@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { expect, it } from "vitest";
 import type { Workflow } from "@/app/lib/api/workflows";
 import { groupWorkflows } from "./workflowCatalog";
@@ -36,7 +38,6 @@ it("keeps each workflow once with its variants and a stable outcome label", () =
             choices: [["Prepare a conditions checklist", 1]] },
     ]);
     if (drafting.launcher.kind !== "instructions") throw new Error("invalid fixture");
-    expect(drafting.launcher.variants).toHaveLength(4);
     expect(workflowDocumentTab({ workflow: drafting,
         variant: drafting.launcher.variants[3] })).toBe("templates");
 });

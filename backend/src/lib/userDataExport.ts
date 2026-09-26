@@ -1,128 +1,118 @@
-import { ApplicationError } from "./applicationError";
-import { createServerSupabase } from "./supabase";
+import { ApplicationError, type ApplicationScope } from "./applicationError";
+import { sql, type RelationalDatabase, type SqlStatement } from "./relational";
+import { chatAccess, documentAccess, projectAccess, reviewAccess, workflowAccessPredicate } from "./resourceAccess";
+import type { UserExportKind } from "./userApplication";
+import { sealExport } from "mike/shared/export-integrity.mjs";
 
-type Db = ReturnType<typeof createServerSupabase>;
-type Row = Record<string, unknown>;
-const PAGE_SIZE = 250;
 const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
+type Row = Record<string, unknown>;
 
-export function userExportFilename(kind: "account" | "chats" | "tabular-reviews",
-  userId: string) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `beaver-${kind}-export-${userId.slice(0, 8)}-${stamp}.json`;
-}
-
-const idsFrom = (rows: Row[], column = "id") => [...new Set(rows.flatMap((row) =>
-  typeof row[column] === "string" ? [row[column] as string] : []))];
-
-function exportReader(db: Db) {
+function snapshotReader(db: RelationalDatabase) {
   let bytes = 0;
-  const all = async (table: string, configure: (query: any) => any,
-    columns = "*"): Promise<Row[]> => {
-    const rows: Row[] = [];
-    for (let from = 0; ; from += PAGE_SIZE) {
-      const { data, error } = await configure((db as any).from(table).select(columns)
-        .range(from, from + PAGE_SIZE - 1));
-      if (error) throw new Error(`Failed to export ${table}`);
-      const batch = (data ?? []) as Row[];
+  return async (query: SqlStatement) => {
+    const result: Row[] = [];
+    for (let offset = 0; ; offset += 250) {
+      const batch = (await db.query({ text: `${query.text} LIMIT 250 OFFSET ${offset}`, params: query.params })).rows;
       bytes += Buffer.byteLength(JSON.stringify(batch));
-      if (bytes > MAX_EXPORT_BYTES) throw new ApplicationError(413,
-        "Export exceeds the safe in-memory size limit");
-      rows.push(...batch);
-      if (batch.length < PAGE_SIZE) break;
+      if (bytes > MAX_EXPORT_BYTES) throw new ApplicationError(413, "Export exceeds the safe in-memory size limit");
+      result.push(...batch);
+      if (batch.length < 250) return result;
     }
-    return rows;
   };
-  const byIds = (table: string, column: string, ids: string[]) => ids.length
-    ? all(table, (query) => query.in(column, ids)) : Promise.resolve([] as Row[]);
-  return { all, byIds };
-}
-type Reader = ReturnType<typeof exportReader>;
-
-async function loadUserChats(read: Reader, userId: string) {
-  const chats = await read.all("chats", (query) => query.eq("user_id", userId)
-    .order("created_at", { ascending: true }));
-  return { chats, messages: await read.byIds("chat_messages", "chat_id", idsFrom(chats)) };
 }
 
-const exportHeader = (userId: string, userEmail?: string | null) => ({
-  exported_at: new Date().toISOString(),
-  user: { id: userId, email: userEmail ?? null },
-});
-
-export async function buildUserChatsExport(db: Db, userId: string,
-  userEmail?: string | null) {
-  return { ...exportHeader(userId, userEmail),
-    chats: await loadUserChats(exportReader(db), userId) };
+/** A consistent, permission-scoped snapshot. Credentials and invitation secrets never enter it. */
+export async function buildUserDataExport(database: RelationalDatabase, kind: UserExportKind, scope: ApplicationScope) {
+  return database.transaction(async (db) => {
+    if (db.engine === "postgres") await db.query(sql.raw("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"));
+    const read = snapshotReader(db);
+    const ids = (rows: Row[]) => sql.join(rows.map((row) => String(row.id)));
+    const children = (table: string, column: string, parents: Row[]) => parents.length
+      ? read(sql`SELECT * FROM ${sql.raw(table)} WHERE ${sql.raw(column)} IN(${ids(parents)})
+          ORDER BY ${sql.raw(column)},${sql.raw(table === "chat_message_events" ? "ordinal"
+            : table === "document_version_parts" ? "version_id,name" : table === "workflow_documents" ? "document_id" : "id")}`)
+      : Promise.resolve([] as Row[]);
+    const data: Record<string, unknown> = { exported_at: new Date().toISOString(),
+      user: { id: scope.userId, email: scope.userEmail ?? null } };
+    const chats = await read(sql`SELECT c.* FROM chats c WHERE c.user_id=${scope.userId}
+      AND ${chatAccess(scope)} ORDER BY c.created_at,c.id`);
+    const reviews = kind === "chats" ? [] : await read(sql`SELECT r.* FROM tabular_reviews r
+      WHERE r.user_id=${scope.userId} AND ${reviewAccess(scope)} ORDER BY r.created_at,r.id`);
+    if (kind === "tabular-reviews") {
+      const reviewChats = reviews.length ? await read(sql`SELECT c.* FROM chats c
+        WHERE c.tabular_review_id IN(${ids(reviews)}) AND ${chatAccess(scope)} ORDER BY c.created_at,c.id`) : [];
+      chats.splice(0, chats.length, ...reviewChats);
+    }
+    const messages = await children("chat_messages", "chat_id", chats);
+    data.chats = { chats, messages, events: await children("chat_message_events", "message_id", messages) };
+    if (kind !== "chats") {
+      data.tabular_reviews = reviews;
+      data.tabular_cells = await children("tabular_cells", "review_id", reviews);
+      data.tabular_changes = await children("tabular_changes", "review_id", reviews);
+    }
+    if (kind === "account") {
+      const projects = await read(sql`SELECT p.* FROM projects p WHERE p.user_id=${scope.userId}
+        AND ${projectAccess(scope)} ORDER BY p.created_at,p.id`);
+      const documents = await read(sql`SELECT d.* FROM documents d WHERE
+        (d.user_id=${scope.userId} OR d.project_id IN(${ids(projects)}) OR d.id IN(
+          SELECT wd.document_id FROM workflow_documents wd JOIN workflows w ON w.id=wd.workflow_id
+          WHERE w.user_id=${scope.userId} AND ${workflowAccessPredicate(scope)}))
+        AND ${documentAccess(scope)} ORDER BY d.created_at,d.id`);
+      data.projects = projects;
+      data.project_subfolders = await children("project_subfolders", "project_id", projects);
+      data.documents = documents;
+      for (const table of ["document_versions", "document_version_parts", "document_edits"])
+        data[table] = await children(table, "document_id", documents);
+      const workflows = await read(sql`SELECT w.* FROM workflows w WHERE w.user_id=${scope.userId}
+        AND ${workflowAccessPredicate(scope)} ORDER BY w.created_at,w.id`);
+      data.workflows = workflows;
+      data.workflow_documents = await children("workflow_documents", "workflow_id", workflows);
+      data.workflow_shares = await children("workflow_shares", "workflow_id", workflows);
+      data.workflow_open_source_submissions = await children("workflow_open_source_submissions", "workflow_id", workflows);
+      data.work_products = await read(sql`SELECT w.* FROM work_products w WHERE w.user_id=${scope.userId}
+        AND (w.project_id IS NULL OR EXISTS(SELECT 1 FROM projects p WHERE p.id=w.project_id AND ${projectAccess(scope)})) ORDER BY w.id`);
+      for (const table of ["audit_events", "user_preferences"])
+        data[table] = await read(sql`SELECT * FROM ${sql.raw(table)} WHERE user_id=${scope.userId}
+          ORDER BY ${sql.raw(table === "audit_events" ? "id" : "user_id")}`);
+      data.api_keys = await read(sql`SELECT provider,created_at,updated_at FROM user_api_keys
+        WHERE user_id=${scope.userId} ORDER BY provider`);
+      data.memory = await read(sql`SELECT m.* FROM memory_files m WHERE
+        (m.scope='app' AND m.owner_id=${scope.userId}) OR (m.scope='project' AND EXISTS(
+          SELECT p.id FROM projects p WHERE p.id=m.project_id AND ${projectAccess(scope)})) ORDER BY m.scope,m.owner_id`);
+      data.organizations = await read(sql`SELECT o.*,m.role FROM organizations o JOIN org_members m
+        ON m.org_id=o.id WHERE m.user_id=${scope.userId} ORDER BY o.id`);
+      data.shared_access = {
+        projects: await read(sql`SELECT p.id,p.name,p.org_id FROM projects p WHERE p.user_id<>${scope.userId} AND ${projectAccess(scope)} ORDER BY p.id`),
+        tabular_reviews: await read(sql`SELECT r.id,r.title,r.project_id FROM tabular_reviews r WHERE r.user_id<>${scope.userId} AND ${reviewAccess(scope)} ORDER BY r.id`),
+      };
+    }
+    return { filename: `beaver-${kind}-export-${scope.userId.slice(0, 8)}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+      data: sealExport({ format: "beaver-account-export", version: 1, data }) };
+  });
 }
 
-export async function buildUserTabularReviewsExport(db: Db, userId: string,
-  userEmail?: string | null) {
-  const read = exportReader(db);
-  const tabularReviews = await read.all("tabular_reviews", (query) =>
-    query.eq("user_id", userId).order("created_at", { ascending: true }));
-  const [cells, chats] = await Promise.all([
-    read.byIds("tabular_cells", "review_id", idsFrom(tabularReviews)),
-    read.byIds("chats", "tabular_review_id", idsFrom(tabularReviews)),
-  ]);
-  return { ...exportHeader(userId, userEmail), tabular_reviews: tabularReviews,
-    tabular_cells: cells, chats: { chats,
-      messages: await read.byIds("chat_messages", "chat_id", idsFrom(chats)) } };
-}
-
-export async function buildUserAccountExport(db: Db, userId: string,
-  userEmail?: string | null) {
-  const read = exportReader(db);
-  const owned = (table: string, order = "created_at") => read.all(table, (query) =>
-    query.eq("user_id", userId).order(order, { ascending: true }));
-  const shared = (table: string, columns: string) => userEmail
-    ? read.all(table, (query) => query.filter("shared_with", "cs",
-      JSON.stringify([userEmail])).neq("user_id", userId)
-      .order("created_at", { ascending: true }), columns)
-    : Promise.resolve([] as Row[]);
-  const apiKeyStatus = read.all("user_api_keys", (query) => query.eq("user_id", userId)
-    .order("provider", { ascending: true }), "provider, created_at, updated_at")
-    .then((rows) => rows.map(({ provider, created_at, updated_at }) =>
-      ({ provider, has_key: true, created_at, updated_at })));
-  const [profile, apiKeys, projects, standaloneDocuments, workflows, workProducts,
-    workflowOpenSourceSubmissions, workflowSharesByUser,
-    workflowSharesWithUser, assistantChats, tabularReviews, sharedProjects,
-    sharedTabularReviews, auditEvents, preferences] = await Promise.all([
-    read.all("user_profiles", (query) => query.eq("user_id", userId)),
-    apiKeyStatus, owned("projects"),
-    read.all("documents", (query) => query.eq("user_id", userId)
-      .is("project_id", null).order("created_at", { ascending: true })),
-    owned("workflows"),
-    owned("work_products", "updated_at"),
-    read.all("workflow_open_source_submissions", (query) =>
-      query.eq("submitted_by_user_id", userId).order("submitted_at", { ascending: true })),
-    read.all("workflow_shares", (query) => query.eq("shared_by_user_id", userId)
-      .order("created_at", { ascending: true })),
-    userEmail ? read.all("workflow_shares", (query) =>
-      query.eq("shared_with_email", userEmail).order("created_at", { ascending: true })) : [],
-    loadUserChats(read, userId), owned("tabular_reviews"),
-    shared("projects", "id, user_id, name, cm_number, created_at, updated_at"),
-    shared("tabular_reviews",
-      "id, user_id, project_id, title, practice, created_at, updated_at"),
-    owned("audit_events"), owned("user_preferences", "updated_at"),
-  ]);
-  const projectIds = idsFrom(projects);
-  const projectDocuments = await read.byIds("documents", "project_id", projectIds);
-  const documents = [...standaloneDocuments, ...projectDocuments];
-  const [folders, versions, parts, edits, tabularCells] = await Promise.all([
-    read.byIds("project_subfolders", "project_id", projectIds),
-    read.byIds("document_versions", "document_id", idsFrom(documents)),
-    read.byIds("document_version_parts", "document_id", idsFrom(documents)),
-    read.byIds("document_edits", "document_id", idsFrom(documents)),
-    read.byIds("tabular_cells", "review_id", idsFrom(tabularReviews)),
-  ]);
-  return { ...exportHeader(userId, userEmail), profile, api_keys: apiKeys, projects,
-    project_subfolders: folders, documents, document_versions: versions,
-    document_version_parts: parts, document_edits: edits, workflows, work_products: workProducts,
-    workflow_open_source_submissions: workflowOpenSourceSubmissions,
-    workflow_shares_by_user: workflowSharesByUser,
-    workflow_shares_with_user: workflowSharesWithUser, chats: assistantChats,
-    tabular_reviews: tabularReviews, tabular_cells: tabularCells,
-    shared_access: { projects: sharedProjects, tabular_reviews: sharedTabularReviews },
-    audit_events: auditEvents, user_preferences: preferences };
+/** A manifest describes captured source bytes and edit decisions; it does not package file bytes. */
+export async function buildProjectExportManifest(database: RelationalDatabase, scope: ApplicationScope, projectId: string) {
+  return database.transaction(async (db) => {
+    if (db.engine === "postgres") await db.query(sql.raw("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"));
+    const read = snapshotReader(db);
+    const project = (await read(sql`SELECT p.id,p.name,p.cm_number,p.practice,p.created_at,p.updated_at
+      FROM projects p WHERE p.id=${projectId} AND ${projectAccess(scope)} ORDER BY p.id`))[0];
+    if (!project) throw new ApplicationError(404, "Project not found");
+    const documents = await read(sql`SELECT d.id,d.filename,d.folder_id,d.current_version_id,d.created_at,d.updated_at
+      FROM documents d WHERE d.project_id=${projectId} AND ${documentAccess(scope)} ORDER BY d.id`);
+    const versions = await read(sql`SELECT v.id,v.document_id,v.parent_version_id,v.version_number,v.working_revision,
+      v.source,v.created_by,v.author_email,v.comment,v.created_at,v.filename,v.file_type,v.size_bytes,v.source_sha256,v.provenance
+      FROM document_versions v JOIN documents d ON d.id=v.document_id WHERE d.project_id=${projectId}
+      AND ${documentAccess(scope)} ORDER BY v.document_id,v.version_number,v.id`);
+    const edits = await read(sql`SELECT e.* FROM document_edits e JOIN documents d ON d.id=e.document_id
+      WHERE d.project_id=${projectId} AND ${documentAccess(scope)} ORDER BY e.document_id,e.version_id,e.id`);
+    const parts = await read(sql`SELECT v.document_id,v.version_id,v.name,v.size_bytes,v.sha256
+      FROM document_version_parts v JOIN documents d ON d.id=v.document_id
+      WHERE d.project_id=${projectId} AND ${documentAccess(scope)} ORDER BY v.version_id,v.name`);
+    return sealExport({ format: "beaver-project-manifest", version: 1, data: {
+      exported_at: new Date().toISOString(), project, documents, document_versions: versions,
+      document_edits: edits, document_version_parts: parts,
+    } });
+  });
 }

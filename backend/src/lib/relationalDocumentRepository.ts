@@ -11,9 +11,21 @@ import { enqueuePdfPreparation } from "./pdfJobs";
 import { documentBlobDigest, documentBlobKey } from "./storage";
 import { changes, deleteDocumentRows, documentAccess, now, one, projectAccess,
   queueObjectCleanup, rows, type Row } from "./relationalRepositorySupport";
+import { workflowAccessPredicate } from "./resourceAccess";
 
 const CLEANUP_GRACE_MS = 60 * 60 * 1_000;
 const CLEANUP_LEASE_MS = 5 * 60 * 1_000;
+const lockVersionUpload = async (tx: RelationalDatabase, scope: ApplicationScope, sessionId: string,
+  purpose: string, version: StoredDocumentVersion, expectedVersionId: string, revision: number) =>
+  !!await one(sql`SELECT id FROM upload_sessions WHERE id=${sessionId} AND user_id=${scope.userId}
+    AND purpose=${purpose} AND target_document_id=${version.documentId} AND status='queued' AND expires_at>${now()}
+    AND expected_version_id=${expectedVersionId} AND expected_working_revision=${revision}
+    AND filename=${version.filename} AND file_type=${version.fileType}
+    AND source_sha256=${version.sourceSha256} AND size_bytes=${version.sizeBytes}
+    ${tx.engine === "postgres" ? sql.raw("FOR UPDATE") : sql.raw("")}`, tx);
+const finishUpload = (tx: RelationalDatabase, sessionId: string, versionId: string) =>
+  changes(sql`UPDATE upload_sessions SET status='complete',result_version_id=${versionId},updated_at=${now()}
+    WHERE id=${sessionId}`, tx);
 // Work still queued describes the PDF better than work that already finished: a cited-pages
 // pass succeeds while the whole-PDF pass waits, and the reader is still waiting with it.
 const PDF_JOB_COLUMNS = sql.raw(`j.status pdf_job_status,j.progress pdf_job_progress,
@@ -223,13 +235,19 @@ async function addEdits(db: RelationalDatabase, documentId: string, versionId: s
 }
 
 async function authorizeCreate(db: RelationalDatabase, scope: ApplicationScope, input: {
+  workflowId?: string | null;
   projectId: string | null; libraryKind: "file" | "template"; folderId: string | null;
 }, lock = false): Promise<Awaited<ReturnType<DocumentRepository["authorizeCreate"]>>> {
   const share = (alias: string) => lock && db.engine === "postgres"
     ? sql.raw(`FOR SHARE OF ${alias}`) : sql.raw("");
+  if (input.workflowId) {
+    if (input.projectId || input.folderId || input.libraryKind !== "file" || !await one(sql`SELECT 1 ok FROM workflows w
+      WHERE w.id=${input.workflowId} AND ${workflowAccessPredicate(scope, "edit")} ${share("w")}`, db)) return "project-missing";
+    return "ok";
+  }
   if (input.projectId) {
     if (!await one(sql`SELECT 1 ok FROM projects p WHERE p.id=${input.projectId}
-      AND ${projectAccess(scope)} ${share("p")}`, db)) return "project-missing";
+      AND ${projectAccess(scope, "edit")} ${share("p")}`, db)) return "project-missing";
     if (input.folderId && !await one(sql`SELECT 1 ok FROM project_subfolders f
       WHERE f.id=${input.folderId} AND f.project_id=${input.projectId} ${share("f")}`, db))
       return "folder-missing";
@@ -248,21 +266,21 @@ async function lockRelocationRoots(db: RelationalDatabase, scope: ApplicationSco
     .filter((id): id is string => !!id))].sort();
   if (!ids.length) return true;
   return (await rows(sql`SELECT p.id FROM projects p WHERE p.id IN(${sql.join(ids)})
-    AND ${projectAccess(scope)} ORDER BY p.id FOR SHARE OF p`, db)).length === ids.length;
+    AND ${projectAccess(scope, "edit")} ORDER BY p.id FOR SHARE OF p`, db)).length === ids.length;
 }
 
 async function lockDocuments(db: RelationalDatabase, scope: ApplicationScope,
   ids: string[], owner = false) {
   // Lock first, then read joined versions in a fresh READ COMMITTED snapshot.
   if (db.engine === "postgres") await rows(sql`SELECT d.id FROM documents d
-    WHERE d.id IN(${sql.join(ids)}) AND ${documentAccess(scope, owner)}
+    WHERE d.id IN(${sql.join(ids)}) AND ${documentAccess(scope, owner ? "edit" : "view")}
     ORDER BY d.id FOR UPDATE OF d`, db);
 }
 
 async function heads(db: RelationalDatabase, scope: ApplicationScope, documentIds: string[],
   owner = false, lock = false): Promise<DocumentHead[]> {
   if (!documentIds.length) return [];
-  if (lock) await lockDocuments(db, scope, documentIds, owner);
+  if (lock) await lockDocuments(db, scope, documentIds, true);
   const found = await rows(sql`SELECT d.*,v.page_count pdf_page_count,v.pdf_profile,
     v.id head_id,v.document_id head_document_id,v.parent_version_id head_parent_version_id,
     v.version_number head_version_number,v.working_revision head_working_revision,
@@ -275,7 +293,7 @@ async function heads(db: RelationalDatabase, scope: ApplicationScope, documentId
     v.provenance head_provenance,${PDF_JOB_COLUMNS}
     FROM documents d JOIN document_versions v ON v.id=d.current_version_id AND v.document_id=d.id
     ${PDF_JOB_JOIN}
-    WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner)}`, db);
+    WHERE d.id IN(${sql.join(documentIds)}) AND ${documentAccess(scope, owner || lock ? "edit" : "view")}`, db);
   return found.map((row) => ({ document: storedDocument(row), versions: [storedVersion(row, "head_")] }));
 }
 const head = async (db: RelationalDatabase, scope: ApplicationScope, documentId: string,
@@ -344,9 +362,17 @@ export const documentRepository: DocumentRepository = {
     const created = await db.transaction(async (tx) => {
       const { document, version } = input;
       if (await authorizeCreate(tx, scope, { projectId: document.projectId,
-        libraryKind: document.libraryKind, folderId: document.folderId }, true) !== "ok") return false;
+        libraryKind: document.libraryKind, folderId: document.folderId, workflowId: input.workflowId }, true) !== "ok") return false;
       if (!scopedVersion(version, document.userId, document.projectId) ||
           !scopedParts(input.parts, document.userId, document.projectId)) return false;
+      if (input.uploadSessionId && !await one(sql`SELECT id FROM upload_sessions WHERE id=${input.uploadSessionId}
+        AND purpose='document_create'
+        AND COALESCE(workflow_id,'')=${input.workflowId ?? ''}
+        AND user_id=${scope.userId} AND document_id=${document.id} AND status='queued' AND expires_at>${now()}
+        AND source_sha256=${version.sourceSha256} AND size_bytes=${version.sizeBytes}
+        AND COALESCE(project_id,'')=${document.projectId ?? ''} AND COALESCE(folder_id,'')=${document.folderId ?? ''}
+        AND library_kind=${document.libraryKind} AND filename=${version.filename}
+        ${tx.engine === "postgres" ? sql.raw("FOR UPDATE") : sql.raw("")}`, tx)) return false;
       if (!await publishBlobs(tx, [...versionKeys(version), ...partKeys(input.parts)])) return false;
       await changes(sql`INSERT INTO documents(id,user_id,project_id,folder_id,
         library_kind,library_folder_id,status,current_version_id,metadata,notes,filename,
@@ -356,8 +382,11 @@ export const documentRepository: DocumentRepository = {
         ${encode(document.metadata ?? {})},${document.notes ?? null},${version.filename},
         ${document.createdAt},${document.updatedAt})`, tx);
       await addVersion(tx, version, scope.userId, input.pdfOcrProvider);
+      if (input.workflowId) await changes(sql`INSERT INTO workflow_documents(document_id,workflow_id)
+        VALUES(${document.id},${input.workflowId})`, tx);
       await writeParts(tx, document.id, version.id,
         input.parts ? { put: input.parts, remove: [] } : undefined);
+      if (input.uploadSessionId) await finishUpload(tx, input.uploadSessionId, version.id);
       return true;
     });
     if (created && input.version.fileType === "pdf" && !input.version.pdfProfile)
@@ -390,8 +419,10 @@ export const documentRepository: DocumentRepository = {
         WHERE p.id IN(${projects}) AND ${projectAccess(scope)}
         ${tx.engine === "postgres" ? sql.raw("FOR UPDATE OF p") : sql.raw("")}`, tx);
       const ids = (await rows<{ id: string }>(sql`SELECT d.id FROM documents d WHERE
-        (${includeOwned ? 1 : 0}=1 AND d.user_id=${scope.userId}) OR
-        (d.project_id IN(${projects}) AND ${documentAccess(scope)})
+        ((${includeOwned ? 1 : 0}=1 AND (d.user_id=${scope.userId} OR EXISTS(
+          SELECT 1 FROM workflow_documents wd JOIN workflows w ON w.id=wd.workflow_id
+          WHERE wd.document_id=d.id AND w.user_id=${scope.userId}))) OR
+        d.project_id IN(${projects})) AND ${documentAccess(scope, "edit")}
         ${tx.engine === "postgres" ? sql.raw("FOR UPDATE OF d") : sql.raw("")}`, tx))
         .map(({ id }) => id);
       return deleteDocumentRows(tx, ids);
@@ -404,13 +435,13 @@ export const documentRepository: DocumentRepository = {
         part.versionId !== input.version.id)) throw new Error("Document part belongs to a different version");
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      await lockDocuments(tx, scope, [id]);
+      await lockDocuments(tx, scope, [id], true);
       const document = await one(sql`SELECT d.current_version_id,d.user_id,d.project_id,
           CASE WHEN d.project_id IS NULL THEN d.library_folder_id ELSE d.folder_id END current_folder_id,
           v.working_revision current_working_revision,
           v.version_number current_version_number FROM documents d
         JOIN document_versions v ON v.id=d.current_version_id AND v.document_id=d.id
-        WHERE d.id=${id} AND ${documentAccess(scope)}`, tx);
+        WHERE d.id=${id} AND ${documentAccess(scope, "edit")}`, tx);
       if (!document) return "missing";
       if (document.current_version_id !== input.expectedCurrentVersionId ||
           Number(document.current_working_revision) !== input.expectedCurrentWorkingRevision ||
@@ -424,6 +455,8 @@ export const documentRepository: DocumentRepository = {
           input.version.parentVersionId !== input.expectedCurrentVersionId) return "conflict";
       if (input.clonePartsFromVersionId && !await one(sql`SELECT 1 ok FROM document_versions
         WHERE document_id=${id} AND id=${input.clonePartsFromVersionId}`, tx)) return "conflict";
+      if (input.uploadSessionId && !await lockVersionUpload(tx, scope, input.uploadSessionId,
+        "version_create", input.version, input.expectedCurrentVersionId, input.expectedCurrentWorkingRevision)) return "conflict";
       const keys = [...versionKeys(input.version), ...partKeys(input.parts?.put)];
       if (!scopedVersion(input.version, document.user_id, document.project_id) ||
           !scopedParts(input.parts?.put, document.user_id, document.project_id) ||
@@ -435,6 +468,7 @@ export const documentRepository: DocumentRepository = {
       await addVersion(tx, input.version, String(document.user_id));
       await writeParts(tx, id, input.version.id, input.parts, input.clonePartsFromVersionId);
       await addEdits(tx, id, input.version.id, input.edits);
+      if (input.uploadSessionId) await finishUpload(tx, input.uploadSessionId, input.version.id);
       return "created";
     });
   },
@@ -447,11 +481,11 @@ export const documentRepository: DocumentRepository = {
         part.versionId !== input.versionId)) throw new Error("Document part belongs to a different version");
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
-      await lockDocuments(tx, scope, [id]);
+      await lockDocuments(tx, scope, [id], true);
       const row = await one(sql`SELECT v.*,d.current_version_id,d.user_id owner_user_id,
           d.project_id owner_project_id
         FROM documents d JOIN document_versions v ON v.document_id=d.id
-        WHERE d.id=${id} AND v.id=${input.versionId} AND ${documentAccess(scope)}
+        WHERE d.id=${id} AND v.id=${input.versionId} AND ${documentAccess(scope, "edit")}
         ${tx.engine === "postgres" ? sql.raw("FOR UPDATE OF d,v") : sql.raw("")}`, tx);
       if (!row) return "missing";
       const version = storedVersion(row);
@@ -470,6 +504,8 @@ export const documentRepository: DocumentRepository = {
       }
       const update = { ...version, ...Object.fromEntries(Object.entries(input.update)
         .filter(([, value]) => value !== undefined)) };
+      if (input.uploadSessionId && !await lockVersionUpload(tx, scope, input.uploadSessionId,
+        "version_replace", update, input.versionId, input.expectedWorkingRevision)) return "conflict";
       if (!scopedVersion(update, row.owner_user_id, row.owner_project_id) ||
           !scopedParts(input.parts?.put, row.owner_user_id, row.owner_project_id)) return "conflict";
       const previous = new Set(versionKeys(version));
@@ -510,6 +546,7 @@ export const documentRepository: DocumentRepository = {
       if (input.bumpWorkingRevision !== false) await changes(sql`UPDATE documents
         SET updated_at=${now()},filename=${update.filename}
         WHERE id=${id} AND current_version_id=${input.versionId}`, tx);
+      if (input.uploadSessionId) await finishUpload(tx, input.uploadSessionId, input.versionId);
       const retained = new Set(versionKeys(update));
       await queueObjectCleanup(tx, [...versionKeys(version).filter((key) => !retained.has(key)),
         ...oldPartKeys.filter((key) => !input.parts?.put.some((part) => part.blobKey === key))]);
@@ -582,6 +619,7 @@ export const documentRepository: DocumentRepository = {
     });
   },
   async relocate(scope, id, input) {
+    if (await one(sql`SELECT 1 ok FROM workflow_documents WHERE document_id=${id}`)) return "conflict";
     const db = await relationalDatabase();
     return db.transaction(async (tx) => {
       if (!await lockRelocationRoots(
@@ -671,8 +709,8 @@ export const documentRepository: DocumentRepository = {
       : sql`metadata=${encode(normalizeDocumentMetadata(input.metadata))}`,
     input.notes === undefined ? null : sql`notes=${normalizeDocumentNotes(input.notes)}`]
       .filter((value) => value !== null);
-    return !!set.length && await changes(sql`UPDATE documents
-      SET ${sql.join(set)},updated_at=${now()} WHERE id=${id} AND user_id=${scope.userId}`) > 0;
+    return !!set.length && await changes(sql`UPDATE documents AS d
+      SET ${sql.join(set)},updated_at=${now()} WHERE d.id=${id} AND ${documentAccess(scope, "edit")}`) > 0;
   },
   async recordOrphans(keys) {
     const expired = new Date(Date.now() - CLEANUP_LEASE_MS).toISOString();
@@ -713,6 +751,11 @@ export const documentRepository: DocumentRepository = {
           AND claim_id=${claimId}`, tx);
         return false;
       }
+      if (await one(sql`SELECT 1 FROM upload_sessions WHERE storage_path=${key} AND expires_at>${now()} LIMIT 1`, tx)) {
+        await changes(sql`UPDATE object_cleanup SET claim_id=NULL,claimed_at=NULL,created_at=${now()}
+          WHERE storage_path=${key} AND claim_id=${claimId}`, tx);
+        return false;
+      }
       try { await remove(); }
       catch (error) {
         failed = true; failure = error;
@@ -738,6 +781,7 @@ export const documentRepository: DocumentRepository = {
             WHERE v.storage_path=c.storage_path OR v.pdf_storage_path=c.storage_path)
           AND NOT EXISTS(SELECT 1 FROM document_version_parts p
             WHERE p.storage_path=c.storage_path)
+          AND NOT EXISTS(SELECT 1 FROM upload_sessions u WHERE u.storage_path=c.storage_path AND u.expires_at>${now()})
         ORDER BY c.created_at LIMIT ${Math.max(1, Math.min(limit, 500))}`, tx);
       if (!candidates.length) {
         await changes(sql`DELETE FROM object_cleanup WHERE claim_id IS NULL AND EXISTS(
@@ -756,7 +800,8 @@ export const documentRepository: DocumentRepository = {
             WHERE v.storage_path=object_cleanup.storage_path
               OR v.pdf_storage_path=object_cleanup.storage_path)
           AND NOT EXISTS(SELECT 1 FROM document_version_parts p
-            WHERE p.storage_path=object_cleanup.storage_path)`, tx);
+            WHERE p.storage_path=object_cleanup.storage_path)
+          AND NOT EXISTS(SELECT 1 FROM upload_sessions u WHERE u.storage_path=object_cleanup.storage_path AND u.expires_at>${now()})`, tx);
       return (await rows<{ storage_path: string }>(sql`SELECT storage_path FROM object_cleanup
         WHERE claim_id=${claimId} ORDER BY created_at`, tx))
         .map(({ storage_path: key }) => ({ key, claimId }));

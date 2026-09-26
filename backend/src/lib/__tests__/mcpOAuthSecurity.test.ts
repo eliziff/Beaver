@@ -165,6 +165,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   delete process.env.PUBLIC_ORIGIN;
   delete process.env.MCP_OAUTH_CLIENT_ID;
   delete process.env.MCP_OAUTH_CLIENT_SECRET;
@@ -173,6 +174,39 @@ afterEach(async () => {
 });
 
 describe("MCP OAuth security boundary", () => {
+  it("selects a Slack client only for its server and approved discovery origins", async () => {
+    vi.stubEnv("SLACK_MCP_OAUTH_CLIENT_ID", "slack-client");
+    vi.stubEnv("SLACK_MCP_OAUTH_CLIENT_SECRET", "slack-secret");
+    vi.stubEnv("SLACK_MCP_OAUTH_CONFIDENTIAL_ORIGINS", "https://mcp.slack.com,https://auth.example");
+    const fixture = fakeDb();
+    for (const [server, expected] of [["https://mcp.slack.com/mcp", true],
+      ["https://mcp.slack.com.evil.example/mcp", false], ["https://mcp.example/api", false]] as const) {
+      const provider = new DbMcpOAuthProvider(fixture.db, connector(server), "authorize");
+      await provider.saveDiscoveryState(discovery({ resource: server }));
+      expect(await provider.clientInformation()).toEqual(expected
+        ? { client_id: "slack-client", client_secret: "slack-secret" } : undefined);
+    }
+    const provider = new DbMcpOAuthProvider(fixture.db, connector("https://mcp.slack.com/mcp"), "authorize");
+    await provider.saveDiscoveryState(discovery({ resource: "https://mcp.slack.com/mcp", tokenEndpoint: "https://unapproved.example/token" }));
+    expect(await provider.clientInformation()).toBeUndefined();
+  });
+
+  it("requests Google refresh-token consent without weakening redirect binding", async () => {
+    vi.stubEnv("GOOGLE_MCP_OAUTH_SCOPE", "https://www.googleapis.com/auth/drive.readonly");
+    const provider = new DbMcpOAuthProvider(fakeDb().db, connector("https://drivemcp.googleapis.com/mcp/v1"), "authorize");
+    await provider.saveDiscoveryState(discovery({ resource: "https://drivemcp.googleapis.com/mcp/v1",
+      authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth" }));
+    const redirect = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    redirect.search = new URLSearchParams({ state: provider.state(), redirect_uri: provider.redirectUrl,
+      code_challenge_method: "S256", code_challenge: "challenge" }).toString();
+    await provider.redirectToAuthorization(redirect);
+    expect(provider.authorizationUrl?.searchParams.get("access_type")).toBe("offline");
+    expect(provider.authorizationUrl?.searchParams.get("prompt")).toBe("consent");
+    expect(provider.clientMetadata.scope).toBe("https://www.googleapis.com/auth/drive.readonly");
+    redirect.hostname = "accounts.google.com.evil.example";
+    await expect(provider.redirectToAuthorization(redirect)).rejects.toThrow("redirect changed");
+  });
+
   it("uses distinct cryptographically random state values", () => {
     const fixture = fakeDb();
     const first = new DbMcpOAuthProvider(fixture.db, connector(), "authorize");

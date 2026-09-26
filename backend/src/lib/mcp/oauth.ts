@@ -52,7 +52,18 @@ export class McpOAuthRequiredError extends Error {
 }
 
 const redirectUri = () => `${publicOrigin()}/api/user/mcp-connectors/oauth/callback`;
-const scope = () => process.env.MCP_OAUTH_DEFAULT_SCOPE?.trim() || undefined;
+function providerPrefix(serverUrl: string) {
+  const host = new URL(serverUrl).hostname.toLowerCase().replace(/\.$/u, "");
+  if (host === "mcp.slack.com") return "SLACK_MCP_OAUTH";
+  if (host === "googleapis.com" || host.endsWith(".googleapis.com")) return "GOOGLE_MCP_OAUTH";
+  return "MCP_OAUTH";
+}
+function clientPrefix(serverUrl: string) {
+  const prefix = providerPrefix(serverUrl);
+  return process.env[`${prefix}_CLIENT_ID`]?.trim() ? prefix : "MCP_OAUTH";
+}
+const scope = (serverUrl: string) => process.env[`${providerPrefix(serverUrl)}_SCOPE`]?.trim()
+  || process.env.MCP_OAUTH_DEFAULT_SCOPE?.trim() || undefined;
 
 async function oauthResponse(response: Response) {
   const bounded = await bufferRemoteResponse(response, {
@@ -106,21 +117,21 @@ async function validateDiscovery(state: OAuthDiscoveryState, serverUrl: string):
 }
 
 function configuredClient(serverUrl: string, binding?: Binding) {
-  const clientId = process.env.MCP_OAUTH_CLIENT_ID?.trim();
+  const prefix = clientPrefix(serverUrl), clientId = process.env[`${prefix}_CLIENT_ID`]?.trim();
   if (!clientId || !binding) return undefined;
-  const allowed = new Set((process.env.MCP_OAUTH_CONFIDENTIAL_ORIGINS ?? "")
+  const allowed = new Set((process.env[`${prefix}_CONFIDENTIAL_ORIGINS`] ?? "")
     .split(",").filter(Boolean).map((entry) => {
       const url = new URL(entry.trim());
       if (url.protocol !== "https:" || url.username || url.password ||
           url.pathname !== "/" || url.search || url.hash) {
-        throw new Error("MCP_OAUTH_CONFIDENTIAL_ORIGINS must contain HTTPS origins.");
+        throw new Error(`${prefix}_CONFIDENTIAL_ORIGINS must contain HTTPS origins.`);
       }
       return url.origin;
     }));
   const destinations = [serverUrl, binding.authorizationServer, binding.authorizationEndpoint,
     binding.tokenEndpoint, binding.registrationEndpoint].filter((value): value is string => Boolean(value));
   if (!destinations.every((value) => allowed.has(new URL(value).origin))) return undefined;
-  const secret = process.env.MCP_OAUTH_CLIENT_SECRET?.trim();
+  const secret = process.env[`${prefix}_CLIENT_SECRET`]?.trim();
   return { client_id: clientId,
     ...(secret ? { client_secret: secret } : {}) } satisfies OAuthClientInformationMixed;
 }
@@ -180,7 +191,7 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
     return {
       client_name: "Beaver", redirect_uris: [this.redirectUrl],
       grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
-      token_endpoint_auth_method: "none", ...(scope() ? { scope: scope() } : {}),
+      token_endpoint_auth_method: "none", ...(scope(this.connector.server_url) ? { scope: scope(this.connector.server_url) } : {}),
     };
   }
 
@@ -281,7 +292,7 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
       ...(tokens.refresh_token === undefined ? {}
         : secretPatch(this.connector, "refresh_token", tokens.refresh_token)),
       token_type: tokens.token_type ?? "Bearer",
-      scope: tokens.scope ?? scope() ?? null,
+      scope: tokens.scope ?? scope(this.connector.server_url) ?? null,
       expires_at: expiresIn === null ? null : new Date(Date.now() + expiresIn * 1000).toISOString(),
       client_id: client?.client_id ?? null,
       ...secretPatch(this.connector, "client_secret", configured ? undefined
@@ -304,6 +315,11 @@ export class DbMcpOAuthProvider implements OAuthClientProvider {
         received.searchParams.get("redirect_uri") !== this.redirectUrl ||
         received.searchParams.get("code_challenge_method") !== "S256") {
       throw new Error("OAuth authorization redirect changed.");
+    }
+    if (providerPrefix(this.connector.server_url) === "GOOGLE_MCP_OAUTH" &&
+        received.origin === "https://accounts.google.com") {
+      received.searchParams.set("access_type", "offline");
+      received.searchParams.set("prompt", "consent");
     }
     this.authorizationUrl = received;
   }
@@ -427,7 +443,7 @@ export async function startUserMcpConnectorOAuth(userId: string, connectorId: st
   const provider = new DbMcpOAuthProvider(db, connector, "authorize");
   const { auth } = await import("@modelcontextprotocol/sdk/client/auth.js");
   const result = await auth(provider, {
-    serverUrl: connector.server_url, ...(scope() ? { scope: scope() } : {}),
+    serverUrl: connector.server_url, ...(scope(connector.server_url) ? { scope: scope(connector.server_url) } : {}),
     fetchFn: guardedOAuthFetch,
   });
   if (result === "AUTHORIZED") return { authorizationUrl: null, alreadyAuthorized: true };

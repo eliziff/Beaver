@@ -6,7 +6,8 @@ import { SearchBar } from "@/app/components/ui/search-bar";
 import { TabList, Tabs } from "@/app/components/ui/tabs";
 import { Modal } from "@/app/components/modals/Modal";
 import { APP_SURFACE_HOVER_CLASS } from "@/app/components/ui/liquid-surface";
-import type { Workflow, WorkflowVariant } from "@/app/lib/api/workflows";
+import { downloadWorkflowReference, type Workflow, type WorkflowVariant } from "@/app/lib/api/workflows";
+import { downloadBlob } from "@/app/lib/download";
 import { AUDIENCE_TABS, groupWorkflows, type AudienceFilter } from "./workflowCatalog";
 import { CollectionState } from "../shared/CollectionState";
 
@@ -221,6 +222,9 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
     info: WorkflowInfo | null; onClose: () => void;
     onSelect: Props["onSelect"]; disabledItem?: Props["disabledItem"];
 }) {
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [downloading, setDownloading] = useState<string | null>(null);
+    useEffect(() => setDownloadError(null), [info]);
     if (!info) return null;
     const workflow = info.workflow;
     const detailed = workflow.launcher.kind === "instructions"
@@ -246,6 +250,19 @@ function WorkflowInfoModal({ info, onClose, onSelect, disabledItem }: {
                 }} />)}>
         <div className="space-y-5 pb-5 text-sm leading-6 text-gray-600">
             <p>{detailed[0]?.description || workflow.metadata.description || detailed[0]?.result}</p>
+            {workflow.references?.filter((file) => !file.variant_id ||
+                info.variants.some((variant) => variant.id === file.variant_id)).map((file) =>
+                <button key={file.filename} type="button" disabled={downloading !== null}
+                    className="block break-all text-left underline underline-offset-4 disabled:opacity-50"
+                    onClick={async () => {
+                        setDownloading(file.filename); setDownloadError(null);
+                        try {
+                            const { blob } = await downloadWorkflowReference(workflow.id, file.filename, file.sha256);
+                            downloadBlob(blob, file.filename);
+                        } catch { setDownloadError("Could not download the reference. Try again."); }
+                        finally { setDownloading(null); }
+                    }}>{downloading === file.filename ? "Downloading…" : `Download ${file.filename}`}</button>)}
+            {downloadError && <p role="alert">{downloadError}</p>}
             {detailed.filter((variant) => variant.columns_config?.length).map((variant) =>
                 <div key={variant.id}>
                     <h3 className="text-xs font-semibold text-gray-500">Table fields</h3>

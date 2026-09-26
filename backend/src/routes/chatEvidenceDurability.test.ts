@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { zipDocumentBytes } from "../lib/__tests__/support/documentBytes";
 import type { ChatStore } from "../lib/chatStore";
 
+const pendingMemory: Promise<void>[] = [];
 const mocks = vi.hoisted(() => ({
   matterDocuments: undefined as string[] | undefined,
   preflightFailure: false,
@@ -158,6 +159,8 @@ async function loadApp() {
     { createSourceWorkspacesRouter } = await import("./sourceWorkspaces"),
     sources = createSourceWorkspaceApplication(documents, { chats, tables: tabularRepository,
       tabular: async () => { throw new Error("Table operations are not part of this chat fixture"); } });
+  const memory = (await import("../lib/memoryApplication")).createMemoryApplication(
+    await (await import("../lib/relationalDatabase")).relationalDatabase(), async () => { throw new Error("Curation is asynchronous"); });
   const application = createChatApplication({
     chats, sources,
     documents,
@@ -167,6 +170,9 @@ async function loadApp() {
     features: {
       load: async () => ({ includeResearchTools: true }),
       ...providerSessionFeatures,
+      memory: { capture: (...args) => memory.capture(...args), complete: (...args) => {
+        pendingMemory.push(memory.complete(...args));
+      } },
     },
   });
   const app = express();
@@ -177,7 +183,7 @@ async function loadApp() {
     application,
     inlineChatTurnQueue(application),
   ));
-  return { app, store: chats, projects: localProjects, documents };
+  return { app, store: chats, projects: localProjects, documents, memory };
 }
 
 function postMessage(app: express.Express, chatId: string, expectedVersion: number, content: string) {
@@ -245,6 +251,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await Promise.all(pendingMemory.splice(0));
   try {
     await (await import("../lib/relationalDatabase")).closeRelationalDatabase();
   } catch {}
@@ -1569,4 +1576,27 @@ it("keeps SDK reads and steering in causal order across a failed read-only retry
   expect(resumed.filter(event => event.type === "model_messages" && event.id.startsWith("context:"))).toHaveLength(1);
   expect(retry.text).not.toContain("Current application context");
   expect(mocks.runLocalAssistantTool).not.toHaveBeenCalled();
+});
+
+describe("memory turn eligibility", () => {
+  it("adds low-authority memory context and learns only after successful transcript persistence", async () => {
+    const { app, store, memory } = await loadApp();
+    await memory.update({ userId: USER_ID }, { scope: "app", ownerId: USER_ID },
+      { revision: 0, enabled: true, content: "Use Canadian spelling." });
+    const created = await request(app).post("/chat/create").send({});
+    const response = await postMessage(app, created.body.id, 0, "I prefer numbered paragraphs.");
+    expect(response.status).toBe(200);
+    await Promise.all(pendingMemory.splice(0));
+    expect(mocks.providerMessages[0][0]).toMatchObject({ role: "user", content: expect.stringContaining("Canadian spelling") });
+    expect(mocks.systemPrompts[0]).not.toContain("Use Canadian spelling.");
+    const chat = await storedChat(store, created.body.id);
+    expect(JSON.stringify(chat?.messages)).not.toContain("PERSISTED MEMORY");
+    const { relationalDatabase, sql } = await import("../lib/relationalDatabase");
+    const receipts = (await (await relationalDatabase()).query(sql`SELECT input_text,transcript_version FROM memory_receipts`)).rows;
+    expect(receipts).toEqual([{ input_text: "I prefer numbered paragraphs.", transcript_version: chat!.transcript_version }]);
+    mocks.streamChatWithTools.mockRejectedValueOnce(new Error("Provider failure"));
+    await postMessage(app, created.body.id, chat!.transcript_version, "Do not learn a failed turn.");
+    await Promise.all(pendingMemory.splice(0));
+    expect((await (await relationalDatabase()).query(sql`SELECT id FROM memory_receipts`)).rows).toHaveLength(1);
+  });
 });

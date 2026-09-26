@@ -1,0 +1,663 @@
+[
+  {
+    "id": "drafting",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Drafting and templates",
+      "description": "Draft, revise, proofread, or work from a reusable template.",
+      "category": "Drafting and document preparation",
+      "audiences": [
+        "general"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-drafting-general",
+          "label": "Draft or revise",
+          "result": "A finished draft or targeted edits",
+          "execution": "assistant",
+          "skill_md": "# Drafting\n\nDraft or revise the selected legal document to the user's instructions. Preserve correct content and structure outside the requested changes. Ask only for information required to complete the work, then return the finished draft or concrete edits requested.",
+          "columns_config": null,
+          "description": "Uses your instructions and selected documents to write a draft or make targeted edits, preserving the surrounding text and document structure."
+        },
+        {
+          "id": "builtin-proofread",
+          "label": "Proofread",
+          "result": "Prioritized drafting, consistency, and mechanical issues",
+          "execution": "assistant",
+          "source": "proofread"
+        },
+        {
+          "id": "builtin-create-template",
+          "label": "Create a reusable template",
+          "result": "Reusable fields with structure and document mechanics preserved",
+          "execution": "assistant",
+          "skill_md": "# Create a reusable template\n\nTurn the selected document into a reusable template. Replace matter-specific facts with clearly named fields while preserving reusable legal text, structure, styles, numbering, and document mechanics.",
+          "columns_config": null,
+          "description": "Turns a document into a reusable Word template by replacing names, dates, amounts, and other matter-specific details with named Content Controls: fields you can fill for each new matter. Repeated fields share a value, while the reusable clauses and formatting are preserved."
+        },
+        {
+          "id": "builtin-draft-from-template",
+          "label": "Draft from a template",
+          "result": "A new Word draft based on the selected precedent, with known facts filled and unresolved fields left open",
+          "execution": "assistant",
+          "source": "draft-from-template"
+        }
+      ]
+    }
+  },
+  {
+    "id": "fix-supras",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Fix supras",
+      "description": "Automatically correct misaligned \"supra\" numbers in a document.",
+      "category": "Drafting and document preparation",
+      "audiences": [
+        "general"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "fix_supras"
+    }
+  },
+  {
+    "id": "document-review",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Analyze documents",
+      "description": "Extract material terms with source locations or compare selected documents and explain the differences.",
+      "category": "Document review and comparison",
+      "audiences": [
+        "general"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-extract-key-terms",
+          "label": "Extract key terms",
+          "result": "Key terms, values, locations, and notes",
+          "execution": "assistant",
+          "source": "extract-key-terms"
+        },
+        {
+          "id": "builtin-compare-documents",
+          "label": "Compare documents",
+          "result": "A structured comparison of material terms and differences across selected documents",
+          "execution": "assistant",
+          "source": "compare-documents"
+        }
+      ]
+    }
+  },
+  {
+    "id": "legal-research",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Research a legal issue",
+      "description": "Searches legal sources for your issue, reads the relevant authorities, and explains how they apply. Includes pinpoint citations and identifies gaps or conflicting authority.",
+      "category": "Research and verification",
+      "audiences": [
+        "general"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-legal-research-general",
+          "label": "Research a legal issue",
+          "result": "Grounded legal analysis with authoritative sources and pinpoints",
+          "execution": "assistant",
+          "skill_md": "# Legal Research\n\nResearch the user's legal issue using the available legal-source tools. Explain the governing law, its application, and material uncertainty. Support legal propositions with authoritative sources and precise pinpoints.",
+          "columns_config": null,
+          "description": "Searches legal sources for your issue, reads the relevant authorities, and explains how they apply. Includes pinpoint citations and identifies gaps or conflicting authority."
+        }
+      ]
+    }
+  },
+  {
+    "id": "quote-checking",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Review quotations",
+      "description": "Adversarially reviews the propositions and quotations in a document against the sources cited for them and against the wider law.",
+      "category": "Research and verification",
+      "audiences": [
+        "general"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "quote_check",
+      "variants": [
+        {
+          "id": "builtin-quote-checking-general",
+          "label": "Review quotations and support",
+          "result": "An adversarial critique of the document's propositions and quotations, each supported by the document and by external authority",
+          "execution": "assistant",
+          "columns_config": null,
+          "description": "Verifies quotations against their cited sources, then adversarially vets every proposition the document advances against case law, legislation and journal sources, including later treatment of the decisions it relies on.",
+          "skill_md": "# Review quotations and support\n\nAdversarially review the selected document. Everything it asserts is in issue, not only its quotations. Work through these steps in order and do not answer until step 3 is done.\n\n1. Verify the quotations. Call quote_check with document_id set to the document resource, and page through all results using offset. Where a citation is ambiguous, read and search the available sources, identify the intended source, and pass links as [{quoteId, occurrenceId}] back to quote_check using the returned quotation and citation candidate IDs. Compare exact wording, omissions, additions and punctuation. This step is the floor of the review, not its subject.\n\n2. Read the document and list the propositions it advances — its statements of law and the inferences it draws from the evidence.\n\n3. Research each proposition against the law itself, before writing anything. Use search_sources across case law, legislation and journal articles rather than relying on the document's own selection of authority, and read the passages you find. Note up the decisions the document leans on to find later treatment. Note up a decision even when its own text is not in the installed corpora: later decisions and journal articles that discuss it are themselves the evidence.\n\nTest each proposition for authority that does not say what it is cited for, a holding stated without its qualifications, exceptions or dissent, reliance on a decision since distinguished, doubted or overtaken by statute, a rule stated at the wrong level of generality, an omitted contrary line of authority, and an inference the cited evidence does not carry.\n\nEvery finding rests on two retrieved passages: the passage in the document under review, and a passage from an external legal source — a case, statute or journal article — that establishes or contradicts the proposition. A finding supported only by the document under review is not a finding; drop it or go back to step 3 and find the authority.\n\nDiscuss the findings as a prose critique, the strongest objection first, identifying the document passage, the authority it relies on, the source passage that undercuts or qualifies it, and what the document would have to show instead. State unresolved sources and the limits of the review. Then offer to create a durable report or apply proposed edits, and follow an explicit request for either directly.\n\nIf the user requests an Excel workbook, call quote_check with export_workbook: true and analysis: [{quoteId, text}] carrying your findings. Keep mechanical evidence distinct from your legal assessment. For other requested report formats, use the available document and file tools."
+        }
+      ]
+    }
+  },
+  {
+    "id": "agreement-work",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Agreement work",
+      "description": "Review agreement risks, extract structured terms across documents, or prepare a negotiation issues list.",
+      "category": "Agreements",
+      "audiences": [
+        "solicitor"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-draft-issues-list",
+          "label": "Prepare an issues list",
+          "result": "Prioritized negotiation issues in an editable Word document",
+          "execution": "assistant",
+          "source": "issues-list-draft"
+        },
+        {
+          "id": "builtin-commercial-agreement-tabular-review",
+          "label": "Commercial agreement",
+          "result": "Commercial scope, economics, change controls, and risk terms by agreement",
+          "execution": "tabular",
+          "source": "commercial-agreement-tabular-review"
+        },
+        {
+          "id": "builtin-commercial-lease-review",
+          "label": "Commercial lease",
+          "result": "Material lease risks and recommended changes",
+          "execution": "assistant",
+          "source": "commercial-lease-review"
+        },
+        {
+          "id": "builtin-commercial-lease-tabular-review",
+          "label": "Commercial lease",
+          "result": "Key lease terms across each selected lease",
+          "execution": "tabular",
+          "source": "commercial-lease-tabular-review"
+        },
+        {
+          "id": "builtin-credit-agreement-review",
+          "label": "Credit agreement",
+          "result": "Material credit risks and recommended changes",
+          "execution": "assistant",
+          "source": "credit-agreement-review"
+        },
+        {
+          "id": "builtin-credit-agreement-tabular-review",
+          "label": "Credit agreement",
+          "result": "Facilities, pricing, covenants, defaults, and security by agreement",
+          "execution": "tabular",
+          "source": "credit-agreement-tabular-review"
+        },
+        {
+          "id": "builtin-employment-agreement-review",
+          "label": "Employment agreement",
+          "result": "Material employment risks and recommended changes",
+          "execution": "assistant",
+          "source": "employment-agreement-review"
+        },
+        {
+          "id": "builtin-employment-agreement-tabular-review",
+          "label": "Employment agreement",
+          "result": "Compensation, benefits, termination, working arrangements, and IP by agreement",
+          "execution": "tabular",
+          "source": "employment-agreement-tabular-review"
+        },
+        {
+          "id": "builtin-guarantee-agreement-review",
+          "label": "Guarantee",
+          "result": "Material guarantee risks and recommended changes",
+          "execution": "assistant",
+          "source": "guarantee-agreement-review"
+        },
+        {
+          "id": "builtin-limited-partnership-agreement-tabular-review",
+          "label": "Limited partnership agreement",
+          "result": "Fund economics, governance, transfers, and conflicts by agreement",
+          "execution": "tabular",
+          "source": "limited-partnership-agreement-tabular-review"
+        },
+        {
+          "id": "builtin-nda-review",
+          "label": "NDA",
+          "result": "Material confidentiality risks and recommended changes",
+          "execution": "assistant",
+          "source": "nda-review"
+        },
+        {
+          "id": "builtin-nda-tabular-review",
+          "label": "NDA",
+          "result": "Confidentiality scope, obligations, exceptions, term, and remedies by agreement",
+          "execution": "tabular",
+          "source": "nda-tabular-review"
+        },
+        {
+          "id": "builtin-shareholder-agreement-review",
+          "label": "Shareholder agreement",
+          "result": "Material shareholder risks and recommended changes",
+          "execution": "assistant",
+          "source": "shareholder-agreement-review"
+        },
+        {
+          "id": "builtin-shareholder-agreement-tabular-review",
+          "label": "Shareholder agreement",
+          "result": "Ownership, governance, transfer, exit, and dispute terms by agreement",
+          "execution": "tabular",
+          "source": "shareholder-agreement-tabular-review"
+        },
+        {
+          "id": "builtin-spa-tabular-review",
+          "label": "Share purchase agreement",
+          "result": "Transaction terms, conditions, warranties, indemnities, and covenants by agreement",
+          "execution": "tabular",
+          "source": "spa-tabular-review"
+        },
+        {
+          "id": "builtin-supply-agreement-tabular-review",
+          "label": "Supply agreement",
+          "result": "Products, delivery, quality, risk, and termination terms by agreement",
+          "execution": "tabular",
+          "source": "supply-agreement-tabular-review"
+        },
+        {
+          "id": "builtin-bpo-agreement-review",
+          "source": "bpo-agreement-review"
+        },
+        {
+          "id": "builtin-design-partner-draft",
+          "source": "design-partner-draft"
+        },
+        {
+          "id": "builtin-design-partner-review",
+          "source": "design-partner-review"
+        },
+        {
+          "id": "builtin-dpa-draft",
+          "source": "dpa-draft"
+        },
+        {
+          "id": "builtin-dpa-review",
+          "source": "dpa-review"
+        },
+        {
+          "id": "builtin-msa-draft",
+          "source": "msa-draft"
+        },
+        {
+          "id": "builtin-msa-review",
+          "source": "msa-review"
+        }
+      ]
+    }
+  },
+  {
+    "id": "due-diligence",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Review a document set",
+      "description": "Reads the selected documents against your diligence scope and organizes findings with source locations, their significance, and missing information to follow up.",
+      "category": "Due diligence",
+      "audiences": [
+        "solicitor"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-due-diligence-general",
+          "label": "General due diligence",
+          "result": "Supported findings, source locations, significance, and missing information",
+          "execution": "assistant",
+          "skill_md": "# Due Diligence\n\nReview the selected document set for the user's diligence scope. Record supported findings, source locations, practical significance, and missing information. Organize the result so material issues can be reviewed and followed up efficiently.",
+          "columns_config": null,
+          "description": "Reads the selected documents against your diligence scope and organizes findings with source locations, their significance, and missing information to follow up."
+        },
+        {
+          "id": "builtin-change-of-control-tabular-review",
+          "label": "Change of control review",
+          "result": "Change-of-control triggers, consents, termination/put-call rights, and financial implications by document",
+          "execution": "tabular",
+          "source": "change-of-control-tabular-review"
+        }
+      ]
+    }
+  },
+  {
+    "id": "transaction-management",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Prepare a conditions checklist",
+      "description": "Prepare a conditions precedent checklist from a financing document.",
+      "category": "Transactions and closing",
+      "audiences": [
+        "solicitor"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-draft-cp-checklist",
+          "label": "Conditions precedent checklist",
+          "result": "An editable Word checklist organized by condition and status",
+          "execution": "assistant",
+          "source": "cp-checklist-draft"
+        }
+      ]
+    }
+  },
+  {
+    "id": "corporate-approvals",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Review corporate approvals",
+      "description": "Checks transaction documents and proposed corporate actions against the supplied corporate records. Identifies required approvals, signing authority, and missing supporting records.",
+      "category": "Corporate records",
+      "audiences": [
+        "solicitor"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-corporate-approvals-review",
+          "label": "Review corporate approvals",
+          "result": "Approval gaps, inconsistencies, and recommended actions grounded in available corporate records",
+          "execution": "assistant",
+          "source": "corporate-approvals-review"
+        }
+      ]
+    }
+  },
+  {
+    "id": "submission-drafting",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Draft or revise submissions",
+      "description": "Uses your selected record and authorities to draft or revise a written submission for the court and party you identify. Supports factual statements with record references and legal arguments with citations.",
+      "category": "Written submissions",
+      "audiences": [
+        "litigator"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-submission-drafting-general",
+          "label": "Draft or revise submissions",
+          "result": "Finished submissions grounded in the record and authorities",
+          "execution": "assistant",
+          "skill_md": "# Submission Drafting\n\nDraft or revise the requested written submission using the selected record and authorities. Follow the user's court, document, and role instructions; distinguish facts from legal propositions; and support both with precise record or authority references.",
+          "columns_config": null,
+          "description": "Uses your selected record and authorities to draft or revise a written submission for the court and party you identify. Supports factual statements with record references and legal arguments with citations."
+        }
+      ]
+    }
+  },
+  {
+    "id": "evidence-review",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Review evidence",
+      "description": "Reads each selected document and creates a table of dates, senders, recipients, summaries, people mentioned, and possible privilege.",
+      "category": "Evidence and discovery",
+      "audiences": [
+        "litigator"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "instructions",
+      "variants": [
+        {
+          "id": "builtin-e-discovery-tabular-review",
+          "label": "Review evidence",
+          "result": "Dates, document types, participants, summaries, people, and privilege flags by document",
+          "execution": "tabular",
+          "source": "e-discovery-tabular-review"
+        }
+      ]
+    }
+  },
+  {
+    "id": "court-records",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Court Records",
+      "description": "Adds your PDF or Word files to a court record, lets you arrange the documents, and assembles them with the required covers, tabs, and pagination.",
+      "category": "Court and hearing materials",
+      "audiences": [
+        "litigator"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "Alberta",
+        "Federal"
+      ]
+    },
+    "launcher": {
+      "kind": "court_records"
+    }
+  },
+  {
+    "id": "authorities",
+    "user_id": null,
+    "is_system": true,
+    "created_at": "2026-08-30T00:00:00.000Z",
+    "metadata": {
+      "title": "Create table/book of authorities",
+      "description": "Extracts citations from your document, lets you review the matches and source PDFs, and generates a table or book of authorities.",
+      "category": "Court and hearing materials",
+      "audiences": [
+        "litigator"
+      ],
+      "contributors": [
+        {
+          "name": "Open Legal Products",
+          "organisation": null,
+          "role": null,
+          "linkedin": null
+        }
+      ],
+      "language": "English",
+      "version": "1.0.0",
+      "jurisdictions": [
+        "General"
+      ]
+    },
+    "launcher": {
+      "kind": "authorities"
+    }
+  }
+]

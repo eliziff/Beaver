@@ -222,7 +222,7 @@ export default function AccountPage() {
             <ConfirmPopup
                 open={deleteConfirm}
                 title="Delete account?"
-                message="This will permanently delete your account and all associated data. This action cannot be undone."
+                message="This permanently deletes your account and personal data. Organization work stays with a remaining admin. Choose another admin first if you are the last one."
                 confirmLabel="Delete"
                 confirmStatus={isDeleting ? "loading" : "idle"}
                 cancelLabel="Cancel"

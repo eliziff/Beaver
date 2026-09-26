@@ -1,5 +1,30 @@
 # End-to-end CI
 
+The separate CI dependency audit checks all three lockfiles (root, backend and
+frontend; the Word surface shares the frontend). It uses npm's bulk advisory
+service with an OSV fallback and fails closed when neither answers. Exceptions
+must identify an advisory and reason in `scripts/audit-allowlist.json`; no
+upstream exceptions are inherited. Its offline regression gate is
+`node --test scripts/audit-gate.test.mjs`.
+
+Cloud SAML sign-in uses GoTrue's configured providers. Set `SSO_ENABLED=true`
+and optionally restrict `SSO_ALLOWED_DOMAINS` to comma-separated DNS domains.
+Login starts with an email and redirects configured domains to their provider;
+other domains continue to password login. Provider outages stay visible rather
+than silently falling back. Register Beaver's existing `/auth/callback` URL
+with the provider. Account-free local use needs no SSO configuration.
+
+MCP connectors accept generic OAuth clients plus separate `SLACK_MCP_OAUTH_*`
+and `GOOGLE_MCP_OAUTH_*` client IDs, secrets, scopes and confidential-origin
+allowlists (see `backend/.env.example`). Every discovered endpoint must be on
+the selected client's allowlist before credentials are supplied. Register
+`PUBLIC_ORIGIN/api/user/mcp-connectors/oauth/callback` with the provider.
+For [Slack](https://docs.slack.dev/ai/slack-mcp-server), enable its MCP server and
+PKCE in the Slack app and connect to `https://mcp.slack.com/mcp`. Google consent
+adds `access_type=offline` and `prompt=consent` for durable refresh tokens,
+following [Google's OAuth flow](https://developers.google.com/identity/protocols/oauth2/web-server).
+These settings reuse the existing encrypted token storage and refresh flow.
+
 `.github/workflows/e2e.yml` is the production-path browser gate. It runs on
 pull requests to `main` and `upstream-main`, and can be started manually.
 

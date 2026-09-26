@@ -24,6 +24,8 @@ export type ObjectStorage = {
   get(key: string, options?: StorageOptions & { maxBytes?: number }): Promise<Buffer | null>;
   remove(key: string, options?: StorageOptions): Promise<void>;
   signedGet?(key: string, options: SignedGetOptions): Promise<string | null>;
+  signedPut?(key: string, options: { expectedSha256: string; sizeBytes: number; contentType: string }):
+    Promise<{ url: string; headers: Record<string, string> }>;
 };
 
 export type S3Configuration = {
@@ -204,6 +206,19 @@ export function createS3ObjectStorage(config: S3Configuration): ObjectStorage {
   };
 
   return {
+    async signedPut(key, options) {
+      validateObjectKey(key); objectLimit(options.sizeBytes);
+      if (!/^[a-f0-9]{64}$/u.test(options.expectedSha256)) throw new Error("Invalid upload checksum");
+      const { client, commands, sign } = await load();
+      const headers = { "content-type": contentType(options.contentType), "if-none-match": "*",
+        "x-amz-checksum-sha256": Buffer.from(options.expectedSha256, "hex").toString("base64") };
+      const url = await sign(client, new commands.PutObjectCommand({ Bucket: config.bucket, Key: key,
+        ContentType: headers["content-type"], ContentLength: options.sizeBytes, IfNoneMatch: "*",
+        ChecksumSHA256: headers["x-amz-checksum-sha256"] }), { expiresIn: 300,
+        signableHeaders: new Set(["content-type", "content-length", "if-none-match"]),
+        unhoistableHeaders: new Set(["x-amz-checksum-sha256"]) });
+      return { url, headers };
+    },
     async put(key, input, type, options) {
       validateObjectKey(key);
       const source = checkedBody(input);
@@ -409,6 +424,7 @@ export function scopeObjectStorage(base: ObjectStorage, prefix: string): ObjectS
     get: (key, options) => base.get(full(key), options),
     remove: (key, options) => base.remove(full(key), options),
     signedGet: base.signedGet ? (key, options) => base.signedGet!(full(key), options) : undefined,
+    signedPut: base.signedPut ? (key, options) => base.signedPut!(full(key), options) : undefined,
   };
 }
 

@@ -136,6 +136,46 @@ authRouter.post("/signup", route(async (req, res) => {
 }));
 
 authRouter.post("/oauth", route(async (req, res) => {
+  if (req.body?.provider === "sso") {
+    const parsed = z.object({ provider: z.literal("sso"),
+      email: z.string().trim().toLowerCase().email().max(320),
+      next: z.string().max(2_048).optional() }).strict().safeParse(req.body);
+    if (!parsed.success) return invalid(res);
+    const domain = parsed.data.email.slice(parsed.data.email.lastIndexOf("@") + 1);
+    const domainSchema = z.string().trim().toLowerCase().max(253).regex(
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/u);
+    if (!domainSchema.safeParse(domain).success) return invalid(res);
+    if (process.env.SSO_ENABLED?.trim().toLowerCase() !== "true") {
+      res.json({ url: null });
+      return;
+    }
+    const allowed = process.env.SSO_ALLOWED_DOMAINS?.trim()
+      ? process.env.SSO_ALLOWED_DOMAINS.split(",").map((value) => domainSchema.parse(value)) : null;
+    if (allowed && !allowed.includes(domain)) {
+      res.json({ url: null });
+      return;
+    }
+    try {
+      const { data, error } = await createRequestSupabase(req, res).auth.signInWithSSO({
+        domain, options: { redirectTo: callbackUrl(req, parsed.data.next, "/onboarding"),
+          skipBrowserRedirect: true },
+      });
+      if (error?.code === "sso_provider_not_found") {
+        res.json({ url: null });
+        return;
+      }
+      if (error || !data?.url) throw new Error("SSO provider request failed");
+      const destination = new URL(data.url);
+      if (destination.protocol !== "https:" || destination.username || destination.password)
+        throw new Error("Invalid SSO redirect");
+      res.json({ url: destination.toString() });
+    } catch {
+      // Provider diagnostics can contain tenant details. Only expose our error.
+      res.status(503).json({ code: "sso_unavailable",
+        detail: "Single sign-on could not be started. Try again shortly." });
+    }
+    return;
+  }
   if (req.body?.provider !== "google") return invalid(res);
   const { data, error } = await createRequestSupabase(req, res).auth.signInWithOAuth({
     provider: "google",

@@ -612,6 +612,25 @@ async function readNonDocumentResource(
   if (call.name !== "Read") return null;
   const requested = trimmed(args.file_path);
   const resource = parseResourceReference(requested);
+  if (resource?.kind === "workflow-reference") {
+    const reference = workflows.get(resource.id)?.references?.find(({ filename }) => filename === resource.filename);
+    if (!reference) return fail("Workflow reference not found");
+    const text = await reference.read();
+    const lines = text.split("\n"), offset = Math.max(1, Number(args.offset ?? 1));
+    const limit = Math.min(2_000, Math.max(1, Number(args.limit ?? 2_000)));
+    const selected: string[] = [];
+    let length = 0, nextOffset = offset, nextChar = Math.max(0, Number(args.start_char ?? 0));
+    for (const line of lines.slice(offset - 1, offset - 1 + limit)) {
+      const chunk = line.slice(nextChar, nextChar + Math.max(0, 32_000 - length));
+      selected.push(chunk); length += chunk.length + 1;
+      if (nextChar + chunk.length < line.length) { nextChar += chunk.length; break; }
+      nextOffset++; nextChar = 0;
+      if (length >= 32_000) break;
+    }
+    return result({ ok: true, resource: requested, filename: reference.filename,
+      content: selected.join("\n"), total_lines: lines.length,
+      ...(nextOffset <= lines.length ? { next_offset: nextOffset, next_start_char: nextChar } : {}) });
+  }
   if (resource?.kind === "workflow") {
     const workflow = workflows.get(resource.id);
     return workflow
@@ -620,6 +639,7 @@ async function readNonDocumentResource(
           resource: requested,
           title: workflow.title,
           instructions: workflow.skill_md,
+          references: workflow.references?.map(({ filename, resource }) => ({ filename, resource })),
         })
       : fail("Workflow not found");
   }
@@ -670,6 +690,7 @@ async function readNonDocumentResource(
 type CodingShapeDeps = {
   documents: DocumentStore; library: LibraryStore; projects: ProjectStore;
   scope: DocumentScope; matterId?: string | null; workflows: WorkflowStore;
+  editAuthor: string;
   turnEditState?: AssistantEditTurnState; turnId?: string; editMode: EditMode;
   documentNames: Map<string, string>; docIndex?: DocIndex;
   progress?: (label: string) => void; signal?: AbortSignal;
@@ -679,7 +700,7 @@ async function runCodingShapeCall(
   call: NormalizedToolCall,
   args: Record<string, unknown>,
   { documents, library, projects, scope, matterId, workflows, turnEditState,
-    turnId, editMode, documentNames, docIndex, progress, signal }: CodingShapeDeps,
+    turnId, editMode, editAuthor, documentNames, docIndex, progress, signal }: CodingShapeDeps,
 ): Promise<AssistantOutcome> {
   const direct = await readNonDocumentResource(call, args, workflows, scope.userId);
   if (direct) return direct;
@@ -902,6 +923,7 @@ async function runCodingShapeCall(
     }
     if (call.name === "edit_docx_advanced") {
       return runAdvancedDocxEdit({
+        editAuthor,
         args,
         documents,
         scope,
@@ -935,7 +957,7 @@ async function runCodingShapeCall(
         replace: newString,
         match_case: true,
         scope: { kind: "whole_document" },
-      }]);
+      }], editAuthor);
       if (!applied.replacementCount) return result(noChanges(meta.id, file));
       return save(applied.bytes, applied.edits);
     }
@@ -944,7 +966,7 @@ async function runCodingShapeCall(
       replace: newString,
       context_before: "",
       context_after: "",
-    }], { author: "Beaver" });
+    }], { author: editAuthor });
     if (!applied.changes.length) {
       const sourceText = await extractDocxBodyText(file.bytes);
       const spans: string[] = [];
@@ -1370,6 +1392,7 @@ function pdfLegalEvidence(
 }
 
 async function runAdvancedDocxEdit(params: {
+  editAuthor: string;
   args: Record<string, unknown>;
   documents: DocumentStore;
   scope: DocumentScope;
@@ -1422,7 +1445,7 @@ async function runAdvancedDocxEdit(params: {
       });
     }
     const applied = blockInsert
-      ? await insertTrackedBlocks(file.bytes, blockInsert, { author: "Beaver" }).then(
+      ? await insertTrackedBlocks(file.bytes, blockInsert, { author: params.editAuthor }).then(
           (inserted) => ({
             bytes: inserted.bytes,
             edits: assistantEdits(inserted.changes),
@@ -1437,7 +1460,7 @@ async function runAdvancedDocxEdit(params: {
             ),
           }),
         )
-      : await applyTextOpsToDocx(file.bytes, resolvedRequests);
+      : await applyTextOpsToDocx(file.bytes, resolvedRequests, params.editAuthor);
     if (!applied.replacementCount || !applied.edits.length) {
       return result({
         ...(!applied.replacementCount ? noChanges(params.documentId, file) : {
@@ -1499,6 +1522,7 @@ import type { WorkProductFocus } from "mike/shared/work-products.mjs";
 export type AssistantToolsDependencies = {
   userId: string;
   userEmail?: string;
+  editAuthor?: string;
   documents: DocumentStore;
   sources?: SourceWorkspaceApplication;
   researchContext?: ResearchReadContext;
@@ -1555,6 +1579,7 @@ export function assistantTools<Context extends {
   {
     userId,
     userEmail,
+    editAuthor = userEmail || "Beaver",
     allowedDocumentIds,
     matterId,
     legalEvidence: legalEvidenceState,
@@ -1733,7 +1758,7 @@ export function assistantTools<Context extends {
     return runCodingShapeCall(call, args, {
       documents, library, projects, scope, matterId, turnEditState, turnId,
       workflows: availableWorkflows, editMode, documentNames: knownDocumentNames,
-      docIndex, progress, signal,
+      editAuthor, docIndex, progress, signal,
     });
   };
   const documentTool = (

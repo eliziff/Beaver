@@ -21,6 +21,12 @@ SUPABASE_SECRET_KEY=your-service-role-key
 Model-provider and object-storage credentials also stay in `backend/.env`.
 Use separate test projects, buckets, accounts, and capped keys.
 
+The authorized FullSweep uses port 3100 and a fresh data/launcher directory
+under `.tmp/full-sweep/`. It stops its own surface afterward and leaves the
+ordinary launcher and local data alone. A busy port fails the sweep. For manual
+isolated runs, set `PORT`, `MIKE_LAUNCHER_STATE_DIR`, `OPEN_LEGAL_DATA_HOME` and
+`MIKE_LOCAL_DATA_DIR`; the launcher, build guard and browser smoke use that port.
+
 Before every test or commit, run `git status --short` and stop if an environment
 file, credential, downloaded corpus, cache, or generated artifact is staged.
 

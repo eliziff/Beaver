@@ -12,6 +12,8 @@ import {
 
 
 export interface Project {
+  role?: "viewer" | "editor" | "owner" | null;
+  org_id?: string | null;
   id: string;
   user_id: string;
   is_owner?: boolean;
@@ -45,9 +47,5 @@ export const updateProject = (
 ) => patch<Project>(`/projects/${segment(projectId)}`, payload);
 export const deleteProject = (projectId: string) =>
   remove<void>(`/projects/${segment(projectId)}`);
-export interface ProjectPeople {
-  owner: { email: string | null; display_name: string | null };
-  members: { email: string; display_name: string | null }[];
-}
-export const getProjectPeople = (projectId: string) =>
-  apiRequest<ProjectPeople>(`/projects/${segment(projectId)}/people`);
+export const exportProjectManifest = (projectId: string) =>
+  apiRequest<Record<string, unknown>>(`/exports/projects/${segment(projectId)}`);

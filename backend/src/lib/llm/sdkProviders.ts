@@ -4,6 +4,7 @@ import { requireApiKey } from "./apiKeys";
 import { modelForProvider, providerForModel } from "./models";
 import { openCodeGoConnection } from "./openCodeGo";
 import { ollamaBaseUrl } from "./ollamaModels";
+import { configuredApiKey, configuredAvailable, getConfiguredModel } from "./registry";
 import type { StreamChatParams } from "./types";
 
 export type HostedModel = { model: LanguageModel; options: Record<string, Record<string, JSONValue>>;
@@ -92,5 +93,25 @@ export async function hostedModel(params: StreamChatParams): Promise<HostedModel
     })(model), options: { ollama: { reasoningEffort: thinking ? level ?? "high" : "none" } }, maxTokens: 32_768 };
   }
   if (go) return { model: createOpenAICompatible({ name: "opencodeGo", ...go })(model), options: {} };
+  if (provider === "configured") {
+    // Operator-declared OpenAI-compatible endpoints (MIKE_MODEL_CONFIG_JSON).
+    const declaration = getConfiguredModel(params.model);
+    if (!declaration) throw new Error("The selected model is not configured.");
+    if (!configuredAvailable(declaration, keys)) throw new Error("The selected model requires an API key.");
+    const base = createOpenAICompatible({ name: declaration.id, baseURL: declaration.baseUrl,
+      apiKey: configuredApiKey(declaration, keys),
+      ...(declaration.maxTokensField === "max_completion_tokens" && {
+        transformRequestBody: (body: Record<string, unknown>) => {
+          const { max_tokens, ...rest } = body;
+          return { ...rest, ...(max_tokens !== undefined && { max_completion_tokens: max_tokens }) };
+        },
+      }),
+    })(declaration.apiModel ?? declaration.id);
+    if (!(declaration.tolerateTextToolCalls ?? declaration.location === "local")) return { model: base, options: {} };
+    // Local models often emit tool calls as text; recover them before the SDK loop sees the step.
+    const [{ wrapLanguageModel }, { localModelToleranceMiddleware }] = await Promise.all([
+      import("ai"), import("./localModelMiddleware")]);
+    return { model: wrapLanguageModel({ model: base, middleware: localModelToleranceMiddleware() }), options: {} };
+  }
   throw new Error(`Not an API-backed model: ${params.model}`);
 }

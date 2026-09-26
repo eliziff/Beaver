@@ -1,5 +1,6 @@
 import { sha256 } from "../hash";
 import { readResearchQueries, type ResearchQueryReceipt } from "../researchFile";
+import type { MemoryTurn } from "../memoryApplication";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { textField } from "../textField";
@@ -188,6 +189,7 @@ export class ChatApplicationError extends Error {
 }
 
 type TurnFeatures = {
+  editAuthor?: string;
   apiKeys?: UserApiKeys;
   includeResearchTools: boolean;
   productFeatures?: FeaturePreferences;
@@ -200,6 +202,10 @@ type TurnFeatures = {
 };
 
 export type ChatApplicationFeatures = {
+  memory?: {
+    capture(auth: AuthContext, chatId: string | null, projectId: string | null, reviewId: string | null, workProductId: string | null): Promise<MemoryTurn | null>;
+    complete(auth: AuthContext, memory: MemoryTurn, input: { chatId: string; turnId: string; version: number; text: string }): void;
+  };
   load(auth: AuthContext): Promise<TurnFeatures>;
   providerSession?: {
     claim(input: {
@@ -211,6 +217,7 @@ export type ChatApplicationFeatures = {
       model: string;
       reasoningEffort?: string;
       expectedVersion: number;
+      memoryContextKey?: string | null;
     }): Promise<{
       continuationId?: string;
       promptCacheKey?: string;
@@ -238,7 +245,8 @@ export type ChatTurnExecution = {
   // supply a version that survives preparation, so the commit takes the current one.
   resume?: boolean;
   continuationId?: string;
-  onContinuation?(continuationId: string): void | Promise<void>;
+  memoryContextKey?: string | null;
+  onContinuation?(continuationId: string, memoryContextKey: string | null): void | Promise<void>;
   onAccepted?(chatId: string): void | Promise<void>;
   clientTool?: WordClientCall;
 };
@@ -356,6 +364,8 @@ async function loadDocumentContext(
   messages: ChatMessageRecord[],
   selectedIds: string[],
 ) {
+  if (projectId && (await deps.projects.get(auth, projectId))?.role === "viewer")
+    throw new ChatApplicationError(403, "You have read-only access to this project.");
   const records = projectId
     ? await projectDocuments(deps.projects, auth, projectId)
     : [];
@@ -439,6 +449,7 @@ export function createChatApplication(deps: Dependencies) {
       const model = requestedModel(input.model);
       const chat = await deps.chats.get(auth, input.chatId);
       if (!chat) throw new ChatApplicationError(404, "Chat not found");
+      if (chat.role === "viewer") throw new ChatApplicationError(403, "Editor access is required.");
       if (!claim(chat.id)) conflict(
         "chat_turn_in_progress",
         chat.transcript_version,
@@ -497,6 +508,7 @@ export function createChatApplication(deps: Dependencies) {
       const responseProvider = providerForModel(selectedModel);
       let chat = input.chat_id ? await deps.chats.get(auth, input.chat_id) : null;
       if (input.chat_id && !chat) throw new ChatApplicationError(404, "Chat not found");
+      if (chat?.role === "viewer") throw new ChatApplicationError(403, "You have read-only access to this chat.");
       if (!chat && input.expected_version !== 0) {
         conflict("chat_version_conflict", 0);
       }
@@ -518,6 +530,7 @@ export function createChatApplication(deps: Dependencies) {
             response.kind === "documents" ? response.documents : []);
       const tabularDetail = tabularReviewId ? await deps.tabular.detail(auth, tabularReviewId) : null;
       if (tabularReviewId && !tabularDetail) throw new ChatApplicationError(404, "Review not found");
+      if (tabularDetail?.review.role === "viewer") throw new ChatApplicationError(403, "You have read-only access to this review.");
       const researchFileId = input.research_file_id === undefined
         ? chat?.research_file_id ?? tabularDetail?.review.scope_config?.research_file_id : input.research_file_id,
         researchSelection = input.research_selection === undefined
@@ -541,6 +554,8 @@ export function createChatApplication(deps: Dependencies) {
       }));
       const tabularPrompt = tabularDetail ? tabularChatPrompt(tabularDetail) : undefined;
       const features = await deps.features.load(auth);
+      const memory = await deps.features.memory?.capture(auth, chat?.id ?? null,
+        projectId ?? tabularDetail?.review.project_id ?? null, tabularReviewId, workProductId);
       const pending = input.current_turn.kind === "ask_inputs_response" ? pendingAskInputs(rows) : null;
       const submittedWorkflow = input.current_turn.kind === "message" ? input.current_turn.workflow
         : pending ? workflowForContinuation(rows, pending.assistant.id) : undefined;
@@ -701,6 +716,7 @@ export function createChatApplication(deps: Dependencies) {
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
         features.sourceCoveragePrompt,
+        memory?.policy,
         priorLegalEvidencePrompt(priorEvidenceReceipts, priorQueries),
         priorGroundedAnswerPrompt(rows, new Set(priorEvidenceReceipts.map(({ evidence_id }) => evidence_id))),
         tabularPrompt,
@@ -709,6 +725,9 @@ export function createChatApplication(deps: Dependencies) {
         registeredWorkflow?.skill_md
           ? `SELECTED WORKFLOW — follow these instructions for this turn:
 ${registeredWorkflow.skill_md}` : "",
+        registeredWorkflow?.references?.length
+          ? `Workflow reference files (use Read when needed):\n${registeredWorkflow.references
+            .map(({ filename, resource }) => `${JSON.stringify(filename)}: ${resource}`).join("\n")}` : "",
         input.work_product ? openWorkProductPrompt(input.work_product.kind) : "",
         focus.length ? `CURRENT MATTER FOCUS:\n${focus.join("\n")}` : "",
         availableDocumentsPrompt(context.docIndex, context.records, requested),
@@ -782,6 +801,7 @@ ${registeredWorkflow.skill_md}` : "",
       localTools = createChatToolRunner({
         userId: auth.userId,
         userEmail: auth.userEmail,
+        editAuthor: features.editAuthor,
         model: selectedModel,
         reasoningEffort: input.reasoning_effort,
         turnId,
@@ -902,11 +922,13 @@ ${registeredWorkflow.skill_md}` : "",
           model: selectedModel,
           reasoningEffort: input.reasoning_effort,
           expectedVersion: input.expected_version,
+          memoryContextKey: memory?.key ?? null,
         }) ?? null;
       } catch (error) {
         console.warn("[chat] provider continuation unavailable", safeErrorLog(error));
       }
-      let activeContinuationId = execution?.continuationId ?? providerSession?.continuationId;
+      let activeContinuationId = (execution?.memoryContextKey ?? null) === (memory?.key ?? null)
+        ? execution?.continuationId ?? providerSession?.continuationId : providerSession?.continuationId;
       const onSubagentEvent = (event: ReadSubagentEvent) => {
         void queuePersist([event])?.catch(() => undefined);
       };
@@ -920,7 +942,7 @@ ${registeredWorkflow.skill_md}` : "",
           model: selectedModel,
           systemPrompt,
           turnContext,
-          messages: toModelMessages(messages),
+          messages: [...(memory?.message ? [memory.message] : []), ...toModelMessages(messages)],
           createTools: localTools.createTools,
           researchContext,
           priorQueries,
@@ -948,7 +970,7 @@ ${registeredWorkflow.skill_md}` : "",
               onStatus: onCompaction,
             });
             version = (await deps.chats.get(auth, chat!.id))?.transcript_version ?? version;
-            return toModelMessages(prepared.messages);
+            return [...(memory?.message ? [memory.message] : []), ...toModelMessages(prepared.messages)];
           },
           subagents: input.subagents,
           subagentModel: input.subagent_model,
@@ -964,7 +986,7 @@ ${registeredWorkflow.skill_md}` : "",
             : undefined,
           onProviderContinuation: async (id) => {
             activeContinuationId = id;
-            await execution?.onContinuation?.(id);
+            await execution?.onContinuation?.(id, memory?.key ?? null);
           },
           onProviderControl: sink.setControl,
           canRetryProviderSession: () => !localTools.mutationCommitted(),
@@ -992,6 +1014,11 @@ ${registeredWorkflow.skill_md}` : "",
         await providerSession?.save(activeContinuationId, version);
         sink.emit({ type: "transcript_version", transcriptVersion: version });
         auditTurn({ events: result.events });
+        if (memory && chatAvailable && result.status !== "paused" && !signal.aborted &&
+            !events.some((event) => event.type === "error" || event.type === "turn_status")) {
+          deps.features.memory?.complete(auth, memory, { chatId: chat.id, turnId: turnId ?? assistantId, version,
+            text: input.current_turn.kind === "message" ? input.current_turn.content : JSON.stringify(input.current_turn.responses) });
+        }
         return { chatId: chat.id, transcriptVersion: version };
       } catch (error) {
         const message = safeErrorMessage(error, "Model request failed");

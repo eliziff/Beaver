@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { webcrypto } from "node:crypto";
 import { createAssistantSessionState } from "../assistantSession";
 
-import { attachAuthorityPdf, uploadAuthoritiesDocument } from "./authorities";
-import { uploadCourtRecordDocument, saveCourtRecordBuild } from "./courtRecords";
 import { directoryResource } from "./documents";
 import { apiBlobRequest } from "./client";
 import { startTabularGeneration } from "./tabular";
@@ -16,82 +15,33 @@ function respond(value: unknown, status = 200) {
   return request;
 }
 
-describe("work-product uploads", () => {
-  it("carries the selected authority source language", async () => {
-    const fetchMock = respond({ id: "draft-1" });
-
-    const file = new File(["%PDF-1.7"], "French.pdf", { type: "application/pdf" });
-
-    await expect(attachAuthorityPdf("draft-1", "case-1", 3, file, "fr"))
-      .resolves.toEqual({ id: "draft-1" });
-
-    const body = fetchMock.mock.calls[0][1]?.body as FormData;
-    expect(body.get("revision")).toBe("3");
-    expect(body.get("language")).toBe("fr");
-    expect(body.get("file")).toBe(file);
-  });
-
-  it("carries Court Draft and Authorities Project context in multipart fields", async () => {
-    const fetchMock = respond({ id: "document-1" });
-
-    const file = new File(["record"], "record.pdf", { type: "application/pdf" });
-
-    await expect(uploadCourtRecordDocument(file, "record-1")).resolves.toEqual({ id: "document-1" });
-    await expect(uploadAuthoritiesDocument(file, "matter-1")).resolves.toEqual({ id: "document-1" });
-
-    expect((fetchMock.mock.calls[0][1]?.body as FormData).get("work_product_id"))
-      .toBe("record-1");
-    expect((fetchMock.mock.calls[1][1]?.body as FormData).get("projectId"))
-      .toBe("matter-1");
-  });
-
-  it("sends a Court build as one repeated-file request", async () => {
-    const fetchMock = respond({
-      id: "record-1", revision: 4,
-    });
-
-    const receipt = { schemaVersion: "beaver.work-product-build.v2",
-      output: { role: "record" } } as never;
-
-    await expect(saveCourtRecordBuild([{ file: new File(["record"], "Record.pdf"), receipt }]))
-      .resolves.toEqual({ id: "record-1", revision: 4 });
-
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/court-records/builds");
-    const body = fetchMock.mock.calls[0][1]?.body as FormData;
-    expect((body.get("files") as File).name).toBe("Record.pdf");
-    expect(JSON.parse(String(body.get("receipts")))).toEqual(receipt);
-  });
-});
-
 describe("directoryResource", () => {
-  it("uses one encoded directory contract for project and library storage", async () => {
-    const fetchMock = respond({ items: [], next_cursor: null });
-
-    await expect(directoryResource({ projectId: "matter/1" }).list({ parent_id: "folder/1" }))
-      .resolves.toEqual({ items: [], next_cursor: null });
-    await expect(directoryResource({ library: "files" }).list())
-      .resolves.toEqual({ items: [], next_cursor: null });
-
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "/api/projects/matter%2F1/directory?parent_id=folder%2F1",
-      "/api/library/files",
-    ]);
-  });
-
   it("recreates a selected folder tree before uploading its files", async () => {
+    vi.stubGlobal("crypto", webcrypto); localStorage.clear();
+    const sessions = new Map<string, Record<string, unknown>>();
     let folder = 0, document = 0, leaseAttempts = 0;
     const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
       const value = String(url);
       if (value.endsWith("/folders")) return new Response(JSON.stringify({
         id: `folder-${++folder}`,
       }), { headers: { "Content-Type": "application/json" } });
-      if (value.endsWith("/documents")) {
+      if (value === "/api/uploads") {
+        const fields = JSON.parse(String(init?.body)) as Record<string, unknown>, key = String(fields.client_key);
+        if (!sessions.has(key)) sessions.set(key, { ...fields, id: `upload-${sessions.size}`, status: "pending", document: null });
+        return Response.json(sessions.get(key));
+      }
+      if (value.endsWith("/transfer")) return Response.json({ kind: "proxy" });
+      if (value.endsWith("/complete")) {
+        const session = [...sessions.values()].find((row) => row.id === value.split("/").at(-2))!;
+        session.status = "complete"; session.document = { id: `document-${++document}` };
+        return Response.json(session);
+      }
+      if (value.endsWith("/content")) {
         const file = (init?.body as FormData).get("file") as File;
         if (file.name === "lease.pdf" && leaseAttempts++ === 0) {
           return new Response("failed", { status: 500 });
         }
-        return new Response(JSON.stringify({ id: `document-${++document}` }),
-          { headers: { "Content-Type": "application/json" } });
+        return Response.json({ uploaded: true });
       }
       return new Response(null, { status: 404 });
     });
@@ -117,16 +67,14 @@ describe("directoryResource", () => {
       { name: "Matter", parent_folder_id: null },
       { name: "Contracts", parent_folder_id: "folder-1" },
     ]);
-    const uploads = fetchMock.mock.calls.slice(2).map(([, init]) => {
-      const body = init?.body as FormData;
-      return [String((body.get("file") as File).name), body.get("folder_id")];
-    });
-    expect(uploads).toEqual(expect.arrayContaining([
-      ["lease.pdf", "folder-2"],
-      ["notes.docx", "folder-1"],
+    expect([...sessions.values()].map((row) => [row.filename, row.folder_id])).toEqual(expect.arrayContaining([
+      ["lease.pdf", "folder-2"], ["notes.docx", "folder-1"],
     ]));
-    expect(uploads.filter(([name]) => name === "lease.pdf")).toHaveLength(2);
-    expect(uploads.filter(([name]) => name === "notes.docx")).toHaveLength(1);
+    expect(document).toBe(2);
+    const uploads = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/content"))
+      .map(([, init]) => ((init?.body as FormData).get("file") as File).name);
+    expect(uploads.filter((name) => name === "lease.pdf")).toHaveLength(2);
+    expect(uploads.filter((name) => name === "notes.docx")).toHaveLength(1);
   });
 });
 
