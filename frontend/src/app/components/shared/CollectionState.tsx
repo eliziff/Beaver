@@ -1,4 +1,3 @@
-import "./loading.css";
 import type { ReactNode } from "react";
 import { cn } from "@/app/lib/utils";
 

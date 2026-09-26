@@ -17,6 +17,7 @@ import {
     type AssistantSidePanelTab,
 } from "./AssistantSidePanel";
 import { AssistantDock, type AssistantDockTab } from "./AssistantDock";
+import { rememberDockOpen, rememberedDockOpen } from "./assistantDockLayout";
 import type { WorkflowDocument } from "../workflows/ContextualWorkflowPicker";
 import type { WorkflowRunEvent, Message } from "@/app/lib/api/chat";
 import type { Citation, DocumentCitation } from "@/app/lib/citations";
@@ -206,7 +207,10 @@ const ChatViewContent = forwardRef<ChatViewHandle, Props>(function ChatViewConte
     const contextToolsEnabled = features?.contextTools ?? true;
     const researchSaveEnabled = features?.researchSave ?? true;
     const [tabs, setTabs] = useState<AssistantSidePanelTab[]>([]);
-    const [dockOpen, setDockExpanded] = useState(!!initialWorkflow);
+    // Documents a chat starts with open in the dock from the first paint, not a frame later.
+    const [dockOpen, setDockExpanded] = useState(() => !!initialWorkflow ||
+        !!initialDocuments?.length || rememberedDockOpen());
+    useEffect(() => rememberDockOpen(dockOpen), [dockOpen]);
     const [activeDockTab, setActiveDockTab] = useState(
         initialWorkflow ? "workflows" : projectFiles ? "project-files" : "sources",
     );

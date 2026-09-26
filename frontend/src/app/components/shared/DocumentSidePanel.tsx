@@ -56,7 +56,7 @@ function ResearchFilePreview({ documentId }: { documentId: string }) {
         );
         return () => { current = false; };
     }, [documentId]);
-    if (file === undefined) return <div role="status" className="grid h-full place-items-center text-sm text-gray-500">Loading research…</div>;
+    if (file === undefined) return <div role="status" className="beaver-loading-indicator grid h-full place-items-center text-sm text-gray-500">Loading research…</div>;
     if (!file) return <div role="alert" className="grid h-full place-items-center text-sm text-red-700">Could not load this research file.</div>;
 
     const { labels, sources, queries, note } = file.state;

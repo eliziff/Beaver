@@ -44,7 +44,7 @@ export function DocumentViewer({
             />
         );
     return <Suspense fallback={
-        <div className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500" role="status">
+        <div className="beaver-loading-indicator flex h-full min-h-0 items-center justify-center text-sm text-gray-500" role="status">
             Loading document…
         </div>
     }>{renderer}</Suspense>;

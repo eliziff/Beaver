@@ -1,4 +1,3 @@
-import "./loading.css";
 import { type ComponentProps, type HTMLAttributes, type ReactNode, type RefObject,
     useRef } from "react";
 import { cn } from "@/app/lib/utils";

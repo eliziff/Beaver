@@ -289,7 +289,7 @@ export function SpreadsheetView({
                     Failed to load spreadsheet.
                 </div>
             ) : !sheet ? (
-                <div role="status" className="flex h-full items-center justify-center">
+                <div role="status" className="beaver-loading-indicator flex h-full items-center justify-center">
                     <Loader2 className="h-7 w-7 animate-spin text-red-700" />
                     <span className="sr-only">Loading spreadsheet…</span>
                 </div>

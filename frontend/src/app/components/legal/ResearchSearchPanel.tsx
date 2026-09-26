@@ -147,7 +147,8 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
   async function run(input: ResearchQueryInput, text: string, continuing = false) {
     if (!file) return;
     if (!continuing && selection.sourceIds?.length === 0) return setStatus("No sources to search");
-    setBusy(true); setStatus(""); setHint("");
+    // The last status stays until this search reports, so it does not blink.
+    setBusy(true);
     try {
       const request = continuing ? input : scoped(input);
       const { receipt, coverage } = await commit.query(request);
@@ -155,11 +156,11 @@ export function ResearchSearchPanel({ active, selection, reader, onStatus: setSt
         matches: new Set([...(continuing ? current?.matches ?? [] : []), ...receipt.evidenceIds]),
         sourceIds: [...new Set([...(continuing ? current?.sourceIds ?? [] : []), ...receipt.matchedSourceIds])] }));
       setMore(coverage?.next_after ? { input: { ...request, after: coverage.next_after }, phrase: text } : null);
-      if (!receipt.evidenceIds.length) setStatus("No matches");
+      setStatus(receipt.evidenceIds.length ? "" : "No matches"); setHint("");
     } catch (reason) {
       // A malformed expression is the user still typing, not a failure: it never leaves the input.
-      if (reason instanceof BeaverApiError && reason.code === "invalid_query") setHint(reason.message);
-      else setStatus(errorMessage(reason, "Search failed"));
+      if (reason instanceof BeaverApiError && reason.code === "invalid_query") { setHint(reason.message); setStatus(""); }
+      else { setStatus(errorMessage(reason, "Search failed")); setHint(""); }
     }
     finally { setBusy(false); }
   }

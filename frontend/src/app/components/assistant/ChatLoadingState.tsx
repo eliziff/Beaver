@@ -10,6 +10,6 @@ export function ChatLoadingState({ load, onRetry }: {
         {load.status === "error" ? <>
             <p role="alert">Could not load this conversation.</p>
             <Button variant="outline" size="compact" onClick={onRetry}>Try again</Button>
-        </> : <p role="status">Loading conversation…</p>}
+        </> : <p role="status" className="beaver-loading-indicator">Loading conversation…</p>}
     </div>;
 }

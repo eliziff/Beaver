@@ -12,7 +12,8 @@ export function StepProgress({ label, error, className, announce = true }: {
     className={cn("text-sm font-medium text-red-800", className)}>{error}</span>;
   if (!label) return null;
   return <span role={announce ? "status" : undefined}
-    className={cn("flex items-center gap-2 text-sm font-medium text-gray-700", className)}>
+    // Like every Beaver loading placeholder, progress that ends within 150 ms never paints.
+    className={cn("beaver-loading-indicator flex items-center gap-2 text-sm font-medium text-gray-700", className)}>
     <Loader2 className="size-4 shrink-0 text-red-700 motion-safe:animate-spin" aria-hidden="true" />{label}</span>;
 }
 

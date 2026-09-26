@@ -78,8 +78,8 @@ function ResearchFileBarContent({ projectId, rail, sourceDropNonce, onReadSource
     handledDrop.current = sourceDropNonce; if (!noteOpen) revealLabels(); } }, [revealLabels, sourceDropNonce, noteOpen]);
 
   async function act(action: ResearchAction) {
-    if (!file) return null; setStatus("");
-    try { return await commit.act(action); }
+    if (!file) return null;
+    try { const result = await commit.act(action); setStatus(""); return result; }
     catch (reason) { setStatus(errorMessage(reason, "Could not update workspace")); return null; }
   }
   async function runHighlight() {

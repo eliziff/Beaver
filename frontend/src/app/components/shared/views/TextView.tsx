@@ -47,7 +47,7 @@ export function TextView({ documentId, versionId, filename }: Props) {
     if (loading) {
         return (
             <div
-                className="flex h-full min-h-0 items-center justify-center text-sm text-gray-500"
+                className="beaver-loading-indicator flex h-full min-h-0 items-center justify-center text-sm text-gray-500"
                 role="status"
             >
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
