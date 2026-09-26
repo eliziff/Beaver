@@ -303,7 +303,10 @@ async function document(args: {
   const native = structureNative();
   const core = docType === "cases" ? native.citationOccurrencesInText(citation)
     .filter(({ kind }) => kind === "case").map(({ coreCitation }) => coreCitation.text) : [];
-  const requested = [...new Set([citation, ...core])];
+  // The Recueil des arrêts de la Cour suprême (R.C.S.) is the S.C.R. in French: same volume and page.
+  const english = docType === "cases"
+    ? citation.replace(/\bR\.?\s?C\.?\s?S\.?(?=\s+\d)/gu, "S.C.R.") : citation;
+  const requested = [...new Set([citation, english, ...core])];
   const inventory = docType === "cases" ? citationAliasGroups(requested) : [];
   if (!sourceUrl && inventory.some(({ ambiguous }) => ambiguous)) return null;
   const aliases = [...new Set(inventory.flatMap(({ keys }) => keys))];
