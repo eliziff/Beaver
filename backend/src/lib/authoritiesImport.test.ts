@@ -209,6 +209,51 @@ describe("authorities import application", () => {
       reference: { kind: "supra", targetAuthorityId: references[1].authorityId } });
   });
 
+  it("links Ibid and supra in reading order and never past an unresolved reference", async () => {
+    const runtime = structureNative();
+    const units = [
+      { key: "body:0", kind: "body" as const, ordinal: 0, footnote_id: null, page_numbers: [],
+        text: "The test is in R v Grant, 2009 SCC 32.", footnote_refs: [[1, 38]] as Array<[number, number]> },
+      { key: "body:1", kind: "body" as const, ordinal: 1, footnote_id: null, page_numbers: [],
+        text: "Delay is governed by R v Jordan, 2016 SCC 27.", footnote_refs: [[2, 45]] as Array<[number, number]> },
+      { key: "footnote:1", kind: "footnote" as const, ordinal: 0, footnote_id: 1, page_numbers: [],
+        text: "Ibid at para 9.", footnote_refs: [] },
+      { key: "footnote:2", kind: "footnote" as const, ordinal: 1, footnote_id: 2, page_numbers: [],
+        text: "Smith v Jones, 2012 SCC 34 [Smith]; Goldsmith, supra at para 4; Ibid at para 3.",
+        footnote_refs: [] },
+    ];
+    const native = {
+      docxAuthorityTextUnits: vi.fn(), pdfAuthorityTextUnits: vi.fn(() => units),
+      citationOccurrencesInText: (value: string) => runtime.citationOccurrencesInText(value),
+      authorityReferencesInText: (value: string) => runtime.authorityReferencesInText(value),
+      citationLookupKey: (value: string) => runtime.citationLookupKey(value),
+    };
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.pdf",
+      fileType: "pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF"), modified: 1 },
+    { read: vi.fn(async () => ({})) as never }, native);
+    const reference = (unit: string, citation: string) => Object.values(state.occurrences)
+      .find((item) => item.unitId === unit && item.kind === "reference" && item.citation === citation);
+    const grant = Object.values(state.authorities).find(({ citation }) => citation === "2009 SCC 32")!;
+
+    // The footnote anchored after Grant reads Grant, not the later body citation of Jordan.
+    expect(reference("footnote:1", "Ibid")).toMatchObject({ authorityId: grant.id });
+    // "Goldsmith" is not the short form "Smith", and nothing after it may inherit Smith.
+    expect(reference("footnote:2", "supra")).toMatchObject({ authorityId: null });
+    expect(reference("footnote:2", "Ibid")).toMatchObject({ authorityId: null });
+  });
+
+  it("keeps a pinpoint range as one pinpoint", async () => {
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.pdf", fileType: "pdf",
+      bytes: Buffer.from("%PDF-1.7\n%%EOF"), modified: 1 }, { read: vi.fn(async () => ({})) as never },
+    { ...scanNative([]), pdfAuthorityTextUnits: vi.fn(() => [{ key: "body:0", kind: "body" as const,
+      ordinal: 0, footnote_id: null, page_numbers: [], footnote_refs: [],
+      text: "R v Jordan, 2016 SCC 27 at paras 5, 9 and 71-86; R v Oakes, [1986] 1 SCR 103 at 138 to 39." }]) });
+    expect(Object.values(state.occurrences).map(({ pinpoints }) => pinpoints)).toEqual([
+      [{ kind: "paragraph", text: "5" }, { kind: "paragraph", text: "9" }, { kind: "paragraph", text: "71-86" }],
+      [{ kind: "page", text: "138-39" }],
+    ]);
+  });
+
   it("imports standalone bytes through the same Rust occurrence scan", async () => {
     const bytes = Buffer.from("exact docx bytes"), citation = "2024 ABCA 1";
     const native = { docxAuthorityTextUnits: vi.fn(async () => [{ key: "body:0",

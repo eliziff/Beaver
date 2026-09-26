@@ -1,5 +1,5 @@
 import { ApplicationError } from "./applicationError";
-import { authorityCitationServices, updateAuthoritiesDraft as update } from "./authoritiesActions";
+import { authorityCitationServices, editAuthoritiesDraft } from "./authoritiesActions";
 import { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
@@ -77,7 +77,8 @@ export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
 ) {
-  let draft = initial;
+  // Resolution applies one or two actions per authority: one working copy, validated on return.
+  const editor = editAuthoritiesDraft(initial), draft = editor.draft;
   const attachments: PreparedAuthoritySource[] = [];
   const reconstruct = draft.settings.sourceMode !== "manual-originals";
   const originals = draft.settings.sourceMode !== "render";
@@ -118,6 +119,8 @@ export async function resolveAuthoritiesSources(
   for (let index = 0; index < candidates.length; index += 1) {
     signal?.throwIfAborted();
     const { id, authority } = candidates[index], resolved = resolutions[index];
+    // An earlier resolution can merge this authority into another with the same source.
+    if (!draft.authorities[id]) continue;
     if ("mismatch" in resolved) throw new ApplicationError(409,
       `The legal source for ${authority.name ?? authority.citation} changed since this draft was saved. Add the current PDF before trying again.`, {
         authority_id: id, source_issue: "changed", source_provider: "a2aj",
@@ -127,7 +130,7 @@ export async function resolveAuthoritiesSources(
     if ("unavailable" in resolved || !resolved.source) continue;
     const source = resolved.source;
     resolvedSources.set(stableA2AJSourceId(source), source);
-    draft = update(draft, { type: "resolve-authority", authorityId: id,
+    editor.apply({ type: "resolve-authority", authorityId: id,
       citation: source.citation, name: source.name,
       source: { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
         sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
@@ -143,7 +146,7 @@ export async function resolveAuthoritiesSources(
     catch { signal?.throwIfAborted(); return [id, null] as const; }
   });
   for (const [id, found] of foreign) {
-    if (!found) continue;
+    if (!found || !draft.authorities[id]) continue;
     const previous = draft.authorities[id].sourceIdentity;
     if (previous && (previous.stableSourceId !== found.stableSourceId ||
         previous.sourceSha256 !== found.sourceSha256)) throw new ApplicationError(409,
@@ -152,12 +155,12 @@ export async function resolveAuthoritiesSources(
       alternateCitation: null, dataset: found.provider, language: "en",
       searchText: found.text, verifiedPdf: found.pdfUrl
         ? { url: found.pdfUrl, pdfOnly: true } : null });
-    draft = update(draft, { type: "resolve-authority", authorityId: id,
+    editor.apply({ type: "resolve-authority", authorityId: id,
       citation: found.citation, name: found.name,
       source: { provider: found.provider, stableSourceId: found.stableSourceId,
         sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });
   }
-  if (!needsPdf) return { draft, attachments };
+  if (!needsPdf) return { draft: editor.result(), attachments };
   const unique = new Map<string, { authorityId: string; authority: AuthorityIdentity;
     source: ResolvedSource }>();
   for (const id of draft.authorityOrder) {
@@ -239,7 +242,7 @@ export async function resolveAuthoritiesSources(
     const pageUrl = external && buildCanliiPdfUrl(external) ? external
       : buildCanliiCaseUrlFromCitation([source?.citation, source?.alternateCitation,
         ...authorityCitationForms(draft, id)].filter((value) => !!value), source?.language);
-    if (pageUrl) draft = update(draft, { type: "begin-canlii-handoff", authorityId: id, pageUrl });
+    if (pageUrl) editor.apply({ type: "begin-canlii-handoff", authorityId: id, pageUrl });
   }
-  return { draft, attachments };
+  return { draft: editor.result(), attachments };
 }

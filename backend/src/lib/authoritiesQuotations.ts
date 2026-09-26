@@ -21,15 +21,19 @@ export function footnotePropositions(units: Units) {
   const counts = new Map<number, number>();
   for (const { id } of anchors) counts.set(id, (counts.get(id) ?? 0) + 1);
   const result = new Map<number, { text: string; parts: Array<{ unit: Units[number]; start: number; end: number }> }>();
-  let previous = 0;
+  // Anchors and parts are both in text order, so one pass pairs each passage with its parts.
+  let previous = 0, first = 0;
   for (const { id, position } of anchors) {
     const start = previous; previous = position;
+    while (first < parts.length && parts[first].start + parts[first].unit.text.length <= start) first += 1;
     if (counts.get(id) !== 1 || position <= start) continue;
-    result.set(id, { text: normalizeWhitespace(text.slice(start, position)),
-      parts: parts.flatMap(({ unit, start: offset }) => {
-        const from = Math.max(0, start - offset), to = Math.min(unit.text.length, position - offset);
-        return from < to ? [{ unit, start: from, end: to }] : [];
-      }) });
+    const covered: Array<{ unit: Units[number]; start: number; end: number }> = [];
+    for (let index = first; index < parts.length && parts[index].start < position; index += 1) {
+      const { unit, start: offset } = parts[index];
+      const from = Math.max(0, start - offset), to = Math.min(unit.text.length, position - offset);
+      if (from < to) covered.push({ unit, start: from, end: to });
+    }
+    result.set(id, { text: normalizeWhitespace(text.slice(start, position)), parts: covered });
   }
   return result;
 }

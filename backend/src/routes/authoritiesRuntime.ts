@@ -2,7 +2,7 @@ import { Router, type Request, type RequestHandler, type Response } from "expres
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { reject } from "../lib/applicationError";
+import { ApplicationError, reject } from "../lib/applicationError";
 import { authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations, type AuthoritiesBuildInput } from
   "../lib/authoritiesBuild";
 import { mapAuthorityBookBytes, type PreparedAuthoritiesBook } from "../lib/authoritiesBook";
@@ -16,6 +16,7 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuth
 import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
+import { mapBounded } from "../lib/mapBounded";
 import { sha256 } from "../lib/hash";
 import { multipleFileUpload, requiredFile, singleFileUpload } from "../lib/upload";
 import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
@@ -113,19 +114,21 @@ export function createAuthoritiesRuntimeRouter(
   const router = Router(); router.use(authenticate);
   router.post("/quote-check", asyncRoute(async (req, res) => {
     const state = draft(req.body?.draft), links = decodeQuoteLinks(req.body?.links);
-    if (!req.accepts("text/event-stream") || req.get("accept") !== "text/event-stream") {
-      res.json(await checkQuotes(state, links)); return;
-    }
     const abort = new AbortController();
     res.on("close", () => abort.abort());
+    if (!req.accepts("text/event-stream") || req.get("accept") !== "text/event-stream") {
+      res.json(await checkQuotes(state, links, abort.signal)); return;
+    }
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache"); res.flushHeaders();
     try {
       const report = await checkQuotes(state, links, abort.signal, (completed, total, quote) =>
         res.write(`data: ${JSON.stringify({ quote, completed, total })}\n\n`));
       res.write(`data: ${JSON.stringify({ done: true, counts: report.counts })}\n\n`);
-    } catch {
-      if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: "Checking stopped. Completed receipts are available to download." })}\n\n`);
+    } catch (error) {
+      // A rejected request says why; anything else stopped part-way through.
+      if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: error instanceof ApplicationError
+        ? error.message : "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
   }));
   router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
@@ -259,23 +262,27 @@ export function createAuthoritiesRuntimeRouter(
     const title = String(req.body?.title ?? "").trim();
     if (!id || !title || title.length > 300 || !Number.isSafeInteger(revision) || revision < 1)
       reject(400, "Authorities build identity is invalid");
-    const preparation = createAuthoritiesPreparation(state);
-    const sources: NonNullable<AuthoritiesBuildInput["sources"]> = {};
-    for (let index = 0; index < files.length; index += 1) {
-      const role = roleNames[index], bytes = await readFile(files[index].path);
-      build.signal.throwIfAborted();
-      const binding = state.bindings[role];
-      const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
-        : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
-      if (!expectedHash || sha256(bytes) !== expectedHash) reject(409, "An attached PDF changed. Add the current file before continuing.");
-      sources[role] = { bytes, ...await preparation.prepareText(role, { bytes, signal: build.signal })
-        .catch((error) => {
-          if (build.signal.aborted) throw error;
-          return reject(409, error instanceof Error
-            ? `Could not read ${files[index].originalname}: ${error.message}`
-            : `Could not read ${files[index].originalname}`);
-        }) };
-    }
+    let preparation: ReturnType<typeof createAuthoritiesPreparation>;
+    // Saved highlights for a PDF that was since replaced are the user's to review, not a server fault.
+    try { preparation = createAuthoritiesPreparation(state); }
+    catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
+    // Sources are read and prepared a few at a time; native preparation runs off the event loop.
+    const sources: NonNullable<AuthoritiesBuildInput["sources"]> = Object.fromEntries(
+      await mapBounded(files, async (file, index) => {
+        const role = roleNames[index], bytes = await readFile(file.path);
+        build.signal.throwIfAborted();
+        const binding = state.bindings[role];
+        const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
+          : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
+        if (!expectedHash || sha256(bytes) !== expectedHash) reject(409, "An attached PDF changed. Add the current file before continuing.");
+        return [role, { bytes, ...await preparation.prepareText(role, { bytes, signal: build.signal })
+          .catch((error) => {
+            if (build.signal.aborted) throw error;
+            return reject(409, error instanceof Error
+              ? `Could not read ${file.originalname}: ${error.message}`
+              : `Could not read ${file.originalname}`);
+          }) }] as const;
+      }));
     let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,
       workProduct: { id, revision }, sources, signal: build.signal }, async (prepared) => {

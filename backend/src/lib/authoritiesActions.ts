@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
-import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, reduceAuthoritiesDraft,
+import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, reduceAuthoritiesDraft, authoritiesDraftEditor,
   unusedScanOnlyAuthority, type AuthoritiesAction, type AuthoritiesBuildSettings,
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
-import { nativeOccurrenceSpans } from "./authoritiesImport";
+import { nativeOccurrenceSpans, pinpointValues } from "./authoritiesImport";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { authorityPdfText } from "./authorityPdfText";
 import { citationAliasKeysBatch } from "./caselawCitator";
@@ -35,12 +35,23 @@ export const authoritiesReview = (draft: AuthoritiesDraft): AuthoritiesFreshRevi
   authorityOrder: draft.authorityOrder,
 });
 
-export function updateAuthoritiesDraft(draft: AuthoritiesDraft, action: AuthoritiesAction) {
-  try { return reduceAuthoritiesDraft(draft, action); }
+const asRequestError = <T>(operation: () => T) => {
+  try { return operation(); }
   catch (error) {
     if (error instanceof AuthoritiesDomainError) throw new ApplicationError(400, error.message);
     throw error;
   }
+};
+
+export function updateAuthoritiesDraft(draft: AuthoritiesDraft, action: AuthoritiesAction) {
+  return asRequestError(() => reduceAuthoritiesDraft(draft, action));
+}
+
+/** Many actions on one working copy, validated once; a rejection is a 400 as for one action. */
+export function editAuthoritiesDraft(draft: AuthoritiesDraft) {
+  const editor = asRequestError(() => authoritiesDraftEditor(draft));
+  return { draft: editor.draft, apply: (action: AuthoritiesAction) => asRequestError(() => editor.apply(action)),
+    result: () => asRequestError(() => editor.result()) };
 }
 
 export function applyAuthoritiesInitialSettings(
@@ -70,8 +81,15 @@ export function attachAuthorityPdf(draft: AuthoritiesDraft, authority: Authority
       ?? authority.sourceIdentity?.externalUrl ?? null) {
   return updateAuthoritiesDraft(draft, { type: "attach-source", authorityId: authority.id, bindingRole:
     attachedAuthoritySources(authority.source).find(source => source.language === language)?.bindingRole
-      ?? `authority:${sha256(authority.key).slice(0, 24)}:${language}`, binding, filename, sourceSha256,
-    sourceUrl, language, origin });
+      ?? unusedRole(draft, `authority:${sha256(authority.key).slice(0, 24)}:${language}`),
+    binding, filename, sourceSha256, sourceUrl, language, origin });
+}
+
+/** A merged-away authority keeps its role inside the survivor, so the same key can recur. */
+function unusedRole(draft: AuthoritiesDraft, role: string) {
+  let candidate = role;
+  for (let index = 2; Object.hasOwn(draft.bindings, candidate); index += 1) candidate = `${role}:${index}`;
+  return candidate;
 }
 
 export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
@@ -167,7 +185,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     citation: match?.coreCitation.text ??
       (sameValue(donors.map(({ citation }) => citation)) ? donors[0].citation : text.trim()),
     authorityId, reference,
-    pinpoints: match?.pinpoints.map(({ kind, text }) => ({ kind, text })) ?? [],
+    pinpoints: match ? pinpointValues(match.pinpoints, text) : [],
     evidenceIds: [...new Set(donors.flatMap(({ evidenceIds }) => evidenceIds))].sort(),
     // A unit's own text hash, except where donors carry the hash the import recorded.
     sourceTextSha256: donors[0]?.sourceTextSha256 ?? unit.occurrenceIds
@@ -315,7 +333,7 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   if (!pinpoints.length) throw new ApplicationError(400,
     "Select a complete pinpoint for this authority");
   occurrence.pinpointSpan = { start: selected.start, end: selected.end, text: selected.text };
-  occurrence.pinpoints = pinpoints.map(({ kind, text }) => ({ kind, text }));
+  occurrence.pinpoints = pinpointValues(pinpoints, selected.unit.text.slice(from, to));
   occurrence.start = Math.min(occurrence.authoritySpan.start, selected.start);
   occurrence.end = Math.max(occurrence.authoritySpan.end, selected.end);
   occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
