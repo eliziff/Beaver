@@ -37,7 +37,11 @@ and shared claims. Inventory compaction must not combine different claims or dis
 another source's finding. Passage previews and support excerpts come from the actual
 source passages, retaining saved highlight-instance identities. Findings and notes
 remain analysis, not substitute quote text. Save highlights uses selected findings'
-supporting receipts directly rather than display metadata.
+supporting receipts directly rather than display metadata. Agents can search saved
+findings and copy selected chat/table results into the existing memo by reference,
+without generating their prose again. The copy is a version-checked Markdown
+snapshot with exact citation targets, not automatic synchronization. Search
+history stays on demand; it is not the research content to copy into notes.
 
 ## Remaining validation and product work
 

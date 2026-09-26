@@ -1079,3 +1079,32 @@ describe("Research v2 parts", () => {
   });
 
 });
+
+it("carries zero-hit chat scans with their source through saving, copying and per-source table history", async () => {
+  const f = fixture(), reference = { provider: "courtlistener", id: "negative-source", kind: "case" as const },
+    resource = researchSourceResource(reference), original = researchQueryReceipt({
+      query_id: "q_negative", call_id: "read-empty", reader_id: "reader-A", tool: "Read",
+      executor_version: "legal-source-pattern-v1", model: "reader", executed_at: "2026-09-24T00:00:00Z",
+      input: { resource, pattern: "rare doctrine", search_scope: "judgment_text" }, results: [],
+      scan: { sources: [{ resource, source_sha256: "a".repeat(64) }], total_matches: 0, headnote_matches: 0, truncated: false },
+    });
+  let saved = await act(f, { type: "merge", queries: [original] });
+  const source = Object.values(saved.state.sources)[0];
+  expect(source.reference.id).toBe("negative-source");
+  expect(source.collected).toBe(false);
+  const otherResource = researchSourceResource({ ...reference, id: "unrelated" });
+  saved = await act(f, { type: "merge", queries: Array.from({ length: 60 }, (_, i) => researchQueryReceipt({
+    ...original, query_id: `q_other${i}`, sourceIds: [], input: { ...original.input, resource: otherResource },
+    scan: { ...original.scan!, sources: [{ resource: otherResource, source_sha256: "b".repeat(64) }] },
+  })) });
+  const page = await pageResearchItems(f.documents as never, { userId: "user-1" }, saved, "queries", 0, 50, [source.id]);
+  expect(page.total).toBe(1);
+  const stored = page.items[0].value as import("./researchFile").ResearchQueryReceipt;
+  expect(stored).toMatchObject({ query_id: "q_negative", sourceIds: [source.id], matchedSourceIds: [],
+    sourceFingerprints: { [source.id]: ["a".repeat(64)] }, sourceReferences: { [source.id]: expect.objectContaining({ id: reference.id }) } });
+  const copied = fixture(), destination = await act(copied, { type: "merge", queries: [stored] }),
+    copiedSource = Object.values(destination.state.sources)[0], copiedPage = await pageResearchItems(copied.documents as never,
+      { userId: "user-1" }, destination, "queries", 0, 50, [copiedSource.id]);
+  expect(copiedPage.items[0].value).toMatchObject({ reader_id: "reader-A", input: { pattern: "rare doctrine" },
+    sourceIds: [copiedSource.id], matchedSourceIds: [], scan: { total_matches: 0, truncated: false } });
+});

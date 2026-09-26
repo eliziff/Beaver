@@ -331,3 +331,63 @@ it("applies a column rename directly and turns a rewritten prompt into a proposa
   expect((await f.application.detail(owner, reviewId)).review.columns_config[0].prompt)
     .toBe("State the payment deadline and any grace period.");
 });
+
+it("centres finding previews on matching saved claims and batch-reads unique exact support with scoped continuations", async () => {
+  const f = await fixture(), chats = await f.runtime.chats(),
+    { createLegalEvidenceTurnState, registerLegalEvidence, legalEvidenceReceiptEvent } = await import("./legalEvidence"),
+    { readResearchFindings } = await import("./researchTableTool"),
+    chat = await chats.create(owner, { projectId: null, tabularReviewId: null, researchFileId: f.workspace.document.id }),
+    state = createLegalEvidenceTurnState(), messageId = randomUUID();
+  registerLegalEvidence(state, f.receipt);
+  state.answer = [
+    { text: "An unrelated introduction.", evidence_ids: [f.receipt.evidence_id] },
+    { text: `${"Background. ".repeat(60)}The termination notice must preserve this qualifier.`, evidence_ids: [f.receipt.evidence_id] },
+  ];
+  await chats.commitTurn(owner, chat.id, { expectedVersion: 0,
+    userMessage: { id: randomUUID(), content: "Review the agreement" },
+    assistantMessage: { id: messageId, content: [legalEvidenceReceiptEvent(state)!] } });
+  await f.sources.bind(owner, f.workspace.document.id, { chatId: chat.id });
+  const decode = (outcome: Awaited<ReturnType<typeof f.readFindings>>) => JSON.parse((outcome.result.content[0] as { text: string }).text);
+  const overview = decode(await f.readFindings({ pattern: "termination notice" }));
+  expect(overview.items[0].preview).toContain("termination notice must preserve this qualifier");
+  expect(overview.items[0].preview).not.toContain("unrelated introduction");
+  expect(overview.items[0].preview.length).toBeLessThanOrEqual(300);
+  const original = overview.items[0].reference, refs = [0, 1].map(index => ({ ...original, claimIndices: [index] }));
+  const batch = await f.readFindings({ references: refs }), value = decode(batch);
+  expect(value.items.map((item: any) => item.result.claims[0].text)).toEqual(state.answer.map(claim => claim.text));
+  expect(value.evidence).toHaveLength(1); expect(batch.evidence).toEqual([f.receipt]);
+  expect(value.next_read).toBeNull();
+  const { runLocalAssistantTools } = await import("../__tests__/support/localAssistantTools");
+  const [dispatched] = await runLocalAssistantTools(owner.userId, [{ id: "batch", name: "Read",
+    input: { file_path: "findings", finding_refs: refs, limit: 1 } }], {
+    documents: f.documents, sources: f.sources, library: await f.runtime.library(), projects: await f.runtime.projects(),
+    legalEvidence: state, researchContext: await f.sources.context(owner, f.workspace.document.id),
+  });
+  expect(dispatched.status).toBe("ok"); expect(dispatched.evidence).toEqual([f.receipt]);
+  const page = JSON.parse(dispatched.content);
+  expect(page.next_read).toEqual({ file_path: "findings", finding_refs: refs, offset: 2, limit: 1 });
+  const tail = decode(await f.readFindings({ references: refs, offset: page.next_read.offset - 1, limit: 1 }));
+  expect(tail.items[0].result.claims[0]).toEqual(state.answer[1]); expect(tail.next_read).toBeNull();
+  await expect(readResearchFindings({ sources: f.sources, scope: owner, workspaceId: f.workspace.document.id,
+    findingRefs: [refs[0]] }, { references: [refs[1]] })).rejects.toThrow("outside the selected results");
+  await expect(f.readFindings({ references: [{ ...original, answerId: "missing" }] })).rejects.toThrow("unavailable");
+});
+
+it("defers an oversized finding whole while retaining its original single-finding read and exact evidence", async () => {
+  const f = await fixture(), chats = await f.runtime.chats(),
+    { createLegalEvidenceTurnState, registerLegalEvidence, legalEvidenceReceiptEvent } = await import("./legalEvidence"),
+    chat = await chats.create(owner, { projectId: null, tabularReviewId: null, researchFileId: f.workspace.document.id }), state = createLegalEvidenceTurnState();
+  registerLegalEvidence(state, f.receipt);
+  state.answer = [{ text: "Long saved finding. ".repeat(4_000), evidence_ids: [f.receipt.evidence_id] }];
+  await chats.commitTurn(owner, chat.id, { expectedVersion: 0,
+    userMessage: { id: randomUUID(), content: "An existing long research note" },
+    assistantMessage: { id: randomUUID(), content: [legalEvidenceReceiptEvent(state)!] } });
+  await f.sources.bind(owner, f.workspace.document.id, { chatId: chat.id });
+  const findings = await f.sources.findings(owner, f.workspace.document.id, { offset: 0, limit: 5 }),
+    output = await f.readFindings({ references: findings.items.map(item => item.reference) }),
+    text = (output.result.content[0] as { text: string }).text, value = JSON.parse(text);
+  expect(text.length).toBeLessThan(50_000); expect(value.items[0].deferred).toBe(true);
+  expect(value.items[0].result).toBeUndefined(); expect(output.evidence ?? []).toEqual([]);
+  const detail = await f.readFindings({ reference: JSON.parse(value.items[0].read.section), evidence_id: f.receipt.evidence_id });
+  expect(detail.evidence).toEqual([f.receipt]);
+});

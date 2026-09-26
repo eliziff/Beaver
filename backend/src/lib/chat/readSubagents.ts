@@ -242,13 +242,19 @@ function combineReadSubagentResults(
   parent: NormalizedToolCall,
   results: NormalizedToolResult[],
 ): NormalizedToolResult {
-  const ok = results.every((result) => result.status === "ok");
+  const ok = results.every((result) => result.status === "ok"), shown = new Set<string>();
   return {
     tool_use_id: parent.id,
     status: ok ? "ok" : "error",
     content: JSON.stringify({ ok, readers: results.map((result) => {
-      try { return JSON.parse(result.content); }
-      catch { return { status: result.status, output: result.content }; }
+      try {
+        const value = JSON.parse(result.content);
+        if (Array.isArray(value.evidence)) value.evidence = value.evidence.filter((item: { evidence_id: string }) => {
+          if (shown.has(item.evidence_id)) return false;
+          shown.add(item.evidence_id); return true;
+        });
+        return value;
+      } catch { return { status: result.status, output: result.content }; }
     }) }),
   };
 }

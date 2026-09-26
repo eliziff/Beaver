@@ -29,7 +29,7 @@ export function createArtifactRegistry() {
 
 /** The turn supplies its own scope, evidence, artifacts and edit state; the caller supplies the rest. */
 type TurnOwned = "scope" | "readerAssignment" | "researchContext" | "operation" |
-  "legalEvidence" | "edits" | "resolveArtifact" | "artifactFor" |
+  "legalEvidence" | "queryHistory" | "edits" | "resolveArtifact" | "artifactFor" |
   "onResearchWorkspace" | "onMutationCommitted";
 
 export function createChatToolRunner(options: Omit<AssistantToolsDependencies, TurnOwned> & {
@@ -73,6 +73,7 @@ export function createChatToolRunner(options: Omit<AssistantToolsDependencies, T
         researchContext: context.research,
         operation: context.operation,
         legalEvidence: evidence,
+        queryHistory: context.queryHistory,
         model: context.operation.model ?? options.model,
         onMutationCommitted() {
           if (scope === "main") commitMutation();

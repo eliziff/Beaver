@@ -32,6 +32,7 @@ export const runResearchFileQuery = (id: string,
 export type { ResearchFindingReference } from "../../../../../backend/src/lib/researchFindingReference";
 import type { ResearchFindingReference } from "../../../../../backend/src/lib/researchFindingReference";
 export type ResearchFinding = {
+  origin?: { subagentId?: string };
   reference: ResearchFindingReference;
   sourceId: string;
   resource: string;
@@ -46,6 +47,9 @@ export const getWorkspaceFindings = (id: string, input: { sourceIds?: string[]; 
   apiRequest<{ items: ResearchFinding[]; total: number; next_offset: number | null; is_running?: boolean }>(
     pagePath(`/source-workspaces/${segment(id)}/findings`, { source_ids: input.sourceIds?.join(","), chatId: input.chatId,
       message_id: input.messageId, offset: input.offset, limit: input.limit ?? 50 }), { signal });
+export const copyFindingsToMemo = (file: ResearchFile, input: { title: string; references: ResearchFindingReference[] }) =>
+  post<ResearchFile>(`/source-workspaces/${segment(file.document.id)}/memo`, { ...input, mode: "append",
+    version_id: file.versionId, working_revision: file.workingRevision });
 export const ensureSourcesWorkspace = (input: { chatId?: string; tableId?: string; title?: string; projectId?: string }) =>
   post<ResearchFile>("/source-workspaces/ensure", input);
 export const bindWorkspaceView = (id: string, input: { chatId?: string; tableId?: string; selection?: ResearchSelection }) =>

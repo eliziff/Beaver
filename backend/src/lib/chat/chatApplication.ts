@@ -1,11 +1,12 @@
 import { sha256 } from "../hash";
+import { readResearchQueries, type ResearchQueryReceipt } from "../researchFile";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { textField } from "../textField";
 import type { BeaverTool } from "./toolRegistry";
 import {
   AssistantStreamError,
-  runChatTurn,
+  applicationContextMessage, runChatTurn,
   type ChatToolContext,
 } from "./turnEngine";
 import { createChatToolRunner } from "./chatToolRunner";
@@ -47,7 +48,7 @@ import {
   priorLegalResearchQueryReceipts,
   registerPriorLegalResearchQueries,
 } from "./legalEvidence";
-import { resumableReadSubagents } from "./readSubagents";
+import { resumableReadSubagents, readSubagentResumePrompt } from "./readSubagents";
 import { tabularChatPrompt } from "./tabularContext";
 import { providerErrorCode, safeErrorLog, safeErrorMessage } from "../safeError";
 import {
@@ -75,7 +76,7 @@ import { wordClientTools, type WordClientCall } from "./wordClientTools";
 import type { SourceWorkspaceApplication } from "../sourceWorkspaceApplication";
 import type { ChatCreateInput } from "../chatStore";
 import { researchSelectionSchema } from "../researchSelection";
-import { researchResultFilter } from "../researchReader";
+import { researchResultFilter, researchReadContextPrompt } from "../researchReader";
 import type { AuditStore } from "../audit";
 
 const uuid = z.string().uuid();
@@ -648,9 +649,9 @@ export function createChatApplication(deps: Dependencies) {
         files: canonicalFiles,
         workflow: canonicalWorkflow,
       });
-      const researchQueries = research ? await deps.sources.items(auth, research.document.id,
-          { kind: "queries", offset: 0, limit: 50 }) : null,
-        workspaceContext = research ? await deps.sources.context(auth, research.document.id,
+      let researchQueries: Promise<ResearchQueryReceipt[]> | undefined;
+      const queryHistory = research ? () => researchQueries ??= readResearchQueries(deps.documents, auth, research) : undefined;
+      const workspaceContext = research ? await deps.sources.context(auth, research.document.id,
           researchSelection ?? undefined) : undefined;
       const researchContext = workspaceContext && tabularDetail && input.research_selection === undefined &&
           !chat?.research_selection && researchFileId === tabularDetail.review.scope_config?.research_file_id
@@ -665,10 +666,10 @@ export function createChatApplication(deps: Dependencies) {
           ...(workspaceContext?.subjects.flatMap(({ savedEvidence }) => savedEvidence) ?? [])]
           .map((receipt) => [receipt.evidence_id, receipt])).values()].filter((receipt) =>
             permittedEvidence({ resource: legalEvidenceResourceReference(receipt) ?? "", evidence: [receipt] })),
-        priorQueries = [...new Map([...priorLegalResearchQueryReceipts(priorEvents),
-          ...(researchQueries?.items.flatMap((item) => item.kind === "query" ? [item.value] : []) ?? [])]
-          .map((receipt) => [receipt.query_id, receipt])).values()],
+        priorQueries = priorLegalResearchQueryReceipts(priorEvents),
         evidenceState = createLegalEvidenceTurnState();
+      for (const event of priorEvents) if (event.type === "subagent_run" && event.status !== "running")
+        evidenceState.readerResults.set(event.id, event);
       if (canonicalWorkflow?.id === "quote-checking") {
         evidenceState.mode = "citation_structure";
         evidenceState.reviewDocumentIds = new Set(turnFiles.map(({ document_id }) => document_id));
@@ -692,6 +693,8 @@ export function createChatApplication(deps: Dependencies) {
       const systemPrompt = [
         CODING_PRODUCTION_SYSTEM_PROMPT,
         CLIENT_WORK_PRODUCT_PRESUMPTION,
+      ].join("\n\n");
+      const turnContext = [
         jurisdictionPreferencePrompt(input.jurisdiction_preference ?? null),
         features.personalisationPrompt,
         features.sourceCoveragePrompt,
@@ -712,6 +715,22 @@ ${registeredWorkflow.skill_md}` : "",
             "apply_word_edits; it is not a Library document.",
         ].join("\n") : "",
       ].filter(Boolean).join("\n\n");
+
+      const hostedContext = responseProvider !== "codex" && responseProvider !== "claude-p";
+      if (hostedContext && !(retry && assistantContent.some(event =>
+          event.type === "model_messages" && event.id.startsWith("context:")))) {
+        const message = applicationContextMessage([turnContext, researchReadContextPrompt(researchContext),
+          readSubagentResumePrompt(resumableReadSubagents(priorEvents))].filter(Boolean).join("\n\n"));
+        const previous = messages.flatMap(message => message.modelState?.messages ?? []).reverse()
+          .find(message => message.role === "user" && typeof message.content === "string" &&
+            message.content.startsWith("[Current application context —"));
+        if (previous?.content !== message.content) {
+          // The accepted user turn and its private state snapshot share the same atomic commit.
+          assistantContent.push({ type: "model_messages", id: `context:${randomUUID()}`, model: selectedModel, messages: [message] });
+          commit.assistantMessage = { id: assistant?.id ?? commit.assistantMessage?.id ?? randomUUID(), turnId,
+            content: assistantContent, citations: assistantCitations };
+        }
+      }
 
       if (input.word_context && !execution?.clientTool) {
         throw new ChatApplicationError(400, "The Word document bridge is unavailable");
@@ -825,12 +844,10 @@ ${registeredWorkflow.skill_md}` : "",
           type: LOCAL_MUTATION_COMMITTED_EVENT, schema_version: 1,
         }], [], true),
       });
-      const slugByDocumentId = new Map(Object.entries(context.docIndex)
-        .map(([slug, info]) => [info.document_id, slug]));
       const toModelMessages = (list: ReturnType<typeof projectChatTranscript>) =>
         list.map((message) => ({
           role: message.role === "assistant" ? "assistant" as const : "user" as const,
-          content: formatChatMessageContent(message, slugByDocumentId),
+          content: formatChatMessageContent(message),
           images: imageForMessage(message, images),
           contextCheckpoint: message.contextCheckpoint,
           modelState: message.modelState,
@@ -899,10 +916,12 @@ ${registeredWorkflow.skill_md}` : "",
         const result = await runChatTurn({
           model: selectedModel,
           systemPrompt,
+          turnContext,
           messages: toModelMessages(messages),
           createTools: localTools.createTools,
           researchContext,
           priorQueries,
+          queryHistory,
           operation: { executor: "assistant", model: selectedModel, chatId: chat.id, turnId,
             ...(tabularReviewId ? { reviewId: tabularReviewId } : {}) },
           onResearchObserved: async (receipt, operation) => {

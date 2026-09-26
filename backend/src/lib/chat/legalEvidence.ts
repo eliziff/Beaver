@@ -14,11 +14,12 @@ import { normalizeWhitespace } from "../text";
 import { sha256 as hexSha256 } from "../hash";
 import { jsonRecord as object } from "../value";
 import { collapseProvisionLabels } from "../provisionLabels";
-import type { LegalEvidenceReceiptEvent } from "./assistantEvents";
-import { groundedSentenceCount, type GroundedClaim } from "../groundedAnswer";
+import type { LegalEvidenceReceiptEvent, ReadSubagentEvent } from "./assistantEvents";
+import { renderCitedBlocks, type GroundedClaim } from "../groundedAnswer";
 import { legalSourceResource, resourceReference } from "../resourceReferences";
 import { objectSchema } from "./toolRegistry";
 
+import { researchScanSchema } from "../researchContract";
 import type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
   LegalResearchQueryReceipt } from "../researchContract";
 export type { DirectSourceProvider, LegalEvidenceReceipt, LegalSourceClass,
@@ -30,7 +31,7 @@ export type LegalEvidenceMode = "citation_structure";
 const GROUNDED_ANSWER_CONTRACT =
   "Finish evidence-dependent answers with this tool. Bind each claim to supporting passage evidence_ids. End with the conclusions the question asks for: apply the law to the client's facts and say what they should do, including what to correct before acting. Citation chips supply source names, citations, pinpoints and links; include those details in prose only when needed for the analysis or requested by the user.";
 const GROUNDED_CLAIM_GRANULARITY =
-  "Use one sentence per claim and the smallest supporting passage. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
+  "Keep each support unit concise and use the smallest supporting passage. Split units when their supporting evidence differs. Locate the court's analysis of each issue within the judgment and read the relevant holding, including its qualifications. Do not present a party's submissions, a dissent, or a summary as the deciding court's reasoning. When naming a paragraph, choose that paragraph's own evidence_id, not a neighbour's or a range's; a run read returns one per paragraph.";
 export const GROUNDED_QUOTATION_POLICY_CURRENT =
   "Prefer direct quotation when the source itself states the proposition. Quote the shortest passage that preserves the source's meaning and necessary context. Paraphrase only when combining sources, explaining their effect, or expressing the point more clearly. Keep each claim to one proposition, and attach only the evidence that supports that proposition. Split the claim when different propositions require different evidence. Avoid long quotations unless their full wording is necessary.";
 export const GROUNDED_QUOTATION_POLICY_CLASSIC =
@@ -86,6 +87,7 @@ export type LegalEvidenceTurnState = {
   priorQueryIds: Set<string>;
   documentEvidenceIds: Set<string>;
   queries: Map<string, LegalResearchQueryReceipt>;
+  readerResults: Map<string, ReadSubagentEvent>;
   reviewDocumentIds?: Set<string>;
   /** Citation text the work product bound to this chat carries, as its own tool returned it. */
   reportedCitations?: Set<string>;
@@ -108,6 +110,7 @@ export function createLegalEvidenceTurnState(
     priorQueryIds: new Set(),
     documentEvidenceIds: new Set(),
     queries: new Map(),
+    readerResults: new Map(),
     answer: null,
     attempted: false,
     failure: null,
@@ -469,13 +472,14 @@ export function registerLegalEvidence(
   state: LegalEvidenceTurnState,
   receipt: LegalEvidenceReceipt | undefined,
   source: Omit<RegisteredEvidence, "receipt"> = {},
+  presented = true,
 ) {
   if (!receipt) return;
   const previous = state.evidence.get(receipt.evidence_id);
   state.evidence.set(receipt.evidence_id, {
     ...(previous?.receipt.source_sha256 === receipt.source_sha256 ? previous : {}), receipt, ...source,
   });
-  state.presentedEvidenceIds.add(receipt.evidence_id);
+  if (presented) state.presentedEvidenceIds.add(receipt.evidence_id);
 }
 
 export function registerDocumentLegalEvidence(
@@ -515,7 +519,11 @@ export function storedLegalResearchQueryReceipt(value: unknown): LegalResearchQu
       typeof row.model !== "string" || !row.model ||
       (row.executor_version !== "legal-source-search-v1" &&
         row.executor_version !== "legal-source-pattern-v1") ||
-      !object(row.input) || !Array.isArray(row.results) || row.results.length > 100) return null;
+      !object(row.input) || !Array.isArray(row.results) || row.results.length > 100 ||
+      row.reader_id !== undefined && (typeof row.reader_id !== "string" || row.reader_id.length > 200) ||
+      row.scan !== undefined && !researchScanSchema.safeParse(row.scan).success ||
+      row.unavailable !== undefined && (!Array.isArray(row.unavailable) || row.unavailable.length > 100 ||
+        row.unavailable.some(value => typeof value !== "string" || value.length > 4_000))) return null;
   const valid = row.results.every((value, index) => {
     const result = object(value);
     return result && result.rank === index + 1 &&
@@ -694,10 +702,6 @@ export function modelEvidencePreview({ evidence_id, citation, name, locator, spa
     locator, preview: span_text?.slice(0, 160) };
 }
 
-export function modelResearchQueryPreview({ query_id, tool, input, results }: LegalResearchQueryReceipt) {
-  return { query_id, tool, query: String(input.pattern ?? input.query ?? "").slice(0, 160), results: results.length };
-}
-
 function recentInventory<T, U>(values: readonly T[], format: (value: T) => U, budget: number) {
   const selected: U[] = [];
   for (let index = values.length - 1; index >= 0; index--) {
@@ -714,7 +718,7 @@ export function priorLegalEvidencePrompt(receipts: readonly LegalEvidenceReceipt
   return ["PRIOR RESEARCH:",
     `${receipts.length} saved passages; ${queries.length} previous searches. Recent inventory follows.`,
     "Read(file_path=evidence_id) returns the saved exact passage; Read(file_path=query_id) returns the previous search. Read(file_path='evidence' or 'queries', offset, limit) lists older entries. Use saved evidence IDs for grounding; previews are not complete passages.",
-    ...recentInventory(queries, modelResearchQueryPreview, 1_400).map((value) => JSON.stringify(value)),
+    "Search history is available on demand: Read(file_path='queries', pattern, section). Filter by term and optionally a source resource or reader ID when checking prior work or coverage.",
     ...recentInventory(receipts, modelEvidencePreview, 6_000).map((value) => JSON.stringify(value)),
   ].join("\n");
 }
@@ -735,16 +739,17 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
     const ids = Array.isArray(rawIds)
       ? rawIds.filter((id): id is string => typeof id === "string" && Boolean(id))
       : [];
+    const uniqueIds = [...new Set(ids)];
     if (!row || Object.keys(row).some((key) => !["text", "evidence_ids"].includes(key)))
       errors.push(`claims[${index}] has unknown fields`);
     if (/\[\d+(?:,\s*\d+)*\]\s*$/u.test(text))
       errors.push(`claims[${index}] must cite evidence_ids, not numeric reference markers`);
-    if (!text) errors.push(`claims[${index}].text is empty; give one sentence of the answer`);
+    if (!text) errors.push(`claims[${index}].text is empty; give the supported text of the answer`);
     else if (text.length > (options.maxTextLength ?? Infinity))
-      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${options.maxTextLength}; split it into separate claims, each one sentence with its own evidence_ids`);
-    if (!ids.length || ids.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0) || new Set(ids).size !== ids.length)
+      errors.push(`claims[${index}].text is ${text.length} characters and the limit is ${options.maxTextLength}; split it into concise support units with their own evidence_ids`);
+    if (!uniqueIds.length || uniqueIds.length > 4 || ids.length !== (Array.isArray(rawIds) ? rawIds.length : 0))
       errors.push(`claims[${index}].evidence_ids must contain 1 to 4 unique handles`);
-    for (const id of ids) {
+    for (const id of uniqueIds) {
       const receipt = state.evidence.get(id)?.receipt;
       if (!receipt) errors.push(`claims[${index}] has unknown evidence_id: ${id}`);
       else if (receipt.scope !== "passage") errors.push(`claims[${index}] requires passage evidence for ${id}`);
@@ -758,7 +763,7 @@ export function validateGroundedClaims(value: unknown, state: LegalEvidenceTurnS
           !passages.some((r) => r.provider !== "library" && !state.reviewDocumentIds!.has(r.stable_source_id)))
         errors.push(`claims[${index}] requires a pinpoint in the document under review and another in an external legal authority; retrieve both or omit this finding`);
     }
-    claims.push({ text, evidence_ids: ids });
+    claims.push({ text, evidence_ids: uniqueIds });
   });
   if (!errors.length) for (const [index, claim] of claims.entries())
     errors.push(...legalEvidenceProseIntegrityErrors(claim.text, claim.evidence_ids, state)
@@ -844,16 +849,6 @@ export function submitLegalEvidenceAnswer(
   }
   state.draft = draft;
   const { claims, errors } = validateGroundedClaims(draft, state, { maxClaims: 64, maxTextLength: 1_200 });
-  if (claims && !errors.length) {
-    const native = structureNative();
-    for (const [index, claim] of claims.entries()) {
-      const spans = [...native.citationOccurrencesInText(claim.text), ...native.markedQuoteSpans(claim.text),
-        ...claim.text.matchAll(new RegExp(CASE_NAME.source, "gmu"))].map(span => "index" in span
-          ? { start: span.index!, end: span.index! + span[0].length } : span);
-      if (!claim.text.startsWith("|") && groundedSentenceCount(claim.text, spans) > 1)
-        errors.push(`claims[${index}] contains multiple sentences sharing evidence. Split it into one sentence per claim and bind each to its own supporting pinpoint.`);
-    }
-  }
   if (!claims || errors.length) return { ok: false, errors: errors.slice(0, 12), draft_claims: draft.length,
     next: `Your ${draft.length} claims are kept as this turn's draft. Send back only the claims named above, as replace: [{"index": 0, "text": "…", "evidence_ids": ["…"]}]; do not resend the answer.` };
   state.answer = claims;
@@ -870,7 +865,7 @@ const claimSchema = {
   properties: {
     text: {
       type: "string",
-      description: "One sentence of the answer in Markdown, at most 1,200 characters; a section heading may open the first sentence of its section, and the whole answer holds at most 64 claims. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
+      description: "A concise support unit in Markdown, at most 1,200 characters; a section heading may open the first sentence of its section, and the whole answer holds at most 64 claims. For tables, use one claim per data row with leading and trailing pipes; include the header and separator in the first claim. Choose substantive columns; citation chips identify the sources in the final cell.",
     },
     evidence_ids: {
       type: "array",
@@ -951,20 +946,8 @@ export function renderLegalEvidenceAnswer(state: LegalEvidenceTurnState): string
   if (state.failure) return null;
   if (!state.answer) return null;
   const { claimRefs } = legalEvidenceCitationPlan(state);
-  return state.answer.map((claim, index) => {
-    const table = claim.text.startsWith("|") && claim.text.endsWith("|");
-    const citations = claimRefs[index].map((ref) => `[${ref}]`).join("");
-    const text = table
-      ? `${claim.text.slice(0, -1).trimEnd()} ${citations} |`
-      : `${claim.text}${citations ? ` ${citations}` : ""}`;
-    const separator = index === 0 ? "" : table && state.answer![index - 1].text.endsWith("|") ? "\n" : "\n\n";
-    return separator + text;
-  }).join("");
-}
-
-export function modelResearchQuery({ call_id: _call, model: _model, executor_version: _executor,
-  sourceFingerprints: _fingerprints, ...query }: LegalResearchQueryReceipt & { sourceFingerprints?: unknown }) {
-  return query;
+  return renderCitedBlocks(state.answer.map((claim, index) => ({ text: claim.text,
+    citations: [claimRefs[index].map(ref => `[${ref}]`).join("")].filter(Boolean) })));
 }
 
 type CitationEntry = RegisteredEvidence & { ref: number };
@@ -1045,7 +1028,7 @@ export function legalEvidenceReceiptEvent(
   const ids = new Set([
     ...claims.flatMap((claim) => claim.evidence_ids),
     ...state.documentEvidenceIds,
-    ...[...state.presentedEvidenceIds].filter((id) => !state.priorEvidenceIds.has(id)),
+    ...[...state.evidence.keys()].filter((id) => !state.priorEvidenceIds.has(id)),
   ]);
   const queries = [...state.queries.values()].filter(({ query_id }) =>
     !state.priorQueryIds.has(query_id));

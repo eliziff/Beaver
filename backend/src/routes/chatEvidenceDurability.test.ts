@@ -387,7 +387,9 @@ describe("chat PDF evidence durability", () => {
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       mocks.systemPrompts.push(params.systemPrompt);
       mocks.providerMessages.push(
-        params.messages.map(({ role, content }) => ({ role, content })),
+        (await import("../lib/llm/sdk")).modelMessages(params.messages, params.model)
+          .map(message => ({ role: message.role, content: typeof message.content === "string"
+            ? message.content : JSON.stringify(message.content) })),
       );
       if (turn++ === 0) {
         await params.runTools?.([{
@@ -407,9 +409,12 @@ describe("chat PDF evidence durability", () => {
     expect((await postMessage(loaded.app, created.body.id, current!.transcript_version, "Use it again.")).status).toBe(200);
 
     const followUp = mocks.providerMessages.at(-1)!;
-    expect(mocks.systemPrompts.at(-1)).toContain(evidence.evidence_id);
-    expect(followUp.some(({ content }) => content.includes(evidence.evidence_id))).toBe(false);
-    expect(followUp.at(-1)).toEqual({ role: "user", content: "Use it again." });
+    expect(mocks.systemPrompts.at(-1)).not.toContain(evidence.evidence_id);
+    expect(mocks.systemPrompts[0]).toBe(mocks.systemPrompts.at(-1));
+    expect(followUp.filter(({ content }) => content.includes(evidence.evidence_id))).toHaveLength(1);
+    expect(followUp.at(-2)).toEqual({ role: "user", content: "Use it again." });
+    expect(followUp.at(-1)?.content).toContain("[Current application context");
+    expect(followUp.slice(0, mocks.providerMessages[0].length)).toEqual(mocks.providerMessages[0]);
   });
 
   it("uses an explicitly selected owned document without changing the project", async () => {
@@ -521,7 +526,8 @@ describe("chat PDF evidence durability", () => {
     expect(mocks.streamChatWithTools).toHaveBeenCalledTimes(1);
     expect(await storedChat(loaded.store, created.body.id)).toMatchObject({
       transcript_version: 1,
-      messages: [{ role: "user", content: "Long turn" }],
+      messages: [{ role: "user", content: "Long turn" }, { role: "assistant",
+        content: [expect.objectContaining({ type: "model_messages", id: expect.stringMatching(/^context:/) })] }],
     });
     expect((await request(loaded.app)
       .get(`/chat/${created.body.id}?after_version=1`)).status).toBe(204);
@@ -655,7 +661,7 @@ describe("chat PDF evidence durability", () => {
         { role: "user", content: "Stop explicitly" },
         {
           role: "assistant",
-          content: [{ type: "turn_status", status: "cancelled" }],
+          content: [expect.objectContaining({ type: "model_messages" }), { type: "turn_status", status: "cancelled" }],
         },
       ],
     });
@@ -681,6 +687,7 @@ describe("chat PDF evidence durability", () => {
         {
           role: "assistant",
           content: [
+            expect.objectContaining({ type: "model_messages" }),
             { type: "content", text: "Partial answer" },
             { type: "error", message: "Provider failed" },
           ],
@@ -710,6 +717,7 @@ describe("chat PDF evidence durability", () => {
         {
           role: "assistant",
           content: [
+            expect.objectContaining({ type: "model_messages" }),
             { type: "content", text: "Work in progress" },
             { type: "turn_status", status: "cancelled" },
           ],
@@ -1575,7 +1583,8 @@ it.each(["host", "native", "model-switch"])("reformats stored grounded claims wi
       { type: "content", text: 'The notice says “15 days”. [1]' }, checkpoint] as never } });
   let previous = claims;
   mocks.streamChatWithTools.mockImplementation(async params => {
-    const offered = [params.systemPrompt, ...params.messages.map(message => message.content)]
+    const wire = (await import("../lib/llm/sdk")).modelMessages(params.messages, params.model);
+    const offered = [params.systemPrompt, ...wire.map(message => typeof message.content === "string" ? message.content : "")]
       .flatMap(text => text.split("\n").flatMap(line => {
         try { const value = JSON.parse(line); return Array.isArray(value) ? [value] : []; }
         catch { return []; }
@@ -1624,10 +1633,14 @@ it("keeps SDK reads and steering in causal order across a failed read-only retry
   await request(loaded.app).post("/chat").send({ chat_id: created.body.id, expected_version: 0, model, current_turn });
   const failed = (await storedChat(loaded.store, created.body.id))!;
   const events = failed.messages.at(-1)!.content as any[];
-  expect(events.filter(event => ["model_messages", "steering"].includes(event.type)).map(event => event.type))
+  expect(events.filter(event => event.type === "model_messages" && event.id.startsWith("context:"))).toHaveLength(1);
+  expect(events.filter(event => ["model_messages", "steering"].includes(event.type) && !event.id?.startsWith("context:")).map(event => event.type))
     .toEqual(["model_messages", "steering", "model_messages"]);
   const retry = await request(loaded.app).post("/chat").send({ chat_id: created.body.id,
     expected_version: failed.transcript_version, model, current_turn });
   expect(retry.text).toContain("Resumed without rereading.");
+  const resumed = (await storedChat(loaded.store, created.body.id))!.messages.at(-1)!.content as any[];
+  expect(resumed.filter(event => event.type === "model_messages" && event.id.startsWith("context:"))).toHaveLength(1);
+  expect(retry.text).not.toContain("Current application context");
   expect(mocks.runLocalAssistantTool).not.toHaveBeenCalled();
 });
