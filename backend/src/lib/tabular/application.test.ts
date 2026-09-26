@@ -139,7 +139,7 @@ describe("TabularApplication", () => {
         return { status: "committed", value: saved };
       }) }),
       enqueue = vi.fn<TabularAgents["enqueue"]>(async (_scope, input) => input.assignments.map((_, i) => ({ id: `job-${i}`, created: true }))),
-      runTurn = vi.fn<typeof runChatTurn>(async () => ({ status: "complete", fullText: '{"routes":[{"index":0,"kind":"choice"}]}', citations: [], events: [] })),
+      runTurn = vi.fn<typeof runChatTurn>(async () => ({ status: "complete", fullText: "", output: { routes: [{ index: 0, kind: "choice", labels: [] }] }, citations: [], events: [] })),
       dependencies = { settings, sources, runTurn, agents: { active: async () => false, enqueue, cancel: async () => false } },
       documents = { ...documentStore(), metadataMany: async () => subjects.map(s => ({ id: s.sourceId, project_id: "project" })) } as unknown as DocumentStore;
     const app = createTabularApplication(repository, documents, projects, dependencies);

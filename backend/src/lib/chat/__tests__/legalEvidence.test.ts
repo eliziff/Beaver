@@ -136,13 +136,13 @@ describe("production legal evidence", () => {
     const state = createLegalEvidenceTurnState(), evidence = passage();
     registerLegalEvidence(state, evidence);
     const claim = (text: string) => ({ text, evidence_ids: [evidence.evidence_id] });
-    const rejected = submitLegalEvidenceAnswer({ claims: [claim("The appeal is allowed."),
+    const rejected = submitLegalEvidenceAnswer({ replace: null, claims: [claim("The appeal is allowed."),
       claim("Supporting analysis. ".repeat(80)), claim("The appeal is allowed.")] }, state);
     expect(rejected.ok).toBe(false);
     expect(rejected.draft_claims).toBe(3);
     expect(rejected.errors).toEqual([expect.stringContaining("claims[1].text is 1679 characters and the limit is 1200")]);
     expect(rejected.next).toContain("replace");
-    const twoSentences = submitLegalEvidenceAnswer({ replace: [{ index: 1,
+    const twoSentences = submitLegalEvidenceAnswer({ claims: null, replace: [{ index: 1,
       ...claim("The appeal is allowed. The appeal is allowed.") }] }, state);
     expect(twoSentences).toEqual({ ok: true, terminal: true });
     expect(state.answer).toHaveLength(3);

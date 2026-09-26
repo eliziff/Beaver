@@ -1318,146 +1318,72 @@ describe("chat PDF evidence durability", () => {
   });
 
   it("executes every mixed-batch call without treating it as terminal", async () => {
-    mocks.runLocalAssistantTool.mockImplementation(
-      async (_userId: unknown, call: { id: string; name: string }) =>
-        call.name === "Write"
-          ? {
-              result: {
-                tool_use_id: call.id,
-                content: JSON.stringify({
-                  ok: true,
-                  action: "created",
-                  version_id: "mock-version",
-                }),
-              },
-              mutated: true,
-              events: [{
-                type: "document_artifact",
-                action: "created",
-                filename: "Draft.docx",
-                document_id: "mock-document",
-                version_id: "mock-version",
-                version_number: 1,
-                download_url: "/documents/mock-document/download",
-                resource: "document",
-              }],
-              terminal: true,
-              evidence: [],
-            }
-          : {
-              result: {
-                tool_use_id: call.id,
-                content: JSON.stringify({ ok: true, text: "New evidence." }),
-              },
-              mutated: false,
-              events: [],
-              terminal: false,
-              evidence: [],
-            },
-    );
+    mocks.runLocalAssistantTool.mockImplementation(async (_userId: unknown, call: { id: string; name: string }) => ({
+      result: { tool_use_id: call.id, content: "New evidence." }, evidence: [],
+      mutated: call.name === "Write", terminal: call.name === "Write",
+      events: call.name === "Write" ? [{ type: "document_artifact", action: "created", filename: "Draft.docx",
+        document_id: "mock-document", version_id: "mock-version", version_number: 1,
+        download_url: "/documents/mock-document/download" }] : [],
+    }));
+    let results: { content: string; terminal?: boolean }[] = [];
     mocks.streamChatWithTools.mockImplementation(async (params) => {
-      const results = await params.runTools?.([
+      results = await params.runTools([
         { id: "read", name: "Read", input: { file_path: "source.docx" } },
-        {
-          id: "create",
-          name: "Write",
-          input: { kind: "docx", filename: "Draft.docx", content: "# Draft" },
-        },
+        { id: "create", name: "Write", input: { filename: "Draft.docx", content: "# Draft" } },
       ]);
-      expect(results?.some((result) => result.terminal)).toBe(false);
-      expect(JSON.parse(results?.[1].content ?? "{}")).toMatchObject({
-        artifact: "draft-1",
-        filename: "Draft.docx",
-      });
       params.callbacks?.onContentDelta?.("Reviewed and created.");
       return { fullText: "Reviewed and created." };
     });
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-
     const response = await postMessage(loaded.app, created.body.id, 0, "Read and draft.");
-
     expect(response.status).toBe(200);
+    expect(response.text).not.toContain('"type":"error"');
+    expect(mocks.runLocalAssistantTool).toHaveBeenCalledTimes(2);
+    expect(results).toHaveLength(2);
+    expect(results.some(result => result.terminal)).toBe(false);
+    expect(results[0].content).toBe("New evidence.");
+    expect(JSON.parse(results[1].content)).toMatchObject({ artifact: "draft-1", filename: "Draft.docx" });
+    expect(JSON.stringify((await storedChat(loaded.store, created.body.id))?.messages)).toContain('"type":"document_artifact"');
   });
 
-  it("does not pause Codex after a mutation has already committed", async () => {
-    mocks.runLocalAssistantTool.mockImplementation(
-      async (_userId: unknown, call: { id: string }) => ({
-        result: {
-          tool_use_id: call.id,
-          content: JSON.stringify({
-            ok: true,
-            action: "created",
-            version_id: "mock-version",
-          }),
-        },
-        mutated: true,
-        events: [{
-          type: "document_artifact",
-          action: "created",
-          filename: "Draft.docx",
-          document_id: "mock-document",
-          version_id: "mock-version",
-          version_number: 1,
-          download_url: "/documents/mock-document/download",
-          resource: "document",
-        }],
-        terminal: true,
-        evidence: [],
-      }),
-    );
+  it("persists authorized work and pauses subsequent effects for a clarification", async () => {
+    mocks.runLocalAssistantTool.mockImplementation(async (_userId: unknown, call: { id: string }) => ({
+      result: { tool_use_id: call.id, content: "Created the draft." }, mutated: true, terminal: true, evidence: [],
+      events: [{ type: "document_artifact", action: "created", filename: "Draft.docx",
+        document_id: "mock-document", version_id: "mock-version", version_number: 1,
+        download_url: "/documents/mock-document/download" }],
+    }));
+    let results: { content: string }[] = [];
     mocks.streamChatWithTools.mockImplementation(async (params) => {
-      const mutation = {
-        id: "create-doc",
-        name: "Write",
-        input: { kind: "docx", filename: "Draft.docx", content: "# Draft" },
-      };
-      params.callbacks?.onToolCallStart?.(mutation);
-      expect(await params.runTools?.([mutation])).toEqual([{
-        tool_use_id: mutation.id,
-        content: JSON.stringify({
-          ok: true,
-          artifact: "draft-1",
-          filename: "Draft.docx",
-        }),
-        terminal: true,
-      }]);
-      const ask = {
-        id: "late-question",
-        name: "ask_inputs",
-        input: {
-          items: [
-            {
-              id: "forum",
-              kind: "choice",
-              question: "Which forum?",
-              options: [{ value: "Ontario" }],
-            },
-          ],
-        },
-      };
-      params.callbacks?.onToolCallStart?.(ask);
-      const [rejectedAsk] = (await params.runTools?.([ask])) ?? [];
-      expect(JSON.parse(rejectedAsk.content)).toMatchObject({
-        ok: false,
-        error: expect.stringContaining("before document or workflow changes"),
-      });
-      expect(params.abortSignal?.aborted).toBe(false);
-      params.callbacks?.onContentDelta?.("The draft was created.");
-      return { fullText: "The draft was created." };
+      const calls = [
+        { id: "create-doc", name: "Write", input: { filename: "Draft.docx", content: "# Draft" } },
+        { id: "question", name: "ask_inputs", input: { items: [{ id: "forum", kind: "choice",
+          question: "Which forum?", options: [{ value: "Ontario" }] }] } },
+        { id: "later-edit", name: "Edit", input: { old_text: "Draft", new_text: "Final" } },
+      ];
+      calls.forEach(call => params.callbacks?.onToolCallStart?.(call));
+      results = await params.runTools(calls);
+      return { fullText: "" };
     });
     const loaded = await loadApp();
     const created = await request(loaded.app).post("/chat/create").send({});
-
     const response = await postMessage(loaded.app, created.body.id, 0, "Create the draft, then ask.");
-
+    // Assertions stay outside the provider double: an exception inside it is an ordinary application error.
     expect(response.status).toBe(200);
-    expect(response.text).not.toContain('"type":"ask_inputs"');
-    expect(
-      JSON.stringify(
-        (await storedChat(loaded.store, created.body.id))?.messages,
-      ),
-    ).not.toContain('"type":"ask_inputs"');
+    expect(results.map(result => JSON.parse(result.content))).toEqual([
+      expect.objectContaining({ ok: true, artifact: "draft-1", filename: "Draft.docx" }),
+      { ok: true, status: "waiting_for_user" },
+      expect.objectContaining({ ok: false, error: "waiting_for_user" }),
+    ]);
+    expect(mocks.runLocalAssistantTool).toHaveBeenCalledTimes(1);
+    expect(response.text).toContain('"type":"ask_inputs"');
+    expect(response.text).not.toContain('"type":"error"');
+    const history = JSON.stringify((await storedChat(loaded.store, created.body.id))?.messages);
+    expect(history).toContain('"type":"document_artifact"');
+    expect(history).toContain('"type":"local_mutation_committed"');
+    expect(history).toContain('"type":"ask_inputs"');
+    expect(history).not.toContain('"type":"error"');
   });
 
   it("rejects an ask-input response when no question is pending", async () => {
@@ -1591,7 +1517,7 @@ it.each(["host", "native", "model-switch"])("reformats stored grounded claims wi
       }));
     expect(offered).toContainEqual(previous);
     previous = previous.map(claim => ({ ...claim, text: `| Answer |\n| --- |\n| ${claims[0].text} |` }));
-    const result = await params.runTools([{ id: "format", name: "submit_grounded_answer", input: { claims: previous } }]);
+    const result = await params.runTools([{ id: "format", name: "submit_grounded_answer", input: { claims: previous, replace: null } }]);
     expect(result[0].terminal).toBe(true);
     return { fullText: "" };
   });

@@ -77,7 +77,7 @@ export const listProjectChats = (projectId: string) =>
   apiRequest<Chat[]>(`/projects/${segment(projectId)}/chats`);
 export type ChatDetail = { chat: Chat; messages: AssistantTranscriptMessage[]; has_earlier?: boolean };
 /** Messages per transcript page: a chat opens with its latest page and loads earlier ones on demand. */
-export const TRANSCRIPT_PAGE = 100;
+const TRANSCRIPT_PAGE = 100;
 export function getChat(chatId: string): Promise<ChatDetail>;
 export function getChat(chatId: string, afterVersion: number): Promise<ChatDetail | undefined>;
 export function getChat(chatId: string, afterVersion?: number) {
@@ -121,7 +121,7 @@ export const steerChat = (chatId: string, id: string, text: string,
   readers?: import("../../../../../backend/src/lib/chat/assistantWire").ReaderSettings) =>
   post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text, ...(readers && { readers }) });
 export const compactChat = (chatId: string, model: string) =>
-  post<{ compacted: true; transcriptVersion?: number }>(
+  post<{ compacted: true; transcriptVersion?: number; provider?: string; summary?: string }>(
     `/chat/${segment(chatId)}/compact`,
     { model },
   );
