@@ -108,6 +108,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("end")?)))),
         "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
             d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
+        "textLayout" => done(value(engine::text_layout(&call.get::<String>("text")?))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
         "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),

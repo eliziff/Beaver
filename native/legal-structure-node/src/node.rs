@@ -519,6 +519,11 @@ pub fn legal_source_viewer_node(
     js_value(env, &engine::legal_source_viewer(document, &primary_kind, limit).map_err(reason)?)
 }
 
+#[napi(js_name = "textLayout")]
+pub fn text_layout_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
+    js_value(env, &engine::text_layout(&text))
+}
+
 #[napi(js_name = "documentTableCells")]
 pub fn document_table_cells_node(
     env: Env,
