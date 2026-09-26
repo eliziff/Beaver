@@ -42,6 +42,42 @@ beforeEach(() => {
 });
 
 describe("remote URL network safety", () => {
+  it("follows discovery redirects with fresh DNS checks and no cross-origin credentials", async () => {
+    dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "/discovery" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 307, headers: { location: "https://login.example/metadata" } }))
+      .mockResolvedValueOnce(new Response('{"issuer":"ok"}'));
+    const result = await guardedRemoteFetch(new Request("https://mcp.example/start", {
+      headers: { authorization: "Bearer secret", "x-api-key": "private", accept: "application/json" },
+    }), undefined, { maxRedirects: 5 });
+    expect(await result.json()).toEqual({ issuer: "ok" });
+    expect(dnsLookup.mock.calls.map(([host]) => host)).toEqual(["mcp.example", "mcp.example", "login.example"]);
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).get("authorization")).toBe("Bearer secret");
+    expect([...new Headers(fetchMock.mock.calls[2][1].headers)]).toEqual([["accept", "application/json"]]);
+  });
+
+  it("refuses a redirect into a private network before sending credentials or a request", async () => {
+    dnsLookup.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }])
+      .mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }]);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://internal.example/" } }));
+    await expect(guardedRemoteFetch("https://mcp.example/", undefined, { maxRedirects: 5 }))
+      .rejects.toThrow("blocked network address");
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("bounds redirect loops and never replays a POST", async () => {
+    dnsLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    fetchMock.mockImplementation(async () => new Response(null, { status: 307, headers: { location: "/again" } }));
+    await expect(guardedRemoteFetch("https://mcp.example/", undefined, { maxRedirects: 2 }))
+      .rejects.toThrow("redirect limit");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    fetchMock.mockClear();
+    const response = await guardedRemoteFetch("https://mcp.example/", { method: "POST", body: "secret" }, { maxRedirects: 5 });
+    expect(response.status).toBe(307);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("blocks private IPv4 embedded in hex, dotted, and compatible IPv6", async () => {
     for (const url of [
       "https://[::ffff:7f00:1]/",

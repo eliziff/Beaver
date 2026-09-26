@@ -1,7 +1,16 @@
-import { beforeEach } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { configure } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { initializeRuntimeConfig } from "@/app/lib/runtimeConfig";
+
+vi.resetModules();
+if (typeof window !== "undefined") {
+    localStorage.clear();
+    sessionStorage.clear();
+    Reflect.deleteProperty(window, "matchMedia");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+}
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 await initializeRuntimeConfig(async () =>
     new Response(JSON.stringify({
@@ -11,7 +20,7 @@ await initializeRuntimeConfig(async () =>
     }),
 );
 
-if (!HTMLDialogElement.prototype.showModal) {
+if (typeof HTMLDialogElement !== "undefined" && !HTMLDialogElement.prototype.showModal) {
     HTMLDialogElement.prototype.showModal = function () {
         this.open = true;
     };
@@ -31,7 +40,7 @@ Blob.prototype.arrayBuffer ??= function () { return readBlob(this, "readAsArrayB
 Blob.prototype.text ??= function () { return readBlob(this, "readAsText"); };
 
 // Per-tab UI state (for example whether the assistant dock is open) must not carry between tests.
-beforeEach(() => sessionStorage.clear());
+beforeEach(() => { if (typeof window !== "undefined") sessionStorage.clear(); });
 
 // The React Compiler's Babel pass makes a lazy module's first import slower under test;
 // waits for such a module get more than Testing Library's default 1 s.

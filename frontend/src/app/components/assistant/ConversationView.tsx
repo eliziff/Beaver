@@ -46,6 +46,7 @@ interface Props {
     initialDraft?: import("@/app/lib/api/chat").ChatDraft | null;
     initialModel?: string | null; initialReasoningEffort?: string | null;
     editModeLabels?: { manual: string; auto: string };
+    readOnly?: boolean; onAccess?: () => void;
     sendDisabled?: boolean;
     searchMessageId?: string | null;
     /** Fetches the page of messages before the first one loaded. */
@@ -72,7 +73,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
         isDocReloading, isEditReloading, resolvedEditStatuses,
         layout = "page", gutterVisible = false, dock, showContextTools = true,
         onOpenWorkflows, onOrganize, projectName, projectCmNumber, initialDraft, initialModel, initialReasoningEffort,
-        editModeLabels, sendDisabled, searchMessageId, messageActions, afterMessages, onLoadEarlier,
+        editModeLabels, readOnly = false, onAccess, sendDisabled, searchMessageId, messageActions, afterMessages, onLoadEarlier,
     }, ref) {
     const { messages, rejectedTurn } = session;
     const messagesContainerRef = useRef<HTMLDivElement>(null),
@@ -282,7 +283,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                 <ArrowDown className="h-6 w-6" />
                             </button>
                         )}
-                        {activeInput && (
+                        {activeInput && !readOnly && (
                             <div data-ask-input-dock className="absolute inset-x-4 bottom-[calc(100%+0.5rem)] md:inset-x-6">
                                 <AskInputPopup key={activeInput.key} event={activeInput.event}
                                     onSubmit={(response, content, files) => {
@@ -292,7 +293,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                                     onDismiss={() => { setHiddenAskInputKey(activeInput.key); cancel(); }} />
                             </div>
                         )}
-                        {rejectedTurn && <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                        {rejectedTurn && !readOnly && <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
                             <span className="min-w-0 flex-1">{rejectedTurn.detail ?? (rejectedTurn.options?.askInputsResponse
                                 ? "Inputs not sent. Your selections were kept." : "Response interrupted. Your draft is ready to edit.")}</span>
                             {onRetryRejectedTurn && rejectedTurn.retryable !== false && <Button variant="outline" size="compact" onClick={() => {
@@ -301,7 +302,8 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                             }}>Retry</Button>}
                             <Button variant="ghost" size="compact" onClick={() => onRejectedTurnRestored?.()}>Dismiss</Button>
                         </div>}
-                        <ChatInput
+                        {onAccess && <div className="mb-1 flex justify-end"><Button variant="ghost" size="compact" onClick={onAccess}>Access</Button></div>}
+                        {readOnly ? <p role="status" className="rounded-lg border border-gray-200 bg-app-surface px-3 py-2 text-sm text-gray-600">You have viewer access to this chat.</p> : <ChatInput
                             key={chatId} draftChatId={chatId} initialDraft={initialDraft}
                             ref={chatInputRef} onSubmit={onSubmit}
                             promptHistory={messages.flatMap((message) =>
@@ -322,7 +324,7 @@ export const ConversationView = forwardRef<ChatInputHandle, Props>(function Conv
                             projectCmNumber={projectCmNumber} initialModel={initialModel}
                             initialReasoningEffort={initialReasoningEffort}
                             editModeLabels={editModeLabels} restoreDraft={rejectedTurn?.options?.askInputsResponse
-                                ? null : rejectedTurn?.message} />
+                                ? null : rejectedTurn?.message} />}
                     </div>
                 </div>
             </div>

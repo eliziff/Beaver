@@ -65,12 +65,8 @@ afterEach(async () => {
   } catch {}
   delete process.env.MIKE_LOCAL_DATA_DIR;
   delete process.env.AUTH_MODE;
-  vi.doUnmock("../convert");
-  vi.doUnmock("../draftingStyleStore");
-  vi.doUnmock("../chat/tools/sourceSearchTools");
-  vi.doUnmock("node:fs/promises");
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  vi.resetModules();
   if (temporaryDirectory) {
     await rm(temporaryDirectory, { recursive: true, force: true });
     temporaryDirectory = null;
@@ -613,7 +609,6 @@ describe("local assistant tools", () => {
   it("addresses spreadsheet cells through the same bounded Read contract", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-xlsx-cells-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
-    vi.resetModules();
 
     const sheet = XLSX.utils.aoa_to_sheet([
       ["Matter", "Status"],
@@ -1596,6 +1591,27 @@ describe("local assistant tools", () => {
 
     expect(response.content).toContain("# Extract Key Terms");
     expect(response.content).toContain("uploaded documents");
+  });
+
+  it("reads workflow references in bounded windows, including a long single line", async () => {
+    const { runLocalAssistantTools } = await import("./support/localAssistantTools");
+    const resource = resourceReference.workflowReference("recipe", "Reference.txt");
+    const workflows = new Map([["recipe", { workflow_id: "workflow", title: "Workflow", skill_md: "Read reference",
+      references: [{ filename: "Reference.txt", resource, read: async () => "x".repeat(40_000) + "\nDone" }] }]]);
+    const [first] = await runLocalAssistantTools("local-user", [{ id: "first", name: "Read",
+      input: { file_path: resource } }], { workflows });
+    const page = JSON.parse(first.content);
+    expect(page.content).toHaveLength(32_000);
+    expect(page.next_offset).toBe(1);
+    expect(page.next_start_char).toBe(32_000);
+    const [second, missing] = await runLocalAssistantTools("local-user", [
+      { id: "second", name: "Read", input: { file_path: resource, offset: page.next_offset,
+        start_char: page.next_start_char } },
+      { id: "missing", name: "Read", input: { file_path: resourceReference.workflowReference("other", "Reference.txt") } },
+    ], { workflows });
+    expect(JSON.parse(second.content).content).toBe("x".repeat(8_000) + "\nDone");
+    expect(JSON.parse(second.content).next_offset).toBeUndefined();
+    expect(JSON.parse(missing.content).ok).toBe(false);
   });
 
   it("does not expose local paths for a missing PDF resource", async () => {

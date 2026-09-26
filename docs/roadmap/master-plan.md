@@ -7,6 +7,11 @@ readiness are distinct; the document-engine direction was revised on September 1
 
 ## Priorities and remaining gates
 
+Active integration: [full upstream catch-up](upstream-integration.md) through
+Mike `7b42ea645`, delivered as one combined integration. Its accepted scope
+includes independently installable workflow revisions and opt-in scoped memory;
+existing product gates below remain required.
+
 | Order | Workstream | Current position and next work |
 | --- | --- | --- |
 | 1 | [Application boundaries](application-boundaries.md) and [document storage](document-versioning.md) | Existing application/persistence owners are the foundation. Finish remaining policy cuts, version/blob lifecycle proof and exact process/native identities; do not recreate the displaced Authorities gateway. |
@@ -15,10 +20,10 @@ readiness are distinct; the document-engine direction was revised on September 1
 | 4 | [Legal work products](legal-work-products.md) | Authorities uses the TypeScript core in embedded/standalone hosts, with review and editable highlights. Close reference parity, durable binding/reopen and exact court-output/browser gates; do not claim all profiles filing-ready. |
 | 5 | [Saved research](research-sets.md) | Research-file foundations, the current Sources/Memo/Table UI and conversion routes are present. Remaining work is end-to-end round trips, configured live layout quality, scale/performance and Library polish—not recreating the historical overhaul. |
 
-**Bootstrap blocker:** public upstream does not serve the pinned `mike-workflows`
-commit. Publish that history or explicitly gate a replacement; the
-[repository guide](../current/local-subrepositories.md#fresh-checkout) records the
-exact pin and failure. A passing documentation check is not bootstrap certification.
+The integration branch resolves the unavailable workflow pin with a validated
+public replacement; the [repository guide](../current/local-subrepositories.md#fresh-checkout)
+records its exact revision and fresh-clone proof. Complete application bootstrap
+and native/runtime certification remain separate gates.
 
 The current [Authorities contract](../current/authorities.md) replaces the old
 Python integration/hosted-pilot assumptions. CanLII remains a manual navigation

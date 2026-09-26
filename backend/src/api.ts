@@ -84,6 +84,8 @@ api.use((_req, res, next) => {
   next();
 });
 api.use(generalLimiter);
+api.use("/exports", exportLimiter, workSlot, lazyRouter(async () => (await import("./routes/exports"))
+  .createExportsRouter(runtime.projectExport)));
 
 for (const path of ["/chat", "/chat/:chatId/compact", "/chat/:chatId/generate-title",
   "/tabular-review/prompt", "/tabular-review/:reviewId/regenerate-cell",
@@ -130,6 +132,16 @@ if (runtime.mode === "cloud") api.use(
   lazyRouter(() => import("./routes/auth").then((mod) =>
     mod.createAuthRouter(publicOrigin()))),
 );
+if (runtime.mode === "local") api.get("/auth/mfa/assurance", requireAuth, (_req, res) => {
+  res.json({ currentLevel: null, nextLevel: null });
+});
+api.use("/memory", lazyRouter(async () => (await import("./routes/memory"))
+  .createMemoryRouter(await runtime.memory())));
+api.post("/uploads", uploadLimiter);
+api.use("/uploads", lazyRouter(async () => (await import("./routes/uploads"))
+  .createUploadsRouter(await runtime.uploads())));
+api.use("/organizations", lazyRouter(async () => (await import("./routes/organizations"))
+  .createOrganizationRouter(await runtime.organizations())));
 
 /** The Organize step of a library or project reads one model, the same one the research step reads. */
 const designFolders: FolderDesigner = async (scope, documents, instruction, options) =>
@@ -189,7 +201,7 @@ const mounts: Mount[] = [
     const [{ createWorkflowsRouter }, workflows] = await Promise.all([
       import("./routes/workflows"), runtime.workflows(),
     ]);
-    return createWorkflowsRouter(workflows.repository, workflows.collaboration);
+    return createWorkflowsRouter(workflows.repository, workflows.collaboration, workflows.catalog, await runtime.documents());
   }],
   ["/work-products", async () => (await import("./routes/workProducts"))
     .createWorkProductsRouter(await runtime.workProducts())],

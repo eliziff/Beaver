@@ -5,7 +5,7 @@ POSIX rlimits; then sys.addaudithook refusing sockets, process creation, native
 code loading and file access outside this directory and the Python installation.
 An audit hook is not an OS sandbox: it narrows accidents and casual escapes, while
 the verifier in a separate process treats the output as untrusted.
-Request (stdin JSON): {program, mode: tracked|direct|read-only}. Reply: one JSON line.
+Request (stdin JSON): {program, mode: tracked|direct|read-only, author}. Reply: one JSON line.
 """
 from __future__ import annotations
 import ast
@@ -166,7 +166,7 @@ def main():
         code = compile_program(request['program'])
         names = namespace(doc, mode)
         import tracking
-        recorder = tracking.Recorder(story_roots(doc)) if mode == 'tracked' else None
+        recorder = tracking.Recorder(story_roots(doc), str(request.get('author') or 'Beaver')) if mode == 'tracked' else None
         install_guard(os.getcwd())
         sys.stdout = captured
         exec(code, names)

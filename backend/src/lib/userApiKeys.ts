@@ -1,6 +1,7 @@
 import type { UserApiKeys } from "./llm";
 import { decryptSecret, encryptionSecret, encryptSecret } from "./secretEncryption";
-import { createServerSupabase } from "./supabase";
+import { sql, type RelationalDatabase } from "./relational";
+import type { UserCredentials } from "./userCredentials";
 import { safeErrorLog } from "./safeError";
 import {
   API_KEY_PROVIDERS,
@@ -8,7 +9,6 @@ import {
   type ApiKeyStatus,
 } from "./userCredentials";
 
-type Db = ReturnType<typeof createServerSupabase>;
 type EncryptedKeyRow = { provider: string; encrypted_key: string; iv: string; auth_tag: string };
 
 const ENVIRONMENT_KEYS: Record<ApiKeyProvider, string> = {
@@ -26,7 +26,7 @@ function environmentKey(provider: ApiKeyProvider) {
 
 export const hasEnvApiKey = (provider: ApiKeyProvider) => !!environmentKey(provider);
 
-export function getEnvironmentApiKeys(): UserApiKeys {
+function getEnvironmentApiKeys(): UserApiKeys {
   return Object.fromEntries(API_KEY_PROVIDERS.map((provider) => [
     provider, environmentKey(provider),
   ])) as UserApiKeys;
@@ -45,56 +45,54 @@ export function getEnvironmentApiKeyStatus(): ApiKeyStatus {
 
 const secret = () => encryptionSecret("USER_API_KEYS_ENCRYPTION_SECRET");
 
-export async function getUserApiKeyStatus(userId: string, db: Db = createServerSupabase()) {
-  const status = getEnvironmentApiKeyStatus();
-  const { data, error } = await db.from("user_api_keys").select("provider").eq("user_id", userId);
-  if (error) throw error;
-  for (const row of data ?? []) {
-    const provider = API_KEY_PROVIDERS.find((value) => value === String(row.provider));
-    if (provider && !status[provider]) {
-      status[provider] = true;
-      status.sources[provider] = "user";
-    }
-  }
-  return status;
-}
+export function createUserCredentials(db: RelationalDatabase): UserCredentials {
+  return {
+    async status(userId) {
+      const status = getEnvironmentApiKeyStatus();
+      const { rows } = await db.query(sql`SELECT provider FROM user_api_keys WHERE user_id=${userId}`);
+      for (const row of rows) {
+        const provider = API_KEY_PROVIDERS.find((value) => value === String(row.provider));
+        if (provider) {
+          status[provider] = true;
+          status.sources[provider] = "user";
+        }
+      }
+      return status;
+    },
 
-export async function getUserApiKeys(userId: string, db: Db = createServerSupabase()) {
-  const keys = getEnvironmentApiKeys();
-  const { data, error } = await db.from("user_api_keys")
-    .select("provider, encrypted_key, iv, auth_tag").eq("user_id", userId);
-  if (error) throw error;
-  for (const row of (data ?? []) as EncryptedKeyRow[]) {
-    const provider = API_KEY_PROVIDERS.find((value) => value === row.provider);
-    if (!provider || keys[provider]) continue;
-    try { keys[provider] = decryptSecret(
-      { encrypted: row.encrypted_key, iv: row.iv, tag: row.auth_tag }, secret(), SALT,
-      `${userId}\0${provider}`,
-    ); }
-    catch (error) {
-      console.error("[user-api-keys] stored key is unreadable", {
-        provider, ...safeErrorLog(error),
-      });
-    }
-  }
-  return keys;
-}
+    async keys(userId) {
+      const keys = getEnvironmentApiKeys();
+      const { rows } = await db.query<EncryptedKeyRow>(sql`
+        SELECT provider, encrypted_key, iv, auth_tag FROM user_api_keys WHERE user_id=${userId}`);
+      for (const row of rows) {
+        const provider = API_KEY_PROVIDERS.find((value) => value === row.provider);
+        if (!provider) continue;
+        try { keys[provider] = decryptSecret(
+          { encrypted: row.encrypted_key, iv: row.iv, tag: row.auth_tag }, secret(), SALT,
+          `${userId}\0${provider}`,
+        ); }
+        catch (error) {
+          console.error("[user-api-keys] stored key is unreadable", {
+            provider, ...safeErrorLog(error),
+          });
+          throw new Error(`Your ${provider} key could not be read. Save it again or remove it in settings.`);
+        }
+      }
+      return keys;
+    },
 
-export async function saveUserApiKey(
-  userId: string, provider: ApiKeyProvider, value: string | null,
-  db: Db = createServerSupabase(),
-) {
-  const normalized = value?.trim() || null;
-  if (!normalized) {
-    const { error } = await db.from("user_api_keys").delete()
-      .eq("user_id", userId).eq("provider", provider);
-    if (error) throw error;
-    return;
-  }
-  const encrypted = encryptSecret(normalized, secret(), SALT, `${userId}\0${provider}`);
-  const { error } = await db.from("user_api_keys").upsert({
-    user_id: userId, provider, encrypted_key: encrypted.encrypted,
-    iv: encrypted.iv, auth_tag: encrypted.tag, updated_at: new Date().toISOString(),
-  }, { onConflict: "user_id,provider" });
-  if (error) throw error;
+    async save(userId, provider, value) {
+      const normalized = value?.trim() || null;
+      if (!normalized) {
+        await db.query(sql`DELETE FROM user_api_keys WHERE user_id=${userId} AND provider=${provider}`);
+        return;
+      }
+      const encrypted = encryptSecret(normalized, secret(), SALT, `${userId}\0${provider}`);
+      const timestamp = new Date().toISOString();
+      await db.query(sql`INSERT INTO user_api_keys(user_id,provider,encrypted_key,iv,auth_tag,created_at,updated_at)
+        VALUES(${userId},${provider},${encrypted.encrypted},${encrypted.iv},${encrypted.tag},${timestamp},${timestamp})
+        ON CONFLICT(user_id,provider) DO UPDATE SET encrypted_key=excluded.encrypted_key,
+          iv=excluded.iv,auth_tag=excluded.auth_tag,updated_at=excluded.updated_at`);
+    },
+  };
 }

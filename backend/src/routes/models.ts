@@ -12,6 +12,7 @@ import { openRouterModelCatalogSnapshot } from "../lib/llm/openRouter";
 import { getReadSubagentCapability } from "../lib/chat/readSubagents";
 import { asyncRoute } from "../lib/asyncRoute";
 import type { UserApplication } from "../lib/userApplication";
+import { configuredAvailable, configuredModels } from "../lib/llm/registry";
 
 /** A selection is `provider:native`; keep an id that is already composite. */
 const composite = (model: PickerModel): PickerModel => ({
@@ -54,6 +55,12 @@ export function createModelsRouter(user: Pick<UserApplication, "modelSettings">)
       ...modelsDevCatalogSnapshot().models.map(composite),
       ...openRouter.models.map(withCatalogMetadata).map(composite),
     ]);
+    options.push(...configuredModels().map((model): PickerModel => ({
+      id: `configured:${model.id}`, label: model.label ?? model.id,
+      group: model.location === "local" ? "Desktop" : "Configured",
+      provider: "configured", available: configuredAvailable(model, api_keys),
+      modelKey: `configured/${model.id}`,
+    })));
     const body = JSON.stringify({ models: options,
       unavailableProviders: [codex.source === "unavailable" && "codex",
         ollama.source === "unavailable" && "ollama", openCodeGo.source === "unavailable" && "opencode-go",

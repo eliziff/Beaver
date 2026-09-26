@@ -45,15 +45,18 @@ create trigger on_auth_user_created after insert on auth.users
   for each row execute procedure handle_new_user();
 revoke execute on function public.handle_new_user() from public,anon,authenticated;
 
+-- BEAVER_CORE_BEGIN
 create table if not exists user_api_keys (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   provider text not null,
   encrypted_key text not null, iv text not null, auth_tag text not null,
-  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
-  unique(user_id,provider)
+  created_at text not null, updated_at text not null,
+  primary key(user_id,provider)
 );
--- BEAVER_CORE_BEGIN
+create table if not exists workflow_catalog (
+  id integer primary key check(id=1), source_commit text not null,
+  content_hash text not null, body text not null, updated_at text not null
+);
 -- This section is deliberately valid in both PostgreSQL and SQLite. JSONB is
 -- stored as JSON text by SQLite and decoded at the repository boundary.
 create table if not exists user_mcp_connectors (
@@ -97,15 +100,32 @@ create table if not exists user_mcp_tool_audit_logs (
   error_message text, duration_ms integer not null default 0,
   result_size_chars integer not null default 0, created_at text not null
 );
+create table if not exists organizations (
+  id text primary key, name text not null, created_by uuid,
+  created_at text not null, updated_at text not null
+);
+create table if not exists org_members (
+  org_id text not null references organizations(id) on delete cascade,
+  user_id uuid not null, email text, role text not null check(role in ('admin','member')),
+  created_at text not null, primary key(org_id,user_id)
+);
+create table if not exists org_invitations (
+  id text primary key, org_id text not null references organizations(id) on delete cascade,
+  email text not null, role text not null check(role in ('admin','member')),
+  token_hash text not null unique, expires_at text not null, created_by uuid not null,
+  created_at text not null, unique(org_id,email)
+);
 create table if not exists projects (
   id text primary key, user_id uuid not null, name text not null,
+  org_id text references organizations(id) on delete restrict,
   cm_number text, practice text, shared_with jsonb not null default '[]',
   metadata jsonb not null default '{}', notes text,
   created_at text not null, updated_at text not null
 );
 create table if not exists project_members (
   project_id text not null references projects(id) on delete cascade,
-  email text not null, primary key(project_id,email)
+  email text not null, role text not null default 'editor' check(role in ('viewer','editor','owner')),
+  primary key(project_id,email)
 );
 create table if not exists project_subfolders (
   id text primary key, user_id uuid not null, project_id text not null references projects(id) on delete cascade,
@@ -162,6 +182,24 @@ create table if not exists document_edits (
   resolved_at text, check(status in ('pending','accepted','rejected')),
   foreign key(version_id,document_id) references document_versions(id,document_id) on delete cascade
 );
+create table if not exists upload_sessions (
+  id text primary key, user_id uuid not null, user_email text, client_key text not null,
+  project_id text references projects(id) on delete cascade,
+  library_kind text not null check(library_kind in ('file','template')), folder_id text,
+  document_id text not null unique, filename text not null, file_type text not null,
+  purpose text not null default 'document_create' check(purpose in ('document_create','version_create','version_replace')),
+  target_document_id text, expected_version_id text, expected_working_revision integer, result_version_id text,
+  workflow_id text,
+  size_bytes integer not null check(size_bytes between 1 and 104857600),
+  source_sha256 text not null check(length(source_sha256)=64), storage_path text not null,
+  status text not null default 'pending' check(status in ('pending','queued','complete','failed','cancelled')),
+  job_id text, error text, created_at text not null, updated_at text not null, expires_at text not null,
+  unique(user_id,client_key),
+  check((purpose='document_create' and target_document_id is null and expected_version_id is null and expected_working_revision is null)
+    or (purpose<>'document_create' and target_document_id is not null and expected_version_id is not null and expected_working_revision is not null and expected_working_revision>=0))
+);
+create index if not exists upload_sessions_blob_idx on upload_sessions(storage_path,expires_at);
+create index if not exists upload_sessions_user_idx on upload_sessions(user_id,created_at,id);
 create table if not exists object_cleanup (
   storage_path text primary key, created_at text not null,
   claim_id text, claimed_at text,
@@ -184,7 +222,8 @@ create table if not exists tabular_reviews (
 );
 create table if not exists tabular_review_members (
   review_id text not null references tabular_reviews(id) on delete cascade,
-  email text not null, primary key(review_id,email)
+  email text not null, role text not null default 'editor' check(role in ('viewer','editor','owner')),
+  primary key(review_id,email)
 );
 create table if not exists tabular_cells (
   id text primary key, review_id text not null references tabular_reviews(id) on delete cascade,
@@ -265,12 +304,18 @@ create table if not exists application_job_commands (
 
 create table if not exists workflows (
   id text primary key, user_id uuid not null, title text not null, execution text not null,
+  org_id text references organizations(id) on delete restrict,
   variant_label text not null, variant_result text,
   prompt_md text, columns_config jsonb, language text, version text, category text not null,
   audiences jsonb not null, jurisdictions jsonb, contributors jsonb,
   created_at text not null, updated_at text not null,
   check(execution in ('assistant','tabular'))
 );
+create table if not exists workflow_documents (
+  document_id text primary key references documents(id) on delete cascade,
+  workflow_id text not null references workflows(id) on delete cascade
+);
+create index if not exists workflow_documents_workflow on workflow_documents(workflow_id,document_id);
 create table if not exists work_products (
   id text primary key, user_id uuid not null,
   project_id text references projects(id) on delete cascade,
@@ -282,7 +327,7 @@ create table if not exists work_products (
 create table if not exists workflow_shares (
   id text primary key, workflow_id text not null references workflows(id) on delete cascade,
   shared_by_user_id uuid not null, shared_with_email text not null,
-  allow_edit boolean not null default false, created_at text not null,
+  role text not null default 'viewer' check(role in ('viewer','editor','owner')), created_at text not null,
   unique(workflow_id,shared_with_email)
 );
 create table if not exists workflow_open_source_submissions (
@@ -346,7 +391,50 @@ create index if not exists work_products_project on work_products(project_id,upd
 create index if not exists workflow_shares_email on workflow_shares(shared_with_email,workflow_id);
 create index if not exists audit_events_user_created on audit_events(user_id,created_at desc);
 create index if not exists audit_events_project_created on audit_events(project_id,created_at desc);
+create table if not exists chat_members (
+  chat_id text not null references chats(id) on delete cascade,
+  email text not null, role text not null check(role in ('viewer','editor','owner')),
+  primary key(chat_id,email)
+);
+create table if not exists project_org_access_overrides (
+  project_id text not null references projects(id) on delete cascade,
+  org_id text not null, user_id uuid not null,
+  role text not null check(role in ('deny','viewer','editor','owner')),
+  primary key(project_id,user_id),
+  foreign key(org_id,user_id) references org_members(org_id,user_id) on delete cascade
+);
+create table if not exists workflow_org_access_overrides (
+  workflow_id text not null references workflows(id) on delete cascade,
+  org_id text not null, user_id uuid not null,
+  role text not null check(role in ('deny','viewer','editor','owner')),
+  primary key(workflow_id,user_id),
+  foreign key(org_id,user_id) references org_members(org_id,user_id) on delete cascade
+);
+create index if not exists org_members_user on org_members(user_id,org_id);
+create index if not exists chat_members_email on chat_members(email,chat_id);
+create index if not exists projects_organization on projects(org_id);
+create index if not exists workflows_organization on workflows(org_id);
+-- Memory is opt-in. Epoch changes fence deleted/paused content and in-flight curation.
+create table if not exists memory_files (
+  scope text not null check(scope in ('app','project')), owner_id text not null,
+  project_id text references projects(id) on delete cascade, app_user_id uuid,
+  enabled integer not null default 0, content text not null default '',
+  revision integer not null default 0, epoch integer not null default 0,
+  updated_at text not null, primary key(scope,owner_id),
+  check((scope='app' and project_id is null and cast(app_user_id as text)=owner_id and app_user_id is not null)
+    or (scope='project' and project_id=owner_id and app_user_id is null))
+);
+create table if not exists memory_receipts (
+  id text primary key, scope text not null, owner_id text not null, epoch integer not null,
+  chat_id text not null references chats(id) on delete cascade, turn_id text not null, transcript_version integer not null,
+  actor_id uuid not null, actor_email text, input_text text not null, created_at text not null,
+  applied_at text, unique(scope,owner_id,epoch,chat_id,turn_id,actor_id),
+  foreign key(scope,owner_id) references memory_files(scope,owner_id) on delete cascade
+);
+create index if not exists memory_receipts_pending on memory_receipts(scope,owner_id,applied_at,created_at);
 -- BEAVER_CORE_END
+alter table user_api_keys add constraint user_api_keys_auth_user
+  foreign key(user_id) references auth.users(id) on delete cascade;
 
 -- Cloud owns identity; local mode uses the same UUID-shaped values without
 -- importing Supabase into application code.
@@ -405,12 +493,14 @@ create or replace function sync_shared_members() returns trigger language plpgsq
 set search_path = '' as $$
 begin
   if tg_table_name = 'projects' then
-    delete from public.project_members where project_id=new.id;
+    delete from public.project_members where project_id=new.id
+      and email not in (select lower(value) from jsonb_array_elements_text(new.shared_with));
     insert into public.project_members(project_id,email)
       select new.id,lower(value) from jsonb_array_elements_text(new.shared_with)
       on conflict do nothing;
   else
-    delete from public.tabular_review_members where review_id=new.id;
+    delete from public.tabular_review_members where review_id=new.id
+      and email not in (select lower(value) from jsonb_array_elements_text(new.shared_with));
     insert into public.tabular_review_members(review_id,email)
       select new.id,lower(value) from jsonb_array_elements_text(new.shared_with)
       on conflict do nothing;
@@ -431,7 +521,7 @@ revoke all on table projects,project_members,project_subfolders,library_folders,
   document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
-  application_job_events,application_job_commands,workflows,work_products,
+  application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
   workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   from public,anon,authenticated;
 revoke all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -441,7 +531,7 @@ grant all on table projects,project_members,project_subfolders,library_folders,d
   document_versions,document_version_parts,document_edits,object_cleanup,library_legal_sources,tabular_reviews,
   tabular_review_members,tabular_cells,tabular_changes,chats,chat_drafts,chat_messages,chat_message_events,
   provider_sessions,application_jobs,
-  application_job_events,application_job_commands,workflows,work_products,
+  application_job_events,application_job_commands,workflows,workflow_catalog,work_products,
   workflow_shares,workflow_open_source_submissions,audit_events,user_preferences
   to service_role;
 grant all on table user_profiles,user_api_keys,user_mcp_connectors,user_mcp_oauth_tokens,
@@ -478,8 +568,61 @@ alter table application_jobs enable row level security;
 alter table application_job_events enable row level security;
 alter table application_job_commands enable row level security;
 alter table workflows enable row level security;
+alter table workflow_documents enable row level security;
+revoke all on workflow_documents from public,anon,authenticated;
+grant all on workflow_documents to service_role;
+alter table workflow_catalog enable row level security;
 alter table work_products enable row level security;
 alter table workflow_shares enable row level security;
 alter table workflow_open_source_submissions enable row level security;
 alter table audit_events enable row level security;
 alter table user_preferences enable row level security;
+
+alter table org_members add constraint org_members_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+revoke all on table organizations,org_members,org_invitations,chat_members,
+  project_org_access_overrides,workflow_org_access_overrides from public,anon,authenticated;
+grant all on table organizations,org_members,org_invitations,chat_members,
+  project_org_access_overrides,workflow_org_access_overrides to service_role;
+alter table organizations enable row level security;
+alter table org_members enable row level security;
+alter table org_invitations enable row level security;
+alter table chat_members enable row level security;
+alter table project_org_access_overrides enable row level security;
+alter table workflow_org_access_overrides enable row level security;
+
+-- Auth deletion must not cascade into organization work. The application first
+-- hands custody to a remaining admin; this trigger also fences direct auth-admin deletion.
+create or replace function public.guard_organization_account_delete() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists(select 1 from org_members where user_id=old.id)
+    or exists(select 1 from projects where user_id=old.id and org_id is not null)
+    or exists(select 1 from workflows where user_id=old.id and org_id is not null)
+    or exists(select 1 from documents d join projects p on p.id=d.project_id where d.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from documents d join workflow_documents wd on wd.document_id=d.id
+      join workflows w on w.id=wd.workflow_id where d.user_id=old.id and w.org_id is not null)
+    or exists(select 1 from project_subfolders f join projects p on p.id=f.project_id where f.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from tabular_reviews r join projects p on p.id=r.project_id where r.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from work_products w join projects p on p.id=w.project_id where w.user_id=old.id and p.org_id is not null)
+    or exists(select 1 from chats c left join tabular_reviews r on r.id=c.tabular_review_id
+      left join work_products w on w.id=c.work_product_id
+      join projects p on p.id=coalesce(c.project_id,r.project_id,w.project_id) where c.user_id=old.id and p.org_id is not null)
+  then raise exception 'Transfer organization custody before deleting this account'; end if;
+  return old;
+end $$;
+drop trigger if exists guard_organization_account_delete on auth.users;
+create trigger guard_organization_account_delete before delete on auth.users
+for each row execute function public.guard_organization_account_delete();
+revoke all on function public.guard_organization_account_delete() from public, anon, authenticated;
+
+alter table memory_files enable row level security;
+alter table upload_sessions enable row level security;
+revoke all on upload_sessions from anon,authenticated;
+grant all on upload_sessions to service_role;
+alter table upload_sessions add constraint upload_sessions_auth_user foreign key(user_id) references auth.users(id) on delete cascade;
+alter table memory_receipts enable row level security;
+revoke all on memory_files,memory_receipts from anon,authenticated;
+grant all on memory_files,memory_receipts to service_role;
+alter table memory_receipts add constraint memory_receipts_auth_user foreign key(actor_id) references auth.users(id) on delete cascade;
+
+alter table memory_files add constraint memory_files_auth_user foreign key(app_user_id) references auth.users(id) on delete cascade;

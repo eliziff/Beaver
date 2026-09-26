@@ -197,6 +197,9 @@ export async function executeWordClientTool(call: ClientToolCall) {
     if (call.name !== "apply_word_edits") return { error: "Unknown client tool." };
     const previous = cached(call.callId);
     if (previous !== undefined) return previous;
+    // Fence replay before Word can mutate: a closed pane cannot confirm whether
+    // the last sync committed. Never repeat that batch automatically.
+    remember(call.callId, { error: "This edit batch was already started. Read the document and review its tracked changes before requesting further edits." });
     const result = await applyEdits(call.input);
     remember(call.callId, result);
     return result;

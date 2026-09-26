@@ -85,6 +85,7 @@ export async function deleteUserAccountData(
         owned("work_products"),
         owned("audit_events"),
         owned("user_preferences"),
+        owned("user_api_keys"),
         owned("projects"),
     ]);
     for (const result of results) {

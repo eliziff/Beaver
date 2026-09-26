@@ -25,6 +25,10 @@ export default defineConfig({
     },
     test: {
         globals: true,
+        pool: "forks",
+        maxWorkers: 4,
+        execArgv: ["--max-old-space-size=192"],
+        silent: "passed-only",
         environment: "jsdom",
         setupFiles: ["./vitest.setup.ts"],
         include: ["src/**/*.test.{ts,tsx}"],

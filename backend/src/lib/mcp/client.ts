@@ -140,7 +140,7 @@ export async function boundMcpResponse(response: Response) {
 
 export const guardedMcpFetch = (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
   guardedRemoteFetch(input, init, {
-    label: "MCP server URL", timeoutMs: MCP_REQUEST_TIMEOUT_MS,
+    label: "MCP server URL", timeoutMs: MCP_REQUEST_TIMEOUT_MS, maxRedirects: 5,
   });
 
 export async function loadConnector(userId: string, connectorId: string, db: Db) {

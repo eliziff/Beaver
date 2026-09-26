@@ -5,7 +5,6 @@ import {
   clearTabularCells,
   deleteTabularReview,
   getTabularReview,
-  getTabularReviewPeople,
   regenerateTabularCell,
   exportTabularReview,
   stopTabularGeneration,
@@ -25,7 +24,6 @@ import {
 } from "@/app/lib/api/documents";
 import { BeaverApiError } from "@/app/lib/api/client";
 import { downloadBlob } from "@/app/lib/download";
-import { useAuth } from "@/app/contexts/AuthContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { useUserProfile } from "@/app/contexts/UserProfileContext";
 import { useSelectedModel, useSelectedReasoningEffort } from "@/app/hooks/useSelectedModel";
@@ -44,7 +42,7 @@ import { ResearchWorkspaceHost } from "../legal/ResearchWorkspaceHost";
 import { ResearchViews } from "../shared/ResearchViews";
 import { PageHeader, type PageHeaderAction, type PageHeaderBreadcrumb } from "../shared/PageHeader";
 import { AddDocumentsModal } from "../modals/AddDocumentsModal";
-import { PeopleModal } from "../modals/PeopleModal";
+import { AccessModal } from "../modals/AccessModal";
 import { ApiKeyMissingPopup } from "../popups/ApiKeyMissingPopup";
 import { ConfirmPopup } from "../popups/ConfirmPopup";
 import { OwnerOnlyPopup } from "../popups/OwnerOnlyPopup";
@@ -78,7 +76,6 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { user } = useAuth();
     const { setSidebarOpen } = useSidebar();
     const { profile } = useUserProfile();
     const [model] = useSelectedModel();
@@ -123,6 +120,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         ownerAction, cellView, selectedIds, search, dragOver, uploading, chatId,
         missingProvider, columnRun, dockTab,
     } = ui;
+    const readOnly = review?.role === "viewer";
     const columns = review?.columns_config ?? [];
     const workspaceId = review?.scope_config?.research_file_id;
     useEffect(() => { if (workspaceId) void workspace.open(workspaceId).catch(() => undefined); }, [workspaceId, workspace.open]);
@@ -517,14 +515,12 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const menuItems = [
         { label: "History", onSelect: () => setUi({ historyOpen: true }) },
         ...(!projectId ? [{ label: "People", disabled: loading, onSelect: () => setUi({ modal: "people" as Modal }) }] : []),
-        { label: "Edit details", onSelect: () => ownerOnly("edit tabular review details",
-            () => setUi({ modal: "details" })) },
-        { label: "Apply workflow", onSelect: () => ownerOnly("apply a workflow",
-            () => setUi({ workflowStatus: "open" })) },
+        { label: "Edit details", disabled: readOnly, onSelect: () => setUi({ modal: "details" }) },
+        { label: "Apply workflow", disabled: readOnly, onSelect: () => setUi({ workflowStatus: "open" }) },
         { label: "Export XLSX", disabled: !hasTable,
             onSelect: () => void exportTabularReview(reviewId).then(({ blob, filename }) =>
                 downloadBlob(blob, filename ?? `${review?.title || "Tabular Review"}.xlsx`)) },
-        { label: "Clear results", disabled: !documents.length || generating,
+        { label: "Clear results", disabled: readOnly || !documents.length || generating,
             onSelect: () => void clearResults(documents.map(({ id }) => id)) },
         { label: "Delete", onSelect: () => ownerOnly("delete this tabular review",
             () => setUi({ deleteStatus: "open" })) },
@@ -532,11 +528,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
     const headerActions: (PageHeaderAction | false)[] = [
         { type: "search", value: search, onChange: (value) => setUi({ search: value }),
             placeholder: "Search documents\u2026" },
-        { onClick: () => setUi({ modal: "documents" }), disabled: loading,
+        { onClick: () => setUi({ modal: "documents" }), disabled: loading || readOnly,
             title: "Add documents", icon: <Upload className="h-4 w-4" />, label: "Docs" },
-        { onClick: () => setUi({ columnModal: null }), disabled: loading,
+        { onClick: () => setUi({ columnModal: null }), disabled: loading || readOnly,
             title: "Add columns", label: "+ Column" },
-        { onClick: generating ? stopGeneration : generate, disabled: !hasTable,
+        { onClick: generating ? stopGeneration : generate, disabled: readOnly || !hasTable,
             icon: generating
                 ? <Square className="h-4 w-4" fill="currentColor" />
                 : <Play className="h-4 w-4" />,
@@ -558,7 +554,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 <div className="flex flex-1 overflow-hidden">
                     <div className={`flex flex-1 flex-col overflow-hidden ${dockTab ? "max-md:hidden" : ""}`}>
                         {!loading && (selected || generating) && <div className="mx-4 mb-2 flex min-h-8 flex-wrap items-center gap-2 md:mx-6">
-                            {selected && <>
+                            {selected && !readOnly && <>
                                 <span className="text-sm font-medium text-gray-800">{selectedIds.length} selected</span>
                                 <ResearchSelectionLabels prepare={async () => (await prepareRows()).rows
                                     .flatMap(({ selection }) => selection ? [selection] : [])} />
@@ -579,7 +575,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                         </div>}
                         <div className="relative flex flex-1 overflow-hidden"
                             onDragOver={(event) => {
-                                if (!hasFileDrag(event)) return;
+                                if (readOnly || !hasFileDrag(event)) return;
                                 event.preventDefault();
                                 event.dataTransfer.dropEffect = "copy";
                                 setUi({ dragOver: true });
@@ -589,13 +585,13 @@ function TRViewContent({ reviewId, projectId }: Props) {
                                     setUi({ dragOver: false });
                             }}
                             onDrop={(event) => {
-                                if (!hasFileDrag(event)) return;
+                                if (readOnly || !hasFileDrag(event)) return;
                                 event.preventDefault();
                                 event.stopPropagation();
                                 setUi({ dragOver: false });
                                 void dropFiles(Array.from(event.dataTransfer.files));
                             }}>
-                            <TRTable loading={loading} columns={columns}
+                            <TRTable readOnly={readOnly} loading={loading} columns={columns}
                                 documents={filteredDocuments} cells={cells}
                                 selectedDocIds={selectedIds}
                                 uploadingFilenames={uploading} dragOverFiles={dragOver}
@@ -620,7 +616,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                         }}
                         onExpandedChange={(open) => { if (!open) closeDock(); }}
                         tabs={[
-                            { id: "chat", label: "Chat", icon: <MessageSquare aria-hidden className="size-4" />, content: chatOpen && <TRChatPanel
+                            { id: "chat", label: "Chat", icon: <MessageSquare aria-hidden className="size-4" />, content: chatOpen && <TRChatPanel readOnly={readOnly}
                                 reviewId={reviewId} chatId={chatId ?? null}
                                 onUseAnswer={discussion?.rowId ? useChatAnswer : undefined}
                                 workspaceReady={!!workspaceId && workspace.file?.document.id === workspaceId && JSON.stringify(workspace.selection) === selectedScopeKey}
@@ -671,15 +667,11 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 sources={workspaceSources} onAddSources={addSources} />
             <TabularReviewDetailsModal
                 open={modal === "details"} review={review} projects={projects}
-                canEdit={review?.is_owner !== false} lockProject={Boolean(projectId)}
+                canEdit={!readOnly} lockProject={Boolean(projectId)}
                 onClose={() => setUi({ modal: null })} onSave={saveDetails} />
-            <PeopleModal open={modal === "people"} onClose={() => setUi({ modal: null })}
-                resource={review} fetchPeople={getTabularReviewPeople}
-                currentUserEmail={user?.email ?? null}
-                breadcrumb={["Tabular Reviews", reviewTitle, "People"]}
-                onSharedWithChange={review?.is_owner === false ? undefined
-                    : async (shared_with) =>
-                        setReview(await updateTabularReview(reviewId, { shared_with }))} />
+            <AccessModal open={modal === "people"} onClose={() => setUi({ modal: null })}
+                kind="review" resourceId={reviewId} title={reviewTitle}
+                onChange={refreshReview} />
             <WorkflowPickerModal open={workflowStatus !== null} onSelect={applyWorkflow}
                 onClose={() => { if (workflowStatus !== "applying") setUi({ workflowStatus: null }); }}
                 execution="tabular" breadcrumbs={[...modalCrumbs, "Add workflow"]}

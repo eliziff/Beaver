@@ -364,6 +364,7 @@ export function createDocumentApplication(repository: DocumentRepository,
     const parts = await stageChanges(aggregate.document.id, aggregate.document,
       version.id, file.parts);
     const result = await repository.insertVersion(scope, aggregate.document.id, {
+      uploadSessionId: file.uploadSessionId,
       expectedCurrentVersionId: current.id,
       expectedCurrentWorkingRevision: current.workingRevision,
       expectedProjectId: aggregate.document.projectId,
@@ -434,6 +435,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         ? undefined : input.provenance ?? current.provenance,
       createdAt: input.createdAt ?? current.createdAt };
     const result = await repository.updateVersion(scope, documentId, {
+      uploadSessionId: input.uploadSessionId,
       versionId: current.id, expectedBlobKey: current.blobKey,
       expectedWorkingRevision: current.workingRevision,
       expectedCurrentVersionId: current.id,
@@ -495,12 +497,12 @@ export function createDocumentApplication(repository: DocumentRepository,
       const libraryKind = (input.libraryKind ?? "file") as LibraryKind,
         projectId = input.projectId ?? null, folderId = input.folderId ?? null;
       const authorization = await repository.authorizeCreate(
-        scope, { projectId, libraryKind, folderId });
+        scope, { projectId, libraryKind, folderId, workflowId: input.workflowId });
       if (authorization !== "ok") {
         throw new ApplicationError(404,
           authorization === "project-missing" ? "Project not found" : "Folder not found");
       }
-      const documentId = randomUUID();
+      const documentId = input.upload?.documentId ?? randomUUID();
       const version = await makeVersion({ ...input, scope, documentId, versionNumber: 1,
         ownerUserId: scope.userId, projectId, parentVersionId: null,
         source: input.provenance?.actor === "work-product" ||
@@ -514,9 +516,15 @@ export function createDocumentApplication(repository: DocumentRepository,
       };
       const parts = await stageParts(documentId, document, version.id, input.parts);
       const created = await pdfLifecyclePhase("upload.repository", documentId, () =>
-        repository.create(scope, { document, version, parts,
+        repository.create(scope, { document, version, parts, workflowId: input.workflowId,
+          ...(input.upload ? { uploadSessionId: input.upload.sessionId } : {}),
           ...(input.pdfOcrProvider !== undefined ? { pdfOcrProvider: input.pdfOcrProvider } : {}) }));
-      if (!created) throw new ApplicationError(409, "Document location changed during upload");
+      if (!created) {
+        const existing = input.upload ? await repository.head(scope, documentId) : null;
+        if (existing && existing.versions[0].sourceSha256 === version.sourceSha256)
+          return responseDocument(existing);
+        throw new ApplicationError(409, "Document location changed during upload");
+      }
       return responseDocument({ document, versions: [version] });
     },
 

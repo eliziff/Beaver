@@ -30,6 +30,7 @@ const ROW = "h-10 w-max min-w-full pr-0 [contain-intrinsic-size:auto_40px]";
 const STICKY = `sticky left-0 z-10 self-stretch bg-app-surface ${GRID_LINE}`;
 const FILLER = "min-w-8 flex-1 self-stretch border-b border-gray-200";
 interface Props {
+    readOnly?: boolean;
     loading: boolean;
     columns: ColumnConfig[];
     documents: TabularDocument[];
@@ -50,7 +51,7 @@ interface Props {
     onAddDocuments?: () => void;
 }
 export function TRTable({
-    loading, columns, documents, cells, selectedDocIds,
+    loading, readOnly = false, columns, documents, cells, selectedDocIds,
     uploadingFilenames = [], dragOverFiles = false, running = false,
     onSelectionChange, onExpand, onEditColumn, onRerunColumn, onClearColumn, onDeleteColumn,
     onColumnLabels, onColumnDiscuss, onAddColumns, onAddDocuments,
@@ -74,7 +75,7 @@ export function TRTable({
                             <li key={flag} className="flex items-center gap-2"><FlagDot flag={flag} />{FLAGS[flag].meaning}</li>)}</ul>
                     </HelpPopover>}
                 </TableStickyCell>
-                {sortedColumns.map((col) => <ColumnHeader key={col.index} column={col} disabled={loading} running={running || !documents.length}
+                {sortedColumns.map((col) => <ColumnHeader key={col.index} column={col} disabled={loading || readOnly} running={running || !documents.length}
                         onEdit={onEditColumn} onRerun={onRerunColumn} onClear={onClearColumn} onDelete={onDeleteColumn}
                         onLabels={onColumnLabels} onDiscuss={onColumnDiscuss} />)}
                 <div className={FILLER} />
@@ -85,10 +86,10 @@ export function TRTable({
                 {dragOverlay}
                 <TableEmptyState className="py-16">
                     <p className="text-sm text-gray-600">{sortedColumns.length ? "No documents yet." : "Nothing to review yet."}</p>
-                    <div className="mt-4 flex gap-2">
+                    {!readOnly && <div className="mt-4 flex gap-2">
                         {!sortedColumns.length && <Button variant="outline" size="compact" onClick={onAddColumns}>+ Column</Button>}
                         <Button variant="outline" size="compact" onClick={onAddDocuments}>Add documents</Button>
-                    </div>
+                    </div>}
                 </TableEmptyState>
             </div>
             : <TableBody className="relative min-h-0">

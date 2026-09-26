@@ -35,6 +35,11 @@ export type JobHandlerContext = {
 };
 export type JobHandler = (job: ApplicationJob, context: JobHandlerContext) => Promise<Json>;
 
+export class DeferredJobError extends Error {
+  name = "DeferredJobError";
+  constructor(readonly delayMilliseconds: number) { super("Job deferred"); }
+}
+
 export class PermanentJobError extends Error {
   name = "PermanentJobError";
 }
@@ -109,6 +114,7 @@ export async function enqueueJob(input: {
   payload: Json;
   priority?: number;
   maxAttempts?: number;
+  runAt?: string;
 }, database?: RelationalDatabase) {
   const db = database ?? await relationalDatabase();
   const created = now(), id = randomUUID();
@@ -123,7 +129,7 @@ export async function enqueueJob(input: {
       id,kind,dedupe_key,group_key,user_id,document_id,document_version_id,payload,
       priority,status,run_at,attempts,max_attempts,created_at,updated_at)
     VALUES(${id},${kind},${dedupeKey},${groupKey},${userId},${input.documentId ?? null},
-      ${input.documentVersionId ?? null},${payload},${priority},'queued',${created},0,
+      ${input.documentVersionId ?? null},${payload},${priority},'queued',${input.runAt ?? created},0,
       ${maxAttempts},${created},${created})
     ON CONFLICT(kind,user_id,dedupe_key) DO UPDATE SET
       priority=CASE WHEN application_jobs.priority>excluded.priority
@@ -234,11 +240,13 @@ async function release(id: string, workerId: string, kind: string) {
 
 async function fail(job: ApplicationJob, workerId: string, error: unknown) {
   const db = await relationalDatabase(), timestamp = now();
-  const exhausted = error instanceof PermanentJobError || job.attempts >= job.maxAttempts;
+  const deferred = error instanceof DeferredJobError;
+  const exhausted = !deferred && (error instanceof PermanentJobError || job.attempts >= job.maxAttempts);
   const delay = Math.min(60_000, 2_000 * (2 ** Math.max(0, job.attempts - 1)));
   const category = errorCategory(error);
   await db.query(sql`UPDATE application_jobs SET status=${exhausted ? "failed" : "queued"},
-    run_at=${later(delay)},last_error=${category},locked_by=NULL,locked_until=NULL,
+    run_at=${later(deferred ? Math.max(1000, Math.min(error.delayMilliseconds, 3_600_000)) : delay)},
+    attempts=attempts-${deferred ? 1 : 0},last_error=${deferred ? null : category},locked_by=NULL,locked_until=NULL,
     interrupt_requested_at=NULL,dedupe_key=${exhausted ? null : job.dedupeKey},
     completed_at=${exhausted ? timestamp : null},updated_at=${timestamp}
     WHERE id=${job.id} AND status='running' AND locked_by=${workerId}`);

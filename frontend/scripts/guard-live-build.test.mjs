@@ -29,4 +29,12 @@ test("detects a listening socket", async (context) => {
         await isFrontendLive({ port: address.port, timeoutMs: 100 }),
         true,
     );
+    const previous = process.env.PORT;
+    try {
+        process.env.PORT = String(address.port);
+        assert.equal(await isFrontendLive(), true);
+    } finally {
+        if (previous === undefined) delete process.env.PORT;
+        else process.env.PORT = previous;
+    }
 });

@@ -1,6 +1,8 @@
 "use client";
 
 import { Switch } from "@/app/components/ui/switch";
+import { useState } from "react";
+import { readAppearance, saveAppearance, type Appearance } from "@/app/lib/appearance";
 import { useAssistantPreferences } from "@/app/components/assistant/assistantPreferences";
 import { providerShortLabel, type ModelProvider } from "@/app/lib/modelAvailability";
 import { PROVIDER_LOGO } from "@/app/lib/providerLogos";
@@ -28,8 +30,16 @@ const MODEL_PROVIDERS: ModelProvider[] = [
 ];
 
 export function DisplaySettings() {
+    const [appearance, setAppearance] = useState(readAppearance);
     const [preferences, savePreferences] = useAssistantPreferences();
     return <>
+        <label className="flex items-center justify-between gap-4 text-sm text-gray-900">
+            Appearance
+            <select className="max-w-40 rounded-md border border-gray-300 bg-app-surface px-2" value={appearance}
+                onChange={(event) => { const value = event.target.value as Appearance; setAppearance(value); saveAppearance(value); }}>
+                <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+            </select>
+        </label>
         {TOGGLES.map(({ key, title, detail, ariaLabel }) => (
             <div key={key} className="flex items-center justify-between gap-4">
                 <div>

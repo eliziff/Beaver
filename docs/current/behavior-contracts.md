@@ -43,8 +43,37 @@ directories provide:
 - shared frontend paging/directory primitives rather than component-specific
   whole-collection caches.
 
-System workflows remain a small pinned catalogue and do not need runtime
-pagination or downloading.
+System workflows ship as a pinned offline catalogue, including verified reference
+files. Operators can independently install a reviewed revision without rebuilding
+or restarting the application. A single atomic database replacement publishes the
+snapshot only after every referenced object has passed its size, type and SHA-256
+checks. Local SQLite/filesystem and cloud Postgres/object storage use the same
+operation. Running assistant turns retain their captured revision. Reference
+objects are immutable and retained across replacements so those turns and exports
+remain valid; catalogue installation currently does not garbage-collect old blobs.
+
+The workflow information panel downloads references bound to their exact hash.
+Assistant `Read` exposes references on demand with bounded windows. Workflow ZIPs
+include each variant's references and a source-revision/hash provenance file.
+The bundled catalogue needs no network or storage installation on first use.
+
+Build a package from a clean, explicitly selected source revision using Python
+with the workflow repository's existing PyYAML requirement:
+
+```sh
+python -X utf8 scripts/build-workflow-catalog.py mike-workflows <40-character-commit> tmp/catalogue
+npm run workflow-catalog --prefix backend -- install ../tmp/catalogue/catalogue.json <40-character-commit>
+npm run workflow-catalog --prefix backend -- status
+```
+
+The install path is relative to the backend directory when using `npm --prefix`.
+Configure the usual
+runtime environment to select the intended local data directory or cloud store.
+Installation is an operator CLI, not an authenticated-user write endpoint.
+The source validator runs before packaging; unplaced new system recipes fail the
+build for explicit placement in `scripts/workflow-catalog-layout.json`. Add-on
+packs are not automatically installed. Add `--bundle` to regenerate the shipped
+JSON and embedded reference bytes when advancing the application distribution.
 
 ## Sources workspace
 
@@ -362,6 +391,9 @@ before the files changed is refused.
 - Beaver is one Vite/React Router application served from the Express origin.
 - The Word task pane mounts the normal application at its Word route and reuses
   authentication, profile, chat, tools, jobs, and UI components.
+- Word edits use native tracked changes in Review mode. A client call is marked
+  started before mutation; replay of an unconfirmed batch reports uncertainty
+  instead of repeating edits. Completed calls return their saved outcome.
 - Library and project directory behavior is shared.
 - Model and reasoning effort remain separate visible controls.
 - Primary actions have stable labels and placement, keyboard operation, visible
@@ -371,6 +403,20 @@ before the files changed is refused.
   do not replace keyboard and screen-reader testing.
 
 ## Security boundaries
+
+Deployment operators may declare OpenAI-compatible endpoints through
+`MIKE_MODEL_CONFIG_JSON={"models":[...]}`. Each declaration requires `id`,
+`provider: "openai-compatible"`, `location: "local" | "cloud"`, and `baseUrl`.
+Selections use `configured:<id>`. Optional fields are `label`, `apiModel`,
+`apiKeyEnv`, `apiKeyProvider`, `apiKey`, `contextWindow`, `imageInput`,
+`tolerateTextToolCalls`, and `maxTokensField` (`max_tokens` by default, or
+`max_completion_tokens`). Invalid/duplicate declarations fail closed without
+echoing their contents. The authenticated catalogue exposes no endpoint or key.
+Declared key sources must resolve; a personal provider key wins over deployment
+fallbacks. Endpoints without a key declaration send no Authorization header.
+Local endpoints default to tool-markup recovery through the SDK middleware;
+set `tolerateTextToolCalls: false` for an endpoint with reliable structured calls.
+Recovered calls retain ordinary tool authorization and argument validation.
 
 - Retrieved documents, OCR, provider text, fields, metadata, and summaries are
   untrusted data. They cannot authorize tools, change system instructions, or
@@ -396,3 +442,94 @@ Test the smallest public outcome that protects each changed contract:
 
 Tests that merely assert an import, mock call order, implementation branch, CSS
 class, or exact incidental copy do not make that implementation durable.
+
+
+## Scoped memory
+
+Memory is off by default. Settings > Memory owns private app memory; a project's
+Memory action owns its shared memory. Viewers can read project memory; editors
+and owners can edit it. Save uses a revision check and preserves the editor's
+draft on conflicts. Pause keeps the text; Delete clears it without changing the
+enabled setting. Both actions fence pending curation, as do manual edits.
+
+The assistant receives enabled memory in an earliest synthetic user message,
+not as system instructions. Current conversation outranks project memory, which
+outranks app memory. Shared chats never receive private app memory. Provider
+continuations are bound to the memory snapshot and audience. Memory is optional:
+loading it times out after 800 ms without blocking the answer.
+
+Only successfully persisted terminal turns schedule learning. Failed, cancelled,
+empty and paused turns do not. The existing durable job queue waits for five
+minutes of inactivity, then curates bounded, attributed user statements in
+conversation order. It does not scan older conversations or pass private app
+memory, document contents, or assistant responses into a project curator.
+Curation uses the user's configured title model and credentials. Permission,
+enabled state, epoch and revision are checked again before committing. Account
+exports include accessible memory; account deletion removes private app memory.
+
+## Export integrity
+
+Project > Export manifest captures every accessible document version's source
+SHA-256, working revision, provenance, part hashes and edit decisions in one
+database snapshot. It does not include document bytes or storage keys. Account
+exports use the same integrity envelope. The digest covers the entire JSON body
+(including format and version), excluding only its `integrity` member, with
+recursively sorted object keys and array order preserved.
+
+`MANIFEST_SIGNING_KEY` optionally supplies a dedicated 32-byte Ed25519 seed as
+64 hex digits. Unset means unsigned; malformed configuration fails the export.
+Generate a new key with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`.
+Keep it separate from encryption credentials and retain old public keys when
+rotating it. The signature covers UTF-8 `beaver-export-v1`, a NUL byte, and the
+32 digest bytes. Public keys are base64 DER SPKI; signatures are base64.
+
+Obtain the signing identity independently from the authenticated deployment's
+`GET /api/exports/signing-key`, save its JSON as `trusted-key.json`, and verify:
+
+```sh
+node scripts/verify-export.mjs manifest.json trusted-key.json version-id=downloaded-file.docx
+```
+
+The verifier checks supplied file bytes against their captured source hash and
+size. Omit file arguments to check only the manifest. Use `-` instead of a key
+file for a checksum/embedded-signature check; this does not establish the
+exporter's identity. A trusted key requires a signature and rejects an unsigned
+downgrade. Signing attests the exported snapshot, not earlier document custody.
+
+## Durable uploads
+
+New Library/project/standalone and document-version uploads reserve a 24-hour session with immutable
+file metadata and a retry key. Refreshing or losing the completion response does
+not duplicate the document. Transferred files continue processing on the existing
+job queue; unfinished transfers need the original file selected again. The Uploads
+action shows up to 100 recent sessions, unfinished first, with retry/cancel actions.
+Folder uploads retain their destination on each session. File bytes are never
+stored in browser storage; only retry identifiers are retained there.
+
+Both storage adapters verify size, SHA-256 and document type before publication.
+The shared document transaction rechecks destination access and commits the
+document together with session completion. Cancellation and expired sessions
+cannot publish. Upload bytes use the existing object-cleanup owner and are held
+until session expiry; published documents use ordinary immutable version blobs.
+Version uploads bind the expected head and working revision; edits made while
+the file transfers cause a conflict instead of being overwritten. Adding and
+replacing a version commit their session receipt in the same transaction as
+the version mutation, so duplicate workers cannot apply the upload twice.
+
+Custom workflows accept reference documents through the same upload sessions.
+The workflow page lists, downloads, versions and removes them; reference access
+inherits the workflow's roles and organization deny rules. A workflow turn lists
+captured document-version resources for the existing Read operation. Workflow
+ZIP exports include these files and relative reference paths, with a 64 MB limit.
+Deleting a workflow removes its documents through the shared blob-cleanup owner.
+System workflow assets remain pinned to their installed catalogue snapshot.
+
+S3 direct transfers use five-minute signed, checksum-bound, conditional PUTs;
+filesystem mode uses authenticated multipart staging through the same session.
+Configure bucket CORS for the deployment's exact browser origin, PUT, and the
+`content-type`, `if-none-match`, and `x-amz-checksum-sha256` headers. Configure a
+one-day expiry lifecycle for the `documents/uploads/` prefix (including noncurrent
+versions if bucket versioning is enabled), so even a transfer completed after its
+session expired is collected. Never apply that expiry rule to published blobs.
+These use [S3 presigned checksum uploads](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)
+and [conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).
