@@ -67,7 +67,7 @@ it("starts from saved receipts and restores only cited sources for final pinpoin
     load = vi.spyOn(a2ajLegalSourceProvider, "document").mockResolvedValue(document);
   stream.mockImplementationOnce(async ({ runTools }) => {
     expect(load).not.toHaveBeenCalled();
-    await runTools([{ id: "answer", name: "submit_grounded_answer", input: {
+    await runTools([{ id: "answer", name: "submit_grounded_answer", input: { replace: null,
       claims: [{ text, evidence_ids: [receipt.evidence_id] }],
     } }]);
     return { fullText: "" };
@@ -348,7 +348,7 @@ it.each([false, true])("repairs only the failed submission without resending a n
     await runTools([{
       id: "grounded-1",
       name: "submit_grounded_answer",
-      input: {
+      input: { replace: null,
         claims: [{
           text: "My favourite is Example v Example.",
           evidence_ids: [evidence.evidence_id],
@@ -494,7 +494,7 @@ it.each(["failure", "cancellation", "grounding exhaustion"])(
         callbacks.onContentDelta?.("R. v. Unsupported is decisive.");
         return { fullText: "R. v. Unsupported is decisive." };
       }
-      await runTools([{ id: "answer", name: "submit_grounded_answer", input: {
+      await runTools([{ id: "answer", name: "submit_grounded_answer", input: { replace: null,
         claims: [{ text: passage.span_text, evidence_ids: [passage.evidence_id] }],
       } }]);
       if (ending === "cancellation") signal.abort(new DOMException("Cancelled", "AbortError"));
@@ -523,7 +523,7 @@ it.each([false, true])("shares all subagent reads and searches when failed=%s", 
     if (params.providerSession) {
       await params.runTools([{ id: `reader-${++reader}`, name: "Read", input: { file_path: "document://note/version/v1" } }]);
       if (failed) throw new Error("Reader disconnected");
-      await params.runTools([{ id: "reader-answer", name: "submit_grounded_answer", input: {
+      await params.runTools([{ id: "reader-answer", name: "submit_grounded_answer", input: { replace: null,
         claims: [{ text: used.span_text, evidence_ids: [used.evidence_id] }],
       } }]);
       return { fullText: "" };
@@ -533,7 +533,7 @@ it.each([false, true])("shares all subagent reads and searches when failed=%s", 
       { task: "Read the decision", scope: "Note A", jurisdiction: "CA" },
       { task: "Read the decision", scope: "Note B", jurisdiction: "CA" },
     ] } }]);
-    await params.runTools([{ id: "parent-answer", name: "submit_grounded_answer", input: {
+    await params.runTools([{ id: "parent-answer", name: "submit_grounded_answer", input: { replace: null,
       claims: [{ text: extra.span_text, evidence_ids: [extra.evidence_id] }],
     } }]);
     return { fullText: "" };
@@ -744,4 +744,22 @@ it("retains native session context ownership rather than injecting hosted replay
   await runChatTurn({ model: "codex:gpt-5.6-luna", systemPrompt: "Stable policy", turnContext: "Native current state",
     messages: [{ role: "user", content: "Continue" }], createTools: () => [], emit: () => {}, onModelMessages: saved });
   expect(saved).not.toHaveBeenCalled();
+});
+
+it("rejects blank or duplicate clarification items instead of inventing or dropping blockers", async () => {
+  const responses: unknown[] = [], events: unknown[] = [];
+  stream.mockImplementationOnce(async ({ runTools }) => {
+    for (const items of [
+      [{ id: "q", kind: "choice", question: " ", options: [{ value: "Continue" }] }],
+      [{ id: "q", kind: "documents", document_types: [] }, { id: " q ", kind: "documents", document_types: [] }],
+    ]) responses.push(...await runTools([{ id: "question", name: "ask_inputs", input: { items } }]));
+    return { fullText: "Unable to form a valid question." };
+  });
+  const result = await runChatTurn({ model: "gemini-3-flash-preview", systemPrompt: "", grounded: false,
+    messages: [{ role: "user", content: "Ask about the missing files." }], createTools: () => [], emit: event => events.push(event),
+  });
+  expect(result.status).toBe("complete");
+  expect(responses).toHaveLength(2);
+  expect(responses).toEqual([expect.objectContaining({ status: "error" }), expect.objectContaining({ status: "error" })]);
+  expect(events).not.toContainEqual(expect.objectContaining({ type: "ask_inputs" }));
 });

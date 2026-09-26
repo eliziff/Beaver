@@ -72,6 +72,7 @@ export type AssistantMessageState = {
   artifacts: AssistantArtifact[];
   citations: Citation[];
   contextCompacted: boolean;
+  compaction?: Extract<ProtocolEvent, { type: "compaction" }>;
   contentFinal: boolean;
   error?: string;
   turnId?: string;
@@ -136,7 +137,7 @@ export type ProtocolEvent =
   | { type: "ask_inputs_response"; event: AskInputsResponseEvent }
   | { type: "steering"; id: string; text: string }
   | { type: "context_usage"; usedTokens: number; windowTokens: number }
-  | { type: "compaction"; status: "running" | "completed" | "failed" }
+  | { type: "compaction"; status: "running" | "completed" | "failed"; provider?: string; summary?: string }
   | { type: "turn_status"; status: "cancelled" }
   | { type: "error"; message: string; retryable: boolean; accepted?: boolean };
 
@@ -154,7 +155,7 @@ export type AssistantSessionEvent =
   | { type: "run_failed"; runId: string; message?: string; rejected?: RejectedAssistantTurn; removeOptimistic?: boolean }
   | { type: "turn_rejected"; rejected: RejectedAssistantTurn | null }
   | { type: "steering_queued"; runId: string; id: string; text: string }
-  | { type: "compaction_changed"; status: "running" | "completed" | "failed"; error?: string }
+  | { type: "compaction_changed"; status: "running" | "completed" | "failed"; provider?: string; summary?: string; error?: string }
   | { type: "new_chat"; chatId?: string; message?: Message }
   | { type: "transcript_version_changed"; transcriptVersion: number }
   | { type: "local_exchange"; user: Message; assistantText: string };
@@ -290,7 +291,7 @@ function applyProtocol(state: AssistantSessionState, event: ProtocolEvent): Assi
   if (event.type === "transcript_version") return { ...state, transcriptVersion: event.transcriptVersion };
   if (event.type === "context_usage") return { ...state, contextUsage: { usedTokens: event.usedTokens, windowTokens: event.windowTokens } };
   if (event.type === "compaction") {
-    const next = updateAssistant(state, (message) => ({ ...message, contextCompacted: event.status === "completed" || message.contextCompacted }));
+    const next = updateAssistant(state, (message) => ({ ...message, compaction: event, contextCompacted: event.status === "completed" || message.contextCompacted }));
     return { ...next, compaction: event.status };
   }
   if (event.type === "turn_status") return interrupt(state, event.status);
@@ -548,7 +549,7 @@ export function assistantSessionReducer(state: AssistantSessionState, event: Ass
   if (event.type === "turn_rejected") return { ...state, rejectedTurn: event.rejected };
   if (event.type === "steering_queued") return state.run?.id === event.runId ? applyProtocol(state, { type: "steering", id: event.id, text: event.text }) : state;
   if (event.type === "compaction_changed") {
-    const next = applyProtocol(state, { type: "compaction", status: event.status });
+    const next = applyProtocol(state, { type: "compaction", status: event.status, provider: event.provider, summary: event.summary });
     return event.error ? updateAssistant(next, (message) => ({ ...message, error: ASSISTANT_GENERIC_ERROR })) : next;
   }
   if (event.type === "new_chat") return { ...createAssistantSessionState({ chatId: event.chatId }), messages: event.message ? [userMessage(event.message, "user:new")] : [] };

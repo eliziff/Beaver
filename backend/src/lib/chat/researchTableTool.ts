@@ -88,7 +88,7 @@ export async function readResearchFindings(dependencies: { sources: SourceWorksp
 }
 
 /** A search hit shows the matching saved text, not an unrelated first sentence. */
-export function findingPreview(finding: ResearchFinding, pattern?: string, max = 300) {
+function findingPreview(finding: ResearchFinding, pattern?: string, max = 300) {
   const texts = [...finding.answer.claims.map(({ text }) => text), finding.answer.summary ?? "",
     finding.question.title, finding.question.prompt], needle = pattern?.toLowerCase(),
     text = (needle && texts.find(text => text.toLowerCase().includes(needle))) ||

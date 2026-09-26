@@ -303,3 +303,16 @@ it("groups structured searches by resource without replacing queries or hiding r
     expect(screen.queryByText("Changed title")).toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(2);
 });
+
+it.each([
+    { provider: "claude", summary: "Keep the indemnity unchanged." },
+    { provider: "openai", summary: undefined },
+])("shows inspectable compaction details for $provider without mixing them into the answer", async (detail) => {
+    renderEvents([{ type: "compaction", status: "completed", ...detail },
+        { type: "content", text: "The answer." }]);
+    await userEvent.click(screen.getByText("Context compacted"));
+    expect(screen.getByText("Earlier messages remain in your conversation history.")).toBeVisible();
+    expect(screen.getByText("The answer.")).toBeVisible();
+    if (detail.summary) expect(screen.getByLabelText("Compaction summary")).toHaveTextContent(detail.summary);
+    else expect(screen.getByText("OpenAI returned an opaque checkpoint, not a readable summary.")).toBeVisible();
+});

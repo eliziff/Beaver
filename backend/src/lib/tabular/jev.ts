@@ -1,3 +1,4 @@
+import { z } from "zod/v4";
 import { createHash } from "node:crypto";
 import type { LegalEvidenceReceipt } from "../chat/legalEvidence";
 import type { TabularColumn } from "../tabularStore";
@@ -33,7 +34,12 @@ export function jevConfig(env = process.env): JevConfig | null {
     timeoutMs: Math.trunc(setting(env, "BEAVER_JEV_TIMEOUT_MS", 4000, 100, 30_000)) };
   } catch { return null; }
 }
-const ROUTING_PROMPT = `Route whole legal review columns. Return only {"routes":[{"index":0,"kind":"choice","labels":[]}]}; omit columns requiring the normal review model. Do not answer or rewrite questions.
+export const JEV_ROUTING_SCHEMA = z.toJSONSchema(z.object({ routes: z.array(z.object({
+  index: z.number().int().nonnegative(),
+  kind: z.enum(["choice", "date", "number", "percentage", "monetary_amount"]),
+  labels: z.array(z.string().min(1).max(200)).max(254),
+}).strict()).max(JEV_LIMITS.questions) }).strict(), { target: "draft-7" });
+const ROUTING_PROMPT = `Route whole legal review columns; omit columns requiring the normal review model. Do not answer or rewrite questions.
 Jev can classify meaning, judge entailment including conditions and negation, apply a supplied rubric, or select one explicitly stated source value. Legal interpretation alone is not an exclusion.
 Use choice for a complete yes/no answer, one supplied tag, or one of a CLOSED set of labels explicitly offered in a text question. labels is empty for yes_no/tag; for text copy the offered labels verbatim. Illustrative examples are not an exhaustive set.
 Use date, number, percentage or monetary_amount only when that output format requests ONE explicitly stated value, not arithmetic or a derived date.
@@ -44,7 +50,7 @@ const canRepresent = (column: TabularColumn) => ["text", "yes_no", "tag", "date"
   .includes(column.format ?? "text") && (column.format !== "tag" || !!column.tags?.length);
 function parseRoutes(raw: string, columns: TabularColumn[]): JevRoute[] {
   if (raw.length > 32_000) throw new Error("invalid_routes");
-  const parsed = record(JSON.parse(raw.trim().replace(/^```(?:json)?\s*/u, "").replace(/\s*```$/u, "")));
+  const parsed = record(JSON.parse(raw));
   if (!parsed || !Array.isArray(parsed.routes) || parsed.routes.length > columns.length) throw new Error("invalid_routes");
   const seen = new Set<number>(), routes: JevRoute[] = [];
   for (const value of parsed.routes) {

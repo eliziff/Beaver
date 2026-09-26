@@ -1,11 +1,10 @@
-import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv-provider.js";
+import { schemaValidator } from "../llm/structured";
 import {
   CallToolResultSchema,
   ToolSchema,
   type CallToolResult,
-  type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { LlmMessage, NormalizedToolCall, NormalizedToolResult } from "../llm";
+import type { LlmMessage, NormalizedToolCall, NormalizedToolResult, Tool } from "../llm";
 import { safeErrorLog } from "../safeError";
 import { jsonRecord } from "../value";
 import type { AskInputsEvent, AssistantEvent } from "./assistantEvents";
@@ -48,12 +47,12 @@ export type BeaverTool<Context> = Tool & BeaverToolPolicy & {
   ): Promise<BeaverOutcome>;
 };
 
-const validator = new AjvJsonSchemaValidator();
 const schema = (tool: Tool): Tool => ({
   name: tool.name,
   ...(tool.title && { title: tool.title }),
   ...(tool.description && { description: tool.description }),
   inputSchema: tool.inputSchema,
+  ...(tool.strict !== undefined && { strict: tool.strict }),
   ...(tool.outputSchema && { outputSchema: tool.outputSchema }),
   ...(tool.annotations && { annotations: tool.annotations }),
   ...(tool.execution && { execution: tool.execution }),
@@ -128,8 +127,7 @@ const normalize = (call: NormalizedToolCall, outcome: BeaverOutcome): Normalized
   };
 };
 
-type Check = ReturnType<AjvJsonSchemaValidator["getValidator"]>;
-type Compiled<Context> = { tool: BeaverTool<Context>; input: Check; output?: Check };
+type Check = ReturnType<typeof schemaValidator>;
 type Execution = { call: NormalizedToolCall; outcome: BeaverOutcome };
 type OnResult = (call: NormalizedToolCall, outcome: BeaverOutcome) => void;
 
@@ -144,14 +142,14 @@ export function previouslyVisibleTools(messages: readonly LlmMessage[]) {
 }
 
 export class TurnToolRegistry<Context> {
-  readonly #tools: Compiled<Context>[];
-  readonly #byName = new Map<string, Compiled<Context>>();
+  readonly #tools = new Map<string, BeaverTool<Context>>();
   readonly #active = new Set<string>();
-  #mutated = false;
+  #visible?: Tool[];
+  #loadInput?: Check;
 
   constructor(tools: BeaverTool<Context>[], previouslyVisible: readonly string[] = []) {
     const visible = new Set(previouslyVisible);
-    this.#tools = tools.map((candidate) => {
+    for (const candidate of tools) {
       const parsed = ToolSchema.safeParse(schema(candidate));
       if (!parsed.success) throw new Error(
         `Invalid tool ${candidate.name || "<empty>"}: ${parsed.error.message}`);
@@ -159,47 +157,40 @@ export class TurnToolRegistry<Context> {
       if (!name || name === LOAD_TOOLS_NAME) {
         throw new Error(`Reserved or empty tool name: ${name || "<empty>"}`);
       }
-      if (this.#byName.has(name)) throw new Error(`Duplicate tool: ${name}`);
+      if (this.#tools.has(name)) throw new Error(`Duplicate tool: ${name}`);
       if (typeof candidate.execute !== "function") throw new Error(`Tool ${name} has no executor`);
-      const compiled: Compiled<Context> = {
-        tool: { ...candidate, name },
-        input: validator.getValidator(candidate.inputSchema),
-        ...(candidate.outputSchema && {
-          output: validator.getValidator(candidate.outputSchema),
-        }),
-      };
-      this.#byName.set(name, compiled);
+      this.#tools.set(name, { ...candidate, name });
       if (!candidate.specialist || visible.has(name)) this.#active.add(name);
-      return compiled;
-    });
+    }
   }
 
   specialists() {
-    return this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [] : [tool.name]);
+    return [...this.#tools.values()].flatMap((tool) => this.#active.has(tool.name) ? [] : [tool.name]);
   }
   visible() {
+    if (this.#visible) return this.#visible;
     const specialists = this.specialists();
-    return [
+    return this.#visible = [
       ...(specialists.length ? [loader(specialists)] : []),
-      ...this.#tools.flatMap(({ tool }) => this.#active.has(tool.name) ? [schema(tool)] : []),
+      ...[...this.#tools.values()].flatMap((tool) => this.#active.has(tool.name) ? [schema(tool)] : []),
     ];
   }
   all() {
     const specialists = this.specialists();
     return [
       ...(specialists.length ? [loader(specialists)] : []),
-      ...this.#tools.map(({ tool }) => schema(tool)),
+      ...[...this.#tools.values()].map(schema),
     ];
   }
   activity(call: NormalizedToolCall) {
     // Reaching for a tool is machinery, not an act the reader follows, and a call whose
     // arguments the schema rejects never runs: neither is work to show as a step.
-    const compiled = this.#byName.get(call.name);
-    return compiled?.input(call.input).valid
-      ? compiled.tool.activity?.(call.input) ?? null : null;
+    const tool = this.#tools.get(call.name);
+    return tool && schemaValidator(tool.inputSchema)(call.input).valid
+      ? tool.activity?.(call.input) ?? null : null;
   }
   activityCitations(call: NormalizedToolCall) {
-    return this.#byName.get(call.name)?.tool.activityCitations?.(call.input) ?? [];
+    return this.#tools.get(call.name)?.activityCitations?.(call.input) ?? [];
   }
 
   async run(
@@ -212,7 +203,7 @@ export class TurnToolRegistry<Context> {
       throw new Error("Duplicate tool call IDs");
     const serial = calls.some((call) => {
       if (call.name === LOAD_TOOLS_NAME) return true;
-      const setting = this.#byName.get(call.name)?.tool.sequential;
+      const setting = this.#tools.get(call.name)?.sequential;
       return typeof setting === "function" ? setting(call.input) : setting === true;
     });
     const executions = serial
@@ -234,7 +225,6 @@ export class TurnToolRegistry<Context> {
           while (!failed && next < calls.length) {
             const index = next++;
             results[index] = await this.#execute(calls[index], context, signal);
-            this.#mutated ||= results[index].outcome.mutated === true;
             onResult?.(results[index].call, results[index].outcome);
           }
         } catch (error) { failed = true; throw error; }
@@ -250,17 +240,9 @@ export class TurnToolRegistry<Context> {
   ) {
     const results: Execution[] = [];
     for (const call of calls) {
-      let executed = results.some(({ outcome }) => outcome.pause)
+      const executed = results.some(({ outcome }) => outcome.pause)
         ? { call, outcome: failedOutcome("waiting_for_user") }
         : await this.#execute(call, context, signal);
-      if (executed.outcome.pause && this.#mutated) executed = {
-        call,
-        outcome: failedOutcome(
-          "ask_inputs_after_mutation",
-          "ask_inputs must run before document or workflow changes",
-        ),
-      };
-      this.#mutated ||= executed.outcome.mutated === true;
       results.push(executed);
       onResult?.(call, executed.outcome);
     }
@@ -274,18 +256,18 @@ export class TurnToolRegistry<Context> {
   ): Promise<Execution> {
     if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
     if (call.name === LOAD_TOOLS_NAME) {
-      const checked = validator.getValidator(
-        loader([...this.#byName.keys()]).inputSchema)(call.input);
+      const checked = (this.#loadInput ??= schemaValidator(
+        loader([...this.#tools.keys()]).inputSchema))(call.input);
       return { call, outcome: checked.valid
         ? { result: this.#load(call.input.names as string[]) }
         : failedOutcome("invalid_arguments", checked.errorMessage) };
     }
-    const compiled = this.#byName.get(call.name);
-    if (!compiled) return { call, outcome: failedOutcome("unknown_tool", `Unknown tool: ${call.name}`) };
-    const checked = compiled.input(call.input);
+    const tool = this.#tools.get(call.name);
+    if (!tool) return { call, outcome: failedOutcome("unknown_tool", `Unknown tool: ${call.name}`) };
+    const checked = schemaValidator(tool.inputSchema)(call.input);
     if (!checked.valid) {
-      if (compiled.tool.onInvalidInput) return { call,
-        outcome: compiled.tool.onInvalidInput(call.input, checked.errorMessage ?? "Invalid arguments") };
+      if (tool.onInvalidInput) return { call,
+        outcome: tool.onInvalidInput(call.input, checked.errorMessage ?? "Invalid arguments") };
       // Rejected arguments never reach the tool, so log them here or the failure is invisible.
       console.error("[assistant-tool] rejected arguments",
         { tool: call.name, detail: checked.errorMessage?.slice(0, 500) });
@@ -293,16 +275,16 @@ export class TurnToolRegistry<Context> {
     }
     // A valid call to an in-scope specialist is its own load: clients that already
     // hold the schema (native tool search, MCP catalogs) need no separate loader round.
-    this.#active.add(call.name);
+    if (!this.#active.has(call.name)) { this.#active.add(call.name); this.#visible = undefined; }
     try {
       if (signal.aborted) throw signal.reason ?? new Error("Tool call cancelled");
-      const outcome = await compiled.tool.execute(call.input, context, signal, call);
+      const outcome = await tool.execute(call.input, context, signal, call);
       const parsed = CallToolResultSchema.safeParse(outcome?.result);
       if (!parsed.success) throw new Error(`Malformed tool result: ${parsed.error.message}`);
-      if (compiled.output && !parsed.data.isError) {
+      if (tool.outputSchema && !parsed.data.isError) {
         if (!parsed.data.structuredContent) throw new Error(
           "Tool declared outputSchema but returned no structuredContent");
-        const output = compiled.output(parsed.data.structuredContent);
+        const output = schemaValidator(tool.outputSchema)(parsed.data.structuredContent);
         if (!output.valid) throw new Error(`Invalid structuredContent: ${output.errorMessage}`);
       }
       return { call, outcome: { ...outcome, result: parsed.data } };
@@ -317,12 +299,13 @@ export class TurnToolRegistry<Context> {
 
   #load(names: string[]) {
     const added = names.filter((name) => !this.#active.has(name));
-    const tools = names.map(name => schema(this.#byName.get(name)!.tool));
+    const tools = names.map(name => schema(this.#tools.get(name)!));
     const result = toolText({ ok: true, loaded: added, tools });
     // Never acknowledge a partial/truncated definition as a successful load.
     if (visibleText(result, true).truncated) return toolText({ ok: false, error: "tool_definitions_too_large",
       detail: "Load fewer tools in one call." }, true);
     added.forEach((name) => this.#active.add(name));
+    if (added.length) this.#visible = undefined;
     return result;
   }
 }

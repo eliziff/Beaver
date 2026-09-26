@@ -22,9 +22,9 @@ function store(messages: ChatMessageRecord[]) {
     transcript: vi.fn(async () => messages),
     appendAssistantEvent: vi.fn(async (_scope, _chatId, messageId, event) => {
       const message = messages.find(({ id }) => id === messageId);
-      if (!message) return false;
+      if (!message) return { status: "missing" };
       message.content = [...(Array.isArray(message.content) ? message.content : []), event];
-      return true;
+      return { status: "committed", currentVersion: 1 };
     }),
   } as unknown as ChatStore;
 }
@@ -32,7 +32,12 @@ function store(messages: ChatMessageRecord[]) {
 describe("durable context checkpoints", () => {
   it("attaches a successful summary to an assistant boundary and keeps the recent tail", async () => {
     const messages = rows();
+    const modelState = { model: "gemini-3-flash-preview", messages: [
+      { role: "assistant" as const, content: [{ type: "text" as const, text: "I reviewed section 8." }] },
+    ] };
+    (messages[1].content as unknown[]).push({ type: "model_messages", id: "m1", ...modelState });
     const chats = store(messages);
+    const onStatus = vi.fn();
     llm.streamChatWithTools.mockResolvedValueOnce({ fullText: "Section 8 was reviewed." });
 
     const result = await compactChatContext({
@@ -41,8 +46,14 @@ describe("durable context checkpoints", () => {
       chatId: "chat",
       model: "gemini-3-flash-preview",
       force: true,
+      onStatus,
     });
 
+    expect(onStatus).toHaveBeenLastCalledWith("completed", { summary: "Section 8 was reviewed.", provider: "gemini" });
+    const sent = llm.streamChatWithTools.mock.calls[0][0].messages;
+    expect(sent[0]).toMatchObject({ role: "user", content: "Review the agreement." });
+    expect(sent).toContainEqual(expect.objectContaining({ modelState }));
+    expect(sent.at(-1)).toEqual({ role: "user", content: "Write the continuation checkpoint." });
     expect(planContextCheckpoint(rows())?.messageId).toBe("a1");
     expect(result.messages).toEqual([
       {
@@ -128,6 +139,7 @@ it("summarizes typed history instead of stringifying private SDK state into user
   expect(request.messages).toEqual([{ role: "user", content: "Review the agreement.",
     images: undefined, modelState: undefined, contextCheckpoint: undefined },
   { role: "assistant", content: "", modelState: { model: step.model, messages: step.messages },
-    images: undefined, contextCheckpoint: undefined }]);
+    images: undefined, contextCheckpoint: undefined },
+  { role: "user", content: "Write the continuation checkpoint." }]);
   expect(request.messages.some(message => message.content.includes("opaque-signature"))).toBe(false);
 });

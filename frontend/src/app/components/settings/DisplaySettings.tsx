@@ -59,9 +59,9 @@ export function ModelProviderSettings() {
                     <span className="truncate">{providerShortLabel(provider)}</span>
                 </span>
                 <Switch checked={!disabled.has(provider)}
-                    onChange={(enabled) => savePreferences({ disabledProviders: enabled
-                        ? preferences.disabledProviders.filter((item) => item !== provider)
-                        : [...preferences.disabledProviders, provider] })}
+                    onChange={(enabled) => savePreferences((current) => ({ ...current, disabledProviders: enabled
+                        ? current.disabledProviders.filter((item) => item !== provider)
+                        : [...current.disabledProviders, provider] }))}
                     size="md" ariaLabel={`Show ${providerShortLabel(provider)} in the model picker`} />
             </label>
         ))}

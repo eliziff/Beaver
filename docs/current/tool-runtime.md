@@ -144,22 +144,24 @@ MCP annotations remain hints. Beaver never uses an untrusted
 `readOnlyHint` as authorization. Internal exposure and scheduling stay in the
 executable definition.
 
-## Why not another provider-neutral SDK
+## Hosted-provider execution
 
-The [Vercel AI SDK](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)
-and Pi both provide provider-neutral tool loops. Either could be reasonable for
-a new generic agent application. Neither is the small move for Beaver:
+The Vercel AI SDK now owns hosted request/stream normalization and multi-step
+bookkeeping. Native Codex and Claude Code retain their own transports. See the
+[LLM boundary](../../backend/src/lib/llm/README.md) for current replay, schema,
+compaction and stopping behavior; the delivery measurements above are historical.
 
-- Beaver already owns provider continuation, compaction, steering, Codex
-  app-server, Claude CLI, local Ollama, evidence events, and durable sessions.
-- Adopting another agent runtime would replace much more than the tool surface
-  and temporarily duplicate the existing provider stack.
-- Pi adds TypeBox, argument coercion, compatibility hooks, and coding-agent UI
-  machinery Beaver does not need.
-- Vercel AI SDK would add a framework and provider packages to obtain behavior
-  the installed MCP SDK plus Beaver's current adapters already cover.
+`TurnToolRegistry` still owns Beaver's executable catalogue and effect ordering.
+A completed SDK model call is dispatched as one batch through that existing owner,
+not through a second scheduler. Asking for clarification after a completed edit
+is allowed; subsequent effects wait for the answer. SDK callbacks used as observers
+are not relied on to propagate required-persistence failures.
 
-Decision: add no dependency. Use the installed MCP SDK v1.30.0 more fully.
+The sentence-sized grounded-answer contract and per-claim evidence checks remain.
+Strict result/tool schemas enforce shape, not proposition support or permissions.
+Compaction status and returned readable summaries are inspectable in the existing
+chat activity surface; opaque native checkpoints are labelled, not decoded or
+re-summarized. Compaction does not erase the original transcript.
 
 ## Compact executable contract
 
