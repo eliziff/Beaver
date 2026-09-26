@@ -129,6 +129,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [loading, setLoading] = useState(!!requested), [running, setBusy] = useState(false);
   const [pendingActions, setPendingActions] = useState(0);
   const busy = running || pendingActions > 0;
+  const runningRef = useRef(false);
   const [operation, setOperation] = useState("");
   const [building, setBuilding] = useState(false);
   const [message, setMessage] = useState(""), [error, setError] = useState("");
@@ -393,9 +394,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   async function run<T>(operationFn: () => Promise<T>, done: (value: T) => void,
     success = "", label = "Updating authorities") {
-    if (busy) return;
-    setBusy(true); setOperation(label); setError(""); setMessage("");
-    try { const value = await operationFn(); done(value); if (success) setMessage(success); }
+    // A ref, not state: a second click before the next render must not start a second run.
+    if (runningRef.current) return;
+    runningRef.current = true;
+    // The last message stays until this one reports, so the status line does not blink.
+    setBusy(true); setOperation(label); setError("");
+    // A message `done` sets itself wins over the default one.
+    try { const value = await operationFn(); setMessage(success); done(value); }
     catch (caught) {
       if ((caught as { name?: string })?.name === "AbortError")
         setMessage(label === "Finding source PDFs" ? "Search cancelled" : "Build cancelled");
@@ -404,7 +409,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         setError(text); if (STEP_PROGRESS.has(label)) setStepFailure(text);
       }
     }
-    finally { setBusy(false); setOperation(""); }
+    finally { runningRef.current = false; setBusy(false); setOperation(""); }
   }
   /** Runs a change after every queued one, so each starts from the revision the last saved. */
   function serialized<T>(task: () => Promise<T>): Promise<T> {
@@ -1003,7 +1008,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
 }
 
 function Loading() {
-  return <div className="grid h-80 place-items-center rounded-xl border border-gray-300 bg-white text-sm text-gray-600" role="status">
+  return <div className="beaver-loading-indicator grid h-80 place-items-center rounded-xl border border-gray-300 bg-white text-sm text-gray-600" role="status">
     <span className="inline-flex items-center"><Loader2 className="mr-2 h-4 w-4 motion-safe:animate-spin" /> Loading authorities</span>
   </div>;
 }
@@ -1083,7 +1088,7 @@ function DraftsPanel({ drafts, loading, busy, onOpen }: { drafts: WorkProductMet
       <History className="h-4 w-4 shrink-0 text-red-700" />
       <h2 className="font-semibold text-gray-950">Saved drafts</h2></div>
     <div className="h-[28rem] overflow-y-auto">
-      {loading ? <div className="grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
+      {loading ? <div className="beaver-loading-indicator grid h-full place-items-center px-4 py-12 text-sm text-gray-500"
         role="status"><span className="inline-flex items-center"><Loader2
           className="mr-2 h-4 w-4 motion-safe:animate-spin" />Loading saved drafts</span></div>
         : drafts.slice((page - 1) * 8, page * 8).map((item) => <button key={item.id} type="button" disabled={busy}
@@ -1688,7 +1693,7 @@ function Status({ busy, busyText, status, error }: { busy: boolean; busyText: st
   status: string; error: boolean }) {
   const visible = (busy && !!busyText) || !!status;
   return <p className={cn("mb-1 flex min-h-6 items-center px-1 text-sm",
-    visible && "font-medium",
+    visible && "font-medium", busy && !status && "beaver-loading-indicator",
     error ? "text-red-800" : "text-gray-600")}
     role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}>
     {visible && <span className="mr-2 grid size-4 shrink-0 place-items-center" aria-hidden="true">

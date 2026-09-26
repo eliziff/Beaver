@@ -16,7 +16,6 @@ import {
     highlightQuote,
     STANDARD_FONT_DATA_URL,
 } from "./highlightQuote";
-import "../loading.css";
 import { createPdfPageCache, pageAt } from "./pdfPageCache";
 import { matchesQuoteText, quoteSegments } from "./quoteText";
 import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from "./pdfAnnotationLayer";

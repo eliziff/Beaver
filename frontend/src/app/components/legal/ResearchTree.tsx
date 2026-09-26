@@ -178,7 +178,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
       {opened.has(source.id) && !preview && <div role="group" className="ms-4">
         {page?.items.flatMap((item) => (item.kind === "passage" || item.kind === "evidence") && passageVisible(item.value)
           ? [passageNode(source, item.value)] : [])}
-        {page?.loading && !page.items.length && <p role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>}
+        {page?.loading && !page.items.length && <p role="status" className={`beaver-loading-indicator ${ROW} text-xs text-gray-500`}>Loading passages…</p>}
         {!!page?.error && <Button variant="outline" size="compact" className="my-1" onClick={() => void passagePages.fetchPage(source.id, null, false)}>Retry passages</Button>}
         {page?.nextCursor && <Button variant="outline" size="compact" className="my-1" disabled={page.loading}
           aria-label={`Show more passages from ${sourceName(source)}`}
@@ -201,7 +201,7 @@ export function ResearchTree({ scope = "source", reader, sources, navigationSour
     // "Loading" only while a chain really is on its way, so an empty list never poses as a slow one.
     const pending = !preview && carrying.some(({ id }) => !passagePages.chains[id] || passagePages.chains[id].loading);
     return rows.length || !pending ? rows
-      : [<p key={`${typeId}:loading`} role="status" className={`${ROW} text-xs text-gray-500`}>Loading passages…</p>];
+      : [<p key={`${typeId}:loading`} role="status" className={`beaver-loading-indicator ${ROW} text-xs text-gray-500`}>Loading passages…</p>];
   };
   const under = (labelId: string | null) => sources.filter((source) => scope === "highlight"
     ? false : labelId

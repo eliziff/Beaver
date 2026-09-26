@@ -85,7 +85,7 @@ export function ReadSubagentDock({
                                         </ActivityDisclosure>
                                     </div>
                                 ) : panel.status === "running" ? (
-                                    <div role="status" className="mt-2 flex min-h-8 items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />Starting…</div>
+                                    <div role="status" className="beaver-loading-indicator mt-2 flex min-h-8 items-center gap-2 text-xs text-gray-600"><LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden="true" />Starting…</div>
                                 ) : panel.status === "interrupted" ? (
                                     <div role="status" className="mt-2 flex min-h-8 items-center gap-2 text-xs text-gray-500"><CircleStop className="size-3.5" aria-hidden="true" />Interrupted</div>
                                 ) : null}

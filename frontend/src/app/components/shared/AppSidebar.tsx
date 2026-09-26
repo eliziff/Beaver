@@ -21,7 +21,7 @@ import { chatSearchPath, useChatSearch } from "@/app/components/assistant/chatSe
 import { AdvancedHistorySearch } from "@/app/components/assistant/AdvancedHistorySearch";
 import { ChatSearchResult } from "@/app/components/assistant/ChatSearchResult";
 import { TabList } from "@/app/components/ui/tabs";
-const SidebarReviewHistory = lazy(() => import("@/app/components/tabular/SidebarReviewHistory").then(m => ({ default: m.SidebarReviewHistory })));
+import { SidebarReviewHistory } from "@/app/components/tabular/SidebarReviewHistory";
 import { CollectionState } from "./CollectionState";
 const NAV_ITEMS = [
   { href: "/projects", label: "Projects", icon: FolderSvgIcon },
@@ -249,9 +249,10 @@ export function AppSidebar({ mobileOpen, onToggle }: AppSidebarProps) {
               options={[{ value: "assistant", label: <span className="flex items-center justify-center gap-1"><ChatSkeuoIcon className="size-5 shrink-0" />Assistant</span> }, { value: "reviews", label: <span className="flex items-center justify-center gap-1"><TabularReviewSkeuoIcon className="size-5 shrink-0" />Tabular review</span> }]} />
             <div className="relative">
               <button type="button" aria-label={historyCollapsed ? "Expand history" : "Collapse history"} aria-expanded={!historyCollapsed} onClick={() => setHistoryCollapsed(!historyCollapsed)} className="absolute right-0 top-0.5 z-10 grid size-7 place-items-center rounded text-gray-500 hover:bg-gray-100"><ChevronRight className={cn("size-3.5", !historyCollapsed && "rotate-90")} /></button>
-            {historyTab === "reviews" && <div>
-              <Suspense fallback={null}><SidebarReviewHistory collapsed={historyCollapsed} active={historyTab === "reviews"} search={search} onNavigate={() => closeNavigation?.()} /></Suspense>
-            </div>}
+            {/* Both histories stay mounted, so switching tabs never empties either list. */}
+            <div hidden={historyTab !== "reviews"}>
+              <SidebarReviewHistory collapsed={historyCollapsed} active={historyTab === "reviews"} search={search} onNavigate={() => closeNavigation?.()} />
+            </div>
             <div hidden={historyTab !== "assistant"}>
           <section id="assistant-conversations" aria-label="Assistant conversations" className="mb-2 flex min-h-0 flex-col [@media(max-height:500px)]:mb-0">
             <Link to="/assistant" onClick={() => { setHistorySearch(""); closeNavigation?.(); }} aria-label="New chat" className="mr-8 flex h-8 shrink-0 items-center gap-2 rounded-md px-2 text-xs font-medium text-gray-800 hover:bg-gray-100"><SquarePen className="size-3.5" />New chat</Link>

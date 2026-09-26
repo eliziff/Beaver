@@ -148,7 +148,7 @@ export default function HistoryPage() {
       >
         <TableBody aria-busy={loading}>
           {loading ? (
-            <p className="p-6 text-sm text-gray-500" role="status">Loading history…</p>
+            <p className="beaver-loading-indicator p-6 text-sm text-gray-500" role="status">Loading history…</p>
           ) : events.length === 0 ? (
             <TableEmptyState>No history matches these filters.</TableEmptyState>
           ) : events.map((event) => (

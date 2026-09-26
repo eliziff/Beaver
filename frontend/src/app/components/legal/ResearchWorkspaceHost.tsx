@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { AssistantDock } from "@/app/components/assistant/AssistantDock";
@@ -19,7 +19,8 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
   /** Opened from inside a dock there is no room to nest in: the workspace floats beside it instead,
    *  tracking the dock's edge so the reader it was opened from stays whole. */
   const [beside, setBeside] = useState<DOMRect | null>(null);
-  useEffect(() => {
+  // Measured before paint, so the panel never renders a frame without its position.
+  useLayoutEffect(() => {
     const dock = floating && open ? document.querySelector<HTMLElement>("[data-assistant-dock]") : null;
     if (!dock) return setBeside(null);
     const measure = () => setBeside(dock.getBoundingClientRect());
@@ -42,7 +43,7 @@ export function ResearchWorkspaceHost({ embedded, open, onOpenChange, projectId,
     return () => media.removeEventListener?.("change", change);
   }, []);
   const { loading: restoring, error: restoreError, retry } = useSourcesWorkspace();
-  const body = restoring ? <p role="status" className="py-4 text-sm text-gray-600">Opening workspace…</p>
+  const body = restoring ? <p role="status" className="beaver-loading-indicator py-4 text-sm text-gray-600">Opening workspace…</p>
     : restoreError ? <div className="space-y-3 py-4">
       <p role="alert" className="text-sm text-red-700">{restoreError}</p>
       <Button variant="outline" onClick={() => void retry()}>Retry</Button>
