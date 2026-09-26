@@ -312,7 +312,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       // A source with a newer file is picked up on its own, never behind a button (Eli, 2026-09-09).
       const changed = Object.entries(inspection.sourceIssues).find(([role, issue]) =>
         issue.status === "changed" && !relinked.current.has(`${current.id}\0${role}`));
-      if (changed && host.relinkSource) { relinked.current.add(`${current.id}\0${changed[0]}`); relinkSource(changed[0]); }
+      if (changed && host.relinkSource) {
+        relinked.current.add(`${current.id}\0${changed[0]}`);
+        void relinkQueued(current.id, changed[0]).then((next) => next && relinkAdopted(next, changed[0]))
+          .catch((caught) => setError(errorText(caught)));
+      }
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, refreshToken, host]);
@@ -392,13 +396,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     setBusy(true); setOperation(label); setError(""); setMessage("");
     try { const value = await operationFn(); done(value); if (success) setMessage(success); }
     catch (caught) {
-      if ((caught as { name?: string })?.name === "AbortError") setMessage("Build cancelled");
+      if ((caught as { name?: string })?.name === "AbortError")
+        setMessage(label === "Finding source PDFs" ? "Search cancelled" : "Build cancelled");
       else {
         const text = errorText(caught);
         setError(text); if (STEP_PROGRESS.has(label)) setStepFailure(text);
       }
     }
     finally { setBusy(false); setOperation(""); }
+  }
+  /** Runs a change after every queued one, so each starts from the revision the last saved. */
+  function serialized<T>(task: () => Promise<T>): Promise<T> {
+    const result = actionQueue.current.then(task);
+    actionQueue.current = result.then(() => undefined, () => undefined);
+    return result;
   }
   const act: ActionHandler = (action, done) => {
     const targetId = draftRef.current?.id;
@@ -541,15 +552,23 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     else if (target.kind === "authority") attach(target.authorityId, document);
     else attachBookFiles(target.slot, [document], target.supplementId);
   }
+  function relinkQueued(id: string, role: string) {
+    return serialized(async () => {
+      const current = draftRef.current;
+      return current?.id === id ? host.relinkSource!(current.id, role, current.revision) : undefined;
+    });
+  }
+  function relinkAdopted(next: AuthoritiesProduct, role: string) {
+    if (!adopt(next)) return;
+    setSourceIssueState((current) => {
+      const { [role]: _resolved, ...issues } = current.issues;
+      return { ...current, issues };
+    });
+  }
   function relinkSource(role: string) {
-    if (!draft || !host.relinkSource) return;
-    void run(() => host.relinkSource!(draft.id, role, draft.revision), (next) => {
-      adopt(next);
-      setSourceIssueState((current) => {
-        const { [role]: _resolved, ...issues } = current.issues;
-        return { ...current, issues };
-      });
-    },
+    const id = draftRef.current?.id;
+    if (!id || !host.relinkSource) return;
+    void run(() => relinkQueued(id, role), (next) => { if (next) relinkAdopted(next, role); },
       "Source relinked");
   }
   function rename(title: string) {
@@ -644,8 +663,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current;
     if (!attempts || !current || current.state.stage !== "citations") return;
     try {
-      const next = await host.prepareSources(current);
-      if (adopt(next)) gathered.current = { id: next.id, revision: next.revision };
+      const next = await serialized(async () => {
+        const latest = draftRef.current;
+        return latest?.id === current.id && latest.state.stage === "citations"
+          ? host.prepareSources(latest) : undefined;
+      });
+      if (next && adopt(next)) gathered.current = { id: next.id, revision: next.revision };
     } catch { await gatherSources(attempts - 1); }
   }
   function findSources() {
@@ -786,7 +809,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     <div className="mt-3 flex items-center justify-end gap-3">
                       <StepProgress label={stepOperation || (recognitionAsked ? scannedSources.progress : "")} error={stepError} />
                       <Button disabled={busy || recognitionAsked} onClick={() => {
-                        if (recognitionSettled) advance("highlights"); else askRecognition();
+                        // A draft set to keep scans as images has already answered the question.
+                        if (recognitionSettled || draft.state.settings.scannedPdfPolicy === "page-margin")
+                          advance("highlights");
+                        else askRecognition();
                       }}>Next<ChevronRight /></Button>
                     </div></>}
                   {highlightPanel}
