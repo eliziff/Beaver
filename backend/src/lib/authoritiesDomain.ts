@@ -717,9 +717,30 @@ export function reduceAuthoritiesDraft(
   current: AuthoritiesDraft,
   action: AuthoritiesAction,
 ): AuthoritiesDraft {
+  const editor = authoritiesDraftEditor(current);
+  editor.apply(action);
+  return editor.result();
+}
+
+/** One validated copy for a sequence of actions: operations that apply an action per
+ *  authority clone and validate the draft once, not once per action. Each action sees the
+ *  state the previous one left, exactly as successive reduceAuthoritiesDraft calls would. */
+export function authoritiesDraftEditor(current: AuthoritiesDraft) {
   const priorErrors = validateAuthoritiesDraft(current);
   if (priorErrors.length) throw new AuthoritiesDomainError(priorErrors[0]);
   const draft = structuredClone(current);
+  return {
+    draft,
+    apply: (action: AuthoritiesAction) => applyAuthoritiesAction(draft, action),
+    result() {
+      const errors = validateAuthoritiesDraft(draft);
+      if (errors.length) throw new AuthoritiesDomainError(errors[0]);
+      return draft;
+    },
+  };
+}
+
+function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesAction) {
   switch (action.type) {
     case "ingest-ledger": ingestLedger(draft, action.ledger); break;
     case "add-seed": {
@@ -1023,9 +1044,6 @@ export function reduceAuthoritiesDraft(
   if (action.type === "refresh") draft.stage = draft.import.kind === "manual" ? "sources" : "citations";
   if (draft.import.kind === "document" && ["add-occurrence", "split-occurrence", "merge-occurrences", "replace-occurrence", "remove-occurrence",
     "relink-occurrence", "set-reference"].includes(action.type)) draft.stage = "citations";
-  const errors = validateAuthoritiesDraft(draft);
-  if (errors.length) throw new AuthoritiesDomainError(errors[0]);
-  return draft;
 }
 
 export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {

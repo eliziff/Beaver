@@ -1,4 +1,5 @@
 import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
+import { mapBounded } from "./mapBounded";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
@@ -240,7 +241,8 @@ export function createAuthoritiesWorkspaceApplication(
         documentId: binding.documentId, versionId: file.version.id,
         filename: file.filename, sha256: file.version.source_sha256 } };
     };
-    await Promise.all(plan.authoritySources.map(async ({ source }) => {
+    // A book can hold hundreds of PDFs: read and prepare a few at a time, not all at once.
+    await mapBounded(plan.authoritySources, async ({ source }) => {
       signal?.throwIfAborted();
       const { binding, file, resolved } = await readPdf(source, "Attached PDF");
       const forBook = plan.bookRoles.has(source.bindingRole);
@@ -262,12 +264,12 @@ export function createAuthoritiesWorkspaceApplication(
           documentId: binding.documentId, versionId: file.version.id,
           sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal }),
         resolved };
-    }));
-    await Promise.all(plan.bookPdfs.map(async (source) => {
+    });
+    await mapBounded(plan.bookPdfs, async (source) => {
       signal?.throwIfAborted();
       const { file, resolved } = await readPdf(source, "Book PDF");
       result[source.bindingRole] = { bytes: file.bytes, resolved };
-    }));
+    });
     return result;
   }
 

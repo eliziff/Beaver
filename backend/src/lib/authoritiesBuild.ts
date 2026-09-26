@@ -70,12 +70,13 @@ export function authorityPassageRequests(draft: AuthoritiesDraft, authorityId: s
   const authority = draft.authorities[authorityId];
   const direct = authority?.locators.filter(valid) ?? [];
   if (direct.length) requests.push({ locators: direct, exactQuotes: [] });
+  const units = new Map(draft.units.map((unit) => [unit.id, unit]));
   for (const occurrence of Object.values(draft.occurrences)) {
     if (occurrence.authorityId !== authorityId) continue;
     const locators = occurrence.pinpoints.map(({ kind, text }) => ({ kind, label: text }))
       .filter(valid);
     if (!locators.length) continue;
-    const unit = draft.units.find(({ id }) => id === occurrence.unitId);
+    const unit = units.get(occurrence.unitId);
     requests.push({ locators, exactQuotes: unit?.footnoteId && singleSourceFootnote(draft, unit)?.id === occurrence.id
       ? markedQuotations(quoteByFootnote.get(unit.footnoteId)?.text ?? "") : [] });
   }
@@ -425,8 +426,9 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   }
   links.forEach(({ page, entry, rect }) => {
     const start = starts.get(entry.authority.id);
-    if (start === undefined) addLink(page, rect, entry.sourceUrl!);
-    else addLink(page, rect, document.getPage(start));
+    // An authority with neither a public link nor an appended PDF is listed without a link.
+    if (start !== undefined) addLink(page, rect, document.getPage(start));
+    else if (entry.sourceUrl) addLink(page, rect, entry.sourceUrl);
   });
   applyOutlines(document, [
     { title: "Filing document", pageIndex: 0 },
@@ -708,9 +710,12 @@ export function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, p
   const result = new Set<number>();
   for (const { kind, label } of locators) {
     if (kind === "page") {
-      const numbers = [...label.matchAll(/\d+/gu)].map(([value]) => Number(value));
-      const first = numbers[0] ?? 0, last = numbers[1] ?? first;
-      for (let number = Math.min(first, last); number <= Math.max(first, last); number += 1) {
+      const [firstText = "0", lastText] = [...label.matchAll(/\d+/gu)].map(([value]) => value);
+      const first = Number(firstText);
+      // A shortened end ("138-39") keeps the start's leading digits: 138 to 139.
+      const last = lastText === undefined ? first : Number(lastText) >= first ? Number(lastText)
+        : Number(firstText.slice(0, Math.max(0, firstText.length - lastText.length)) + lastText);
+      for (let number = first; number <= Math.max(first, last); number += 1) {
         if (pageLabels) pageLabels.get(String(number))?.forEach((index) => result.add(index));
         else if (number > 0 && number <= pageCount) result.add(number - 1);
       }

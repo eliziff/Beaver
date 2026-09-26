@@ -623,15 +623,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   /** Next applies the choice, starts the reading it asks for, and hands the reader on. */
   function applyRecognition() {
-    const chosen = recognizePages.trim()
-      ? [...new Set(recognizePages.split(",").map(Number))].sort((first, second) => first - second) : undefined;
+    const chosen = recognizePages.trim() ? pageList(recognizePages) : undefined;
+    if (chosen === null) return;
     setRecognitionAsked(false);
     if (recognizeScope !== draftRef.current?.state.settings.scannedPdfPolicy)
       act({ type: "set-settings", settings: { scannedPdfPolicy: recognizeScope } });
     if (recognizeScope === "page-margin") void ocr.stop(Object.keys(ocr.tracked), false);
+    // Each scan reads only the chosen pages it lacks text on, so a page past a shorter
+    // file's end cannot fail the others.
+    else if (chosen) for (const file of unrecognized) {
+      const pages = chosen.filter(page => file.textlessPages.includes(page));
+      if (pages.length) void ocr.begin([file], pages);
+    }
     // Reading already under way is left alone; only a scan that is not being read is started.
-    else void ocr.begin(chosen ? unrecognized
-      : unrecognized.filter(({ role }) => ocr.tracked[role]?.state !== "running"), chosen);
+    else void ocr.begin(unrecognized.filter(({ role }) => ocr.tracked[role]?.state !== "running"));
     advance("highlights");
   }
   /** The PDFs a draft cites are gathered as soon as its citations are known, not on request. */
@@ -831,7 +836,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         }} />}
       <Modal open={recognitionAsked} onClose={() => setRecognitionAsked(false)} size="xl"
         breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
-        primaryAction={{ label: "Next", onClick: applyRecognition }}>
+        primaryAction={{ label: "Next", onClick: applyRecognition,
+          disabled: recognizeScope !== "page-margin" && recognizePages.trim() !== "" && !pageList(recognizePages) }}>
         <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
           their pages so passages can be marked and the book can be searched. It keeps running in the
           background while you work on the highlights.</p>
@@ -857,8 +863,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">Pages
           <Input value={recognizePages} onChange={event => setRecognizePages(event.target.value)}
             disabled={recognizeScope === "page-margin"} placeholder="All scanned pages"
-            pattern="\s*[1-9][0-9]*\s*(,\s*[1-9][0-9]*\s*)*" aria-label="Pages to recognize"
+            aria-label="Pages to recognize" aria-invalid={recognizePages.trim() !== "" && !pageList(recognizePages)}
             className="h-8 w-44 border-gray-400 text-sm" /></label>
+        {recognizeScope !== "page-margin" && recognizePages.trim() !== "" && !pageList(recognizePages) &&
+          <p role="alert" className="mt-1 text-sm text-red-800">Enter pages such as 3, 5-8.</p>}
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
@@ -1037,6 +1045,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
   onReview: (id: string) => void;
 }) {
   const options = useRef<Array<HTMLButtonElement | null>>([]);
+  const locations = useMemo(() => occurrenceLocations(occurrences, units), [occurrences, units]);
   if (!occurrences.length) return <div className="grid h-80 place-items-center text-sm text-gray-500">No citations found.</div>;
   const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
   const authorityById = new Map(authorities.map((item) => [item.id, item]));
@@ -1059,7 +1068,7 @@ function CitationReview({ occurrences, units, selected, authorities, discrepanci
             options.current[next]?.focus();
           }} className={cn("block min-h-[3.6rem] w-full border-b border-s-4 border-gray-100 px-3 py-2 text-left outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600", item.id === selected?.id ? "border-s-red-700 bg-red-50" : "border-s-transparent hover:bg-red-50")}>
           <span className="flex min-w-0 items-center gap-2 text-xs text-gray-500">
-            <span className="min-w-0 flex-1 truncate">{location(item, index, occurrences, units)}</span>
+            <span className="min-w-0 flex-1 truncate">{locations[index]}</span>
             {finding && <span className="shrink-0 font-medium text-red-800">Check quotation</span>}
           </span>
           {authority && authorityName(authority) !== authority.citation &&
@@ -1093,7 +1102,11 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
   [onFocusChange, selected.id, selection]);
   useEffect(() => () => onFocusChange?.(), [onFocusChange]);
   useEffect(() => {
-    const update = () => setSelection(selectionRange(surface.current));
+    // selectionchange fires on every caret move; an unchanged range must not re-render the page.
+    const update = () => setSelection((current) => {
+      const next = selectionRange(surface.current);
+      return current?.start === next?.start && current?.end === next?.end ? current : next;
+    });
     document.addEventListener("selectionchange", update);
     return () => document.removeEventListener("selectionchange", update);
   }, []);
@@ -1590,6 +1603,17 @@ const pageRanges = (pages: number[]) => pages.reduce<number[][]>((runs, page) =>
   if (last && page === last[1] + 1) last[1] = page; else runs.push([page, page]);
   return runs;
 }, []).map(([from, to]) => from === to ? `${from}` : `${from}–${to}`).join(", ");
+/** Pages typed as "3, 5-8" (the form pageRanges shows): sorted and distinct, or null if unreadable. */
+function pageList(text: string) {
+  const pages = new Set<number>();
+  for (const part of text.split(",")) {
+    const match = /^\s*(\d{1,5})\s*(?:[-–]\s*(\d{1,5})\s*)?$/u.exec(part);
+    const from = Number(match?.[1]), to = Number(match?.[2] ?? match?.[1]);
+    if (!match || from < 1 || to < from || to - from > 2_000) return null;
+    for (let page = from; page <= to; page += 1) pages.add(page);
+  }
+  return [...pages].sort((first, second) => first - second);
+}
 const STEP_PROGRESS = new Set(["Finding source PDFs", "Checking source PDFs"]);
 const STEPS = [{ value: "citations", label: "Citations" }, { value: "sources", label: "Sources" },
   { value: "highlights", label: "Highlights" }, { value: "build", label: "Build book" }] as const;
@@ -1675,13 +1699,15 @@ function highlight(text: string, occurrence: AuthorityOccurrence) {
   }
   return <>{nodes}</>;
 }
-function location(item: AuthorityOccurrence, index: number, all: AuthorityOccurrence[],
-  units: AuthoritiesProduct["state"]["units"]) {
-  const unit = units.find(({ id }) => id === item.unitId);
-  if (unit?.kind === "footnote") return `Footnote ${unit.footnoteId ?? unit.ordinal + 1}`;
-  const body = all.slice(0, index + 1).filter(({ unitId }) =>
-    units.some(({ id, kind }) => id === unitId && kind === "body")).length;
-  return `In-text citation ${body}`;
+/** Where each occurrence sits: its footnote, or its position among in-text citations. */
+function occurrenceLocations(all: AuthorityOccurrence[], units: AuthoritiesProduct["state"]["units"]) {
+  const byId = new Map(units.map((unit) => [unit.id, unit]));
+  let body = 0;
+  return all.map(({ unitId }) => {
+    const unit = byId.get(unitId);
+    if (unit?.kind === "body") body += 1;
+    return unit?.kind === "footnote" ? `Footnote ${unit.footnoteId ?? unit.ordinal + 1}` : `In-text citation ${body}`;
+  });
 }
 function planAuthorities({ state }: AuthoritiesProduct) {
   return deriveAuthorityProcedure(authorityProcedureInput(state,
