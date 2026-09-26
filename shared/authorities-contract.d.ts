@@ -134,6 +134,7 @@ export type AuthoritiesUserAction =
   | { type: "split-occurrence"; occurrenceId: string; cursor: number }
   | { type: "merge-occurrence"; occurrenceId: string }
   | { type: "remove-occurrence"; occurrenceId: string }
+  | { type: "restore-occurrence"; occurrenceId: string }
   | { type: "set-authority-span"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "clear-pinpoint"; occurrenceId: string }
@@ -223,6 +224,14 @@ export type AuthoritiesDraft = WorkProductState & {
   authorityOrder: string[];
   stage?: "citations" | "sources" | "highlights" | "build";
   discrepancyDecisions: Record<string, AuthoritiesDiscrepancyAction>;
+  /** Citations marked "Not a citation", kept so they can be restored; by occurrence id. */
+  dismissedOccurrences?: Record<string, AuthoritiesDismissedOccurrence>;
+};
+
+export type AuthoritiesDismissedOccurrence = {
+  occurrence: AuthorityOccurrence;
+  /** The authority it cited, which the dismissal may have removed with it. */
+  authority: AuthorityIdentity | null;
 };
 
 export type AuthoritiesSourcePassage = {
