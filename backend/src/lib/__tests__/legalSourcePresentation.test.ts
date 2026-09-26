@@ -53,3 +53,12 @@ describe("verified Decisia PDF evidence", () => {
     ]);
   });
 });
+
+it.each(['decisions.scc-csc.ca', 'decisions.fct-cf.gc.ca', 'decisions.courts.ns.ca'])(
+  'accepts current div representation controls at %s', host => {
+    const index = `https://${host}/court/cases/en/item/123/index.do`;
+    const pdf = '/court/cases/en/123/1/document.do';
+    expect(verifiedDecisiaPdf(`<div class="documents"><a href="${pdf}">PDF</a></div>`, index))
+      .toEqual({ url: `https://${host}${pdf}`, pdfOnly: false });
+    expect(verifiedDecisiaPdf(`<div class="judgment"><a href="${pdf}">Citation</a></div>`, index)).toBeNull();
+  });

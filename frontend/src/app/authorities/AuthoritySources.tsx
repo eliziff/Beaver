@@ -15,6 +15,7 @@ import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
 import type { AuthoritiesSourceIssue } from "./host";
 import { SourceOcrProgress } from "./AuthoritiesHighlightEditor";
 import type { SourceOcrPanel } from "./sourceOcr";
+import canliiLogo from "./canlii.ico";
 
 const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export type AuthorityPanelProps = {
@@ -41,7 +42,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
   sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, onWatchFolder, watchedFolder,
   ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
-  return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
+  return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
       onDragOver={(event) => { if (!busy && onFiles && event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
       onDrop={(event) => {
@@ -109,7 +110,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     !styleOfCause.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
-  const rowControl = cn(control, "w-28 justify-center");
+  const rowControl = cn(control, "w-10 justify-center px-1 @min-[44rem]/sources:w-28 @min-[44rem]/sources:px-2.5");
+  const actionLabel = "hidden @min-[44rem]/sources:inline";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
@@ -123,7 +125,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     if (name.trim() !== styleOfCause) onAction({ type: "rename-authority",
       authorityId: authority.id, displayName: name.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
-    className={cn("group/row grid min-h-12 min-w-0 grid-cols-[2.25rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 sm:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_16.5rem]",
+    className={cn("group/row grid min-h-12 min-w-0 grid-cols-[1.5rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[30rem]/sources:grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_16.5rem]",
       authority.excluded && "opacity-65")}
     onDragOver={(event) => { if (!busy && (event.dataTransfer.types.includes("application/x-authority") ||
       needsPdf && event.dataTransfer.types.includes("Files"))) event.preventDefault(); }}
@@ -140,7 +142,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       onDragStart={event => event.dataTransfer.setData("application/x-authority", authority.id)}
       onKeyDown={event => { if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
         event.preventDefault(); onAction({ type: "move-authority", authorityId: authority.id,
-          toIndex: Math.max(0, Math.min(order.length - 1, order.indexOf(authority.id) + (event.key === "ArrowUp" ? -1 : 1))) }); }}>{tab}</button>
+          toIndex: Math.max(0, Math.min(order.length - 1, order.indexOf(authority.id) + (event.key === "ArrowUp" ? -1 : 1))) }); }}>{tab?.startsWith("Tab ") ? <><span className={actionLabel}>{tab}</span><span className="@min-[44rem]/sources:hidden">{tab.slice(4)}</span></> : tab}</button>
     <span className="flex h-4 w-4 items-center justify-center">
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
@@ -153,34 +155,34 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
           className={cn("shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100",
             styleOfCause && "opacity-0")}><Pencil className="h-3.5 w-3.5" /></button>
       </div>
-      <span className="hidden truncate text-xs font-normal text-gray-500 sm:block"
+      <span className="hidden truncate text-xs font-normal text-gray-500 @min-[30rem]/sources:block"
         title={citationLine}>{citationLine}</span>
     </>}
-    <div className="col-span-3 flex items-center justify-end gap-1 sm:col-span-1">
+    <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
       {needsPdf && (authority.source.kind === "pending-canlii"
-        ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
+        ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer" aria-label={`CanLII PDF for ${title}`} title="CanLII"
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
-            <ExternalLink className="h-3.5 w-3.5" />CanLII</a>
+            <ExternalLink className="h-3.5 w-3.5" /><img src={canliiLogo} alt="" className="h-4 w-4 @min-[44rem]/sources:hidden" /><span className={actionLabel}>CanLII</span></a>
         : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
             disabled={busy} onClick={() => onRelink(issue.bindingRole)}><FilePlus2 />
             <span className="truncate">Allow file access</span></Button>
         : sources.length && !loaded ? <span className={cn(rowControl, "grid place-items-center text-red-800")}>PDF unavailable</span>
         : sources.length && onOpen ? (sources.length === 1
           ? <Button type="button" variant="outline" className={rowControl} disabled={busy || !loaded}
-              aria-label={`View PDF for ${title}`} onClick={() => onOpen(sources[0].bindingRole)}><Eye /> View</Button>
+              aria-label={`View PDF for ${title}`} title="View" onClick={() => onOpen(sources[0].bindingRole)}><Eye /><span className={actionLabel}>View</span></Button>
           : <ActionMenu label={`View PDFs for ${title}`} triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border")}
               items={sources.map((source) => ({ label: sourceLanguageLabel(source.language),
                 disabled: busy || !!sourceIssues[source.bindingRole], onSelect: () => onOpen(source.bindingRole) }))}>
-              <Eye className="h-3.5 w-3.5" /> View</ActionMenu>)
-        : <span className="w-28" />)}
+              <Eye className="h-3.5 w-3.5" /><span className={actionLabel}>View</span></ActionMenu>)
+        : <span className="w-10 @min-[44rem]/sources:w-28" />)}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <Button type="button" variant="outline" className={rowControl} disabled={busy}
-            aria-label={`Attach PDF for ${title}`} onClick={pick}><Upload />Attach PDF</Button>
+            aria-label={`Upload PDF for ${title}`} title="Upload" onClick={pick}><Upload /><span className={actionLabel}>Upload</span></Button>
         : <ActionMenu label={`${replacement} for ${title}`}
         triggerClassName={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
         items={[{ label: "Upload from computer", disabled: busy, onSelect: pick },
           ...(onLibrary ? [{ label: `Choose from ${sourceLabel}`, disabled: busy, onSelect: onLibrary }] : [])]}>
-        <Upload className="h-3.5 w-3.5" />{replacement}</ActionMenu>)}
+        <Upload className="h-3.5 w-3.5" /><span className={actionLabel}>{replacement}</span></ActionMenu>)}
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
