@@ -1,3 +1,5 @@
+import { decodePdfProfileSelection } from "../lib/documentStore";
+import { documentProjectionService } from "../lib/documentProjectionService";
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -130,6 +132,32 @@ export function createAuthoritiesRuntimeRouter(
       if (!abort.signal.aborted) res.write(`data: ${JSON.stringify({ error: error instanceof ApplicationError
         ? error.message : "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
+  }));
+  router.post("/source-text", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const state = draft(json(req.body?.draft, "draft"));
+    const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
+    const source = Object.values(state.authorities).flatMap(authority => authority.source.kind === "attached"
+      ? authority.source.sources : []).find(source => source.bindingRole === role);
+    if (!source || sha256(bytes) !== source.sourceSha256)
+      return reject(409, "The PDF no longer matches this authority source");
+    const pages = req.body?.pages === undefined ? undefined : json(req.body.pages, "pages");
+    if (pages !== undefined && (!Array.isArray(pages) || !pages.length || pages.length > 1_000 ||
+        pages.some(page => !Number.isSafeInteger(page) || page < 1))) reject(400, "Invalid PDF pages");
+    const abort = new AbortController(); res.once("close", () => abort.abort());
+    const reference = { documentId: `standalone-authority:${source.sourceSha256}`,
+      versionId: source.sourceSha256, sourceSha256: source.sourceSha256 };
+    if (req.body?.prepareOnly === "true") {
+      const prepared = await documentProjectionService.preparePdf({ ...reference, bytes,
+        ocrProvider: "kraken-lite", pages, signal: abort.signal });
+      return void res.json({ pages: [], pdfProfile: prepared });
+    }
+    // Reading a text layer never starts recognition: it restores the source-bound preparation.
+    const profile = req.body?.pdfProfile === undefined ? undefined
+      : decodePdfProfileSelection(json(req.body.pdfProfile, "pdfProfile"));
+    if (req.body?.pdfProfile !== undefined && !profile) return reject(400, "Invalid PDF profile");
+    const text = profile ? await documentProjectionService.pdfTextLayer(() => bytes, reference,
+      { pdfProfile: profile, signal: abort.signal, pages }) : [];
+    res.json({ pages: text });
   }));
   router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));

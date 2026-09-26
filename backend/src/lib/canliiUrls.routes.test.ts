@@ -16,6 +16,17 @@ const neutral = (court: string, number = 7) => ({
 beforeEach(() => { native.matches = []; });
 
 describe("CanLII court route inventory", () => {
+  it.each(["QCCA", "QCCS", "QCCQ", "QCCM", "QCTAT", "QCCQLC"])(
+    "uses French for generated %s links, including PDF siblings", (court) => {
+      native.matches = [neutral(court)];
+      const citations = [`2024 ${court} 7`];
+      const route = court === "QCCQLC" ? "qcqlc" : court.toLowerCase();
+      const slug = `2024${court.toLowerCase()}7`;
+      const page = `https://www.canlii.org/fr/qc/${route}/doc/2024/${slug}/${slug}.html`;
+      expect(buildCanliiCaseUrlFromCitation(citations)).toBe(page);
+      expect(buildCanliiCaseUrl({ dataset: court, citations, language: "en" })).toBe(page);
+      expect(buildCanliiPdfUrl(page)).toBe(page.replace(/\.html$/u, ".pdf"));
+    });
   it.each([
     ["SCC", "ca/scc"],
     ["FC", "ca/fct"],

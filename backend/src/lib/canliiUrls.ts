@@ -78,7 +78,10 @@ function resolvedCanliiCaseUrl(
     if (!route) continue;
     const slugCourt = court === "CANLII" ? "canlii" : match.court.toLowerCase();
     const slug = `${match.year}${slugCourt}${match.number}`;
-    return `https://www.canlii.org/${language}/${route}/doc/${match.year}/${slug}/${slug}.html`;
+    // Quebec decisions commonly have no English version; the court route owns
+    // the default language, independently of the surrounding interface.
+    const sourceLanguage = route.startsWith("qc/") ? "fr" : language;
+    return `https://www.canlii.org/${sourceLanguage}/${route}/doc/${match.year}/${slug}/${slug}.html`;
   }
   return null;
 }

@@ -585,6 +585,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const folderTried = useRef(new Set<string>()), folderScanning = useRef(false);
   const busyRef = useRef(busy), scanRef = useRef<() => Promise<void>>(async () => {});
   busyRef.current = busy;
+  useEffect(() => { folderTried.current.clear(); }, [draft?.id]);
   useEffect(() => () => { if (folder.current) clearInterval(folder.current.timer); }, []);
   function stopWatching(text = "") {
     if (folder.current) clearInterval(folder.current.timer);
@@ -603,16 +604,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }
     await run(() => serialized(async () => {
       let added = 0;
+      const failures: string[] = [];
       for (const { authority, file } of matches) {
         const latest = draftRef.current;
         if (latest?.id !== current.id) break;
         // A file is tried once; one that fails is not retried every scan.
         folderTried.current.add(folderFileId(file));
         setMessage(`Attaching ${file.name}`);
-        if (adopt(await host.attach(latest.id, authority.id, latest.revision, { file }))) added += 1;
+        try {
+          if (adopt(await host.attach(latest.id, authority.id, latest.revision, { file }))) added += 1;
+        } catch (caught) { failures.push(`${file.name}: ${errorText(caught)}`); }
       }
-      return added;
-    }), (added) => setMessage(`Added ${added} PDF${added === 1 ? "" : "s"} from the folder`),
+      return { added, failures };
+    }), ({ added, failures }) => {
+      setMessage(`Added ${added} PDF${added === 1 ? "" : "s"} from the folder`);
+      if (failures.length) setError(failures.join("\n"));
+    },
     "", "Adding PDFs from the folder");
   }
   scanRef.current = async function scanFolder() {

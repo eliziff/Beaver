@@ -171,7 +171,7 @@ describe("PdfView", () => {
             this.scrollTop = options.top ?? 0;
         });
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
-            {} as CanvasRenderingContext2D,
+            { scale: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
         );
         vi.spyOn(HTMLElement.prototype, "clientWidth", "get")
             .mockImplementation(() => mocks.clientWidth);

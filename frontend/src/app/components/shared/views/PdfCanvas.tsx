@@ -136,6 +136,44 @@ export function PdfCanvas({
     const [viewerError, setViewerError] = useState<string | null>(null);
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
 
+    const previewRef = useRef<HTMLDivElement | null>(null);
+    const previewCanvas = useRef<HTMLCanvasElement | null>(null);
+    // Retain only the visible raster during a source/zoom change, never a second PDF.
+    const keepPreview = useCallback(() => {
+        const scroll = scrollRef.current, preview = previewRef.current;
+        if (!scroll || !preview || !preview.hidden) return;
+        const bounds = scroll.getBoundingClientRect();
+        const canvases = [...scroll.querySelectorAll('canvas')].filter(canvas => {
+            const rect = canvas.getBoundingClientRect();
+            return canvas.width && canvas.height && rect.bottom > bounds.top && rect.top < bounds.bottom;
+        });
+        if (!canvases.length || bounds.width < 1 || bounds.height < 1) return;
+        const scale = Math.min(1, Math.sqrt(4_000_000 / (bounds.width * bounds.height)));
+        const image = document.createElement('canvas');
+        image.width = Math.ceil(bounds.width * scale); image.height = Math.ceil(bounds.height * scale);
+        image.style.width = image.style.height = '100%';
+        const context = image.getContext('2d');
+        if (!context) return;
+        context.scale(scale, scale); context.fillStyle = '#f3f4f6';
+        context.fillRect(0, 0, bounds.width, bounds.height);
+        for (const canvas of canvases) {
+            const rect = canvas.getBoundingClientRect();
+            context.drawImage(canvas, rect.left - bounds.left, rect.top - bounds.top, rect.width, rect.height);
+        }
+        previewCanvas.current = image; preview.replaceChildren(image); preview.hidden = false;
+    }, []);
+    useLayoutEffect(keepPreview, [bytes, source, keepPreview]);
+    const releasePreview = useCallback(() => {
+        const image = previewCanvas.current;
+        if (image) { image.width = image.height = 0; image.remove(); previewCanvas.current = null; }
+        if (previewRef.current) previewRef.current.hidden = true;
+    }, []);
+    useEffect(() => releasePreview, [releasePreview]);
+    useEffect(() => {
+        if (preparing && !viewerError && !error) return;
+        releasePreview();
+    }, [preparing, viewerError, error, releasePreview]);
+
     const renderPdf = useCallback(async (list: CitationQuote[], scrollToPage?: number) => {
         const container = containerRef.current;
         const pdf = pdfRef.current;
@@ -309,7 +347,7 @@ export function PdfCanvas({
                 for (let index = pageAt(pages, start - margin);
                     index < pages.length && pages[index].top <= end + margin; index++)
                     if (pages[index].top + pages[index].height >= start - margin) indices.add(index);
-                const pixels = Math.floor(Math.min(MAX_CANVAS_PIXELS, MAX_RESIDENT_PIXELS / Math.max(1, indices.size)));
+                const pixels = Math.floor(Math.min(MAX_CANVAS_PIXELS, (MAX_RESIDENT_PIXELS - (previewCanvas.current ? previewCanvas.current.width * previewCanvas.current.height : 0)) / Math.max(1, indices.size)));
                 for (const [index, canvas] of rendered) {
                     if (indices.has(index) && canvas.width * canvas.height <= pixels) continue;
                     canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
@@ -739,8 +777,9 @@ export function PdfCanvas({
             className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
             aria-label={ariaLabel}
         >
+            <div ref={previewRef} hidden aria-hidden="true" className="absolute inset-0 z-10" />
             {((loading) || (preparing && !error && !viewerError)) && (
-                <div role="status" className="beaver-loading-indicator pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <div role="status" className="beaver-loading-indicator pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
                     <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
                     <span className="sr-only">Loading PDF…</span>
                 </div>

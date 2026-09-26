@@ -153,8 +153,8 @@ type StructureAddon = {
     reasons: { restarted_numbering: boolean; unsafe_or_split_fields: number };
   }>;
   hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
-  derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;
-  preparePdfDocument(bytes: Buffer, request: unknown): Promise<PdfPreparationSummary>;
+  derivePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<NativeDocument>;
+  preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;

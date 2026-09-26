@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
@@ -126,7 +126,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   if (openFor.role !== role || openFor.source !== source || openFor.base !== base || openFor.host !== host) {
     setOpenFor({ role, source, base, host });
     setSelectedId(null); setFocus(undefined); setError(''); setTextError('');
-    setPdf(null); setLoading(true);
+    setLoading(true);
   }
   const readDocument = useEffectEvent((key: string) => documents[key]);
   useEffect(() => {
@@ -169,7 +169,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       // Decide against the current state, not a ref checked before React applies this update.
       setDocuments(values => values[role]?.review !== 'preparing' ? values : {...values,
         [role]:{set,history:[set.marks],position:0,warning,saved:set.marks,review:'ready'}});
-    })().catch(cause => { if (!abort.signal.aborted) setError(errorMessage(cause)); })
+    })().catch(cause => { if (!abort.signal.aborted) { setPdf(null); setError(errorMessage(cause)); } })
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
   }, [role, source, base, host]);
@@ -245,11 +245,8 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     finally { saveRequest.current = null; setSaving(false); }
   }
   return <>
-    <Modal open onClose={close} breadcrumbs={['Highlights']} size="2xl"
-      className="h-[calc(100dvh-2rem)] max-w-[96rem]"
-      primaryAction={error && dirty ? {label:'Retry',disabled:saving,onClick:()=>void save()} : undefined}
-      footerStatus={<span role={error || textError?'alert':'status'} className={cn('text-sm',error || textError?'text-red-800':'text-gray-500')}>
-        {error || textError || (loading?'Preparing PDF…':saving?'Saving…':'')}</span>}>
+    <Modal open onClose={close} ariaLabel="Highlights" size="2xl"
+      className="h-[calc(100dvh-2rem)] max-w-[96rem]" bodyClassName="p-2">
       <div className="flex min-h-0 flex-1 flex-col" onKeyDown={event=>{
         const input=event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true]');
         const arrow=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:0;
@@ -261,20 +258,35 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         else if((event.key==='Delete'||event.key==='Backspace')&&selectedId) {event.preventDefault();remove(selectedId);}
         else if(event.key==='Escape'&&selectedId) {event.preventDefault();event.stopPropagation();setSelectedId(null);}
       }}>
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-300 bg-gray-50 p-2">
-          <div className="flex min-w-48 flex-1 items-center gap-1">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
+          <div className="flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
+            {pdf ? <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
+              loading={loading} loadRecognizedText={pdf.role === role && host.readSourceText ? loadRecognizedText : undefined}
+              annotationEditor={{marks: pdf.role === role ? marks : [],tool,selectedId,focus,disabled: disabled || pdf.role !== role,
+                onSelect:setSelectedId,onCreate:(fragments,text)=>{
+                  const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
+                }}} />
+              : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
+          </div>
+          <aside aria-label="Highlights" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
+            <div className="flex items-center justify-between gap-2 px-3 pt-2">
+              <h2 className="text-sm font-semibold">Highlights <span className="font-normal text-gray-500">{marks.length}</span></h2>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label="Close highlights" disabled={saving||dirty} onClick={close}><X /></Button>
+            </div>
+        <div className="flex shrink-0 flex-col gap-3 p-3">
+          <div className="flex min-w-0 items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(-1)} title={`Previous: ${neighbour(-1).title}`} aria-label={`Previous authority: ${neighbour(-1).title}`}><ChevronLeft /></Button>
             <select aria-label="Authority PDF" value={role} disabled={saving} onChange={event=>setRole(event.target.value)}
               className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm">
               {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}</select>
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(1)} title={`Next: ${neighbour(1).title}`} aria-label={`Next authority: ${neighbour(1).title}`}><ChevronRight /></Button>
           </div>
-          <div role="group" aria-label="Highlight tool" className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
+          <div role="group" aria-label="Highlight tool" className="flex flex-wrap items-center gap-1">
             {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
               {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value} type="button"
                 variant={tool===value?'default':'ghost'} aria-pressed={tool===value} disabled={disabled} onClick={()=>setTool(value)} className="h-8"><Icon />{label}</Button>)}
           </div>
-          <div className="flex items-center gap-1 border-gray-300 md:border-s md:ps-3">
+          <div className="flex items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Delete selected highlight" disabled={disabled||!selectedId} onClick={()=>selectedId&&remove(selectedId)}><Trash2 /></Button>
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
@@ -282,18 +294,10 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         </div>
         {recognition && <div className="mt-2 shrink-0 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2">
           <SourceOcrProgress status={recognition} ocr={ocr} /></div>}
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
-          <div className="mt-3 flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
-            {pdf?.role === role ? <PdfView key={role} doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
-              loadRecognizedText={host.readSourceText ? loadRecognizedText : undefined}
-              annotationEditor={{marks,tool,selectedId,focus,disabled,
-                onSelect:setSelectedId,onCreate:(fragments,text)=>{
-                  const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
-                }}} />
-              : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
-          </div>
-          <aside aria-label="Highlights" className="mt-3 flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
-            <h3 className="flex items-baseline justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-950">Highlights<span className="text-xs font-normal text-gray-600">{marks.length}</span></h3>
+            {(error || textError || loading || saving) && <p role={error || textError?'alert':'status'} className="px-3 pb-2 text-sm text-gray-600">
+              {error || textError || (loading?'Preparing PDF…':'Saving…')}
+              {error && dirty && <Button disabled={saving} onClick={()=>void save()}>Retry</Button>}
+            </p>}
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {current?.warning && <p role="alert" className="mb-2 rounded-md border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-red-800">{current.warning}</p>}
             <ul className="space-y-1">{marks.map(mark=><li key={mark.id}

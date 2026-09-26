@@ -46,6 +46,7 @@ function httpUrl(rawUrl: string, baseUrl?: URL) {
 
 export const DECISIA_HOSTS = new Set([
   "coadecisions.ontariocourts.ca",
+  "decisions.courts.ns.ca",
   "decisia.lexum.com",
   "decision.tcc-cci.gc.ca",
   "decisions.cart-crac.gc.ca",
@@ -111,7 +112,7 @@ export function verifiedDecisiaPdf(
   if (pdfOnlyUrl) return { url: pdfOnlyUrl, pdfOnly: true };
 
   const documentControls: string[] = [];
-  for (const match of markup.matchAll(/<li\b([^>]*)>([\s\S]*?)<\/li\s*>/giu)) {
+  for (const match of markup.matchAll(/<(?:li|div)\b([^>]*\bdocuments\b[^>]*)>([\s\S]*?)<\/(?:li|div)\s*>/giu)) {
     if (attributeValue(match[1], CLASS_ATTRIBUTE).split(/\s+/u).includes("documents")) {
       documentControls.push(match[2]);
     }
