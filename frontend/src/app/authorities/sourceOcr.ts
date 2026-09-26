@@ -55,19 +55,29 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
         .map((state) => [state.id, state]));
       polling = false;
       if (disposed) return;
-      setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) => {
-        const state = item.state === "running" && item.documentId
-          ? states.get(item.documentId) : undefined;
-        // A pass is opaque while it runs, so pages count as recognized only once it ends:
-        // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
-        return [role, state ? { ...item, pages: state.pages ?? [], error: state.error,
-          recognized: state.done ? state.pages?.length
-            ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
-            : item.textlessPages.length
-            : state.pages?.length ? item.recognized
-              : Math.max(item.recognized, item.pages?.length ?? 0),
-          state: state.done ? "done" : state.error ? "failed" : "running" } : item];
-      })));
+      setTracked((current) => {
+        let changed = false;
+        const next = Object.fromEntries(Object.entries(current).map(([role, item]) => {
+          const state = item.state === "running" && item.documentId
+            ? states.get(item.documentId) : undefined;
+          if (!state) return [role, item];
+          // A pass is opaque while it runs, so pages count as recognized only once it ends:
+          // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
+          const updated: SourceOcrStatus = { ...item, pages: state.pages ?? [], error: state.error,
+            recognized: state.done ? state.pages?.length
+              ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
+              : item.textlessPages.length
+              : state.pages?.length ? item.recognized
+                : Math.max(item.recognized, item.pages?.length ?? 0),
+            state: state.done ? "done" : state.error ? "failed" : "running" };
+          const same = updated.state === item.state && updated.error === item.error &&
+            updated.recognized === item.recognized && updated.pages!.join() === (item.pages ?? []).join();
+          if (!same) changed = true;
+          return [role, same ? item : updated];
+        }));
+        // An unchanged poll keeps the same state object, so the workspace does not re-render.
+        return changed ? next : current;
+      });
     };
     const timer = setInterval(() => void poll(), 1_200);
     return () => { disposed = true; clearInterval(timer); };
@@ -77,41 +87,60 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     reset: useCallback(() => setTracked({}), []) };
 }
 
-async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
+/** Textless pages per source role and content hash; null when every page has text. */
+type ScanCache = Map<string, number[] | null>;
+
+async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, cache: ScanCache,
   report: (message: string) => void, found: (file: ScannedPdf) => void, signal: AbortSignal) {
-  const files: ScannedPdf[] = [];
+  const files: ScannedPdf[] = [], errors: string[] = [];
   for (const id of draft.state.authorityOrder) {
     const authority = draft.state.authorities[id];
     if (authority.excluded || authority.source.kind !== "attached") continue;
     for (const source of authority.source.sources) {
       signal.throwIfAborted();
       if (source.origin === "reconstructed" || !host.readSource) continue;
-      report(`Checking pages in ${authorityName(authority)}`);
-      const blob = await host.readSource(draft, source.bindingRole, signal);
-      const inspected = await inspectPdf(new File([blob], source.filename,
-        { type: "application/pdf" }), undefined, signal);
-      if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
-      if (inspected.textlessPages.length) {
+      // A PDF is read once per content: binding another source does not rescan the book.
+      const cacheKey = `${source.bindingRole}:${source.sourceSha256}`;
+      let textlessPages = cache.get(cacheKey);
+      if (textlessPages === undefined) {
+        report(`Checking pages in ${authorityName(authority)}`);
+        try {
+          const blob = await host.readSource(draft, source.bindingRole, signal);
+          const inspected = await inspectPdf(new File([blob], source.filename,
+            { type: "application/pdf" }), undefined, signal);
+          if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
+          textlessPages = inspected.textlessPages.length ? inspected.textlessPages : null;
+          cache.set(cacheKey, textlessPages);
+        } catch (error) {
+          // One unreadable source is reported without hiding the scans after it.
+          signal.throwIfAborted();
+          errors.push(error instanceof Error ? error.message : String(error));
+          continue;
+        }
+      }
+      if (textlessPages) {
         const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
-          name: authorityName(authority), textlessPages: inspected.textlessPages };
+          name: authorityName(authority), textlessPages };
         files.push(file); found(file);
       }
     }
   }
-  return files;
+  return { files, error: errors[0] ?? "" };
 }
 
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
   key: string, found: (file: ScannedPdf) => void) {
   const [status, setStatus] = useState({ key: "", files: [] as ScannedPdf[], checking: true, progress: "", error: "" });
   const onFound = useRef(found); onFound.current = found;
+  const cache = useRef<ScanCache>(new Map());
   useEffect(() => {
     const abort = new AbortController();
     setStatus({ key, files: [], checking: true, progress: "Checking PDFs", error: "" });
-    void (draft && host.readSource ? inspectSources(host, draft,
+    void (draft && host.readSource ? inspectSources(host, draft, cache.current,
       (progress) => { if (!abort.signal.aborted) setStatus(current => ({ ...current, progress })); },
-      (file) => { if (!abort.signal.aborted) onFound.current(file); }, abort.signal) : Promise.resolve([]))
-      .then(files => { if (!abort.signal.aborted) setStatus({ key, files, checking: false, progress: "", error: "" }); })
+      (file) => { if (!abort.signal.aborted) onFound.current(file); }, abort.signal)
+      : Promise.resolve({ files: [], error: "" }))
+      .then(({ files, error }) => { if (!abort.signal.aborted) setStatus({ key, files, checking: false, progress: "", error }); })
       .catch((error: Error) => { if (!abort.signal.aborted) setStatus(current =>
         ({ ...current, checking: false, progress: "", error: error.message })); });
     return () => abort.abort();
