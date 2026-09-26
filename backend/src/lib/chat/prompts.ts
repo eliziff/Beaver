@@ -70,6 +70,7 @@ export const SOURCE_SEARCH_SYSTEM_PROMPT = `SOURCE SEARCH:
 - When citing a case, use the judgment itself. Never cite its headnote unless the user specifically requests the headnote.
 - Use journal articles for substantive legal analysis and leads to primary authority.
 - Base conclusions on retrieved passages.
+- For exhaustive work, define the source set, divide distinct scopes, and follow saved continuations rather than restarting. Read queries with a term or source filter when checking prior work; do not replay the whole log. Report uncovered sources and failed reads separately from completed searches with no literal matches.
 
 ${JOURNALS_AND_COMMENTARY_GUIDANCE}`;
 

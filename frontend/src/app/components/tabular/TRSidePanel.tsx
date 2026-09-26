@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BookOpen, FileText, Loader2, RefreshCw, X } from "lucide-react";
 import type { ColumnConfig, TabularCell, TabularDocument } from "@/app/lib/api/tabular";
 import { TabularResultDetails } from "./TabularResultDetails";
@@ -13,6 +13,7 @@ interface Props {
     onRegenerate?: () => Promise<void>;
     onDiscuss?: () => void;
     running?: boolean;
+    actions?: ReactNode;
 }
 const COMPACT_PANEL = "(max-width: 767px)";
 const ICON_BUTTON = "h-7 w-7 text-gray-500 hover:text-gray-800";
@@ -21,7 +22,7 @@ export function TRSidePanel({
     document: doc,
     column,
     onClose,
-    onRegenerate, onDiscuss,
+    onRegenerate, onDiscuss, actions,
     running = false,
 }: Props) {
     const [regenerating, setRegenerating] = useState(false);
@@ -106,6 +107,7 @@ export function TRSidePanel({
                     </div>
                 </div>
             </div>
+            {actions && <div className="shrink-0 border-t border-gray-200 px-3 py-2">{actions}</div>}
             {(onRegenerate || onDiscuss) && <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-200 px-3 py-2">
                 {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
                 {onDiscuss && <Button variant="ghost" size="compact" onClick={onDiscuss}>Chat</Button>}

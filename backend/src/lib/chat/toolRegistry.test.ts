@@ -4,7 +4,7 @@ import { createTnaEvidence } from "./legalEvidence";
 import {
   LOAD_TOOLS_NAME,
   MAX_MODEL_TOOL_RESULT_CHARS,
-  TurnToolRegistry,
+  TurnToolRegistry, previouslyVisibleTools,
   toolText,
   type BeaverOutcome,
   type BeaverTool,
@@ -381,4 +381,41 @@ it("does not activate tools when their definitions cannot be returned intact or 
   await expect(registry.run([call("load", LOAD_TOOLS_NAME, { names: ["large"] })], { order: [] }, controller.signal))
     .rejects.toThrow("cancelled");
   expect(registry.visible().map(tool => tool.name)).toEqual([LOAD_TOOLS_NAME]);
+});
+
+it("removes host audit metadata without altering source text, version handles or stored receipts", async () => {
+  const source = { text: `The SHA-256 value is ${"f".repeat(64)}.`, source_sha256: "a".repeat(64),
+    evidence: [{ text_sha256: "b".repeat(64), exact_passage: "must not", evidence_status: "not_run" }],
+    expected_version: "version-1", resource: "document://doc/version/version-1", next_offset: 2 },
+    before = structuredClone(source), registry = new TurnToolRegistry([tool("Read", {
+      execute: async () => ({ result: toolText(source) }),
+    })]);
+  const [read] = await registry.run([call("read", "Read")], { order: [] });
+  expect(payload(read.content)).toEqual({ text: source.text, evidence: [{ exact_passage: "must not" }],
+    expected_version: "version-1", resource: source.resource, next_offset: 2 });
+  expect(source).toEqual(before);
+});
+
+it("does not disguise an oversized JSON result as successful or return a broken middle-sliced object", async () => {
+  const registry = new TurnToolRegistry([tool("Read", { execute: async () => ({
+    result: toolText({ findings: ["first", "x".repeat(80_000), "last"] }), metadata: { status: "ok" },
+  }) })]);
+  const [read] = await registry.run([call("read", "Read")], { order: [] });
+  expect(read.status).toBe("truncated");
+  expect(payload(read.content)).toMatchObject({ ok: false, error: "tool_result_too_large", truncated: true });
+});
+
+
+it("keeps already-discovered hosted schemas stable while leaving new specialists deferred and out-of-scope tools unavailable", async () => {
+  const tools = [tool("Read"), tool("known", { specialist: true }), tool("new", { specialist: true })];
+  const first = new TurnToolRegistry(tools);
+  await first.run([call("load", "load_tools", { names: ["known"] })], { order: [] });
+  const history = previouslyVisibleTools([{ role: "assistant", content: "", modelState: { model: "model", messages: [
+    { role: "assistant", content: [{ type: "tool-call", toolCallId: "load", toolName: "load_tools", input: { names: ["known", "outside"] } }] },
+  ] } }]);
+  const resumed = new TurnToolRegistry(tools, history);
+  expect(resumed.visible()).toEqual(first.visible()); expect(resumed.specialists()).toEqual(["new"]);
+  const [outside] = await resumed.run([call("outside", "outside")], { order: [] });
+  expect(outside.status).toBe("error");
+  expect(new TurnToolRegistry(tools).specialists()).toEqual(["known", "new"]);
 });

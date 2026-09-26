@@ -138,3 +138,44 @@ it("keeps lead and dissent identities on every opinion-specific continuation", a
     source_reference?.part === firstPassage.source.part && span_text === located.outcome.evidence![0].span_text))
     .toEqual(located.outcome.evidence![0]);
 });
+
+it("reuses a completed empty scan, but scans a changed source and preserves real match/truncation counts", async () => {
+  const { readLegalSourceResource } = await import("../researchReader"),
+    { registerLegalResearchQueries } = await import("../chat/legalEvidence"),
+    ops = await import("../chat/tools/documentOps"), find = vi.spyOn(ops, "findTextMatches"),
+    native = structureNative(), source: LegalSourceReference = { provider: "courtlistener", id: "reuse-1", kind: "case" };
+  let text = "A different proposition.", artifact = await native.deriveDocumentStructure({ kind: "native_markup",
+    input: { provider: "courtlistener", id: source.id, text, markup: `<p id="paragraph-1">${text}</p>` } });
+  vi.spyOn(legalSourceOperations, "readWithRenditions").mockImplementation(async () => ({ status: "found", pdfRenditions: [],
+    values: [{ source, role: "document", locator: { requested: null, label: "document" },
+      text: native.documentText(artifact), documentArtifact: artifact }] }));
+  const state = createLegalEvidenceTurnState(), resource = researchSourceResource(source), read = async (id: string) => {
+    const output = await readLegalSourceResource({ id, name: "Read", input: {} }, { file_path: resource,
+      pattern: "rare phrase", max_results: 1 }, { userId: "local-user", knownSources: new Map(), priorQueries: () => state.queries.values() });
+    expect(output!.result.isError).not.toBe(true);
+    registerLegalResearchQueries(state, output!.queryReceipts ?? [], "test-reader");
+    return JSON.parse(output!.result.content.filter(item => item.type === "text").map(item => item.text).join(""));
+  };
+  expect(await read("first")).toMatchObject({ total_matches: 0, truncated: false });
+  const before = find.mock.calls.length, id = [...state.queries.keys()][0];
+  expect(await read("again")).toMatchObject({ total_matches: 0, reused: id });
+  expect(find.mock.calls).toHaveLength(before); expect(state.queries.size).toBe(1);
+  const batch = async () => {
+    const output = await readLegalSourceResource({ id: "batch", name: "Read", input: {} },
+      { file_path: resource, patterns: ["rare phrase", "other absent phrase"] },
+      { userId: "local-user", knownSources: new Map(), priorQueries: async () => state.queries.values() });
+    registerLegalResearchQueries(state, output!.queryReceipts ?? [], "test-reader");
+    return JSON.parse(output!.result.content.filter(item => item.type === "text").map(item => item.text).join(""));
+  };
+  await batch();
+  const beforeBatch = find.mock.calls.length, repeated = await batch();
+  expect(repeated.queries.every((query: { reused?: string }) => query.reused)).toBe(true);
+  expect(find.mock.calls).toHaveLength(beforeBatch); // one iterator must serve every pattern, not only the first
+  text = "The rare phrase occurs twice: rare phrase.";
+  artifact = await native.deriveDocumentStructure({ kind: "native_markup", input: {
+    provider: "courtlistener", id: source.id, text, markup: `<p id="paragraph-1">${text}</p>` } });
+  const changed = await read("changed");
+  expect(changed.reused).toBeUndefined();
+  expect(changed).toMatchObject({ total_matches: 2, truncated: true });
+  expect([...state.queries.values()].at(-1)?.scan).toMatchObject({ total_matches: 2, truncated: true });
+});
