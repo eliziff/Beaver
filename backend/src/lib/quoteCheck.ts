@@ -1,3 +1,4 @@
+import { mapBounded } from "./mapBounded";
 import type { AuthoritiesDraft, AuthorityOccurrence } from "./authoritiesDomain";
 import { quoteTextComparison, sourceLocator } from "./authoritiesDiscrepancy";
 import { legalSourceOperations } from "./legalSourceApplication";
@@ -88,8 +89,15 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
   const all = splitQuoteChecks(draft, links, citationUnits);
   const rows = window ? all.slice(window.offset, window.offset + window.limit) : all;
-  const quotes: QuoteResult[] = [];
-  for (const row of rows) {
+  // Quotations from one authority share its resolution and each passage is read once.
+  const resolutions = new Map<string, ReturnType<typeof sources.resolve>>();
+  const passages = new Map<string, ReturnType<typeof sources.readPassage>>();
+  const memo = <T>(cache: Map<string, T>, key: string, load: () => T) => {
+    if (!cache.has(key)) cache.set(key, load());
+    return cache.get(key)!;
+  };
+  let completed = 0;
+  const quotes = await mapBounded(rows, async (row): Promise<QuoteResult> => {
     signal?.throwIfAborted();
     const occurrence = row.occurrenceId ? draft.occurrences[row.occurrenceId] : null;
     const candidate = row.candidates.find(({ id }) => id === row.occurrenceId);
@@ -100,13 +108,13 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     if (authority && (occurrence || candidate)) {
       try {
         const kind = authority.kind === "commentary" ? "journal" : authority.kind;
-        const resolved = kind === "other" || kind === "reference" ? null : await sources.resolve({
-          text: authority.citation, kind, signal });
+        const resolved = kind === "other" || kind === "reference" ? null : await memo(resolutions,
+          JSON.stringify([kind, authority.citation]), () => sources.resolve({ text: authority.citation, kind, signal }));
         if (resolved?.status === "found") {
           const pinpoints = occurrence?.pinpoints ?? candidate?.pinpoints ?? [];
           const locator = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
-          const read = await sources.readPassage({ source: resolved.value,
-            ...(locator ? { locator } : {}), signal });
+          const read = await memo(passages, JSON.stringify([resolved.value, locator]),
+            () => sources.readPassage({ source: resolved.value, ...(locator ? { locator } : {}), signal }));
           if (read.status === "found" && read.values.some((item) => item.role !== "context" && item.text.trim())) {
             const selected = read.values.filter((item) => item.role !== "context");
             const text = selected.map((item) => item.text).join("\n");
@@ -126,9 +134,10 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
         status = "unavailable"; detail = "Source retrieval failed; this quotation has not been verified.";
       }
     }
-    quotes.push({ ...row, status, detail, receipt });
-    progress?.(quotes.length, rows.length, quotes.at(-1)!, unitReceipts);
-  }
+    const quote = { ...row, status, detail, receipt } as QuoteResult;
+    progress?.(++completed, rows.length, quote, unitReceipts);
+    return quote;
+  });
   return { mode: links.length ? "assisted" : "mechanical", quotes, total: all.length,
     citationUnits: unitReceipts,
     counts: Object.fromEntries(["verified", "mismatch", "ambiguous", "unresolved", "unavailable"]
