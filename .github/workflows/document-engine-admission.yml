@@ -1,0 +1,22 @@
+name: Document engine admission oracle
+
+on:
+  pull_request:
+    paths:
+      - 'backend/experiments/document-engine-admission/**'
+      - '.github/workflows/document-engine-admission.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oracle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test physical package-preservation checks (no engine or model)
+        run: python3 -m unittest discover -s backend/experiments/document-engine-admission -p 'test_*.py' -v

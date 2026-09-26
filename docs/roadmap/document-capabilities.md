@@ -4,6 +4,9 @@ Status/order/shared gates: [master plan](master-plan.md). Retain concise Markdow
 composition and surgical DOCX edits; use `word_python` for rich document work.
 All paths use existing jobs/evidence/stores. Microsoft Word is not a cloud dependency.
 The detailed operation inventory remains [deterministic Word actions](../decisions/document-actions.md).
+A Word-free engine can be qualified with the
+[admission experiment](../../backend/experiments/document-engine-admission/README.md),
+which exports the fixture corpus and audits package preservation; it admits no engine.
 
 ## Product vocabulary and workflow catalogue
 

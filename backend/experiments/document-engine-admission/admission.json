@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "candidate": "SuperDoc V2",
+  "state": "blocked",
+  "productionEnabled": false,
+  "qualifiedDistribution": null,
+  "checkedOn": "2026-09-19",
+  "blockers": [
+    "The editor's AGPL label does not license its proprietary @superdoc/docx-engine dependency.",
+    "The published engine terms restrict benchmarking and disclosure. No applicable approval or overriding agreement has been established for Beaver.",
+    "No exact distributable browser/headless combination has passed Beaver's admission corpus."
+  ],
+  "remainingGates": [
+    "license-and-support-review",
+    "export-and-reopen-preservation",
+    "rich-non-text-and-compound-edits",
+    "browser-headless-roundtrip",
+    "local-cloud-without-Word",
+    "scope-review-mode-and-code-isolation",
+    "cancellation-stale-publication-and-retry",
+    "performance-and-successful-task-token-cost"
+  ],
+  "sources": [
+    "https://docs.superdoc.dev/resources/docx-engine-license/",
+    "https://github.com/superdoc/docx-editor/blob/main/packages/superdoc/package.json"
+  ]
+}
