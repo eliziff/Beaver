@@ -1,7 +1,8 @@
 import type { CitationQuote } from "@/app/lib/citations";
 import { clearDocxQuoteHighlights, highlightDocxQuotes } from "./highlightDocxQuote";
 export { getPdfJs } from "@/app/lib/pdfJs";
-export const STANDARD_FONT_DATA_URL = new URL("/pdfjs-standard-fonts/", globalThis.location?.origin ?? "http://localhost").href;
+// Resolve against the page, not its origin: a page opened from disk has the origin "null".
+export const STANDARD_FONT_DATA_URL = new URL("/pdfjs-standard-fonts/", globalThis.location?.href ?? "http://localhost").href;
 export const clearHighlights = clearDocxQuoteHighlights;
 
 /** PDF text layers use the same multi-span matcher as the other readers. */

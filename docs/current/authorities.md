@@ -143,7 +143,9 @@ The helper builds into `AuthoritiesHelper/modern/.authorities-dev` and serves lo
 current operating system. This is a build-and-launch helper, not hot reload.
 The portable Windows package uses the same application/runtime boundary, not
 rewritten authentication or a second Python service. Standalone writes remain
-same-origin and loopback-only.
+same-origin and loopback-only. The self-contained `Authorities.html` runs that
+runtime in the page with the native crate compiled for WASI; its adapter and
+build are in `AuthoritiesHelper/modern/html`.
 
 ## Focused reproduction
 
