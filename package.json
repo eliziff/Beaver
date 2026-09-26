@@ -14,6 +14,8 @@
         "test:authorities:browser": "node AuthoritiesHelper/modern/test-authorities-standalone.mjs",
         "dev:authorities": "node AuthoritiesHelper/modern/authorities-dev.mjs",
         "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File AuthoritiesHelper/modern/package-authorities.ps1",
+        "build:authorities-html": "node AuthoritiesHelper/modern/html/build.mjs",
+        "test:authorities:html": "node AuthoritiesHelper/modern/html/build.mjs && node AuthoritiesHelper/modern/test-authorities-standalone.mjs --html AuthoritiesHelper/modern/out/Authorities.html",
         "test:court-records:browser": "npm run build --prefix frontend && python scripts/test-court-records-browser.py",
         "test:experiments": "npm run test:experiments --prefix backend",
         "test:e2e": "playwright test",
