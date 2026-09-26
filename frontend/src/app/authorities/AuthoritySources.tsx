@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ExternalLink, Eye, FileCheck2, FilePlus2, FileType2,
-  FolderSearch, Pencil, Plus, Upload } from "lucide-react";
+  FolderInput, FolderSearch, Loader2, Pencil, Plus, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { Button } from "@/app/components/ui/button";
@@ -25,6 +25,7 @@ export type AuthorityPanelProps = {
   onLibrary?: (id: string) => void; sourceLabel?: string;
   onRelink: (role: string) => void; onOpenSource?: (role: string) => void;
   onEditIdentity: (authority: AuthorityIdentity) => void;
+  onWatchFolder?: () => void; watchedFolder?: string;
 };
 type PanelProps = AuthorityPanelProps & {
   state: AuthoritiesDraft; occurrences: AuthorityOccurrence[];
@@ -37,7 +38,8 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, ocr }: PanelProps) {
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, onWatchFolder, watchedFolder,
+  ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   return <><section className="mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
     <div className="p-3 sm:p-4"
@@ -47,7 +49,13 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           event.preventDefault(); onFiles(Array.from(event.dataTransfer.files));
         }
       }}>
-      {(state.outputMode !== "table" || onFiles || onLibraryAdd) && <div className="mb-3 flex flex-wrap justify-end gap-2">
+      {(state.outputMode !== "table" || onFiles || onLibraryAdd || onWatchFolder) && <div className="mb-3 flex flex-wrap justify-end gap-2">
+        {onWatchFolder && <Button type="button" variant="outline" className={control}
+          disabled={busy && !watchedFolder} onClick={onWatchFolder}
+          title={watchedFolder ? "Stop watching this folder"
+            : "Choose your download folder once; CanLII PDFs saved there (such as 2019abqb666.pdf) are attached to their authorities as they arrive."}>
+          {watchedFolder ? <><Loader2 className="motion-safe:animate-spin" />Watching {watchedFolder}<Square className="fill-current" /></>
+            : <><FolderInput /> Auto-fetch from folder</>}</Button>}
         {state.outputMode !== "table" && <Button type="button" variant="outline" className={control}
           disabled={busy} onClick={() => setTabSettings(true)}>Tab labels</Button>}
         {onFiles && (onPickMany ? <Button type="button" variant="outline" className={control}
