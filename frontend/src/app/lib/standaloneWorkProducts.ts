@@ -103,8 +103,7 @@ export const standaloneWorkProducts: WorkProductStore = {
       [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS], "readwrite",
     );
     const store = transaction.objectStore(DRAFTS);
-    const drafts = await request<WorkProduct[]>(store.getAll());
-    const current = drafts.find((draft) => draft.id === id);
+    const current = await request<WorkProduct | undefined>(store.get(id));
     if (!current) throw new Error("This draft no longer exists.");
     if (current.revision !== patch.revision) throw new Error("This draft changed elsewhere. Reopen it and try again.");
     if (patch.outputs !== undefined) {
@@ -119,9 +118,16 @@ export const standaloneWorkProducts: WorkProductStore = {
       revision: current.revision + 1,
       updatedAt: new Date().toISOString(),
     };
-    assertDependencies(id, next.state, drafts);
     store.put(next);
     transaction.objectStore(METADATA).put(draftMetadata(next));
+    // Most saves (every action, every highlight autosave) keep the same inputs: nothing
+    // they depend on or hold changes, so the other drafts need not be read.
+    if (sameInputs(current.state, next.state)) {
+      await completed(transaction);
+      return next as never;
+    }
+    const drafts = await request<WorkProduct[]>(store.getAll());
+    assertDependencies(id, next.state, drafts);
     const remaining = [...drafts.filter((draft) => draft.id !== id), next];
     await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current));
     await cleanupStoredFiles(transaction.objectStore(FILES), remaining);
@@ -153,15 +159,13 @@ export const standaloneWorkProducts: WorkProductStore = {
     const transaction = database.transaction(
       [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS], "readwrite",
     );
-    const store = transaction.objectStore(DRAFTS), outputStore = transaction.objectStore(OUTPUTS);
-    const [drafts, outputs] = await Promise.all([
-      request<WorkProduct[]>(store.getAll()), request<StoredOutput[]>(outputStore.getAll()),
-    ]);
+    const store = transaction.objectStore(DRAFTS);
+    const drafts = await request<WorkProduct[]>(store.getAll());
     const current = drafts.find((draft) => draft.id === id);
     if (!current) throw new Error("This draft no longer exists.");
     store.delete(id);
     transaction.objectStore(METADATA).delete(id);
-    for (const output of outputs) if (output.workProductId === id) outputStore.delete(output.id);
+    deleteOutputs(transaction.objectStore(OUTPUTS), current);
     const remaining = drafts.filter((draft) => draft.id !== id);
     await cleanupHandles(transaction.objectStore(HANDLES), remaining, handleIds(current));
     await cleanupStoredFiles(transaction.objectStore(FILES), remaining);
@@ -197,9 +201,7 @@ export async function saveStandaloneArtifacts<State>(
     throw new Error("This draft changed elsewhere. Reopen it and build again.");
   }
   const now = new Date().toISOString();
-  for (const output of await request<StoredOutput[]>(outputs.getAll())) {
-    if (output.workProductId === product.id) outputs.delete(output.id);
-  }
+  deleteOutputs(outputs, current);
   const saved = Object.fromEntries(verified.map((artifact) => {
     const documentId = current.outputs[artifact.role]?.documentId ?? crypto.randomUUID();
     const versionId = crypto.randomUUID();
@@ -280,6 +282,14 @@ function assertDependencies(id: string, state: unknown, drafts: WorkProduct[]) {
     }
   }
   visit(id, []);
+}
+
+const sameInputs = (left: unknown, right: unknown) => left === right ||
+  JSON.stringify(workProductInputs(left)) === JSON.stringify(workProductInputs(right));
+
+/** A draft's stored outputs are exactly its current versions: each build replaces them. */
+function deleteOutputs(store: IDBObjectStore, draft: WorkProduct) {
+  for (const output of Object.values(draft.outputs)) store.delete(output.versionId);
 }
 
 const handleIds = (draft: WorkProduct) => new Set(workProductInputs(draft.state).flatMap((input) =>
