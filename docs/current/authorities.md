@@ -165,7 +165,6 @@ Useful product checks from the root are:
 npm run test:authorities-package
 npm run test:authorities:highlights
 npx playwright install chromium
-npm run test:authorities:browser
 ```
 
 The highlight browser fixture additionally needs Python `playwright`, `pymupdf`
