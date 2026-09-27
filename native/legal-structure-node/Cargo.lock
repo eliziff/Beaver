@@ -860,7 +860,7 @@ dependencies = [
 [[package]]
 name = "legal-citations"
 version = "0.1.0"
-source = "git+https://github.com/eliziff/common-law-cite.git?rev=19654811bf0426bed4ae90f2f72c66dbac681d85#19654811bf0426bed4ae90f2f72c66dbac681d85"
+source = "git+https://github.com/eliziff/common-law-cite.git?rev=798bf3a445850e98920b3ad979021f79f20eaa1c#798bf3a445850e98920b3ad979021f79f20eaa1c"
 dependencies = [
  "aho-corasick",
  "chrono",
@@ -880,7 +880,7 @@ dependencies = [
 [[package]]
 name = "legal-grammar"
 version = "0.1.0"
-source = "git+https://github.com/eliziff/common-law-cite.git?rev=19654811bf0426bed4ae90f2f72c66dbac681d85#19654811bf0426bed4ae90f2f72c66dbac681d85"
+source = "git+https://github.com/eliziff/common-law-cite.git?rev=798bf3a445850e98920b3ad979021f79f20eaa1c#798bf3a445850e98920b3ad979021f79f20eaa1c"
 dependencies = [
  "fancy-regex",
  "regex",
