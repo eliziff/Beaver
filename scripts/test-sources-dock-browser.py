@@ -8,18 +8,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import runpy
+from contextlib import suppress
 import tempfile
 from pathlib import Path
 from urllib.parse import urljoin
 from uuid import uuid4
 
-from selenium import webdriver
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
+
+chrome = runpy.run_path(str(Path(__file__).with_name("test-authorities-browser.py")))["chrome"]
 
 def visible(driver, by: str, value: str, timeout=30):
     return WebDriverWait(driver, timeout, ignored_exceptions=(StaleElementReferenceException,)).until(lambda page: next(
@@ -47,15 +49,11 @@ def main() -> None:
     report: dict[str, object] = {"screenshots": str(output)}
 
     with tempfile.TemporaryDirectory(prefix="beaver-chrome-") as profile:
-        options = webdriver.ChromeOptions()
-        if not args.headed:
-            options.add_argument("--headless=new")
-        options.add_argument(f"--user-data-dir={profile}")
-        options.add_argument("--window-size=1440,900")
-        cached = list((Path.home() / ".cache/selenium/chromedriver/win64").glob("*/chromedriver.exe"))
-        service = Service(str(max(cached, key=lambda path: tuple(map(int, path.parent.name.split(".")))))) \
-            if cached else Service()
-        driver = webdriver.Chrome(service=service, options=options)
+        driver = chrome(Path(profile), args.headed)
+
+        def screenshot(name):
+            driver.save_screenshot(str(output / name))
+
         try:
             driver.set_window_size(1440, 900)
 
@@ -74,9 +72,6 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
   .catch(e=>done({error:String(e)}));""", filename, text)
                 assert result.get("status") == 201, result
                 return result["value"]
-
-            def screenshot(name):
-                driver.save_screenshot(str(output / name))
 
             print("Sources dock: seed a library document", flush=True)
             driver.get(urljoin(args.url, "/library"))
@@ -181,30 +176,38 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             click_text(driver, "Chat")
             assert not driver.find_elements(By.CSS_SELECTOR, "input[aria-label='Organization name']")
 
-            def open_organization():
-                click_text(driver, "Organize")
-                visible(driver, By.XPATH, "//dialog[@open]//button[.//span[normalize-space()='Workspace']]").click()
-                return visible(driver, By.CSS_SELECTOR, "dialog[open] input[aria-label='Organization name']")
+            def open_review():
+                click_text(driver, "Review")
+                dialog = visible(driver, By.CSS_SELECTOR, "dialog[open]")
+                visible(driver, By.CSS_SELECTOR, "dialog[open] [role='tree'][aria-label='Sources']")
+                return dialog
 
-            name = open_organization()
-            assert name.get_attribute("value") == "Fairness research"
-            assert visible(driver, By.CSS_SELECTOR, "dialog[open] [role='tree'][aria-label='Sources']")
-            name.send_keys(Keys.CONTROL, "a")
-            name.send_keys("Fairness and remedies")
+            dialog = open_review()
             screenshot("05-modal-organization-draft.png")
-            click_text(driver, "Close", visible(driver, By.CSS_SELECTOR, "dialog[open]"))
+            click_text(driver, "Close", dialog)
             WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
             assert api("GET", f"/api/source-workspaces/{research_id}")["state"]["labels"] == saved["state"]["labels"]
-            assert open_organization().get_attribute("value") == "Fairness and remedies"
+            dialog = open_review()
             screenshot("06-reopened-organization-draft.png")
+            click_text(driver, "Collapse Fairness", dialog)
+            click_text(driver, "Expand Fairness", dialog)
             deepest = labels[0]["children"][0]["children"][0]["children"][0]["id"]
             leaf = visible(driver, By.CSS_SELECTOR, f"dialog[open] [data-label-select='{deepest}']")
             driver.execute_script("arguments[0].scrollIntoView({block:'center'})", leaf)
             screenshot("07-deep-organization-branch.png")
+            click_text(driver, "Accept changes", dialog)
+            WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
+            accepted = api("GET", f"/api/source-workspaces/{research_id}")
+            assert len(accepted["state"]["labels"]) == len(saved["state"]["labels"]) + 45
+            assert accepted["state"]["labels"][deepest]["name"] == "Reason 1"
+            click_text(driver, "Undo")
+            WebDriverWait(driver, 30).until(lambda _: api("GET", f"/api/source-workspaces/{research_id}")["state"]["labels"] == saved["state"]["labels"])
+            screenshot("08-undone-organization.png")
             report["proposalCategories"] = 45
             report["ok"] = True
         except Exception:
-            screenshot("failure.png")
+            with suppress(WebDriverException):
+                screenshot("failure.png")
             raise
         finally:
             if report.get("chatId"):
