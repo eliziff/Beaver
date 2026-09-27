@@ -190,6 +190,7 @@ type StructureAddon = {
   };
   citationLookupKey(text: string): string;
   citationEngineCall(method: string, request: string): unknown;
+  documentReadingOrder(request: string): Array<[number, number]>;
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;

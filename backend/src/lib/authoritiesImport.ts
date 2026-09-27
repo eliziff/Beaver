@@ -75,7 +75,18 @@ function scanReview(
   const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
   const closures = citationAliasKeysBatch(cases.map(({ span }) => span.text));
+  const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
+  let unitIndex = 0;
+  for (const citation of extracted.citations) {
+    while (unitIndex + 1 < ranges.length && citation.span.start >= ranges[unitIndex].end) unitIndex++;
+    parsed[unitIndex].items.push({ index: citation.index, start: citation.span.start - ranges[unitIndex].start });
+  }
+  const order = native.documentReadingOrder(JSON.stringify(parsed.map(({ unit, items }) => ({
+    kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
+    item_offsets: items.map(({ start }) => start),
+  })))).map(([unit, item]) => parsed[unit].items[item].index);
   const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
+    readingOrder: order,
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
