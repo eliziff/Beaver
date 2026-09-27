@@ -5,7 +5,7 @@ import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForm
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
-import { nativeOccurrenceSpans } from "./authoritiesImport";
+import { nativeOccurrenceSpans, pinpointValues } from "./authoritiesImport";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { authorityPdfText } from "./authorityPdfText";
 import { citationAliasKeysBatch } from "./caselawCitator";
@@ -167,7 +167,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     citation: match?.coreCitation.text ??
       (sameValue(donors.map(({ citation }) => citation)) ? donors[0].citation : text.trim()),
     authorityId, reference,
-    pinpoints: match?.pinpoints.map(({ kind, text }) => ({ kind, text })) ?? [],
+    pinpoints: pinpointValues(match?.pinpoints ?? []),
     evidenceIds: [...new Set(donors.flatMap(({ evidenceIds }) => evidenceIds))].sort(),
     // A unit's own text hash, except where donors carry the hash the import recorded.
     sourceTextSha256: donors[0]?.sourceTextSha256 ?? unit.occurrenceIds
@@ -315,7 +315,7 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   if (!pinpoints.length) throw new ApplicationError(400,
     "Select a complete pinpoint for this authority");
   occurrence.pinpointSpan = { start: selected.start, end: selected.end, text: selected.text };
-  occurrence.pinpoints = pinpoints.map(({ kind, text }) => ({ kind, text }));
+  occurrence.pinpoints = pinpointValues(pinpoints);
   occurrence.start = Math.min(occurrence.authoritySpan.start, selected.start);
   occurrence.end = Math.max(occurrence.authoritySpan.end, selected.end);
   occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
