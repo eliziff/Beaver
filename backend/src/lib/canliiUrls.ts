@@ -1,11 +1,12 @@
 import { structureNative } from "./structureNative";
 import sourceCanliiRoutes from "legal-citations/source-canlii-routes.json";
+import type { ExtractResponse } from "legal-citations";
 
 // The package copies this resource from the Rust engine's reviewed registry.
 const courtRoutes: Record<string, string> = sourceCanliiRoutes.routes;
 
 export function hasCanliiCourtRoute(court: string) {
-  return Boolean(courtRoutes[court]);
+  return Object.hasOwn(courtRoutes, court);
 }
 
 function resolvedCanliiCaseUrl(
@@ -13,16 +14,19 @@ function resolvedCanliiCaseUrl(
   language: "en" | "fr",
   expectedCourt?: string,
 ) {
-  for (const match of structureNative().providerCitationsInText(
-    citations.filter(Boolean).join("\n;\n"))) {
-    if (match.family !== "neutral" || !match.year || !match.court || !match.number) continue;
-    const court = match.court.toUpperCase();
+  const native = structureNative();
+  const result = native.citationEngineCall("extract", JSON.stringify({
+    text: citations.filter(Boolean).join("\n;\n"), options: { resolve: false, parallel: false },
+  })) as ExtractResponse;
+  for (const citation of result.citations) {
+    if (citation.form !== "full" || citation.format !== "neutral") continue;
+    const court = citation.court?.text.toUpperCase();
     if (expectedCourt && court !== expectedCourt) continue;
-    const route = courtRoutes[court];
-    if (!route) continue;
-    const slugCourt = court === "CANLII" ? "canlii" : match.court.toLowerCase();
-    const slug = `${match.year}${slugCourt}${match.number}`;
-    return `https://www.canlii.org/${language}/${route}/doc/${match.year}/${slug}/${slug}.html`;
+    const { urls } = native.citationEngineCall("url", JSON.stringify({ citation, language })) as {
+      urls: Array<{ url: string | null }>;
+    };
+    const url = urls[0]?.url;
+    if (url && isCanliiUrl(url)) return url;
   }
   return null;
 }
