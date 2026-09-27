@@ -48,6 +48,12 @@ function occurrenceSpans(unitText: string, authority: Span, core: Span,
       end: ordered.at(-1)!.end }) : null };
 }
 
+/** Format an already parsed range; never infer ranges from gaps between tokens. */
+export function pinpointValues<Kind extends string>(
+  pinpoints: ReadonlyArray<{ kind: Kind; text: string; last?: string | null }>) {
+  return pinpoints.map(({ kind, text, last }) => ({ kind,
+    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : text }));
+}
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
 
@@ -145,7 +151,7 @@ function scanReview(
         kind: reference ? "reference" : kindOf(citation), citation: citation.span.text, authorityId,
         reference: authorityId && (citation.form === "ibid" || citation.form === "supra")
           ? { kind: citation.form, targetAuthorityId: authorityId } : null,
-        pinpoints: pinpoints.map(({ kind, span }) => ({ kind, text: span.text })),
+        pinpoints: pinpointValues(pinpoints.map(({ kind, span, last }) => ({ kind, text: span.text, last }))),
         evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
