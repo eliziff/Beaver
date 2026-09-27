@@ -30,7 +30,8 @@ export type NativeCitationOccurrence = NativeCitationTextSpan & {
   styledCitation: NativeCitationTextSpan;
   coreCitation: NativeCitationTextSpan;
   pinpoints: Array<NativeCitationTextSpan & {
-    kind: "paragraph" | "section" | "page";
+    kind: import("legal-citations").PinpointKind;
+    first?: string; last?: string;
   }>;
   kind: "case" | "statute" | "journal" | "book" | "parliamentary" | "other";
   shortForm?: string;
@@ -41,7 +42,8 @@ export type NativeCitationOccurrence = NativeCitationTextSpan & {
 export type NativeAuthorityReferenceOccurrence = NativeCitationTextSpan & {
   token: NativeCitationTextSpan;
   pinpoints: Array<NativeCitationTextSpan & {
-    kind: "paragraph" | "section" | "page";
+    kind: import("legal-citations").PinpointKind;
+    first?: string; last?: string;
   }>;
   kind: "ibid" | "supra";
   noteNumber?: number;

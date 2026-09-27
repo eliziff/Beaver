@@ -48,22 +48,12 @@ function occurrenceSpans(unitText: string, authority: Span, core: Span,
       end: ordered.at(-1)!.end }) : null };
 }
 
-/** The engine returns a range's endpoints as separate pinpoints ("paras 71-86" gives 71 and
- *  86). Joined by a dash or "to", they are one pinpoint: the range, written "71-86". */
+/** Format an already parsed range; never infer ranges from gaps between tokens. */
 export function pinpointValues<Kind extends string>(
-  pinpoints: ReadonlyArray<{ kind: Kind; text: string; start: number; end: number }>, text: string) {
-  const values: Array<{ kind: Kind; text: string; end: number }> = [];
-  for (const pinpoint of pinpoints) {
-    const previous = values.at(-1);
-    if (previous?.kind === pinpoint.kind &&
-        /^\s*(?:[-\u2013\u2014]|to)\s*$/u.test(text.slice(previous.end, pinpoint.start))) {
-      previous.text = `${previous.text.split("-")[0]}-${pinpoint.text}`;
-      previous.end = pinpoint.end;
-    } else values.push({ kind: pinpoint.kind, text: pinpoint.text, end: pinpoint.end });
-  }
-  return values.map(({ kind, text: value }) => ({ kind, text: value }));
+  pinpoints: ReadonlyArray<{ kind: Kind; text: string; last?: string | null }>) {
+  return pinpoints.map(({ kind, text, last }) => ({ kind,
+    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : text }));
 }
-
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
 
@@ -161,8 +151,7 @@ function scanReview(
         kind: reference ? "reference" : kindOf(citation), citation: citation.span.text, authorityId,
         reference: authorityId && (citation.form === "ibid" || citation.form === "supra")
           ? { kind: citation.form, targetAuthorityId: authorityId } : null,
-        pinpoints: pinpoints.map(({ kind, span, last }) => ({ kind,
-          text: last ? span.text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : span.text })),
+        pinpoints: pinpointValues(pinpoints.map(({ kind, span, last }) => ({ kind, text: span.text, last }))),
         evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
