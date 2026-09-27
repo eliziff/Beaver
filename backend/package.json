@@ -42,7 +42,7 @@
     "fast-xml-parser": "^5.11.0",
     "helmet": "^8.1.0",
     "jszip": "^3.10.1",
-    "legal-citations": "https://github.com/eliziff/common-law-cite/releases/download/v0.1.0-rc.3/legal-citations-0.1.0.tgz",
+    "legal-citations": "https://github.com/eliziff/common-law-cite/releases/download/v0.1.0-rc.4/legal-citations-0.1.0.tgz",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-gfm-table": "^2.0.0",
     "micromark-extension-gfm-table": "^2.1.1",
