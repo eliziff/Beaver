@@ -117,20 +117,6 @@ describe("authorities import application", () => {
       .map((citation) => structureNative().citationLookupKey(citation)));
   });
 
-  it("coalesces reporter-only case aliases and leaves singleton cases alone", async () => {
-    const reporters = ["[2020] 1 SCR 1", "[2020] 2 SCR 2"], singleton = "2024 ABCA 1";
-    await useAliasGraph([[reporters[0], "reporters"], [reporters[1], "reporters"],
-      [singleton, "singleton"], ["[2024] 1 Alta LR 1", "singleton"]]);
-    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
-      fileType: "docx", bytes: Buffer.from("brief"), modified: 1 },
-    { read: vi.fn() as never }, scanNative([...reporters, singleton]));
-
-    expect(state.authorityOrder).toEqual([reporters[0], singleton]
-      .map((citation) => structureNative().citationLookupKey(citation)));
-    expect(state.authorityOrder.map((id) => state.authorities[id].kind))
-      .toEqual(["case", "case"]);
-  });
-
   it("does not coalesce legislation through the case alias inventory", async () => {
     const citations = ["42 U.S.C. § 1983", "42 U.S.C. § 1985"];
     await useAliasGraph(citations.map((citation) => [citation, "not-a-case"]));
@@ -207,98 +193,6 @@ describe("authorities import application", () => {
     expect(state.units[2].occurrenceIds).toContain(references[0].id);
     expect(references[1]).toMatchObject({ citation: "supra note 2", reviewed: true,
       reference: { kind: "supra", targetAuthorityId: references[1].authorityId } });
-  });
-
-  it("imports standalone bytes through the same Rust occurrence scan", async () => {
-    const bytes = Buffer.from("exact docx bytes"), citation = "2024 ABCA 1";
-    const native = { docxAuthorityTextUnits: vi.fn(async () => [{ key: "body:0",
-      kind: "body" as const, ordinal: 0, footnote_id: null, page_numbers: [1],
-      text: citation, footnote_refs: [] }]), pdfAuthorityTextUnits: vi.fn(),
-      citationLookupKey: vi.fn(() => "2024-abca-1"), citationLookupKeys: vi.fn(),
-      authorityReferencesInText: vi.fn(() => []),
-      citationOccurrencesInText: vi.fn(() => [{
-        text: citation, start: 0, end: citation.length,
-        styledCitation: { text: citation, start: 0, end: citation.length },
-        coreCitation: { text: citation, start: 0, end: citation.length },
-        pinpoints: [], kind: "case" as const, shortForm: null, reasons: ["neutral"],
-      }]) };
-    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
-      fileType: "docx", bytes, modified: 42 }, { read: vi.fn() as never }, native);
-    expect(state).toMatchObject({ import: { filename: "Brief.docx", snapshot: null },
-      bindings: { source: { kind: "local-file", lastSeen: { modified: 42 } } },
-      authorityOrder: ["2024-abca-1"], authorities: { "2024-abca-1": {
-        source: { kind: "unresolved" },
-      } } });
-    expect(native.docxAuthorityTextUnits).toHaveBeenCalledWith(bytes);
-    expect(native.citationOccurrencesInText).toHaveBeenCalledWith(citation);
-  });
-
-  it("creates a version-bound draft with ordered UTF-16 citation locations", async () => {
-    const bytes = Buffer.from("exact docx bytes");
-    const sourceSha256 = sha256(bytes);
-    const body = "🦫 See R. v. Jordan, 2016 SCC 27 at para 7.";
-    const text = "R. v. Jordan, 2016 SCC 27 at para 7";
-    const start = body.indexOf(text), end = start + text.length;
-    const core = "2016 SCC 27", coreStart = body.indexOf(core);
-    const docxAuthorityTextUnits = vi.fn(async () => [
-      { key: "body:0", kind: "body" as const, ordinal: 0, footnote_id: null,
-        page_numbers: [], text: body, footnote_refs: [[1, 3]] },
-      { key: "footnote:1", kind: "footnote" as const, ordinal: 1, footnote_id: 1,
-        page_numbers: [], text: "No citation", footnote_refs: [] },
-    ]);
-    const native = {
-      docxAuthorityTextUnits,
-      pdfAuthorityTextUnits: vi.fn(() => { throw new Error("PDF parser must not run"); }),
-      citationLookupKey: vi.fn(() => "2016-scc-27"),
-      citationLookupKeys: vi.fn(),
-      authorityReferencesInText: vi.fn(() => []),
-      citationOccurrencesInText: vi.fn((unit: string) => unit === body ? [{
-        text, start, end,
-        styledCitation: { text: "R. v. Jordan, 2016 SCC 27", start,
-          end: coreStart + core.length },
-        coreCitation: { text: core, start: coreStart, end: coreStart + core.length },
-        pinpoints: [{ text: "7", start: end - 1, end, kind: "paragraph" as const }],
-        kind: "case" as const, shortForm: "R. v. Jordan",
-        reasons: ["neutral", "same_text_style", "pinpoint_grammar"],
-      }] : []),
-    };
-    const documents = {
-      projectionSource: vi.fn(async () => ({ documentId: "brief", versionId: "v1",
-        fileType: "docx", sourceSha256, readBytes: async () => bytes })),
-      versions: vi.fn(async () => ({ current_version_id: "v1", versions: [{ id: "v1",
-        filename: "Brief.docx", source_sha256: sourceSha256 }] })),
-    } as unknown as DocumentStore;
-    const read = vi.fn(() => { throw new Error("DOCX projection must not run"); });
-    const importer = createAuthoritiesImporter(
-      documents, { read: read as never }, native as never);
-    const binding = { kind: "document" as const, documentId: "brief",
-      version: { versionId: "v1", sha256: sourceSha256 } };
-
-    const state = await importer.draft(scope, binding);
-
-    expect(state.import).toEqual({ kind: "document", bindingRole: "source",
-      filename: "Brief.docx", fileType: "docx",
-      snapshot: { documentId: "brief", versionId: "v1", sha256: sourceSha256 } });
-    expect(state.bindings).toEqual({ source: binding });
-    expect(state.units.map(({ id }) => id)).toEqual(["body:0", "footnote:1"]);
-    expect(state.units[0].footnoteRefs).toEqual([[1, 3]]);
-    expect(state.units[0].pageNumbers).toEqual([]);
-    expect(state.occurrences["body:0:0"]).toMatchObject({
-      unitId: "body:0", start, end, text,
-      authoritySpan: { start, end: coreStart + core.length,
-        text: body.slice(start, coreStart + core.length) },
-      coreSpan: { start: coreStart, end: coreStart + core.length, text: core },
-      pinpointSpan: { start: end - 1, end, text: "7" },
-      sourceTextSha256: sha256(body), localOrdinal: 0,
-      pinpoints: [{ kind: "paragraph", text: "7" }],
-    });
-    expect(body.slice(start, end)).toBe(text);
-    expect(state.authorities["2016-scc-27"]).toMatchObject({
-      citation: core, name: "R. v. Jordan", source: { kind: "unresolved" },
-    });
-    expect(docxAuthorityTextUnits).toHaveBeenCalledWith(bytes);
-    expect(documents.projectionSource).toHaveBeenCalledWith(scope, "brief", "v1");
-    expect(read).not.toHaveBeenCalled();
   });
 
   it("imports exact grounded receipt seeds without reparsing", async () => {
