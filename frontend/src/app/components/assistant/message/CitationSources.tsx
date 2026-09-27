@@ -42,6 +42,8 @@ function citationSourceLabel(annotation: Citation, sourceOnly = false): string {
     if (annotation.kind === "public_legal") {
         const title = annotation.title?.trim();
         const citation = annotation.citation?.trim();
+        if (annotation.provider === "journal")
+            return authority || citation || title || annotation.identifier;
         if (title && citation && title.toLowerCase() !== citation.toLowerCase())
             return `${title}, ${citation}`;
         return title || citation || authority || annotation.identifier;
@@ -76,6 +78,7 @@ export function citationPillParts(annotation: Citation, sourceOnly = false): {
         rest: label.startsWith(style) ? label.slice(style.length) : `, ${label}`,
     };
 }
+
 export function citationTooltip(annotation: Citation): string {
     const locator = citationPillLabel(annotation) || formatCitationPage(annotation);
     const full = displayCitationQuote(annotation).replace(/\s+/gu, " ").trim();

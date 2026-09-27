@@ -15,17 +15,9 @@ import { a2ajCitationAliasGroups, type CitationAliasGroup } from "./a2ajLocalBul
  * its paragraph number, offset, cited-side pinpoints, and a bounded excerpt.
  * There are no treatment labels here and none are implied.
  *
- * Node identity uses the shared Rust citation normalizer, ported exactly from
- * ALR-Quote-Verifier local_a2aj.py (`_citation_lookup_key`), which is also the
- * key space of the corpus lookup
- * index. It equates punctuation/whitespace/case variants of one form
- * ("2015 SCC 5" == "2015 S.C.C. 5", "[2015] 1 SCR 331" == "[2015] 1 S.C.R.
- * 331") and never conflates distinct forms: the French twin "2015 CSC 5"
- * and the S.C.R. parallel citation are distinct keys. Where the build's
- * `resolution` table proves - from the corpus's own citation index - that
- * several keys are the same decision, noteUpCitations unions edges across
- * those keys; when resolution is absent or ambiguous it stays with the
- * literal key and never guesses.
+ * Node identity comes from the shared citation engine, as do the corpus
+ * importer and graph builder. Corpus records retain their original citation
+ * forms; lookup and grouping use the engine's versioned authority keys.
  */
 
 type Row = Record<string, unknown>;

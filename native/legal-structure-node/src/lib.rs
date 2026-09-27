@@ -1020,6 +1020,14 @@ pub fn citation_lookup_key_node(text: String) -> String {
     citation_lookup_key(&text)
 }
 
+#[napi(js_name = "citationEngineCall")]
+pub fn citation_engine_call_node(env: Env, method: String, request: String) -> napi::Result<Unknown<'static>> {
+    let request = serde_json::from_str(&request).map_err(|error| Error::from_reason(error.to_string()))?;
+    let response = legal_structure::citations::api::call_value(&method, request)
+        .map_err(|error| Error::from_reason(error.to_string()))?;
+    js_value(env, &response)
+}
+
 #[napi(js_name = "citationLookupKeys")]
 pub fn citation_lookup_keys_node(texts: Vec<String>) -> Vec<String> {
     texts.iter().map(|text| citation_lookup_key(text)).collect()

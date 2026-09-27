@@ -189,6 +189,7 @@ type StructureAddon = {
     resultSha256: string; components: Record<string, string>;
   };
   citationLookupKey(text: string): string;
+  citationEngineCall(method: string, request: string): unknown;
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;

@@ -33,40 +33,10 @@ Extraction runs over unofficial_text_en, falling back to unofficial_text_fr
 only when there is no English text, so one judgment's two language versions
 never double-count the same citation.
 
-PORTED GRAMMAR, NOT INVENTED: the citation anchors, case-name capture, and
-node-identity key are faithful ports of the preserved reference implementations:
-  - anchor regexes / span dedupe / name + pinpoint capture:
-      AuthoritiesHelper preservation commit 84469a3, toa_maker.py
-      (_NEUTRAL_RE, _CANLII_RE,
-      _REPORTER_RE, _STATUTE_RE, _JOURNAL_RE, _URL_RE, _anchor_spans,
-      _PAR_RE et al.)
-  - case-name capture (_CASE_LEFT_RE / _case_name_start origin) now mirrors
-      the shipping legal-structure engine (case_style_start / CASE_LEFT),
-      with the two documented Beaver additions noted at CASE_LEFT_RE.
-  - node identity key:
-      ALR-Quote-Verifier/local_a2aj.py (_citation_lookup_key) - the exact
-      key space of the corpus lookup index (lookup.duckdb), so graph keys
-      and corpus identity agree.
-Host paragraphs come directly from Beaver's shipping legal-structure engine;
-this builder contains no paragraph grammar.
-
-NODE IDENTITY / NORMALIZATION: cited_key = citation_lookup_key(anchor text):
-NFKC, en/em dashes to "-", digit-boundary "." "-" "/" become the words
-"dot"/"dash"/"slash", then casefold and strip every non-alphanumeric.
-  "2015 SCC 5" / "2015  SCC 5" / "2015 S.C.C. 5"  -> 2015scc5
-  "[2015] 1 S.C.R. 331" / "[2015] 1 SCR 331"      -> 20151scr331
-  "2015 CSC 5" (French twin)                      -> 2015csc5 (DISTINCT key)
-Distinct citation forms are never conflated by the key. Where the corpus
-lookup index (cases/lookup.duckdb, built by the ALR Quote Verifier app)
-proves that two keys are the same decision - e.g. the French twin and the
-S.C.R. parallel citation of one SCC judgment - the build records that
-evidence in the `resolution` table (cited_key -> corpus path + row),
-closing over ALL citation keys of each resolved decision so an alias that
-never occurs in the scanned texts still reaches its edges, and the reader
-unions edges across a decision's keys only when the resolution is
-unambiguous. When the index is absent or has an unexpected schema the build
-skips resolution and says so in `meta`; it never rebuilds or modifies the
-reference application's artifacts.
+Citation discovery, styled spans, pinpoints and versioned authority keys come
+from legal_citations. Host paragraphs come from legal-structure. This builder
+stores graph evidence and provider records; it owns no citation grammar.
+The ALR corpus lookup index must be built with the same shared key version.
 
 Self-citations are skipped: corpus texts open with a header repeating the
 decision's own citation ("Neutral citation\n2019 SCC 67"), which would give
@@ -77,7 +47,7 @@ PROVIDER GRAPH, MINER AS DIFFERENTIAL: the corpus rows carry a curated
 citation graph (cases_cited_en/_fr, cases_citing_en/_fr - lists of neutral
 citations; 64% of case rows have a non-empty cited list, ~1.0M cited edges
 corpus-wide, probed 2026-07-30). Those columns are stored verbatim in
-provider_edge as the node-level authority; the regex miner keeps supplying
+provider_edge as the node-level authority; the citation engine keeps supplying
 what the lists cannot (paragraph anchors, offsets, pinpoints, excerpts),
 and the build measures the two against each other per doc
 (provider_keys_mined_confirmed / provider_keys_unmined /
@@ -104,132 +74,15 @@ import re
 import sqlite3
 import sys
 import time
-import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
 from legal_structure_client import paragraph_blocks
-
-# ---------------------------------------------------------------------------
-# Citation anchor grammar - ported verbatim from
-# AuthoritiesHelper preservation commit 84469a3, toa_maker.py (its module
-# docstring calls the
-# patterns "routing evidence, not a claim that every capitalized number in
-# prose is a legal authority"). All six patterns participate in overlap
-# dedupe exactly as in the original _anchor_spans, so a statute or URL span
-# suppresses an overlapping case-shaped span the same way; only the case
-# kinds (neutral / canlii / reporter) become graph edges.
-# ---------------------------------------------------------------------------
-URL_RE = re.compile(
-    r"(?i)\b(?:https?://|www\.)[^\s<>]+|\bperma\.cc/[A-Z0-9-]+|\bdoi:\s*10\.\d{4,9}/\S+"
-)
-NEUTRAL_RE = re.compile(r"\b(?:17|18|19|20)\d{2}\s+[A-Z][A-Z0-9-]{1,15}\s+\d+\b")
-CANLII_RE = re.compile(r"\b(?:17|18|19|20)\d{2}\s+CanLII\s+\d+\b", re.I)
-REPORTER_RE = re.compile(
-    r"(?<![\w.])(?:\[(?:17|18|19|20)\d{2}\]\s+)?\d{1,4}\s+"
-    r"[A-Z][A-Za-z0-9&.'-]{1,20}(?:\s+\([0-9A-Za-z]{1,4}\))?"
-    r"(?:\s+[A-Z][A-Za-z0-9&.'-]{0,14}){0,3}\s+\d{1,6}\b"
-)
-STATUTE_RE = re.compile(
-    r"(?i)\b(?:RSC|RSO|RSA|RSS|RSM|RSQ|RSY|RSBC|RSNL|RSNB|RSNS|RSPEI|"
-    r"RSNWT|CQLR|CCSM|SC|SO|SA|SS|SM|SQ|SY|SBC|SNL|SNB|SNS|SNWT)\b"
-    r"\s*[, ]\s*\d{4}(?:\s*,?\s*c\s+[A-Za-z0-9().-]+)?|"
-    r"\b(?:Alta Reg|BC Reg|B C Reg|O Reg|OIC|SOR|SI|SOR/|CFR)\s*"
-    r"[A-Za-z-]*\s*\d{2,4}[-/]\d{1,4}\b"
-)
-JOURNAL_RE = re.compile(
-    r"\(?(?:17|18|19|20)\d{2}\)?\s+\d{1,4}(?::\s*[A-Za-z0-9.-]+)?\s+"
-    r"[A-Z][A-Za-z&.'(), -]{1,100}?\s+\d{1,5}\b"
-)
-ANCHOR_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("statute", STATUTE_RE),
-    ("neutral", NEUTRAL_RE),
-    ("canlii", CANLII_RE),
-    ("reporter", REPORTER_RE),
-    ("journal", JOURNAL_RE),
-    ("url", URL_RE),
-)
-CASE_ANCHOR_KINDS = frozenset({"neutral", "canlii", "reporter"})
-
-# Mirror of legal-structure case_style_start / CASE_LEFT: the case name is the
-# capitalized run around the last "v." before the anchor. Two deliberate,
-# documented Beaver additions (2026-09-06): a balanced, uppercase-first
-# parenthetical token ("Quebec (Attorney General)") so a qualified party is
-# captured whole, and a balanced-parentheses guard so the digit-tolerant
-# grammar cannot start mid-parenthetical ("1998) v. Smith" falls back to the
-# bare core). "(1998)", "(2d)" and "(see below)" stay rejected.
-CASE_LEFT_RE = re.compile(
-    r"([A-Z0-9][A-Za-z0-9’'&().-]*(?:\s+(?:[A-Z0-9][A-Za-z0-9’'&().-]*|"
-    r"\([A-Z][^()\n]{0,80}\)|of|the|and|for|de|la|du)){0,12})\s*$"
-)
-VERSUS_RE = re.compile(r"\bv\.?\s+", re.I)
-
-# Ported from toa_maker._PINPOINT_VALUE/_PINPOINT_LIST/_PAR_RE: paragraph
-# pinpoints attached to the citation ("at paras 12-15" of the CITED case).
-PINPOINT_VALUE = r"\d+(?:\.\d+)*(?:\([A-Za-z0-9]+\))*"
-PINPOINT_LIST = rf"{PINPOINT_VALUE}(?:\s*(?:,|and|to|[-–—])\s*{PINPOINT_VALUE})*"
-PINPOINT_VALUE_RE = re.compile(PINPOINT_VALUE)
-PAR_RE = re.compile(rf"\bparas?(?:graphs?)?\.?\s*({PINPOINT_LIST})", re.I)
-# How far past the anchor a pinpoint may trail when no further citation
-# follows. Bounded so a later paragraph's own "para N" is never claimed.
-PINPOINT_WINDOW = 200
-
-
-def anchor_spans(text: str) -> list[tuple[int, int, str]]:
-    """Non-overlapping anchor spans; port of toa_maker._anchor_spans.
-
-    The stable sort by (start, -length) plus first-wins overlap skip
-    reproduces the original tie-breaking: at an identical span, the pattern
-    listed earlier in ANCHOR_PATTERNS classifies the span (so "2015 SCC 5"
-    is neutral even though the reporter grammar also matches it).
-    """
-    found: list[tuple[int, int, str]] = []
-    for kind, pattern in ANCHOR_PATTERNS:
-        found.extend((m.start(), m.end(), kind) for m in pattern.finditer(text))
-    found.sort(key=lambda item: (item[0], -(item[1] - item[0])))
-    out: list[tuple[int, int, str]] = []
-    for item in found:
-        if out and item[0] < out[-1][1]:
-            continue
-        out.append(item)
-    return out
-
-
-def case_name_start(text: str, anchor_start: int, floor: int = 0) -> int:
-    """Mirror of legal-structure case_style_start (see CASE_LEFT_RE)."""
-    prefix = text[floor:anchor_start].rstrip(" ,")
-    matches = list(VERSUS_RE.finditer(prefix))
-    if not matches:
-        return anchor_start
-    left = prefix[: matches[-1].start()]
-    match = CASE_LEFT_RE.search(left)
-    if not match:
-        return anchor_start
-    start = floor + match.start(1)
-    depth = 0
-    for character in text[start:anchor_start]:
-        if character == "(":
-            depth += 1
-        elif character == ")":
-            depth -= 1
-            if depth < 0:
-                return anchor_start
-    return anchor_start if depth else start
-
+from legal_citations import extract, key_for_text
 
 def citation_lookup_key(value: str) -> str:
-    """Node identity; port of ALR-Quote-Verifier local_a2aj._citation_lookup_key.
-
-    This is the exact key space of the corpus lookup index, so cited_key
-    values join directly against cases/lookup.duckdb lookup_key.
-    """
-    value = unicodedata.normalize("NFKC", str(value or ""))
-    value = value.replace("–", "-").replace("—", "-")
-    value = re.sub(r"(?<=\d)\.(?=\d)", "dot", value)
-    value = re.sub(r"(?<=\d)-(?=\d)", "dash", value)
-    value = re.sub(r"(?<=\d)/(?=\d)", "slash", value)
-    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+    return key_for_text(value) or ""
 
 
 # ---------------------------------------------------------------------------
@@ -247,39 +100,24 @@ def excerpt_around(text: str, start: int, end: int) -> str:
 
 
 def case_occurrences(text: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Every case-citation occurrence plus per-kind anchor counts."""
-    spans = anchor_spans(text)
-    kind_counts: dict[str, int] = {}
-    for _start, _end, kind in spans:
-        kind_counts[kind] = kind_counts.get(kind, 0) + 1
-    case_spans = [item for item in spans if item[2] in CASE_ANCHOR_KINDS]
+    """Project shared-engine citations into graph rows, retaining source offsets."""
     occurrences: list[dict[str, Any]] = []
-    previous_end = 0
-    name_starts: list[int] = []
-    for start, end, _kind in case_spans:
-        name_starts.append(case_name_start(text, start, previous_end))
-        previous_end = end
-    for index, (start, end, kind) in enumerate(case_spans):
-        window_end = min(
-            name_starts[index + 1] if index + 1 < len(case_spans) else len(text),
-            end + PINPOINT_WINDOW,
-        )
-        pin_match = PAR_RE.search(text, end, window_end)
-        pinpoints = (
-            ",".join("par" + value for value in PINPOINT_VALUE_RE.findall(pin_match.group(1)))
-            if pin_match
-            else None
-        )
-        short = text[name_starts[index]:start].strip(" ,;:.")
-        occurrences.append({
-            "start": start,
-            "end": end,
-            "kind": kind,
-            "citation": text[start:end],
-            "key": citation_lookup_key(text[start:end]),
-            "short": short or None,
-            "pinpoints": pinpoints,
-        })
+    kind_counts: dict[str, int] = {}
+    for citation in extract(text):
+        if citation["form"] != "full":
+            continue
+        kind = {"can_lii": "canlii", "statute_volume": "statute", "regulation_series": "statute",
+                "code": "statute", "publication": citation["authority"]}.get(
+                    citation.get("format"), citation.get("format") or citation["authority"])
+        kind_counts[kind] = kind_counts.get(kind, 0) + 1
+        if citation["authority"] != "case" or not citation.get("key"):
+            continue
+        core = citation["span"]
+        pins = ["par" + value for pin in citation.get("pinpoints", []) if pin["kind"] == "paragraph"
+                for value in (pin["first"], pin.get("last")) if value]
+        occurrences.append({"start": core["start"], "end": core["end"], "kind": kind,
+            "citation": core["text"], "key": citation["key"], "short": citation.get("shortName"),
+            "pinpoints": ",".join(pins) or None})
     return occurrences, kind_counts
 
 

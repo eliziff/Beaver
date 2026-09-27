@@ -288,6 +288,7 @@ export function authoritiesDiscrepancyCorrection(
 export function sourceLocator(pinpoint: AuthorityOccurrence["pinpoints"][number]): {
   kind: "paragraph" | "section" | "page"; value: string; endValue?: string;
 } | null {
+  if (pinpoint.kind !== "paragraph" && pinpoint.kind !== "section" && pinpoint.kind !== "page") return null;
   const prefixes = pinpoint.kind === "paragraph" ? /^(?:at\s+)?(?:paragraphs?|paras?|par|¶+)\.?\s*/iu
     : pinpoint.kind === "section" ? /^(?:at\s+)?(?:ss?|sections?)\.?\s*/iu
       : /^(?:at\s+)?(?:pp?|pages?)\.?\s*/iu;
