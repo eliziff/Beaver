@@ -8,7 +8,7 @@ are pinned by Git links, not by the upstream branch name or newest README.
 | Checkout / repository | Owner and role |
 | --- | --- |
 | [Beaver](https://github.com/eliziff/Beaver) | Application, UI, Node adapter, persistence and cross-project roadmap |
-| `AuthoritiesHelper` / [AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) | Python Authorities application plus the modern standalone deployment, launcher and packaging adapter |
+| `AuthoritiesHelper` / [AuthoritiesHelper](https://github.com/eliziff/AuthoritiesHelper) | Modern standalone Authorities deployment, launcher and packaging adapter; the retired Python product remains in Git history |
 | `legal-structure` / [Legal Structure Parser](https://github.com/eliziff/legal-structure-parser) | Provider-neutral Rust structure, citations, queries, grammar and Python binding |
 | `legal-pdf-parser` / [Legal PDF Parser](https://github.com/eliziff/legal-pdf-parser) | PDF extraction, geometry, OCR and PDF Inspector integration |
 | `legal-browser-ocr` / [Legal Browser OCR](https://github.com/eliziff/legal-browser-ocr) | Browser/HTML OCR application and packaging |

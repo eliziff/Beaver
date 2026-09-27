@@ -16,16 +16,16 @@ import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { documentProjectionService } from "./documentProjectionService";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
-import { structureNative, type NativeAuthorityReferenceOccurrence,
+import { structureNative,
   type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { citationAliasKeysBatch } from "./caselawCitator";
+import type { Citation, ExtractResponse, ResolveResponse } from "legal-citations";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
 type ProjectionReader = Pick<typeof documentProjectionService, "read">;
 type AuthoritiesNative = Pick<ReturnType<typeof structureNative>,
-  "docxAuthorityTextUnits" | "pdfAuthorityTextUnits" | "citationOccurrencesInText" |
-  "authorityReferencesInText" | "citationLookupKey">;
+  "docxAuthorityTextUnits" | "pdfAuthorityTextUnits">;
 
 export type GroundedReceiptSeed = {
   authorityKey: string;
@@ -66,166 +66,109 @@ export function pinpointValues<Kind extends string>(
 
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
-const nativeReferenceSpans = (match: NativeAuthorityReferenceOccurrence, text: string) =>
-  occurrenceSpans(text, match.token, match.token, match.pinpoints);
-
-function parallelCaseKeys(matches: NativeCitationOccurrence[], native: AuthoritiesNative) {
-  const candidates = matches.filter(({ kind }) => kind !== "statute" && kind !== "journal")
-    .map((match) => ({ match, key: native.citationLookupKey(match.coreCitation.text) }))
-    .filter(({ key }) => key);
-  const groups = new Map<string, Array<typeof candidates[number] & { closure: string[] }>>();
-  const signatures = new Map<string, Set<string>>();
-  citationAliasKeysBatch(candidates.map(({ match }) => match.coreCitation.text))
-    .forEach((aliases, index) => {
-      const candidate = candidates[index], closure = [...new Set(aliases)].sort();
-      if (!candidate || !closure.includes(candidate.key)) return;
-      const signature = closure.join("\0");
-      groups.set(signature, [...(groups.get(signature) ?? []), { ...candidate, closure }]);
-      signatures.set(candidate.key,
-        new Set([...(signatures.get(candidate.key) ?? []), signature]));
-    });
-  const canonical = new Map<string, string>(), observed = new Set(candidates.map(({ key }) => key));
-  for (const [signature, group] of groups) {
-    const keys = [...new Set(group.map(({ key }) => key))];
-    if (keys.length < 2 || !group.some(({ match }) => match.kind === "case") ||
-      group[0].closure.some((key) => observed.has(key) &&
-        (signatures.get(key)?.size !== 1 || !signatures.get(key)?.has(signature)))) continue;
-    keys.forEach((key) => canonical.set(key, group[0].key));
-  }
-  return canonical;
-}
-
-/** [unit, item] pairs in reading order: each footnote's items follow the body text up to
- *  its anchor. Footnotes with no anchor keep their place after the body. */
-function readingOrder(parsed: Array<{ unit: NativeAuthorityTextUnit; items: Array<{ match: { start: number } }> }>) {
-  const footnotes = new Map(parsed.flatMap(({ unit }, index) =>
-    unit.kind === "footnote" && unit.footnote_id !== null ? [[unit.footnote_id, index] as const] : []));
-  const order: Array<[number, number]> = [], placed = new Set<number>();
-  const place = (unitIndex: number) => {
-    if (placed.has(unitIndex)) return;
-    placed.add(unitIndex);
-    parsed[unitIndex].items.forEach((_, item) => order.push([unitIndex, item]));
-  };
-  parsed.forEach(({ unit, items }, unitIndex) => {
-    if (unit.kind === "footnote") return;
-    placed.add(unitIndex);
-    const anchors = [...unit.footnote_refs].sort(([, left], [, right]) => left - right);
-    let next = 0;
-    items.forEach(({ match }, item) => {
-      for (; next < anchors.length && anchors[next][1] <= match.start; next += 1) {
-        const footnote = footnotes.get(anchors[next][0]);
-        if (footnote !== undefined) place(footnote);
-      }
-      order.push([unitIndex, item]);
-    });
-    for (; next < anchors.length; next += 1) {
-      const footnote = footnotes.get(anchors[next][0]);
-      if (footnote !== undefined) place(footnote);
-    }
-  });
-  parsed.forEach((_, unitIndex) => place(unitIndex));
-  return order;
-}
 
 function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
   units: NativeAuthorityTextUnit[],
-  native: AuthoritiesNative,
 ): AuthoritiesFreshReview {
   const occurrences: Record<string, AuthorityOccurrence> = {};
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
-  const aliases = new Map<string, Set<string>>();
-  const footnoteAuthorities = new Map<number, Set<string>>();
-  let lastAuthorityId: string | null = null;
-  const parsed = units.map((unit) => ({ unit, items: [
-    ...native.citationOccurrencesInText(unit.text)
-      .map((match) => ({ kind: "authority" as const, match })),
-    ...native.authorityReferencesInText(unit.text)
-      .map((match) => ({ kind: "reference" as const, match })),
-  ].sort((left, right) => left.match.start - right.match.start ||
-    left.match.end - right.match.end || left.kind.localeCompare(right.kind)) }));
-  const parallelCases = parallelCaseKeys(parsed.flatMap(({ items }) => items.flatMap((item) =>
-    item.kind === "authority" ? [item.match] : [])), native);
-  const remember = (authorityId: string, footnoteId: number | null) => {
-    lastAuthorityId = authorityId;
-    if (footnoteId !== null) footnoteAuthorities.set(footnoteId,
-      new Set([...(footnoteAuthorities.get(footnoteId) ?? []), authorityId]));
-  };
-  const addAlias = (authorityId: string, value: string | null | undefined) => {
-    const alias = value ? native.citationLookupKey(value) : "";
-    if (alias) aliases.set(authorityId, new Set([...(aliases.get(authorityId) ?? []), alias]));
-  };
-  const occurrenceIdsByUnit = parsed.map(() => [] as Array<[localOrdinal: number, id: string]>);
-  const textSha256 = parsed.map(({ unit }) => sha256(unit.text));
-  // Ibid and supra follow what the reader has just read, so items are linked in reading
-  // order, where a footnote follows the body text up to its anchor.
-  for (const [unitIndex, localOrdinal] of readingOrder(parsed)) {
-    const { unit, items } = parsed[unitIndex], item = items[localOrdinal];
-    const sourceTextSha256 = textSha256[unitIndex];
-    if (item.kind === "reference") {
-      const match = item.match;
-      // A name matches whole trailing words ("Goldsmith, supra" does not name Smith).
-      const words = unit.text.slice(0, match.token.start).trim().split(/\s+/u).filter(Boolean);
-      const prefixes = new Set(Array.from({ length: Math.min(words.length, 16) },
-        (_, count) => native.citationLookupKey(words.slice(-(count + 1)).join(" "))).filter(Boolean));
-      const named = authorityOrder.filter((authorityId) =>
-        [...(aliases.get(authorityId) ?? [])].some((alias) => prefixes.has(alias)));
-      const noted = match.noteNumber === undefined ? []
-        : [...(footnoteAuthorities.get(match.noteNumber) ?? [])];
-      const candidates = match.kind === "ibid" ? (lastAuthorityId ? [lastAuthorityId] : [])
-        : match.noteNumber === undefined ? named
-        : named.length ? noted.filter((authorityId) => named.includes(authorityId)) : noted;
-      const authorityId = candidates.length === 1 ? candidates[0] : null;
-      const id = `${unit.key}:${localOrdinal}`;
-      occurrenceIdsByUnit[unitIndex].push([localOrdinal, id]);
-      occurrences[id] = { id, unitId: unit.key, start: match.start, end: match.end,
-        text: match.text, ...nativeReferenceSpans(match, unit.text), kind: "reference",
-        citation: match.token.text, authorityId,
-        reference: authorityId ? { kind: match.kind, targetAuthorityId: authorityId } : null,
-        pinpoints: pinpointValues(match.pinpoints, unit.text),
-        evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: Boolean(authorityId) };
-      // An unresolved reference breaks the chain: a following Ibid must not reach past it.
-      if (authorityId) remember(authorityId, unit.footnote_id); else lastAuthorityId = null;
-      continue;
-    }
-    const match = item.match;
-    const observedKey = native.citationLookupKey(match.coreCitation.text);
-    const key = parallelCases.get(observedKey) ?? observedKey;
-    if (!key) { lastAuthorityId = null; continue; }
-    const kind: AuthorityKind = parallelCases.has(observedKey) ? "case"
-      : match.kind === "statute" ? "legislation"
-      : match.kind === "journal" || match.kind === "book" ? "commentary"
-      : match.kind === "parliamentary" ? "other" : match.kind;
-    const observedName = match.reasons.includes("same_text_style")
-      ? match.shortForm?.trim() || null : null;
-    if (!authorities[key]) {
-      authorities[key] = { id: key, key, kind, citation: match.coreCitation.text,
-        name: observedName, displayName: null, excluded: false,
-        evidenceIds: [], locators: [], sourceIdentity: null,
-        source: { kind: "unresolved" }, scanOnly: true };
-      authorityOrder.push(key);
-    } else if (!authorities[key].name && observedName) {
-      authorities[key].name = observedName;
-    }
-    addAlias(key, match.shortForm);
-    addAlias(key, match.explicitShortForm);
-    addAlias(key, observedName);
-    const id = `${unit.key}:${localOrdinal}`;
-    occurrenceIdsByUnit[unitIndex].push([localOrdinal, id]);
-    occurrences[id] = { id, unitId: unit.key, start: match.start, end: match.end,
-      text: match.text, ...nativeOccurrenceSpans(match, unit.text),
-      kind, citation: match.coreCitation.text, authorityId: key,
-      reference: null, pinpoints: pinpointValues(match.pinpoints, unit.text),
-      evidenceIds: [],
-      sourceTextSha256, localOrdinal, reviewed: false };
-    remember(key, unit.footnote_id);
+  let offset = 0;
+  const ranges = units.map((unit) => {
+    const start = offset;
+    offset += unit.text.length + 2;
+    return { unit, start, end: start + unit.text.length };
+  });
+  const text = units.map(({ text }) => text).join("\n\n");
+  const native = structureNative();
+  const notes = ranges.filter(({ unit }) => unit.footnote_id !== null)
+    .map(({ unit, start, end }) => ({ number: unit.footnote_id, start, end, sequence: 0 }));
+  const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
+    options: { resolve: false, notes },
+  })) as ExtractResponse;
+  const cases = extracted.citations.filter(({ form, authority, key }) =>
+    form === "full" && key && (authority === "case" || authority === "unknown"));
+  const closures = citationAliasKeysBatch(cases.map(({ span }) => span.text));
+  const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
+  let unitIndex = 0;
+  for (const citation of extracted.citations) {
+    while (unitIndex + 1 < ranges.length && citation.span.start >= ranges[unitIndex].end) unitIndex++;
+    parsed[unitIndex].items.push({ index: citation.index, start: citation.span.start - ranges[unitIndex].start });
   }
-  const reviewUnits = parsed.map(({ unit }, unitIndex) => ({ id: unit.key, kind: unit.kind,
-    ordinal: unit.ordinal, footnoteId: unit.footnote_id, pageNumbers: unit.page_numbers,
-    text: unit.text, footnoteRefs: unit.footnote_refs,
-    occurrenceIds: occurrenceIdsByUnit[unitIndex].sort(([left], [right]) => left - right).map(([, id]) => id) }));
+  const order = native.documentReadingOrder(JSON.stringify(parsed.map(({ unit, items }) => ({
+    kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
+    item_offsets: items.map(({ start }) => start),
+  })))).map(([unit, item]) => parsed[unit].items[item].index);
+  const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
+    readingOrder: order,
+    aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
+  })) as ResolveResponse;
+  const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
+  const authorityOf = new Map<number, string>();
+  const documentHash = sha256(text);
+  const kindOf = (citation: Citation): AuthorityKind => {
+    switch (citation.authority) {
+      case "case": return "case";
+      case "statute": case "regulation": case "constitution": case "court_rule":
+      case "treaty": case "bill": return "legislation";
+      case "journal": case "book": case "book_chapter": case "webpage": return "commentary";
+      default: return "other";
+    }
+  };
+  for (const group of result.authorities) {
+    const full = group.map((index) => byIndex.get(index))
+      .filter((citation): citation is Citation => citation?.form === "full");
+    const representative = full.find((citation) => citation.key) ?? full[0];
+    if (!representative) continue;
+    // A document-local review identity keeps unkeyed sources visible without
+    // asserting a bibliographic identity or merging separate engine groups.
+    const key = representative.key ?? `scan:${documentHash}:${representative.index}`;
+    group.forEach((index) => authorityOf.set(index, key));
+    if (authorities[key]) continue;
+    authorities[key] = { id: key, key, kind: kindOf(representative), citation: representative.span.text,
+      name: representative.shortName ?? null, displayName: null, excluded: false,
+      evidenceIds: [], locators: [], sourceIdentity: null,
+      source: { kind: "unresolved" }, scanOnly: true };
+    authorityOrder.push(key);
+  }
+  let cursor = 0;
+  const reviewUnits = ranges.map(({ unit, start, end }) => {
+    const occurrenceIds: string[] = [];
+    const sourceTextSha256 = sha256(unit.text);
+    while (cursor < result.citations.length && result.citations[cursor].span.start < start) cursor++;
+    while (cursor < result.citations.length && result.citations[cursor].span.start < end) {
+      const citation = result.citations[cursor++];
+      if (citation.form === "unknown") continue;
+      const localOrdinal = occurrenceIds.length;
+      const id = `${unit.key}:${localOrdinal}`;
+      const authorityId = authorityOf.get(citation.index) ?? null;
+      const local = (span: Span) => ({ start: Math.max(start, span.start) - start,
+        end: Math.min(end, span.end) - start });
+      const core = local(citation.span);
+      const full = local(citation.fullSpan);
+      const noteReference = citation.form === "ibid" || citation.form === "supra";
+      if (noteReference) full.start = core.start;
+      const styled = { start: !noteReference && citation.style && citation.style.start >= start
+        ? citation.style.start - start : core.start, end: core.end };
+      const reference = citation.form !== "full";
+      const pinpoints = citation.pinpoints ?? [];
+      occurrenceIds.push(id);
+      occurrences[id] = { id, unitId: unit.key, ...full,
+        text: unit.text.slice(full.start, full.end),
+        ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span))),
+        kind: reference ? "reference" : kindOf(citation), citation: citation.span.text, authorityId,
+        reference: authorityId && (citation.form === "ibid" || citation.form === "supra")
+          ? { kind: citation.form, targetAuthorityId: authorityId } : null,
+        pinpoints: pinpoints.map(({ kind, span, last }) => ({ kind,
+          text: last ? span.text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : span.text })),
+        evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
+    }
+    return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
+      footnoteId: unit.footnote_id, pageNumbers: unit.page_numbers, text: unit.text,
+      footnoteRefs: unit.footnote_refs, occurrenceIds };
+  });
   return { import: imported, bindings, cover: importedCover(units), units: reviewUnits,
     occurrences, authorities, authorityOrder };
 }
@@ -314,7 +257,7 @@ async function documentDraft(
     units = native.pdfAuthorityTextUnits(await projection.read(source));
   }
   return reduceAuthoritiesDraft(createAuthoritiesDraft(imported, bindings), {
-    type: "refresh", review: scanReview(imported, bindings, units, native),
+    type: "refresh", review: scanReview(imported, bindings, units),
   });
 }
 
@@ -371,7 +314,7 @@ native: AuthoritiesNative = structureNative()) {
   if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
     settings: { sourceMode: input.sourceMode } });
   return reduceAuthoritiesDraft(initial, {
-    type: "refresh", review: scanReview(imported, bindings, units, native),
+    type: "refresh", review: scanReview(imported, bindings, units),
   });
 }
 

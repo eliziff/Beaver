@@ -111,6 +111,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         "textLayout" => done(value(engine::text_layout(&call.get::<String>("text")?))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
+        "citationEngineCall" => done(engine::citation_engine_call(&call.get::<String>("method")?, &call.get::<String>("request")?)),
+        "documentReadingOrder" => done(engine::document_reading_order(&call.get::<String>("request")?).and_then(value)),
         "citationLookupKeys" => done(value(engine::citation_lookup_keys(&call.get::<Vec<String>>("texts")?))),
         "providerCitationsInText" => done(value(engine::provider_citations(&call.get::<String>("text")?))),
         "citationOccurrencesInText" => done(value(engine::citation_occurrences(&call.get::<String>("text")?))),

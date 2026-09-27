@@ -9,12 +9,12 @@ import os
 import re
 import sqlite3
 import sys
-import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
 from open_legal_data_bridge import data_root
+from legal_citations import key_for_text
 
 
 SCHEMA = """
@@ -68,12 +68,7 @@ def default_output() -> Path:
 
 
 def citation_key(value: str) -> str:
-    value = unicodedata.normalize("NFKC", value)
-    value = value.replace("\u2013", "-").replace("\u2014", "-")
-    value = re.sub(r"(?<=\d)\.(?=\d)", "dot", value)
-    value = re.sub(r"(?<=\d)-(?=\d)", "dash", value)
-    value = re.sub(r"(?<=\d)/(?=\d)", "slash", value)
-    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+    return key_for_text(value) or ""
 
 
 def name_key(value: str) -> str:

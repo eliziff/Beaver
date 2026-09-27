@@ -111,7 +111,7 @@ export type AuthorityOccurrence = {
   citation: string;
   authorityId: string | null;
   reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null;
-  pinpoints: Array<{ kind: "paragraph" | "section" | "page"; text: string }>;
+  pinpoints: Array<{ kind: string; text: string }>;
   evidenceIds: string[];
   sourceTextSha256: string;
   localOrdinal: number;
@@ -196,7 +196,7 @@ export type AuthoritiesLedgerOccurrence = {
   end: number;
   text: string;
   displayedForm: "full" | "short" | "supra" | "ibid";
-  pinpoints: Array<{ kind: "paragraph" | "section" | "page"; text: string }>;
+  pinpoints: Array<{ kind: string; text: string }>;
   evidenceIds: string[];
   localOrdinal: number;
 };

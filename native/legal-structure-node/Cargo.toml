@@ -38,7 +38,6 @@ hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e4
 
 [patch."https://github.com/eliziff/legal-structure-parser.git"]
 legal-structure = { path = "../../legal-structure" }
-legal-grammar-tables = { path = "../../legal-structure/grammar" }
 
 [profile.dev]
 debug = 0

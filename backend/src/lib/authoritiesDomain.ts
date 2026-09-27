@@ -179,7 +179,7 @@ const authoritiesCover = closed<AuthoritiesCover>({ courtFileNumber: plain(100),
 
 const authorityKind = oneOf(authorityKinds);
 const pinpoint = closed<AuthorityOccurrence["pinpoints"][number]>({
-  kind: oneOf(AUTHORITIES_ACTION_CHOICES.locator), text });
+  kind: text, text });
 const locator = closed<AuthorityHighlightExclusion>({ kind: text, label: text });
 const snapshot = closed<AuthoritiesDocumentSnapshot>({ documentId: nonempty(200),
   versionId: nonempty(200), sha256: sourceHash });
