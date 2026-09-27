@@ -311,6 +311,17 @@ pub fn citation_lookup_key_of(text: &str) -> String {
     citation_lookup_key(text)
 }
 
+pub fn document_reading_order(request: &str) -> Result<Vec<(usize, usize)>, String> {
+    let units = serde_json::from_str::<Vec<legal_structure::ReadingOrderUnit>>(request)
+        .map_err(|error| error.to_string())?;
+    Ok(legal_structure::document_reading_order(&units))
+}
+
+pub fn citation_engine_call(method: &str, request: &str) -> Result<serde_json::Value, String> {
+    let request = serde_json::from_str(request).map_err(|error| error.to_string())?;
+    legal_structure::citations::api::call_value(method, request).map_err(|error| error.to_string())
+}
+
 pub fn citation_lookup_keys(texts: &[String]) -> Vec<String> {
     texts.iter().map(|text| citation_lookup_key(text)).collect()
 }

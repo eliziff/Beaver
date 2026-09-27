@@ -542,6 +542,16 @@ pub fn citation_lookup_keys_node(texts: Vec<String>) -> Vec<String> {
     engine::citation_lookup_keys(&texts)
 }
 
+#[napi(js_name = "citationEngineCall")]
+pub fn citation_engine_call_node(env: Env, method: String, request: String) -> napi::Result<Unknown<'static>> {
+    js_value(env, &engine::citation_engine_call(&method, &request).map_err(Error::from_reason)?)
+}
+
+#[napi(js_name = "documentReadingOrder")]
+pub fn document_reading_order_node(env: Env, request: String) -> napi::Result<Unknown<'static>> {
+    js_value(env, &engine::document_reading_order(&request).map_err(Error::from_reason)?)
+}
+
 #[napi(js_name = "providerCitationsInText")]
 pub fn provider_citations_in_text_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
     js_value(env, &engine::provider_citations(&text))

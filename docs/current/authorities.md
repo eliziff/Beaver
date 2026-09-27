@@ -42,6 +42,12 @@ Rust citation records and verified provider aliases own identity. Do not resolve
 an ambiguous citation by selecting the first plausible candidate or recreating
 citation regexes in the UI. Source changes must pass the normal binding/revision
 boundary and invalidate geometry that no longer describes the same bytes.
+Scanned engine groups without a durable lookup key remain visible under
+document-local review IDs. These IDs do not assert an authority identity or
+merge separate groups; references follow the engine's resolved groups.
+Installed citation indexes supply alias evidence to the same resolver; the
+shared engine checks reciprocal agreement and contradictory identities before
+grouping sources.
 
 CanLII is manual-only: the row opens the document page in a new tab; **Attach PDF**
 opens the file chooser, and dropping a downloaded PDF onto that row uses the same
@@ -150,6 +156,9 @@ build are in `AuthoritiesHelper/modern/html`.
 ## Focused reproduction
 
 Shared compilation/test guidance is in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+The citation graph builder and A2AJ bulk importer use the same published engine
+as the application. Install their Python binding with
+`python -m pip install -r backend/scripts/requirements-citations.txt` before running them.
 Useful product checks from the root are:
 
 ```sh
