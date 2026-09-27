@@ -1028,6 +1028,13 @@ pub fn citation_engine_call_node(env: Env, method: String, request: String) -> n
     js_value(env, &response)
 }
 
+#[napi(js_name = "documentReadingOrder")]
+pub fn document_reading_order_node(env: Env, request: String) -> napi::Result<Unknown<'static>> {
+    let units = serde_json::from_str::<Vec<legal_structure::ReadingOrderUnit>>(&request)
+        .map_err(|error| Error::from_reason(error.to_string()))?;
+    js_value(env, &legal_structure::document_reading_order(&units))
+}
+
 #[napi(js_name = "citationLookupKeys")]
 pub fn citation_lookup_keys_node(texts: Vec<String>) -> Vec<String> {
     texts.iter().map(|text| citation_lookup_key(text)).collect()
