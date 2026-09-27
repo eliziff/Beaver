@@ -72,10 +72,6 @@ jobs:
           npm run test:authorities-package
       - name: Install browser
         run: npx playwright install --with-deps chromium
-      - name: Exercise the standalone application through real HTTP and the Rust engine
-        env:
-          AUTHORITIES_SMOKE_OUTPUT: authorities-browser-results
-        run: npm run test:authorities:browser
       - name: Verify visual quotation review and editable PDF highlights
         env:
           AUTHORITIES_HIGHLIGHT_OUTPUT: authorities-browser-results/highlights

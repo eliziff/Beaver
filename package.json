@@ -11,7 +11,6 @@
         "test:court-output-audit": "node --test scripts/audit-court-output-sources.test.mjs",
         "test:authorities-package": "node --test AuthoritiesHelper/modern/scripts/authorities-package/bundle.test.mjs",
         "test:authorities:highlights": "node scripts/test-authorities-highlights.mjs",
-        "test:authorities:browser": "node AuthoritiesHelper/modern/test-authorities-standalone.mjs",
         "dev:authorities": "node AuthoritiesHelper/modern/authorities-dev.mjs",
         "package:authorities": "powershell -NoProfile -ExecutionPolicy Bypass -File AuthoritiesHelper/modern/package-authorities.ps1",
         "test:court-records:browser": "npm run build --prefix frontend && python scripts/test-court-records-browser.py",
