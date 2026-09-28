@@ -44,6 +44,12 @@ const pdfResponse = (bytes: Buffer) => new Response(bytes, {
   },
 });
 
+it("does not publish a download that ends before the PDF trailer", async () => {
+  const { publishPdfStream } = await import("../documentProjection");
+  await expect(publishPdfStream(pdfResponse(Buffer.from("%PDF-1.4 interrupted")).body!))
+    .rejects.toThrow("incomplete");
+});
+
 async function waitForDownloaded(
   bridge: typeof import("../providerPdfLibraryBridge"),
   input = attachment,
@@ -100,7 +106,7 @@ async function startProviderWorker(
 
 describe("provider PDF projection bridge", () => {
   it("queues once and durably addresses verified bytes by SHA-256", async () => {
-    const bytes = Buffer.from("%PDF-1.4 provider source");
+    const bytes = Buffer.from("%PDF-1.4 provider source\n%%EOF\n");
     let fetchStarted!: () => void, releaseFetch!: () => void;
     const started = new Promise<void>((resolve) => { fetchStarted = resolve; });
     const held = new Promise<void>((resolve) => { releaseFetch = resolve; });
@@ -146,7 +152,7 @@ describe("provider PDF projection bridge", () => {
   it("keeps credentials out of durable identity and rejects unsafe sources", async () => {
     process.env.GOVINFO_API_KEY = "server-secret";
     vi.stubGlobal("fetch", vi.fn(async () =>
-      pdfResponse(Buffer.from("%PDF-1.4 credential test"))));
+      pdfResponse(Buffer.from("%PDF-1.4 credential test\n%%EOF\n"))));
     const bridge = await import("../providerPdfLibraryBridge");
     await startProviderWorker(bridge);
     const input = { ...attachment, url: `${attachment.url}?api_key=input-secret`,
@@ -195,7 +201,7 @@ describe("provider PDF projection bridge", () => {
 
   it("finds a valid publisher PDF through ranked pages without requesting CanLII", async () => {
     const source = "https://publisher.example/decision/1";
-    const bytes = Buffer.from("%PDF-1.7 publisher original");
+    const bytes = Buffer.from("%PDF-1.7 publisher original\n%%EOF\n");
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = String(input);
       if (url === source) return new Response(`
@@ -251,7 +257,7 @@ describe("provider PDF projection bridge", () => {
       pageUrl: "https://publisher.example/robocop/captcha/en/query.do",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const bytes = Buffer.from("%PDF-1.7 publisher original");
+    const bytes = Buffer.from("%PDF-1.7 publisher original\n%%EOF\n");
     fetchMock.mockImplementation(async () => pdfResponse(bytes));
     await expect(bridge.downloadProviderOriginalPdf(request)).resolves.toMatchObject({ bytes });
   });
@@ -314,7 +320,7 @@ describe("provider PDF projection bridge", () => {
   });
 
   it("fails closed when a source digest is spliced onto another request", async () => {
-    const firstBytes = Buffer.from("%PDF-1.4 first");
+    const firstBytes = Buffer.from("%PDF-1.4 first\n%%EOF\n");
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(firstBytes)));
     const bridge = await import("../providerPdfLibraryBridge");
     await startProviderWorker(bridge);
@@ -330,7 +336,7 @@ describe("provider PDF projection bridge", () => {
   });
 
   it("resolves exact evidence only after download and parse", async () => {
-    const bytes = Buffer.from("%PDF-1.4 exact evidence");
+    const bytes = Buffer.from("%PDF-1.4 exact evidence\n%%EOF\n");
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(bytes)));
     const handle = `mike-evidence:v1:${"a".repeat(64)}`;
     mocks.lookupPdf.mockResolvedValue({ status: "found", evidence: { handle } });

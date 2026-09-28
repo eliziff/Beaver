@@ -2,8 +2,8 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 268 hash-verified Canadian publisher originals,
-10,299 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
+The expanded sample contains 344 hash-verified Canadian publisher originals,
+12,424 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
 meet the requested 350-original target or establish other reporter-family coverage.
 The separate 105-document, 22-court general-judgment cohort is not included in
 this denominator. Acquisition stopped at a renewed SCC publisher challenge.
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 770 sampled pages, 767 readable folios agreed. All sampled folios agreed
-for 267 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 985 sampled pages, 982 readable folios agreed. All sampled folios agreed
+for 343 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -133,6 +133,31 @@ and `limited/{stage10-vision,product-stage10-*}`. A subsequent bounded acquisiti
 attempt encountered the publisher challenge immediately and stopped that host;
 82 more originals remain necessary to reach 350. Reporter-family coverage has
 not broadened beyond SCC/SCR/RCS.
+
+A further 82 downloads exposed eight truncated transfers. Two were recovered
+before validation; six were quarantined. The usable 76 additions contain 2,125
+pages. All 215 independent sampled folios agreed; 99 images required blind vision
+(227.5 seconds including rendering/harness overhead, sampled peak 654 MiB).
+The product resolved 74 destinations correctly and abstained on [2018] 3 SCR 687
+and [1976] 1 SCR 152. Combined product results are 339 correct destinations, five
+abstentions and no incorrect destinations across 344 originals. The new product
+batches took 100.9 seconds with selective OCR and existing-cache reuse, sampled
+peak 609 MiB. Receipts: `stage13-manifest.json`, `product-stage13/`, and
+`limited/{stage13-vision,product-stage13-*}`. Six more independently validated
+originals are needed. A later retry recovered [2011] 3 SCR 837, which is still
+outside the validated denominator pending independent and product checks.
+
+The first two recovered files were exact extensions of their incomplete downloads:
+12,950,765 became 14,424,999 bytes, and 380,378 became 11,401,809 bytes. This proves
+truncation but does not establish which network hop ended the transfer. Both
+responses lacked usable Content-Length metadata. All 344 usable PDFs end with
+the standard PDF end marker; all eight incomplete transfers fail that check.
+The existing backend publication/inspection paths and Lite downloader now share
+a small end-marker check, without invoking another PDF parser. On the saved real
+files, both paths rejected truncation and accepted the recovered original.
+Receipts: `stage13-acquired-manifest.json`, `stage13-quarantined-manifest.json`,
+`stage13-retries/`, and `download-integrity-check.json`. The byte-envelope check
+detects this failure; it does not certify internal PDF structure or source identity.
 
 The embedded Beaver manual-book workflow passed with source replacement,
 export, save/reopen and 320-pixel layout checks. A separate real reporter PDF
