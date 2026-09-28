@@ -104,7 +104,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         #[cfg(feature = "legalpdf")]
         "pdfPassageGeometryPages" => {
             let job = with_document(doc()?, |d| engine::pdf_passage_pages_job(d, call.get("targets")?))?;
-            done(job.compute(bytes))
+            done(job.compute())
         }
         #[cfg(feature = "legalpdf")]
         "pdfLookupUnitSpans" => done(with_document(doc()?, |d|

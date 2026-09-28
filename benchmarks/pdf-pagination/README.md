@@ -1,5 +1,87 @@
 # Printed pagination validation
 
+## Single-parser candidate and reporter hypothesis (2026-09-28)
+
+The expanded sample contains 182 hash-verified Canadian publisher originals,
+7,415 physical pages, from 1970?2023. It remains SCC/SCR/RCS-heavy; it does not
+meet the requested 350-original target or establish other reporter-family coverage.
+The separate 105-document, 22-court general-judgment cohort is not included in
+this denominator. Acquisition stopped at a renewed SCC publisher challenge.
+
+The hypothesis tested is **the submitted citation's reporter start belongs to
+physical PDF page 1**, not a detector-selected anchor. Sampling is independent
+of predictions: page 1 and up to two distinct later pages selected from the
+source hash. Blind text-layer readings come first. Only unresolved images go
+to the existing Luna max/schema harness, one batch at a time.
+
+Across 518 sampled pages, 515 readable folios agreed. All sampled folios agreed
+for 181 documents. The remaining publisher original, Bhasin v. Hrynew
+([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
+samples were absent, not successful predictions. One apparent disagreement
+was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
+blind image review resolved it. The text reader now leaves such format-character
+lines unresolved. These are independent readings with exception review, not a
+claim of error-free gold or fresh held-out product accuracy. Citation metadata
+alone does not identify which PDF edition was downloaded.
+
+Candidate native geometry matched the frozen released output on 100 unique
+PDFs / 4,452 pages, including all physical pages and paragraph 1. A separate
+restore-only process matched again without supplying PDF bytes to the native
+geometry API. Pagination metadata now comes from the same lopdf load; geometry
+uses retained pre-structure evidence. These checks do not count PDF writing as
+parsing for pagination.
+
+A real three-page scan ([1975] 2 RCS 233) exercised native preparation,
+recognition of page 1, expansion to pages 1+3, and a new selection of cached
+page 3. The extraction cache content stayed identical; recognition entries
+increased from one to two and then stayed at two. The opening-page text and
+geometry were stable (coordinates compared to 1e-6 PDF units because JSON
+round trips can change the last floating-point bit). Times were 11 ms, 1,427 ms,
+998 ms and 8 ms respectively. This proves reuse for that path, not OCR accuracy
+across the whole corpus.
+
+A genuinely empty-cache, no-OCR production pagination run of 100 PDFs took
+59.4 seconds (median 51 ms, p95 2,392 ms). A fresh-process reopen took 2.3 seconds
+(median 12.9 ms, p95 62.9 ms). Cold sampled RSS at ten-document checkpoints
+peaked at 338 MiB; this is not a measured instantaneous peak. Native preparation
+is included. Phase profiling remains necessary before calling cold performance
+acceptable. Profiling subsequently attributed 17.0 seconds of the ten slowest
+PDFs to cache writing. Buffering JSON token writes before the existing gzip
+compressor reduced that to 1.36 seconds, without whole-document JSON buffers.
+The follow-up 100-PDF cold run took 29.4 seconds (median 32.7 ms, p95 1,157 ms);
+fresh-process reopen took 2.9 seconds. All 100 binding outputs were identical.
+Cold RSS peaked at 355 MiB at the ten-document sampling points. This follow-up
+used the diagnostics build with phase logging disabled. The final default-feature
+production binary then completed the same 100-PDF cold operation in 25.4 seconds
+(median 34.1 ms, p95 999.3 ms); fresh-process reopen took 2.3 seconds
+(median 12.3 ms, p95 62.2 ms). All cold/reopen bindings matched, with no errors.
+Cold RSS peaked at 378 MiB at ten-document checkpoints, not an instantaneous
+peak measurement. Only 53 documents received labels without OCR; speed is not coverage.
+Receipts live under ignored `tmp/pdf-pagination/`: `canadian-reporter-expanded*`,
+`geometry-{baseline,candidate,reopen}.json`, `partial-ocr-candidate2-check.json`,
+`canadian-product-single-parser-stage2-{cold,reopen}.json`, and
+`canadian-product-single-parser-buffered-{cold,reopen}.json`, and
+`canadian-product-production-final-{cold,reopen}.json`.
+
+The full Authorities-operation run (182 originals) initially matched 176 independent
+pinpoint destinations and abstained on six. Reviewing the failures found four
+readable headers missed by the margin adapter's physical-page window. The shared
+adapter now also considers the outermost text rows, preserving the known-reporter,
+side-edge and citation-veto checks. A complete cache-backed replay matched 180/182,
+with no incorrect destinations: display, selected physical page and generated
+highlight agreed with the saved independent folio, and restoring the prepared
+profile preserved recognition coverage. This is a regression replay on inspected
+data, not fresh held-out validation.
+
+The two remaining abstentions are Bhasin's non-reporter PDF and [1987] 2 SCR 485,
+whose OCR omits the opening folio. Neither is silently assigned citation-derived
+labels. A separate application optimization skips recognition preparation when
+none of the requested pages still needs OCR. The initial operation run took
+256.2 seconds including recognition; the cache-backed replay took 42.5 seconds.
+These are different cache conditions and are not a direct speedup measurement.
+Receipts: `product-stage3/`, `product-stage4-review/`, `product-stage5-review/`,
+and `product-stage5/` under the ignored output directory.
+
 ## Decisia PDF route check (2026-09-27)
 
 `publisherPdfCandidate` in `backend/src/lib/legalSourcePresentation.ts` derives an
@@ -150,15 +232,19 @@ unverified. Thirty other cached originals await visual readings. This SCR/RCS
 evidence does not certify other Canadian reporters, and the 350-reporter-original
 target remains incomplete while publisher access is challenged.
 
-The final candidate's 100-original non-OCR operation took 37.9 seconds cold
-(median 208.3 ms, p95 1292.1 ms) and 15.6 seconds reopening saved projections
+The final candidate's 100-original non-OCR operation took 37.9 seconds on its
+first recorded pass (median 208.3 ms, p95 1292.1 ms) and 15.6 seconds in a new
+process with the native cache populated
 (median 50.5 ms, p95 553.3 ms), with no failures. Against independent readings
 in that timed cohort, it resolved 127 of 211 readable sampled folios exactly,
 left 84 unknown without OCR and made no wrong prediction. The actual cited-page
 operation on 88 originals produced 87 exact independent PDF-page/display/highlight
 matches; *Bhasin* refused to invent a binding. Median operation time was 2.89 s
 and p95 was 6.44 s, including scoped recognition and cached-artifact restoration.
-Receipts are `canadian-product-candidate3-{cold,reopen}.json` and
+The first pass did not isolate a fresh native cache, so its "cold" filename is not
+evidence of a true cold parse. `measure-canadian.cjs` now requires a distinct,
+unused cache directory per run ID before measuring a cold pass. Receipts are
+`canadian-product-candidate3-{cold,reopen}.json` and
 `product-oracle-candidate3/` under ignored `tmp/pdf-pagination/`. These are
 candidate runs on previously inspected public PDFs, not fresh held-out proof.
 
@@ -203,8 +289,8 @@ The existing visual checker defaults to one Codex process, using `gpt-6-luna` wi
 on a memory-constrained machine. Below Normal priority does not cap memory usage.
 Each receives only page images, their physical page identifiers, the short prompt
 and strict output schema. It sees neither citation predictions nor expected labels.
-It samples the anchor plus two later pages, or the opening three plus two later
-pages when no anchor exists. Small documents naturally yield fewer distinct pages.
+It samples physical page 1 plus two distinct later pages, independently of
+product predictions. Small documents naturally yield fewer distinct pages.
 Results, event logs and images are retained by PDF hash and resumed on rerun.
 
 Scores are exact-text comparisons with independent model readings, **not adjudicated

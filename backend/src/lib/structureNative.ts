@@ -165,7 +165,7 @@ type StructureAddon = {
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
   pdfPageLabels(document: NativeDocument): Array<string | null>;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
-  pdfPassageGeometryPages(document: NativeDocument, bytes: Buffer,
+  pdfPassageGeometryPages(document: NativeDocument,
     targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
@@ -298,6 +298,7 @@ type NativeDocumentTextWindow = {
 };
 
 export type PdfPreparationSummary = {
+  embeddedPageLabels: (string | null)[];
   sha256: string;
   parserVersion: string;
   cacheKey: string;
@@ -395,7 +396,7 @@ export async function pdfPassageGeometry(
   if (createHash("sha256").update(bytes).digest("hex") !== summary.sha256) {
     throw new Error("PDF source changed after preparation");
   }
-  const raw = await native.pdfPassageGeometryPages(document, bytes,
+  const raw = await native.pdfPassageGeometryPages(document,
     targets.map(({ exactQuotes: _, ...target }) => target));
   if (raw.sourceSha256 !== summary.sha256 || raw.parserVersion !== summary.parserVersion) {
     throw new Error("PDF passage geometry source identity changed");

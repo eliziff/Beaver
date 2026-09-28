@@ -5,12 +5,13 @@ Unclear pages remain pending for image review; they are not scored as agreement.
 """
 import hashlib
 import json
-import random
 import re
+import unicodedata
 import argparse
 from pathlib import Path
 
 import fitz
+from sampling import sample_pages
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'tmp/pdf-pagination'
@@ -28,7 +29,7 @@ def candidates(page):
             continue
         for line in block['lines']:
             text = ''.join(span['text'] for span in line['spans']).strip()
-            if not text:
+            if not text or any(unicodedata.category(char).startswith("C") for char in text):
                 continue
             x0, y0, x1, y1 = line['bbox']
             if y1 > height * .12 and y0 < height * .88:
@@ -52,47 +53,43 @@ def candidates(page):
 
 
 summary = {'cached_originals': len(ROWS), 'existing_image_readings': 0,
-           'new_text_readings': 0, 'pending_documents': 0, 'pending_pages': 0}
+           'resolved_documents': 0, 'pending_documents': 0, 'pending_pages': 0}
 pending = []
 for row in ROWS:
     sha = row['sha256']
     prior = OUT / f'{sha}.visual.json'
-    if prior.exists() and json.loads(prior.read_text(encoding='utf-8')).get('batch') != 'blind-independent-text-layer':
+    saved = json.loads(prior.read_text(encoding='utf-8')) if prior.exists() else {'pages': []}
+    known = {page['pdf_page']: page for page in saved['pages']}
+    if saved.get('batch') and saved['batch'] != 'blind-independent-text-layer':
         summary['existing_image_readings'] += 1
-        continue
     data = Path(row['path']).read_bytes()
     if hashlib.sha256(data).hexdigest() != sha:
         raise ValueError(f'Cached PDF hash changed: {sha}')
     with fitz.open(stream=data, filetype='pdf') as doc:
         count = len(doc)
-        rng = random.Random(int(sha[:16], 16))
-        later = [rng.randint(max(1, count // 3), max(1, 2 * count // 3)),
-                 rng.randint(max(1, 2 * count // 3 + 1), count)]
-        opening = [1]
-        if len({candidate['text'] for candidate in candidates(doc[0])}) != 1:
-            opening += list(range(2, min(3, count) + 1))
-        numbers = sorted(set(opening + later))
+        numbers = sample_pages(sha, count)
         readings = []
         for number in numbers:
+            if number in known and known[number]['status'] != 'needs_review':
+                readings.append(dict(known[number], reader=known[number].get('reader', saved.get('batch')))); continue
             found = candidates(doc[number - 1])
             distinct = sorted({candidate['text'] for candidate in found})
             readings.append({'pdf_page': number,
                              'status': 'readable' if len(distinct) == 1 else 'needs_review',
                              'labels': [{'text': distinct[0], 'location': found[0]['location']}]
                                        if len(distinct) == 1 else [],
-                             'candidates': found})
+                             'candidates': found, 'reader': 'blind-independent-text-layer'})
         (OUT / f'{sha}.folio-text.json').write_text(json.dumps({
-            'reader': 'pymupdf-margin-text-blind-to-citation-and-product',
+            'reader': 'independent-readings-with-blind-text-layer-fill',
             'pages': readings}, indent=2), encoding='utf-8')
-        if all(reading['status'] == 'readable' for reading in readings):
-            (OUT / f'{sha}.visual.json').write_text(json.dumps({
-                'pages': [{key: value for key, value in reading.items() if key != 'candidates'}
-                          for reading in readings],
-                'batch': 'blind-independent-text-layer'}, indent=2), encoding='utf-8')
-            summary['new_text_readings'] += 1
+        known.update({page['pdf_page']: {key: value for key, value in page.items() if key != 'candidates'} for page in readings})
+        prior.write_text(json.dumps({'pages': sorted(known.values(), key=lambda page: page['pdf_page']),
+            'batch': saved.get('batch', 'blind-independent-text-layer')}, indent=2), encoding='utf-8')
+        if all(reading['status'] != 'needs_review' for reading in readings):
+            summary['resolved_documents'] += 1
         else:
             summary['pending_documents'] += 1
-            summary['pending_pages'] += sum(reading['status'] != 'readable' for reading in readings)
+            summary['pending_pages'] += sum(reading['status'] == 'needs_review' for reading in readings)
             pending.append({'sha256': sha, 'pages': readings})
 (OUT / 'canadian-text-folio-pending.json').write_text(json.dumps(pending, indent=2), encoding='utf-8')
 print(json.dumps(summary))

@@ -1,6 +1,6 @@
 const fs = require('node:fs'), path = require('node:path');
 const out = path.resolve('tmp/pdf-pagination');
-process.env.MIKE_LOCAL_DATA_DIR = path.join(out, 'authorities-store');
+process.env.MIKE_LOCAL_DATA_DIR ||= path.join(out, 'authorities-store');
 const { documentProjectionService: service } = require('../../backend/dist/lib/documentProjectionService');
 const { reporterStartPages } = require('../../backend/dist/lib/pdfPagination');
 const { PDFDocument } = require('../../backend/node_modules/pdf-lib');
@@ -40,7 +40,9 @@ async function predict(row) {
       const prepared=await authorityPdfText({bytes,citations:row.citations,reporterOriginal:true,
         documentId:row.sha256,versionId:row.sha256,sourceSha256:row.sha256,
         scannedPdfPolicy:'cited-pages',ocrTargets:[target],passageTargets:[target]},
-        {...service,preparePdf:async input=>{
+        {...service,pdfPagination:async (...args)=>{
+          bindings=await service.pdfPagination(...args); return bindings;
+        },preparePdf:async input=>{
           if(input.ocrProvider && (!input.pages?.length || input.pages.length>Math.min(3,row.page_count)+1))
             throw new Error('Page-only OCR exceeded anchor plus pinpoint scope');
           const value=await service.preparePdf(input);

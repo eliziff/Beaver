@@ -196,6 +196,13 @@ the Text-Fidelity leading/trailing-folio rule, constrained by the known reporter
 start. Existing cited-page recognition prioritizes the opening pages when it needs
 that anchor. Opening a viewer alone never initiates OCR.
 
+The parser retains raw passage geometry before structural derivation and reads
+embedded labels from its existing PDF load. Pagination and passage lookup do not
+re-extract the PDF or load it with pdf-lib. The existing versioned parse cache
+also retains native extraction and per-page recognition, so expanding partial OCR
+reuses both. Recognition identity includes the source and provider/model profile;
+page selection does not invalidate recognition already completed for that profile.
+
 Cited-page OCR resolves physical destinations from the page map before requesting
 text geometry. Page-only requests skip the optional document-layout model. The
 parser's `ocrRoutedPages` can describe scan pages awaiting recognition; it is not
@@ -204,7 +211,10 @@ artifact contributes previously recognized pages to a new partial pass.
 
 Display, page-pinpoint highlights and paper extracts use this same mapping. Unknown,
 repeated, or incompletely detected printed addresses do not silently become
-physical page numbers. The viewer still shows each known printed label beside its
+physical page numbers. Automatic routing can preserve an unlabelled cover before
+a verified reporter run; it retains binding provenance instead of flattening to
+labels. Citation metadata alone is insufficient: an original publisher PDF can
+be a judgment edition without reporter folios. The viewer still shows each known printed label beside its
 PDF page; a printed-page search asks the user to choose a known PDF page when
 other pages have no detected label.
 Provider citation forms survive canonical neutral-citation replacement and draft

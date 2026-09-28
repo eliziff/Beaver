@@ -4,6 +4,7 @@ import json
 import re
 import argparse
 from pathlib import Path
+from sampling import sample_pages
 
 OUT = Path(__file__).resolve().parents[2] / 'tmp/pdf-pagination'
 parser = argparse.ArgumentParser()
@@ -24,9 +25,11 @@ submitted_counts = collections.Counter()
 groups = collections.defaultdict(collections.Counter)
 exceptions = []
 for row in selected.values():
-    start = row['starts'][0]
     match = re.search(r'(\d+)\s*$', row['citation'])
-    submitted_start = int(match[1]) if match and int(match[1]) in row['starts'] else None
+    if not match or int(match[1]) not in row['starts']:
+        raise ValueError(f"Submitted reporter citation has no unambiguous starting page: {row['citation']}")
+    start = int(match[1])
+    submitted_start = start
     prediction = {'anchor': 1, 'starts': row['starts'], 'method': 'citation-only',
                   'bindings': [{'pdfPage': i + 1, 'label': str(start + i)}
                                for i in range(row['page_count'])]}
@@ -39,7 +42,10 @@ for row in selected.values():
     group = groups[row.get('stratum', row['provider'])]
     group['documents'] += 1
     outcomes = []
+    sampled = set(sample_pages(row['sha256'], row['page_count']))
     for page in json.loads(visual.read_text(encoding='utf-8'))['pages']:
+        if page['pdf_page'] not in sampled:
+            continue
         counts['sampled_pages'] += 1
         expected = str(start + page['pdf_page'] - 1)
         labels = [label['text'] for label in page['labels']]
@@ -66,7 +72,7 @@ for row in selected.values():
            else 'documents_requiring_review'] += 1
 (OUT / (args.output + '-manifest.json')).write_text(json.dumps(list(selected.values()), indent=2))
 result = {'originals': len(selected), 'counts': dict(counts),
-          'prediction_basis': 'first reporter start in resolved citation forms',
+          'prediction_basis': 'submitted citation starting page on physical PDF page 1',
           'provider_groups': dict(groups),
           'submitted_citation_counts': dict(submitted_counts), 'exceptions': exceptions,
           'note': 'Independent blind image or text-layer readings, not fully adjudicated gold; no detector or OCR used for predictions.'}

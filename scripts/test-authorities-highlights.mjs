@@ -6,6 +6,8 @@ import path from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { createServer } from '../frontend/node_modules/vite/dist/node/index.js';
 const root = path.resolve(import.meta.dirname, '..');
+// Match the app build's source-scanning root instead of scanning repository data.
+process.chdir(path.join(root, 'frontend'));
 const require = createRequire(path.join(root, 'backend/package.json'));
 const express = require('express'), pdf = require('pdf-lib');
 const { structureNative, pdfPassageGeometry } = require('../backend/dist/lib/structureNative');

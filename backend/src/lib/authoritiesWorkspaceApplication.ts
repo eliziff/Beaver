@@ -1,7 +1,7 @@
 import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
-import { printedPageIndices, reporterStartPages } from "./pdfPagination";
+import { reporterStartPages } from "./pdfPagination";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
@@ -265,15 +265,16 @@ export function createAuthoritiesWorkspaceApplication(
           pdf_phase: state?.phase,
           pdf_pages: state?.pages?.join(",") });
       }
+      const text = await plan.prepareText(source.bindingRole, { bytes: file.bytes,
+        documentId: binding.documentId, versionId: file.version.id,
+        sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal });
+      const pageBindings = text.pageBindings ?? (forBook ? await documentProjectionService.pdfPagination({
+        documentId: binding.documentId, versionId: file.version.id,
+        sourceSha256: file.version.source_sha256, fileType: "pdf", readBytes: () => file.bytes,
+        pdfProfile: file.pdfProfile, reporterOriginal: source.origin === "original",
+      }, authorityCitationForms(draft, authority.id)) : undefined);
       result[source.bindingRole] = { ...(plan.byteRoles.has(source.bindingRole) ? { bytes: file.bytes } : {}),
-        ...await plan.prepareText(source.bindingRole, { bytes: file.bytes,
-          documentId: binding.documentId, versionId: file.version.id,
-          sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal }),
-        pageLabels: forBook ? await documentProjectionService.pdfPageLabels({ documentId: binding.documentId,
-          versionId: file.version.id, sourceSha256: file.version.source_sha256, fileType: "pdf",
-          readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
-          reporterOriginal: source.origin === "original" }, authorityCitationForms(draft, authority.id)) : undefined,
-        resolved };
+        ...text, pageBindings, pageLabels: pageBindings?.map(page => page.label), resolved };
     });
     await mapBounded(plan.bookPdfs, async (source) => {
       signal?.throwIfAborted();
@@ -527,13 +528,13 @@ export function createAuthoritiesWorkspaceApplication(
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
           const citations = authorityCitationForms(draft, authority.id);
-          const labels = pages ? [] : await documentProjectionService.pdfPageLabels({ ...resolved,
+          const bindings = pages ? [] : await documentProjectionService.pdfPagination({ ...resolved,
             reporterOriginal: source.origin === "original" }, citations);
           const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
           // Page pinpoints locate themselves without any text, so a scan whose passages the
           // geometry cannot find still has its cited pages recognized before the whole PDF.
           const citedPages = pages ? [] : [...citedSourcePages(draft, authority.id, [],
-            printedPageIndices(labels), prepared.pageCount)].map((index) => index + 1);
+            bindings, prepared.pageCount)].map((index) => index + 1);
           if (!pages && !citedPages.length && targets.some(target => target.locatorKind === "page") &&
               source.origin === "original" && reporterStartPages(citations).length) {
             // Let the existing priority OCR pass establish an opening reporter anchor first.

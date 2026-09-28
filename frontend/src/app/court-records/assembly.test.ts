@@ -167,8 +167,7 @@ async function firstPageFill(bytes: Uint8Array) {
   const document = await getDocument({ data: bytes, ...pdfJsOptions }).promise;
   const operators = await (await document.getPage(1)).getOperatorList();
   const index = operators.fnArray.indexOf(OPS.setFillRGBColor);
-  const color = operators.argsArray[index]?.[0] as string | undefined;
-  return color?.match(/[a-f0-9]{2}/giu)?.map(value => Number.parseInt(value, 16)) ?? [];
+  return index < 0 ? null : operators.argsArray[index][0];
 }
 
 async function pageTextLayout(bytes: Uint8Array, pageNumber: number) {
@@ -954,11 +953,11 @@ describe("court record assembly", () => {
   });
 
   it.each([
-    ["ab-ca-appeal-record", [255, 0, 0]],
-    ["ab-ca-extracts-appellant", [244, 221, 118]],
-    ["ab-ca-extracts-respondent", [255, 170, 191]],
-    ["ab-ca-extracts-intervener", [159, 197, 220]],
-    ["fca-appeal-book", [190, 194, 198]],
+    ["ab-ca-appeal-record", "#ff0000"],
+    ["ab-ca-extracts-appellant", "#f4dd76"],
+    ["ab-ca-extracts-respondent", "#ffaabf"],
+    ["ab-ca-extracts-intervener", "#9fc5dc"],
+    ["fca-appeal-book", "#bec2c6"],
   ] as const)("renders the prescribed cover colour for %s", async (profileId, expected) => {
     const profile = COURT_PROFILE_BY_ID.get(profileId)!;
     const result = await buildCourtRecord({

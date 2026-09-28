@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument, PDFName, PDFString } from "pdf-lib";
-import { embeddedPageLabels, printedPageIndices, reporterMarginLabels, reporterStartPages, resolvePdfPagination, resolvePrintedPages } from "./pdfPagination";
+import { structureNative } from "./structureNative";
+import { reporterMarginLabels, reporterStartPages, resolvePdfPagination, resolvePrintedPages } from "./pdfPagination";
 
 describe("shared printed pagination", () => {
   it("uses a reporter folio embedded in an opening margin, not a body citation or year", () => {
@@ -18,8 +19,8 @@ describe("shared printed pagination", () => {
     for (const [first, target, cover] of [[3,5,0],[145,150,0],[145,150,1]]) {
       const observed = Array<string | null>(10 + cover).fill(null); observed[cover] = String(first);
       const map = resolvePdfPagination(observed, [], [first]);
-      expect(resolvePrintedPages(String(target), printedPageIndices(map.map(p => p.label)), map.length))
-        .toEqual(cover ? [] : [target - first + cover]);
+      expect(resolvePrintedPages(String(target), map))
+        .toEqual([target - first + cover]);
       if (cover) expect(map[0].label).toBeNull();
       expect(map.at(-1)?.source).toBe("reporter");
     }
@@ -31,11 +32,11 @@ describe("shared printed pagination", () => {
     expect(resolvePdfPagination(["145",null,"149"],[],[145]).map(p=>p.label)).toEqual(["145",null,"149"]);
     expect(resolvePdfPagination(["145",null],["1","2"],[145]).map(p=>p.label)).toEqual(["145","146"]);
     expect(resolvePdfPagination(["145",null],["150","151"],[145])[0].status).toBe("ambiguous");
-    const repeated = printedPageIndices(["5","6","5"]);
-    expect(resolvePrintedPages("5",repeated,3)).toEqual([]);
-    expect(resolvePrintedPages("5–6",repeated,3)).toEqual([]);
-    expect(resolvePrintedPages("2",printedPageIndices([null,"2",null]),3)).toEqual([]);
-    expect(resolvePrintedPages("150",printedPageIndices([null,null]),2)).toEqual([]);
+    const repeated = resolvePdfPagination(["5","6","5"], []);
+    expect(resolvePrintedPages("5",repeated)).toEqual([]);
+    expect(resolvePrintedPages("5–6",repeated)).toEqual([]);
+    expect(resolvePrintedPages("2",resolvePdfPagination([null,"2",null], []))).toEqual([]);
+    expect(resolvePrintedPages("150",resolvePdfPagination([null,null], []))).toEqual([]);
   });
 
   it("resolves shortened page ranges only with complete unique bindings and rejects unsafe numbers", () => {
@@ -54,6 +55,7 @@ describe("shared printed pagination", () => {
     document.catalog.set(PDFName.of("PageLabels"),document.context.obj({Nums:[
       0,{S:"r",St:1},2,{S:"D",St:5,P:PDFString.of("A-")},4,{S:"D",St:5,P:PDFString.of("A-")},
     ]}));
-    expect(embeddedPageLabels(document)).toEqual(["i","ii","A-5","A-6","A-5"]);
+    const prepared = await structureNative().derivePdfDocument(Buffer.from(await document.save()), {});
+    expect(structureNative().pdfDocumentSummary(prepared).embeddedPageLabels).toEqual(["i","ii","A-5","A-6","A-5"]);
   });
 });

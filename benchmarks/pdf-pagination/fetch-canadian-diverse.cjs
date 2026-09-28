@@ -20,6 +20,9 @@ const cachedOriginals = fs.existsSync(manifestFile)
 const batchArgument = process.argv.indexOf('--max-new');
 const maxNew = batchArgument < 0 ? 20 : Number(process.argv[batchArgument + 1]);
 if (!Number.isSafeInteger(maxNew) || maxNew < 1) throw new Error('Use --max-new POSITIVE_INTEGER');
+const serviceArgument = process.argv.indexOf('--service');
+const service = serviceArgument < 0 ? null : process.argv[serviceArgument + 1];
+if (serviceArgument >= 0 && !service) throw new Error('Use --service WORKER_URL');
 
 async function acquire(row) {
   const language = /\/fr\/item\//.test(row.sourceUrl) ? 'fr' : 'en';
@@ -28,7 +31,13 @@ async function acquire(row) {
     source: { provider: 'a2aj', id: row.citation, kind: 'case', citation: row.citation,
       title: row.citation, collection: row.court, language, url: row.sourceUrl } };
   try {
-    const original = await downloadProviderOriginalPdf(request, AbortSignal.timeout(90_000));
+    const signal = AbortSignal.timeout(90_000);
+    let original;
+    if (service) {
+      const { retrievePdf } = await import('../../AuthoritiesHelper/modern/authorities-lite/client.mjs');
+      const bytes = Buffer.from(await retrievePdf(row.sourceUrl, { url: service }, () => {}, signal));
+      original = { bytes, sourceSha256: crypto.createHash('sha256').update(bytes).digest('hex'), url: row.sourceUrl };
+    } else original = await downloadProviderOriginalPdf(request, signal);
     if (!original) return { ...row, outcome: 'no_published_pdf' };
     if (original.bytes.subarray(0, 5).toString() !== '%PDF-')
       throw new Error('Publisher response is not a PDF');
@@ -42,8 +51,12 @@ async function acquire(row) {
     catch (error) { parseError = String(error); }
     return { ...row, outcome: 'original', origin: 'original', sha256,
       path: filename, url: original.url, page_count: pageCount ?? null,
+      ...(service ? { retrievalService: service } : {}),
       ...(parseError ? { parseError } : {}) };
   } catch (error) {
+    if (error.code === 'pdf_not_found') return { ...row, outcome: 'no_published_pdf' };
+    if (error.code === 'verification_required')
+      return { ...row, outcome: 'challenge', verificationUrl: error.verificationUrl };
     if (error instanceof PublisherVerificationRequired)
       return { ...row, outcome: 'challenge', verificationUrl: error.pageUrl };
     return { ...row, outcome: 'error', error: String(error) };
