@@ -5,6 +5,7 @@ import { copyFile, link, mkdir, open, readFile, rename, rm, stat,
   writeFile } from "node:fs/promises";
 import { mikeLocalDataHome } from "./legalDataPath";
 import { sha256 } from "./hash";
+import { hasPdfEndMarker } from "mike/shared/pdf-integrity.mjs";
 
 const MAX_PROJECTION_PDF_BYTES = 100 * 1024 * 1024;
 
@@ -50,6 +51,13 @@ export function pdfContentPath(sourceSha256: string) {
     sourceSha256.slice(0, 2), `${sourceSha256}.pdf`);
 }
 
+async function verifyPdfEnd(handle: Awaited<ReturnType<typeof open>>, size: number) {
+  const tail = Buffer.alloc(Math.min(1_024, size));
+  await handle.read(tail, 0, tail.length, size - tail.length);
+  if (!hasPdfEndMarker(tail))
+    throw new Error("The PDF is incomplete. Download it again and retry.");
+}
+
 export async function inspectPdf(filename: string, options?: {
   expectedSha256?: string; signal?: AbortSignal; maximumBytes?: number;
 }) {
@@ -65,6 +73,7 @@ export async function inspectPdf(filename: string, options?: {
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
     if (header.subarray(0, bytesRead).indexOf("%PDF-") < 0)
       throw new Error("Document projection input is not a PDF");
+    await verifyPdfEnd(handle, details.size);
   } finally {
     await handle.close();
   }
@@ -214,7 +223,7 @@ export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
   const staging = path.join(projectionRoot(), "staging");
   await mkdir(staging, { recursive: true });
   const temporary = path.join(staging, `${crypto.randomUUID()}.pdf.tmp`);
-  const output = await open(temporary, "wx");
+  const output = await open(temporary, "wx+");
   const reader = stream.getReader();
   const digest = crypto.createHash("sha256");
   const header = Buffer.alloc(1_024);
@@ -245,9 +254,10 @@ export async function publishPdfStream(stream: ReadableStream<Uint8Array>,
         offset += written.bytesWritten;
       }
     }
-    await output.close();
     if (!size || header.subarray(0, headerSize).indexOf("%PDF-") < 0)
       throw new Error("Document projection input is not a PDF");
+    await verifyPdfEnd(output, size);
+    await output.close();
     const sourceSha256 = digest.digest("hex");
     return { path: await publishPdfContent(temporary, sourceSha256, signal), sourceSha256 };
   } finally {
