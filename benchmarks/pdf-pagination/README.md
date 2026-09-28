@@ -2,8 +2,8 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 182 hash-verified Canadian publisher originals,
-7,415 physical pages, from 1970?2023. It remains SCC/SCR/RCS-heavy; it does not
+The expanded sample contains 184 hash-verified Canadian publisher originals,
+7,431 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
 meet the requested 350-original target or establish other reporter-family coverage.
 The separate 105-document, 22-court general-judgment cohort is not included in
 this denominator. Acquisition stopped at a renewed SCC publisher challenge.
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 518 sampled pages, 515 readable folios agreed. All sampled folios agreed
-for 181 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 523 sampled pages, 520 readable folios agreed. All sampled folios agreed
+for 183 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -81,6 +81,29 @@ none of the requested pages still needs OCR. The initial operation run took
 These are different cache conditions and are not a direct speedup measurement.
 Receipts: `product-stage3/`, `product-stage4-review/`, `product-stage5-review/`,
 and `product-stage5/` under the ignored output directory.
+
+Two subsequently acquired originals, Blacklaws ([2013] 1 SCR 403) and Krause
+([1986] 2 SCR 466), also matched independent pinpoint destinations through the
+product operation. Blacklaws used its text layer; Krause required three blind
+image readings (12.86 seconds for the Luna batch). Combined receipts now cover
+184 originals: 182 correct destinations and the same two abstentions, with no
+incorrect destinations. These additional operation timings include existing
+cache conditions and are not cold benchmarks. Receipts: `product-stage6/` and
+`browser-acquired-manifest.json`.
+
+The embedded Beaver manual-book workflow passed with source replacement,
+export, save/reopen and 320-pixel layout checks. A separate real reporter PDF
+check navigated printed page 349 to physical page 3 and repeated it after
+refresh and reopening the saved source. Screenshots exposed mobile header and
+source-button clipping, fixed using the existing responsive layout. Receipts:
+`browser-beaver-manual-final/beaver/20260928T082829941065Z/` and
+`browser-beaver-reporter-reopen/beaver/20260928T082909492518Z/`.
+The rebuilt downloadable full HTML also passed both workflows, including the
+inspected 320-pixel screenshot (`browser-standalone-mobile-final-file/` and
+`browser-standalone-mobile-reporter-file/`). Its SHA-256 is
+`dba715cfc2252401b3f0fb3b7b5078437e0fe8378f3d73b5921c1120a4dd9a90`.
+An initial localhost-hosted run was rejected by the publisher Worker's origin
+allowlist; these passing checks use the supported downloadable-file origin.
 
 ## Decisia PDF route check (2026-09-27)
 
