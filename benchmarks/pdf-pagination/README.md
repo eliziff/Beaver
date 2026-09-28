@@ -169,6 +169,25 @@ steps. This is partial gate evidence (`browser-automatic-refresh-observation/`
 and `browser-automatic-final-gate/`), not a passing complete run: the next run
 encountered unavailable publisher originals (`browser-automatic-replacement-flow/`).
 
+The subsequent automatic run reached profile builds after source replacement,
+but exposed unconditional OCR-model initialization under the `full` policy,
+even for already readable PDFs. The shared operation now inspects retained
+evidence first and initializes recognition only when unread pages remain. This
+also fixes the opposite case: a saved partial OCR profile no longer bypasses
+the remaining pages when whole-PDF recognition is requested. Seven focused
+checks and the backend build pass. A real three-page scan expanded its retained
+page-1 recognition to all three pages and preserved the text on reopen in five
+seconds (sampled process-tree peak 683 MiB; `full-policy-check.json`). The rebuilt
+full HTML (`standalone-full-policy/authorities.html`) has SHA-256
+`10f1b079eb8d169e146c4e1475a4feb6045f114cbbd498d8553be997bcc8f0df`;
+the repeated automatic run passed the initial book and the Alberta profile
+builds, then stopped on a genuinely scanned Oakes PDF under the Federal Court
+profile's full-recognition policy (`browser-automatic-full-policy/`). The HTML
+does not include the native OCR runtime. Its user-facing recognition options
+and profile defaults still need to account for that capability before the
+complete gate can be claimed. No model or recognition capability was added by
+this shared-operation fix.
+
 ## Decisia PDF route check (2026-09-27)
 
 `publisherPdfCandidate` in `backend/src/lib/legalSourcePresentation.ts` derives an

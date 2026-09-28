@@ -38,10 +38,9 @@ export async function authorityPdfText(input: {
   });
   // Inspection never opts a newly uploaded source into recognition. Existing OCR
   // artifacts, including partial OCR, remain usable without expanding coverage.
-  const retained = input.pdfProfile && (policy === "full"
-    ? !!input.pdfProfile.profile.ocr : true) ? input.pdfProfile : undefined;
+  const retained = input.pdfProfile;
   const native = await projection.preparePdf({ ...options, ...(retained ? { pdfProfile: retained }
-    : { ocrProvider: policy === "full" ? "kraken-lite" as const : null, ...(pageOnly ? { layout: false } : {}) }) });
+    : { ocrProvider: null, ...(pageOnly ? { layout: false } : {}) }) });
   if (retained && native.cacheKey !== retained.cacheKey) throw new Error("Prepared authority PDF profile changed.");
   if (!native.pageCount) return { pageTextByPage: [], ocrTextByPage: [] };
   let recognized = native;
@@ -59,7 +58,9 @@ export async function authorityPdfText(input: {
     }
     return result;
   };
-  if (policy === "cited-pages") {
+  if (policy === "full" && native.pagesNeedingOcr.length) {
+    recognized = await projection.preparePdf({ ...recognition, ocrProvider: "kraken-lite" });
+  } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
       const locate = async (prepared: typeof native) => {
         if (!projection.pdfPagination) throw new Error("PDF pagination is unavailable.");

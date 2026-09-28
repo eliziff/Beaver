@@ -30,7 +30,7 @@ describe("authority PDF text preparation", () => {
     expect(preparePdf).toHaveBeenCalledWith(expect.objectContaining({
       documentId: expect.stringMatching(/^standalone-authority:/u),
       versionId: expect.stringMatching(/^[a-f0-9]{64}$/u),
-      ocrProvider: "kraken-lite",
+      ocrProvider: null,
     }));
   });
 
@@ -48,6 +48,21 @@ describe("authority PDF text preparation", () => {
       { preparePdf, lookupPdf } as never)).resolves.toMatchObject({
       pageTextByPage: ["Exact text", ""], ocrTextByPage: ["", ""],
     });
+  });
+  it("finishes a retained partial OCR profile when all scanned pages are requested", async () => {
+    const partial = { cacheKey: "partial", status: "ready", profile: { ocr: { provider: "kraken-lite" } } };
+    let complete = false;
+    const preparePdf = vi.fn(async (request) => {
+      complete = request.ocrProvider === "kraken-lite";
+      return { ...partial, pageCount: 2, pagesNeedingOcr: complete ? [] : [1],
+        ocrRoutedPages: complete ? [0, 1] : [0] };
+    });
+    const lookupPdf = async (_read, input) => ({ status: "found", pages: [
+      { page_number: Number(input.locator), text: input.locator === "1" ? "Retained" : complete ? "Recognized" : "" },
+    ] });
+    const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "full",
+      pdfProfile: partial as never }, { preparePdf, lookupPdf } as never);
+    expect(result.ocrTextByPage).toEqual(["Retained", "Recognized"]);
   });
   it.each(["page-margin", "cited-pages"] as const)("does not perform unrequested OCR for %s", async (policy) => {
     const preparePdf = vi.fn(async () => ({ pageCount: 1, profile: {}, pagesNeedingOcr: [0], ocrRoutedPages: [] }));
