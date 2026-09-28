@@ -137,6 +137,20 @@ SHA-256 is `8b6c1780b5e785d97f66e1af0d74618b260f698cae2e383406de1d06da470c7c`.
 These artifact checks do not close the outstanding corpus or automatic-acquisition
 release gates.
 
+The live standalone Des Groseillers import retrieved the hash-matching original
+automatically, displayed no recovery notice, and preserved the authority after
+replacement upload; printed 349 navigated to physical page 3 (`recovery-live/`).
+The broader automatic run subsequently retrieved Grant, Oakes, Ahluwalia and
+Jordan originals plus the expected Neufeld reconstruction. It generated the book
+and the inspected Grant paragraph-29 margin mark. The old harness incorrectly
+excluded that legitimate 228-point-tall mark with a 100-point height ceiling;
+the check now verifies narrow margin geometry beside the paragraph label.
+Standalone response timing and refresh observation now follow the worker bridge,
+and the workflow check handles the actual recognition and replacement-review
+steps. This is partial gate evidence (`browser-automatic-refresh-observation/`
+and `browser-automatic-final-gate/`), not a passing complete run: the next run
+encountered unavailable publisher originals (`browser-automatic-replacement-flow/`).
+
 ## Decisia PDF route check (2026-09-27)
 
 `publisherPdfCandidate` in `backend/src/lib/legalSourcePresentation.ts` derives an

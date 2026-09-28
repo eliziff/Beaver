@@ -201,6 +201,10 @@ window.fetch=async(...args)=>{
   }
   const response=await nativeFetch(...args);
   timing.responseAt=performance.now();timing.status=response.status;
+  if (isImport && !response.url) {
+    const readJson=response.json.bind(response);
+    response.json=async()=>{const value=await readJson();timing.consumedAt=performance.now();return value;};
+  }
   if (response.ok && /\/api\/authorities\/[^/]+\/(sources|build)$/.test(response.url)) {
     const value=await response.clone().json(),draft=(isBuild?value.product:value).state;
     window.__authoritiesSmoke.lastPrepared={settings:draft.settings,
@@ -222,6 +226,9 @@ window.fetch=async(...args)=>{
 };
 };
 window.__observeAuthoritiesFetch();
+addEventListener('load',()=>{
+  if(location.pathname.endsWith('/authorities.html'))window.__observeAuthoritiesFetch();
+});
 new MutationObserver(()=>{
   const timing=window.__authoritiesSmoke.importUi;
   if (timing?.responseAt&&!timing.readyAt&&
@@ -386,8 +393,13 @@ def citation_import_timing(driver: webdriver.Chrome) -> dict[str, object]:
     value = wait(driver, 10).until(lambda item: item.execute_script(r"""
 const timing=window.__authoritiesSmoke.importUi;if(!timing?.readyAt)return null;
 const entry=performance.getEntriesByType('resource').filter(({name})=>name===timing.url).at(-1);
+if(!entry?.responseEnd&&timing.consumedAt)return {
+  url:timing.url,status:timing.status,timingSource:'worker-response-json',
+  fetchToHeadersMs:timing.responseAt-timing.startAt,
+  uiAfterJsonMs:timing.readyAt-timing.consumedAt,
+  endToEndMs:timing.readyAt-timing.startAt};
 if(!entry?.responseEnd)return null;
-return {url:timing.url,status:timing.status,
+return {url:timing.url,status:timing.status,timingSource:'network-resource',
   fetchToHeadersMs:timing.responseAt-timing.startAt,
   requestToFirstByteMs:entry.responseStart-entry.requestStart,
   responseBodyMs:entry.responseEnd-entry.responseStart,
@@ -398,13 +410,15 @@ return {url:timing.url,status:timing.status,
 """))
     assert 200 <= value["status"] < 300 and ("/api/authorities" in value["url"] or
         "/authorities-runtime/import" in value["url"]), value
-    assert 0 <= value["uiAfterBodyEndMs"] <= CITATION_RENDER_BUDGET_MS, value
+    metric = "uiAfterJsonMs" if value["timingSource"] == "worker-response-json" else "uiAfterBodyEndMs"
+    assert 0 <= value[metric] <= CITATION_RENDER_BUDGET_MS, value
     for key in ("fetchToHeadersMs", "requestToFirstByteMs", "responseBodyMs",
-                "requestToBodyEndMs", "uiAfterBodyEndMs", "endToEndMs"):
-        value[key] = round(value[key], 3)
-    value["gate"] = {"metric": "uiAfterBodyEndMs", "budgetMs": CITATION_RENDER_BUDGET_MS}
-    value["reportOnly"] = ["fetchToHeadersMs", "requestToFirstByteMs", "responseBodyMs",
-                           "requestToBodyEndMs", "endToEndMs"]
+                "requestToBodyEndMs", "uiAfterBodyEndMs", "uiAfterJsonMs", "endToEndMs"):
+        if key in value:
+            value[key] = round(value[key], 3)
+    value["gate"] = {"metric": metric, "budgetMs": CITATION_RENDER_BUDGET_MS}
+    value["reportOnly"] = [key for key in ("fetchToHeadersMs", "requestToFirstByteMs",
+        "responseBodyMs", "requestToBodyEndMs", "endToEndMs") if key in value]
     driver.execute_script("sessionStorage.setItem('authoritiesImportTiming',JSON.stringify(arguments[0]))",
                           value)
     return value
@@ -722,7 +736,7 @@ def advance_to_build(driver: webdriver.Chrome) -> None:
         dialogs = driver.find_elements(By.XPATH, recognition)
         if dialogs:
             dialogs[0].find_element(By.XPATH,
-                ".//label[contains(., 'Nothing; keep the pages as images')]//input").click()
+                ".//label[contains(., 'The cited pages')]//input").click()
             click_button(driver, "Next", dialogs[0])
         wait(driver, 120).until(lambda item: item.find_element(By.CSS_SELECTOR,
             "[aria-label='Book steps'] [aria-selected='true']").text != current)
@@ -1587,8 +1601,6 @@ def main() -> int:
             driver.get(args.url)
             wait(driver, 30).until(lambda item: item.find_elements(By.XPATH,
                 "//h1[normalize-space(.)='Authorities']"))
-            if mode == "standalone":
-                driver.execute_script("window.__observeAuthoritiesFetch()")
             navigation = driver.execute_script("""
 const n=performance.getEntriesByType('navigation')[0]; return n&&{
  duration:n.duration,responseStart:n.responseStart,domContentLoaded:n.domContentLoadedEventEnd,
