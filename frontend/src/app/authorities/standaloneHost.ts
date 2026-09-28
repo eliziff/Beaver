@@ -212,11 +212,11 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const state = structuredClone(product.state); state.bindings[role] = resolved.input;
     return save(id, revision, await refreshImported(state, resolved.file));
   },
-  async prepareSources(selected, signal) {
+  async prepareSources(selected, signal, authorityId) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
     const prepared = await runtimeDraft("sources",
-      JSON.stringify({ draft: product.state }), true, signal);
+      JSON.stringify({ draft: product.state, authorityId }), true, signal);
     signal?.throwIfAborted();
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
@@ -271,6 +271,12 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
   },
   readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
+  async readSourceText(draft, role, signal) {
+    const file = await resolveExact(draft.state.bindings[role]);
+    const form = new FormData(); form.append("file", file, file.name);
+    form.append("draft", JSON.stringify(draft.state)); form.append("bindingRole", role);
+    return (await runtimeResponse("page-labels", form, false, signal)).json();
+  },
   async inspectDraft(draft) {
     const role = Object.keys(draft.outputs)[0];
     let outputFreshness: "unbuilt" | "current" | "stale" = role ? "stale" : "unbuilt";

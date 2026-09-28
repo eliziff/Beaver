@@ -2,7 +2,7 @@ import { authoritiesInputPlan } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { updateAuthoritiesDraft } from "./authoritiesActions";
 import { authoritiesTextRoles, authorityPassageTargets } from "./authoritiesBuild";
-import { authoritiesProfile, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction } from "./authoritiesDomain";
+import { authorityCitationForms, authoritiesProfile, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction } from "./authoritiesDomain";
 import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { authorityPdfText } from "./authorityPdfText";
 import { applyAuthorityDiscrepancyCorrection } from "./docxOperations";
@@ -45,12 +45,16 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
     async prepareText(role: string, input: Parameters<typeof authorityPdfText>[0]) {
       input.signal?.throwIfAborted();
       if (!textRoles.has(role)) return {};
-      const authority = plan.authoritySources.find(({ source }) => source.bindingRole === role)?.authority;
+      const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
+      const authority = attached?.authority;
       const targets = authority ? authorityPassageTargets(draft, authority.id) : [];
       const text = await authorityPdfText({ ...input, scannedPdfPolicy: draft.settings.scannedPdfPolicy,
+        citations: authority ? authorityCitationForms(draft, authority.id) : [],
+        reporterOriginal: attached?.source.origin === "original",
         ocrTargets: targets, passageTargets: draft.settings.passageMarking === "none" ? [] : targets });
       input.signal?.throwIfAborted();
       return { pageTextByPage: text.pageTextByPage,
+        ...(text.pageLabels ? { pageLabels: text.pageLabels } : {}),
         ...(text.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
         ...(text.passageGeometry ? { passageGeometry: text.passageGeometry } : {}) };
     },

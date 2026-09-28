@@ -249,7 +249,7 @@ describe("Authorities output builder", () => {
     } };
     expect([...authoritiesTextRoles(state)]).toEqual([]);
     const result = await buildAuthorities({ draft: state, title: "Page pinpoint",
-      workProduct: { id: "page-pinpoint", revision: 1 }, sources: { item: { bytes: pdf } } });
+      workProduct: { id: "page-pinpoint", revision: 1 }, sources: { item: { bytes: pdf, pageLabels: ["1"] } } });
     const source = await PDFDocument.load(pdf), book = await PDFDocument.load(result.artifacts.book!.bytes);
     expect(pageHasRgb(pageContent(book, book.getPage(2)), [.75, .08, .08])).toBe(false);
     expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
@@ -1071,13 +1071,13 @@ describe("Authorities output builder", () => {
     }
   });
 
-  it("resolves printed report pages from PDF labels and never guesses physical offsets", async () => {
+  it("resolves printed report pages from the shared map and never guesses physical offsets", async () => {
     const raw = await sourcePdf("Decision", Array.from({ length: 9 }, () =>
       [400, 500] as [number, number]));
     const labelled = await withDecimalPageLabels(raw, 145);
     const texts = ["Headnote", "[1] Reasons", "[2] omitted", "[3] omitted",
       "Printed 149", "Printed 150", "Printed 151", "Printed 152", "Printed 153"];
-    const build = async (decision: Uint8Array, id: string) => {
+    const build = async (decision: Uint8Array, id: string, pageLabels?: string[]) => {
       let state = withForm66(createAuthoritiesDraft({ kind: "manual" }, {}, "book"));
       state.authorities.item = attached("item", "case", "2026 SCC 1", "R v Labelled",
         "source:item", decision);
@@ -1094,10 +1094,11 @@ describe("Authorities output builder", () => {
         settings: { filingMedium: "paper" } });
       return buildAuthorities({ draft: state, title: "Report pagination",
         workProduct: { id, revision: 1 }, sources: { "source:item": {
-          bytes: decision, pageTextByPage: texts } } });
+          bytes: decision, pageTextByPage: texts, pageLabels } } });
     };
 
-    const extract = await PDFDocument.load((await build(labelled, "labelled"))
+    const extract = await PDFDocument.load((await build(labelled, "labelled",
+      Array.from({ length: 9 }, (_, index) => String(145 + index))))
       .artifacts.book!.bytes);
     expect(extract.getPageCount()).toBe(7);
     [1, 2, 5, 6, 7].forEach((pageNumber, index) =>

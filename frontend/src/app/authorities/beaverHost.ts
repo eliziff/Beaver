@@ -72,8 +72,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   },
   act: actOnAuthorities, refresh: refreshAuthorities, review: reviewAuthorities,
   resolveDiscrepancy: resolveAuthoritiesDiscrepancy,
-  prepareSources: (draft, signal) =>
-    prepareAuthoritiesSources(draft.id, draft.revision, signal),
+  prepareSources: (draft, signal, authorityId) =>
+    prepareAuthoritiesSources(draft.id, draft.revision, signal, authorityId),
   relinkSource: refreshAuthoritiesInput,
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachAuthorityPdf(id, authorityId, revision, selected.file, language),
@@ -96,7 +96,13 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     const resolved = input?.status === "ready" ? input.resolved
       : input?.status === "changed" ? input.current : null;
     if (!resolved || resolved.kind === "local-file") throw new Error("This source is unavailable.");
-    return getDocumentPdfTextLayer(resolved.documentId, resolved.versionId, signal);
+    const authority = Object.values(draft.state.authorities).find(item => item.source.kind === "attached" &&
+      item.source.sources.some(source => source.bindingRole === role));
+    const citations = authority ? [...new Set([authority.citation, ...(authority.sourceIdentity?.citationForms ?? []), ...Object.values(draft.state.occurrences)
+      .filter(item => item.authorityId === authority.id && item.kind !== "reference").map(item => item.citation)])] : [];
+    const original = authority?.source.kind === "attached" && authority.source.sources.some(source =>
+      source.bindingRole === role && source.origin === "original");
+    return getDocumentPdfTextLayer(resolved.documentId, resolved.versionId, signal, citations, !!original && !!citations.length);
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),

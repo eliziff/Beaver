@@ -14,7 +14,8 @@ import {
   withProjectionLock,
 } from "./documentProjection";
 import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from "./remoteUrlSafety";
-import { rankedPublisherPdfLinks } from "./legalSourcePresentation";
+import { decisiaIndexUrl, publisherChallengeUrl, publisherPdfCandidate,
+  rankedPublisherPdfLinks, verifiedDecisiaPdf } from "./legalSourcePresentation";
 import { sha256 } from "./hash";
 import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
@@ -163,15 +164,29 @@ async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal)
     const url = sourceUrl(current.toString());
     if (url.hostname === "api.govinfo.gov" && !url.searchParams.has("api_key"))
       url.searchParams.set("api_key", process.env.GOVINFO_API_KEY?.trim() || "DEMO_KEY");
-    const response = await guardedRemoteFetch(url, {
-      redirect: "manual", signal,
-      headers: { Accept: accept },
-    }, { label: "Source PDF URL", timeoutMs: 30_000 });
+    let response: Response;
+    try {
+      response = await guardedRemoteFetch(url, {
+        redirect: "manual", signal,
+        headers: { Accept: accept },
+      }, { label: "Source PDF URL", timeoutMs: 30_000 });
+    } catch (error) {
+      if ((error as { code?: unknown })?.code !== "verification_required") throw error;
+      const supplied = (error as { verificationUrl?: unknown }).verificationUrl;
+      const challenge = typeof supplied === "string" ? publisherChallengeUrl("", supplied) : null;
+      throw new PublisherVerificationRequired(challenge && new URL(challenge).origin === url.origin
+        ? challenge : rawUrl);
+    }
     if (response.status < 300 || response.status >= 400) return { response, url };
     const location = response.headers.get("location");
     await response.body?.cancel().catch(() => undefined);
     if (!location || redirects === 5) throw new Error("Source PDF redirect could not be resolved");
     current = new URL(location, url);
+    if (verificationPage(current.href)) {
+      const challengeUrl = current.origin === new URL(rawUrl).origin
+        ? publisherChallengeUrl("", current) : null;
+      throw new PublisherVerificationRequired(challengeUrl ?? rawUrl);
+    }
   }
   throw new Error("Source PDF redirect limit exceeded");
 }
@@ -188,6 +203,14 @@ type ProviderOriginalPdfRequest = Omit<ProviderPdfAttachment,
   pdfUrl?: string | null;
 };
 
+export class PublisherVerificationRequired extends Error {
+  constructor(readonly pageUrl: string) {
+    super("Automatic download blocked by the publisher.");
+  }
+}
+const verificationPage = (value: string) =>
+  /\/robocop\/captcha\//iu.test(value);
+
 async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal,
   allowHtml = true) {
   return withProjectionLock(request.requestReference, async () => {
@@ -203,17 +226,31 @@ async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal
       let { response, url } = await fetchSource(request.url,
         `application/pdf, application/octet-stream${allowHtml
           ? ", text/html, application/xhtml+xml" : ""}`, signal);
+      const mediaType = response.headers.get("content-type")?.split(";", 1)[0]
+        .trim().toLowerCase();
+      let markup: string | undefined;
+      if (["text/html", "application/xhtml+xml"].includes(mediaType ?? "")) {
+        response = await boundRemoteResponse(response, { label: "Publisher source page",
+          maxBytes: 2_000_000, contentTypes: ["text/html", "application/xhtml+xml"] });
+        markup = await response.text();
+        const challengeUrl = publisherChallengeUrl(markup, url);
+        if (challengeUrl || response.headers.get("cf-mitigated") === "challenge")
+          throw new PublisherVerificationRequired(challengeUrl ?? request.canonicalUrl ?? request.url);
+      }
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
         throw new Error(`Source PDF request failed (${response.status})`);
       }
-      const mediaType = response.headers.get("content-type")?.split(";", 1)[0]
-        .trim().toLowerCase();
-      if (allowHtml && ["text/html", "application/xhtml+xml"].includes(mediaType ?? "")) {
-        response = await boundRemoteResponse(response, { label: "Publisher source page",
-          maxBytes: 2_000_000, contentTypes: ["text/html", "application/xhtml+xml"] });
+      if (allowHtml && markup !== undefined) {
+        const index = decisiaIndexUrl(url);
+        const representation = index && verifiedDecisiaPdf(markup, url);
+        const links = rankedPublisherPdfLinks(markup, url);
         return { path: null, digest: null, url: url.toString(),
-          links: rankedPublisherPdfLinks(await response.text(), url) };
+          links: index ? representation ? [representation.url] : links.filter((link) => {
+            const frame = new URL(link);
+            return frame.origin === index.origin && frame.pathname === index.pathname &&
+              frame.searchParams.get("iframe") === "true";
+          }) : links };
       }
       if (!pdf) { pdf = true; await writeRecord(request, "queued"); }
       response = await boundRemoteResponse(response, { label: "Source PDF",
@@ -238,8 +275,12 @@ export async function downloadProviderOriginalPdf(
   const { sourceUrl: rawSource, pdfUrl, ...attachment } = input;
   let canonicalUrl: string | null = null;
   try { canonicalUrl = rawSource ? sourceUrl(rawSource).toString() : null; } catch { /* blocked */ }
-  const queue = [pdfUrl, rawSource].filter((value): value is string => Boolean(value));
+  const candidate = rawSource && publisherPdfCandidate(rawSource);
+  const queue = [pdfUrl, candidate, rawSource]
+    .filter((value): value is string => Boolean(value));
   const seen = new Set<string>();
+  let candidateChallenge: PublisherVerificationRequired | null = null;
+  let candidateAdvertised = false;
   while (queue.length && seen.size < 12) {
     signal?.throwIfAborted();
     let request: SafeRequest;
@@ -251,9 +292,21 @@ export async function downloadProviderOriginalPdf(
       const found = await inspectPublisherSource(request, signal);
       if (found.path && found.digest) return { bytes: await readFile(found.path),
         sourceSha256: found.digest, url: found.url };
+      if (candidate && found.links.includes(candidate)) candidateAdvertised = true;
       queue.push(...found.links);
-    } catch { signal?.throwIfAborted(); }
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (error instanceof PublisherVerificationRequired) {
+        // A guessed route can challenge even when the case page has no PDF.
+        if (candidate && request.url === candidate && request.url !== pdfUrl) {
+          candidateChallenge = error;
+          continue;
+        }
+        throw error;
+      }
+    }
   }
+  if (candidateAdvertised && candidateChallenge) throw candidateChallenge;
   return null;
 }
 

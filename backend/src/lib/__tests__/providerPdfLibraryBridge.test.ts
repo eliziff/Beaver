@@ -232,6 +232,87 @@ describe("provider PDF projection bridge", () => {
     ]);
   });
 
+  it.each([200, 403, 302])("exposes publisher verification for HTTP %s and permits a later retry", async (status) => {
+    const source = "https://publisher.example/decision/1";
+    const request = {
+      provider: "a2aj", identity: "a2aj:en:test:2001 scc 1", sourceUrl: source,
+      source: { provider: "a2aj", id: "2001 SCC 1", kind: "case" as const,
+        citation: "2001 SCC 1", collection: "test", language: "en" },
+      filename: "Decision.pdf", title: "Decision",
+    };
+    const fetchMock = vi.fn(async () => status === 302
+      ? new Response(null, { status, headers: { Location: "/robocop/captcha/en/query.do" } })
+      : new Response('<iframe src="/robocop/captcha/en/query.do"></iframe>', {
+        status, headers: { "Content-Type": "text/html" },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+    const bridge = await import("../providerPdfLibraryBridge");
+    await expect(bridge.downloadProviderOriginalPdf(request)).rejects.toMatchObject({
+      pageUrl: "https://publisher.example/robocop/captcha/en/query.do",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const bytes = Buffer.from("%PDF-1.7 publisher original");
+    fetchMock.mockImplementation(async () => pdfResponse(bytes));
+    await expect(bridge.downloadProviderOriginalPdf(request)).resolves.toMatchObject({ bytes });
+  });
+
+  it.each([[true, true], [false, true], [true, false]] as const)(
+    "keeps a guessed-route challenge only with a form and an advertised PDF (%s, %s)",
+    async (hasPdf, hasChallenge) => {
+    const source = "https://decisions.fpslreb-crtespf.gc.ca/fpslreb-crtespf/d/en/item/521078/index.do";
+    const candidate = "https://decisions.fpslreb-crtespf.gc.ca/fpslreb-crtespf/d/en/521078/1/document.do";
+    const challenge = "https://decisions.fpslreb-crtespf.gc.ca/robocop/captcha/en/query.do?token=example";
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      if (url === candidate) return new Response(hasChallenge
+        ? '<iframe src="/robocop/captcha/en/query.do?token=example"></iframe>' : "Forbidden",
+        { status: 403, headers: { "Content-Type": hasChallenge ? "text/html" : "text/plain" } });
+      if (url === source) return new Response(
+        '<script>const captchaPath="/robocop/captcha/en/query.do";</script>' +
+        `<div class="documents">${hasPdf ? `<a href="${candidate}">PDF</a>` : ""}</div>`,
+        { status: 200, headers: { "Content-Type": "text/html" } });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const bridge = await import("../providerPdfLibraryBridge");
+    const request = { provider: "a2aj", identity: "a2aj:en:fpslreb:example", sourceUrl: source,
+      source: { provider: "a2aj", id: "Example", kind: "case" as const,
+        citation: "Example", collection: "fpslreb", language: "en" as const } };
+    if (hasPdf && hasChallenge) await expect(bridge.downloadProviderOriginalPdf(request))
+      .rejects.toMatchObject({ pageUrl: challenge });
+    else await expect(bridge.downloadProviderOriginalPdf(request)).resolves.toBeNull();
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([candidate, source]);
+  });
+
+  it("opens a Decisia decision-content CAPTCHA when the guessed PDF is blocked", async () => {
+    const source = "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14385/index.do";
+    const content = `${source}?iframe=true`;
+    const candidate = "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/14385/1/document.do";
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      if (url === candidate) return new Response(
+        '<iframe src="/robocop/captcha/en/query.do"></iframe>',
+        { status: 403, headers: { "Content-Type": "text/html" } });
+      if (url === source) return new Response(
+        '<script src="/robocop/captcha/en/loader.js"></script>' +
+        '<iframe src="/scc-csc/scc-csc/en/item/14385/index.do?iframe=true"></iframe>',
+        { headers: { "Content-Type": "text/html" } });
+      if (url === content) return new Response(
+        '<title>Validation</title><div style="padding-top: 10px;" id="captchaForm">\n' +
+        '<form action="/robocop/captcha/eval.do" target="_parent"><img id="captchaTag"></form></div>',
+        { status: 403, headers: { "Content-Type": "text/html" } });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const bridge = await import("../providerPdfLibraryBridge");
+    await expect(bridge.downloadProviderOriginalPdf({
+      provider: "a2aj", identity: "a2aj:en:scc:14385", sourceUrl: source,
+      source: { provider: "a2aj", id: "14385", kind: "case",
+        citation: "14385", collection: "scc", language: "en" },
+    })).rejects.toMatchObject({ pageUrl: content });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([candidate, source, content]);
+  });
+
   it("fails closed when a source digest is spliced onto another request", async () => {
     const firstBytes = Buffer.from("%PDF-1.4 first");
     vi.stubGlobal("fetch", vi.fn(async () => pdfResponse(firstBytes)));

@@ -15,7 +15,9 @@
     "types": ["node", "react", "react-dom"],
     "paths": {
       "@/*": ["./src/*"],
-      "docx-preview": ["./vendor/docx-preview/index.ts"]
+      "docx-preview": ["./vendor/docx-preview/index.ts"],
+      "pdfjs-dist": ["./node_modules/pdfjs-dist"],
+      "pdfjs-dist/*": ["./node_modules/pdfjs-dist/*"]
     }
   },
   "include": [

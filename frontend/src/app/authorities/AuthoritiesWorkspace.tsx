@@ -15,7 +15,7 @@ import { ModalSelect, SearchableChoiceModal } from "@/app/components/modals/Moda
 import { WorkspaceHeader } from "@/app/components/shared/WorkspaceHeader";
 import { OutputFolderSetting } from "@/app/components/shared/OutputFolderSetting";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
-import type { Document } from "@/app/lib/api/documents";
+import type { Document, PdfRecognizedText } from "@/app/lib/api/documents";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { TabList } from "@/app/components/ui/tabs";
@@ -141,7 +141,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
-    quote?: string; bytes?: Uint8Array; error?: string }>();
+    quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText }>();
   const ocr = useSourceOcr(host, draft?.id);
   const [stubWarning, setStubWarning] = useState(false);
   const [recognitionAsked, setRecognitionAsked] = useState(false), [recognizePages, setRecognizePages] = useState("");
@@ -272,9 +272,23 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }, []);
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
-  const scannedSources = useScannedSources(host, draft, `${draftId}:${sourceKey}`,
-    (file) => { if (ocr.tracked[file.role]?.sourceSha256 !== file.sourceSha256 &&
-      draftRef.current?.state.settings.scannedPdfPolicy !== "page-margin") void ocr.begin([file]); });
+  const citationKey = draft ? canonicalJson([
+    draft.state.authorityOrder.map(id => {
+      const { citation, excluded, locators } = draft.state.authorities[id];
+      return [id, citation, excluded, locators];
+    }), Object.values(draft.state.occurrences).map(({ authorityId, reference, pinpoints }) =>
+      [authorityId, reference, pinpoints]), draft.state.settings.sourceMode,
+  ]) : "";
+  const scannedSources = useScannedSources(host, draft, `${sourceKey}:${citationKey}`);
+  useEffect(() => {
+    if (scannedSources.checking || draft?.state.settings.scannedPdfPolicy === "page-margin") return;
+    const pending = scannedSources.files.filter(file => {
+      const prior = ocr.tracked[file.role];
+      return prior?.sourceSha256 !== file.sourceSha256 ||
+        (!["paused", "cancelled", "failed"].includes(prior.state) && prior.demand !== file.demand);
+    });
+    if (pending.length) void ocr.begin(pending);
+  }, [scannedSources.checking, scannedSources.files, draft?.state.settings.scannedPdfPolicy, ocr.tracked, ocr.begin]);
   // Recognition starts as soon as a scan is found, unless the book keeps the scan as
   // images; the step then only lists what is still unrecognized.
   const unrecognized = scannedSources.files.filter((file) => ocr.tracked[file.role]?.state !== "done");
@@ -288,10 +302,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   useEffect(() => {
     const current = draftRef.current;
     if (!draftId || current?.id !== draftId || current.state.stage !== "citations" ||
-        current.state.import.kind !== "document" || gathered.current.id === draftId) return;
-    gathered.current = { id: draftId, revision: -1 };
+        current.state.import.kind !== "document") return;
     gathering.current = gathering.current.then(() => gatherSources(2));
-  }, [draftId]);
+  }, [draftId, citationKey, draft?.state.stage]);
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -604,10 +617,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     setSourcePreview({ role, name, quote });
     void host.readSource(current, role).then((blob) => blob.arrayBuffer()).then((buffer) => {
       if (request === previewRequest.current && draftRef.current?.id === current.id)
-        setSourcePreview({ role, name, quote, bytes: new Uint8Array(buffer) });
+        setSourcePreview(value => ({ ...value, role, name, quote, bytes: new Uint8Array(buffer) }));
     }).catch((caught) => {
       if (request === previewRequest.current) setSourcePreview({ role, name, quote, error: errorText(caught) });
     });
+    void host.readSourceText?.(current, role).then(recognizedText => {
+      if (request === previewRequest.current && draftRef.current?.id === current.id)
+        setSourcePreview(value => value ? { ...value, recognizedText } : value);
+    }).catch(() => { /* The PDF remains readable if optional text/label preparation fails. */ });
   }
   // The quotation belongs at the pinpoint the author cited, so open the PDF on that passage.
   function openFindingSource(finding: AuthoritiesDiscrepancy) {
@@ -659,6 +676,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
+  function retryPublisherSource(authorityId: string) {
+    const current = draftRef.current;
+    if (!current) return;
+    const request = new AbortController();
+    void run(() => host.prepareSources(current, request.signal, authorityId), adopt,
+      "", "Retrying source PDF");
+  }
   const reached = draft?.state.stage ?? (draft && Object.keys(draft.outputs).length ? "build"
     : draft?.state.import.kind === "manual" ? "sources" : "citations");
   const stepKey = `${draft?.id}:${reached}`;
@@ -693,6 +717,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       onDone={() => setFindingId("")} />;
   const authorityPanelProps = { authorities, tabs: authorityTabs, busy, sourceIssues,
     onAction: act, onEditIdentity: setEditingAuthority,
+    onRetrySource: retryPublisherSource,
     onOpenSource: host.readSource ? openSource : undefined, onAdd: () => setAddOpen(true),
     onPick: host.pickFiles ? (id: string) => void pickFiles(false, "pdf",
       (files) => attach(id, files[0])) : undefined,
@@ -873,8 +898,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       <Modal open={!!sourcePreview} size="2xl" breadcrumbs={[sourcePreview?.name ?? "Source PDF"]}
         className="h-[min(900px,calc(100dvh-2rem))] [&_.modal-body]:p-0"
         onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}>
-        <div className="h-[min(70dvh,750px)] min-h-60">
+        <div className="flex h-[min(70dvh,750px)] min-h-60">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
+            recognizedText={sourcePreview?.recognizedText}
             error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
             quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>

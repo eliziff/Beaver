@@ -66,6 +66,7 @@ type Rect = [number, number, number, number];
 type PassageStatus = "found" | "not_found" | "ambiguous" | "invalid" | "unavailable";
 
 export type NativePdfPassageTarget = {
+  physicalPages?: number[];
   id: string;
   locatorKind: "paragraph" | "section" | "page";
   locator: string;
@@ -162,6 +163,7 @@ type StructureAddon = {
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument): NativePdfTextPage[];
+  pdfPageLabels(document: NativeDocument): Array<string | null>;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   pdfPassageGeometryPages(document: NativeDocument, bytes: Buffer,
     targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;

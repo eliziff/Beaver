@@ -1,9 +1,12 @@
-import { apiFetch, segment, pagePath } from "./api/client";
+import { apiFetch, apiRequest, segment, pagePath } from "./api/client";
 import { getPdfJs } from "./pdfJs";
 import { documentFileSession } from "@/app/hooks/useDocumentFile";
 import type { PdfByteSource } from "@/app/components/shared/views/PdfCanvas";
 
 const CHUNK = 64 * 1024, MAX_BYTES = 100 * 1024 * 1024;
+export const getDocumentPdfPageLabels = (id: string, versionId?: string | null, signal?: AbortSignal) =>
+  apiRequest<{ pageLabels: Array<string | null> }>(pagePath(`/single-documents/${segment(id)}/pdf-page-labels`,
+    { version_id: versionId }), { signal });
 function representation(response: Response) {
   const match = /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(response.headers.get("Content-Range") ?? "");
   const etag = response.headers.get("ETag");

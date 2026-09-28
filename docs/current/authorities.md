@@ -10,10 +10,15 @@ reference parity; remaining release gates are in
 
 ## Workflow
 
-Import a brief/factum and choose import options, review citations, then finish
-that review before source acquisition. Show source rows after acquisition, not
-as a competing pre-import stage. Resolve source identities and attach remaining
-PDFs before proceeding to highlight review; build follows review.
+Import a brief/factum and choose import options. Source acquisition starts when
+the imported citations enter review, before the user advances to Sources, and
+reconciles changed citations and newly linked references. Attached scans begin OCR
+after inspection unless the user chose page-margin mode. Pinpoint changes update
+recognition demand even for an already tracked PDF; paused/cancelled work stays
+stopped until resumed. Old asynchronous responses cannot finish newer OCR demand.
+PDF inspection is reused by source hash. Source acquisition and citation edits
+still share the draft revision queue; acquisition is not streamed one case at a time.
+Resolve remaining source identities and attachments before highlight review; build follows review.
 
 After Sources, scanned inputs open the **Recognize text** modal before Highlights.
 
@@ -56,6 +61,34 @@ verified alias before binding. A mismatch or unreadable citation leaves the file
 unbound and shows one line explaining why. CanLII and View share one aligned column.
 No iframe, proxy, server fetch, scraper, automated navigation, Downloads-folder
 watcher or background acquisition is part of this handoff.
+
+When a case page itself presents a challenge, or its advertised PDF challenges
+the downloader, the existing source row offers **Solve CAPTCHA** if the response
+contains an exact same-origin CAPTCHA form, or **Open publisher** for a challenge
+without one. A challenged case page may still prove to have no PDF once opened.
+**Retry download** retries that source alone after the browser visit; **Upload**
+remains available if the user downloads the PDF manually. A guessed PDF route
+that challenges while the case page advertises no PDF is treated as no published
+PDF, not as a user-solvable CAPTCHA. A plain HTTP 403 is also not enough to claim
+a CAPTCHA. Upload uses opening-citation verification. Downloads run sequentially
+within a preparation batch; after a confirmed challenge, remaining PDFs from
+that publisher are left for manual recovery while other publishers continue.
+This is a per-batch guard, not a cross-user rate limiter.
+
+Authorities acquisition owns PDF discovery: A2AJ resolution does not separately
+fetch publisher HTML first. For approved Decisia hosts, both downloaders try the
+existing `/item/{id}/index.do` to `/{id}/1/document.do` candidate before HTML
+discovery. A successful response must pass PDF validation; an absent candidate
+falls back to published download controls. A challenge stops acquisition instead
+of trying to route around it. Verified representation metadata used by other
+source-link consumers still comes from publisher controls, never the URL formula.
+
+`publisherPdfCandidate(url)` in `backend/src/lib/legalSourcePresentation.ts` is
+the shared, pure URL primitive; unsupported URLs return null. Lite imports its
+tracked browser distribution, generated with
+`node AuthoritiesHelper/modern/authorities-lite/sync-publisher.mjs`; append
+`--check` to verify it matches the canonical source. Host and representation-control
+rules live in that same source, not build-script patches.
 
 Quotation review distinguishes exact/normalized/editorial matches, ambiguity and
 unlocated targets. Word-level differences and bounded source context support the
@@ -130,6 +163,34 @@ rewritten authentication or a second Python service. Standalone writes remain
 same-origin and loopback-only.
 
 ## Focused reproduction
+
+Printed pagination is composed by `documentProjectionService` from existing parser
+and OCR evidence, embedded PDF labels, and retained reporter citation forms. A
+single observed reporter-start folio establishes the offset for a case; partial
+OCR need not recognize every subsequent page. Opening-page margin candidates reuse
+the Text-Fidelity leading/trailing-folio rule, constrained by the known reporter
+start. Existing cited-page recognition prioritizes the opening pages when it needs
+that anchor. Opening a viewer alone never initiates OCR.
+
+Cited-page OCR resolves physical destinations from the page map before requesting
+text geometry. Page-only requests skip the optional document-layout model. The
+parser's `ocrRoutedPages` can describe scan pages awaiting recognition; it is not
+evidence of completed OCR when the profile has no OCR provider. Only a retained OCR
+artifact contributes previously recognized pages to a new partial pass.
+
+Display, page-pinpoint highlights and paper extracts use this same mapping. Unknown,
+repeated, or incompletely detected printed addresses do not silently become
+physical page numbers. The viewer still shows each known printed label beside its
+PDF page; a printed-page search asks the user to choose a known PDF page when
+other pages have no detected label.
+Provider citation forms survive canonical neutral-citation replacement and draft
+reopening. Embedded labels require agreement with detected folios and no detected
+contradiction before supplying unobserved labels; the public validation corpus
+includes stale publisher number trees.
+
+The [pagination validation harness](../../benchmarks/pdf-pagination/README.md)
+separately measures real Authorities acquisition, original versus reconstructed
+PDFs, partial OCR, and independent visual agreement.
 
 Shared compilation/test guidance is in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 The citation graph builder and A2AJ bulk importer use the same published engine

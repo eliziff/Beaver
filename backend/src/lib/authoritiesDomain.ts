@@ -87,6 +87,7 @@ export type AuthoritiesAction =
       sourceUrl: string | null; language: AuthoritySourceLanguage;
       origin?: "manual" | "original" | "reconstructed" }
   | { type: "clear-authority-source"; authorityId: string }
+  | { type: "set-source-verification"; authorityId: string; pageUrl: string | null }
   | { type: "begin-canlii-handoff"; authorityId: string; pageUrl: string }
   | { type: "set-book-part"; slot: "cover" | "index"; pdf: AuthoritiesBoundPdf;
       binding: WorkProductInput }
@@ -187,7 +188,8 @@ const importedDocument = tagged<AuthoritiesImport>({ manual: {},
     fileType: oneOf(["docx", "pdf"]), snapshot: nullable(snapshot) } });
 
 const sourceIdentity = closed<AuthoritySourceIdentity>({ provider: text, stableSourceId: text,
-  sourceSha256: sourceHash, version: nullable(text), externalUrl: nullable(text) });
+  sourceSha256: sourceHash, version: nullable(text), externalUrl: nullable(text),
+  citationForms: maybe(list(50, nonempty(2000))) });
 const attachedSource = closed<AttachedAuthoritySource>({ bindingRole: text, filename: text,
   sourceSha256: text, sourceUrl: nullable(text),
   origin: oneOf(["manual", "original", "reconstructed"]),
@@ -206,6 +208,7 @@ const sourceDecision: Check = (value) => {
 };
 
 const seed = closed<AuthoritySeed>({ key: text, kind: authorityKind, provider: text,
+  citationForms: maybe(list(50, nonempty(2000))),
   stableSourceId: text, sourceSha256: text, citation: text, name: nullable(text),
   version: nullable(text), externalUrl: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator) });
@@ -216,6 +219,11 @@ export function isObservedSourceUrl(value: unknown): value is string {
   catch { return false; }
 }
 const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: authorityKind,
+  sourceVerificationUrl: maybe((value) => {
+    if (typeof value !== "string" || value.length > 8192) return false;
+    try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; }
+    catch { return false; }
+  }),
   sourceUrl: maybe(isObservedSourceUrl),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
@@ -317,7 +325,8 @@ const authorityFromSeed = (seed: AuthoritySeed): AuthorityIdentity => ({
   evidenceIds: [...seed.evidenceIds],
   locators: structuredClone(seed.locators),
   sourceIdentity: { provider: seed.provider, stableSourceId: seed.stableSourceId,
-    sourceSha256: seed.sourceSha256, version: seed.version, externalUrl: seed.externalUrl },
+    sourceSha256: seed.sourceSha256, version: seed.version, externalUrl: seed.externalUrl,
+    ...(seed.citationForms ? { citationForms: seed.citationForms } : {}) },
   excluded: false,
   source: { kind: "resolved" },
 });
@@ -347,7 +356,7 @@ function requireRecord<T>(record: Record<string, T>, id: string, label: string):
 /** Citation forms observed for one authority, in filing order. */
 export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: string): string[] {
   const canonical = requireRecord(draft.authorities, authorityId, "authority").citation;
-  const forms = new Set([canonical]);
+  const forms = new Set([canonical, ...(draft.authorities[authorityId].sourceIdentity?.citationForms ?? [])]);
   for (const unit of draft.units) for (const occurrenceId of unit.occurrenceIds) {
     const occurrence = draft.occurrences[occurrenceId];
     if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference") {
@@ -641,6 +650,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
     const changedIdentity = Boolean(authority.sourceIdentity) &&
       !same(authority.sourceIdentity, old.sourceIdentity);
     if (!changedIdentity) {
+      if (old.sourceVerificationUrl) authority.sourceVerificationUrl = old.sourceVerificationUrl;
       authority.evidenceIds = uniqueSorted([...old.evidenceIds, ...authority.evidenceIds]);
       const locators = uniqueSorted([...old.locators, ...authority.locators]
         .map(({ kind, label }) => `${kind}\0${label}`));
@@ -813,6 +823,7 @@ export function reduceAuthoritiesDraft(
         throw new AuthoritiesDomainError("Only a manual authority can be edited directly.");
       }
       const citation = action.citation.trim();
+      if (citation !== authority.citation) delete authority.sourceVerificationUrl;
       if (authority.source.kind === "pending-canlii" && citation !== authority.citation) {
         replaceSource(draft, authority,
           authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
@@ -918,6 +929,7 @@ export function reduceAuthoritiesDraft(
     case "attach-source": {
       if (!action.bindingRole) throw new AuthoritiesDomainError("Attachment binding role is required.");
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      delete authority.sourceVerificationUrl;
       attachAuthoritySource(draft, authority, {
         bindingRole: action.bindingRole, filename: action.filename,
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
@@ -929,6 +941,12 @@ export function reduceAuthoritiesDraft(
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
       replaceSource(draft, authority,
         authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
+      break;
+    }
+    case "set-source-verification": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      if (action.pageUrl) authority.sourceVerificationUrl = action.pageUrl;
+      else delete authority.sourceVerificationUrl;
       break;
     }
     case "begin-canlii-handoff": {

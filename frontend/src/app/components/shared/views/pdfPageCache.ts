@@ -1,25 +1,13 @@
-import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { normalizeQuoteText } from "./quoteText";
 
 /** One cache per open PDF, reused across zoom/resize; never shared across documents. */
 export function createPdfPageCache(pdf: PDFDocumentProxy) {
-    const pending = new Map<number, Promise<PDFPageProxy>>();
-    const resolved = new Map<number, PDFPageProxy>();
     const text = new Map<number, { promise: Promise<string>; bytes: number }>();
-    const get = (number: number) => {
-        let page = pending.get(number);
-        if (!page) {
-            page = pdf.getPage(number).then((value) => {
-                resolved.set(number, value);
-                return value;
-            }, (error: unknown) => { pending.delete(number); throw error; });
-            pending.set(number, page);
-        }
-        return page;
-    };
+    // PDF.js already caches page proxies and their in-flight loads.
+    const get = (number: number) => pdf.getPage(number);
     return {
         get,
-        peek: (number: number) => resolved.get(number),
         normalizedText(number: number) {
             const hit = text.get(number);
             if (hit) { text.delete(number); text.set(number, hit); return hit.promise; }
@@ -40,15 +28,4 @@ export function createPdfPageCache(pdf: PDFDocumentProxy) {
             return entry.promise;
         },
     };
-}
-
-/** Index at a document-space scroll offset, including the inter-page gap. */
-export function pageAt(pages: readonly { top: number; height: number }[], offset: number) {
-    let low = 0, high = pages.length - 1;
-    while (low < high) {
-        const middle = (low + high) >>> 1;
-        if (pages[middle + 1].top <= offset) low = middle + 1;
-        else high = middle;
-    }
-    return low;
 }

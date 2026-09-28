@@ -1,7 +1,9 @@
-import type { PdfRecognizedText } from '@/app/lib/api/documents';
+export type RecognizedPage = { pageNumber: number; width: number; height: number;
+  lines: Array<{ id: string; text?: string; rect: [number, number, number, number];
+    words: Array<{ text: string; rect: [number, number, number, number] }> }> };
 
 /** OCR coordinates already describe the rotated visible page, unlike PDF.js text transforms. */
-export function renderRecognizedText(element: HTMLElement, page: PdfRecognizedText['pages'][number],
+export function renderRecognizedText(element: HTMLElement, page: RecognizedPage,
   width: number, height: number) {
   if (!(page.width > 0 && page.height > 0)) return;
   const measure = document.createElement('canvas').getContext('2d');
