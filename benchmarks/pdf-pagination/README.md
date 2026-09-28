@@ -2,8 +2,8 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 195 hash-verified Canadian publisher originals,
-7,798 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
+The expanded sample contains 268 hash-verified Canadian publisher originals,
+10,299 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
 meet the requested 350-original target or establish other reporter-family coverage.
 The separate 105-document, 22-court general-judgment cohort is not included in
 this denominator. Acquisition stopped at a renewed SCC publisher challenge.
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 556 sampled pages, 553 readable folios agreed. All sampled folios agreed
-for 194 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 770 sampled pages, 767 readable folios agreed. All sampled folios agreed
+for 267 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -115,6 +115,24 @@ opening and pinpoint pages. These are operation receipts, not a new cold/reopen
 benchmark. `stage8-manifest.json`, `product-stage8/`, and `limited/stage8-vision*`
 record the inputs and results. `acquire-stage9.log` records the subsequent
 single challenged attempt and host stop.
+
+The next two acquisition batches added 73 originals (2,501 pages). All 214
+independently sampled folios agreed with the submitted reporter start on physical
+page 1. Text-first inspection left 109 images for the blind vision harness;
+those sequential batches took 242 seconds, including rendering and harness
+overhead, with a sampled process-tree peak of 651 MiB. The 73 product checks
+resolved 72 correct destinations and abstained once, bringing the aggregate to
+265 correct destinations, three abstentions and no incorrect destinations.
+The new abstention is [1975] 1 SCR 411: retained OCR merged its opening folio
+into the header as `CO.4 1 1`. Existing normalization only repairs a spaced
+folio when it stands alone; the conservative result remains unresolved.
+The eight sequential product batches took 121.3 seconds including selective
+recognition and existing-cache reuse, with a sampled peak of 808 MiB. This is
+not an empty-cache timing. Receipts: `stage10-manifest.json`, `product-stage10/`,
+and `limited/{stage10-vision,product-stage10-*}`. A subsequent bounded acquisition
+attempt encountered the publisher challenge immediately and stopped that host;
+82 more originals remain necessary to reach 350. Reporter-family coverage has
+not broadened beyond SCC/SCR/RCS.
 
 The embedded Beaver manual-book workflow passed with source replacement,
 export, save/reopen and 320-pixel layout checks. A separate real reporter PDF
