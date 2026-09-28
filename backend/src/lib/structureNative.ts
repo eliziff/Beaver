@@ -198,8 +198,7 @@ type StructureAddon = {
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;
-    family: "neutral" | "reporter" | "canlii" | "database" | "statute";
-    key?: string;
+    family: "neutral" | "reporter" | "statute";
     jurisdiction?: string;
     year?: string; court?: string; number?: string;
     volume?: string; reporter?: string; page?: string;

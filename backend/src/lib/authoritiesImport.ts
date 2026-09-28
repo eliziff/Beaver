@@ -75,10 +75,14 @@ function scanReview(
   const text = units.map(({ text }) => text).join("\n\n");
   const native = structureNative();
   const unknownNote = 0xffff_ffff;
-  const notes = ranges.filter(({ unit }) => unit.footnote_id !== null)
+  const orderedUnits = native.documentReadingOrder(JSON.stringify(units.map((unit) => ({
+    kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
+    item_offsets: [0],
+  })))).map(([unit]) => ranges[unit]);
+  const notes = orderedUnits.filter(({ unit }) => unit.footnote_id !== null)
     .map(({ unit, start, end }) => ({ number: unit.note_number === null
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
-    sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
+    sequence: unit.restart_sequence ?? 0 }));
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
     options: { resolve: false, notes },
   })) as ExtractResponse;
@@ -114,19 +118,17 @@ function scanReview(
     }
   };
   const urlParts = result.resolutions.some(({ url }) => url) ? extracted.sourceParts
-    .filter((part) => part.anchors.filter((anchor) => anchor === "url").length === 1 &&
-      !result.citations.some((citation) =>
+    .filter((part) => !result.citations.some((citation) =>
       citation.span.start < part.end && part.start < citation.span.end))
     .map((part) => ({ part, fields: native.citationEngineCall("sourceFields",
       JSON.stringify({ part })) as SourceFields }))
-    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate) &&
-      !fields.reasons.includes("embedded_second_source")) : [];
+    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate)) : [];
   const sourceGroups = new Map<string, string>();
   for (const group of result.authorities) {
     const full = group.map((index) => byIndex.get(index))
       .filter((citation): citation is Citation => citation?.form === "full");
-    const url = full.map((citation) => citation.fields.url).find(isObservedSourceUrl) ??
-      (full.length ? null : group.map((index) => byResolution.get(index)?.url).find(Boolean));
+    const url = group.map((index) => byResolution.get(index)?.url).find(isObservedSourceUrl) ??
+      full.map((citation) => citation.fields.url).find(isObservedSourceUrl);
     const source = !full.length && url ? urlParts.find(({ fields }) =>
       fields.link_candidate.split("#")[0] === url.split("#")[0]) : undefined;
     const representative = full.find((citation) => citation.key) ?? full[0] ??
@@ -145,7 +147,7 @@ function scanReview(
       : ["journal", "book", "essay_collection"].includes(source?.fields.kind ?? "")
       ? "commentary" : "other";
     const observedText = source?.fields.citation_with_style || source?.part.text.trim() ||
-      (url ? representative.fullSpan.text : representative.span.text);
+      (full.length ? representative.span.text : representative.fullSpan.text);
     authorities[key] = { id: key, key, kind: source ? sourceKind : kindOf(representative),
       citation: observedText, name: source ? observedText : representative.shortName ?? null,
       displayName: null, excluded: false,
@@ -199,12 +201,16 @@ function scanReview(
       const authorityId = authorityOf.get(citation.index) ?? null;
       const local = (span: Span) => ({ start: Math.max(start, span.start) - start,
         end: Math.min(end, span.end) - start });
-      const core = local(citation.span);
-      const full = local(citation.fullSpan);
-      const styled = { start: citation.style && citation.style.start >= start
-        ? citation.style.start - start : core.start, end: core.end };
       const reference = citation.form !== "full";
       const pinpoints = citation.pinpoints ?? [];
+      const marker = citation.fields.inlineReference?.span;
+      const core = local(marker ?? citation.span);
+      const full = marker ? { start: core.start,
+        end: Math.max(core.end, ...pinpoints.map(({ span }) => local(span).end)) } : local(citation.fullSpan);
+      const styled = marker ? core : { start: citation.style &&
+        citation.style.start >= Math.max(start, citation.fullSpan.start) &&
+        citation.style.start <= citation.span.start
+        ? citation.style.start - start : core.start, end: core.end };
       occurrenceIds.push(id);
       occurrences[id] = { id, unitId: unit.key, ...full,
         text: unit.text.slice(full.start, full.end),
