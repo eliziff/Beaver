@@ -2,8 +2,8 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 344 hash-verified Canadian publisher originals,
-12,424 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
+The expanded sample contains 345 hash-verified Canadian publisher originals,
+12,484 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
 meet the requested 350-original target or establish other reporter-family coverage.
 The separate 105-document, 22-court general-judgment cohort is not included in
 this denominator. Acquisition stopped at a renewed SCC publisher challenge.
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 985 sampled pages, 982 readable folios agreed. All sampled folios agreed
-for 343 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 988 sampled pages, 985 readable folios agreed. All sampled folios agreed
+for 344 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -143,9 +143,13 @@ and [1976] 1 SCR 152. Combined product results are 339 correct destinations, fiv
 abstentions and no incorrect destinations across 344 originals. The new product
 batches took 100.9 seconds with selective OCR and existing-cache reuse, sampled
 peak 609 MiB. Receipts: `stage13-manifest.json`, `product-stage13/`, and
-`limited/{stage13-vision,product-stage13-*}`. Six more independently validated
-originals are needed. A later retry recovered [2011] 3 SCR 837, which is still
-outside the validated denominator pending independent and product checks.
+`limited/{stage13-vision,product-stage13-*}`. A later retry recovered [2011] 3 SCR 837 (60 pages). All three blind text-layer
+readings agreed, and the product resolved printed 890 to physical 54, including
+display and highlight. This brings the total to 345 originals: 340 correct
+destinations, five abstentions, no incorrect destinations. Five more independently
+validated originals remain necessary. The next bounded acquisition attempt
+encountered a publisher challenge and stopped the host. Receipts:
+`stage14-manifest.json`, `product-stage14/`, and `limited/acquire-stage15*`.
 
 The first two recovered files were exact extensions of their incomplete downloads:
 12,950,765 became 14,424,999 bytes, and 380,378 became 11,401,809 bytes. This proves
