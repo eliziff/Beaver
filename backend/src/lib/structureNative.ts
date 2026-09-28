@@ -45,7 +45,7 @@ export type NativeAuthorityReferenceOccurrence = NativeCitationTextSpan & {
     kind: import("legal-citations").PinpointKind;
     first?: string; last?: string;
   }>;
-  kind: "ibid" | "supra";
+  kind: "short" | "ibid" | "supra";
   noteNumber?: number;
 };
 
@@ -55,6 +55,8 @@ export type NativeAuthorityTextUnit = {
   kind: "body" | "footnote";
   ordinal: number;
   footnote_id: number | null;
+  note_number?: number | null;
+  restart_sequence?: number;
   page_numbers: number[];
   text: string;
   footnote_refs: Array<[footnoteId: number, offset: number]>;
@@ -196,8 +198,9 @@ type StructureAddon = {
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;
-    family: "neutral" | "reporter" | "statute";
-    jurisdiction?: "ca" | "uk" | "us";
+    family: "neutral" | "reporter" | "canlii" | "database" | "statute";
+    key?: string;
+    jurisdiction?: string;
     year?: string; court?: string; number?: string;
     volume?: string; reporter?: string; page?: string;
   }>;

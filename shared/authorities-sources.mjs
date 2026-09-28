@@ -11,9 +11,10 @@ export const hasBilingualAuthoritySource = (source) => {
 /** The public link an authority offers a table, before any host canonicalization. */
 export const authoritySourceUrl = (authority) =>
   authority.source.kind === "attached"
-    ? authority.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl ?? null
+    ? authority.source.sources.find(({ sourceUrl }) => sourceUrl)?.sourceUrl ??
+      authority.sourceIdentity?.externalUrl ?? authority.sourceUrl ?? null
     : authority.source.kind === "pending-canlii" ? authority.source.pageUrl
-      : authority.sourceIdentity?.externalUrl ?? null;
+      : authority.sourceIdentity?.externalUrl ?? authority.sourceUrl ?? null;
 /** A federal enactment the court wants in both official languages. */
 export const bilingualEnactmentRequired = (authority, requirements) =>
   !!requirements?.bilingualEnactments && authority.kind === "legislation" &&

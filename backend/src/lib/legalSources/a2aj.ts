@@ -218,7 +218,9 @@ const citationKey = (value: string) => {
 const exactCitationRows = (results: unknown, citation: string, dataset?: string,
   expectedUrl?: string | null, aliases: string[] = []) => {
   const keys = new Set([citationKey(citation), ...aliases].filter(Boolean));
-  if (!keys.size) return [];
+  const title = !keys.size && expectedUrl?.trim()
+    ? normalizeWhitespace(citation).toLowerCase() : "";
+  if (!keys.size && !title) return [];
   return (Array.isArray(results) ? results : []).filter((value) => {
     const record = object(value);
     return record && (!dataset?.trim() || string(record.dataset)?.toLowerCase() ===
@@ -226,7 +228,8 @@ const exactCitationRows = (results: unknown, citation: string, dataset?: string,
         [sourceUrl(record, "en"), sourceUrl(record, "fr"), publisherUrl(record, "en"), publisherUrl(record, "fr")].includes(expectedUrl.trim())) && ["citation_en", "citation2_en", "citation_fr",
       "citation2_fr"].some((field) => {
         const candidate = string(record[field]);
-        return candidate && keys.has(citationKey(candidate));
+        return candidate && (keys.has(citationKey(candidate)) ||
+          (title && normalizeWhitespace(candidate).toLowerCase() === title));
       });
   });
 };
