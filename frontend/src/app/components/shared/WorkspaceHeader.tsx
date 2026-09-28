@@ -43,7 +43,7 @@ export function WorkspaceHeader(props: (Active | Static) & { busy?: boolean;
     render: <div className="flex min-h-9 items-center gap-2">{props.headerActions}</div> }] : undefined;
   return <header data-workspace-header className="shrink-0">
     <PageHeader shrink className={props.className} actions={actions}>
-      {current && "onBack" in props ? <div className="flex min-w-48 flex-1 items-center gap-2">
+      {current && "onBack" in props ? <div className="flex min-w-0 basis-full items-center gap-2 sm:basis-0 sm:flex-1">
         <button type="button" disabled={busy} onClick={props.onBack}
           aria-label={`Back from ${props.itemLabel}`}
           className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-gray-700 outline-none hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-950 disabled:opacity-50">
