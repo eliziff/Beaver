@@ -201,7 +201,9 @@ function scanReview(
         end: Math.min(end, span.end) - start });
       const core = local(citation.span);
       const full = local(citation.fullSpan);
-      const styled = { start: citation.style && citation.style.start >= start
+      const styled = { start: citation.style &&
+        citation.style.start >= Math.max(start, citation.fullSpan.start) &&
+        citation.style.start <= citation.span.start
         ? citation.style.start - start : core.start, end: core.end };
       const reference = citation.form !== "full";
       const pinpoints = citation.pinpoints ?? [];

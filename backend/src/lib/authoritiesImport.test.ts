@@ -152,6 +152,26 @@ describe("authorities import application", () => {
       ]);
   });
 
+  it("keeps shared case styling within each parallel citation's own span", async () => {
+    const text = "😀 The proportionality analysis originates in R v Oakes, " +
+      "[1986] 1 SCR 103, 1986 CanLII 46 (SCC).";
+    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
+      new Paragraph(text),
+    ] }] }));
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes, modified: 1 });
+    const unit = state.units.find(({ text: value }) => value === text)!;
+    const occurrences = unit.occurrenceIds.map((id) => state.occurrences[id]);
+
+    expect(occurrences).toHaveLength(2);
+    expect(occurrences.map(({ authoritySpan, coreSpan }) => ({
+      authority: authoritySpan.text, core: coreSpan.text,
+    }))).toEqual([
+      { authority: "R v Oakes, [1986] 1 SCR 103", core: "[1986] 1 SCR 103" },
+      { authority: "1986 CanLII 46", core: "1986 CanLII 46" },
+    ]);
+  });
+
   it("finds ordinary references through a real PDF projection", async () => {
     const pdf = await PDFDocument.create(), page = pdf.addPage(),
       font = await pdf.embedFont(StandardFonts.Helvetica);
