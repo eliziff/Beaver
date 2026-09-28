@@ -15,13 +15,20 @@ allocation-diagnostics = ["diagnostics", "legalpdf/allocation-profiling"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["provider-text", "citator", "journal", "native-markup", "quote-verification"] }
-legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
 legal-pdf-extraction = { path = "../../legal-pdf-parser/legal-pdf-extraction", optional = true }
 legal-pdf-support = { path = "../../legal-pdf-parser/legal-pdf-support", optional = true }
-napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
-napi-derive = "3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
+
+# The Node addon links native OCR and layout runtimes.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"], optional = true }
+napi = { version = "3", default-features = false, features = ["napi8", "serde-json"] }
+napi-derive = "3"
+
+# The browser build (wasm32-wasip1) parses the same PDFs; recognition runs in the page.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["pdf", "language"], optional = true }
 
 [build-dependencies]
 napi-build = "2"
