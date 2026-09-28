@@ -2,8 +2,8 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 184 hash-verified Canadian publisher originals,
-7,431 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
+The expanded sample contains 185 hash-verified Canadian publisher originals,
+7,501 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
 meet the requested 350-original target or establish other reporter-family coverage.
 The separate 105-document, 22-court general-judgment cohort is not included in
 this denominator. Acquisition stopped at a renewed SCC publisher challenge.
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 523 sampled pages, 520 readable folios agreed. All sampled folios agreed
-for 183 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 526 sampled pages, 523 readable folios agreed. All sampled folios agreed
+for 184 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -90,6 +90,17 @@ image readings (12.86 seconds for the Luna batch). Combined receipts now cover
 incorrect destinations. These additional operation timings include existing
 cache conditions and are not cold benchmarks. Receipts: `product-stage6/` and
 `browser-acquired-manifest.json`.
+
+A further browser-downloaded original, R. v. Jones ([1994] 2 SCR 229),
+passed the same independent and product checks. Its 70-page scan needed three
+blind image readings (12.4 seconds); the product recognized only physical pages
+1 and 66, correctly resolving printed page 294 to page 66 for display,
+navigation and the generated highlight. Combined product receipts now cover
+185 originals: 183 correct destinations, two abstentions, no incorrect
+destinations. Receipts: `browser-jones-manifest.json`, `product-stage7/`, and
+`limited/browser-jones-vision.resources.json`. The publisher Worker still
+returned a challenge on recheck; only the verified browser-saved PDF was added.
+
 
 The embedded Beaver manual-book workflow passed with source replacement,
 export, save/reopen and 320-pixel layout checks. A separate real reporter PDF
