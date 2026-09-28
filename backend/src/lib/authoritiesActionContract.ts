@@ -35,7 +35,7 @@ import profiles from "mike/shared/authorities-profiles.json";
 export const authoritiesProfileIds = profiles.map(({ id }) => id);
 export const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
 export const AUTHORITIES_ACTION_CHOICES = {
-  reference: ["supra", "ibid"], locator: ["paragraph", "section", "page"],
+  reference: ["short", "supra", "ibid"], locator: ["paragraph", "section", "page"],
   outputMode: ["table", "book", "both"], slot: ["cover", "index"],
   stage: ["citations", "sources", "highlights", "build"],
   discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial"],

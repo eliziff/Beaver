@@ -53,6 +53,7 @@ type RequirementAuthority = {
   citation: string;
   excluded?: boolean;
   source: AuthoritySourceDecision;
+  sourceUrl?: string;
   sourceIdentity?: { externalUrl?: string | null } | null;
 };
 
