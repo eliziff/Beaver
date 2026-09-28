@@ -2,8 +2,8 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 185 hash-verified Canadian publisher originals,
-7,501 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
+The expanded sample contains 195 hash-verified Canadian publisher originals,
+7,798 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
 meet the requested 350-original target or establish other reporter-family coverage.
 The separate 105-document, 22-court general-judgment cohort is not included in
 this denominator. Acquisition stopped at a renewed SCC publisher challenge.
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 526 sampled pages, 523 readable folios agreed. All sampled folios agreed
-for 184 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 556 sampled pages, 553 readable folios agreed. All sampled folios agreed
+for 194 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -101,6 +101,20 @@ destinations. Receipts: `browser-jones-manifest.json`, `product-stage7/`, and
 `limited/browser-jones-vision.resources.json`. The publisher Worker still
 returned a challenge on recheck; only the verified browser-saved PDF was added.
 
+
+
+A subsequent production-Worker batch acquired ten more originals before the
+publisher challenge returned. All ten passed the independent and product checks,
+bringing the total to 195 originals: 193 correct product destinations and the same
+two abstentions. The new sample spans 1975?2015; it still adds no other reporter
+family. Text resolved 12 sampled pages; only the remaining 18 went to blind vision
+(49.8 seconds including rendering and harness overhead, sampled peak 429 MiB).
+The ten-document product operation took 16.7 seconds including selective OCR;
+its sampled process-tree peak was 826 MiB. All five scans recognized only their
+opening and pinpoint pages. These are operation receipts, not a new cold/reopen
+benchmark. `stage8-manifest.json`, `product-stage8/`, and `limited/stage8-vision*`
+record the inputs and results. `acquire-stage9.log` records the subsequent
+single challenged attempt and host stop.
 
 The embedded Beaver manual-book workflow passed with source replacement,
 export, save/reopen and 320-pixel layout checks. A separate real reporter PDF
