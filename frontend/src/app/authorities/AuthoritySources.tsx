@@ -186,8 +186,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       {needsPdf && (publisherUrl
         ? <div className="flex w-28 flex-col items-center gap-1">
             <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
-              title={publisherCheck ? "Solve the publisher CAPTCHA, then retry the download."
-                : "Open the publisher page, then retry the download."}
+              title={publisherCheck ? "Complete publisher verification to access the PDF, then upload it here."
+                : "Download the PDF from the publisher, then upload it here."}
               aria-label={`${publisherCheck ? "Solve CAPTCHA" : "Open publisher"} for ${title}`}
               className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
               {publisherCheck ? "Solve CAPTCHA" : "Open publisher"}</a>

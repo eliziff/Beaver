@@ -66,8 +66,10 @@ When a case page itself presents a challenge, or its advertised PDF challenges
 the downloader, the existing source row offers **Solve CAPTCHA** if the response
 contains an exact same-origin CAPTCHA form, or **Open publisher** for a challenge
 without one. A challenged case page may still prove to have no PDF once opened.
-**Retry download** retries that source alone after the browser visit; **Upload**
-remains available if the user downloads the PDF manually. A guessed PDF route
+The browser and server-side downloader do not share publisher verification cookies.
+The recovery path is to download the publisher PDF in the browser and use the
+existing **Upload** control. **Retry download** retries that source alone, but a
+successful browser visit does not imply the downloader is cleared. A guessed PDF route
 that challenges while the case page advertises no PDF is treated as no published
 PDF, not as a user-solvable CAPTCHA. A plain HTTP 403 is also not enough to claim
 a CAPTCHA. Upload uses opening-citation verification. Downloads run sequentially
