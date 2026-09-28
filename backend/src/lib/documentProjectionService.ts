@@ -578,23 +578,29 @@ async function cachedPagination(reference: ProjectionReference, starts: number[]
   return JSON.parse(result) as PdfPageBinding[];
 }
 
-async function pdfPagination(source: DocumentProjectionSource, citations: string[] = []) {
+async function pdfInformation(source: DocumentProjectionSource, citations: string[] = []) {
   assertProjectionSource(source);
   await source.assertAvailable?.();
   const reference = { documentId: source.documentId, versionId: source.versionId,
     sourceSha256: source.sourceSha256, cacheKey: source.pdfProfile?.cacheKey };
   // Cache derived labels in the existing version/profile-bound projection cache.
   const starts = source.reporterOriginal ? reporterStartPages(citations) : [];
-  const result = await cachedPagination(reference, starts, async () => {
+  const result = await projectionFor(`${projectionKey(reference)}\0pdf-information:${starts.join(",")}`, async () => {
     const { bytes } = await boundedSource(source);
     const document = reference.cacheKey
       ? await structureNative().restorePdfDocument(pdfCacheRequest(reference, reference.cacheKey))
         ?? await openPdf({ ...reference, bytes, ocrProvider: null, layout: false })
       : await openPdf({ ...reference, bytes, ocrProvider: null, layout: false });
-    return paginationFor(document, starts);
+    const summary = structureNative().pdfDocumentSummary(document);
+    return JSON.stringify({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr,
+      pageMap: await paginationFor(document, starts) });
   });
   await source.assertAvailable?.();
-  return result;
+  return JSON.parse(result) as { pageCount: number; pagesNeedingOcr: number[]; pageMap: PdfPageBinding[] };
+}
+
+async function pdfPagination(source: DocumentProjectionSource, citations: string[] = []) {
+  return (await pdfInformation(source, citations)).pageMap;
 }
 
 async function pdfPageLabels(source: DocumentProjectionSource, citations: string[] = []) {
@@ -666,6 +672,7 @@ export const documentProjectionService = Object.freeze({
   pdfTextLayer,
   pdfPageLabels,
   pdfPagination,
+  pdfInformation,
   async rehydratePdfEvidence(handle: string, expected: ProjectionReference) {
     const { document, receipt } = await preparedForEvidence(handle, expected);
     return rehydratePdfEvidence(document, receipt);

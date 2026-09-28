@@ -84,6 +84,7 @@ describe("DocumentProjectionService", () => {
       assertAvailable: async () => { if (!available) throw new Error("Access revoked"); } };
     expect(await projections.pdfPageLabels(source)).toEqual(expected);
     expect(await projections.pdfPageLabels(source)).toEqual(expected);
+    expect(await projections.pdfInformation(source)).toMatchObject({ pageCount: 6, pagesNeedingOcr: [] });
     expect(reads).toBe(1);
     available = false;
     await expect(projections.pdfPageLabels(source)).rejects.toThrow("Access revoked");

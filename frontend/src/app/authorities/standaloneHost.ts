@@ -20,6 +20,12 @@ import { prepareSourceText, readSourceText } from './standalonePdfText';
 import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from
   "../../../../backend/src/lib/authoritiesBook";
 
+const recognitionAvailable = import.meta.env.VITE_AUTHORITIES_RECOGNITION !== "unavailable";
+function supportedDraft(state: AuthoritiesDraft): AuthoritiesDraft {
+  return recognitionAvailable || state.settings.scannedPdfPolicy === "page-margin" ? state
+    : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" } };
+}
+
 async function resolveExact(input: WorkProductInput) {
   const result = await resolveStandaloneFile(input, true);
   if (result.status === "missing") throw new Error(result.reason === "permission"
@@ -45,12 +51,12 @@ async function findSourceIssues(state: AuthoritiesDraft) {
 }
 
 async function save(id: string, revision: number, state: AuthoritiesDraft) {
-  return standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state });
+  return standaloneWorkProducts.update<AuthoritiesDraft>(id, { revision, state: supportedDraft(state) });
 }
 async function currentProduct(id: string, revision: number) {
   const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
   if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
-  return product;
+  return { ...product, state: supportedDraft(product.state) };
 }
 
 async function runtimeResponse(path: string, body: BodyInit, json = false,
@@ -63,7 +69,7 @@ async function runtimeResponse(path: string, body: BodyInit, json = false,
 async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal) {
   const response = await runtimeResponse(path, body, json, signal);
   if (!response.headers.get("content-type")?.startsWith("multipart/form-data")) {
-    return await response.json() as AuthoritiesDraft;
+    return supportedDraft(await response.json() as AuthoritiesDraft);
   }
   const form = await response.formData();
   const state = JSON.parse(String(form.get("draft"))) as AuthoritiesDraft;
@@ -92,7 +98,7 @@ async function runtimeDraft(path: string, body: BodyInit, json = false, signal?:
     }
     state.bindings[source.bindingRole] = binding;
   }
-  return state;
+  return supportedDraft(state);
 }
 
 async function refreshImported(state: AuthoritiesDraft, file: File, replace = false) {
@@ -149,7 +155,8 @@ type RecognitionJob = { controller: AbortController; progress: PdfProgress };
 const recognitionJobs = new Map<string, RecognitionJob>();
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
-  prepareAnnotations,
+  prepareAnnotations: (product, ...args) =>
+    prepareAnnotations({ ...product, state: supportedDraft(product.state) }, ...args),
   sourceOcr: {
     async start(id, roles, pages, scannedPages) {
       const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
@@ -183,6 +190,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     },
   },
   mode: "standalone",
+  recognitionAvailable,
   drafts: standaloneWorkProducts,
   async create({ source, title, settings }) {
     if (source.kind === "document") {

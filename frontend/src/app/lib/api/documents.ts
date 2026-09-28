@@ -22,7 +22,8 @@ export const getDocumentReaderText = (id: string, versionId: string, signal?: Ab
     { version_id: versionId }), { signal });
 export type PdfRecognizedText = { pageLabels?: Array<string | null>; pages: Array<{ pageNumber: number; width: number; height: number;
   lines: Array<{ id: string; text?: string; rect: [number, number, number, number];
-    words: Array<{ text: string; rect: [number, number, number, number] }> }> }> };
+    words: Array<{ text: string; rect: [number, number, number, number] }> }> }>;
+  pageCount?: number; pagesNeedingOcr?: number[] };
 export const getDocumentPdfTextLayer = (id: string, versionId: string | undefined, signal?: AbortSignal,
   pages?: number[], sourceSha256?: string, citations: string[] = [], reporterOriginal = false) =>
   apiRequest<PdfRecognizedText>(pagePath(`/single-documents/${segment(id)}/pdf-text-layer`,
