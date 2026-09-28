@@ -812,6 +812,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     else act({ type: "set-stage", stage: next });
   };
   const buildPanel = draft && stage === "build" && <BuildPanel draft={draft} busy={busy} building={building}
+    recognitionAvailable={host.recognitionAvailable !== false}
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
     missing={missingPdfs.length} onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
@@ -920,12 +921,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                       onLibraryAdd: attachLibraryAvailable ? () => openLibrary({ kind: "manual" }) : undefined,
                       onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
                     } : {})} />
+                    {host.recognitionAvailable === false && scannedSources.files.length > 0 &&
+                      <p className="mt-3 text-sm text-gray-700">Scanned pages stay as images in this copy; text recognition is unavailable.</p>}
                     <div className="mt-3 flex items-center justify-end gap-3">
                       <StepProgress label={stepOperation || (recognitionAsked ? scannedSources.progress : "")} error={stepError} />
                       <Button disabled={busy || recognitionAsked} onClick={() => {
                         // A draft set to keep scans as images has already answered the question.
-                        if (recognitionSettled || draft.state.settings.scannedPdfPolicy === "page-margin")
-                          advance("highlights");
+                        if (recognitionSettled || host.recognitionAvailable === false ||
+                          draft.state.settings.scannedPdfPolicy === "page-margin") advance("highlights");
                         else askRecognition();
                       }}>Next<ChevronRight /></Button>
                     </div></>}
@@ -979,8 +982,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         breadcrumbs={["Recognize text"]} fit footerStatus={scannedSources.progress}
         primaryAction={{ label: "Next", onClick: applyRecognition, disabled: busy }}>
         <p className="text-sm leading-6 text-gray-700">These source PDFs are scans. Recognition reads
-          their pages so passages can be marked and the book can be searched. It keeps running in the
-          background while you work on the highlights.</p>
+          their pages so passages can be marked and the book can be searched. {host.sourceOcr
+            ? "It keeps running in the background while you work on the highlights."
+            : "Recognition runs when you build the book."}</p>
         {scannedSources.error && <p role="alert" className="mt-2 text-sm text-red-800">{scannedSources.error}</p>}
         <ul className="my-4 max-h-36 divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-300 bg-gray-50">
           {unrecognized.map(file => <li key={file.role} className="grid gap-1 px-3 py-2.5">
@@ -1337,10 +1341,11 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
   </div>;
 }
 
-function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onAction, sourceIssues,
+function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
   outputFreshness, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean; missing: number;
+  recognitionAvailable: boolean;
   outputFreshness: "unbuilt" | "current" | "stale";
   jurisdictionOrder: string[];
   onAction: (action: AuthoritiesAction) => void; onBuild: () => void; onCancel: () => void;
@@ -1437,7 +1442,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
           disabled={busy} onChange={(tableLocation) => onAction({ type: "set-settings", settings: { tableLocation } })}
           options={[{ value: "pages", label: "Pages" }, { value: "pinpoints", label: "Pinpoints" },
             { value: "combined", label: "Pages and pinpoints" }]} />}
-        {draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Scanned PDFs" value={draft.state.settings.scannedPdfPolicy}
+        {recognitionAvailable && draft.state.import.kind === "document" && draft.state.outputMode !== "table" && <SelectField label="Scanned PDFs" value={draft.state.settings.scannedPdfPolicy}
           disabled={busy} onChange={(scannedPdfPolicy) => onAction({ type: "set-settings", settings: { scannedPdfPolicy } })}
           options={[{ value: "page-margin", label: "Keep scan; mark cited pages" },
             { value: "cited-pages", label: "OCR cited pages" },

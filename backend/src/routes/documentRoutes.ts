@@ -134,7 +134,14 @@ export function createDocumentsRouter(
       ...(source.pdfProfile ? { cacheKey: source.pdfProfile.cacheKey } : {}),
     }, { pdfProfile: source.pdfProfile, pages: requestedPages, signal: abort.signal });
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ pages });
+    let citations: string[] = [];
+    try {
+      citations = z.array(z.string().max(2000)).max(50).parse(
+        req.query.citations ? JSON.parse(z.string().max(100_000).parse(req.query.citations)) : []);
+    } catch { reject(400, "Invalid citation context"); }
+    const information = await documentProjectionService.pdfInformation({ ...source,
+      reporterOriginal: req.query.reporter_original === "1" }, citations);
+    res.json({ ...information, pages, pageLabels: information.pageMap.map(entry => entry.label) });
   }));
 
   router.get("/:documentId/pdf-page-labels", asyncRoute(async (req, res) => {

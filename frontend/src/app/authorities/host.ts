@@ -37,6 +37,7 @@ export type AuthoritiesCreate = {
 export interface AuthoritiesHost {
   prepareAnnotations?: typeof import("./annotationPreparation").prepareAnnotations;
   mode?: "beaver" | "standalone";
+  recognitionAvailable?: boolean;
   drafts: WorkProductStore;
   create(input: AuthoritiesCreate): Promise<AuthoritiesProduct>;
   act(id: string, revision: number, action: AuthoritiesAction): Promise<AuthoritiesProduct>;

@@ -2,11 +2,11 @@
 
 ## Single-parser candidate and reporter hypothesis (2026-09-28)
 
-The expanded sample contains 345 hash-verified Canadian publisher originals,
-12,484 physical pages, from 1970 through 2023. It remains SCC/SCR/RCS-heavy; it does not
-meet the requested 350-original target or establish other reporter-family coverage.
+The expanded sample contains 350 hash-verified Canadian publisher originals,
+12,660 physical pages, from 1970 through 2023. The requested 350-original target is met.
+Reporter-family coverage is limited to SCC/SCR/RCS.
 The separate 105-document, 22-court general-judgment cohort is not included in
-this denominator. Acquisition stopped at a renewed SCC publisher challenge.
+this denominator. Acquisition receipts retain challenges and incomplete downloads.
 
 The hypothesis tested is **the submitted citation's reporter start belongs to
 physical PDF page 1**, not a detector-selected anchor. Sampling is independent
@@ -14,8 +14,8 @@ of predictions: page 1 and up to two distinct later pages selected from the
 source hash. Blind text-layer readings come first. Only unresolved images go
 to the existing Luna max/schema harness, one batch at a time.
 
-Across 988 sampled pages, 985 readable folios agreed. All sampled folios agreed
-for 344 documents. The remaining publisher original, Bhasin v. Hrynew
+Across 1,002 sampled pages, 999 readable folios agreed. All sampled folios agreed
+for 349 documents. The remaining publisher original, Bhasin v. Hrynew
 ([2014] 3 SCR 494), is a judgment-format PDF without reporter folios; its three
 samples were absent, not successful predictions. One apparent disagreement
 was a damaged text mapping (visible `74`, extracted `7` plus a soft hyphen);
@@ -216,6 +216,39 @@ does not include the native OCR runtime. Its user-facing recognition options
 and profile defaults still need to account for that capability before the
 complete gate can be claimed. No model or recognition capability was added by
 this shared-operation fix.
+
+Five further originals completed the 350-document target: stage 16 added three
+(137 pages) and stage 17 added two (39 pages). Their 14 independent sampled folios
+all agreed; eight required blind image review and six were read from text. All
+five product pinpoint destinations agreed for display, selected page and highlight.
+Combined stage receipts cover 345 correct destinations and five abstentions with
+no wrong destinations. This is the inspected regression corpus, not a claim of
+fresh held-out accuracy. Receipts: `stage{16,17}-manifest.json`,
+`product-stage{16,17}/`, and `canadian-citation-only-scores.json`.
+
+Scan discovery in the shared Sources screen now reads page count and unread-page
+indices from prepared PDF evidence rather than extracting every page again with
+PDF.js. The existing version/profile-bound metadata cache supplies both inspection
+and printed bindings. Backend checks passed (36), frontend host/OCR checks passed
+(15), and both TypeScript builds/checks passed. The updated 100-document no-OCR
+operation took 25.5 seconds with an empty cache and 2.5 seconds in a new process
+on reopen; all bindings matched the previous production run. Cold median was
+37.9 ms, p95 1,013.9 ms. RSS sampled every ten documents peaked at 385 MiB;
+the once-per-second process-tree monitor observed 608 MiB. Reopen median was
+13.2 ms and p95 63.1 ms. Receipts: `canadian-product-inspection-final-*`.
+
+The full HTML adapter now declares that it lacks recognition. Its shared UI omits
+unavailable recognition choices, keeps scans as images, and shows a notice only
+when scans are present. Native standalone recognition remains available and its
+copy correctly says recognition runs at build time. The exact HTML SHA-256
+`b5881b30011595924561021f13011ab194dfcc93886ae85eaf623ed411ba51bb` passed
+the complete automatic and manual browser workflow, four court profiles, original
+acquisition, replacement, exports, save/reopen and narrow-screen checks in
+62.5 seconds with no severe browser errors. Reviewed 320-pixel screenshots were
+readable and contained. Receipt: `browser-automatic-inspection/standalone/20260928T094818183878Z/`.
+This validates output workflows; it does not certify filing compliance for every
+source or add OCR to the HTML runtime. The final combined product replay and
+Lite/Beaver candidate publication checks remain pending.
 
 ## Decisia PDF route check (2026-09-27)
 

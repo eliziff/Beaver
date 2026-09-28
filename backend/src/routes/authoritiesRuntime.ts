@@ -174,12 +174,12 @@ export function createAuthoritiesRuntimeRouter(
     if (!authority || !source) return reject(400, "The authority PDF is not attached");
     const bytes = await readFile(requiredFile(req).path);
     if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before reading page labels.");
-    const pageLabels = await documentProjectionService.pdfPageLabels({
+    const information = await documentProjectionService.pdfInformation({
       documentId: `standalone-authority:${source.sourceSha256}`, versionId: source.sourceSha256,
       sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
       reporterOriginal: source.origin === "original",
     }, authorityCitationForms(state, authority.id));
-    res.json({ pages: [], pageLabels });
+    res.json({ ...information, pages: [], pageLabels: information.pageMap.map(page => page.label) });
   }));
   router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));
