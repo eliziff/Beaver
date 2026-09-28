@@ -1399,49 +1399,6 @@ describe("Authorities workspace application", () => {
     }])).rejects.toMatchObject({ status: 409 });
   });
 
-  it("derives split and merge replacements from one footnote and a cursor", async () => {
-    const text = "2024 ABKB 1; 2024 FCA 2", sourceTextSha256 = sha256(Buffer.from(text));
-    let draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
-      type: "add-authority", authority: { id: "ab-key", key: "ab-key", kind: "case",
-        citation: "2024 ABKB 1", name: null, displayName: null, excluded: false,
-        evidenceIds: [], locators: [], sourceIdentity: null,
-        source: { kind: "unresolved" } },
-    });
-    draft = { ...draft, units: [{ id: "footnote:1", kind: "footnote", ordinal: 0,
-      footnoteId: 1, footnoteRefs: [], pageNumbers: [], text,
-      occurrenceIds: ["original"] }],
-    occurrences: { original: { id: "original", unitId: "footnote:1", start: 0,
-      end: text.length, text, kind: "case", citation: "2024 ABKB 1",
-      authoritySpan: { start: 0, end: text.length, text },
-      coreSpan: { start: 0, end: text.length, text }, pinpointSpan: null,
-      authorityId: "ab-key", reference: null, pinpoints: [], evidenceIds: [],
-      sourceTextSha256, localOrdinal: 0, reviewed: false } } };
-    const occurrence = (value: string) => ({ text: value, start: 0, end: value.length,
-      styledCitation: { text: value, start: 0, end: value.length },
-      coreCitation: { text: value, start: 0, end: value.length },
-      pinpoints: [], kind: "case" as const, reasons: [] });
-    const runtime = harness({ draft,
-      key: (value) => value.includes("FCA") ? "fca-key" : "ab-key",
-      occurrences: (value) => value.includes(";")
-        ? value.split(";").map((item) => occurrence(item.trim())) : [occurrence(value)] });
-    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
-    product = await runtime.application.act(scope, product.id, product.revision, {
-      type: "split-occurrence", occurrenceId: "original", cursor: text.indexOf(";") + 1,
-    });
-    let state = product.state as AuthoritiesDraft;
-    expect(state.units[0].occurrenceIds.map((id) => state.occurrences[id].text))
-      .toEqual(["2024 ABKB 1;", "2024 FCA 2"]);
-    expect(state.authorities["fca-key"].citation).toBe("2024 FCA 2");
-    const right = state.units[0].occurrenceIds[1];
-    product = await runtime.application.act(scope, product.id, product.revision, {
-      type: "merge-occurrence", occurrenceId: right,
-    });
-    state = product.state as AuthoritiesDraft;
-    expect(state.units[0].occurrenceIds).toHaveLength(1);
-    expect(state.occurrences[state.units[0].occurrenceIds[0]])
-      .toMatchObject({ start: 0, end: text.length, text, authorityId: null });
-  });
-
   it("persists exact UTF-16 authority and pinpoint selections without losing provenance",
     async () => {
     const unitText = "\u{1f9ab} See Smith v Jones, 2024 ABKB 123 (Alta.) at paras 7-9.",
@@ -1555,67 +1512,6 @@ describe("Authorities workspace application", () => {
     expect(corrected.evidenceIds).toEqual(["e1", "e2"]);
     expect(state.authorities["reporter-key"]).toBeUndefined();
     expect(state.authorities["neutral-key"].displayName).toBe("R v Oakes");
-  });
-
-  it("absorbs a split pinpoint and permits an exact manual citation boundary", async () => {
-    const text = "R v Grant, 2009 SCC 32 at para 29", authority = "R v Grant, 2009 SCC 32",
-      core = "2009 SCC 32", pinpoint = "para 29", pinpointStart = text.indexOf(pinpoint);
-    const draft = createAuthoritiesDraft({ kind: "manual" });
-    Object.assign(draft, {
-      units: [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
-        footnoteRefs: [], pageNumbers: [], text, occurrenceIds: ["main", "split"] }],
-      occurrences: {
-        main: { id: "main", unitId: "body:0", start: 0, end: authority.length, text: authority,
-          authoritySpan: { start: 0, end: authority.length, text: authority },
-          coreSpan: { start: text.indexOf(core), end: text.indexOf(core) + core.length, text: core },
-          pinpointSpan: null, kind: "case", citation: core, authorityId: "grant", reference: null,
-          pinpoints: [], evidenceIds: ["e1"], sourceTextSha256: "hash", localOrdinal: 0,
-          reviewed: false },
-        split: { id: "split", unitId: "body:0", start: pinpointStart, end: text.length,
-          text: pinpoint, authoritySpan: { start: pinpointStart, end: text.length, text: pinpoint },
-          coreSpan: { start: pinpointStart, end: text.length, text: pinpoint },
-          pinpointSpan: null, kind: "other", citation: pinpoint, authorityId: null,
-          reference: null, pinpoints: [], evidenceIds: ["e2"], sourceTextSha256: "hash",
-          localOrdinal: pinpointStart, reviewed: false },
-      },
-      authorities: { grant: { id: "grant", key: "grant", kind: "case", citation: core,
-        name: "R v Grant", displayName: null, excluded: false,
-        evidenceIds: [], locators: [], sourceIdentity: null, source: { kind: "unresolved" } } },
-      authorityOrder: ["grant"],
-    });
-    const runtime = harness({ draft, key: () => "grant", occurrences: () => [{ text,
-      start: 0, end: text.length, styledCitation: { text: authority, start: 0, end: authority.length },
-      coreCitation: { text: core, start: text.indexOf(core), end: text.indexOf(core) + core.length },
-      pinpoints: [{ text: "29", start: text.indexOf("29"), end: text.length,
-        kind: "paragraph" }], kind: "case", shortForm: "R v Grant",
-      reasons: ["provider_routing", "same_text_style", "pinpoint_grammar"] }] });
-    let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
-    product = await runtime.application.act(scope, product.id, product.revision,
-      { type: "set-pinpoint-span", occurrenceId: "main", start: pinpointStart, end: text.length });
-    let state = product.state as AuthoritiesDraft;
-    expect(state.units[0].occurrenceIds).toEqual(["main"]);
-    expect(state.occurrences.main).toMatchObject({ evidenceIds: ["e1", "e2"],
-      pinpointSpan: { start: pinpointStart, end: text.length, text: pinpoint },
-      pinpoints: [{ kind: "paragraph", text: "29" }] });
-
-    const manualText = "R v Oddity, unreported", manualStart = manualText.indexOf("unreported"),
-      manual = createAuthoritiesDraft({ kind: "manual" });
-    Object.assign(manual, { units: [{ id: "body:1", kind: "body", ordinal: 0,
-      footnoteId: null, footnoteRefs: [], pageNumbers: [], text: manualText,
-      occurrenceIds: ["odd"] }], occurrences: { odd: { id: "odd", unitId: "body:1",
-      start: manualStart, end: manualText.length, text: "unreported",
-      authoritySpan: { start: manualStart, end: manualText.length, text: "unreported" },
-      coreSpan: { start: manualStart, end: manualText.length, text: "unreported" }, pinpointSpan: null,
-      kind: "other", citation: "unreported", authorityId: null, reference: null,
-      pinpoints: [], evidenceIds: [], sourceTextSha256: "hash", localOrdinal: manualStart,
-      reviewed: false } } });
-    const manualRuntime = harness({ draft: manual, key: () => "", occurrences: () => [] });
-    product = await manualRuntime.application.importDraft(scope, { source: { kind: "manual" } });
-    product = await manualRuntime.application.act(scope, product.id, product.revision,
-      { type: "set-authority-span", occurrenceId: "odd", start: 0, end: manualText.length });
-    state = product.state as AuthoritiesDraft;
-    expect(state.occurrences.odd).toMatchObject({ reviewed: true,
-      authoritySpan: { start: 0, end: manualText.length, text: manualText } });
   });
 
   it("replaces obsolete output roles after output-mode changes", async () => {

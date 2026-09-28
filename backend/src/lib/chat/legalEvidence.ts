@@ -792,13 +792,13 @@ export function legalEvidenceProseIntegrityErrors(text: string,
     const paragraphs = citation.pinpoints.filter(({ kind }) => kind === "paragraph");
     if (!paragraphs.length) continue;
     named.set(key, labels);
-    paragraphs.forEach((point, index) => {
-      const previous = paragraphs[index - 1], range = previous && /^\s*[-–—]\s*$/u.test(text.slice(previous.end, point.start));
-      const start = range ? Number(previous.text) : Number(point.text), end = Number(point.text);
+    paragraphs.forEach((point) => {
+      const first = point.first ?? point.text, last = point.last ?? first;
+      const start = Number(first), end = Number(last);
       // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
       if (Number.isSafeInteger(start) && end >= start && end - start < 60)
         for (let value = start; value <= end; value++) labels.add(String(value));
-      else labels.add(range ? `${previous.text}–${point.text}` : point.text);
+      else labels.add(point.last ? `${first}–${last}` : first);
     });
   }
   const pinpoints = [...named].flatMap(([key, labels]) => {

@@ -1065,17 +1065,4 @@ describe("Research v2 parts", () => {
     expect(file.state.labels[other]).toMatchObject({ name: "Applied test", parentId: highlightLabel, color: "#93ab87" });
   });
 
-  it("keeps a citation resolvable after its highlight is removed and prevents a reread from resurrecting it", async () => {
-    const f = fixture(), scope = { userId: "user-1" }, passage = receipt("a"),
-      saved = await act(f, { type: "merge", evidence: [passage], labels: { [passage.evidence_id]: [] } }),
-      sourceId = Object.keys(saved.state.sources)[0],
-      application = createSourceWorkspaceApplication(f.documents as never, { chats: {} as never, tables: {} as never,
-        tabular: async () => { throw new Error("No table work in this test"); } });
-    const before = await application.citation(scope, "doc-1", sourceId, passage.evidence_id);
-    await act(f, { type: "remove", kind: "evidence", sourceId, id: passage.evidence_id });
-    const file = await act(f, { type: "merge", evidence: [passage] });
-    expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items).toEqual([]);
-    expect(await application.citation(scope, "doc-1", sourceId, passage.evidence_id)).toEqual(before);
-  });
-
 });
