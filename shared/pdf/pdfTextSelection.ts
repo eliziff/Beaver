@@ -136,6 +136,39 @@ export function attachPdfTextSelection(scroller: HTMLElement, enabled: () => boo
     }
     stop();
   };
+    const layers = () => scroller.querySelectorAll<HTMLElement>(".pdf-text-layer");
+    const reset = (layer: HTMLElement) => {
+        const end = layer.querySelector<HTMLElement>(":scope .endOfContent");
+        if (end) { if (end.parentNode !== layer || end.nextSibling) layer.append(end);
+        end.style.width = end.style.height = ""; }
+        layer.classList.remove("selecting");
+    };
+    let previous: Range | null = null;
+    const endSelecting = () => { layers().forEach(reset); previous = null; };
+    const onSelectionChange = () => {
+        const selection = document.getSelection();
+        if (!selection?.rangeCount || selection.isCollapsed || !scroller.contains(selection.anchorNode)) { endSelecting(); return; }
+        const range = selection.getRangeAt(0);
+        if (previous?.startContainer.isConnected && range.compareBoundaryPoints(Range.START_TO_START, previous) === 0 &&
+        range.compareBoundaryPoints(Range.END_TO_END, previous) === 0) return;
+        layers().forEach((layer) => range.intersectsNode(layer) ? layer.classList.add("selecting") : reset(layer));
+        const modifyStart = !!previous && (range.compareBoundaryPoints(Range.END_TO_END, previous) === 0 ||
+        range.compareBoundaryPoints(Range.START_TO_END, previous) === 0);
+        let anchor: Node | null = modifyStart ? range.startContainer : range.endContainer;
+        if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode;
+        const layer = (anchor as Element | null)?.parentElement?.closest<HTMLElement>(".pdf-text-layer");
+        const end = layer?.querySelector<HTMLElement>(":scope .endOfContent");
+        if (layer && end && anchor) {
+        end.style.width = layer.style.width; end.style.height = layer.style.height;
+        const before = modifyStart ? anchor : anchor.nextSibling;
+        if (before !== end && (end.parentNode !== anchor.parentNode || end.nextSibling !== before))
+            anchor.parentElement!.insertBefore(end, before);
+        }
+        previous = range.cloneRange();
+    };
+  document.addEventListener('selectionchange', onSelectionChange);
+  document.addEventListener('pointerup', endSelecting);
+  window.addEventListener('blur', endSelecting);
   document.addEventListener('selectionchange', preview);
   scroller.addEventListener('mousedown', down);
   window.addEventListener('pointermove', move);
@@ -144,7 +177,10 @@ export function attachPdfTextSelection(scroller: HTMLElement, enabled: () => boo
   window.addEventListener('pointercancel', stop);
   window.addEventListener('blur', stop);
   return () => {
-    stop(); clearPreview();
+    stop(); clearPreview(); previous = null;
+    document.removeEventListener('selectionchange', onSelectionChange);
+    document.removeEventListener('pointerup', endSelecting);
+    window.removeEventListener('blur', endSelecting);
     if (previewFrame) cancelAnimationFrame(previewFrame);
     document.removeEventListener('selectionchange', preview);
     scroller.removeEventListener('mousedown', down);

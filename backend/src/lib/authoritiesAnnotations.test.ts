@@ -1,9 +1,10 @@
+import { writeAuthorityAnnotations } from 'mike/shared/pdf-annotation-writer.mjs';
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, degrees } from 'pdf-lib';
 import * as pdf from 'pdf-lib';
 import { ANNOTATION_SCHEMA, annotationSetForSource, decodeAnnotationSet, emptyAnnotationSet,
   rectToPdfQuad, type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
-import { initialAuthorityAnnotations, writeAuthorityAnnotations } from './authoritiesAnnotations';
+import { initialAuthorityAnnotations } from './authoritiesAnnotations';
 import { buildAuthorities, prepareAuthorityAnnotations } from './authoritiesBuild';
 import { createAuthoritiesDraft, decodeAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft } from './authoritiesDomain';
 import { decodeAuthoritiesUserAction } from './authoritiesActionContract';

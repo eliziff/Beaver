@@ -264,6 +264,7 @@ async function scopedDocument(document: A2AJCompiledDocument, requested: string,
 async function document(args: {
   citation: string; docType?: DocType; language?: Language; dataset?: string;
   section?: string; sourceUrl?: string | null; signal?: AbortSignal;
+  discoverPdf?: boolean;
 }) {
   const citation = args.citation.trim();
   if (!citation) throw new Error("citation is required");
@@ -272,7 +273,7 @@ async function document(args: {
   const language = args.language === "fr" ? "fr" : "en";
   const cacheKey = (sourceUrl: string) => JSON.stringify([
     docType, language, args.dataset?.trim().toLowerCase() ?? "",
-    citation.toLowerCase(), sourceUrl, args.section?.trim() ?? "",
+    citation.toLowerCase(), sourceUrl, args.section?.trim() ?? "", args.discoverPdf !== false,
   ]), sourceUrl = args.sourceUrl?.trim() ?? "", key = cacheKey(sourceUrl);
   const cached = documents.get(key) ?? (sourceUrl ? documents.get(cacheKey("")) : undefined);
   if (cached && cached.expires > Date.now() && (!sourceUrl || cached.value.url === sourceUrl)) return cached.value;
@@ -339,7 +340,7 @@ async function document(args: {
     if (source) break;
   }
   if (!source) return null;
-  source = { ...source, verifiedPdf: await decisiaPdf(source.url, args.signal) };
+  source = { ...source, verifiedPdf: args.discoverPdf === false ? null : await decisiaPdf(source.url, args.signal) };
   const result = await compileDocument(source);
   documents.set(key, {
     expires: Date.now() + (docType === "cases" ? 24 * 60 * 60_000 : 60 * 60_000),

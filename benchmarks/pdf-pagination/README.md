@@ -1,0 +1,246 @@
+# Printed pagination validation
+
+## Decisia PDF route check (2026-09-27)
+
+`publisherPdfCandidate` in `backend/src/lib/legalSourcePresentation.ts` derives an
+opportunistic `/1/document.do` URL from an approved Decisia case URL. It never
+proves that a PDF exists. The downloader validates the response and falls back to
+the case page's actual download control on an ordinary 404.
+
+`publisher-cached.py` joins independently stored A2AJ case URLs to 114 cached
+original SCC PDF receipts; `publisher-cached.mjs` checks that the primitive
+derives each receipt URL and that all 114 files still match their hashes and parse
+as PDFs. Result: 114/114 URL matches and 114/114 valid cached originals.
+
+`publisher-candidates.py` selected three cases per each of 16 Decisia hosts
+deterministically from the installed Canadian A2AJ inventory. After a user
+completed Norma's CAPTCHA, `publisher-rule.mjs --after-clearance` made sequential
+requests. Of 48 cases, 24 were valid PDFs with publisher controls matching the
+derived URLs, five derived URLs returned 404, seven encountered the renewed
+challenge, and 12 were skipped after a host challenge. This is a sample, not a
+success rate for the whole inventory. The live run's extra HTML control request
+per PDF contributed to the challenge returning; the production direct path
+does not make that extra request after a valid PDF.
+
+The five 404s were investigated individually in `tmp/pdf-pagination/404-investigation/`.
+Three Competition Tribunal case URLs from A2AJ themselves return JSON 404;
+eight further Tribunal `cdo` source URLs from 2012, 2021 and 2026 did too,
+while the Tribunal navigation page still loaded. This implicates stale or
+unavailable source routes, not a different PDF suffix. Two older federal case
+pages load (2005 FCA 226 and 2004 CF 1217), but their `/1/document.do`
+URLs return 404 and the deployed Worker reports no PDF control. The user
+opened both case pages in the browser and confirmed neither offers a PDF.
+These cases must never be counted as formula successes or treated as proof
+that every Decisia case has a PDF.
+
+For no-PDF detection, an additional deterministic sample of 12 pre-2007 FC/FCA
+cases was checked live. Eleven derived PDF URLs returned 404, while the
+corresponding inner judgment pages returned HTTP 200 with an explicitly empty
+`div.documents` control. The twelfth returned a PDF. The two browser-confirmed
+no-PDF cases had the same empty control; a positive FCA control contained the
+published PDF anchor. A direct PDF 404 alone is insufficient: the outer case
+page must be checked before its inner page. One Tribunal case returned outer
+404 but its inner page challenged, so probing the inner page alone would
+incorrectly present a CAPTCHA workflow for an unavailable case URL.
+
+## Cross-court original PDF folios (2026-09-28)
+
+The Canadian general-judgment sample contains 77 SHA-256-verified Decisia
+originals across 19 court codes (2,318 physical pages), plus 4 Alberta Court of
+Appeal, 12 Manitoba Court of Appeal and 12 Manitoba Court of King's Bench direct
+official originals (748 pages). Source URLs, bytes, hashes and page counts are in
+`tmp/pdf-pagination/canadian-diverse-originals/` and
+`tmp/pdf-pagination/canadian-direct-originals/`. These 105 form a separate evaluation
+cohort from the reporter-offset sample. Together with 130 SCC reporter originals and one
+overlap, the local Canadian corpus has 234 unique originals across 22 court codes.
+
+The Decisia acquisition manifest also retains 85 no-published-PDF outcomes, 13
+actual validation-form CAPTCHA challenges and 16 cases skipped after a host
+challenge. A blocked case-content iframe is not evidence of no PDF. A controlled
+production check on SCC item 14385 returns the exact publisher verification
+iframe instead of silently recording no PDF. The isolated browser at the same
+URL showed only a generic 403, so clearance could not be performed unattended.
+
+`assess-diverse.py` verifies each hash and reads only standalone numeric text
+lines in page margins, with no citation, product prediction, OCR or model input.
+It samples PDF page 1 and two hash-seeded later pages, and scans all pages for
+repeated numeric folios. Of 228 Decisia sampled pages, 48 were readable and 180
+were not; 17 documents had at least two consistent offset readings, two had
+conflicting offsets, nine had one reading and 49 had none. Of 82 direct-official
+sampled pages, six were readable and 76 were not. Missing text-layer folios are
+pending visual review, not evidence that printed folios are absent.
+
+The two offset-conflicting documents are composite CITT decisions:
+[1991 source](https://decisions.citt-tcce.gc.ca/citt-tcce/c/en/item/352139/index.do)
+prints `- 2 -` on physical pages 4 and 6, and
+[1999 source](https://decisions.citt-tcce.gc.ca/citt-tcce/a/en/item/353427/index.do)
+prints `- 2 -` on physical pages 2 and 4. A CIRB original also repeats a numeric
+folio. These are real reasons to keep the physical PDF page visible and require
+the user to choose when a printed label is repeated.
+
+With OCR and layout disabled and `reporterOriginal=false`, the production
+pagination operation processed all 105 general originals. It matched all 54
+independently readable sampled folios, made no contradictory prediction and left
+256 samples unscored by the independent text rule. It detected all three
+repeated-label groups in the Decisia set and returned zero unsafe unique
+destinations. Receipts are `production-non-ocr-candidate6.json` in the Decisia
+folder and `production-non-ocr-candidate1.json` in the direct-original folder.
+This is same-corpus regression evidence, not a held-out accuracy estimate.
+
+The rebuilt Beaver and standalone Authorities browser views also passed a live
+navigation check on the original five-page *Des Groseillers v. Quebec* PDF
+(SHA-256 `74d903bab11d2b1de8843c27e34dd3ddfa3bb1e892b4bdff5bb424a4efde5d90`).
+Entering printed page `349` landed on physical PDF page `3 of 5`; the rendered
+page itself shows folio `349`. Both browser receipts and screenshots are under
+`tmp/pdf-pagination/browser/real-reporter-ui/`. This verifies the visible
+interaction for one independently read original; the corpus results above
+measure the wider binding behavior.
+
+## Citation-only Authorities check
+
+The current question is whether an acquired original reporter PDF starts on the
+citation's first reporter page, allowing `printed = citation start + PDF page - 1`
+without detection or OCR. Target **350 unique Canadian original PDFs associated with reporter citations**,
+not 350 acquisition attempts. US PDFs, reconstructed PDFs and acquisition failures
+do not count toward that target. The earlier 350-PDF US-heavy manifest is historical
+supplementary evidence and does not validate the Canadian app's coverage.
+
+`canadian-candidates.py` selects from the app's installed Canadian citation inventory.
+The available reporter fields expose SCR/RCS; provincial and Federal Court reporter
+families remain an explicit coverage gap. Seven date bands each target 50 originals,
+with a seeded order fixed before acquisition. Failure in one band is not filled from
+another jurisdiction. `authorities.cjs --citation-only --canadian` uses the production
+Authorities resolver sequentially, passing canonical case citations and retaining
+reporter forms. It reuses acquisition receipts and performs no page detection or OCR.
+It rejects non-Canadian candidates and keeps separate Canadian receipts and manifests.
+`citation-only.py` writes the citation-only predictions and manifest, and scores
+saved blind visual readings. Existing independent readings are reused, including
+those for sources where the detector previously abstained. New readings use page 1
+and two seeded later pages, with neither citations nor predictions supplied to Luna.
+The primary prediction uses the first reporter start in the resolved citation forms;
+the score also compares the originally submitted reporter citation separately.
+These can differ when resolution returns a PDF from a parallel reporter. Neither
+choice is selected using the visual answers.
+
+```powershell
+python benchmarks/pdf-pagination/canadian-candidates.py
+.\benchmarks\pdf-pagination\limited.ps1 -Name canadian-authorities -NodeArgs @('benchmarks/pdf-pagination/authorities.cjs','--citation-only','--canadian')
+# Cached public originals can be validated while publisher downloads are unavailable.
+python benchmarks/pdf-pagination/canadian-cached.py
+python benchmarks/pdf-pagination/citation-only.py --manifest canadian-cached-manifest.json
+.\benchmarks\pdf-pagination\limited.ps1 -Name canadian-vision -Executable python -NodeArgs @('benchmarks/pdf-pagination/run.py','check','--manifest','canadian-citation-only-manifest.json','--prediction-dir','canadian-citation-only','--workers','1','--batch-size','5','--max-batches','1')
+python benchmarks/pdf-pagination/citation-only.py --manifest canadian-cached-manifest.json
+```
+
+Raw exact-text disagreements require image review; absence of a printed folio is
+not itself an incorrect offset. Preserve raw model readings and record adjudication
+separately. Repeat the single-batch vision command until no readings remain pending;
+each invocation cleans up its model process tree before another starts. The blind
+prompt receives only images and opaque identifiers, with no citation predictions.
+Page identities and original model responses are saved for audit.
+
+The Canadian reporter cache contains 130 SHA-verified public SCC originals;
+uploaded and private documents are excluded. One hundred have independent
+readings from blind image review or citation-blind margin text. In those 100,
+284 of 287 sampled pages have visible labels matching the citation-only offset;
+there are no numeric disagreements. The other three samples are from *Bhasin v.
+Hrynew*, `[2014] 3 SCR 494`: PDF pages 1, 44 and 61 have no visible reporter
+folio despite a reporter citation in the front matter. Its binding remains
+unverified. Thirty other cached originals await visual readings. This SCR/RCS
+evidence does not certify other Canadian reporters, and the 350-reporter-original
+target remains incomplete while publisher access is challenged.
+
+The final candidate's 100-original non-OCR operation took 37.9 seconds cold
+(median 208.3 ms, p95 1292.1 ms) and 15.6 seconds reopening saved projections
+(median 50.5 ms, p95 553.3 ms), with no failures. Against independent readings
+in that timed cohort, it resolved 127 of 211 readable sampled folios exactly,
+left 84 unknown without OCR and made no wrong prediction. The actual cited-page
+operation on 88 originals produced 87 exact independent PDF-page/display/highlight
+matches; *Bhasin* refused to invent a binding. Median operation time was 2.89 s
+and p95 was 6.44 s, including scoped recognition and cached-artifact restoration.
+Receipts are `canadian-product-candidate3-{cold,reopen}.json` and
+`product-oracle-candidate3/` under ignored `tmp/pdf-pagination/`. These are
+candidate runs on previously inspected public PDFs, not fresh held-out proof.
+
+The primary sample follows production Authorities citation resolution, PDF
+acquisition, draft save/reopen, pagination and highlight generation. Reconstructed
+PDFs are reported separately from original reporter PDFs. Acquisition failures are
+retained in receipts rather than disappearing from the denominator.
+
+`authorities.cjs` consumes `tmp/pdf-pagination/authorities-candidates.json` with
+public citation/provider records, writes individual acquisition receipts, and
+builds `authorities-manifest.json`. `authorities-predict.cjs` reuses the native
+projection and recognizes up to three opening pages, stopping when the reporter
+anchor is found. It checks display/highlight destination agreement without
+recognizing every later page.
+
+The supplementary sample comprises 300 existing public judgment/report PDFs.
+`run.py prepare` uses the existing public corpus ledger; it writes URLs, SHA-256
+identities, page counts and deterministic development/held-out assignments. Journals
+are excluded from preparation and scoring. Earlier mixed-corpus artifacts are
+historical evidence only. Keep PDFs and generated results out of source control.
+
+```powershell
+# Compile once, then check the existing Brassard original before the full original set.
+.\benchmarks\pdf-pagination\limited.ps1 -Name backend-build -NodeArgs @('backend/node_modules/typescript/bin/tsc','-p','backend')
+.\benchmarks\pdf-pagination\limited.ps1 -Name brassard -NodeArgs @('benchmarks/pdf-pagination/authorities-predict.cjs','--product','--only','8471c9ebee8339944e4f08cb308f9cfe38b64b7996d0443a73e86704bdf44b87')
+# Run this only after the single judgment succeeds within the limits.
+.\benchmarks\pdf-pagination\limited.ps1 -Name authorities -NodeArgs @('benchmarks/pdf-pagination/authorities-predict.cjs','--product')
+python benchmarks/pdf-pagination/run.py score --manifest authorities-manifest.json
+python benchmarks/pdf-pagination/run.py score
+```
+
+`limited.ps1` uses one logical CPU core, Below Normal priority and one job at a
+time. It samples the owned process tree once per second and stops if its combined
+working set exceeds 1 GB. This is a monitored stop threshold, not an operating-system
+reservation or instantaneous memory cap. There is no minimum-free-RAM gate.
+Resource receipts and command logs go under `tmp/pdf-pagination/limited`.
+Never raise the thresholds automatically. Use argument strings without spaces in
+this local runner; paths in the commands above are relative to the repository root.
+
+The existing visual checker defaults to one Codex process, using `gpt-6-luna` with max reasoning.
+`--workers` accepts 1–4; do not overlap model checks with browser builds or tests
+on a memory-constrained machine. Below Normal priority does not cap memory usage.
+Each receives only page images, their physical page identifiers, the short prompt
+and strict output schema. It sees neither citation predictions nor expected labels.
+It samples the anchor plus two later pages, or the opening three plus two later
+pages when no anchor exists. Small documents naturally yield fewer distinct pages.
+Results, event logs and images are retained by PDF hash and resumed on rerun.
+
+Scores are exact-text comparisons with independent model readings, **not adjudicated
+gold**. Report abstentions, non-readable pages and label disagreements separately;
+do not count reconstructed page numbers as successful reporter offsets. The first
+supplementary run flattened detected/embedded provenance in its predictor; the
+corrected predictor preserves it. Existing prediction receipts are never overwritten
+implicitly. Any retest needs a separate output directory or an explicitly archived
+baseline. Do not tune against held-out failures and then call the same data fresh
+held-out validation. The conservative embedded-label guard was added after reviewing
+these failures, so its score on the same saved visual readings is a regression
+rescore, not a fresh held-out estimate. The corrected supplementary predictor calls
+the product operation directly. `--product` runs the actual cited-page OCR operation
+on the acquired originals and saves separate receipts under `product-final`.
+It also checks generated highlights and restores each prepared artifact to check
+that reopening preserves routing coverage. A non-OCR profile can report pending
+pages in `ocrRoutedPages`; this is not evidence that those pages were recognized.
+The run records actual requested pages and nonempty OCR text separately and refuses
+requests larger than the opening-page allowance plus the single cited page.
+`--only SHA256` selects one acquired source and `--output DIRECTORY` selects a fresh
+run directory. Do not reuse receipts from before a code change as candidate results.
+
+Real acquired-PDF checks are the main acceptance evidence. Small regression tests
+only cover deterministic mapping contracts; they are not a substitute for the
+acquisition, OCR and independent visual results.
+
+The recorded pre-fix Authorities baseline comprises 350 acquisition attempts:
+48 originals, 158 reconstructions and 144 without an attachment. The lower-level
+check anchored 31 originals, with matching highlight destinations. Blind vision
+read 150 sampled pages from the originals: 81 displayed labels agreed and 69
+readable pages had no resolved label. The actual cited-page operation subsequently
+completed for only 2 of the 48 originals. These measurements must not be conflated.
+The subsequent full operation rerun passed for all 31 anchored originals, with 17
+explicit unresolved-page abstentions. It checked display, selected-page OCR,
+highlights and cached-artifact restoration. Median preparation was 2,991 ms;
+the batch took 140.2 seconds with a sampled peak working set of 912 MB on one core.
+These OCR-inclusive operation results are separate from the citation-only hypothesis
+and are not Canadian corpus-scale evidence. The earlier 3 GB free-memory gate was
+an agent-chosen limit and has been removed; the process-tree guard remains.

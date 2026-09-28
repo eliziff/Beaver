@@ -3,8 +3,9 @@ import { inspectPdf } from "@/app/lib/inspectPdf";
 import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[] };
+export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; demand?: string };
 /** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. */
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number;
   error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
@@ -15,6 +16,7 @@ export type SourceOcrPanel = Pick<ReturnType<typeof useSourceOcr>, "tracked" | "
 export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const [tracked, setTracked] = useState<Record<string, SourceOcrStatus>>({});
   const pending = useRef(Promise.resolve());
+  const operations = useRef(new Map<string, object>());
   const port = host.sourceOcr;
   const merge = useCallback((updates: Record<string, Partial<SourceOcrStatus>>) =>
     setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) =>
@@ -22,24 +24,35 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
 
   const begin = useCallback(async (files: ScannedPdf[], pages?: number[]) => {
     if (!port || !draftId || !files.length) return;
+    const operation = {};
+    files.forEach(file => operations.current.set(file.role, operation));
+    const update = (updates: Record<string, Partial<SourceOcrStatus>>) =>
+      merge(Object.fromEntries(Object.entries(updates).filter(([role]) => operations.current.get(role) === operation)));
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
-      [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.recognized ?? 0,
-        state: "running" as const, error: undefined }])) }));
-    await (pending.current = pending.current.then(() => port.start(draftId, files.map(({ role }) => role), pages))
-      .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
+      [file.role, { ...file, recognized: current[file.role]?.sourceSha256 === file.sourceSha256
+        ? current[file.role].recognized : 0,
+        state: "running" as const, pages: pages ?? [], error: undefined }])) }));
+    await (pending.current = pending.current.then(() => {
+      const roles = files.filter(file => operations.current.get(file.role) === operation).map(file => file.role);
+      return roles.length ? port.start(draftId, roles, pages?.length ? pages : undefined) : [];
+    })
+      .then((started) => update(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
-      .catch((error: Error) => merge(Object.fromEntries(files.map(({ role }) =>
+      .catch((error: Error) => update(Object.fromEntries(files.map(({ role }) =>
         [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
 
   const stop = useCallback(async (roles: string[], paused: boolean) => {
     if (!port || !draftId || !roles.length) return;
+    const operation = {};
+    roles.forEach(role => operations.current.set(role, operation));
     const stopped = Object.fromEntries(roles.map((role) => [role,
       { state: paused ? "paused" as const : "cancelled" as const }]));
     merge(stopped);
-    await (pending.current = pending.current.then(() => port.cancel(draftId, roles)).then(() => merge(stopped))
+    await (pending.current = pending.current.then(async () => { await port.cancel(draftId, roles); })
       .catch((error: Error) => merge(Object.fromEntries(
-        roles.map((role) => [role, { state: "failed" as const, error: error.message }])))));
+        roles.filter(role => operations.current.get(role) === operation)
+          .map((role) => [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
 
   const watching = Object.values(tracked)
@@ -47,31 +60,49 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     .sort().join(",");
   useEffect(() => {
     if (!port || !watching) return;
+    let polling = false, disposed = false;
     const poll = async () => {
+      if (polling) return;
+      polling = true;
+      const requested = new Map(operations.current);
       const states = new Map((await port.progress(watching.split(",")).catch(() => []))
         .map((state) => [state.id, state]));
-      setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) => {
-        const state = item.state === "running" && item.documentId
-          ? states.get(item.documentId) : undefined;
-        // A pass is opaque while it runs, so pages count as recognized only once it ends:
-        // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
-        return [role, state ? { ...item, pages: state.pages ?? [], error: state.error,
-          recognized: state.done ? item.textlessPages.length
-            : state.pages?.length ? item.recognized
-              : Math.max(item.recognized, item.pages?.length ?? 0),
-          state: state.done ? "done" : state.error ? "failed" : "running" } : item];
-      })));
+      polling = false;
+      if (disposed) return;
+      setTracked((current) => {
+        let changed = false;
+        const next = Object.fromEntries(Object.entries(current).map(([role, item]) => {
+          const state = requested.get(role) === operations.current.get(role) && item.state === "running" && item.documentId
+            ? states.get(item.documentId) : undefined;
+          if (!state) return [role, item];
+          // A pass is opaque while it runs, so pages count as recognized only once it ends:
+          // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
+          const updated: SourceOcrStatus = { ...item, pages: state.pages ?? [], error: state.error,
+            recognized: (state.done ? state.pages?.length
+              ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
+              : item.textlessPages.length
+              : state.pages?.length ? item.recognized
+                : Math.max(item.recognized, item.pages?.length ?? 0)),
+            state: state.done ? "done" : state.error ? "failed" : "running" };
+          const same = updated.state === item.state && updated.error === item.error &&
+            updated.recognized === item.recognized && updated.pages!.join() === (item.pages ?? []).join();
+          if (!same) changed = true;
+          return [role, same ? item : updated];
+        }));
+        // An unchanged poll keeps the same state object, so the workspace does not re-render.
+        return changed ? next : current;
+      });
     };
     const timer = setInterval(() => void poll(), 1_200);
-    return () => clearInterval(timer);
+    return () => { disposed = true; clearInterval(timer); };
   }, [port, watching]);
 
   return { tracked: port ? tracked : {}, begin, stop,
-    reset: useCallback(() => setTracked({}), []) };
+    reset: useCallback(() => { operations.current.clear(); setTracked({}); }, []) };
 }
 
 async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
-  report: (message: string) => void, found: (file: ScannedPdf) => void, signal: AbortSignal) {
+  cache: Map<string, number[]>, report: (message: string) => void, signal: AbortSignal) {
   const files: ScannedPdf[] = [];
   for (const id of draft.state.authorityOrder) {
     const authority = draft.state.authorities[id];
@@ -80,14 +111,22 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
       signal.throwIfAborted();
       if (source.origin === "reconstructed" || !host.readSource) continue;
       report(`Checking pages in ${authorityName(authority)}`);
-      const blob = await host.readSource(draft, source.bindingRole);
-      const inspected = await inspectPdf(new File([blob], source.filename,
-        { type: "application/pdf" }), undefined, signal);
-      if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
-      if (inspected.textlessPages.length) {
+      const key = `${source.bindingRole}:${source.sourceSha256}`;
+      let textlessPages = cache.get(key);
+      if (!textlessPages) {
+        const blob = await host.readSource(draft, source.bindingRole);
+        const inspected = await inspectPdf(new File([blob], source.filename,
+          { type: "application/pdf" }), undefined, signal);
+        if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
+        textlessPages = inspected.textlessPages; cache.set(key, textlessPages);
+      }
+      if (textlessPages.length) {
         const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
-          name: authorityName(authority), textlessPages: inspected.textlessPages };
-        files.push(file); found(file);
+          name: authorityName(authority), textlessPages,
+          demand: canonicalJson([authority.locators, Object.values(draft.state.occurrences)
+            .filter(occurrence => occurrence.authorityId === id || occurrence.reference?.targetAuthorityId === id)
+            .map(occurrence => occurrence.pinpoints)]) };
+        files.push(file);
       }
     }
   }
@@ -95,15 +134,15 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct,
 }
 
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
-  key: string, found: (file: ScannedPdf) => void) {
+  key: string) {
   const [status, setStatus] = useState({ key: "", files: [] as ScannedPdf[], checking: true, progress: "", error: "" });
-  const onFound = useRef(found); onFound.current = found;
+  const cache = useRef(new Map<string, number[]>());
   useEffect(() => {
     const abort = new AbortController();
     setStatus({ key, files: [], checking: true, progress: "Checking PDFs", error: "" });
-    void (draft && host.readSource ? inspectSources(host, draft,
+    void (draft && host.readSource ? inspectSources(host, draft, cache.current,
       (progress) => { if (!abort.signal.aborted) setStatus(current => ({ ...current, progress })); },
-      (file) => { if (!abort.signal.aborted) onFound.current(file); }, abort.signal) : Promise.resolve([]))
+      abort.signal) : Promise.resolve([]))
       .then(files => { if (!abort.signal.aborted) setStatus({ key, files, checking: false, progress: "", error: "" }); })
       .catch((error: Error) => { if (!abort.signal.aborted) setStatus(current =>
         ({ ...current, checking: false, progress: "", error: error.message })); });

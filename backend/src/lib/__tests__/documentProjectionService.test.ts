@@ -24,6 +24,59 @@ afterEach(async () => {
 });
 
 describe("DocumentProjectionService", () => {
+  it("shares a reporter anchor between displayed labels and physical highlight destinations", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const pdf = await PDFDocument.create();
+    for (let index = 0; index < 8; index++) {
+      const page = pdf.addPage([612, 792]);
+      page.drawText(index === 0 ? "Cover" : "Reasons for judgment and the disposition of this appeal.",
+        { x: 72, y: 650, size: 11 });
+      if (index === 1) page.drawText("145", { x: 290, y: 27, size: 10 });
+    }
+    const bytes = Buffer.from(await pdf.save()), projections = await service();
+    const reference = { documentId: "reporter-binding", versionId: "v1", sourceSha256: sha256(bytes) };
+    const source = { ...reference, fileType: "pdf", readBytes: () => bytes,
+      reporterOriginal: true };
+    const citations = ["[1986] 1 SCR 145"];
+    expect(await projections.pdfPageLabels({ ...source, reporterOriginal: false }, citations))
+      .toEqual([null, "145", null, null, null, null, null, null]);
+    expect(await projections.pdfPageLabels(source, citations)).toEqual([null,"145","146","147","148","149","150","151"]);
+    const prepared = await projections.preparePdf({ ...reference, bytes, ocrProvider: null });
+    const geometry = await projections.pdfPassageGeometry(() => bytes,
+      [{ id: "pinpoint", locatorKind: "page", locator: "150" }],
+      { ...reference, cacheKey: prepared.cacheKey }, { citations, reporterOriginal: true,
+        pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
+    expect(geometry.targets[0]).toMatchObject({ status: "found", pages: [{ pageNumber: 7 }] });
+    const unknown = await projections.pdfPassageGeometry(() => bytes,
+      [{ id: "unknown", locatorKind: "page", locator: "3" }],
+      { ...reference, cacheKey: prepared.cacheKey }, { citations, reporterOriginal: true,
+        pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
+    expect(unknown.targets[0].pages).toEqual([]);
+    expect(unknown.targets[0].status).not.toBe("found");
+  });
+  it("detects printed labels without metadata, preserves duplicates, and reuses version-bound results", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const pdf = await PDFDocument.create();
+    const expected = ["101", "102", "103", "101", "102", "103"];
+    for (const label of expected) {
+      const page = pdf.addPage([612, 792]);
+      page.drawText("The agreement requires written notice.", { x: 72, y: 650, size: 11 });
+      page.drawText(label, { x: 290, y: 27, size: 10 });
+    }
+    const bytes = Buffer.from(await pdf.save()), projections = await service();
+    let available = true, reads = 0;
+    const source = { documentId: "printed", versionId: "v1", fileType: "pdf", sourceSha256: sha256(bytes),
+      readBytes: () => { reads++; return bytes; },
+      assertAvailable: async () => { if (!available) throw new Error("Access revoked"); } };
+    expect(await projections.pdfPageLabels(source)).toEqual(expected);
+    expect(await projections.pdfPageLabels(source)).toEqual(expected);
+    expect(reads).toBe(1);
+    available = false;
+    await expect(projections.pdfPageLabels(source)).rejects.toThrow("Access revoked");
+    await expect(projections.pdfPageLabels({ ...source, assertAvailable: undefined, versionId: "v2",
+      readBytes: () => Buffer.from("wrong bytes") })).rejects.toThrow("no longer match");
+  });
+
   it("shares verified source work without sharing a reader's cancellation", async () => {
     const projections = await service();
     const { structureNative } = await import("../structureNative");

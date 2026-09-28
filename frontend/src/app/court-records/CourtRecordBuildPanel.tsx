@@ -33,8 +33,9 @@ export function CourtRecordBuildPanel(props: Props) {
   const [previewFilename, setPreviewFilename] = useState<string>();
   const pdfs = props.result?.artifacts.filter((artifact) => artifact.mimeType === "application/pdf") ?? [];
   const pdf = pdfs.find((artifact) => artifact.filename === previewFilename) ?? pdfs[0];
-  const source = props.entries.flatMap((entry) => entry.descriptionOnly ? [] : [entry.pdfRendition ?? entry.file])
-    .find((file) => sourceFormat(file) === "pdf");
+  const sourceEntry = props.entries.find((entry) => !entry.descriptionOnly &&
+    sourceFormat(entry.pdfRendition ?? entry.file) === "pdf");
+  const source = sourceEntry?.pdfRendition ?? sourceEntry?.file;
   const [sourceBytes, setSourceBytes] = useState<Uint8Array>();
   const previewBytes = pdf?.bytes ?? sourceBytes;
   const previewRoot = useRef<HTMLDivElement>(null);
@@ -75,6 +76,8 @@ export function CourtRecordBuildPanel(props: Props) {
           {previewBytes ? (
             <div className="flex h-full w-full overflow-hidden rounded-md border border-gray-300 bg-white">
               <PdfView doc={null} bytes={previewBytes} rounded={false}
+                pageLabels={pdf ? undefined : sourceEntry?.pageLabels ?? undefined}
+                authoredPageLabels={pdf?.role === "record" || pdf?.role?.startsWith("record-")}
                 ariaLabel={pdf ? "Built court record preview" : "Court record source preview"} />
             </div>
           ) : (

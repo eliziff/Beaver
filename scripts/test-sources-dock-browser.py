@@ -50,12 +50,17 @@ def main() -> None:
         options = webdriver.ChromeOptions()
         if not args.headed:
             options.add_argument("--headless=new")
+        for flag in ("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
+                     "--disable-crash-reporter", "--no-first-run"):
+            options.add_argument(flag)
         options.add_argument(f"--user-data-dir={profile}")
         options.add_argument("--window-size=1440,900")
         cached = list((Path.home() / ".cache/selenium/chromedriver/win64").glob("*/chromedriver.exe"))
         service = Service(str(max(cached, key=lambda path: tuple(map(int, path.parent.name.split(".")))))) \
             if cached else Service()
         driver = webdriver.Chrome(service=service, options=options)
+        def screenshot(name):
+            driver.save_screenshot(str(output / name))
         try:
             driver.set_window_size(1440, 900)
 
@@ -74,9 +79,6 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
   .catch(e=>done({error:String(e)}));""", filename, text)
                 assert result.get("status") == 201, result
                 return result["value"]
-
-            def screenshot(name):
-                driver.save_screenshot(str(output / name))
 
             print("Sources dock: seed a library document", flush=True)
             driver.get(urljoin(args.url, "/library"))
@@ -178,30 +180,22 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
                     "title": "Fairness research", "sourceLabels": labels, "highlightTypes": []}})
             assert draft["proposalId"]
             driver.refresh()
-            click_text(driver, "Chat")
-            assert not driver.find_elements(By.CSS_SELECTOR, "input[aria-label='Organization name']")
+            print("Sources dock: review a pending proposal without applying it", flush=True)
 
-            def open_organization():
-                click_text(driver, "Organize")
-                visible(driver, By.XPATH, "//dialog[@open]//button[.//span[normalize-space()='Workspace']]").click()
-                return visible(driver, By.CSS_SELECTOR, "dialog[open] input[aria-label='Organization name']")
+            def open_review():
+                click_text(driver, "Review")
+                dialog = visible(driver, By.CSS_SELECTOR, "dialog[open]")
+                assert visible(driver, By.CSS_SELECTOR, "dialog[open] [role='tree'][aria-label='Sources']")
+                assert "Fairness" in dialog.text and "Remedies" in dialog.text
+                return dialog
 
-            name = open_organization()
-            assert name.get_attribute("value") == "Fairness research"
-            assert visible(driver, By.CSS_SELECTOR, "dialog[open] [role='tree'][aria-label='Sources']")
-            name.send_keys(Keys.CONTROL, "a")
-            name.send_keys("Fairness and remedies")
-            screenshot("05-modal-organization-draft.png")
-            click_text(driver, "Close", visible(driver, By.CSS_SELECTOR, "dialog[open]"))
+            dialog = open_review()
+            screenshot("05-proposal-review.png")
+            click_text(driver, "Close", dialog)
             WebDriverWait(driver, 30).until(lambda page: not page.find_elements(By.CSS_SELECTOR, "dialog[open]"))
             assert api("GET", f"/api/source-workspaces/{research_id}")["state"]["labels"] == saved["state"]["labels"]
-            assert open_organization().get_attribute("value") == "Fairness and remedies"
-            screenshot("06-reopened-organization-draft.png")
-            deepest = labels[0]["children"][0]["children"][0]["children"][0]["id"]
-            leaf = visible(driver, By.CSS_SELECTOR, f"dialog[open] [data-label-select='{deepest}']")
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'})", leaf)
-            screenshot("07-deep-organization-branch.png")
-            report["proposalCategories"] = 45
+            open_review()
+            screenshot("06-reopened-proposal-review.png")
             report["ok"] = True
         except Exception:
             screenshot("failure.png")

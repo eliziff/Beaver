@@ -10,7 +10,7 @@ import { a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
-import { downloadProviderOriginalPdf } from "./providerPdfLibraryBridge";
+import { downloadProviderOriginalPdf, PublisherVerificationRequired } from "./providerPdfLibraryBridge";
 import { structureNative } from "./structureNative";
 
 /**
@@ -45,7 +45,7 @@ export const authoritySourceServices = {
   resolve: (citation: string, kind: "case" | "legislation", signal?: AbortSignal,
     language?: "en" | "fr") =>
     a2ajLegalSourceProvider.document({ citation,
-    docType: kind === "case" ? "cases" : "laws", language, signal }),
+    docType: kind === "case" ? "cases" : "laws", language, signal, discoverPdf: false }),
   resolveForeign: resolveForeignAuthoritySource,
   download: downloadProviderOriginalPdf,
   ...authorityCitationServices,
@@ -76,7 +76,10 @@ export type PreparedAuthoritySource = {
 export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
+  onlyAuthorityId?: string,
 ) {
+  if (onlyAuthorityId && !initial.authorities[onlyAuthorityId]?.sourceVerificationUrl)
+    throw new ApplicationError(409, "This authority has no publisher check to retry.");
   let draft = initial;
   const attachments: PreparedAuthoritySource[] = [];
   const reconstruct = draft.settings.sourceMode !== "manual-originals";
@@ -88,7 +91,9 @@ export async function resolveAuthoritiesSources(
   const owed = { completeBookSources: true,
     bilingualEnactments: !!requirements?.bilingualEnactments };
   const candidates = draft.authorityOrder.flatMap((id) => {
+    if (onlyAuthorityId && id !== onlyAuthorityId) return [];
     const authority = draft.authorities[id];
+    if (!onlyAuthorityId && authority?.sourceVerificationUrl) return [];
     const fetchable = !!authority && ["case", "legislation"].includes(authority.kind) &&
       (authority.source.kind !== "attached" || authority.sourceIdentity?.provider === "a2aj");
     return fetchable && authoritySourceRequirement(draft, authority, owed)
@@ -130,6 +135,8 @@ export async function resolveAuthoritiesSources(
     draft = update(draft, { type: "resolve-authority", authorityId: id,
       citation: source.citation, name: source.name,
       source: { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
+        citationForms: [...new Set([...authorityCitationForms(initial, id), source.citation,
+          source.alternateCitation].filter((value): value is string => !!value?.trim()))].slice(0, 50),
         sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
   }
   // Authorities the Canadian corpus does not hold: US reporter and UK neutral
@@ -155,6 +162,7 @@ export async function resolveAuthoritiesSources(
     draft = update(draft, { type: "resolve-authority", authorityId: id,
       citation: found.citation, name: found.name,
       source: { provider: found.provider, stableSourceId: found.stableSourceId,
+        citationForms: [...new Set([...authorityCitationForms(initial, id), found.citation])].slice(0, 50),
         sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });
   }
   if (!needsPdf) return { draft, attachments };
@@ -188,6 +196,7 @@ export async function resolveAuthoritiesSources(
       .map((document) => ({ ...item, source: document,
         paired: documents.length === 2 || existing.size > 0 }));
   })).flat();
+  const blockedPublishers = new Map<string, string>();
   const prepared = await mapBounded(languageSources, async (item) => {
     signal?.throwIfAborted();
     const { authority, source } = item;
@@ -195,8 +204,13 @@ export async function resolveAuthoritiesSources(
       ? source.verifiedPdf.url : null;
     const sourceUrl = source.url && !isCanliiUrl(source.url) ? source.url : null;
     const provider = source.provider ?? "a2aj";
+    let publisher: string | undefined;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
+    let verificationUrl: string | undefined;
     if (originals && (pdfUrl || sourceUrl)) try {
+      publisher = new URL(sourceUrl ?? pdfUrl!).origin;
+      const blockedUrl = blockedPublishers.get(publisher);
+      if (blockedUrl) throw new PublisherVerificationRequired(blockedUrl);
       original = await sources.download({ provider,
         identity: source.identity ?? stableA2AJSourceId(source), sourceUrl, pdfUrl,
         source: { provider, id: source.citation, kind: authority.kind as "case" | "legislation",
@@ -208,15 +222,21 @@ export async function resolveAuthoritiesSources(
       if (original && sha256(original.bytes) !== original.sourceSha256) {
         original = undefined;
       }
-    } catch { signal?.throwIfAborted(); }
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (error instanceof PublisherVerificationRequired) {
+        verificationUrl = error.pageUrl;
+        if (publisher) blockedPublishers.set(publisher, error.pageUrl);
+      }
+    }
     let reconstructed: Buffer | null = null;
-    if (reconstruct && !original && source.searchText.trim()) try {
+    if (reconstruct && !original && !verificationUrl && source.searchText.trim()) try {
       reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.url, text: source.searchText });
     } catch { signal?.throwIfAborted(); }
-    return { ...item, original, bytes: original?.bytes ?? reconstructed };
-  });
+    return { ...item, original, verificationUrl, bytes: original?.bytes ?? reconstructed };
+  }, 1);
   for (const { authorityId, source, paired, original, bytes } of prepared) {
     if (!bytes) continue;
     attachments.push({ authorityId,
@@ -226,13 +246,19 @@ export async function resolveAuthoritiesSources(
         ? original.url ?? source.verifiedPdf?.url ?? source.url : source.url ?? null,
       origin: original ? "original" : "reconstructed", language: source.language });
   }
+  for (const authorityId of new Set(prepared.map(item => item.authorityId))) {
+    const blocked = prepared.find(item => item.authorityId === authorityId && item.verificationUrl);
+    draft = update(draft, { type: "set-source-verification", authorityId,
+      pageUrl: blocked?.verificationUrl ?? null });
+  }
   // One CanLII handoff rule for every case left without bytes, whichever
   // provider identified it: the publisher's own page when it has one, else the
   // page CanLII publishes for the citation.
   const attached = new Set(attachments.map(({ authorityId }) => authorityId));
   for (const id of draft.authorityOrder) {
+    if (onlyAuthorityId && id !== onlyAuthorityId) continue;
     const authority = draft.authorities[id];
-    if (authority?.kind !== "case" || attached.has(id) ||
+    if (authority?.kind !== "case" || authority.sourceVerificationUrl || attached.has(id) ||
         authority.source.kind === "attached") continue;
     const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
     const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;

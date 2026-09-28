@@ -57,6 +57,7 @@ export type AuthoritiesCover = {
 };
 
 export type AuthoritySourceIdentity = {
+  citationForms?: string[];
   provider: string;
   stableSourceId: string;
   sourceSha256: string;
@@ -67,6 +68,7 @@ export type AuthoritySourceIdentity = {
 export type AuthorityHighlightExclusion = { kind: string; label: string };
 
 export type AuthorityIdentity = {
+  sourceVerificationUrl?: string;
   /** Explicit link printed in the imported document; not a verified source identity. */
   sourceUrl?: string;
   id: string;

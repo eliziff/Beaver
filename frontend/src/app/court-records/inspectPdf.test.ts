@@ -2,7 +2,7 @@ import { getPdfJs } from "@/app/lib/pdfJs";
 import { describe, expect, it, vi } from "vitest";
 import { inspectPdf } from "@/app/lib/inspectPdf";
 
-vi.mock("@/app/lib/pdfJs", () => ({ getPdfJs: vi.fn() }));
+vi.mock("@/app/lib/pdfJs", async (importOriginal) => ({ ...await importOriginal<typeof import("@/app/lib/pdfJs")>(), getPdfJs: vi.fn(), PDF_DOCUMENT_OPTIONS: {} }));
 
 describe("court PDF inspection", () => {
   it("reads the PDF page labels used by the viewer", async () => {
@@ -21,7 +21,7 @@ describe("court PDF inspection", () => {
       destroy: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(getPdfJs).mockResolvedValue({
-      getDocument: () => ({ promise: Promise.resolve(document) }),
+      getDocument: () => ({ promise: Promise.resolve(document), destroy: document.destroy }),
     } as unknown as Awaited<ReturnType<typeof getPdfJs>>);
 
     await expect(inspectPdf(new File(["%PDF"], "transcript.pdf")))

@@ -4,7 +4,7 @@ import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
 import { PdfView } from '@/app/components/shared/views/PdfView';
-import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
+import type { AnnotationTool } from '../../../../shared/pdf/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
 import { decodeAnnotationSet, emptyAnnotationSet,
   type PdfAnnotation, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
@@ -216,8 +216,9 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <div className="flex min-w-48 flex-1 items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||loading||choices.length<2} onClick={()=>go(-1)} title={`Previous: ${neighbour(-1).title}`} aria-label={`Previous authority: ${neighbour(-1).title}`}><ChevronLeft /></Button>
             <select aria-label="Authority PDF" value={role} disabled={saving||loading} onChange={event=>setRole(event.target.value)}
-              className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm">
-              {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}</select>
+              style={{colorScheme:'light'}}
+              className="h-9 w-full min-w-0 rounded-md border border-gray-400 bg-white px-2 text-sm text-gray-900 focus-visible:ring-2 focus-visible:ring-red-600 disabled:bg-gray-100 disabled:text-gray-600">
+              {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole} className="bg-white text-gray-900">{choice.title}</option>)}</select>
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||loading||choices.length<2} onClick={()=>go(1)} title={`Next: ${neighbour(1).title}`} aria-label={`Next authority: ${neighbour(1).title}`}><ChevronRight /></Button>
           </div>
           <div role="group" aria-label="Highlight tool" className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
@@ -244,7 +245,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
               : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{loading?'Preparing PDF…':'PDF unavailable'}</div>}
           </div>
           <aside aria-label="Highlights" className="mt-3 flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
-            <h3 className="flex items-baseline justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-950">Highlights<span className="text-xs font-normal text-gray-600">{marks.length}</span></h3>
+            <h3 className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-950">Highlights <span className="inline-flex min-w-7 items-center justify-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-sm font-bold tabular-nums text-red-900">{marks.length}</span></h3>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {current?.warning && <p role="alert" className="mb-2 rounded-md border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-red-800">{current.warning}</p>}
             <ul className="space-y-1">{marks.map(mark=><li key={mark.id}
