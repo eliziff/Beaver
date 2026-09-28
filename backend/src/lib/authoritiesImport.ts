@@ -21,7 +21,11 @@ import { structureNative,
   type NativeAuthorityTextUnit, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
 import { citationAliasKeysBatch } from "./caselawCitator";
-import type { Citation, ExtractResponse, ResolveResponse, SourceFields } from "legal-citations";
+import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
+import { buildCanliiLawUrl } from "./canliiLawUrls";
+import { mapBounded } from "./mapBounded";
+import type { Citation, ExtractResponse, ResolveResponse, SourceFields,
+  SourcePart } from "legal-citations";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
 type ProjectionReader = Pick<typeof documentProjectionService, "read">;
@@ -58,11 +62,84 @@ export function pinpointValues<Kind extends string>(
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
 
-function scanReview(
+const CANLII_STATUTE = /^https?:\/\/(?:www\.)?canlii\.org\/(en|fr)\/(ca|on|bc)\/laws\/(?:stat|astat)\/([^/#?]+)\//iu;
+const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
+  bc: "LEGISLATION-BC" } as const;
+const sourceName = (value: string) => value.normalize("NFKC").toLowerCase()
+  .replace(/[^a-z0-9 ]/gu, "").replace(/\s+/gu, " ").trim();
+const slugKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/gu, "");
+const statuteCore = (citation: Citation) => {
+  const { series, year, chapter } = citation.fields;
+  return series && year && chapter ? slugKey(`${series}-${year}-c-${chapter}`) : null;
+};
+
+/** A2AJ verifies a source's name and canonical statute citation before its URL enters the registry. */
+async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
+  native: ReturnType<typeof structureNative>) {
+  const candidates = parts.flatMap((part, partIndex) => {
+    const full = citations.filter((citation) => citation.form === "full" &&
+      citation.authority === "statute" && part.start <= citation.span.start &&
+      citation.span.end <= part.end);
+    if (full.length !== 1 || !statuteCore(full[0])) return [];
+    const citation = full[0];
+    const name = citation.shortName?.trim();
+    if (!name || !sourceName(part.text).includes(sourceName(name))) return [];
+    const output = native.citationEngineCall("url", JSON.stringify({ citation,
+      anchor: true })) as { urls: Array<{ index: number; url: string | null }> };
+    const url = output.urls.find((item) => item.index === citation.index)?.url;
+    const match = url?.match(CANLII_STATUTE);
+    if (!match) return [];
+    const [, language, jurisdiction, slug] = match;
+    const core = statuteCore(citation)!;
+    if (!slugKey(slug).startsWith(core) && !core.startsWith(slugKey(slug))) return [];
+    return [{ partIndex, part, citation, url: url!, language: language as "en" | "fr",
+      dataset: STATUTE_DATASET[jurisdiction.toLowerCase() as keyof typeof STATUTE_DATASET],
+      jurisdiction: jurisdiction.toLowerCase(), name, core }];
+  });
+  if (!candidates.length) return parts;
+  const queries = [...new Map(candidates.map(({ dataset, name, language }) =>
+    [`${dataset}:${language}:${sourceName(name)}`, { dataset, name, language }])).values()];
+  const hits = new Map((await mapBounded(queries, async ({ dataset, name, language }) => {
+    try {
+      return [
+        `${dataset}:${language}:${sourceName(name)}`,
+        await a2ajLegalSourceProvider.search!({ text: name, kinds: ["legislation"],
+          searchType: "name", collection: dataset, language, limit: 50 }),
+      ] as const;
+    } catch { return [`${dataset}:${language}:${sourceName(name)}`, []] as const; }
+  })).map(([key, results]) => [key, results]));
+  return parts.map((part, index) => {
+    const candidate = candidates.find(({ partIndex }) => partIndex === index);
+    if (!candidate) return part;
+    const matches = (hits.get(`${candidate.dataset}:${candidate.language}:${sourceName(candidate.name)}`) ?? [])
+      .filter((hit) => hit.collection?.toUpperCase() === candidate.dataset && hit.title &&
+        sourceName(candidate.part.text).includes(sourceName(hit.title)))
+      .flatMap((hit) => {
+        const parsed = native.citationEngineCall("extract", JSON.stringify({
+          text: hit.citation ?? "", options: { resolve: false },
+        })) as ExtractResponse;
+        const statutes = parsed.citations.filter((citation) => citation.form === "full" &&
+          citation.authority === "statute");
+        if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
+        const base = buildCanliiLawUrl({ dataset: hit.collection ?? "",
+          citation: hit.citation ?? null, language: candidate.language });
+        const route = base?.match(CANLII_STATUTE);
+        if (!route || route[1] !== candidate.language ||
+          route[2] !== candidate.jurisdiction) return [];
+        const fragment = new URL(candidate.url).hash;
+        return [base!.split("#")[0] + fragment];
+      });
+    const urls = [...new Set(matches)];
+    return urls.length === 1 && urls[0] !== candidate.url
+      ? { ...part, resolvedUrl: urls[0] } : part;
+  });
+}
+
+async function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
   units: NativeAuthorityTextUnit[],
-): AuthoritiesFreshReview {
+): Promise<AuthoritiesFreshReview> {
   const occurrences: Record<string, AuthorityOccurrence> = {};
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
@@ -75,10 +152,14 @@ function scanReview(
   const text = units.map(({ text }) => text).join("\n\n");
   const native = structureNative();
   const unknownNote = 0xffff_ffff;
-  const notes = ranges.filter(({ unit }) => unit.footnote_id !== null)
+  const orderedUnits = native.documentReadingOrder(JSON.stringify(units.map((unit) => ({
+    kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
+    item_offsets: [0],
+  })))).map(([unit]) => ranges[unit]);
+  const notes = orderedUnits.filter(({ unit }) => unit.footnote_id !== null)
     .map(({ unit, start, end }) => ({ number: unit.note_number === null
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
-    sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
+    sequence: unit.restart_sequence ?? 0 }));
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
     options: { resolve: false, notes },
   })) as ExtractResponse;
@@ -87,7 +168,8 @@ function scanReview(
   const closures = citationAliasKeysBatch(cases.map(({ span }) => span.text));
   const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
   let unitIndex = 0;
-  for (const citation of extracted.citations) {
+  for (const citation of [...extracted.citations].sort((left, right) =>
+    left.span.start - right.span.start || left.index - right.index)) {
     while (unitIndex + 1 < ranges.length && citation.span.start >= ranges[unitIndex].end) unitIndex++;
     parsed[unitIndex].items.push({ index: citation.index, start: citation.span.start - ranges[unitIndex].start });
   }
@@ -95,8 +177,9 @@ function scanReview(
     kind: unit.kind, footnote_id: unit.footnote_id, footnote_refs: unit.footnote_refs,
     item_offsets: items.map(({ start }) => start),
   })))).map(([unit, item]) => parsed[unit].items[item].index);
+  const sourceParts = await enrichStatuteSources(extracted.sourceParts, extracted.citations, native);
   const result = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations, notes,
-    readingOrder: order, sourceParts: extracted.sourceParts,
+    readingOrder: order, sourceParts,
     supraHintMode: "aggressive", supraLinkingMode: "safe",
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
@@ -113,20 +196,24 @@ function scanReview(
       default: return "other";
     }
   };
-  const urlParts = result.resolutions.some(({ url }) => url) ? extracted.sourceParts
-    .filter((part) => part.anchors.filter((anchor) => anchor === "url").length === 1 &&
-      !result.citations.some((citation) =>
+  const urlParts = result.resolutions.some(({ url }) => url) ? sourceParts
+    .filter((part) => !result.citations.some((citation) =>
       citation.span.start < part.end && part.start < citation.span.end))
     .map((part) => ({ part, fields: native.citationEngineCall("sourceFields",
       JSON.stringify({ part })) as SourceFields }))
-    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate) &&
-      !fields.reasons.includes("embedded_second_source")) : [];
+    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate)) : [];
   const sourceGroups = new Map<string, string>();
   for (const group of result.authorities) {
     const full = group.map((index) => byIndex.get(index))
       .filter((citation): citation is Citation => citation?.form === "full");
-    const url = full.map((citation) => citation.fields.url).find(isObservedSourceUrl) ??
-      (full.length ? null : group.map((index) => byResolution.get(index)?.url).find(Boolean));
+    const sourceUrl = sourceParts.find((part) => part.resolvedUrl &&
+      full.length === 1 && part.start <= full[0].span.start &&
+      full[0].span.end <= part.end)?.resolvedUrl;
+    const referenceUrl = group.map((index) => byResolution.get(index)?.url)
+      .find(isObservedSourceUrl);
+    const url = sourceUrl ??
+      full.map((citation) => citation.fields.url).find(isObservedSourceUrl) ??
+      (full.length && referenceUrl ? referenceUrl.split("#")[0] : referenceUrl);
     const source = !full.length && url ? urlParts.find(({ fields }) =>
       fields.link_candidate.split("#")[0] === url.split("#")[0]) : undefined;
     const representative = full.find((citation) => citation.key) ?? full[0] ??
@@ -145,7 +232,7 @@ function scanReview(
       : ["journal", "book", "essay_collection"].includes(source?.fields.kind ?? "")
       ? "commentary" : "other";
     const observedText = source?.fields.citation_with_style || source?.part.text.trim() ||
-      (url ? representative.fullSpan.text : representative.span.text);
+      (full.length ? representative.span.text : representative.fullSpan.text);
     authorities[key] = { id: key, key, kind: source ? sourceKind : kindOf(representative),
       citation: observedText, name: source ? observedText : representative.shortName ?? null,
       displayName: null, excluded: false,
@@ -199,12 +286,17 @@ function scanReview(
       const authorityId = authorityOf.get(citation.index) ?? null;
       const local = (span: Span) => ({ start: Math.max(start, span.start) - start,
         end: Math.min(end, span.end) - start });
-      const core = local(citation.span);
-      const full = local(citation.fullSpan);
-      const styled = { start: citation.style && citation.style.start >= start
-        ? citation.style.start - start : core.start, end: core.end };
       const reference = citation.form !== "full";
-      const pinpoints = citation.pinpoints ?? [];
+      const pinpoints = (citation.pinpoints ?? []).filter(({ span }) =>
+        start <= span.start && span.end <= end);
+      const marker = citation.fields.inlineReference?.span;
+      const core = local(marker ?? citation.span);
+      const full = marker ? { start: core.start,
+        end: Math.max(core.end, ...pinpoints.map(({ span }) => local(span).end)) } : local(citation.fullSpan);
+      const styled = marker ? core : { start: citation.style &&
+        citation.style.start >= Math.max(start, citation.fullSpan.start) &&
+        citation.style.start <= citation.span.start
+        ? citation.style.start - start : core.start, end: core.end };
       occurrenceIds.push(id);
       occurrences[id] = { id, unitId: unit.key, ...full,
         text: unit.text.slice(full.start, full.end),
@@ -221,6 +313,42 @@ function scanReview(
       footnoteId: unit.footnote_id, pageNumbers: unit.page_numbers, text: unit.text,
       footnoteRefs: unit.footnote_refs, occurrenceIds };
   });
+  // The parser can return overlapping full spans even when their citation cores
+  // are distinct. Keep both editable mentions by trimming only shared context.
+  for (const unit of reviewUnits) {
+    const kept: string[] = [];
+    for (const id of unit.occurrenceIds) {
+      const current = occurrences[id];
+      const previous = kept.length ? occurrences[kept[kept.length - 1]] : null;
+      if (previous && current.start < previous.end) {
+        const previousCoreEnd = Math.max(previous.coreSpan.end,
+          previous.pinpointSpan?.end ?? 0);
+        if (previousCoreEnd > current.coreSpan.start) {
+          delete occurrences[id];
+          continue;
+        }
+        const boundary = Math.max(previousCoreEnd, current.start);
+        if (boundary < previous.end) {
+          previous.end = boundary;
+          previous.text = unit.text.slice(previous.start, boundary);
+          if (previous.authoritySpan.end > boundary) {
+            previous.authoritySpan.end = boundary;
+            previous.authoritySpan.text = unit.text.slice(previous.authoritySpan.start, boundary);
+          }
+        }
+        if (current.start < previous.end) {
+          current.start = previous.end;
+          current.text = unit.text.slice(current.start, current.end);
+          if (current.authoritySpan.start < current.start) {
+            current.authoritySpan.start = current.start;
+            current.authoritySpan.text = unit.text.slice(current.start, current.authoritySpan.end);
+          }
+        }
+      }
+      kept.push(id);
+    }
+    unit.occurrenceIds = kept;
+  }
   return { import: imported, bindings, cover: importedCover(units), units: reviewUnits,
     occurrences, authorities, authorityOrder };
 }
@@ -309,7 +437,7 @@ async function documentDraft(
     units = native.pdfAuthorityTextUnits(await projection.read(source));
   }
   return reduceAuthoritiesDraft(createAuthoritiesDraft(imported, bindings), {
-    type: "refresh", review: scanReview(imported, bindings, units),
+    type: "refresh", review: await scanReview(imported, bindings, units),
   });
 }
 
@@ -366,7 +494,7 @@ native: AuthoritiesNative = structureNative()) {
   if (input.sourceMode) initial = reduceAuthoritiesDraft(initial, { type: "set-settings",
     settings: { sourceMode: input.sourceMode } });
   return reduceAuthoritiesDraft(initial, {
-    type: "refresh", review: scanReview(imported, bindings, units),
+    type: "refresh", review: await scanReview(imported, bindings, units),
   });
 }
 

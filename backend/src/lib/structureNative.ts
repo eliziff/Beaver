@@ -157,8 +157,8 @@ type StructureAddon = {
     reasons: { restarted_numbering: boolean; unsafe_or_split_fields: number };
   }>;
   hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
-  derivePdfDocument(bytes: Buffer, request: unknown): Promise<NativeDocument>;
-  preparePdfDocument(bytes: Buffer, request: unknown): Promise<PdfPreparationSummary>;
+  derivePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<NativeDocument>;
+  preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument): NativePdfTextPage[];
@@ -198,8 +198,7 @@ type StructureAddon = {
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;
-    family: "neutral" | "reporter" | "canlii" | "database" | "statute";
-    key?: string;
+    family: "neutral" | "reporter" | "statute";
     jurisdiction?: string;
     year?: string; court?: string; number?: string;
     volume?: string; reporter?: string; page?: string;
