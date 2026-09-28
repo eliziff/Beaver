@@ -273,6 +273,20 @@ navigation and reopen passed. Whole-suite backend success is not claimed.
 Receipts: `*-publication-*`, `frontend-font-cwd-final.log`, and
 `browser-beaver-publication/`.
 
+Published Full `authorities-v0.3.5` and Lite `authorities-lite-v0.3.2` using those
+exact tested HTML files. Pages deployment `36408449347` succeeded; both ordinary
+hosted URLs and explicit index URLs matched the local SHA-256 hashes after cache
+propagation. Automatic tag-triggered rebuilds were cancelled before asset replacement.
+Full hosted manual upload/build/export/reopen and responsive checks passed (15.5 s);
+Lite hosted navigation/highlights/export/reopen passed. The hosted automatic-source
+run did not pass: the live SCC service returned `verification_required`. A separate
+browser request confirmed that challenge response. This is an external acquisition
+limitation, not a successful hosted automatic-acquisition gate. The earlier complete
+local automatic run remains separately identified above. Browser checks ignore only
+the host's missing favicon 404; application errors still fail the gate.
+Receipts: `publication/hosted-hashes-final.json`, `browser-full-hosted-manual/`,
+`browser-full-hosted-publication/`, and `lite-hosted-publication.log`.
+
 ## Decisia PDF route check (2026-09-27)
 
 `publisherPdfCandidate` in `backend/src/lib/legalSourcePresentation.ts` derives an
