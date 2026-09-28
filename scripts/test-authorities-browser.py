@@ -169,6 +169,7 @@ addEventListener('click',event=>{
     event.preventDefault();
   }
 });
+window.__observeAuthoritiesFetch=()=>{
 const nativeFetch=window.fetch;
 const sourceOrigin=authority=>authority.source.kind==='attached'
   ? authority.source.sources.find(({origin})=>origin)?.origin||null : null;
@@ -216,10 +217,11 @@ window.fetch=async(...args)=>{
   }
   if (!response.ok) window.__authoritiesSmoke.errors.push({url:response.url,
     status:response.status,body:await response.clone().text()});
-  if (response.url.includes('/authorities-runtime/build') ||
-      /\/authorities\/[^/]+\/build$/.test(response.url)) window.__authoritiesSmoke.builds++;
+  if (isBuild) window.__authoritiesSmoke.builds++;
   return response;
 };
+};
+window.__observeAuthoritiesFetch();
 new MutationObserver(()=>{
   const timing=window.__authoritiesSmoke.importUi;
   if (timing?.responseAt&&!timing.readyAt&&
@@ -1585,6 +1587,8 @@ def main() -> int:
             driver.get(args.url)
             wait(driver, 30).until(lambda item: item.find_elements(By.XPATH,
                 "//h1[normalize-space(.)='Authorities']"))
+            if mode == "standalone":
+                driver.execute_script("window.__observeAuthoritiesFetch()")
             navigation = driver.execute_script("""
 const n=performance.getEntriesByType('navigation')[0]; return n&&{
  duration:n.duration,responseStart:n.responseStart,domContentLoaded:n.domContentLoadedEventEnd,

@@ -195,6 +195,13 @@ the Lite HTML SHA-256 is
 `86aa4db8c3991fb23379505d3de8610c1e2f3dc91a59e86cf052f86347ace75e`.
 The broader release and corpus gates remain open.
 
+The same full standalone HTML passed the manual book lifecycle in 15.1 seconds:
+source/cover/supplement upload and replacement, exported replacement content,
+saved-book reopen, authority identity correction, rebuild, and desktop/mobile
+layout checks. No severe browser errors or CanLII requests occurred. The receipt
+is `tmp/pdf-pagination/browser-standalone-manual-final/standalone/20260928T081257540922Z/result.json`.
+This manual-upload check does not certify automatic publisher acquisition.
+
 ## Citation-only Authorities check
 
 The current question is whether an acquired original reporter PDF starts on the
