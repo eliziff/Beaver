@@ -104,6 +104,13 @@ inspected 320-pixel screenshot (`browser-standalone-mobile-final-file/` and
 `dba715cfc2252401b3f0fb3b7b5078437e0fe8378f3d73b5921c1120a4dd9a90`.
 An initial localhost-hosted run was rejected by the publisher Worker's origin
 allowlist; these passing checks use the supported downloadable-file origin.
+Lite built from Helper `d222fa4636f1e4d066e5a4b8d5973170873f70c9`, pinning
+Beaver `4f39c855faf223247be197a7e579a14c57973235`, passed printed navigation,
+highlight editing, annotated export, viewer reopen and real PDF-worker checks
+with the same reporter original (`lite-browser-final-pin.log`). The tested HTML
+SHA-256 is `8b6c1780b5e785d97f66e1af0d74618b260f698cae2e383406de1d06da470c7c`.
+These artifact checks do not close the outstanding corpus or automatic-acquisition
+release gates.
 
 ## Decisia PDF route check (2026-09-27)
 
