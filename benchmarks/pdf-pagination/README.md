@@ -178,6 +178,23 @@ page itself shows folio `349`. Both browser receipts and screenshots are under
 interaction for one independently read original; the corpus results above
 measure the wider binding behavior.
 
+The single-parse candidate repeated that check with the final production native
+module and rebuilt full standalone WASI HTML. The standalone check also refreshed
+the browser, reopened the saved source and navigated to printed `349` again.
+Receipts are in `tmp/pdf-pagination/browser-reporter-final/` and
+`tmp/pdf-pagination/browser-standalone-reporter-final/`; the latter HTML's SHA-256
+is `1ed6c3fa12f745d716fae6ccb468e0aa7bd63e496ca361deabadb7e58c71a1b4`.
+This proves persisted navigation, not retention of the WASI in-memory extraction
+cache across refresh. Lite also passed on the same original in downloaded HTML
+and localhost HTTP: printed navigation, text and area highlights, undo/redo,
+editable annotated export and viewer close/reopen. Its downloaded-HTML check
+also rejected an unrelated neutral citation and an incorrect reporter first page.
+The browser check forbids PDF.js's main-thread worker fallback. Receipts are
+`tmp/pdf-pagination/lite-browser-final.log` and `lite-hosted-browser-final.log`;
+the Lite HTML SHA-256 is
+`86aa4db8c3991fb23379505d3de8610c1e2f3dc91a59e86cf052f86347ace75e`.
+The broader release and corpus gates remain open.
+
 ## Citation-only Authorities check
 
 The current question is whether an acquired original reporter PDF starts on the
