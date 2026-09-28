@@ -711,14 +711,14 @@ mod pdf {
     // Use these native witnesses even when the structure profile has no prose
     // nodes; a structural ordinal is not a substitute for a printed address.
     fn marginal_paragraph_plan<'a>(
-        pages: &'a [legalpdf::Page],
+        pages: &'a [legal_pdf_support::PdfTextPage],
         locator: &str,
     ) -> Option<(legalpdf::PdfLookupStatus, HashSet<&'a str>)> {
         use legalpdf::PdfLookupStatus as Status;
         let body_bounds = pages.iter().map(|page| {
-            page.lines.iter().filter(|line| line.bbox[2] - line.bbox[0] > page.width * 0.20
+            page.lines.iter().filter(|line| line.rect[2] - line.rect[0] > page.width * 0.20
                 && line.text.chars().any(char::is_alphabetic))
-                .map(|line| line.bbox).reduce(|a, b| [a[0].min(b[0]), a[1].min(b[1]),
+                .map(|line| line.rect).reduce(|a, b| [a[0].min(b[0]), a[1].min(b[1]),
                     a[2].max(b[2]), a[3].max(b[3])])
         }).collect::<Vec<_>>();
         let mut labels = Vec::new();
@@ -730,14 +730,14 @@ mod pdf {
                 if text.is_empty() || text.len() > 5 || !text.bytes().all(|b| b.is_ascii_digit()) {
                     continue;
                 }
-                let height = line.bbox[3] - line.bbox[1];
-                let gap = (bounds[0] - line.bbox[2]).max(line.bbox[0] - bounds[2]);
+                let height = line.rect[3] - line.rect[1];
+                let gap = (bounds[0] - line.rect[2]).max(line.rect[0] - bounds[2]);
                 if gap < height * 0.5 || gap > height * 8.0 { continue; }
                 let row = page.lines.iter().filter(|peer|
-                    peer.bbox[2] - peer.bbox[0] > page.width * 0.20
+                    peer.rect[2] - peer.rect[0] > page.width * 0.20
                     && peer.text.chars().any(char::is_alphabetic)
-                    && (peer.bbox[1] - line.bbox[1]).abs() <= height * 0.6)
-                    .map(|peer| peer.bbox[1]).min_by(f64::total_cmp);
+                    && (peer.rect[1] - line.rect[1]).abs() <= height * 0.6)
+                    .map(|peer| peer.rect[1]).min_by(f64::total_cmp);
                 if let Some(y) = row {
                     labels.push((text.parse::<usize>().ok()?, page_index, y));
                 }
@@ -772,30 +772,31 @@ mod pdf {
                 let top = if page_index == start_page { start_y - 0.5 } else { bounds[1] };
                 let bottom = if page_index == end_page { end_y - 0.5 } else { bounds[3] };
                 let lines = pages[page_index].lines.iter().filter(|line|
-                    line.bbox[0] >= bounds[0] - 0.5 && line.bbox[2] <= bounds[2] + 0.5
-                    && line.bbox[1] >= top && line.bbox[1] < bottom).collect::<Vec<_>>();
+                    line.rect[0] >= bounds[0] - 0.5 && line.rect[2] <= bounds[2] + 0.5
+                    && line.rect[1] >= top && line.rect[1] < bottom).collect::<Vec<_>>();
                 // A separated heading immediately before the next numbered
                 // paragraph belongs to that following section, not this passage.
                 let heading_top = (page_index == end_page).then(|| lines.iter().filter(|line| {
                     let Some((prefix, text)) = line.text.trim().split_once(". ") else { return false };
                     if legal_pdf_support::enumerator_interpretations(prefix, ".").is_empty()
                         || !legal_pdf_support::heading_text_plausible(text) { return false; }
-                    let height = line.bbox[3] - line.bbox[1];
-                    let prior_bottom = lines.iter().filter(|prior| prior.bbox[3] < line.bbox[1])
-                        .map(|prior| prior.bbox[3]).max_by(f64::total_cmp);
-                    prior_bottom.is_some_and(|y| line.bbox[1] - y > height * 0.5)
-                        && end_y - line.bbox[3] > height * 0.5
-                }).map(|line| line.bbox[1]).min_by(f64::total_cmp)).flatten();
+                    let height = line.rect[3] - line.rect[1];
+                    let prior_bottom = lines.iter().filter(|prior| prior.rect[3] < line.rect[1])
+                        .map(|prior| prior.rect[3]).max_by(f64::total_cmp);
+                    prior_bottom.is_some_and(|y| line.rect[1] - y > height * 0.5)
+                        && end_y - line.rect[3] > height * 0.5
+                }).map(|line| line.rect[1]).min_by(f64::total_cmp)).flatten();
                 selected.extend(lines.iter().filter(|line|
-                    heading_top.is_none_or(|y| line.bbox[1] < y - 0.5)).map(|line| line.id.as_str()));
+                    heading_top.is_none_or(|y| line.rect[1] < y - 0.5)).map(|line| line.id.as_str()));
             }
         }
         Some((Status::Found, selected))
     }
 
-    /// Passage planning reads the prepared document; page extraction then needs only the bytes.
+    /// Passage planning and geometry share the prepared extraction witnesses.
     pub struct PdfPassagePagesJob {
         summary: legalpdf::PdfSummary,
+        pages: std::sync::Arc<Vec<legal_pdf_support::PdfTextPage>>,
         plans: Vec<PassagePlan>,
         paragraphs: Vec<Vec<String>>,
     }
@@ -851,6 +852,7 @@ mod pdf {
             .collect();
         Ok(PdfPassagePagesJob {
             summary: document.summary().clone(),
+            pages: document.passage_pages(),
             plans,
             paragraphs: document.structure().nodes.iter().filter(|node|
                 matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading))
@@ -859,32 +861,25 @@ mod pdf {
     }
 
     impl PdfPassagePagesJob {
-        pub fn compute(self, bytes: &[u8]) -> CoreResult<serde_json::Value> {
-            let pdf = legal_pdf_extraction::extract_pdf(bytes, None, None)
-                .map_err(|error| error.to_string())?;
-            let unavailable = pdf
-                .metadata
-                .pages_needing_ocr
-                .iter()
-                .copied()
-                .chain(pdf.metadata.ocr_routed_pages.iter().copied())
-                .collect::<HashSet<_>>();
+        pub fn compute(self) -> CoreResult<serde_json::Value> {
+            let unavailable = self.summary.pages_needing_ocr.iter().copied()
+                .chain(self.summary.ocr_routed_pages.iter().copied()).collect::<HashSet<_>>();
             let prose_ids = self.paragraphs.iter().flatten().map(String::as_str).collect::<HashSet<_>>();
-            let prose_lines = pdf.pages.iter().flat_map(|page| page.lines.iter()
+            let prose_lines = self.pages.iter().flat_map(|page| page.lines.iter()
                 .filter(|line| prose_ids.contains(line.id.as_str()))
-                .map(|line| (line.id.as_str(), line.text.as_str(), page.number, line.bbox)))
+                .map(|line| (line.id.as_str(), line.text.as_str(), page.page_number, line.rect)))
                 .collect::<Vec<_>>();
             let targets = self
                 .plans
                 .into_iter()
                 .map(|plan| {
                     let printed = plan.paragraph.as_ref().and_then(|locator|
-                        marginal_paragraph_plan(&pdf.pages, locator).or_else(||
+                        marginal_paragraph_plan(&self.pages, locator).or_else(||
                             printed_paragraph_plan(&prose_lines, &self.paragraphs, locator)));
                     let structural = printed.is_none();
                     let (status, selected) = printed.unwrap_or_else(|| (plan.status,
                         plan.lines.iter().map(String::as_str).collect::<HashSet<_>>()));
-                    let selected_pages = pdf
+                    let selected_pages = self
                         .pages
                         .iter()
                         .filter(|page| {
@@ -892,18 +887,18 @@ mod pdf {
                                 .iter()
                                 .any(|line| selected.contains(line.id.as_str()))
                         })
-                        .map(|page| page.number)
+                        .map(|page| page.page_number)
                         .collect::<HashSet<_>>();
-                    let pages = pdf
+                    let pages = self
                         .pages
                         .iter()
                         .filter(|page| {
-                            (structural && plan.pages.contains(&page.number))
-                                || selected_pages.contains(&page.number)
+                            (structural && plan.pages.contains(&page.page_number))
+                                || selected_pages.contains(&page.page_number)
                         })
                         .map(|page| {
                             let available =
-                                page.source == "native" && !unavailable.contains(&page.index);
+                                page.source == "native" && !unavailable.contains(&((page.page_number - 1) as usize));
                             let lines = page
                                 .lines
                                 .iter()
@@ -913,15 +908,15 @@ mod pdf {
                                 })
                                 .collect::<Vec<_>>();
                             serde_json::json!({
-                                "pageNumber": page.number,
+                                "pageNumber": page.page_number,
                                 "width": page.width,
                                 "height": page.height,
                                 "source": if available { "native" } else { "unavailable" },
                                 "lines": if available { lines.iter().map(|line| serde_json::json!({
                                     "id": line.id,
-                                    "rect": line.bbox,
+                                    "rect": line.rect,
                                     "words": line.words.iter().map(|word| serde_json::json!({
-                                        "text": word.text, "rect": word.bbox
+                                        "text": word.text, "rect": word.rect
                                     })).collect::<Vec<_>>()
                                 })).collect::<Vec<_>>() } else { Vec::new() }
                             })

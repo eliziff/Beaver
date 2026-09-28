@@ -1,12 +1,12 @@
 import { documentProjectionService } from "./documentProjectionService";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
-import { printedPageIndices, reporterStartPages, resolvePrintedPages } from "./pdfPagination";
+import { reporterStartPages, resolvePrintedPages } from "./pdfPagination";
 import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 type Projection = Pick<typeof documentProjectionService, "preparePdf" | "lookupPdf"> &
-  Partial<Pick<typeof documentProjectionService, "pdfPassageGeometry" | "pdfPageLabels">>;
+  Partial<Pick<typeof documentProjectionService, "pdfPassageGeometry" | "pdfPagination">>;
 
 export async function authorityPdfText(input: {
   bytes: Buffer;
@@ -62,12 +62,11 @@ export async function authorityPdfText(input: {
   if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
       const locate = async (prepared: typeof native) => {
-        if (!projection.pdfPageLabels) throw new Error("PDF pagination is unavailable.");
-        const labels = await projection.pdfPageLabels({ ...reference, fileType: "pdf",
+        if (!projection.pdfPagination) throw new Error("PDF pagination is unavailable.");
+        const labels = await projection.pdfPagination({ ...reference, fileType: "pdf",
           readBytes: () => input.bytes, pdfProfile: selectedProfile(prepared),
           reporterOriginal: input.reporterOriginal }, input.citations);
-        const indices = printedPageIndices(labels);
-        return targets.map(target => resolvePrintedPages(target.locator, indices, labels.length));
+        return targets.map(target => resolvePrintedPages(target.locator, labels));
       };
       let located = await locate(native);
       // Cited-page OCR is explicitly requested: establish the reporter offset
@@ -76,6 +75,7 @@ export async function authorityPdfText(input: {
       if (input.reporterOriginal && reporterStartPages(input.citations ?? []).length) {
         for (let page = 1; located.some(pages => !pages.length) &&
             page <= Math.min(3, native.pageCount); page++) {
+          if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
           openingPages.push(page);
           recognized = await projection.preparePdf({ ...recognition, ocrProvider: "kraken-lite", pages: [...openingPages] });
           located = await locate(recognized);
@@ -88,8 +88,7 @@ export async function authorityPdfText(input: {
     } else if (!targets.length) recognizedPages = new Set();
     // A paragraph or section on a scan cannot be located until the scan is read.
     // This fallback is disclosed beside the cited-pages option in the UI.
-    // A PDF whose pages all carry text has nothing to recognize, and needs no recognizer.
-    if ((native.pagesNeedingOcr?.length ?? 1) && (!recognizedPages || recognizedPages.size))
+    if (recognized.pagesNeedingOcr.some(index => !recognizedPages || recognizedPages.has(index)))
       recognized = await projection.preparePdf({ ...recognition,
       // Recognized pages are held zero-based for indexing; the engine numbers them from one.
       ocrProvider: "kraken-lite", ...(recognizedPages
@@ -113,10 +112,10 @@ export async function authorityPdfText(input: {
     pageTextByPage.push(...lookups);
   }
   const passageGeometry = input.passageTargets?.length ? await geometry(input.passageTargets) : undefined;
-  const pageLabels = await projection.pdfPageLabels?.({ ...reference, fileType: "pdf",
+  const pageBindings = await projection.pdfPagination?.({ ...reference, fileType: "pdf",
     readBytes: () => input.bytes, pdfProfile: selectedProfile(recognized),
     reporterOriginal: input.reporterOriginal }, input.citations);
-  return { pageTextByPage, ...(pageLabels ? { pageLabels } : {}),
+  return { pageTextByPage, ...(pageBindings ? { pageBindings, pageLabels: pageBindings.map(page => page.label) } : {}),
     ocrTextByPage: pageTextByPage.map((value, index) => routed.has(index) ? value : ""),
     ...(passageGeometry ? { passageGeometry } : {}) };
 }

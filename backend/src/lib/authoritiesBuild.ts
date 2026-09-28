@@ -1,7 +1,5 @@
-import { citedSourcePages } from "../../../shared/cited-source-pages.mjs";
-export { citedSourcePages } from "../../../shared/cited-source-pages.mjs";
 import { writeAuthorityAnnotations } from 'mike/shared/pdf-annotation-writer.mjs';
-import { printedPageIndices } from "./pdfPagination";
+import { resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
 import * as pdfLibrary from "pdf-lib";
 import { pdfAssembly } from "./pdfAssembly";
 import { renderAuthoritiesBook, fit, pdfNormalized, pdfText, wrapped,
@@ -56,7 +54,7 @@ export type AuthoritiesBuildInput = {
   title: string;
   workProduct: { id: string; revision: number };
   sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput;
-    pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[];
+    pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
     passageGeometry?: NativePdfPassageGeometry }>;
   signal?: AbortSignal;
 };
@@ -451,7 +449,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 
 type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
   markedPages?: Set<number>;
-  pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[];
+  pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
   passageGeometry?: NativePdfPassageGeometry };
 type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
   databaseReference: { url: string; host: string } | null };
@@ -503,7 +501,7 @@ export function prepareAuthorityAnnotations(
   return initialAuthorityAnnotations({ sourceSha256: source.sourceSha256,
     style: draft.settings.passageMarking, geometry: text.passageGeometry, pages,
     citedPages: citedSourcePages(draft, authority.id, text.pageTextByPage ?? [],
-      printedPageIndices(text.pageLabels ?? []),
+      text.pageBindings,
       document.getPageCount(), text.passageGeometry),
     exclusions: new Set((authority.highlightExclusions ?? []).map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`)) });
 }
@@ -529,19 +527,22 @@ async function loadAuthorityPdf(
     sourceOffset += item.document.getPageCount();
   }
   if (loaded.length === 1) return { document: loaded[0].document, markedPages,
-    pageLabels: loaded[0].text?.pageLabels,
+    pageBindings: loaded[0].text?.pageBindings,
     pageTextByPage: loaded[0].text?.pageTextByPage,
     ocrTextByPage: loaded[0].text?.ocrTextByPage,
     passageGeometry: loaded[0].text?.passageGeometry };
   const document = await pdf.PDFDocument.create();
   const pageTextByPage: string[] = [], ocrTextByPage: string[] = [];
-  const pageLabels: (string | null)[] = [];
+  const pageBindings: PdfPageBinding[] = [];
   const geometries: Array<{ offset: number; value: NativePdfPassageGeometry }> = [];
   let offset = 0;
   for (const item of loaded) {
     const count = item.document.getPageCount();
     await appendPages(document, item.document);
-    pageLabels.push(...(item.text?.pageLabels ?? Array<string | null>(count).fill(null)));
+    pageBindings.push(...Array.from({ length: count }, (_, index): PdfPageBinding => ({
+      observed: null, label: null, source: null, status: "unknown",
+      ...item.text?.pageBindings?.[index], pdfPage: offset + index + 1,
+    })));
     pageTextByPage.push(...Array.from({ length: count }, (_, index) =>
       item.text?.pageTextByPage?.[index] ?? ""));
     ocrTextByPage.push(...Array.from({ length: count }, (_, index) =>
@@ -561,7 +562,7 @@ async function loadAuthorityPdf(
             pageNumber: quote.pageNumber + pageOffset,
           }) })) }))),
   } satisfies NativePdfPassageGeometry : undefined;
-  return { document, pageTextByPage, pageLabels, markedPages,
+  return { document, pageTextByPage, pageBindings, markedPages,
     ocrTextByPage: ocrTextByPage.some(Boolean) ? ocrTextByPage : undefined,
     passageGeometry };
 }
@@ -657,8 +658,7 @@ async function prepareAuthorityBook(
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
   const sources: PreparedBookPdf[] = [...authoritySources, ...supplementalSources].map((source) => {
-    const pageLabels = printedPageIndices(source.pageLabels ?? []);
-    const extract = federalPaperExtract(draft, source, pageLabels);
+    const extract = federalPaperExtract(draft, source);
     return { ...source, pageIndices: extract?.pageIndices ?? source.document.getPageIndices(),
       databaseReference: extract?.databaseReference ?? null };
   });
@@ -707,10 +707,34 @@ async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal
     artifact(item.role, item.filename, item.mimeType, Buffer.from(item.bytes), item.pageCount));
 }
 
+export function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: string[],
+  pageBindings?: readonly PdfPageBinding[], pageCount = pages.length, geometry?: NativePdfPassageGeometry) {
+  const authority = draft.authorities[authorityId];
+  const locators = [...(authority?.locators ?? []), ...Object.values(draft.occurrences)
+    .flatMap((occurrence) => occurrence.authorityId === authorityId
+      ? occurrence.pinpoints.map(({ kind, text }) => ({ kind, label: text })) : [])];
+  const result = new Set<number>();
+  for (const { kind, label } of locators) {
+    if (kind === "page") {
+      if (pageBindings?.length === pageCount) resolvePrintedPages(label, pageBindings).forEach(index => result.add(index));
+    }
+    // A paragraph the geometry could not place still has a page: the one whose
+    // text prints its number. That page carries the mark instead of nothing.
+    if (kind === "paragraph" && !geometry?.targets.some((target) => target.status === "found" &&
+        target.locatorKind === kind && target.locator.trim() === label.trim())) {
+      const number = /\d+/u.exec(label)?.[0];
+      const index = number ? pages.findIndex((text) =>
+        new RegExp(String.raw`(?:^|\s)\[\s*${number}\s*\]`, "u").test(text)) : -1;
+      if (index >= 0) result.add(index);
+    }
+  }
+  geometry?.targets.filter(target => target.status === "found").forEach(target =>
+    target.pages.forEach(({ pageNumber }) => { if (pageNumber > 0 && pageNumber <= pageCount) result.add(pageNumber - 1); }));
+  return result;
+}
 
 
-function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf,
-  pageLabels = new Map<string, number[]>()) {
+function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
   if (!source.authority ||
       !authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting ||
       draft.settings.filingMedium !== "paper") return null;
@@ -721,7 +745,7 @@ function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf,
     source.pageTextByPage?.[index]?.trim() || source.ocrTextByPage?.[index] || "");
   const reasonsStart = text.findIndex((page) =>
     /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
-  const cited = citedSourcePages(draft, source.authority.id, text, pageLabels, pageCount, source.passageGeometry);
+  const cited = citedSourcePages(draft, source.authority.id, text, source.pageBindings, pageCount, source.passageGeometry);
   source.markedPages?.forEach(index => cited.add(index));
   if (reasonsStart < 0 || !cited.size) return null;
   const selected = new Set(Array.from({ length: reasonsStart + 1 }, (_, index) => index));

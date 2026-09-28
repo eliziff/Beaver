@@ -6,14 +6,19 @@ const { performance } = require('node:perf_hooks');
 
 const root = path.resolve(__dirname, '../..');
 const out = path.join(root, 'tmp/pdf-pagination');
-process.env.MIKE_LOCAL_DATA_DIR = path.join(out, 'measure-store');
-const { documentProjectionService } = require('../../backend/dist/lib/documentProjectionService');
 const argv = process.argv.slice(2);
 const value = name => argv[argv.indexOf(name) + 1];
 const runId = argv.includes('--run-id') ? value('--run-id') : null;
 const phase = argv.includes('--phase') ? value('--phase') : 'cold';
 if (!runId || !/^[a-zA-Z0-9-]+$/.test(runId) || !['cold', 'reopen'].includes(phase))
   throw new Error('Use --run-id LETTERS-DIGITS and --phase cold|reopen');
+const store = path.join(out, 'measure-store', runId);
+if (phase === 'cold' && fs.existsSync(store))
+  throw new Error(`Cold run requires an unused run ID: ${runId}`);
+if (phase === 'reopen' && !fs.existsSync(store))
+  throw new Error(`Reopen run requires a completed cold run: ${runId}`);
+process.env.MIKE_LOCAL_DATA_DIR = store;
+const { documentProjectionService } = require('../../backend/dist/lib/documentProjectionService');
 const sourceRows = JSON.parse(fs.readFileSync(path.join(out, 'publisher-cached.json')));
 const groups = new Map();
 for (const row of sourceRows) {

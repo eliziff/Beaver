@@ -3,6 +3,7 @@ import argparse, concurrent.futures, hashlib, json, random, shutil, subprocess, 
 from collections import defaultdict
 from pathlib import Path
 import fitz
+from sampling import sample_pages
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
@@ -34,21 +35,29 @@ def prepare():
     (OUT/'manifest.json').write_text(json.dumps(selected,indent=2),encoding='utf-8')
     print(json.dumps({'documents':len(selected),'cases':sum(r['category']=='case' for r in selected),'judgment_only':True}),flush=True)
 
+def saved_readings(row):
+    path = OUT / (row['sha256'] + '.visual.json')
+    return json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'pages': []}
+
+
+def pending_pages(row):
+    done = {page['pdf_page'] for page in saved_readings(row)['pages']
+            if page['status'] != 'needs_review'}
+    return [page for page in sample_pages(row['sha256'], row['page_count']) if page not in done]
+
+
 def check(batch):
-    batch=[row for row in batch if not (OUT/(row['sha256']+'.visual.json')).exists()]
+    batch=[row for row in batch if pending_pages(row)]
     if not batch:return {'cached_batch':True}
     batch_id=digest(','.join(row['sha256'] for row in batch).encode())
     folder=OUT/'images'/('batch-'+batch_id);folder.mkdir(parents=True,exist_ok=True)
     result=folder/'response.json'
     images=[];identities=[]
     for row in batch:
-        prediction=json.loads((OUT/args.prediction_dir/(row['sha256']+'.prediction.json')).read_text(encoding='utf-8'))
-        if 'error' in prediction:continue
-        rng=random.Random(int(row['sha256'][:16],16))
         with render_lock, fitz.open(row['path']) as document:
-            count=len(document); anchor=prediction['anchor']
-            pages=sorted(set(([anchor] if anchor else list(range(1,min(3,count)+1)))+
-                [rng.randint(max(1,count//3),max(1,2*count//3)),rng.randint(max(1,2*count//3+1),count)]))
+            if digest(Path(row['path']).read_bytes()) != row['sha256']:
+                raise ValueError('Source PDF hash mismatch')
+            pages=pending_pages(row)
             for number in pages:
                 image=folder/f'{len(images)+1}.png'
                 document[number-1].get_pixmap(matrix=fitz.Matrix(1.6,1.6)).save(image)
@@ -77,7 +86,11 @@ def check(batch):
                     sha,number=identities[page['pdf_page']-1]
                     grouped[sha].append(dict(page,pdf_page=number))
                 for sha,readings in grouped.items():
-                    (OUT/(sha+'.visual.json')).write_text(json.dumps({'pages':readings,'batch':batch_id}),encoding='utf-8')
+                    prior=saved_readings({'sha256':sha})
+                    merged={page['pdf_page']:page for page in prior['pages']}
+                    merged.update({page['pdf_page']:dict(page, reader='gpt-6-luna-max') for page in readings})
+                    (OUT/(sha+'.visual.json')).write_text(json.dumps({'pages':sorted(merged.values(), key=lambda page:page['pdf_page']),
+                        'batch':batch_id,'prior_reader':prior.get('batch')}),encoding='utf-8')
                 return {'documents':len(grouped),'seconds':round(time.monotonic()-start,2),'images':len(images)}
             error=done.stderr[-1500:]
         except Exception as exc:error=str(exc)
@@ -94,7 +107,9 @@ def score(rows):
         group=groups.setdefault(row.get('origin',row['category']),defaultdict(int))
         counts['documents']+=1;group['documents']+=1
         counts['anchored_documents']+=bool(p['anchor']);group['anchored_documents']+=bool(p['anchor'])
+        sampled=set(sample_pages(row['sha256'], row['page_count']))
         for page in v['pages']:
+            if page['pdf_page'] not in sampled:continue
             expected=[x['text'] for x in page['labels']]
             binding=p['bindings'][page['pdf_page']-1];label=binding['label']
             counts['sampled_pages']+=1;group['sampled_pages']+=1
@@ -123,8 +138,9 @@ if __name__=='__main__':
     else:
         rows=[row for row in json.loads((OUT/args.manifest).read_text(encoding='utf-8')) if row.get('category') != 'journal'][:args.limit]
         if args.action=='check':
-            pending=[row for row in rows if not (OUT/(row['sha256']+'.visual.json')).exists()]
+            pending=[row for row in rows if pending_pages(row)]
             with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
                 batches=[pending[i:i+args.batch_size] for i in range(0,len(pending),args.batch_size)]
                 for result in pool.map(check,batches[:args.max_batches]):print(json.dumps(result),flush=True)
-        score(rows)
+            print(json.dumps({'documents':len(rows),'documents_with_pending_samples':sum(bool(pending_pages(row)) for row in rows)}),flush=True)
+        else:score(rows)

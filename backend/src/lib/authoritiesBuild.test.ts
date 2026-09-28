@@ -1,3 +1,4 @@
+import { resolvePdfPagination } from "./pdfPagination";
 import JSZip from "jszip";
 import { Document as WordDocument, Packer, Paragraph, TextRun } from "docx";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,
@@ -253,7 +254,7 @@ describe("Authorities output builder", () => {
     } };
     expect([...authoritiesTextRoles(state)]).toEqual([]);
     const result = await buildAuthorities({ draft: state, title: "Page pinpoint",
-      workProduct: { id: "page-pinpoint", revision: 1 }, sources: { item: { bytes: pdf, pageLabels: ["1"] } } });
+      workProduct: { id: "page-pinpoint", revision: 1 }, sources: { item: { bytes: pdf, pageBindings: resolvePdfPagination(["1"], []) } } });
     const source = await PDFDocument.load(pdf), book = await PDFDocument.load(result.artifacts.book!.bytes);
     expect(pageHasRgb(pageContent(book, book.getPage(2)), [.75, .08, .08])).toBe(false);
     expect(annotSubtypes(book, 2)).toEqual(["/Square"]);
@@ -760,8 +761,10 @@ describe("Authorities output builder", () => {
       workProduct: { id: "missing-source", revision: 1 }, sources });
     const placeholderBook = await PDFDocument.load(placeholder.artifacts.book!.bytes);
     expect(placeholderBook.getPageCount()).toBe(5);
-    expect(placeholderBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).asArray()
-      .filter(ref => placeholderBook.context.lookup(ref, PDFDict).has(PDFName.of("Dest"))).length).toBe(3);
+    expect(pageAnnots(placeholderBook, 1).flatMap(annot => {
+      const destination = annot.lookupMaybe(PDFName.of("Dest"), PDFArray);
+      return destination ? [String(destination.get(0))] : [];
+    })).toEqual(placeholderBook.getPages().slice(2).map(page => page.ref.toString()));
     expect(pageContent(placeholderBook, placeholderBook.getPage(3)).toUpperCase()).toContain(
       Buffer.from("Source PDF unavailable", "latin1").toString("hex").toUpperCase(),
     );
@@ -775,8 +778,10 @@ describe("Authorities output builder", () => {
       workProduct: { id: "missing-source", revision: 2 }, sources });
     const omitBook = await PDFDocument.load(omitResult.artifacts.book!.bytes);
     expect(omitBook.getPageCount()).toBe(4);
-    expect(omitBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).asArray()
-      .filter(ref => omitBook.context.lookup(ref, PDFDict).has(PDFName.of("Dest"))).length).toBe(2);
+    expect(pageAnnots(omitBook, 1).flatMap(annot => {
+      const destination = annot.lookupMaybe(PDFName.of("Dest"), PDFArray);
+      return destination ? [String(destination.get(0))] : [];
+    })).toEqual(omitBook.getPages().slice(2).map(page => page.ref.toString()));
     expect(omitBook.getPage(3).getSize()).toEqual({ width: 400, height: 500 });
     expect(omitResult.receipt.authorities.find(({ id }) => id === "fca")?.tab)
       .toBe("Tab 2");
@@ -1100,7 +1105,7 @@ describe("Authorities output builder", () => {
         settings: { filingMedium: "paper" } });
       return buildAuthorities({ draft: state, title: "Report pagination",
         workProduct: { id, revision: 1 }, sources: { "source:item": {
-          bytes: decision, pageTextByPage: texts, pageLabels } } });
+          bytes: decision, pageTextByPage: texts, pageBindings: resolvePdfPagination(pageLabels ?? [], []) } } });
     };
 
     const extract = await PDFDocument.load((await build(labelled, "labelled",

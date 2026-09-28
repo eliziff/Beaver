@@ -24,7 +24,7 @@ const pdfText = vi.hoisted(() => vi.fn(async () => ({
 vi.mock("./authorityPdfText", () => ({ authorityPdfText: pdfText }));
 vi.mock("./documentProjectionService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./documentProjectionService")>();
-  return { ...actual, documentProjectionService: { ...actual.documentProjectionService, pdfPageLabels: vi.fn(async () => [] as (string | null)[]) } };
+  return { ...actual, documentProjectionService: { ...actual.documentProjectionService, pdfPagination: vi.fn(async () => []) } };
 });
 
 const scope: ApplicationScope = { userId: "lawyer" };
@@ -180,6 +180,7 @@ function harness(options: {
     download: vi.fn(options.download ?? (async () => Promise.reject(new Error("unused")))),
     key: vi.fn(options.key ?? (() => "canonical-key")),
     occurrences: vi.fn(options.occurrences ?? (() => [])),
+    references: vi.fn(() => []),
     revision: vi.fn(() => "a".repeat(64)),
   };
   return { application: createAuthoritiesWorkspaceApplication(documents, workProducts, files,

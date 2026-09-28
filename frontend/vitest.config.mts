@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
@@ -9,6 +10,7 @@ const resolvePath = (relative: string) =>
 export default defineConfig({
     // Tests run the same compiled components the build ships (see vite.config.ts).
     plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
+    server: { fs: { allow: [resolvePath(".."), realpathSync(resolvePath("./node_modules"))] } },
     resolve: {
         alias: [
             {

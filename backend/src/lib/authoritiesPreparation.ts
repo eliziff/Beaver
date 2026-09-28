@@ -44,7 +44,7 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
   return { ...plan, textRoles,
     async prepareText(role: string, input: Parameters<typeof authorityPdfText>[0]) {
       input.signal?.throwIfAborted();
-      if (!textRoles.has(role)) return {};
+      if (!textRoles.has(role)) return { pageBindings: undefined };
       const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
       const authority = attached?.authority;
       const targets = authority ? authorityPassageTargets(draft, authority.id) : [];
@@ -54,7 +54,7 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
         ocrTargets: targets, passageTargets: draft.settings.passageMarking === "none" ? [] : targets });
       input.signal?.throwIfAborted();
       return { pageTextByPage: text.pageTextByPage,
-        ...(text.pageLabels ? { pageLabels: text.pageLabels } : {}),
+        ...(text.pageLabels ? { pageLabels: text.pageLabels, pageBindings: text.pageBindings } : {}),
         ...(text.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
         ...(text.passageGeometry ? { passageGeometry: text.passageGeometry } : {}) };
     },

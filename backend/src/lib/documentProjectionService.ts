@@ -1,8 +1,7 @@
 import { profileFor } from "./pdfProfile";
 import { ApplicationError } from "./applicationError";
 import type { NativePdfTextPage } from "./structureNative";
-import { PDFDocument } from "pdf-lib";
-import { embeddedPageLabels, printedPageIndices, reporterMarginLabels, reporterStartPages, resolvePdfPagination,
+import { reporterMarginLabels, reporterStartPages, resolvePdfPagination,
   resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
 import { sha256 } from "./hash";
 import {
@@ -551,28 +550,32 @@ async function pdfPassageGeometry(
 ) {
   const bytes = await readBytes();
   const prepared = await preparedForSource(() => bytes, reference, options);
-  const labels = await paginationFor(prepared.document, bytes, options.citations ?? [],
-    options.reporterOriginal === true);
-  const indices = printedPageIndices(labels.map(entry => entry.label));
+  const starts = options.reporterOriginal ? reporterStartPages(options.citations ?? []) : [];
+  const labels = await cachedPagination(reference, starts,
+    () => paginationFor(prepared.document, starts));
   return nativePdfPassageGeometry(prepared.document, bytes, targets.map(target => target.locatorKind === "page"
-    ? { ...target, physicalPages: resolvePrintedPages(target.locator, indices, labels.length).map(index => index + 1) } : target));
+    ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map(index => index + 1) } : target));
 }
 
-async function paginationFor(document: NativeDocument, bytes: Buffer, citations: string[],
-  reporterOriginal = false) {
-  const native = structureNative(), starts = reporterOriginal ? reporterStartPages(citations) : [];
+async function paginationFor(document: NativeDocument, starts: number[]) {
+  const native = structureNative();
   let observed = native.pdfPageLabels(document);
   if (starts.length && !observed.some(label => label && starts.includes(Number(label)))) {
     const recognized = native.pdfRecognizedText(document) ?? [];
     const opening = Array.from({ length: Math.min(3, observed.length) }, (_, index) => index + 1);
-    const raw = await native.pdfPassageGeometryPages(document, bytes,
+    const raw = await native.pdfPassageGeometryPages(document,
       [{ id: "opening-folios", locatorKind: "page", locator: "", physicalPages: opening }]);
     observed = reporterMarginLabels(observed, starts, [...raw.targets.flatMap(target => target.pages), ...recognized]);
   }
-  let embedded: (string | null)[] = [];
-  try { embedded = embeddedPageLabels(await PDFDocument.load(bytes)); }
-  catch { /* Embedded labels are optional; the native parser already opened this PDF. */ }
+  const embedded = native.pdfDocumentSummary(document).embeddedPageLabels;
   return resolvePdfPagination(observed, embedded, starts);
+}
+
+async function cachedPagination(reference: ProjectionReference, starts: number[],
+  produce: () => Promise<PdfPageBinding[]>) {
+  const result = await projectionFor(`${projectionKey(reference)}\0page-labels:${starts.join(",")}`,
+    async () => JSON.stringify(await produce()));
+  return JSON.parse(result) as PdfPageBinding[];
 }
 
 async function pdfPagination(source: DocumentProjectionSource, citations: string[] = []) {
@@ -582,16 +585,16 @@ async function pdfPagination(source: DocumentProjectionSource, citations: string
     sourceSha256: source.sourceSha256, cacheKey: source.pdfProfile?.cacheKey };
   // Cache derived labels in the existing version/profile-bound projection cache.
   const starts = source.reporterOriginal ? reporterStartPages(citations) : [];
-  const result = await projectionFor(`${projectionKey(reference)}\0page-labels:${starts.join(",")}`, async () => {
+  const result = await cachedPagination(reference, starts, async () => {
     const { bytes } = await boundedSource(source);
     const document = reference.cacheKey
       ? await structureNative().restorePdfDocument(pdfCacheRequest(reference, reference.cacheKey))
         ?? await openPdf({ ...reference, bytes, ocrProvider: null, layout: false })
       : await openPdf({ ...reference, bytes, ocrProvider: null, layout: false });
-    return JSON.stringify(await paginationFor(document, bytes, citations, source.reporterOriginal === true));
+    return paginationFor(document, starts);
   });
   await source.assertAvailable?.();
-  return JSON.parse(result) as PdfPageBinding[];
+  return result;
 }
 
 async function pdfPageLabels(source: DocumentProjectionSource, citations: string[] = []) {

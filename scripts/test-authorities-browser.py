@@ -794,21 +794,19 @@ def reference_keyboard_flow(driver: webdriver.Chrome) -> dict[str, object]:
     focused = wait(driver, 5).until(lambda item: item.switch_to.active_element
         if item.switch_to.active_element.get_attribute("aria-label") == "Search authorities" else False)
     focused.send_keys(Keys.ESCAPE)
-    wait(driver, 5).until(lambda item: not item.find_elements(By.CSS_SELECTOR,
-        "[role='group'][aria-label='Link to authority']"))
-    wait(driver, 5).until(lambda item: item.switch_to.active_element.text == "Link to authority")
-    driver.find_element(By.XPATH, "//button[normalize-space(.)='Link to authority']").click()
+    wait(driver, 5).until(lambda item: not item.find_elements(By.CSS_SELECTOR, "[role='dialog']"))
+    wait(driver, 5).until(lambda item: item.switch_to.active_element == link)
+    link.click()
     focused = wait(driver, 5).until(lambda item: item.switch_to.active_element
         if item.switch_to.active_element.get_attribute("aria-label") == "Search authorities" else False)
-    focused.send_keys("2009 SCC 32")
-    driver.switch_to.active_element.send_keys(Keys.ENTER)
+    focused.send_keys("2009 SCC 32", Keys.ENTER)
     wait(driver, 30).until(lambda _item: driver.execute_script("""
 return [...document.querySelectorAll('span')].some(node=>node.innerText.startsWith('Linked to '));
 """))
     selected = driver.find_element(By.CSS_SELECTOR,
         "[role='listbox'][aria-label='Citations'] [role='option'][aria-selected='true']")
     assert citation_options(driver).index(selected) == source_index
-    wait(driver, 5).until(lambda item: item.switch_to.active_element.text == "Link to authority")
+    wait(driver, 5).until(lambda item: item.switch_to.active_element == link)
     click_button(driver, "Clear link"); idle(driver)
     wait(driver, 5).until(lambda _item: driver.execute_script("""
 return [...document.querySelectorAll('span')].some(node=>node.innerText==='Not linked');
@@ -1085,9 +1083,7 @@ def profile_builds(driver: webdriver.Chrome, filing: Path, oakes_pdf: Path, outp
             upload(driver, "Add file", [filing])
             setup = wait(driver, 5).until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
             click_button(driver, "Import and review", setup)
-            wait(driver, 120).until(lambda item: filing.name in item.find_element(
-                By.XPATH, "//h2[normalize-space(.)='Import and review']/parent::div").text
-                and bool(citation_options(item)))
+            wait(driver, 120).until(lambda item: bool(citation_options(item)))
             correction = consolidate_parallel(driver)
             advance_to_build(driver)
             book_step(driver, "Sources")

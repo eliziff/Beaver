@@ -12,4 +12,4 @@ export function resolvePdfPagination(observed: readonly (string | null)[],
 export function reporterMarginLabels(labels: readonly (string | null)[], starts: readonly number[],
   pages: readonly PdfMarginPage[], isCitation: (text: string, page: string) => boolean): (string | null)[];
 export function printedPageIndices(labels: readonly (string | null)[]): Map<string, number[]>;
-export function resolvePrintedPages(label: string, labels: Map<string, number[]>, pageCount: number): number[];
+export function resolvePrintedPages(label: string, bindings: readonly PdfPageBinding[]): number[];

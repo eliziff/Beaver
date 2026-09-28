@@ -387,7 +387,6 @@ mod legalpdf_exports {
     }
 
     pub struct PdfPassagePagesTask {
-        bytes: Buffer,
         job: Option<engine::PdfPassagePagesJob>,
     }
 
@@ -399,7 +398,7 @@ mod legalpdf_exports {
             self.job
                 .take()
                 .ok_or_else(|| Error::from_reason("passage task already consumed"))?
-                .compute(&self.bytes)
+                .compute()
                 .map_err(reason)
         }
 
@@ -412,12 +411,11 @@ mod legalpdf_exports {
     pub fn pdf_passage_geometry_pages_node(
         env: Env,
         native: &External<NativeDocument>,
-        bytes: Buffer,
         targets: Unknown<'_>,
     ) -> napi::Result<AsyncTask<PdfPassagePagesTask>> {
         let job = engine::pdf_passage_pages_job(native, env.from_js_value(targets)?)
             .map_err(reason)?;
-        Ok(AsyncTask::new(PdfPassagePagesTask { bytes, job: Some(job) }))
+        Ok(AsyncTask::new(PdfPassagePagesTask { job: Some(job) }))
     }
 
     #[napi(js_name = "pdfLookupUnitSpans")]

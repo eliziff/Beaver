@@ -22,7 +22,7 @@ export function resolvePdfPagination(observed, embedded, reporterStarts = []) {
   const run = bindings.slice(anchor.pdfPage - 1);
   if (run.some(entry => entry.status === "ambiguous" || (entry.label !== null &&
       entry.label !== String(first + entry.pdfPage - anchor.pdfPage)))) return bindings;
-  for (const entry of run) if (!entry.label) {
+  for (const entry of run) {
     entry.label = String(first + entry.pdfPage - anchor.pdfPage);
     entry.source = "reporter"; entry.status = "resolved";
   }
@@ -35,8 +35,12 @@ export function reporterMarginLabels(labels, starts, pages, isCitation) {
   for (const page of pages) {
     if (page.pageNumber > 3 || result[page.pageNumber - 1]) continue;
     const candidates = new Set();
+    const top = Math.min(...page.lines.map(line => line.rect[3]));
+    const bottom = Math.max(...page.lines.map(line => line.rect[1]));
     for (const line of page.lines) {
-      if (!(line.rect[3] <= page.height * .1 || line.rect[1] >= page.height * .9)) continue;
+      // Include the outermost text rows when publisher whitespace insets the page.
+      if (!(line.rect[3] <= page.height * .14 || line.rect[1] >= page.height * .86 ||
+          line.rect[1] <= top || line.rect[3] >= bottom)) continue;
       const value = (line.text || line.words.map(word => word.text).join(" ")).trim();
       if (value.length > 140) continue;
       // OCR sometimes inserts spaces inside a printed folio ("74 1" for 741).
@@ -71,10 +75,15 @@ export function printedPageIndices(labels) {
 }
 
 /** A printed pinpoint resolves only when every requested label has one destination. */
-export function resolvePrintedPages(label, labels, pageCount) {
-  // A sparse map can hide a second occurrence on an unlabelled physical page.
-  // Automatic pinpoint routing requires a label for every page.
-  if (new Set([...labels.values()].flat()).size !== pageCount) return [];
+export function resolvePrintedPages(label, bindings) {
+  // Unknown pages can hide duplicate folios. Only a verified reporter suffix
+  // may follow unlabelled opening pages; conflicts never permit automatic routing.
+  const firstResolved = bindings.findIndex(page => page.status === "resolved");
+  if (firstResolved < 0 || bindings.some((page, index) => page.pdfPage !== index + 1 || page.status === "ambiguous")) return [];
+  if (bindings.some(page => page.status !== "resolved") &&
+      (bindings.slice(0, firstResolved).some(page => page.status !== "unknown") ||
+       bindings.slice(firstResolved).some(page => page.status !== "resolved" || page.source !== "reporter"))) return [];
+  const labels = printedPageIndices(bindings.map(page => page.label));
   const match = /^\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*$/u.exec(label);
   if (!match) return labels.get(label.trim())?.length === 1 ? labels.get(label.trim()) : [];
   const first = Number(match[1]), end = match[2] ?? match[1];

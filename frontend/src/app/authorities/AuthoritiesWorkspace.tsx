@@ -1327,12 +1327,11 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
       <SearchableChoiceModal open={linkOpen} title="Link to authority" size="md"
         searchLabel="Search authorities" value={selected.reference?.targetAuthorityId ?? null}
         className="!h-[min(28rem,calc(100dvh-2rem))]"
-        options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item) }))}
-        onClose={() => setLinkOpen(false)} onChange={(id) => {
-          restoreLinkFocus.current = true;
-          setLinkOpen(false);
-          if (id && referenceKind) submit({ type: "set-reference", occurrenceId: selected.id, reference: {
-            kind: referenceKind, targetAuthorityId: id } });
+        closeOnSelect={false}
+        options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item), disabled: busy }))}
+        onClose={() => { if (!busy) setLinkOpen(false); }} onChange={(id) => {
+          if (id && referenceKind) onAction({ type: "set-reference", occurrenceId: selected.id, reference: {
+            kind: referenceKind, targetAuthorityId: id } }, () => { restoreLinkFocus.current = true; setLinkOpen(false); });
         }} />
     </div>}
   </div>;
