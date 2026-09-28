@@ -227,7 +227,7 @@ window.fetch=async(...args)=>{
 };
 window.__observeAuthoritiesFetch();
 addEventListener('load',()=>{
-  if(location.pathname.endsWith('/authorities.html'))window.__observeAuthoritiesFetch();
+  if(/\/authorities(?:\.html|\/)?$/i.test(location.pathname))window.__observeAuthoritiesFetch();
 });
 new MutationObserver(()=>{
   const timing=window.__authoritiesSmoke.importUi;
@@ -343,7 +343,7 @@ def citation_options(driver: webdriver.Chrome):
 
 
 def draft_state(driver: webdriver.Chrome, draft_id: str) -> dict[str, object]:
-    if urlparse(driver.current_url).path.rstrip("/").endswith("authorities.html"):
+    if urlparse(driver.current_url).path.rstrip("/").lower().endswith(("/authorities.html", "/authorities")):
         result = driver.execute_async_script(r"""
 const id=arguments[0],done=arguments[arguments.length-1],opening=
   indexedDB.open('beaver-work-products');
@@ -1580,7 +1580,7 @@ def main() -> int:
     parser.add_argument("--expected-pdf-page", type=int, default=1)
     args = parser.parse_args()
     native_performance = native_citation_performance()
-    standalone = urlparse(args.url).path.rstrip("/").endswith("authorities.html")
+    standalone = urlparse(args.url).path.rstrip("/").lower().endswith(("/authorities.html", "/authorities"))
     mode = "standalone" if standalone else "beaver"
     with tempfile.TemporaryDirectory(prefix=f"authorities-{mode}-") as temporary:
         temporary_path = Path(temporary)

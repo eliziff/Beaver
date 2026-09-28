@@ -247,8 +247,31 @@ acquisition, replacement, exports, save/reopen and narrow-screen checks in
 62.5 seconds with no severe browser errors. Reviewed 320-pixel screenshots were
 readable and contained. Receipt: `browser-automatic-inspection/standalone/20260928T094818183878Z/`.
 This validates output workflows; it does not certify filing compliance for every
-source or add OCR to the HTML runtime. The final combined product replay and
-Lite/Beaver candidate publication checks remain pending.
+source or add OCR to the HTML runtime.
+
+The final combined replay of all 350 originals produced 345 correct destinations,
+five explicit abstentions and no wrong destinations. Display, navigation, generated
+highlights and restored prepared profiles were checked. Summed operation time was
+312.2 seconds; 35 bounded processes took 351.2 seconds with a sampled peak of
+763 MiB. These are cache-backed selective-OCR conditions, not cold timings.
+Receipts: `product-candidate-final/`, `candidate-final-product-*.json`, and
+`product-candidate-final-summary.json`.
+
+The final Lite HTML (`6a7a94da99802bbc96d1b1cc107612474889bed2c7b33723e6dbdc643c8877d5`)
+passed real text and two-page scan browser workflows: printed navigation,
+highlighting, undo/redo, annotated export, reopen, and refusal of unrelated citations.
+The scan's printed page 158 correctly navigated to physical page 2. Receipts:
+`lite-publication-{text,scan}.log` and screenshots. Full and Lite HTML use Beaver
+`db4aa6d74`; Helper `013d1332` adds hosted-test support to the built `3a4e771f` source.
+
+The complete backend suite passed 1,682 tests, skipped 54 and retained the same
+18 failures as the earlier candidate, with no new failed test names. Frontend passed
+965 tests; its one failure was the court-font test's working-directory lookup.
+All 43 tests in that file passed when rerun from `frontend/`. Frontend script guards,
+both builds, launcher production smoke, and Beaver real-reporter upload, printed
+navigation and reopen passed. Whole-suite backend success is not claimed.
+Receipts: `*-publication-*`, `frontend-font-cwd-final.log`, and
+`browser-beaver-publication/`.
 
 ## Decisia PDF route check (2026-09-27)
 
