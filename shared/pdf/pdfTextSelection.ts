@@ -157,7 +157,8 @@ export function attachPdfTextSelection(scroller: HTMLElement, enabled: () => boo
         let anchor: Node | null = modifyStart ? range.startContainer : range.endContainer;
         if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode;
         const layer = (anchor as Element | null)?.closest<HTMLElement>(".pdf-text-layer");
-        // Keep the selection sentinel outside nested citation and quote highlights.
+        // Citation/quote marks can nest inside a run. Keep the page-sized selection
+        // sentinel beside the run; inside it, the sentinel intercepts character carets.
         while (anchor && layer && anchor.parentNode !== layer) anchor = anchor.parentNode;
         const end = layer?.querySelector<HTMLElement>(":scope .endOfContent");
         if (layer && end && anchor) {

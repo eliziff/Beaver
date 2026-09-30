@@ -1125,12 +1125,15 @@ def profile_builds(driver: webdriver.Chrome, filing: Path, oakes_pdf: Path, outp
     )
     for slug, jurisdiction, court, create, medium, role in profiles:
         correction = None
+        document_selection = None
         if slug == "abca":
             click_button(driver, "New")
             upload(driver, "Add file", [filing])
             setup = wait(driver, 5).until(lambda item: item.find_element(By.CSS_SELECTOR, "dialog[open]"))
             click_button(driver, "Import and review", setup)
             wait(driver, 120).until(lambda item: bool(citation_options(item)))
+            review_surface(driver)
+            document_selection = select_next_in_document(driver)
             correction = consolidate_parallel(driver)
             advance_to_build(driver)
             book_step(driver, "Sources")
@@ -1179,7 +1182,7 @@ def profile_builds(driver: webdriver.Chrome, filing: Path, oakes_pdf: Path, outp
             assert any(f"Filed by {role}" in str(item.get("firstPage", ""))
                        for item in artifacts), artifacts
         proof[slug] = {"request": request, "artifacts": artifacts,
-                       "parallelCorrection": correction}
+                       "parallelCorrection": correction, "directDocumentSelection": document_selection}
     return proof
 
 
