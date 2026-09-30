@@ -1399,7 +1399,7 @@ describe("local assistant tools", () => {
       [{ type: "merge", evidence: [receipt] }]), research = seeded.document, exact = seeded.resource;
     const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState();
     registerLegalEvidence(evidence, receipt); registerLegalEvidence(evidence, unsaved);
-    const [, created, rejected, rejectedInline] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+    const [, created, rejected, rejectedInline, rejectedAlias, corrected] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
       name: "Read", input: { file_path: exact } }, { id: "memo",
       name: "document_operation", input: { action: "research", document_id: exact,
         research_action: { type: "memo", title: "Case memo",
@@ -1409,7 +1409,13 @@ describe("local assistant tools", () => {
           markdown: "An unsupported proposition." } } }, { id: "unsupported-inline-memo",
       name: "document_operation", input: { action: "research", document_id: exact,
         research_action: { type: "memo", title: "Unsupported inline",
-          markdown: `An unsupported proposition. [@${unsaved.evidence_id}]` } } }], {
+          markdown: `An unsupported proposition. [@${unsaved.evidence_id}]` } } }, { id: "aliased-memo",
+      name: "document_operation", input: { action: "research", document_id: exact,
+        evidence_ids: [receipt.evidence_id], research_action: { type: "memo", title: "Case memo",
+          markdown: "The authorities support the proposition. [@scope]" } } }, { id: "corrected-memo",
+      name: "document_operation", input: { action: "research", document_id: exact,
+        research_action: { type: "memo", title: "Case memo",
+          markdown: `## Analysis\n\nThe authorities support the proposition. [@${receipt.evidence_id}]` } } }], {
       documentNames: new Map([[research.id, research.filename]]), edits: new Map(),
       legalEvidence: evidence });
     const output = JSON.parse(created.content), file = await store.localDocuments.read(
@@ -1423,10 +1429,12 @@ describe("local assistant tools", () => {
     expect(markdown).toContain("[Example, 2026 SCC 1 at para 7](</sources/view?");
     expect(markdown).not.toContain("document://");
     expect(markdown).not.toContain("[@");
-    expect(JSON.parse(rejected.content)).toEqual({ ok: false,
-      error: "Unknown or unsaved evidence ID" });
-    expect(JSON.parse(rejectedInline.content)).toEqual({ ok: false,
-      error: "Unknown or unsaved evidence ID" });
+    for (const rejection of [rejected, rejectedInline]) expect(JSON.parse(rejection.content))
+      .toMatchObject({ ok: false, unknown_evidence_ids: [unsaved.evidence_id] });
+    expect(JSON.parse(rejectedAlias.content)).toMatchObject({ ok: false,
+      unknown_evidence_ids: ["scope"] });
+    expect(JSON.parse(corrected.content)).toMatchObject({ ok: true, action: "updated",
+      document_id: research.id });
     expect((await store.localDocuments.metadata({ userId: "local-user" }, output.document_id))
       ?.project_id).toBeNull();
   });
