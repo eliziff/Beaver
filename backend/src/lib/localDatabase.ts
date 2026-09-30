@@ -102,11 +102,17 @@ export class LocalDatabase implements RelationalDatabase {
 
 const LOCAL_SCHEMA_VERSION = 17;
 
-// SQLite ignores new columns in `create table if not exists`, so nullable columns added to
-// an existing table are reconciled before the schema runs (its indexes may reference them).
+// SQLite ignores new columns in `create table if not exists`, so columns added to an existing
+// table (nullable or with a constant default) are reconciled before the schema runs (its
+// indexes may reference them).
 const ADDED_COLUMNS: readonly (readonly [table: string, column: string, type: string])[] = [
   ["chats", "work_product_id", "text"],
   ["chat_messages", "submission", "jsonb"],
+  ["projects", "org_id", "text references organizations(id) on delete restrict"],
+  ["workflows", "org_id", "text references organizations(id) on delete restrict"],
+  ["project_members", "role", "text not null default 'editor' check(role in ('viewer','editor','owner'))"],
+  ["tabular_review_members", "role", "text not null default 'editor' check(role in ('viewer','editor','owner'))"],
+  ["workflow_shares", "role", "text not null default 'viewer' check(role in ('viewer','editor','owner'))"],
 ];
 
 function addMissingColumns(database: DatabaseSync) {
