@@ -17,9 +17,10 @@ export const actOnAuthorities = (id: string, revision: number, action: Authoriti
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/actions`, { revision, action });
 export const refreshAuthorities = (id: string, revision: number) =>
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/refresh`, { revision });
-export const prepareAuthoritiesSources = (id: string, revision: number, signal?: AbortSignal) =>
+export const prepareAuthoritiesSources = (id: string, revision: number, signal?: AbortSignal,
+  authorityId?: string) =>
   apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/sources`,
-    { ...mutationInit("POST", { revision }), signal });
+    { ...mutationInit("POST", { revision, authorityId }), signal });
 export const refreshAuthoritiesInput = (id: string, role: string, revision: number) =>
   post<AuthoritiesProduct>(
     `/authorities/${segment(id)}/inputs/${segment(role)}/refresh`, { revision });

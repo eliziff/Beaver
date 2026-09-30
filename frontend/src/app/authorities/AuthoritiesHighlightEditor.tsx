@@ -4,7 +4,7 @@ import { Modal } from '@/app/components/modals/Modal';
 import { Button } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
 import { PdfView } from '@/app/components/shared/views/PdfView';
-import type { AnnotationTool } from '@/app/components/shared/views/pdfAnnotationLayer';
+import type { AnnotationTool } from '../../../../shared/pdf/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
 import { decodeAnnotationSet, emptyAnnotationSet,
   type PdfAnnotation, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';

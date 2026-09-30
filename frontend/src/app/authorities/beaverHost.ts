@@ -91,8 +91,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   },
   act: actOnAuthorities, refresh: refreshAuthorities, review: reviewAuthorities,
   resolveDiscrepancy: resolveAuthoritiesDiscrepancy,
-  prepareSources: (draft, signal) =>
-    prepareAuthoritiesSources(draft.id, draft.revision, signal),
+  prepareSources: (draft, signal, authorityId) =>
+    prepareAuthoritiesSources(draft.id, draft.revision, signal, authorityId),
   relinkSource: refreshAuthoritiesInput,
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachAuthorityPdf(id, authorityId, revision, selected.file, language),

@@ -53,6 +53,7 @@ export const DECISIA_HOSTS = new Set([
   "decisions.chrt-tcdp.gc.ca",
   "decisions.citt-tcce.gc.ca",
   "decisions.cmac-cacm.ca",
+  "decisions.courts.ns.ca",
   "decisions.ct-tc.gc.ca",
   "decisions.fca-caf.gc.ca",
   "decisions.fct-cf.gc.ca",
@@ -68,7 +69,7 @@ export function decisiaIndexUrl(rawUrl: string | URL) {
   const source = httpUrl(String(rawUrl));
   if (!source || source.protocol !== "https:" || source.port ||
       !DECISIA_HOSTS.has(source.hostname.toLowerCase()) ||
-      !/\/item\/\d+\/index\.do$/iu.test(source.pathname)) return null;
+      !/^\/[a-z0-9/_-]+\/item\/\d+\/index\.do$/iu.test(source.pathname)) return null;
   source.search = "";
   source.hash = "";
   return source;
@@ -89,17 +90,55 @@ export function publisherPdfSourceUrl(raw: string): URL | null {
   return url;
 }
 
+/** Decisia's observed document route; availability still requires a successful PDF response. */
+export function publisherPdfCandidate(rawUrl: string | URL) {
+  const source = decisiaIndexUrl(rawUrl);
+  if (!source) return null;
+  source.pathname = source.pathname.replace(/\/item\/(\d+)\/index\.do$/iu, "/$1/1/document.do");
+  return source.toString();
+}
+
 /** One attribute's value in any quoting style; "" when the attribute is absent. */
 const attributePattern = (name: string) =>
   new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, "iu");
 
 const CLASS_ATTRIBUTE = attributePattern("class");
+const ID_ATTRIBUTE = attributePattern("id");
 const HREF_ATTRIBUTE = attributePattern("href");
 const SRC_ATTRIBUTE = attributePattern("src");
+const ACTION_ATTRIBUTE = attributePattern("action");
 
 function attributeValue(attributes: string, pattern: RegExp) {
   const match = attributes.match(pattern);
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? "";
+}
+
+/** The publisher's own challenge form, when its response supplies one. */
+export function publisherChallengeUrl(markup: string, rawUrl: string | URL) {
+  const source = httpUrl(String(rawUrl));
+  if (!source || source.protocol !== "https:") return null;
+  const challenge = (raw: string) => {
+    const url = httpUrl(raw, source);
+    return url?.origin === source.origin &&
+      /^\/robocop\/captcha\/(?:en|fr)\/query\.do$/iu.test(url.pathname)
+      ? url.toString() : null;
+  };
+  const own = challenge(source.toString());
+  if (own) return own;
+  for (const match of markup.matchAll(/<iframe\b([^>]*)>/giu)) {
+    const found = challenge(attributeValue(match[1], SRC_ATTRIBUTE));
+    if (found) return found;
+  }
+  // Decisia can render the challenge directly in the decision's content iframe.
+  if (decisiaIndexUrl(source)) {
+    for (const match of markup.matchAll(/<div\b([^>]*)>\s*<form\b([^>]*)>/giu)) {
+      if (attributeValue(match[1], ID_ATTRIBUTE) !== "captchaForm") continue;
+      const action = httpUrl(attributeValue(match[2], ACTION_ATTRIBUTE), source);
+      if (action?.origin === source.origin && action.pathname === "/robocop/captcha/eval.do")
+        return source.toString();
+    }
+  }
+  return null;
 }
 
 function controlledDecisiaPdfUrl(controls: string[], source: URL) {

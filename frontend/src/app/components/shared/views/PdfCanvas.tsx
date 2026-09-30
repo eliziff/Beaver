@@ -1,34 +1,28 @@
-import "./pdfTextLayer.css";
-import {
-    useCallback,
-    useEffect,
-    useEffectEvent,
-    useLayoutEffect,
-    useMemo,
-    useRef,
-    useState,
-    type MouseEvent as ReactMouseEvent,
-} from "react";
+import { createPdfSession, type PdfSession, PDF_ZOOM_MIN as ZOOM_MIN, PDF_ZOOM_MAX as ZOOM_MAX, PDF_ZOOM_STEP as ZOOM_STEP } from '../../../../../../shared/pdf/viewer';
+import "pdfjs-dist/web/pdf_viewer.css";
+import "../../../../../../shared/pdf/pdfTextLayer.css";
+import "../loading.css";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
+    type MouseEvent as ReactMouseEvent } from "react";
 import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import type { PDFViewer } from "pdfjs-dist/legacy/web/pdf_viewer.mjs";
 import type { CitationQuote } from "@/app/lib/citations";
-import {
-    clearHighlights,
-    getPdfJs,
-    highlightQuote,
-    STANDARD_FONT_DATA_URL,
-} from "./highlightQuote";
-import { createPdfPageCache, pageAt } from "./pdfPageCache";
-import { matchesQuoteText, quoteSegments } from "./quoteText";
-import { attachPdfAnnotationLayer, focusPdfAnnotation, type PdfAnnotationEditorPort } from "./pdfAnnotationLayer";
-import { createPdfPageTextLayer, type PdfPageTextLoader } from "./pdfPageTextLayer";
-import { attachPdfTextSelection } from "./pdfTextSelection";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
-
+import { clearHighlights, getPdfJs, highlightQuote, STANDARD_FONT_DATA_URL } from "./highlightQuote";
+import { PDF_DOCUMENT_OPTIONS, openPdfDocument } from "@/app/lib/pdfJs";
+import { createPdfPageCache } from "./pdfPageCache";
+import { matchesQuoteText, quoteSegments } from "./quoteText";
+import { type PdfAnnotationEditorPort } from "../../../../../../shared/pdf/pdfAnnotationLayer";
+import { type PdfPageTextLoader } from "../../../../../../shared/pdf/pdfPageTextLayer";
+import { PdfPageNavigation } from "./PdfPageNavigation";
 export type PdfByteSource = (signal: AbortSignal, onError: (error: Error) => void) => Promise<
     { data: Uint8Array } | { range: import("pdfjs-dist").PDFDataRangeTransport;
         rangeChunkSize: number; disableStream: true; disableAutoFetch: true }>;
 
 export interface PdfCanvasProps {
+    pageLabels?: readonly (string | null)[];
+    /** Only PDFs whose labels this product authored may use their embedded /PageLabels directly. */
+    authoredPageLabels?: boolean;
     source?: PdfByteSource;
     annotationEditor?: PdfAnnotationEditorPort;
     bytes?: Uint8Array;
@@ -43,715 +37,162 @@ export interface PdfCanvasProps {
     loadRecognizedText?: PdfPageTextLoader;
 }
 
-type RenderedPage = {
-    wrapper: HTMLDivElement;
-    top: number;
-    height: number;
-};
 
-/** All commands/resources expire together on zoom, resize or source replacement. */
-type PdfLayout = {
-    pages: RenderedPage[];
-    schedule(): void;
-    refreshText(): void;
-    destroy(retainCanvas?: boolean): void;
-    preparePage(number: number): Promise<boolean>;
-    search(quotes: CitationQuote[]): Promise<void>;
-};
+const PDF_VIEWER_ERROR = "Unable to open this PDF. The file may be invalid or unsupported.";
+type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
-const SIDE_PADDING = 20;
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.25;
-const MAX_PDF_IMAGE_PIXELS = 40_000_000;
-// Output-scale limits follow PDF.js PDFPageView; the budget includes the in-flight canvas.
-const MAX_CANVAS_PIXELS = 8_000_000;
-const MAX_RESIDENT_PIXELS = 24_000_000;
-const MAX_PDF_PAGES = 2_000;
-const PDF_VIEWER_ERROR =
-    "Unable to open this PDF. The file may be invalid or unsupported.";
-const clampZoom = (value: number) =>
-    Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
-
-function scrollToHighlight(pages: RenderedPage[], scrollElement: HTMLDivElement | null,
-    pageNumber: number) {
-    const page = pages[pageNumber - 1];
-    if (!page || !scrollElement) return;
-    const highlight = page.wrapper.querySelector<HTMLElement>(".pdf-text-highlight");
-    const rect = (highlight ?? page.wrapper).getBoundingClientRect();
-    const containerRect = scrollElement.getBoundingClientRect();
-    scrollElement.scrollTo({
-        top: Math.max(0, scrollElement.scrollTop + rect.top - containerRect.top +
-            (highlight ? (rect.height - scrollElement.clientHeight) / 2 : 0)),
-        behavior: "instant" as ScrollBehavior,
-    });
-}
-
-export function PdfCanvas({
-    annotationEditor,
-    bytes,
-    source,
-    loading = false,
-    error,
-    quotes,
-    quoteFocusKey,
-    recognizedText,
-    loadRecognizedText,
-    rounded = true,
-    ariaLabel = "PDF document",
-    onUnavailable,
-}: PdfCanvasProps) {
+export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
+    rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
+    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false}: PdfCanvasProps) {
+    const containerRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
+    const layoutRef = useRef<Layout | null>(null);
+    const previewRef = useRef<HTMLDivElement | null>(null);
+    const clearPreview = useCallback(() => {
+        previewRef.current?.querySelectorAll('canvas').forEach(canvas => { canvas.width = canvas.height = 0; });
+        previewRef.current?.remove(); previewRef.current = null;
+    }, []);
+    const editorRef = useRef(annotationEditor), quotesRef = useRef(quotes);
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
     const recognizedRef = useRef(recognizedPages), textLoaderRef = useRef(loadRecognizedText);
-    const layoutRef = useRef<PdfLayout | null>(null);
-    const pendingLayoutRef = useRef<PdfLayout | null>(null);
-    const editorRef = useRef(annotationEditor);
-    useLayoutEffect(() => {
-        recognizedRef.current = recognizedPages;
-        textLoaderRef.current = loadRecognizedText;
-        editorRef.current = annotationEditor;
-    });
-    const annotationLayerRef = useRef<ReturnType<typeof attachPdfAnnotationLayer> | null>(null);
-    const [layoutRevision, setLayoutRevision] = useState(0);
-    const [pageInput, setPageInput] = useState("1");
-    const containerRef = useRef<HTMLDivElement>(null);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const pdfRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
-    const quotesRef = useRef<CitationQuote[]>([]);
-    const zoomRef = useRef(1);
-    const pageRef = useRef(1);
-    const generationRef = useRef(0);
-    const widthRef = useRef(0);
-    const pageCacheRef = useRef<ReturnType<typeof createPdfPageCache> | null>(null);
-    const quoteGenerationRef = useRef(0);
-    const navigationRef = useRef(0);
+    const navigationRef = useRef(0), quoteGenerationRef = useRef(0);
     const focusedRequestRef = useRef<number | undefined>(undefined);
-    const quoteList = quotes ?? [];
-    const quoteKey = JSON.stringify(quoteList);
-    const [preparing, setPreparing] = useState(true);
-    const [zoom, setZoom] = useState(1);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [inputPage, setInputPage] = useState(currentPage);
-    if (inputPage !== currentPage) { setInputPage(currentPage); setPageInput(String(currentPage)); }
-    const [numPages, setNumPages] = useState(0);
-    const [viewerError, setViewerError] = useState<string | null>(null);
+    const [layoutRevision, setLayoutRevision] = useState(0);
+    const [preparing, setPreparing] = useState(true), [viewerError, setViewerError] = useState<string | null>(null);
+    const [zoom, setZoom] = useState(1), [currentPage, setCurrentPage] = useState(1), [numPages, setNumPages] = useState(0);
+    const [embeddedPageLabels, setEmbeddedPageLabels] = useState<readonly (string | null)[]>();
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
-
-    const renderPdf = useCallback(async (list: CitationQuote[], scrollToPage?: number) => {
-        const container = containerRef.current;
-        const pdf = pdfRef.current;
-        if (!container || !pdf) return;
-        const generation = ++generationRef.current;
-        const fail = (cause: unknown) => {
-            if (generation !== generationRef.current || (cause as { name?: string })?.name === 'RenderingCancelledException') return;
-            console.error("PDF render error", cause);
-            setPreparing(false);
-            setViewerError(PDF_VIEWER_ERROR);
-        };
-        try {
-            setPreparing(true);
-            container.inert = true;
-            quoteGenerationRef.current += 1;
-            pendingLayoutRef.current?.destroy(); pendingLayoutRef.current = null;
-            layoutRef.current?.destroy(true);
-            const lib = await getPdfJs();
-            if (generation !== generationRef.current) return;
-            const panelWidth = container.clientWidth;
-            widthRef.current = panelWidth;
-            const cache = pageCacheRef.current!;
-            const count = pdf.numPages;
-            const target = list.find(({ page }) => Number.isSafeInteger(page) && page! > 0 && page! <= pdf.numPages)?.page
-                ?? scrollToPage ?? 1;
-            // Only the first page (fit scale) and requested page gate the first paint.
-            const [first] = await Promise.all([cache.get(1), cache.get(target)]);
-            if (generation !== generationRef.current) return;
-            const scale = Math.max(0.1, (panelWidth - SIDE_PADDING) /
-                first.getViewport({ scale: 1 }).width) * zoomRef.current;
-            const estimate = first.getViewport({ scale });
-            const fragment = document.createDocumentFragment();
-            let top = 0;
-            const pages: RenderedPage[] = Array.from({ length: pdf.numPages }, (_, index) => {
-                const known = cache.peek(index + 1);
-                const viewport = known?.getViewport({ scale }) ?? estimate;
-                const wrapper = document.createElement("div");
-                wrapper.className = "shadow-md";
-                Object.assign(wrapper.style, {
-                    position: "relative", margin: "0 auto 8px", background: "white",
-                    width: `${viewport.width}px`, height: `${viewport.height}px`,
-                    // Do not display/draw annotations against estimated geometry. A resolved page
-                    // inherits its visibility: it must never re-show itself inside a panel — a dock
-                    // tab the reader is not on — that hid the whole reader.
-                    visibility: known ? "" : "hidden",
-                });
-                wrapper.dataset.pageNumber = String(index + 1);
-                wrapper.dataset.pdfScale = String(scale);
-                wrapper.dataset.geometryReady = String(!!known);
-                wrapper.dataset.legalBlock = "";
-                wrapper.dataset.locatorKind = "page";
-                wrapper.dataset.locatorValue = String(index + 1);
-                wrapper.setAttribute("aria-label", `Page ${index + 1}`);
-                fragment.appendChild(wrapper);
-                const entry: RenderedPage = {
-                    wrapper, top, height: viewport.height,
-                };
-                top += viewport.height + 8;
-                return entry;
-            });
-            container.style.overflowAnchor = "none";
-            // Render the replacement off-DOM. The displayed canvases stay intact until
-            // the first new page is ready; this retains only one outgoing layout.
-            let committed = false;
-
-            let geometryVersion = cache.size;
-            const updateGeometry = () => {
-                if (!committed || generation !== generationRef.current || geometryVersion === cache.size) return;
-                geometryVersion = cache.size;
-                const scroll = scrollRef.current;
-                const offset = (scroll?.scrollTop ?? 0) - container.offsetTop;
-                let anchor = pageAt(pages, offset);
-                // An unresolved page at the top is only an estimate. Prefer an
-                // already readable page in view, including a citation below it.
-                if (pages[anchor].wrapper.dataset.geometryReady !== "true") {
-                    const end = offset + (scroll?.clientHeight || 800);
-                    for (let index = anchor + 1; index < pages.length && pages[index].top < end; index++) {
-                        if (pages[index].wrapper.dataset.geometryReady === "true") { anchor = index; break; }
-                    }
-                }
-                const fraction = (offset - pages[anchor].top) / pages[anchor].height;
-                let top = 0;
-                for (const [index, entry] of pages.entries()) {
-                    const known = cache.peek(index + 1);
-                    if (known && entry.wrapper.dataset.geometryReady !== "true") {
-                        const viewport = known.getViewport({ scale });
-                        entry.height = viewport.height;
-                        Object.assign(entry.wrapper.style, { width: `${viewport.width}px`,
-                            height: `${viewport.height}px`, visibility: "" });
-                        entry.wrapper.dataset.geometryReady = "true";
-                    }
-                    entry.top = top;
-                    top += entry.height + 8;
-                }
-                // Preserve the exact visible point while distant mixed-size pages resolve.
-                if (scroll && offset >= 0) scroll.scrollTop = container.offsetTop +
-                    pages[anchor].top + fraction * pages[anchor].height;
-            };
-            const preparePage = async (number: number) => {
-                try { await cache.get(number); }
-                catch (cause) { fail(cause); return false; }
-                if (generation !== generationRef.current) return false;
-                updateGeometry(); return true;
-            };
-
-            const textLayers = new Map<number, ReturnType<typeof createPdfPageTextLayer>>();
-            const pageQuotes = new Map<number, CitationQuote[]>();
-            const releaseTextLayer = (index: number) => {
-                textLayers.get(index)?.destroy(); textLayers.delete(index);
-            };
-            const ensureTextLayer = (index: number) => {
-                if (generation !== generationRef.current) return Promise.resolve();
-                let layer = textLayers.get(index);
-                if (!layer) {
-                    layer = createPdfPageTextLayer({wrapper:pages[index].wrapper, page:cache.get(index + 1),
-                        pageNumber:index + 1, scale, TextLayer:lib.TextLayer,
-                        source:recognizedRef.current.get(index + 1), loader:textLoaderRef.current,
-                        onReady:() => {
-                            updateGeometry();
-                            const found = pageQuotes.get(index);
-                            if (found) highlightQuote(pages[index].wrapper, found);
-                        }});
-                    textLayers.set(index, layer);
-                }
-                return layer.ready;
-            };
-            const refreshText = () => {
-                for (const [index, layer] of textLayers)
-                    layer.refresh(recognizedRef.current.get(index + 1), textLoaderRef.current);
-            };
-
-            let geometryStarted = false;
-            async function finishGeometry() {
-                if (geometryStarted) return;
-                geometryStarted = true;
-                // Keep the old exact mixed-page layout, but off the first-paint path.
-                for (let start = 1; start <= count; start += 16) {
-                    if (generation !== generationRef.current) return;
-                    await Promise.allSettled(Array.from({ length: Math.min(16, count - start + 1) },
-                        (_, index) => cache.get(start + index)));
-                    updateGeometry();
-                    // Yield between metadata batches so a large PDF cannot monopolize input/rendering.
-                    await new Promise<void>(resolve => setTimeout(resolve, 0));
-                }
-            }
-
-            const rendered = new Map<number, HTMLCanvasElement>();
-            let rendering: { index: number; canvas: HTMLCanvasElement; task: import("pdfjs-dist").RenderTask } | undefined;
-            const destroy = (retainCanvas = false) => {
-                if (rendering) { rendering.task.cancel(); rendering.canvas.width = rendering.canvas.height = 0; }
-                for (const index of textLayers.keys()) releaseTextLayer(index);
-                if (!retainCanvas) {
-                    for (const canvas of rendered.values()) { canvas.width = canvas.height = 0; canvas.remove(); }
-                    rendered.clear();
-                }
-            };
-            const failed = new Set<number>();
-            const loadingPages = new Set<number>();
-            let running = false;
-            const range = () => {
-                const element = scrollRef.current;
-                const start = committed ? (element?.scrollTop ?? 0) - container.offsetTop : pages[target - 1].top;
-                const height = element?.clientHeight || 800;
-                return { start, end: start + height, margin: height };
-            };
-            const nearby = (index: number, padding = 1) => {
-                const { start, end, margin } = range();
-                return pages[index].top + pages[index].height >= start - margin * padding &&
-                    pages[index].top <= end + margin * padding;
-            };
-            let rasterPixels = MAX_CANVAS_PIXELS;
-            const rasterPlan = () => {
-                const { start, end, margin } = range();
-                const indices = new Set<number>();
-                for (let index = pageAt(pages, start - margin);
-                    index < pages.length && pages[index].top <= end + margin; index++)
-                    if (pages[index].top + pages[index].height >= start - margin) indices.add(index);
-                const pixels = rasterPixels = Math.floor(Math.min(rasterPixels, MAX_RESIDENT_PIXELS / Math.max(1, indices.size)));
-                for (const [index, canvas] of rendered) {
-                    if (indices.has(index) && canvas.width * canvas.height <= pixels) continue;
-                    canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
-                    if (index !== rendering?.index) cache.peek(index + 1)?.cleanup?.();
-                }
-                return { indices, pixels };
-            };
-            const paint = async () => {
-                if (running || generation !== generationRef.current) return;
-                running = true;
-                try {
-                    while (generation === generationRef.current) {
-                        const { start, end } = range(), plan = rasterPlan();
-                        let index: number | undefined, nearest = Infinity;
-                        for (const candidate of plan.indices) {
-                            if (rendered.has(candidate) || failed.has(candidate) || loadingPages.has(candidate)) continue;
-                            const distance = Math.max(start - pages[candidate].top - pages[candidate].height,
-                                pages[candidate].top - end, 0);
-                            if (distance < nearest) { index = candidate; nearest = distance; }
-                        }
-                        if (index === undefined) break;
-                        const page = cache.peek(index + 1);
-                        if (!page) {
-                            // A slow nearby page must not hold the renderer when the user
-                            // scrolls or jumps elsewhere. Share its load, not its wait.
-                            loadingPages.add(index);
-                            void cache.get(index + 1).then(() => {
-                                loadingPages.delete(index);
-                                if (generation !== generationRef.current) return;
-                                updateGeometry(); schedule();
-                            }, (cause: unknown) => {
-                                loadingPages.delete(index);
-                                if (generation !== generationRef.current) return;
-                                failed.add(index);
-                                fail(cause);
-                            });
-                            continue;
-                        }
-                        updateGeometry();
-                        if (!nearby(index)) continue;
-                        const viewport = page.getViewport({ scale });
-                        const canvas = document.createElement("canvas");
-                        const outputScale = Math.min(window.devicePixelRatio || 1,
-                            Math.sqrt(plan.pixels / (viewport.width * viewport.height)));
-                        canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-                        canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-                        Object.assign(canvas.style, { display: "block", width: "100%", height: "100%" });
-                        const context = canvas.getContext("2d");
-                        if (!context) { canvas.width = canvas.height = 0; failed.add(index); continue; }
-                        let task: import("pdfjs-dist").RenderTask | undefined;
-                        try {
-                            task = page.render({ canvasContext: context, viewport,
-                                transform: [outputScale, 0, 0, outputScale, 0, 0] });
-                            rendering = {index, canvas, task};
-                            await task.promise;
-                            if (generation !== generationRef.current) {
-                                canvas.width = canvas.height = 0; return;
-                            }
-                            const currentPlan = rasterPlan();
-                            if (!currentPlan.indices.has(index) || canvas.width * canvas.height > currentPlan.pixels) {
-                                canvas.width = canvas.height = 0; continue;
-                            }
-                            pages[index].wrapper.prepend(canvas);
-                            rendered.set(index, canvas);
-                            if (!committed) {
-                                layoutRef.current?.destroy();
-                                container.replaceChildren(fragment);
-                                container.inert = false;
-                                committed = true;
-                                layoutRef.current = layout;
-                                pendingLayoutRef.current = null;
-                                setLayoutRevision(value => value + 1);
-                                scrollToHighlight(pages, scrollRef.current, target);
-                                void search(quotesRef.current).catch(fail);
-                            }
-                            if (nearby(index, 0)) {
-                                setPreparing(false);
-                            }
-                            void finishGeometry().catch(fail);
-                            // Painting is useful before text extraction completes. Selection and
-                            // quote search share a single layer, including in ordinary readers.
-                            void ensureTextLayer(index);
-                        } catch (cause) {
-                            canvas.width = canvas.height = 0;
-                            if (generation === generationRef.current && (cause as { name?: string })?.name !== "RenderingCancelledException") {
-                                failed.add(index);
-                                fail(cause);
-                            }
-                        } finally {
-                            if (!rendered.has(index)) canvas.width = canvas.height = 0;
-                            if (rendering?.canvas === canvas) rendering = undefined;
-                        }
-                    }
-                } finally { running = false; }
-            };
-            const schedule = () => {
-                if (generation !== generationRef.current) return;
-                // Retain only nearby bitmaps/text, plus any live selection crossing pages.
-                const selection = document.getSelection();
-                const selected = (index: number) => {
-                    if (!selection || selection.isCollapsed) return false;
-                    for (let i = 0; i < selection.rangeCount; i++)
-                        if (selection.getRangeAt(i).intersectsNode(pages[index].wrapper)) return true;
-                    return false;
-                };
-                for (const [index, canvas] of rendered) {
-                    if (nearby(index, 2)) continue;
-                    canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
-                    if (index !== rendering?.index) cache.peek(index + 1)?.cleanup?.();
-                }
-                for (const index of textLayers.keys()) {
-                    if (nearby(index, 2) || selected(index)) continue;
-                    releaseTextLayer(index);
-                    if (index !== rendering?.index) cache.peek(index + 1)?.cleanup?.();
-                }
-                if (rendering && !nearby(rendering.index)) rendering.task.cancel();
-                void paint().catch(fail);
-            };
-
-            const search = async (entries: CitationQuote[]) => {
-                if (generation !== generationRef.current) return;
-                navigationRef.current += 1;
-                const quoteGeneration = ++quoteGenerationRef.current;
-                const current = () => generation === generationRef.current && quoteGeneration === quoteGenerationRef.current;
-                pages.forEach(({ wrapper }) => clearHighlights(wrapper));
-                pageQuotes.clear();
-                const found = pageQuotes;
-                let focused = false;
-                for (const entry of entries) {
-                    const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page! - 1 : undefined;
-                    if (!quoteSegments(entry.quote).length) continue;
-                    const order = [...new Set([...(hint === undefined ? [] : [hint]), ...pages.map((_, index) => index)])];
-                    for (const index of order) {
-                        if (!current()) return;
-                        let text: string;
-                        try { text = await cache.normalizedText(index + 1); }
-                        catch { continue; } // An unreadable text layer must not hide a readable scan.
-                        if (!current()) return;
-                        if (!matchesQuoteText(text, entry.quote)) continue;
-                        await ensureTextLayer(index);
-                        if (!current()) return;
-                        const quotes = [...found.get(index) ?? [], entry];
-                        if (!highlightQuote(pages[index].wrapper, quotes)) continue;
-                        found.set(index, quotes);
-                        if (!focused && !entry.color) {
-                            focused = true;
-                            scrollToHighlight(pages, scrollRef.current, index + 1);
-                            schedule();
-                        }
-                        break;
-                    }
-                }
-                if (current()) schedule();
-                if (!focused && current()) {
-                    const page = entries.find(entry => !entry.color && Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length)?.page;
-                    if (page && await preparePage(page) && current()) {
-                        scrollToHighlight(pages, scrollRef.current, page); schedule();
-                    }
-                }
-            };
-            const layout = {pages, schedule, refreshText, destroy, preparePage, search};
-            pendingLayoutRef.current = layout;
-            schedule();
-        } catch (cause) { fail(cause); }
-    }, []);
-
-    useEffect(() => {
-        const element = scrollRef.current;
-        if (!element) return;
-        let frame: number | null = null;
-        const updatePage = () => {
-            frame = null;
-            const layout = layoutRef.current;
-            if (!layout) return;
-            layout.schedule();
-            const pages = layout.pages;
-            const center = element.scrollTop - (containerRef.current?.offsetTop ?? 0) + element.clientHeight / 2;
-            let closest = pageAt(pages, center);
-            const distance = (index: number) => Math.abs(pages[index].top + pages[index].height / 2 - center);
-            for (const index of [closest - 1, closest + 1])
-                if (index >= 0 && index < pages.length && distance(index) < distance(closest)) closest = index;
-            const page = closest + 1;
-            if (page === pageRef.current) return;
-            pageRef.current = page;
-            setCurrentPage(page);
-        };
-        const onScroll = () => {
-            if (frame === null) frame = requestAnimationFrame(updatePage);
-        };
-        element.addEventListener("scroll", onScroll, { passive: true });
-        // pdf.js's text-selection rule (TextLayerBuilder): while a drag is under way the layer
-        // carries "selecting" and its endOfContent block sits right after the anchor span, so
-        // the browser sweeps whole lines instead of hopping between absolutely placed spans.
-        const detachSelection = attachPdfTextSelection(element, () =>
-            !editorRef.current?.disabled && editorRef.current?.tool !== "draw");
-        const layers = () => element.querySelectorAll<HTMLElement>(".pdf-text-layer");
-        const reset = (layer: HTMLElement) => {
-            const end = layer.querySelector<HTMLElement>(":scope .endOfContent");
-            if (end) { if (end.parentNode !== layer || end.nextSibling) layer.append(end);
-                end.style.width = end.style.height = ""; }
-            layer.classList.remove("selecting");
-        };
-        let previous: Range | null = null;
-        const endSelecting = () => { layers().forEach(reset); previous = null; };
-        const onSelectionChange = () => {
-            const selection = document.getSelection();
-            if (!selection?.rangeCount || selection.isCollapsed || !element.contains(selection.anchorNode)) { endSelecting(); return; }
-            const range = selection.getRangeAt(0);
-            if (previous?.startContainer.isConnected && range.compareBoundaryPoints(Range.START_TO_START, previous) === 0 &&
-                range.compareBoundaryPoints(Range.END_TO_END, previous) === 0) return;
-            layers().forEach((layer) => range.intersectsNode(layer) ? layer.classList.add("selecting") : reset(layer));
-            const modifyStart = !!previous && (range.compareBoundaryPoints(Range.END_TO_END, previous) === 0 ||
-                range.compareBoundaryPoints(Range.START_TO_END, previous) === 0);
-            let anchor: Node | null = modifyStart ? range.startContainer : range.endContainer;
-            if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode;
-            const layer = (anchor as Element | null)?.parentElement?.closest<HTMLElement>(".pdf-text-layer");
-            const end = layer?.querySelector<HTMLElement>(":scope .endOfContent");
-            if (layer && end && anchor) {
-                end.style.width = layer.style.width; end.style.height = layer.style.height;
-                const before = modifyStart ? anchor : anchor.nextSibling;
-                if (before !== end && (end.parentNode !== anchor.parentNode || end.nextSibling !== before))
-                    anchor.parentElement!.insertBefore(end, before);
-            }
-            previous = range.cloneRange();
-        };
-        document.addEventListener("selectionchange", onSelectionChange);
-        document.addEventListener("pointerup", endSelecting);
-        window.addEventListener("blur", endSelecting);
-        return () => {
-            detachSelection(); previous = null;
-            element.removeEventListener("scroll", onScroll);
-            document.removeEventListener("selectionchange", onSelectionChange);
-            document.removeEventListener("pointerup", endSelecting);
-            window.removeEventListener("blur", endSelecting);
-            if (frame !== null) cancelAnimationFrame(frame);
-            generationRef.current += 1;
-        };
-    }, []);
-
-    useEffect(() => {
-        const element = scrollRef.current;
-        if (!element) return;
-        const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
-            if (!pdfRef.current) return;
-            const width = containerRef.current?.clientWidth ?? 0;
-            if (width > 0 && Math.abs(width - widthRef.current) >= 1)
-                void renderPdf(quotesRef.current, pageRef.current);
-        });
-        observer?.observe(element);
-        return () => observer?.disconnect();
-    }, [renderPdf]);
-
-    useEffect(() => {
-        const element = scrollRef.current;
-        if (!element) return;
-        let timer: ReturnType<typeof setTimeout> | null = null;
-        const onWheel = (event: WheelEvent) => {
-            if (!event.ctrlKey) return;
-            event.preventDefault();
-            const delta = event.deltaMode === 0 ? event.deltaY / 300 : event.deltaY * 0.1;
-            const next = clampZoom(zoomRef.current * Math.exp(-delta));
-            if (next === zoomRef.current) return;
-            zoomRef.current = next;
-            setZoom(next);
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(() => void renderPdf(quotesRef.current, pageRef.current), 150);
-        };
-        let initialDistance = 0;
-        let initialZoom = 1;
-        const touchDistance = (touches: TouchList) => Math.hypot(
-            touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
-        const onTouchStart = (event: TouchEvent) => {
-            if (event.touches.length !== 2) return;
-            initialDistance = touchDistance(event.touches);
-            initialZoom = zoomRef.current;
-        };
-        const onTouchMove = (event: TouchEvent) => {
-            if (event.touches.length !== 2 || !initialDistance) return;
-            event.preventDefault();
-            const next = clampZoom(initialZoom * touchDistance(event.touches) / initialDistance);
-            zoomRef.current = next;
-            setZoom(next);
-        };
-        const onTouchEnd = (event: TouchEvent) => {
-            if (event.touches.length >= 2 || !initialDistance) return;
-            initialDistance = 0;
-            void renderPdf(quotesRef.current, pageRef.current);
-        };
-        element.addEventListener("wheel", onWheel, { passive: false });
-        element.addEventListener("touchstart", onTouchStart, { passive: true });
-        element.addEventListener("touchmove", onTouchMove, { passive: false });
-        element.addEventListener("touchend", onTouchEnd, { passive: true });
-        return () => {
-            element.removeEventListener("wheel", onWheel);
-            element.removeEventListener("touchstart", onTouchStart);
-            element.removeEventListener("touchmove", onTouchMove);
-            element.removeEventListener("touchend", onTouchEnd);
-            if (timer) clearTimeout(timer);
-        };
-    }, [renderPdf]);
+    useLayoutEffect(() => { setEmbeddedPageLabels(undefined); }, [bytes, source, authoredPageLabels]);
+    useLayoutEffect(() => {
+        editorRef.current = annotationEditor; quotesRef.current = quotes;
+        recognizedRef.current = recognizedPages; textLoaderRef.current = loadRecognizedText;
+    });
 
     useEffect(() => {
         if (error) { notifyUnavailable(); return; }
         if (!bytes && !source) return;
-        const controller = new AbortController();
-        quotesRef.current = quoteList;
-        zoomRef.current = 1;
-        pageRef.current = 1;
-        let cancelled = false;
-        let loadingTask: import("pdfjs-dist").PDFDocumentLoadingTask | null = null;
+        const controller = new AbortController(), {signal} = controller;
+        let viewer: PDFViewer | undefined;
+        let session: PdfSession | undefined;
+        let task: import("pdfjs-dist").PDFDocumentLoadingTask | undefined;
+        const dispose = (retain = false) => {
+            const scroll = scrollRef.current;
+            if (retain && scroll && viewer?.pagesCount) {
+                const bounds = scroll.getBoundingClientRect(), preview = document.createElement('div');
+                Object.assign(preview.style, {position:'absolute',inset:'0',overflow:'hidden',pointerEvents:'none'});
+                preview.dataset.pdfPreview = ''; preview.inert = true;
+                for (const canvas of scroll.querySelectorAll('canvas')) {
+                    const rect = canvas.getBoundingClientRect();
+                    if (!canvas.width || rect.bottom <= bounds.top || rect.top >= bounds.bottom) continue;
+                    const copy = document.createElement('canvas'); copy.width = canvas.width; copy.height = canvas.height;
+                    copy.getContext('2d')?.drawImage(canvas, 0, 0);
+                    Object.assign(copy.style, {position:'absolute',left:`${rect.left-bounds.left}px`,top:`${rect.top-bounds.top}px`,
+                        width:`${rect.width}px`,height:`${rect.height}px`}); preview.append(copy);
+                }
+                if (preview.childElementCount) { clearPreview(); scroll.parentElement!.append(preview); previewRef.current = preview; }
+            }
+            controller.abort(); quoteGenerationRef.current++; navigationRef.current++;
+            if (layoutRef.current?.viewer === viewer) layoutRef.current = null;
+            session?.destroy();
+            void task?.destroy().catch(() => undefined);
+        };
+        const fail = (cause: unknown) => {
+            if (signal.aborted) return;
+            console.error("PDF render error", cause); clearPreview(); dispose();
+            setPreparing(false); setNumPages(0); setViewerError(PDF_VIEWER_ERROR); notifyUnavailable();
+        };
         queueMicrotask(() => {
-            if (cancelled) return;
-            setPreparing(true);
-            setZoom(1);
-            setCurrentPage(1);
-            setViewerError(null);
+            if (signal.aborted) return;
+            setPreparing(true); setViewerError(null); setZoom(1); setCurrentPage(1);
         });
-        const teardown = (retainCanvas = false) => {
-            generationRef.current += 1; quoteGenerationRef.current += 1;
-            pendingLayoutRef.current?.destroy(); pendingLayoutRef.current = null;
-            layoutRef.current?.destroy(retainCanvas);
-            pageCacheRef.current = null;
-            if (!retainCanvas) {
-                layoutRef.current = null;
-                containerRef.current?.replaceChildren();
-            }
-        };
-        const unavailable = (cause: unknown) => {
-            if (cancelled || controller.signal.aborted) return;
-            console.error("PDF render error", cause);
-            controller.abort(); teardown();
-            pdfRef.current = null; navigationRef.current += 1;
-            setNumPages(0); setPreparing(false); setViewerError(PDF_VIEWER_ERROR);
-            if (loadingTask) void loadingTask.destroy().catch(() => undefined);
-            notifyUnavailable();
-        };
         void (async () => {
-            const [lib, input] = await Promise.all([getPdfJs(), source
-                ? source(controller.signal, unavailable) : Promise.resolve({ data: bytes!.slice() })]);
-            if (cancelled || controller.signal.aborted) return;
-            loadingTask = lib.getDocument({
-                ...input,
-                isEvalSupported: false,
-                maxImageSize: MAX_PDF_IMAGE_PIXELS,
-                standardFontDataUrl: STANDARD_FONT_DATA_URL,
-            });
-            const pdf = await loadingTask.promise;
-            if (cancelled || controller.signal.aborted) return void pdf.destroy().catch(() => undefined);
-            if (!Number.isSafeInteger(pdf.numPages) || pdf.numPages < 1 ||
-                pdf.numPages > MAX_PDF_PAGES) {
-                await pdf.destroy();
+            const [lib, input] = await Promise.all([getPdfJs(), source ? source(signal, fail) : {data:bytes!}]);
+            if (signal.aborted) return;
+            const {PDFViewer, EventBus} = await import("pdfjs-dist/legacy/web/pdf_viewer.mjs");
+            if (signal.aborted) return;
+            task = openPdfDocument(lib, input, {...PDF_DOCUMENT_OPTIONS,
+                standardFontDataUrl:STANDARD_FONT_DATA_URL});
+            const pdf = await task.promise;
+            if (signal.aborted) return;
+            if (!Number.isSafeInteger(pdf.numPages) || pdf.numPages < 1 || pdf.numPages > 2000)
                 throw new Error("PDF page count exceeds the viewer limit");
-            }
-            pageCacheRef.current = createPdfPageCache(pdf);
-            pdfRef.current = pdf;
-            setNumPages(pdf.numPages);
-            await renderPdf(quotesRef.current);
-        })().catch(unavailable);
-        return () => {
-            cancelled = true; controller.abort(); teardown(true);
-            const pdf = pdfRef.current;
-            pdfRef.current = null;
-            if (loadingTask) void loadingTask.destroy().catch(() => undefined);
-            else void pdf?.destroy().catch(() => undefined);
-        };
-    }, [bytes, source, error, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
+            if (authoredPageLabels) void pdf.getPageLabels().then(labels => {
+                if (!signal.aborted && labels?.length === pdf.numPages) setEmbeddedPageLabels(labels);
+            }).catch(() => { /* Printed labels are optional; physical navigation remains available. */ });
+            const cache = createPdfPageCache(pdf), found = new Map<number, CitationQuote[]>();
+            session = createPdfSession({lib:{PDFViewer,EventBus},TextLayer:lib.TextLayer,pdf,
+                container:scrollRef.current!,element:containerRef.current!,signal,
+                readEditor:() => editorRef.current,readText:number => recognizedRef.current.get(number),
+                readTextLoader:() => textLoaderRef.current,
+                onTextReady:(number,element) => highlightQuote(element,found.get(number) ?? []),
+                onZoom:setZoom,onPage:number => { setCurrentPage(number);  },
+                onRendered:() => { clearPreview(); setPreparing(false); },onError:fail});
+            viewer = session.viewer;
+            const {viewer:current,pages,preparePage,ensureText} = session;
+            const search = async (entries: CitationQuote[]) => {
+                const request = ++quoteGenerationRef.current;
+                const live = () => !signal.aborted && request === quoteGenerationRef.current;
+                pages.forEach(clearHighlights); found.clear(); let focused = false;
+                for (const entry of entries) {
+                    const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page : undefined;
+                    if (!quoteSegments(entry.quote).length) continue;
+                    for (const number of new Set([...(hint ? [hint] : []), ...pages.map((_, i) => i + 1)])) {
+                        if (!live()) return;
+                        let text: string;
+                        try { text = await cache.normalizedText(number); } catch { continue; }
+                        if (!live()) return;
+                        if (!matchesQuoteText(text, entry.quote) || !await preparePage(number)) continue;
+                        const matches = [...found.get(number) ?? [], entry]; found.set(number, matches);
+                        await ensureText(number);
+                        if (!live()) return;
+                        if (!highlightQuote(pages[number - 1], matches)) continue;
+                        if (!focused && !entry.color) {
+                            current.scrollPageIntoView({pageNumber:number}); focused = true;
+                            const mark = pages[number - 1].querySelector<HTMLElement>('.pdf-text-highlight');
+                            if (mark) mark.scrollIntoView({block:'center'});
+                        }
+                        break;
+                    }
+                }
+                const hint = entries.find(entry => !entry.color && Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length)?.page;
+                if (!focused && hint && live() && await preparePage(hint) && live()) current.scrollPageIntoView({pageNumber:hint});
+            };
+            const layout: Layout = Object.assign(session, {search});
+            layoutRef.current = layout;
+            await session.ready;
+            if (signal.aborted) return;
+            setNumPages(pdf.numPages); setLayoutRevision(value => value + 1);
+            void search(quotesRef.current).catch(fail);
+        })().catch(fail);
+        return () => dispose(true);
+    }, [bytes, source, error, clearPreview, authoredPageLabels]);
+    useEffect(() => clearPreview, [clearPreview]);
 
-    useEffect(() => () => {
-        pendingLayoutRef.current?.destroy();
-        layoutRef.current?.destroy();
-    }, []);
-
-    useEffect(() => {
-        quotesRef.current = quoteList;
-        if (!pdfRef.current) return;
-        // An initializing layout reads quotesRef when ready; do not restart its load.
-        void layoutRef.current?.search(quoteList).catch(cause => {
-            console.warn("PDF quote lookup unavailable", cause);
-        });
-    }, [quoteFocusKey, quoteKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
+    const quoteKey = JSON.stringify(quotes);
+    useEffect(() => { void layoutRef.current?.search(quotesRef.current); }, [quoteKey, quoteFocusKey]);
     useEffect(() => { layoutRef.current?.refreshText(); }, [recognizedPages, loadRecognizedText]);
-
+    useEffect(() => { layoutRef.current?.updateAnnotations(); }, [annotationEditor, layoutRevision]);
     useEffect(() => {
-        const scroll = scrollRef.current;
-        const layout = layoutRef.current;
-        if (!annotationEditor || !scroll || !layout) return;
-        const layer = attachPdfAnnotationLayer(scroll, layout.pages.map(page => page.wrapper), () => editorRef.current!);
-        annotationLayerRef.current = layer;
-        return () => { layer.destroy(); annotationLayerRef.current = null; };
-    }, [!!annotationEditor, layoutRevision]); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => { annotationLayerRef.current?.update(); },
-        [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled, annotationEditor?.highlightSelection]);
-    useEffect(() => {
-        const scroll = scrollRef.current, focus = editorRef.current?.focus;
-        const mark = editorRef.current?.marks.find(mark => mark.id === focus?.id);
-        const layout = layoutRef.current;
-        // A new layout (zoom, resize) completes a pending request; it does not replay one
-        // already shown, which would pull the reader back to a mark they scrolled away from.
-        if (scroll && mark && layout && focus && focusedRequestRef.current !== focus.request) {
-            const request = ++navigationRef.current;
-            quoteGenerationRef.current += 1;
-            void layout.preparePage(mark.fragments[0].pageNumber).then((ready) => {
-                if (!ready || layoutRef.current !== layout || navigationRef.current !== request) return;
-                focusPdfAnnotation(scroll, layout.pages.map(page => page.wrapper), mark);
-                focusedRequestRef.current = focus.request;
-                layout.schedule();
-            });
-        }
-    }, [annotationEditor?.focus?.request, layoutRevision]);
-
-    function jumpToPage() {
-        if (loading || preparing || error || viewerError) return;
-        const number = Number(pageInput);
-        if (!Number.isSafeInteger(number) || number < 1 || number > numPages) {
-            setPageInput(String(currentPage)); return;
-        }
-        const layout = layoutRef.current;
-        if (!layout) return;
-        const request = ++navigationRef.current;
-        quoteGenerationRef.current += 1;
-        void layout.preparePage(number).then((ready) => {
-            if (!ready || layoutRef.current !== layout || navigationRef.current !== request) return;
-            scrollToHighlight(layout.pages, scrollRef.current, number);
-            layout.schedule();
+        const layout = layoutRef.current, scroll = scrollRef.current, focus = annotationEditor?.focus;
+        const mark = annotationEditor?.marks.find(mark => mark.id === focus?.id);
+        if (!layout || !scroll || !mark || !focus || focus.request === focusedRequestRef.current) return;
+        const request = ++navigationRef.current; quoteGenerationRef.current++;
+        void layout.focusAnnotation(mark).then(ready => {
+            if (!ready || layoutRef.current !== layout || request !== navigationRef.current) return;
+            focusedRequestRef.current = focus.request;
         });
+    }, [annotationEditor?.focus?.request, layoutRevision]);
+    function jumpToPage(number: number) {
+        const layout = layoutRef.current;
+        if (loading || preparing || error || viewerError || !layout) return;
+        if (!Number.isSafeInteger(number) || number < 1 || number > numPages) return;
+        quoteGenerationRef.current++;
+        void layout.navigate(number);
     }
-
     function changeZoom(event: ReactMouseEvent<HTMLButtonElement>) {
         if (loading || error || viewerError) return;
-        const next = clampZoom(zoomRef.current + Number(event.currentTarget.value));
-        if (next === zoomRef.current) return;
-        zoomRef.current = next;
-        setZoom(next);
-        void renderPdf(quotesRef.current, pageRef.current);
+        const layout = layoutRef.current;
+        if (layout) layout.setZoom(layout.zoom + Number(event.currentTarget.value));
     }
-
     return (
         <section
             className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
@@ -763,31 +204,20 @@ export function PdfCanvas({
                     <span className="sr-only">Loading PDF…</span>
                 </div>
             )}
-            <div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ scrollbarGutter: "stable", isolation: "isolate" }} className="min-h-0 flex-1 overflow-auto px-3 pb-3 pt-5">
+            <div ref={scrollRef} tabIndex={annotationEditor ? 0 : undefined} style={{ position: "absolute", scrollbarGutter: "stable", isolation: "isolate" }} className="absolute inset-0 overflow-auto p-3 beaver-pdf-scroll">
                 {(error || viewerError) && (
                     <div role="alert" className="flex h-full items-center justify-center">
                         <p className="max-w-sm px-6 text-center text-sm text-red-600">
                             {error || viewerError}</p>
                     </div>
                 )}
-                <div ref={containerRef} />
+                <div ref={containerRef} className="pdfViewer" />
             </div>
             {numPages > 0 && (
                 <>
-                    <div className="pointer-events-none absolute bottom-4 left-4">
-                        <span className="flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium tabular-nums text-gray-700 shadow-sm">
-                            {annotationEditor ? <label className="flex items-center gap-1 pointer-events-auto">
-                                <span className="sr-only">PDF page</span>
-                                <input aria-label="PDF page" value={pageInput} inputMode="numeric"
-                                    readOnly={loading || preparing || !!error || !!viewerError}
-                                    aria-disabled={loading || preparing || !!error || !!viewerError}
-                                    className="w-12 bg-transparent text-center outline-none focus:ring-2 focus:ring-red-600"
-                                    onChange={event => setPageInput(event.target.value)}
-                                    onKeyDown={event => { if (event.key === "Enter") {
-                                        event.preventDefault(); jumpToPage();
-                                    } }} onBlur={jumpToPage} /> / {numPages}
-                            </label> : <>{currentPage}/{numPages}</>}
-                        </span>
+                    <div className="absolute bottom-4 left-4 max-w-[calc(100%-9rem)]">
+                        <PdfPageNavigation page={currentPage} count={numPages} labels={pageLabels ?? recognizedText?.pageLabels ?? embeddedPageLabels}
+                            disabled={loading || preparing || !!error || !!viewerError} onNavigate={jumpToPage} />
                     </div>
                     <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white p-1 shadow-sm">
                         <button type="button" onClick={changeZoom} value={-ZOOM_STEP}

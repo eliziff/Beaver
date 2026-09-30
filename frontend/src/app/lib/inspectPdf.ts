@@ -1,4 +1,4 @@
-import { getPdfJs } from "@/app/lib/pdfJs";
+import { getPdfJs, PDF_DOCUMENT_OPTIONS, openPdfDocument } from "@/app/lib/pdfJs";
 export interface PdfSourceBookmark { title: string; pageIndex: number; children: PdfSourceBookmark[] }
 
 export interface PdfInspection {
@@ -26,7 +26,7 @@ export async function inspectPdf(
   signal?.throwIfAborted();
   const pdfjs = await getPdfJs();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const loading = pdfjs.getDocument({ data: bytes, isEvalSupported: false });
+  const loading = openPdfDocument(pdfjs, { data: bytes }, PDF_DOCUMENT_OPTIONS);
   try {
     const document = await loading.promise;
     if (document.numPages > 2_000) throw new Error("This PDF exceeds the 2,000-page inspection limit.");
@@ -65,7 +65,7 @@ export async function inspectPdf(
       pageLabels,
       pageTexts,
     };
-    await document.destroy();
+    await loading.destroy();
     return result;
   } catch (cause) {
     await loading.destroy().catch(() => undefined);

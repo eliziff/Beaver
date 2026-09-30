@@ -95,7 +95,7 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
 
 export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: string, bytes: Buffer) {
   const authority = draft.authorities[authorityId];
-  if (authority?.source.kind !== "pending-canlii") return;
+  if (!authority || authority.source.kind !== "pending-canlii" && !authority.sourceVerificationUrl) return;
   const { pageTextByPage } = await authorityPdfText({ bytes, maxPages: 1 });
   // Use the opening citation, never a matching case cited later in the reasons.
   const citation = structureNative().citationOccurrencesInText(pageTextByPage[0] ?? "")

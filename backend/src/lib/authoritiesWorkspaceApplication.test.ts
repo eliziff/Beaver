@@ -22,8 +22,30 @@ const pdfText = vi.hoisted(() => vi.fn(async () => ({
   pageTextByPage: [] as string[], ocrTextByPage: [] as string[],
 })));
 vi.mock("./authorityPdfText", () => ({ authorityPdfText: pdfText }));
+vi.mock("./documentProjectionService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./documentProjectionService")>();
+  return { ...actual, documentProjectionService: { ...actual.documentProjectionService, pdfPageLabels: vi.fn(async () => [] as (string | null)[]) } };
+});
 
 const scope: ApplicationScope = { userId: "lawyer" };
+
+it("reconciles OCR demand even when a source already has an OCR profile", async () => {
+  const { documentProjectionService } = await import("./documentProjectionService");
+  const jobs = await import("./pdfJobs");
+  const runtime = harness(), product = await attachBookSource(runtime);
+  const role = Object.keys(product.state.bindings)[0], binding = product.state.bindings[role];
+  if (binding.kind !== "document") throw new Error("Expected a document source");
+  const source = await runtime.documents.projectionSource(scope, binding.documentId, null);
+  runtime.documents.projectionSource.mockResolvedValue({ ...source!,
+    pdfProfile: { profile: { ocr: true } } } as NonNullable<typeof source>);
+  const prepare = vi.spyOn(documentProjectionService, "preparePdf")
+    .mockResolvedValue({ pageCount: 10, cacheKey: "partial", profile: {}, status: "ready" } as never);
+  const enqueue = vi.spyOn(jobs, "enqueueAuthorityOcr").mockResolvedValue(undefined as never);
+  try {
+    await runtime.application.sourceOcr(scope, product.id, [role], false);
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ documentId: binding.documentId, citedPages: [] }));
+  } finally { prepare.mockRestore(); enqueue.mockRestore(); }
+});
 type Stored = { id: string; projectId: string | null; folderId: string | null;
   versions: Array<DocumentVersion & { bytes: Buffer; provenance?: unknown }> };
 
@@ -800,6 +822,35 @@ describe("Authorities workspace application", () => {
       expect(runtime.sources.download).not.toHaveBeenCalled();
       expect(fetch).not.toHaveBeenCalled();
     } finally { fetch.mockRestore(); }
+  });
+
+  it("stops a challenged publisher within the batch while allowing another publisher", async () => {
+    const { PublisherVerificationRequired } = await import("./providerPdfLibraryBridge");
+    let draft = createAuthoritiesDraft({ kind: "manual" });
+    for (const citation of ["2009 SCC 32", "2014 SCC 71", "2023 SCC 14"]) {
+      draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
+        id: citation, key: citation, kind: "case", citation, name: null, displayName: null,
+        excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "unresolved" },
+      } });
+    }
+    const runtime = harness({ draft, resolve: async (citation) => ({
+      docType: "cases", dataset: "SCC", citation, alternateCitation: null, name: citation,
+      date: null, url: `https://${citation === "2023 SCC 14" ? "other" : "blocked"}.example/${encodeURIComponent(citation)}`,
+      verifiedPdf: null, language: "en", upstreamLicense: null, searchText: "",
+      native: {} as never, searchNative: {} as never,
+    }), download: async (input) => {
+      if (input.sourceUrl?.includes("blocked.example"))
+        throw new PublisherVerificationRequired(input.sourceUrl);
+      return null;
+    } });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+    const result = await prepareSources(runtime, imported);
+    expect(runtime.sources.download).toHaveBeenCalledTimes(2);
+    const authorities = (result.state as AuthoritiesDraft).authorities;
+    expect(authorities["2009 SCC 32"].sourceVerificationUrl).toContain("blocked.example");
+    expect(authorities["2014 SCC 71"].sourceVerificationUrl).toContain("blocked.example");
+    expect(authorities["2023 SCC 14"].sourceVerificationUrl).toBeUndefined();
   });
 
   it("reports A2AJ revision drift and accepts the existing manual-PDF recovery", async () => {

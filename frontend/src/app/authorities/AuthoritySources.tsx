@@ -25,6 +25,7 @@ export type AuthorityPanelProps = {
   onPick?: (id: string) => void; onAttach: (id: string, file?: File) => void;
   onLibrary?: (id: string) => void; sourceLabel?: string;
   onRelink: (role: string) => void; onOpenSource?: (role: string) => void;
+  onRetrySource?: (id: string) => void;
   onEditIdentity: (authority: AuthorityIdentity) => void;
   onWatchFolder?: () => void; watchedFolder?: string;
 };
@@ -39,7 +40,7 @@ export function Sources({ draft, ...props }: Omit<PanelProps, "state"> & { draft
 
 function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues,
   onAction, onAdd, onPickMany, onLibraryAdd, onFiles, onPick, onLibrary,
-  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onEditIdentity, onWatchFolder, watchedFolder,
+  sourceLabel = "Library", onAttach, onRelink, onOpenSource, onRetrySource, onEditIdentity, onWatchFolder, watchedFolder,
   ocr }: PanelProps) {
   const [tabSettings, setTabSettings] = useState(false);
   return <><section className="@container/sources mt-3 rounded-xl border border-gray-300 bg-white shadow-sm">
@@ -80,7 +81,8 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
           onAction={onAction} onPick={onPick ? () => onPick(authority.id) : undefined}
           onLibrary={onLibrary ? () => onLibrary(authority.id) : undefined} sourceLabel={sourceLabel}
           onAttach={(file) => onAttach(authority.id, file)} onRelink={onRelink}
-          onOpen={onOpenSource} onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
+          onOpen={onOpenSource} onRetry={onRetrySource ? () => onRetrySource(authority.id) : undefined}
+          onEditIdentity={() => onEditIdentity(authority)} ocr={ocr} />)}
         {!authorities.length && <p className="px-4 py-8 text-center text-sm text-gray-500">Add authorities to begin.</p>}
       </div>
       <Button type="button" variant="ghost" className="mt-2 h-9" disabled={busy} onClick={onAdd}><Plus /> Add authority</Button>
@@ -92,7 +94,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
 
 function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLanguages, sourceIssues,
   editableIdentity, rebuildsFromText, removable, sourceLabel, onAction, onPick, onLibrary, onAttach,
-  onRelink, onOpen, onEditIdentity, order, ocr }: {
+  onRelink, onOpen, onRetry, onEditIdentity, order, ocr }: {
   order: string[];
   authority: AuthorityIdentity; tab?: string; citations: string[]; busy: boolean; needsPdf: boolean;
   requireLanguages: boolean; sourceIssues: Record<string, AuthoritiesSourceIssue>;
@@ -100,6 +102,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   onAction: (action: AuthoritiesAction) => void; onPick?: () => void; onLibrary?: () => void;
   onAttach: (file?: File) => void; onRelink: (role: string) => void;
   onOpen?: (role: string) => void; onEditIdentity: () => void;
+  onRetry?: () => void;
   ocr?: SourceOcrPanel;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -114,6 +117,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const actionLabel = "hidden @min-[44rem]/sources:inline";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
+  const missingLanguage = requireLanguages && !sources.some(source => source.language === "bilingual") &&
+    !(sources.some(source => source.language === "en") && sources.some(source => source.language === "fr"));
+  const publisherUrl = needsPdf && (!sources.length || missingLanguage)
+    ? authority.sourceVerificationUrl : undefined;
+  const publisherCheck = !!publisherUrl && /\/robocop\/captcha\/(?:en|fr)\/query\.do(?:\?|$)/iu.test(publisherUrl);
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
     : rebuildsFromText && authority.source.kind === "resolved";
   const missing = needsPdf && !loaded;
@@ -175,8 +183,21 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
         title="Link printed in the imported document" aria-label={`Open document link for ${title}`}>
         <ExternalLink className="h-3.5 w-3.5" />Document link</a>}
-      {needsPdf && (authority.source.kind === "pending-canlii"
-        ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer" aria-label={`CanLII PDF for ${title}`} title="CanLII"
+      {needsPdf && (publisherUrl
+        ? <div className="flex w-28 flex-col items-center gap-1">
+            <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
+              title={publisherCheck ? "Solve the publisher CAPTCHA, then retry the download."
+                : "Open the publisher page, then retry the download."}
+              aria-label={`${publisherCheck ? "Solve CAPTCHA" : "Open publisher"} for ${title}`}
+              className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
+              {publisherCheck ? "Solve CAPTCHA" : "Open publisher"}</a>
+            {onRetry && <button type="button" disabled={busy} onClick={onRetry}
+              aria-label={`Retry PDF download for ${title}`}
+              className="min-h-7 w-full rounded text-xs font-medium text-red-800 underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50">
+              Retry download</button>}
+          </div>
+        : authority.source.kind === "pending-canlii"
+        ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
             <ExternalLink className="h-3.5 w-3.5" /><img src={canliiLogo} alt="" className="h-4 w-4 @min-[44rem]/sources:hidden" /><span className={actionLabel}>CanLII</span></a>
         : issue ? <Button type="button" variant="outline" className={cn(rowControl, "text-red-800")}
@@ -202,6 +223,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
+          ...(publisherUrl && onOpen ? sources.map(source => ({
+            label: `View ${sourceLanguageLabel(source.language)} PDF`, disabled: busy || !!sourceIssues[source.bindingRole],
+            onSelect: () => onOpen(source.bindingRole),
+          })) : []),
           ...(sources.length ? [{ label: sources.length === 1 ? "Remove PDF" : "Remove PDFs", disabled: busy,
             onSelect: () => onAction({ type: "clear-authority-source", authorityId: authority.id }) }] : []),
           { label: authority.excluded ? "Include in book" : "Leave out of book", disabled: busy,
