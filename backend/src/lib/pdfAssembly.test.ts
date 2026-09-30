@@ -3,7 +3,57 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
 import { expect, it } from "vitest";
 import * as pdf from "pdf-lib";
 import { pdfAssembly } from "./pdfAssembly";
-const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble } = pdfAssembly(pdf);
+const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble, appendPages } = pdfAssembly(pdf);
+
+it("preserves local named destinations through repeated page copies without changing remote links", async () => {
+  const original = await PDFDocument.create();
+  original.addPage(); original.addPage();
+  const destination = original.context.obj([original.getPage(1).ref, "XYZ", null, 400, null]);
+  original.catalog.set(PDFName.of("Dests"), original.context.obj({ legacy: destination }));
+  original.catalog.set(PDFName.of("Names"), original.context.obj({ Dests: { Kids: [{ Names: [
+    pdf.PDFString.of("section"), { D: destination }, PDFHexString.fromText("hex"), destination,
+  ] }] } }));
+  for (const entry of [
+    { Dest: PDFName.of("legacy") }, { Dest: pdf.PDFString.of("section") },
+    { A: { S: "GoTo", D: PDFHexString.fromText("hex") } }, { Dest: destination },
+    { A: { S: "GoToR", F: pdf.PDFString.of("other.pdf"), D: pdf.PDFString.of("section") } },
+    { A: { S: "URI", URI: pdf.PDFString.of("https://example.test") } },
+  ]) original.getPage(0).node.addAnnot(original.context.register(original.context.obj({
+    Type: "Annot", Subtype: "Link", Rect: [10, 10, 30, 30], ...entry,
+  })));
+  const bytes = await original.save(), book = await PDFDocument.create(); book.addPage();
+  await appendPages(book, bytes);
+  const combined = await PDFDocument.create(); combined.addPage();
+  await appendPages(combined, await book.save());
+  const reopened = await PDFDocument.load(await combined.save());
+  const annotations = reopened.getPage(2).node.lookup(PDFName.of("Annots"), PDFArray);
+  expect(annotations.size()).toBe(6);
+  for (let index = 0; index < 4; index++) {
+    const annotation = annotations.lookup(index, PDFDict);
+    const action = annotation.lookup(PDFName.of("A"));
+    const dest = annotation.lookupMaybe(PDFName.of("Dest"), PDFArray) ??
+      (action as PDFDict).lookup(PDFName.of("D"), PDFArray);
+    expect(String(dest.get(0))).toBe(String(reopened.getPage(3).ref));
+    expect(dest.lookup(3, PDFNumber).asNumber()).toBe(400);
+  }
+  const remote = annotations.lookup(4, PDFDict).lookup(PDFName.of("A"), PDFDict);
+  expect(remote.lookup(PDFName.of("D"), pdf.PDFString).decodeText()).toBe("section");
+  expect(annotations.lookup(5, PDFDict).lookup(PDFName.of("A"), PDFDict)
+    .lookup(PDFName.of("URI"), pdf.PDFString).decodeText()).toBe("https://example.test");
+  const retained = await PDFDocument.load(bytes);
+  expect(retained.getPage(0).node.lookup(PDFName.of("Annots"), PDFArray).lookup(1, PDFDict)
+    .lookup(PDFName.of("Dest"), pdf.PDFString).decodeText()).toBe("section");
+});
+
+it("omits internal links to pages excluded from an extracted PDF", async () => {
+  const original = await PDFDocument.create(); original.addPage(); original.addPage();
+  addInternalLink(original.getPage(0), [10, 10, 30, 30], original.getPage(1));
+  const extracted = await PDFDocument.create();
+  await appendPages(extracted, original, [0]);
+  const reopened = await PDFDocument.load(await extracted.save());
+  expect(reopened.getPageCount()).toBe(1);
+  expect(reopened.getPage(0).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(0);
+});
 
 it("does not return an output when cancelled during assembly", async () => {
   const controller = new AbortController();

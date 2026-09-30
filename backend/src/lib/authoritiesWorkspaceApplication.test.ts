@@ -28,6 +28,14 @@ vi.mock("./documentProjectionService", async (importOriginal) => {
 });
 
 const scope: ApplicationScope = { userId: "lawyer" };
+const fixturePdfs = new Map<string, Promise<Buffer>>();
+function fixturePdf(label: string) {
+  if (!fixturePdfs.has(label)) fixturePdfs.set(label, (async () => {
+    const document = await PDFDocument.create(); document.addPage(); document.setTitle(label);
+    return Buffer.from(await document.save());
+  })());
+  return fixturePdfs.get(label)!;
+}
 
 it("reconciles OCR demand even when a source already has an OCR profile", async () => {
   const { documentProjectionService } = await import("./documentProjectionService");
@@ -155,7 +163,8 @@ function harness(options: {
     Object.fromEntries(Object.entries(refs).map(([role, ref]) => {
       const version = stored.get(ref.documentId)!.versions.find(({ id }) => id === ref.versionId)!;
       return [role, { ...ref, sha256: version.source_sha256, filename: version.filename,
-        mimeType: version.file_type === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        mimeType: version.file_type === "pdf" ? "application/pdf" : version.file_type === "txt"
+          ? "text/plain" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         pageCount: null }];
     }));
   const workProducts = {
@@ -197,11 +206,13 @@ function built(id: string, revision: number,
   const builtAt = "2026-01-01T00:00:00.000Z";
   const artifacts = Object.fromEntries(roles.map((role) => {
     const pdf = role.startsWith("book") || role === "annotated-document" && pdfFiling;
-    const bytes = Buffer.from(`${pdf ? "%PDF-" : "PK\x03\x04"}${role}`);
+    const text = role === "link-report";
+    const bytes = Buffer.from(`${text ? "Citation link unavailable: " : pdf ? "%PDF-" : "PK\x03\x04"}${role}`);
     const filename = role === "table" ? "Authorities.table-of-authorities.docx"
       : role.startsWith("book") ? `Authorities.${role}.pdf`
+        : text ? "Authorities.unlinked-citations.txt"
         : `Authorities.with-table-of-authorities.${pdf ? "pdf" : "docx"}`;
-    const mimeType = pdf ? "application/pdf"
+    const mimeType = text ? "text/plain" : pdf ? "application/pdf"
       : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     const output = { role, filename, mimeType, pageCount: pdf ? 1 : null,
       sha256: sha256(bytes) };
@@ -234,7 +245,7 @@ async function attachBookSource(runtime: ReturnType<typeof harness>) {
     revision: product.revision, authorityId: "canonical-key",
     language: "en",
     file: { filename: "Smith.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nSmith\n%%EOF") },
+      bytes: await fixturePdf("%PDF-1.7\nSmith\n%%EOF") },
   });
 }
 
@@ -242,6 +253,17 @@ const prepareSources = (runtime: ReturnType<typeof harness>, product: WorkProduc
   runtime.application.prepareSources(scope, product.id, product.revision);
 
 describe("Authorities workspace application", () => {
+  it("rejects a corrupt attachment without replacing the source or creating a Library file", async () => {
+    const runtime = harness(), current = await attachBookSource(runtime);
+    const before = [...runtime.stored.keys()];
+    await expect(runtime.application.attachPdf(scope, current.id, {
+      revision: current.revision, authorityId: "canonical-key", language: "en",
+      file: { filename: "Broken.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nbroken") },
+    })).rejects.toMatchObject({ status: 400 });
+    expect([...runtime.stored.keys()]).toEqual(before);
+    expect(await runtime.application.get(scope, current.id)).toEqual(current);
+  });
+
   it("keeps manual-PDF drafts book-only across profile and output changes", () => {
     const manual = createAuthoritiesDraft({ kind: "manual" });
     expect(applyAuthoritiesUserAction(manual,
@@ -377,7 +399,7 @@ describe("Authorities workspace application", () => {
         evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
-    const pdf = Buffer.from("%PDF-1.7\nverified\n%%EOF");
+    const pdf = await fixturePdf("%PDF-1.7\nverified\n%%EOF");
     const runtime = harness({ draft, resolve: async () => ({ docType: "cases", dataset: "FCA",
       citation: "Law v Canada, 2024 FCA 1", alternateCitation: null, name: "Law v Canada",
       date: "2024-01-02", url: "https://publisher.example/decision/1",
@@ -469,7 +491,7 @@ describe("Authorities workspace application", () => {
   });
 
   it("prepares an unlinked source PDF required by the selected filing profile", async () => {
-    const filingSha = "f".repeat(64), pdf = Buffer.from("%PDF-1.7\nsource\n%%EOF");
+    const filingSha = "f".repeat(64), pdf = await fixturePdf("%PDF-1.7\nsource\n%%EOF");
     let draft = createAuthoritiesDraft({ kind: "document", bindingRole: "source",
       filename: "Factum.pdf", fileType: "pdf", snapshot: { documentId: "filing",
         versionId: "filing-v1", sha256: filingSha } }, { source: { kind: "document",
@@ -558,7 +580,7 @@ describe("Authorities workspace application", () => {
       reviewed: true });
     draft.occurrences = { neutral: occurrence("neutral", neutral, 0),
       reporter: occurrence("reporter", reporter, neutral.length + 2) };
-    const pdf = Buffer.from("%PDF-1.7\nCarter\n%%EOF");
+    const pdf = await fixturePdf("%PDF-1.7\nCarter\n%%EOF");
     const runtime = harness({ draft, resolve: async (citation) => citation === neutral ? null : ({ docType: "cases", dataset: "SCC",
       citation: "2015 SCC 5", alternateCitation: "[2015] 1 SCR 331",
       name: "Carter v Canada (Attorney General)", date: "2015-02-06",
@@ -662,7 +684,7 @@ describe("Authorities workspace application", () => {
       expect(rendered.getTitle()).toBe("R v Grant");
       expect(rendered.getPageCount()).toBeGreaterThan(0);
 
-      const manual = Buffer.from("%PDF-1.7\nmanual original\n%%EOF");
+      const manual = await fixturePdf("%PDF-1.7\nmanual original\n%%EOF");
       product = await runtime.application.attachPdf(scope, product.id, {
         revision: product.revision, authorityId: "grant", language: "en",
         file: { filename: "Grant original.pdf", fileType: "pdf", bytes: manual },
@@ -697,6 +719,73 @@ describe("Authorities workspace application", () => {
         { language: "fr", origin: "reconstructed" }],
     });
     expect(runtime.files.create).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["automatic", "render", "manual-originals"] as const)(
+    "uses the selected %s source policy for legislation with an official publisher PDF", async (sourceMode) => {
+      const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+        type: "add-authority", authority: { id: "act", key: "act", kind: "legislation",
+          citation: "RSA 2000, c T-3", name: "Traffic Safety Act", displayName: null,
+          excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+          source: { kind: "unresolved" } },
+      });
+      const publisherUrl = "https://kings-printer.alberta.ca/documents/Acts/T03.pdf";
+      const publicUrl = "https://www.canlii.org/en/ab/laws/stat/rsa-2000-c-t-3/latest/rsa-2000-c-t-3.html";
+      const pdf = await PDFDocument.create(); pdf.addPage();
+      const bytes = Buffer.from(await pdf.save());
+      const runtime = harness({ draft, resolve: async () => ({ docType: "laws", dataset: "STATUTES-AB",
+        citation: "RSA 2000, c T-3", alternateCitation: null, name: "Traffic Safety Act",
+        date: "2026-01-01", url: publicUrl, publisherUrl, verifiedPdf: null, language: "en",
+        upstreamLicense: null, searchText: "1 Traffic safety applies on highways.",
+        native: {} as never, searchNative: {} as never }),
+        download: async () => ({ bytes, sourceSha256: sha256(bytes), url: publisherUrl }) });
+
+      const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" },
+        settings: { sourceMode } });
+      const product = await prepareSources(runtime, imported);
+      const source = (product.state as AuthoritiesDraft).authorities.act.source;
+
+      expect(source).toMatchObject({ kind: "attached", sources: [{ language: "en",
+        origin: sourceMode === "manual-originals" ? "original" : "reconstructed",
+        sourceUrl: publisherUrl }] });
+      expect((product.state as AuthoritiesDraft).authorities.act.sourceIdentity?.externalUrl).toBe(publicUrl);
+      if (sourceMode === "manual-originals") {
+        expect(runtime.sources.download).toHaveBeenCalledWith(expect.objectContaining({ sourceUrl: publisherUrl }), undefined);
+        if (source.kind !== "attached") throw new Error("expected attached legislation source");
+        const binding = (product.state as AuthoritiesDraft).bindings[source.sources[0].bindingRole];
+        if (binding.kind !== "document") throw new Error("expected Library source");
+        expect((await runtime.documents.read(scope, binding.documentId, null, false))?.bytes).toEqual(bytes);
+      } else expect(runtime.sources.download).not.toHaveBeenCalled();
+    });
+
+  it("keeps one bilingual original when both official enactment records identify the same PDF", async () => {
+    const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
+      type: "add-authority", authority: { id: "act", key: "act", kind: "legislation",
+        citation: "RSC 1985, c F-7", name: "Federal Courts Act", displayName: null,
+        excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "unresolved" } },
+    });
+    const pdfUrl = "https://laws-lois.justice.gc.ca/PDF/F-7.pdf";
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const bytes = Buffer.from(await pdf.save());
+    const runtime = harness({ draft, resolve: async (_citation, _kind, _signal, requested) => ({
+      docType: "laws", dataset: "STATUTES-CA", citation: "RSC 1985, c F-7", alternateCitation: null,
+      name: requested === "fr" ? "Loi sur les Cours fédérales" : "Federal Courts Act",
+      date: "2026-01-01", url: `https://www.canlii.org/${requested === "fr" ? "fr" : "en"}/ca/laws/stat/rsc-1985-c-f-7/latest/rsc-1985-c-f-7.html`,
+      publisherUrl: pdfUrl, verifiedPdf: null, language: requested === "fr" ? "fr" : "en",
+      upstreamLicense: null, searchText: "Federal Courts Act / Loi sur les Cours fédérales",
+      native: {} as never, searchNative: {} as never }),
+      download: async () => ({ bytes, sourceSha256: sha256(bytes), url: pdfUrl }) });
+    const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" },
+      settings: { profileId: "federal-court", sourceMode: "manual-originals" } });
+
+    const product = await prepareSources(runtime, imported);
+    const source = (product.state as AuthoritiesDraft).authorities.act.source;
+
+    expect(source).toEqual({ kind: "attached", sources: [expect.objectContaining({ language: "bilingual",
+      origin: "original", sourceSha256: sha256(bytes), sourceUrl: pdfUrl })] });
+    expect(runtime.files.create).toHaveBeenCalledTimes(1);
+    expect(Object.keys((product.state as AuthoritiesDraft).bindings)).toHaveLength(1);
   });
 
   it("spends no revision preparing a draft that needs nothing", async () => {
@@ -753,7 +842,7 @@ describe("Authorities workspace application", () => {
         excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
         source: { kind: "unresolved" } },
     });
-    const bytes = Buffer.from("%PDF-1.4 opinion");
+    const bytes = await fixturePdf("%PDF-1.4 opinion");
     let unavailable = true;
     const runtime = harness({ draft,
       resolveForeign: async () => ({ provider: "courtlistener",
@@ -881,7 +970,7 @@ describe("Authorities workspace application", () => {
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "grant", language: "en",
       file: { filename: "Grant current.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\ncurrent\n%%EOF") },
+        bytes: await fixturePdf("%PDF-1.7\ncurrent\n%%EOF") },
     });
     await expect(prepareSources(runtime, product)).resolves.toBe(product);
     expect(runtime.sources.resolve).toHaveBeenCalledTimes(1);
@@ -1041,13 +1130,13 @@ describe("Authorities workspace application", () => {
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "canonical-key", language: "en",
       file: { filename: "smith.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nmanual\n%%EOF") },
+        bytes: await fixturePdf("%PDF-1.7\nmanual\n%%EOF") },
     });
     expect((product.state as AuthoritiesDraft).authorities["canonical-key"].source.kind)
       .toBe("attached");
     await expect(runtime.application.attachPdf(scope, product.id, {
       revision: product.revision - 1, authorityId: "canonical-key", language: "en",
-      file: { filename: "late.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-") },
+      file: { filename: "late.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") },
     })).rejects.toMatchObject({ status: 409 });
   });
 
@@ -1058,7 +1147,7 @@ describe("Authorities workspace application", () => {
       { type: "add-authority", kind: "case", citation: "2001 SCC 1", name: "R v Latimer" });
     product = await prepareSources(runtime, product);
     const input = { revision: product.revision, authorityId: "canonical-key", language: "en" as const,
-      file: { filename: "Latimer.pdf", fileType: "pdf", bytes: Buffer.from("%PDF-") } };
+      file: { filename: "Latimer.pdf", fileType: "pdf", bytes: await fixturePdf("%PDF-") } };
     for (const text of ["Neutral citation: 2009 SCC 32. Reasons citing 2001 SCC 1.", ""]) {
       pdfText.mockResolvedValueOnce({ pageTextByPage: [text], ocrTextByPage: [] });
       await expect(runtime.application.attachPdf(scope, product.id, input)).rejects.toMatchObject({ status: 400 });
@@ -1120,7 +1209,7 @@ describe("Authorities workspace application", () => {
       type: "add-authority", kind: "case", citation: "2024 ABKB 123",
     });
     const pdf = runtime.put({ filename: "Smith.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nLibrary\n%%EOF") });
+      bytes: await fixturePdf("%PDF-1.7\nLibrary\n%%EOF") });
     const attach = (documentId: string, versionId: string, revision = product.revision) =>
       runtime.application.attachLibraryPdf(scope, product.id, {
         revision, documentId, versionId,
@@ -1129,7 +1218,7 @@ describe("Authorities workspace application", () => {
     await expect(attach(pdf.id, "unknown-version")).rejects.toMatchObject({ status: 409 });
     const current = (await runtime.documents.addVersion(scope, pdf.id, {
       filename: "Smith updated.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nUpdated\n%%EOF"),
+      bytes: await fixturePdf("%PDF-1.7\nUpdated\n%%EOF"),
     }))!;
     await expect(attach(pdf.id, pdf.current_version_id)).rejects.toMatchObject({ status: 409 });
     const word = runtime.put({ filename: "Smith.docx", fileType: "docx",
@@ -1157,7 +1246,7 @@ describe("Authorities workspace application", () => {
     const runtime = harness();
     let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
     const pdf = runtime.put({ filename: "Front matter.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nLibrary\n%%EOF") });
+      bytes: await fixturePdf("%PDF-1.7\nLibrary\n%%EOF") });
     const attach = (target: { kind: "book"; slot: "cover" | "supplemental" }) =>
       runtime.application.attachLibraryPdf(scope, product.id, { revision: product.revision,
         documentId: pdf.id, versionId: pdf.current_version_id, target });
@@ -1218,9 +1307,9 @@ describe("Authorities workspace application", () => {
       type: "add-authority", kind: "other", citation: "Filed decision",
     });
     const authority = runtime.put({ filename: "Decision.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nfirst decision\n%%EOF") });
+      bytes: await fixturePdf("%PDF-1.7\nfirst decision\n%%EOF") });
     const cover = runtime.put({ filename: "Cover.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nfirst cover\n%%EOF") });
+      bytes: await fixturePdf("%PDF-1.7\nfirst cover\n%%EOF") });
     product = await runtime.application.attachLibraryPdf(scope, product.id, {
       revision: product.revision, documentId: authority.id,
       versionId: authority.current_version_id, target: { kind: "authority",
@@ -1230,7 +1319,7 @@ describe("Authorities workspace application", () => {
       revision: product.revision, documentId: cover.id, versionId: cover.current_version_id,
       target: { kind: "book", slot: "cover" },
     });
-    const pinnedBytes = Buffer.from("%PDF-1.7\npinned index\n%%EOF");
+    const pinnedBytes = await fixturePdf("%PDF-1.7\npinned index\n%%EOF");
     product = await runtime.application.attachBookPdf(scope, product.id, {
       revision: product.revision, slot: "index",
       file: { filename: "Index.pdf", fileType: "pdf", bytes: pinnedBytes },
@@ -1242,15 +1331,15 @@ describe("Authorities workspace application", () => {
     }
     await runtime.documents.addVersion(scope, pinnedBinding.documentId, {
       filename: "Index revised.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nnew index\n%%EOF"),
+      bytes: await fixturePdf("%PDF-1.7\nnew index\n%%EOF"),
     });
     const currentAuthority = (await runtime.documents.addVersion(scope, authority.id, {
       filename: "Decision revised.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\ncurrent decision\n%%EOF"),
+      bytes: await fixturePdf("%PDF-1.7\ncurrent decision\n%%EOF"),
     }))!;
     const currentCover = (await runtime.documents.addVersion(scope, cover.id, {
       filename: "Cover revised.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\ncurrent cover\n%%EOF"),
+      bytes: await fixturePdf("%PDF-1.7\ncurrent cover\n%%EOF"),
     }))!;
 
     const result = await runtime.application.build(scope, product.id, product.revision);
@@ -1326,7 +1415,7 @@ describe("Authorities workspace application", () => {
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "canonical-key", language: "en",
       file: { filename: "Decision.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nfirst\n%%EOF") },
+        bytes: await fixturePdf("%PDF-1.7\nfirst\n%%EOF") },
     });
     const attached = (product.state as AuthoritiesDraft).authorities["canonical-key"].source;
     if (attached.kind !== "attached") throw new Error("expected attached source");
@@ -1337,7 +1426,7 @@ describe("Authorities workspace application", () => {
     }
     const current = (await runtime.documents.addVersion(scope, original.documentId, {
       filename: "Decision revised.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nsecond\n%%EOF"),
+      bytes: await fixturePdf("%PDF-1.7\nsecond\n%%EOF"),
     }))!;
     await runtime.documents.deleteVersion(scope, original.documentId, original.version.versionId);
 
@@ -1354,11 +1443,11 @@ describe("Authorities workspace application", () => {
     product = await runtime.application.attachBookPdf(scope, product.id, {
       revision: product.revision, slot: "supplemental",
       file: { filename: "Order.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\norder\n%%EOF") },
+        bytes: await fixturePdf("%PDF-1.7\norder\n%%EOF") },
     });
     const supplement = (product.state as AuthoritiesDraft).bookParts.supplements[0];
     const replacementFile = { filename: "Order replacement.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nreplacement\n%%EOF") };
+      bytes: await fixturePdf("%PDF-1.7\nreplacement\n%%EOF") };
     product = await runtime.application.attachBookPdf(scope, product.id, {
       revision: product.revision, slot: "supplemental", supplementId: supplement.id,
       file: replacementFile,
@@ -1371,7 +1460,7 @@ describe("Authorities workspace application", () => {
     if (supplementBinding.kind !== "document") throw new Error("expected document binding");
     const revisedOrder = (await runtime.documents.addVersion(scope,
       supplementBinding.documentId, { filename: "Order revised.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nrevised order\n%%EOF") }))!;
+        bytes: await fixturePdf("%PDF-1.7\nrevised order\n%%EOF") }))!;
     product = await runtime.application.refreshInput(scope, product.id, {
       revision: product.revision, role: supplement.bindingRole,
     });
@@ -1437,7 +1526,7 @@ describe("Authorities workspace application", () => {
     product = await runtime.application.attachPdf(scope, product.id, {
       revision: product.revision, authorityId: "2016scc27", language: "en",
       file: { filename: "Jordan.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nJordan\n%%EOF") },
+        bytes: await fixturePdf("%PDF-1.7\nJordan\n%%EOF") },
     });
     const additional = receipt("First holding.", "par3");
     product = await runtime.application.addReceipts(scope, product.id, product.revision, [{
@@ -1625,9 +1714,9 @@ describe("Authorities workspace application", () => {
   it("loads and stores an Alberta appeal filing and its unlinked authority as PDFs", async () => {
     const runtime = harness();
     const filing = runtime.put({ filename: "Factum.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nfiling\n%%EOF") }, "factum");
+      bytes: await fixturePdf("%PDF-1.7\nfiling\n%%EOF") }, "factum");
     const authority = runtime.put({ filename: "Case.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\ncase\n%%EOF") }, "case");
+      bytes: await fixturePdf("%PDF-1.7\ncase\n%%EOF") }, "case");
     const snapshot = { documentId: filing.id, versionId: filing.current_version_id,
       sha256: filing.source_sha256 };
     let draft = createAuthoritiesDraft({ kind: "document", bindingRole: "source",
@@ -1647,9 +1736,9 @@ describe("Authorities workspace application", () => {
       version: { versionId: authority.current_version_id, sha256: authority.source_sha256 } };
     runtime.importer.draft.mockResolvedValue(draft);
     const builder = vi.fn(async (input: AuthoritiesBuildInput) => {
-      expect(Buffer.from(input.sources?.source?.bytes ?? []).toString()).toContain("filing");
-      expect(Buffer.from(input.sources?.["authority:case"]?.bytes ?? []).toString())
-        .toContain("case");
+      expect(input.sources?.source?.bytes).toEqual(runtime.stored.get(filing.id)!.versions[0].bytes);
+      expect(input.sources?.["authority:case"]?.bytes)
+        .toEqual(runtime.stored.get(authority.id)!.versions[0].bytes);
       return built(input.workProduct.id, input.workProduct.revision,
         ["table", "annotated-document"], true);
     });
@@ -1679,11 +1768,11 @@ describe("Authorities workspace application", () => {
         version: { versionId: filingSnapshot.versionId, sha256: filingSnapshot.sha256 } } }));
     const uploads = [
       ["cover", { filename: "Cover.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\ncover\n%%EOF") }],
+        bytes: await fixturePdf("%PDF-1.7\ncover\n%%EOF") }],
       ["index", { filename: "Index.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nindex\n%%EOF") }],
+        bytes: await fixturePdf("%PDF-1.7\nindex\n%%EOF") }],
       ["supplemental", { filename: "Chart.pdf", fileType: "pdf",
-        bytes: Buffer.from("%PDF-1.7\nchart\n%%EOF") }],
+        bytes: await fixturePdf("%PDF-1.7\nchart\n%%EOF") }],
     ] as const;
     let product = await runtime.application.importDraft(scope,
       { source: { kind: "manual" }, projectId: "project-1" });
@@ -1788,11 +1877,11 @@ describe("Authorities workspace application", () => {
         : { status: "ready" },
       builder: builder as never,
     });
-    const includedBytes = Buffer.from("%PDF-1.7\nincluded\n%%EOF");
+    const includedBytes = await fixturePdf("%PDF-1.7\nincluded\n%%EOF");
     const included = runtime.put({ filename: "Included.pdf", fileType: "pdf",
       bytes: includedBytes }, "included-document");
     const excluded = runtime.put({ filename: "Excluded.pdf", fileType: "pdf",
-      bytes: Buffer.from("%PDF-1.7\nexcluded\n%%EOF") }, "excluded-document");
+      bytes: await fixturePdf("%PDF-1.7\nexcluded\n%%EOF") }, "excluded-document");
     blockedId = excluded.id;
     const filing = runtime.put({ filename: "Factum.docx", fileType: "docx",
       bytes: Buffer.from("PK\x03\x04factum") }, "source-document");
@@ -1888,12 +1977,68 @@ describe("Authorities workspace application", () => {
     expect(runtime.documents.parseStates).toHaveBeenCalled();
     expect(builder).toHaveBeenCalledWith(expect.objectContaining({ sources:
       expect.objectContaining({ [source.bindingRole]: expect.objectContaining({
-        bytes: Buffer.from("%PDF-1.7\nSmith\n%%EOF"), resolved: expect.objectContaining({
+        bytes: await fixturePdf("%PDF-1.7\nSmith\n%%EOF"), resolved: expect.objectContaining({
           sha256: source.sourceSha256,
         }) }) }) }));
     expect(second.product.outputs.book.documentId).toBe(first.product.outputs.book.documentId);
     expect(second.product.outputs.book.versionId).not.toBe(first.product.outputs.book.versionId);
     expect(runtime.stored.get(first.product.outputs.book.documentId)?.versions).toHaveLength(2);
+  });
+
+  it.each(["pinned", "latest"] as const)(
+    "builds a placeholder for a deleted %s authority only when incomplete building is enabled", async (mode) => {
+      const runtime = harness();
+      let product = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+      product = await runtime.application.act(scope, product.id, product.revision, {
+        type: "add-authority", kind: "case", citation: "2024 ABKB 123", name: "Smith v Jones",
+      });
+      const pdf = await PDFDocument.create(); pdf.addPage();
+      const file = { filename: "Smith.pdf", fileType: "pdf", bytes: Buffer.from(await pdf.save()) };
+      if (mode === "latest") {
+        const source = runtime.put(file);
+        product = await runtime.application.attachLibraryPdf(scope, product.id, {
+          revision: product.revision, documentId: source.id, versionId: source.current_version_id,
+          target: { kind: "authority", authorityId: "canonical-key", language: "en" },
+        });
+      } else product = await runtime.application.attachPdf(scope, product.id, {
+        revision: product.revision, authorityId: "canonical-key", language: "en", file,
+      });
+      const source = (product.state as AuthoritiesDraft).authorities["canonical-key"].source;
+      if (source.kind !== "attached") throw new Error("expected attached source");
+      const binding = (product.state as AuthoritiesDraft).bindings[source.sources[0].bindingRole];
+      if (binding.kind !== "document") throw new Error("expected Library binding");
+      runtime.stored.delete(binding.documentId);
+
+      await expect(runtime.application.build(scope, product.id, product.revision)).rejects.toMatchObject({ status: 409 });
+      product = await runtime.application.act(scope, product.id, product.revision, {
+        type: "set-settings", settings: { allowIncomplete: true, passageMarking: "none" },
+      });
+      const result = await runtime.application.build(scope, product.id, product.revision);
+      const output = result.product.outputs.book;
+      const builtFile = await runtime.documents.read(scope, output.documentId, output.versionId, false);
+
+      expect((await PDFDocument.load(builtFile!.bytes)).getPageCount()).toBe(3);
+      expect(result.product.state.authorities["canonical-key"].source).toEqual(source);
+      expect(result.receipt.authorities[0]).toMatchObject({ id: "canonical-key", tab: "Tab 1" });
+    });
+
+  it("still rejects changed authority bytes in incomplete builds", async () => {
+    const builder = vi.fn(async ({ workProduct }: AuthoritiesBuildInput) =>
+      built(workProduct.id, workProduct.revision, ["book"]));
+    const runtime = harness({ builder: builder as never });
+    let product = await attachBookSource(runtime);
+    product = await runtime.application.act(scope, product.id, product.revision, {
+      type: "set-settings", settings: { allowIncomplete: true },
+    });
+    const source = (product.state as AuthoritiesDraft).authorities["canonical-key"].source;
+    if (source.kind !== "attached") throw new Error("expected attached source");
+    const binding = (product.state as AuthoritiesDraft).bindings[source.sources[0].bindingRole];
+    if (binding.kind !== "document") throw new Error("expected Library binding");
+    runtime.stored.get(binding.documentId)!.versions[0].bytes = Buffer.from("%PDF-changed");
+
+    await expect(runtime.application.build(scope, product.id, product.revision))
+      .rejects.toMatchObject({ status: 409, message: "Attached PDF changed: Smith.pdf" });
+    expect(builder).not.toHaveBeenCalled();
   });
 
   it("persists every filing volume under its stable output role", async () => {
@@ -1908,6 +2053,21 @@ describe("Authorities workspace application", () => {
     expect(result.product.outputs.book.documentId)
       .not.toBe(result.product.outputs["book-2"].documentId);
     expect(runtime.files.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the optional citation link report as a downloadable text file", async () => {
+    const builder = vi.fn(async ({ workProduct }: AuthoritiesBuildInput) =>
+      built(workProduct.id, workProduct.revision, ["book", "link-report"]));
+    const runtime = harness({ builder: builder as never });
+    const product = await attachBookSource(runtime);
+
+    const result = await runtime.application.build(scope, product.id, product.revision);
+    const output = result.product.outputs["link-report"];
+    const report = await runtime.documents.read(scope, output.documentId, output.versionId, false);
+
+    expect(report).toMatchObject({ fileType: "txt", filename: "Authorities.unlinked-citations.txt" });
+    expect(report?.bytes.toString()).toContain("Citation link unavailable");
+    expect(output.mimeType).toBe("text/plain");
   });
 
   it("persists stable output documents, exact provenance, and immutable rebuild versions", async () => {

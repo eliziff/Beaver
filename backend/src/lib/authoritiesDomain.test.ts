@@ -228,12 +228,12 @@ describe("authorities draft domain", () => {
       { type: "set-document-output", enabled: true });
     expect(enabled.insertIntoDocument).toBe(true);
     expect(reduceAuthoritiesDraft(enabled,
-      { type: "set-output-mode", outputMode: "book" }).insertIntoDocument).toBe(false);
+      { type: "set-output-mode", outputMode: "book" }).insertIntoDocument).toBe(true);
     const book = reduceAuthoritiesDraft(source,
       { type: "set-output-mode", outputMode: "book" });
-    expect(() => reduceAuthoritiesDraft(book,
-      { type: "set-document-output", enabled: true })).toThrowError(AuthoritiesDomainError);
-    expect(decodeAuthoritiesDraft({ ...book, insertIntoDocument: true })).toBeNull();
+    expect(reduceAuthoritiesDraft(book,
+      { type: "set-document-output", enabled: true }).insertIntoDocument).toBe(true);
+    expect(decodeAuthoritiesDraft({ ...book, insertIntoDocument: true })).not.toBeNull();
     const pdf = reduceAuthoritiesDraft(createAuthoritiesDraft({ ...sourceImport,
       filename: "Factum.pdf", fileType: "pdf" }, sourceBindings),
     { type: "set-output-mode", outputMode: "table" });
@@ -262,7 +262,7 @@ describe("authorities draft domain", () => {
     } });
     const appealDocument = reduceAuthoritiesDraft(createAuthoritiesDraft(sourceImport,
       sourceBindings), { type: "set-profile", profileId: "ab-court-of-appeal" });
-    expect(appealDocument.insertIntoDocument).toBe(true);
+    expect(appealDocument.insertIntoDocument).toBe(false);
     expect(() => reduceAuthoritiesDraft(appeal,
       { type: "set-output-mode", outputMode: "book" })).toThrow(AuthoritiesDomainError);
     expect(() => reduceAuthoritiesDraft(appeal, { type: "set-settings",
@@ -423,6 +423,26 @@ describe("authorities draft domain", () => {
     const reopened = decodeAuthoritiesDraft(JSON.parse(JSON.stringify(draft)));
     expect(reopened).not.toBeNull();
     expect(authorityCitationForms(reopened!, "grant")).toEqual(["2009 SCC 32", "[2009] 2 SCR 353"]);
+  });
+
+  it("preserves Word and final export choices when choosing a court while applying locked table delivery", () => {
+    let selected = createAuthoritiesDraft(sourceImport, sourceBindings, "book");
+    selected = reduceAuthoritiesDraft(selected, { type: "set-document-output", enabled: true });
+    selected = reduceAuthoritiesDraft(selected, { type: "set-settings", settings: {
+      tableDelivery: "native-marks", citationSuffix: "book-tab", finalPdf: true,
+      linkTabs: true, linkPinpoints: true,
+    } });
+    const kingsBench = reduceAuthoritiesDraft(selected, { type: "set-profile", profileId: "ab-court-of-kings-bench" });
+    expect(kingsBench).toMatchObject({ insertIntoDocument: true, settings: {
+      tableDelivery: "native-marks", citationSuffix: "book-tab", finalPdf: true,
+      linkTabs: true, linkPinpoints: true,
+    } });
+    const appeal = reduceAuthoritiesDraft(kingsBench, { type: "set-profile", profileId: "ab-court-of-appeal" });
+    expect(appeal).toMatchObject({ insertIntoDocument: true, settings: {
+      tableDelivery: "linked-append", citationSuffix: "book-tab", finalPdf: true,
+    } });
+    const noMarks = reduceAuthoritiesDraft(appeal, { type: "set-document-output", enabled: false });
+    expect(reduceAuthoritiesDraft(noMarks, { type: "set-profile", profileId: "general" }).insertIntoDocument).toBe(false);
   });
 
   it("keeps grounded identity orthogonal to unresolved review state", () => {

@@ -418,7 +418,7 @@ describe("caselaw citator note-up graph", () => {
       const rank2Profile = citator.noteUpAnalysis({ citation: "2019 SCC 5" })!;
       expect(rank2Profile.journalAnalysis).toHaveLength(0);
 
-      // Typed refusals when nothing survives normalization.
+      // Typed refusals when no citation can be recognized.
       expect(() => citator.noteUpCitations({ citation: "" })).toThrow(
         /no citation was found/u,
       );
@@ -481,6 +481,10 @@ describe("caselaw citator note-up graph", () => {
           { citation_key: "3:neutral:2015:scc:5" },
           { citation_key: "3:reporter:scr:scr:2015:1:331" },
         ]);
+        // Bilingual neutral and reporter forms collapse to two authority keys.
+        expect(graph.prepare("SELECT citation_key FROM case_key WHERE case_id = 1 ORDER BY citation_key").all())
+          .toEqual([{ citation_key: "3:neutral:2015:scc:5" },
+            { citation_key: "3:reporter:scr:scr:2015:1:331" }]);
         expect(
           graph.prepare("SELECT value FROM meta WHERE key = 'source'").get(),
         ).toMatchObject({ value: "jsonl" });

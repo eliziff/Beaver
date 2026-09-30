@@ -16,7 +16,7 @@ import {
 import { parseAsync, renderDocument } from "docx-preview";
 import { describe, expect, it } from "vitest";
 
-import { DOCX_RENDER_OPTIONS } from "./DocxView";
+import { DOCX_RENDER_OPTIONS } from "./DocxCanvas";
 
 const PNG = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",

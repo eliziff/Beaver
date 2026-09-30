@@ -24,6 +24,11 @@ export type AuthoritiesBuildSettings = {
   tabLabels?: string[];
   /** Explicit draft export only; never a representation of filing completeness. */
   allowIncomplete?: boolean;
+  citationSuffix?: "none" | "book-tab" | "tab";
+  /** Combine the imported brief PDF rendition with the complete book. */
+  finalPdf?: boolean;
+  linkTabs?: boolean;
+  linkPinpoints?: boolean;
   tableOrder: "first-reference" | "alphabetical";
   tableDelivery: "native-marks" | "native-append" | "linked-append";
   tableLocation: "pages" | "pinpoints" | "combined";
@@ -141,6 +146,7 @@ export type AuthoritiesUserAction =
   | { type: "remove-occurrence"; occurrenceId: string }
   | { type: "restore-occurrence"; occurrenceId: string }
   | { type: "set-authority-span"; occurrenceId: string; start: number; end: number }
+  | { type: "set-citation-range"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "clear-pinpoint"; occurrenceId: string }
   | { type: "add-occurrence"; unitId: string; start: number; end: number }
@@ -265,7 +271,7 @@ export type AuthoritiesDiscrepancy<Evidence = unknown> = {
 
 /** One book PDF per volume, so a split book numbers its parts after the first. */
 export type AuthoritiesOutputRole = "table" | "book" | `book-${number}` |
-  "annotated-document";
+  "annotated-document" | "final-pdf" | "link-report";
 export type AuthoritiesOutputFile = {
   filename: string; mimeType: string; sha256: string; pageCount: number | null;
 };
@@ -290,4 +296,7 @@ export type AuthoritiesBuildReceipt = {
     bindings: WorkProductInput[];
   }>;
   outputs: Partial<Record<AuthoritiesOutputRole, AuthoritiesOutputFile>>;
+  linkWarnings?: Array<{ occurrenceId: string; citation: string; pinpoint: string | null;
+    tab?: string; sourcePageNumber?: number;
+    reason: "citation-location" | "source-missing" | "pinpoint-unlocated" | "pinpoint-ambiguous" }>;
 };

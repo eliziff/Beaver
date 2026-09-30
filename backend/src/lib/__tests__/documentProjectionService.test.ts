@@ -38,6 +38,20 @@ describe("DocumentProjectionService", () => {
     const { structureNative } = await import("../structureNative");
     expect(structureNative().documentText(document)).toContain("Morgan Example");
   });
+  it("locates reviewed filing text on its physical page without requiring a printed folio", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const pdf = await PDFDocument.create();
+    for (let index = 0; index < 2; index++) pdf.addPage().drawText("2024 SCC 1 at para 29", { x: 72, y: 650 });
+    const bytes = Buffer.from(await pdf.save()), projections = await service();
+    const reference = { documentId: "unnumbered-filing", versionId: "v1", sourceSha256: sha256(bytes) };
+    const geometry = await projections.pdfPassageGeometry(() => bytes, [{
+      id: "reviewed", locatorKind: "page", locator: "1", physicalPages: [2],
+      exactQuotes: ["2024 SCC 1"], quoteSelections: [{ text: "2024 SCC 1 at para 29", start: 19, end: 21 }],
+    }], reference);
+    expect(geometry.targets[0]).toMatchObject({ status: "found", pages: [{ pageNumber: 2 }],
+      quotes: [{ status: "found", pageNumber: 2 }, { text: "29", status: "found", pageNumber: 2 }] });
+  });
+
   it("shares a reporter anchor between displayed labels and physical highlight destinations", async () => {
     const { PDFDocument } = await import("pdf-lib");
     const pdf = await PDFDocument.create();

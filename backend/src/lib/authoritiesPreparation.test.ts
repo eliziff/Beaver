@@ -123,6 +123,48 @@ function markedDraft() {
 }
 
 describe("shared Authorities text preparation", () => {
+  it("retains page pinpoint geometry for final links even when passage marking and OCR are off", async () => {
+    const state = markedDraft();
+    state.settings.passageMarking = "none";
+    state.settings.finalPdf = state.settings.linkPinpoints = true;
+    state.authorities.case.locators = [{ kind: "page", label: "101" }];
+    pdfText.mockResolvedValueOnce({ pageTextByPage: ["native"], ocrTextByPage: [],
+      passageGeometry: { targets: [{ locator: "101", status: "found" }] } } as never);
+    expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
+      .toMatchObject({ passageGeometry: { targets: [{ locator: "101", status: "found" }] } });
+  });
+
+  it("retains manual-PDF pinpoint geometry when final links are enabled without passage marks", async () => {
+    const state = markedDraft(); state.settings.passageMarking = "none";
+    state.settings.finalPdf = true; state.settings.linkPinpoints = true;
+    const geometry = { schemaVersion: "test", sourceSha256: hash, targets: [] };
+    pdfText.mockImplementationOnce(async input => ({ pageTextByPage: ["19. Located passage"],
+      ocrTextByPage: [], ...(input.passageTargets?.some(target => target.locator === "19")
+        ? { passageGeometry: geometry as never } : {}) }));
+    expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
+      .toMatchObject({ passageGeometry: geometry });
+  });
+
+  it("retains exact filing citation locations for final links independently of authority highlighting", async () => {
+    const state = markedDraft();
+    state.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf", fileType: "pdf", snapshot: null };
+    state.settings.passageMarking = "none"; state.settings.finalPdf = true; state.settings.linkTabs = true;
+    const citation = "2020 SCC 1 at para 19";
+    state.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [2], text: citation, occurrenceIds: ["cite"] }];
+    state.occurrences.cite = { id: "cite", unitId: "body:0", start: 0, end: citation.length, text: citation,
+      authoritySpan: { start: 0, end: 10, text: "2020 SCC 1" }, coreSpan: { start: 0, end: 10, text: "2020 SCC 1" },
+      pinpointSpan: { start: 11, end: citation.length, text: "at para 19" }, kind: "case", citation: "2020 SCC 1",
+      authorityId: "case", reference: null, pinpoints: [{ kind: "paragraph", text: "19" }], evidenceIds: [],
+      sourceTextSha256: hash, localOrdinal: 0, reviewed: true };
+    const geometry = { schemaVersion: "test", sourceSha256: hash, targets: [] };
+    pdfText.mockImplementationOnce(async input => ({ pageTextByPage: ["page 1", citation], ocrTextByPage: [],
+      ...(input.passageTargets?.some(target => target.id === "filing:cite" && target.physicalPages?.includes(2))
+        ? { passageGeometry: geometry as never } : {}) }));
+    expect(await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from("pdf") }))
+      .toMatchObject({ passageGeometry: geometry });
+  });
+
   it.each(["unmarked", "table", "excluded"] as const)("does not read or OCR a %s source", async (mode) => {
     const state = markedDraft();
     if (mode === "unmarked") state.settings.passageMarking = "none";

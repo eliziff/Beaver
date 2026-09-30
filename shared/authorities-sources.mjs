@@ -22,12 +22,12 @@ export const bilingualEnactmentRequired = (authority, requirements) =>
 /** Whether a build needs authority PDFs at all: a book reproduces every authority,
  *  and a PDF filing carries the table entries it cannot link to. */
 export const authorityBytesRequired = (draft, requirements) =>
-  draft.outputMode !== "table" || !!(draft.insertIntoDocument &&
+  draft.outputMode !== "table" || !!draft.settings?.finalPdf || !!(draft.insertIntoDocument &&
     requirements?.unlinkedPdfTableSources && draft.import.kind === "document" &&
     draft.import.fileType === "pdf");
 /** Whether the build puts this one authority's own PDF in front of the court. */
 export const authorityPdfRequired = (draft, authority, requirements) =>
-  draft.outputMode !== "table" || !!(requirements?.unlinkedPdfTableSources &&
+  draft.outputMode !== "table" || !!draft.settings?.finalPdf || !!(requirements?.unlinkedPdfTableSources &&
     draft.import.kind === "document" && draft.import.fileType === "pdf" &&
     !authoritySourceUrl(authority));
 
@@ -46,8 +46,8 @@ export function authoritySourceRequirement(draft, authority, requirements, prepa
   // A table links every authority it lists, one the book leaves out included; only
   // the authority's own PDF, appended to a PDF filing, stands in for the link.
   return requirements?.unlinkedPdfTableSources && !authoritySourceUrl(authority) &&
-    !(attached && draft.insertIntoDocument && draft.import.kind === "document" &&
-      draft.import.fileType === "pdf") ? "unlinked" : null;
+    !(attached && (draft.settings?.finalPdf || draft.insertIntoDocument &&
+      draft.import.kind === "document" && draft.import.fileType === "pdf")) ? "unlinked" : null;
 }
 
 /** Whether the book reproduces this authority, asked by the builder (which loads the
@@ -98,7 +98,7 @@ export function authoritiesInputPlan(draft, requirements) {
   const authoritySources = Object.values(draft.authorities).flatMap((authority) =>
     attachedAuthoritySources(authority.source).map((source) => ({ authority, source })));
   const included = authoritySources.filter(({ authority }) => !authority.excluded);
-  const needsBook = draft.outputMode !== "table";
+  const needsBook = draft.outputMode !== "table" || !!draft.settings?.finalPdf;
   const bookPdfs = needsBook ? authoritiesBookPdfs(draft) : [];
   return {
     authoritySources, bookPdfs,
@@ -106,7 +106,7 @@ export function authoritiesInputPlan(draft, requirements) {
     byteRoles: new Set([
       ...(authorityBytesRequired(draft, requirements)
         ? included.map(({ source }) => source.bindingRole) : []),
-      ...(draft.insertIntoDocument && draft.import.kind === "document"
+      ...((draft.insertIntoDocument || draft.settings?.finalPdf) && draft.import.kind === "document"
         ? [draft.import.bindingRole] : []),
       ...bookPdfs.map(({ bindingRole }) => bindingRole),
     ]),

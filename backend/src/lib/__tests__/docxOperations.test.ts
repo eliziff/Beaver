@@ -7,6 +7,28 @@ import {
   applyTableOfAuthorities,
 } from "../docxOperations";
 describe("native Word Table of Authorities output", () => {
+  it("appends fixed tab text in body and footnote citations and preserves pinpoint text for final links", async () => {
+    const body = "R v Grant, 2009 SCC 32 at para 12", note = "Ibid at para 13";
+    const source = await docxBytes([new Paragraph({ children: [
+      new TextRun({ text: body.slice(0, 12), bold: true }), new TextRun(body.slice(12)), new FootnoteReferenceRun(7),
+    ] })], { footnotes: { 7: { children: [new Paragraph(note)] } } });
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body }, { id: "footnote:7", text: note }], [
+      { unitId: "body:0", offset: body.length, longName: "R v Grant", shortName: "Grant", category: 1,
+        suffix: " [Book of authorities Tab 3]", pinpointLink: { start: body.indexOf("para 12"), end: body.length,
+          url: "https://beaver-authorities.invalid/pinpoint/grant" } },
+      { unitId: "footnote:7", offset: note.length, longName: "R v Grant", shortName: "Grant", category: 1,
+        suffix: " [Tab 3]", tabUrl: "https://beaver-authorities.invalid/tab/ibid" },
+    ], "native-marks");
+    const zip = await JSZip.loadAsync(marked);
+    const document = await zip.file("word/document.xml")!.async("string"), notes = await zip.file("word/footnotes.xml")!.async("string");
+    expect(document).toContain("[Book of authorities Tab 3]");
+    expect(notes).toContain("[Tab 3]");
+    expect(document).toContain("para 12"); expect(document).toContain("w:b");
+    expect(document).toContain('HYPERLINK &quot;https://beaver-authorities.invalid/pinpoint/grant&quot;');
+    expect(notes).toContain('HYPERLINK &quot;https://beaver-authorities.invalid/tab/ibid&quot;');
+    expect(document).not.toContain(" TOA ");
+  });
+
   it("replaces exact reviewed spans in body text and footnotes", async () => {
     const body = "The court wrote This and that.";
     const note = "Example v Example, 2020 SCC 1 at para 19.";

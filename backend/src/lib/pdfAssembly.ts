@@ -1,4 +1,4 @@
-import type { PDFDocument, PDFFont, PDFPage, PDFRef, SaveOptions, StandardFonts } from "pdf-lib";
+import type { PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions, StandardFonts } from "pdf-lib";
 
 export type PdfOutline = { title: string; pageIndex: number; children?: PdfOutline[] };
 export type PdfPageNumberPosition = "top-right" | "top-centre" | "bottom-right" | "bottom-centre";
@@ -44,6 +44,46 @@ export function splitPdfPageRanges<T extends { pageIndices: number[] }>(items: T
 
 export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   const { PDFHexString, PDFName, degrees, rgb } = pdf;
+
+  /** Resolve local destinations, including the two PDF named-destination forms. */
+  function destinationReader(document: PDFDocument) {
+    const names = new Map<string, PDFObject>(), legacyNames = new Map<string, PDFObject>();
+    const legacy = document.catalog.lookup(PDFName.of("Dests"));
+    if (legacy instanceof pdf.PDFDict) legacy.entries().forEach(([key, value]) =>
+      legacyNames.set(key.decodeText(), value));
+    const visited = new Set<PDFDict>();
+    const readNames = (value: PDFObject | undefined) => {
+      const node = document.context.lookup(value);
+      if (!(node instanceof pdf.PDFDict) || visited.has(node) || visited.size >= 10_000) return;
+      visited.add(node);
+      const entries = node.lookup(PDFName.of("Names")), children = node.lookup(PDFName.of("Kids"));
+      if (entries instanceof pdf.PDFArray) for (let index = 0; index + 1 < entries.size(); index += 2) {
+        const key = entries.lookup(index);
+        if (key instanceof pdf.PDFString || key instanceof PDFHexString)
+          names.set(key.decodeText(), entries.get(index + 1));
+      }
+      if (children instanceof pdf.PDFArray) children.asArray().forEach(readNames);
+    };
+    const dictionary = document.catalog.lookup(PDFName.of("Names"));
+    if (dictionary instanceof pdf.PDFDict) readNames(dictionary.get(PDFName.of("Dests")));
+    return (node: PDFDict) => {
+      const action = node.lookup(PDFName.of("A"));
+      let value = node.get(PDFName.of("Dest")) ?? (action instanceof pdf.PDFDict &&
+        String(action.lookup(PDFName.of("S"))) === "/GoTo" ? action.get(PDFName.of("D")) : undefined);
+      const seen = new Set<PDFObject>();
+      while (value && !seen.has(value)) {
+        seen.add(value);
+        const destination = document.context.lookup(value);
+        if (destination instanceof pdf.PDFArray) return destination;
+        if (destination instanceof pdf.PDFDict) value = destination.get(PDFName.of("D"));
+        else if (destination instanceof PDFName) value = legacyNames.get(destination.decodeText()) ?? names.get(destination.decodeText());
+        else if (destination instanceof pdf.PDFString || destination instanceof PDFHexString)
+          value = names.get(destination.decodeText()) ?? legacyNames.get(destination.decodeText());
+        else return undefined;
+      }
+      return undefined;
+    };
+  }
   function drawPageNumber(page: PDFPage, number: number, font: PDFFont,
     position: PdfPageNumberPosition, size = 9, inset = 72, offset = 36) {
     const text = String(number), textWidth = font.widthOfTextAtSize(text, size);
@@ -141,6 +181,25 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       ? await pdf.PDFDocument.load(source, { updateMetadata: false }) : source;
     const indices = pageIndices ?? loaded.getPageIndices();
     const pages = await document.copyPages(loaded, indices);
+    const references = new Map(indices.map((sourceIndex, index) =>
+      [String(loaded.getPage(sourceIndex).ref), pages[index].ref]));
+    const destination = destinationReader(loaded);
+    pages.forEach((page, index) => {
+      const original = loaded.getPage(indices[index]).node.lookupMaybe(PDFName.of("Annots"), pdf.PDFArray);
+      const copied = page.node.lookupMaybe(PDFName.of("Annots"), pdf.PDFArray);
+      for (let annotationIndex = (original?.size() ?? 0) - 1; annotationIndex >= 0; annotationIndex--) {
+        if (!copied || annotationIndex >= copied.size()) continue;
+        const source = original!.lookup(annotationIndex, pdf.PDFDict), target = copied.lookup(annotationIndex, pdf.PDFDict);
+        const action = source.lookup(PDFName.of("A"));
+        if (!source.has(PDFName.of("Dest")) && !(action instanceof pdf.PDFDict &&
+            String(action.lookup(PDFName.of("S"))) === "/GoTo")) continue;
+        const dest = destination(source), reference = dest && references.get(String(dest.get(0)));
+        if (!dest || !reference) { copied.remove(annotationIndex); continue; }
+        const remapped = document.context.obj([reference, ...dest.asArray().slice(1)]);
+        if (source.has(PDFName.of("Dest"))) target.set(PDFName.of("Dest"), remapped);
+        else target.lookup(PDFName.of("A"), pdf.PDFDict).set(PDFName.of("D"), remapped);
+      }
+    });
     pages.forEach((page, index) => { document.addPage(page); each?.(page, indices[index]); });
     return pages;
   }
@@ -192,5 +251,5 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
     }
   }
   return { drawPageNumber, applyOcrText, applyPageLabels, applyOutlines, addInternalLink,
-    embedFonts, appendPages, assemble, volumes };
+    destinationReader, embedFonts, appendPages, assemble, volumes };
 }

@@ -1,16 +1,19 @@
 import { resolvePdfPagination } from "./pdfPagination";
 import JSZip from "jszip";
-import { Document as WordDocument, Packer, Paragraph, TextRun } from "docx";
+import { Document as WordDocument, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName,
   PDFNumber, PDFRawStream, StandardFonts } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
-import { authoritiesTextRoles, authorityPassageRequests, authorityPassageTargets,
+import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
   buildAuthorities, renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
-import { fit } from "./authoritiesBook";
+import { fit, renderAuthoritiesBook } from "./authoritiesBook";
+import { filingLinkUrl } from "./authoritiesFinalPdf";
+import type { NativePdfPassageGeometry } from "./structureNative";
+import * as pdfLibrary from "pdf-lib";
 
 async function sourcePdf(label: string, sizes: Array<[number, number]>) {
   const pdf = await PDFDocument.create();
@@ -90,6 +93,256 @@ const withForm66 = (state: AuthoritiesDraft) => {
   state.cover = structuredClone(FORM_66_COVER); return state;
 };
 
+function finalDraft(brief: Uint8Array, original: Uint8Array) {
+  const state = createAuthoritiesDraft({ kind: "document", bindingRole: "source",
+    filename: "Brief.pdf", fileType: "pdf", snapshot: null }, {
+    source: { kind: "local-file", handleId: "brief", lastSeen: { name: "Brief.pdf",
+      size: brief.length, modified: 1, sha256: sha256(brief) } },
+  }, "book");
+  state.bindings.original = { kind: "local-file", handleId: "original", lastSeen: { name: "Grant.pdf",
+    size: original.length, modified: 1, sha256: sha256(original) } };
+  const citation = "2009 SCC 32", text = `${citation} at para 12`;
+  state.authorities.grant = attached("grant", "case", citation, "R v Grant", "original", original);
+  state.authorityOrder = ["grant"];
+  state.units = [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+    footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["grant:0"] }];
+  state.occurrences["grant:0"] = { id: "grant:0", unitId: "body:0", start: 0, end: text.length,
+    text, authoritySpan: { start: 0, end: citation.length, text: citation },
+    coreSpan: { start: 0, end: citation.length, text: citation },
+    pinpointSpan: { start: text.indexOf("para 12"), end: text.length, text: "para 12" },
+    kind: "case", citation, authorityId: "grant", reference: null,
+    pinpoints: [{ kind: "paragraph", text: "12" }], evidenceIds: [],
+    sourceTextSha256: sha256(text), localOrdinal: 0, reviewed: true };
+  Object.assign(state.settings, { finalPdf: true, linkTabs: true, linkPinpoints: true, passageMarking: "none" });
+  return state;
+}
+
+const paragraphGeometry = (bytes: Uint8Array, status: "found" | "ambiguous" = "found"): NativePdfPassageGeometry => ({
+  schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(bytes), parserVersion: "test-fixture",
+  coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true,
+  targets: [{ id: "paragraph:12", locatorKind: "paragraph", locator: "12", status,
+    pages: status === "found" ? [{ pageNumber: 2, width: 400, height: 500,
+      source: "native", passageRects: [[36, 60, 320, 90]], text: "[12] Relevant paragraph." }] : [], quotes: [] }],
+});
+
+describe("Authorities final export", () => {
+  async function linkedBrief() {
+    const document = await PDFDocument.create(), page = document.addPage([612, 792]);
+    const font = await document.embedFont(StandardFonts.TimesRoman);
+    page.drawText("2009 SCC 32 at para 12 [Tab 1]", { x: 36, y: 700, font, size: 12 });
+    for (const [kind, rect] of [["tab", [190, 696, 240, 712]], ["pinpoint", [120, 696, 185, 712]]] as const)
+      page.node.addAnnot(document.context.register(document.context.obj({ Type: "Annot", Subtype: "Link",
+        Rect: [...rect], Border: [0, 0, 0], A: { S: "URI", URI: PDFHexString.fromText(filingLinkUrl(kind, "grant:0")) } })));
+    page.node.addAnnot(document.context.register(document.context.obj({ Type: "Annot", Subtype: "Link",
+      Rect: [36, 50, 150, 65], A: { S: "URI", URI: PDFHexString.fromText("https://example.test/original-link") } })));
+    return Buffer.from(await document.save());
+  }
+
+  it("combines the brief and book with exact tab and pinpoint targets and rebound book index links", async () => {
+    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const state = finalDraft(brief, original);
+    const result = await buildAuthorities({ draft: state, title: "Appeal", workProduct: { id: "final", revision: 1 },
+      sources: { source: { bytes: brief }, original: { bytes: original, passageGeometry: paragraphGeometry(original) } } });
+    expect(Object.keys(result.artifacts).sort()).toEqual(["book", "final-pdf"]);
+    expect(result.receipt.linkWarnings).toEqual([]);
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    expect(combined.getPageCount()).toBe(5);
+    expect(combined.getPage(3).getSize()).toEqual({ width: 400, height: 500 });
+    const links = pageAnnots(combined, 0);
+    const internal = links.filter((annotation) => annotation.has(PDFName.of("Dest")));
+    expect(internal).toHaveLength(2);
+    const destinations = internal.map((annotation) => annotation.lookup(PDFName.of("Dest"), PDFArray));
+    expect(String(destinations[0].get(0))).toBe(String(combined.getPage(3).ref));
+    expect(String(destinations[1].get(0))).toBe(String(combined.getPage(4).ref));
+    expect(String(destinations[1].get(1))).toBe("/XYZ");
+    expect(destinations[1].lookup(3, PDFNumber).asNumber()).toBe(440);
+    const originalLink = links.find((annotation) => annotation.has(PDFName.of("A")))!;
+    expect(originalLink.lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFHexString).decodeText())
+      .toBe("https://example.test/original-link");
+    const tocLink = pageAnnots(combined, 2).find((annotation) => annotation.has(PDFName.of("Dest")))!;
+    expect(String(tocLink.lookup(PDFName.of("Dest"), PDFArray).get(0)))
+      .toBe(String(combined.getPage(3).ref));
+    const root = combined.catalog.lookup(PDFName.of("Outlines"), PDFDict).lookup(PDFName.of("First"), PDFDict);
+    expect(root.lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe("Brief");
+    const book = root.lookup(PDFName.of("Next"), PDFDict);
+    expect(book.lookup(PDFName.of("Title"), PDFHexString).decodeText()).toBe("Book of authorities");
+    expect(String(book.lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(1).ref));
+  });
+
+  it("abstains from ambiguous manual pinpoints and supplies a concise manual-link report", async () => {
+    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const state = finalDraft(brief, original);
+    const result = await buildAuthorities({ draft: state, title: "Appeal", workProduct: { id: "ambiguous", revision: 1 },
+      sources: { source: { bytes: brief }, original: { bytes: original, passageGeometry: paragraphGeometry(original, "ambiguous") } } });
+    expect(result.receipt.linkWarnings).toEqual([{ occurrenceId: "grant:0", citation: "2009 SCC 32",
+      pinpoint: "para 12", tab: "Tab 1", reason: "pinpoint-ambiguous" }]);
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    expect(pageAnnots(combined, 0).filter((annotation) => annotation.has(PDFName.of("Dest")))).toHaveLength(1);
+    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("2009 SCC 32 — para 12 [Tab 1]: Pinpoint is ambiguous.");
+    expect(result.artifacts["link-report"]!.bytes.toString()).not.toContain("source PDF page");
+    state.settings.linkTabs = false; state.settings.linkPinpoints = false;
+    const plain = await buildAuthorities({ draft: state, title: "Plain", workProduct: { id: "plain", revision: 1 },
+      sources: { source: { bytes: brief }, original: { bytes: original } } });
+    expect(plain.receipt.linkWarnings).toBeUndefined();
+    expect(plain.artifacts["link-report"]).toBeUndefined();
+  });
+
+  it("does not link an inferred paragraph number to unnumbered source prose", async () => {
+    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const state = finalDraft(brief, original), geometry = paragraphGeometry(original);
+    geometry.targets[0].pages[0].text = "Fixture judgment / public synthetic";
+    const result = await buildAuthorities({ draft: state, title: "Unnumbered source",
+      workProduct: { id: "unnumbered", revision: 1 }, sources: {
+        source: { bytes: brief }, original: { bytes: original, passageGeometry: geometry },
+      } });
+    expect(result.receipt.linkWarnings).toEqual([{ occurrenceId: "grant:0", citation: "2009 SCC 32",
+      pinpoint: "para 12", tab: "Tab 1", reason: "pinpoint-unlocated" }]);
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    const links = pageAnnots(combined, 0).filter((annotation) => annotation.has(PDFName.of("Dest")));
+    expect(links).toHaveLength(1);
+    expect(String(links[0].lookup(PDFName.of("Dest"), PDFArray).get(1))).toBe("/Fit");
+  });
+
+  it("abstains from duplicate filing text while retaining verified target pages in the report", async () => {
+    const brief = await sourcePdf("2009 SCC 32 at para 12 repeated", [[612, 792]]);
+    const original = await sourcePdf("Original", [[400, 500], [400, 500]]), state = finalDraft(brief, original);
+    const geometry: NativePdfPassageGeometry = { ...paragraphGeometry(brief), targets: [{ id: "filing:grant:0",
+      locatorKind: "page", locator: "1", status: "found", pages: [], quotes: [
+        { text: "2009 SCC 32", status: "ambiguous", rects: [] },
+        { text: "para 12", status: "ambiguous", rects: [] },
+      ] }] };
+    const result = await buildAuthorities({ draft: state, title: "Duplicate", workProduct: { id: "duplicate", revision: 1 },
+      sources: { source: { bytes: brief, passageGeometry: geometry },
+        original: { bytes: original, passageGeometry: paragraphGeometry(original) } } });
+    expect(result.receipt.linkWarnings).toHaveLength(2);
+    expect(result.receipt.linkWarnings!.find(({ pinpoint }) => pinpoint !== null))
+      .toMatchObject({ reason: "citation-location", sourcePageNumber: 2 });
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    expect(pageAnnots(combined, 0)).toEqual([]);
+    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("source PDF page 2");
+  });
+
+  it("links existing PDF tab text and pinpoints using verified native quote geometry", async () => {
+    const brief = await sourcePdf("2009 SCC 32 at para 12 [Tab 1]", [[612, 792]]);
+    const original = await sourcePdf("Original", [[400, 500], [400, 500]]), state = finalDraft(brief, original);
+    state.units[0].text += " [Tab 1]";
+    const filingGeometry: NativePdfPassageGeometry = { ...paragraphGeometry(brief), targets: [{ id: "filing:grant:0",
+      locatorKind: "page", locator: "1", status: "found", pages: [{ pageNumber: 1, width: 612, height: 792,
+        source: "native", passageRects: [[36, 50, 300, 80]] }], quotes: [
+        { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190, 60, 240, 80]] },
+        { text: "para 12", status: "found", pageNumber: 1, rects: [[120, 60, 185, 80]] },
+      ] }] };
+    const result = await buildAuthorities({ draft: state, title: "Existing PDF", workProduct: { id: "native-geometry", revision: 1 },
+      sources: { source: { bytes: brief, passageGeometry: filingGeometry },
+        original: { bytes: original, passageGeometry: paragraphGeometry(original) } } });
+    expect(result.receipt.linkWarnings).toEqual([]);
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes), links = pageAnnots(combined, 0);
+    expect(links).toHaveLength(2);
+    expect(links[0].lookup(PDFName.of("Rect"), PDFArray).asArray().map((value) => (value as PDFNumber).asNumber()))
+      .toEqual([190, 712, 240, 732]);
+    expect(String(links[0].lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(3).ref));
+    expect(String(links[1].lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(4).ref));
+  });
+
+  it("keeps tab and pinpoint links correct when the book is split across volumes", async () => {
+    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const state = finalDraft(brief, original);
+    const result = await buildAuthorities({ draft: state, title: "Volumes", workProduct: { id: "volumes", revision: 1 },
+      sources: { source: { bytes: brief }, original: { bytes: original, passageGeometry: paragraphGeometry(original) } } },
+    async (plan, signal) => (await renderAuthoritiesBook(pdfLibrary, { ...plan,
+      limits: { maxPages: 3, maxBytes: 1024 * 1024 } }, signal)).map((book) => ({
+      role: book.role, filename: book.filename, mimeType: book.mimeType, bytes: Buffer.from(book.bytes),
+      pageCount: book.pageCount, sha256: sha256(book.bytes), bookPlacements: book.placements,
+    })));
+    expect(Object.keys(result.artifacts).sort()).toEqual(["book", "book-2", "final-pdf"]);
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    expect(combined.getPageCount()).toBe(7);
+    const links = pageAnnots(combined, 0).filter((annotation) => annotation.has(PDFName.of("Dest")));
+    expect(String(links[0].lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(3).ref));
+    expect(String(links[1].lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(6).ref));
+    for (const [toc, target] of [[2, 3], [5, 6]]) {
+      const link = pageAnnots(combined, toc).find((annotation) => annotation.has(PDFName.of("Dest")))!;
+      expect(String(link.lookup(PDFName.of("Dest"), PDFArray).get(0))).toBe(String(combined.getPage(target).ref));
+    }
+  });
+
+  it("keeps missing latest authority slots as labelled stubs and refuses altered source bytes", async () => {
+    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const state = finalDraft(brief, original);
+    state.settings.allowIncomplete = true;
+    state.bindings.original = { kind: "document", documentId: "deleted", version: "latest" };
+    const result = await buildAuthorities({ draft: state, title: "Missing", workProduct: { id: "missing-final", revision: 1 },
+      sources: { source: { bytes: brief } } });
+    expect(result.receipt.inputs.map(({ role }) => role)).toEqual(["source"]);
+    expect(result.receipt.authorities[0]).toMatchObject({ tab: "Tab 1", source: { kind: "attached" } });
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    expect(combined.getPageCount()).toBe(4);
+    expect(combined.getTitle()).toContain("DRAFT");
+    expect(pageContent(combined, combined.getPage(3)).toUpperCase()).toContain(pdfTextHex("Source PDF unavailable"));
+    await expect(buildAuthorities({ draft: state, title: "Changed", workProduct: { id: "changed", revision: 1 },
+      sources: { source: { bytes: original } } })).rejects.toThrow(/changed/iu);
+  });
+
+  it("marks Word citations and references with the current tab while keeping excluded citations untouched", async () => {
+    const body = "2009 SCC 32 at para 12", note = "Ibid at para 13", excluded = "2020 SCC 1";
+    const word = await Packer.toBuffer(new WordDocument({ footnotes: { 7: { children: [new Paragraph(note)] } },
+      sections: [{ children: [new Paragraph({ children: [new TextRun(body), new FootnoteReferenceRun(7)] }), new Paragraph(excluded)] }] }));
+    const original = await sourcePdf("Original", [[400, 500], [400, 500]]), state = finalDraft(word, original);
+    if (state.import.kind !== "document") throw new Error("Invalid fixture");
+    state.import.fileType = "docx"; state.import.filename = "Brief.docx";
+    Object.assign(state.settings, { finalPdf: false, linkTabs: false, linkPinpoints: false,
+      tableDelivery: "native-marks", citationSuffix: "book-tab", tabStart: 3 });
+    state.insertIntoDocument = true;
+    state.authorities.excluded = { ...state.authorities.grant, id: "excluded", key: "excluded",
+      citation: excluded, name: "Excluded", excluded: true, source: { kind: "unresolved" } };
+    state.authorityOrder.unshift("excluded");
+    state.units.push({ id: "body:1", kind: "body", ordinal: 1, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [], text: excluded, occurrenceIds: ["excluded:0"] },
+    { id: "footnote:7", kind: "footnote", ordinal: 2, footnoteId: 7,
+      footnoteRefs: [], pageNumbers: [], text: note, occurrenceIds: ["grant:ref"] });
+    state.units[0].footnoteRefs = [[7, body.length]];
+    const occurrence = state.occurrences["grant:0"];
+    state.occurrences["excluded:0"] = { ...occurrence, id: "excluded:0", unitId: "body:1",
+      start: 0, end: excluded.length, text: excluded, citation: excluded, authorityId: "excluded",
+      authoritySpan: { start: 0, end: excluded.length, text: excluded },
+      coreSpan: { start: 0, end: excluded.length, text: excluded }, pinpointSpan: null, pinpoints: [] };
+    state.occurrences["grant:ref"] = { ...occurrence, id: "grant:ref", unitId: "footnote:7", kind: "reference",
+      start: 0, end: note.length, text: note, citation: "Ibid",
+      authoritySpan: { start: 0, end: 4, text: "Ibid" }, coreSpan: { start: 0, end: 4, text: "Ibid" },
+      pinpointSpan: { start: note.indexOf("para 13"), end: note.length, text: "para 13" },
+      reference: { kind: "ibid", targetAuthorityId: "grant" }, pinpoints: [{ kind: "paragraph", text: "13" }] };
+    const build = () => buildAuthorities({ draft: state, title: "Word", workProduct: { id: "word-options", revision: 1 },
+      sources: { source: { bytes: word }, original: { bytes: original } } });
+    const marked = await build(), zip = await JSZip.loadAsync(marked.artifacts["annotated-document"]!.bytes);
+    expect(Object.keys(marked.artifacts).sort()).toEqual(["annotated-document", "book"]);
+    const xml = await zip.file("word/document.xml")!.async("string");
+    expect(xml.match(/ TA /gu)).toHaveLength(1);
+    expect(xml).not.toContain(" TOA ");
+    expect(xml).toContain("[Book of authorities Tab 3]");
+    expect(xml).not.toContain("[Book of authorities Not reproduced]");
+    const notes = await zip.file("word/footnotes.xml")!.async("string");
+    expect(notes).toContain("[Book of authorities Tab 3]"); expect(notes).toContain(" TA ");
+    state.settings.tableDelivery = "native-append"; state.settings.citationSuffix = "tab";
+    const table = await build(), tableXml = await (await JSZip.loadAsync(table.artifacts["annotated-document"]!.bytes))
+      .file("word/document.xml")!.async("string");
+    expect(tableXml).toContain(" TOA "); expect(tableXml).toContain("[Tab 3]");
+
+    state.settings.finalPdf = true;
+    const converted = await buildAuthorities({ draft: state, title: "Converted", workProduct: { id: "converted", revision: 1 },
+      sources: { source: { bytes: word }, original: { bytes: original } }, finalPdfSource: async (bytes) => {
+        const conversionXml = await (await JSZip.loadAsync(bytes)).file("word/document.xml")!.async("string");
+        expect(conversionXml).toContain("TABLE OF AUTHORITIES");
+        expect(conversionXml).toContain("R v Grant");
+        expect(conversionXml).not.toContain(" TOA ");
+        return sourcePdf("Converted brief and visible table", [[612, 792], [612, 792]]);
+      } });
+    expect(converted.artifacts["final-pdf"]?.pageCount).toBe(6);
+    const retainedWord = await (await JSZip.loadAsync(converted.artifacts["annotated-document"]!.bytes))
+      .file("word/document.xml")!.async("string");
+    expect(retainedWord).toContain(" TA "); expect(retainedWord).toContain(" TOA ");
+  });
+});
+
 function draft(
   casePdf: Uint8Array, legislationPdf: Uint8Array, imported = false,
 ): AuthoritiesDraft {
@@ -163,6 +416,36 @@ function draft(
 }
 
 describe("Authorities output builder", () => {
+  it("renders reconstructed Markdown as styled searchable text without losing literal characters", async () => {
+    const bytes = await renderAuthoritySourcePdf({ kind: "legislation", name: "Example Act",
+      citation: "SC 2026, c 1", date: null, sourceUrl: null,
+      text: "## Interpretation\n\n**Defined term** means *a person* and ***both styles***.\n\n" +
+        "> Quoted provision\n\n7. First item\n8. Second item\n\n" +
+        "[Official source](https://example.test/law) and `section_id` with escaped \\*literal\\*.\n\n" +
+        "| Term | Meaning |\n| --- | --- |\n| Act | This Act |" });
+    const document = await PDFDocument.load(bytes), page = document.getPage(0);
+    const content = pageContent(document, page);
+    const text = [...content.matchAll(/<([\dA-F]+)>\s*Tj/giu)]
+      .map(match => Buffer.from(match[1], "hex").toString("latin1")).join("");
+    expect(text).toContain("Defined term means a person and both styles.");
+    expect(text).toContain("7. First item");
+    expect(text).toContain("8. Second item");
+    expect(text).toContain("Official source and section_id with escaped *literal*.");
+    expect(text).not.toMatch(/##|\*\*|https:\/\/|\[Official|---/u);
+    const fonts = page.node.Resources()!.lookup(PDFName.of("Font"), PDFDict);
+    const fontFor = (value: string) => {
+      const name = new RegExp(`/([^\\s]+) [\\d.]+ Tf\\s+[\\s\\S]*?<${pdfTextHex(value)}> Tj`, "u");
+      // Each drawText has its own graphics state; inspect the run containing this text.
+      const operation = content.split(/\bq\b/u).find(part => part.includes(`<${pdfTextHex(value)}> Tj`))!;
+      const match = operation.match(name)!;
+      return fonts.lookup(PDFName.of(match[1]), PDFDict).lookup(PDFName.of("BaseFont")).toString();
+    };
+    expect(fontFor("Defined term")).toBe("/Times-Bold");
+    expect(fontFor("a person")).toBe("/Times-Italic");
+    expect(fontFor("both styles")).toBe("/Times-BoldItalic");
+    expect(fontFor("section_id")).toBe("/Courier");
+  });
+
   it("renders publisher text containing Unicode punctuation and multiline titles", async () => {
     const bytes = await renderAuthoritySourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
       citation: "2026 SCC 16", date: null, sourceUrl: null,
@@ -262,7 +545,7 @@ describe("Authorities output builder", () => {
   });
 
   it("renders each passage-marking style from exact PDF geometry", async () => {
-    const pdf = await sourcePdf("Passage", [[400, 500]]);
+    const pdf = await sourcePdf("[1] exact words", [[400, 500]]);
     const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
     state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
     state.authorities.item.locators = [{ kind: "paragraph", label: "1" }];
@@ -277,7 +560,7 @@ describe("Authorities output builder", () => {
       rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
         locatorKind: "paragraph" as const, locator: "1",
         pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
-          passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
+          text: "[1] exact words", passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
         quotes: [{ text: "exact words", status: "found" as const, pageNumber: 1,
           rects: [[70, 65, 170, 78] as [number, number, number, number]] }] }],
     };
@@ -860,8 +1143,9 @@ describe("Authorities output builder", () => {
         sha256: filingSha } };
     withFiling.bindings.source = { kind: "document", documentId: "factum",
       version: { versionId: "v1", sha256: filingSha } };
-    const filingDraft = reduceAuthoritiesDraft(withFiling,
-      { type: "set-profile", profileId: "ab-court-of-appeal" });
+    const filingDraft = reduceAuthoritiesDraft(reduceAuthoritiesDraft(withFiling,
+      { type: "set-profile", profileId: "ab-court-of-appeal" }),
+      { type: "set-document-output", enabled: true });
     if (filingDraft.authorities.grant.source.kind !== "attached")
       throw new Error("invalid fixture");
     filingDraft.authorities.grant.source.sources[0].sourceUrl = "https://decisions.scc-csc.ca/grant";
@@ -1016,7 +1300,7 @@ describe("Authorities output builder", () => {
       rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
         locatorKind: "paragraph" as const, locator: "10",
         pages: [{ pageNumber: 6, width: 400, height: 500, source: "native" as const,
-          passageRects: [[40, 40, 300, 90] as [number, number, number, number]] }], quotes: [] }] };
+          text: "[10] cited", passageRects: [[40, 40, 300, 90] as [number, number, number, number]] }], quotes: [] }] };
     const encoded = (value: string) => Buffer.from(value, "latin1").toString("hex").toUpperCase();
     for (const profileId of ["federal-court", "federal-court-appeal",
       "federal-court-of-appeal"] as const) {
@@ -1048,7 +1332,6 @@ describe("Authorities output builder", () => {
         .lookup(PDFName.of("A"), PDFDict).lookup(PDFName.of("URI"), PDFHexString).decodeText();
       expect(databaseLink).toBe(sourceUrl);
       expect(annotSubtypes(book, 5)).toEqual(["/Square", "/Link"]);
-      expect(annotContents(book, 5)[0]).toBe("Cited passage — para 10");
       const authorityOutline = book.catalog.lookup(PDFName.of("Outlines"), PDFDict)
         .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
         .lookup(PDFName.of("Next"), PDFDict).lookup(PDFName.of("First"), PDFDict);

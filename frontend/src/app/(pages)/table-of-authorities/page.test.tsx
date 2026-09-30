@@ -353,6 +353,8 @@ describe("Authorities UI contracts", () => {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 
     await userEvent.upload(screen.getByLabelText("Add file"), file);
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Word output" }))
+      .getByRole("button", { name: "Next" }));
     const setup = screen.getByRole("dialog", { name: "Import options" });
     await userEvent.click(within(setup).getByLabelText(/Use available original PDFs and manually add the PDFs myself for the rest/));
     await userEvent.click(within(setup).getByLabelText(/Highlight exact quotes/));
@@ -361,11 +363,37 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.createAuthorities).toHaveBeenCalledWith({
       source: { kind: "document", documentId: "uploaded-document", version: "latest" },
       title: "Factum", projectId: undefined,
-      settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "text" },
+      settings: { profileId: "general", sourceMode: "manual-originals", passageMarking: "text",
+        insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
     }));
     expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Add file for Example v Example")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { label: "Build a book only", insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
+    { label: "Mark authorities in Word", insertIntoDocument: true, tableDelivery: "native-marks", citationSuffix: "none" },
+    { label: "Mark authorities and add a table", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "none" },
+    { label: "Mark, add a table and append tab references", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "tab" },
+  ] as const)("imports the Word output choice: $label", async ({ label, ...settings }) => {
+    api.uploadAuthoritiesDocument.mockResolvedValue({ id: "word-source" });
+    api.createAuthorities.mockResolvedValue(documentDraft());
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      {...workspaceRoute()} /></MemoryRouter>);
+    await userEvent.upload(screen.getByLabelText("Add file"), new File(["PK"], "Factum.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }));
+    const word = screen.getByRole("dialog", { name: "Word output" });
+    await userEvent.click(within(word).getByRole("radio", { name: new RegExp(label) }));
+    if (settings.citationSuffix === "tab")
+      await userEvent.click(within(word).getByRole("radio", { name: "[Tab 1]" }));
+    await userEvent.click(within(word).getByRole("button", { name: "Next" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Import options" }))
+      .getByRole("button", { name: "Import and review" }));
+    await waitFor(() => expect(api.createAuthorities).toHaveBeenCalledWith(expect.objectContaining({
+      settings: expect.objectContaining(settings),
+    })));
   });
 
   it("restores the rebuild-from-text preference", async () => {
@@ -382,6 +410,8 @@ describe("Authorities UI contracts", () => {
     await userEvent.upload(screen.getByLabelText("Add file"), new File(["PK"], "Factum.docx", {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Word output" }))
+      .getByRole("button", { name: "Next" }));
     expect(within(screen.getByRole("dialog", { name: "Import options" }))
       .getByRole("radio", { name: /Automatic sources/ })).toBeChecked();
   });
@@ -637,14 +667,12 @@ describe("Authorities UI contracts", () => {
       <AuthoritiesWorkspace host={beaverAuthoritiesHost} {...workspaceRoute("draft-1")} />
     </MemoryRouter>);
 
-    const item = await screen.findByRole("option", { name: /In-text citation 1/ });
+    const item = await screen.findByRole("option", { name: /R v Example/ });
     expect(item).toHaveTextContent(citation);
-    const context = screen.getByRole("textbox", { name: "In-text citation context" });
+    const context = await screen.findByRole("textbox", { name: "In-text citation context" });
     expect(context).toHaveTextContent(styled);
-    expect(context.querySelector("mark")).toHaveTextContent(styled);
-    expect(within(context.parentElement!).getAllByRole("button").map(({ textContent }) => textContent))
-      .toEqual(["Use selection as citation", "Use selection as pinpoint", "Split at cursor",
-        "Merge with previous", "Not a citation"]);
+    expect(context.querySelector("[data-citation-id]")).toHaveTextContent(styled);
+
     expect(screen.queryByRole("checkbox", { name: "Reviewed" })).not.toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Authority tab slots" })).not.toBeInTheDocument();
   });
@@ -663,39 +691,97 @@ describe("Authorities UI contracts", () => {
       sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
     add(saved, { ...authority("authority-1", "R v Example", { kind: "unresolved" }),
       citation: "2024 ABKB 1" });
-    const changed = structuredClone(saved); changed.revision = 2;
+    const gathered = structuredClone(saved); gathered.revision = 2;
+    gathered.state.authorities["authority-1"].source = { kind: "resolved" };
+    const changed = structuredClone(gathered); changed.revision = 3;
     changed.state.occurrences["occurrence-1"].authoritySpan =
       { start: 0, end, text: text.slice(0, end) };
     changed.state.occurrences["occurrence-1"].reviewed = true;
+    const gathering = deferred<AuthoritiesProduct>();
     const update = deferred<AuthoritiesProduct>(), onDraftChange = vi.fn();
     api.getWorkProduct.mockResolvedValue(saved);
+    api.prepareAuthoritiesSources.mockReturnValue(gathering.promise);
     api.actOnAuthorities.mockReturnValue(update.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} onDraftChange={onDraftChange} /></MemoryRouter>);
 
     const context = await screen.findByRole("textbox", { name: "In-text citation context" });
     expect(api.reviewAuthorities).not.toHaveBeenCalled();
-    expect([...context.querySelectorAll<HTMLElement>("[data-authority-span]")]
+    expect([...context.querySelectorAll<HTMLElement>("[data-citation-id]")]
       .map((node) => node.textContent).join("")).toBe(text.slice(start, end));
-    expect([...context.querySelectorAll<HTMLElement>("[data-pinpoint-span]")]
+    expect([...context.querySelectorAll<HTMLElement>("[data-pinpoint]")]
       .map((node) => node.textContent).join("")).toBe(text.slice(pinpoint, end));
-    expect(context.querySelector("[data-authority-span][data-pinpoint-span]")).not.toBeNull();
+
 
     selectRange(context, 0, end);
-    const useSelection = screen.getByRole("button", { name: "Use selection as citation" });
+    gathering.resolve(gathered);
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(gathered, true));
+    expect(window.getSelection()?.toString()).toBe(text.slice(0, end));
+    const useSelection = screen.getByRole("button", { name: "Set citation" });
     expect(useSelection).toBeEnabled();
     await userEvent.click(useSelection);
-    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
-      type: "set-authority-span", occurrenceId: "occurrence-1", start: 0, end,
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 2, {
+      type: "set-citation-range", occurrenceId: "occurrence-1", start: 0, end,
     }));
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toHaveTextContent("Updating authorities");
-    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(saved, false));
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(gathered, false));
     expect(useSelection).toBeDisabled();
     update.resolve(changed);
     await waitFor(() => expect(useSelection).toBeDisabled());
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(changed, true));
     expect(window.getSelection()?.rangeCount).toBe(0);
+  });
+
+  it("groups citations by location and follows the visible order during keyboard review", async () => {
+    const saved = documentDraft();
+    saved.state.units = [
+      { id: "body:0", kind: "body", ordinal: 0, footnoteId: null, footnoteRefs: [],
+        pageNumbers: [1], text: "Alpha; Beta", occurrenceIds: ["alpha", "beta"] },
+      { id: "note:7", kind: "footnote", ordinal: 1, footnoteId: 7, footnoteRefs: [],
+        pageNumbers: [1], text: "Gamma", occurrenceIds: ["gamma"] },
+      { id: "body:2", kind: "body", ordinal: 2, footnoteId: null, footnoteRefs: [],
+        pageNumbers: [2], text: "Delta", occurrenceIds: ["delta"] },
+      { id: "note:fallback", kind: "footnote", ordinal: 8, footnoteId: null, footnoteRefs: [],
+        pageNumbers: [2], text: "Echo", occurrenceIds: ["echo"] },
+    ];
+    const occurrence = (id: string, unitId: string, citation: string, start = 0, ordinal = 0) => ({
+      id, unitId, start, end: start + citation.length, text: citation, kind: "other" as const,
+      citation, authoritySpan: { start, end: start + citation.length, text: citation },
+      coreSpan: { start, end: start + citation.length, text: citation }, pinpointSpan: null,
+      authorityId: null, reference: null, pinpoints: [], evidenceIds: [],
+      sourceTextSha256: "a".repeat(64), localOrdinal: ordinal, reviewed: false,
+    });
+    saved.state.occurrences = {
+      alpha: occurrence("alpha", "body:0", "Alpha"),
+      beta: occurrence("beta", "body:0", "Beta", 7, 1),
+      gamma: occurrence("gamma", "note:7", "Gamma"),
+      delta: occurrence("delta", "body:2", "Delta"),
+      echo: occurrence("echo", "note:fallback", "Echo"),
+    };
+    api.getWorkProduct.mockResolvedValue(saved);
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      {...workspaceRoute("draft-1")} /></MemoryRouter>);
+
+    const list = await screen.findByRole("listbox", { name: "Citations" });
+    const choices = within(list).getAllByRole("option");
+    const labels = ["Alpha", "Beta", "Delta", "Gamma", "Echo"];
+    labels.forEach((label, index) => expect(within(choices[index]).getByText(label)).toBeVisible());
+    choices[0].focus();
+    await userEvent.keyboard("{End}");
+    expect(choices[4]).toHaveFocus();
+    expect(choices[4]).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("textbox", { name: "Footnote context" })).toHaveTextContent("Echo");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(choices[3]).toHaveFocus();
+    expect(choices[3]).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("textbox", { name: "Footnote context" })).toHaveTextContent("Gamma");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(choices[2]).toHaveFocus();
+    expect(await screen.findByRole("textbox", { name: "In-text citation context" })).toHaveTextContent("Delta");
+    await userEvent.keyboard("{Home}");
+    expect(choices[0]).toHaveFocus();
+    expect(await screen.findByRole("textbox", { name: "In-text citation context" })).toHaveTextContent("Alpha; Beta");
   });
 
   it("keeps the right citation selected after splitting a later footnote span", async () => {
@@ -971,7 +1057,7 @@ describe("Authorities UI contracts", () => {
   });
 
   it.each(["federal-court", "ab-court-of-kings-bench"] as const)(
-    "stops a required-source %s book before final build", async (profile) => {
+    "warns before building an incomplete %s book", async (profile) => {
       const saved = add(documentDraft(),
         authority("missing", "Missing decision", { kind: "unresolved" }));
       saved.state.outputMode = "book"; saved.state.stage = "build";
@@ -994,12 +1080,84 @@ describe("Authorities UI contracts", () => {
       await userEvent.click(await screen.findByRole("button", { name: "Build" }));
 
       const warning = await screen.findByRole("dialog", { name: /Missing PDFs/u });
-      expect(within(warning).getByText(/1 authority has no PDF/u)).toBeVisible();
+      expect(within(warning).getByRole("listitem")).toHaveTextContent("Missing decision citation");
+      expect(within(warning).getByRole("button", { name: "Build anyway" })).toBeEnabled();
       expect(api.buildAuthorities).not.toHaveBeenCalled();
       await userEvent.click(within(warning).getByRole("button", { name: "Close" }));
       expect(screen.queryByRole("dialog", { name: /Missing PDFs/u })).not.toBeInTheDocument();
       expect(api.buildAuthorities).not.toHaveBeenCalled();
     });
+
+  it("allows a build after warning about a deleted attached PDF", async () => {
+    const saved = add(draft(), authority("missing", "Deleted decision",
+      attachedSource("authority:missing", "Deleted.pdf")));
+    saved.state.bindings["authority:missing"] = { kind: "document", documentId: "deleted", version: "latest" };
+    const allowed = structuredClone(saved); allowed.revision += 1;
+    allowed.state.settings.allowIncomplete = true;
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.getWorkProductResolution.mockResolvedValue({ inputs: {
+      "authority:missing": { status: "missing", reason: "deleted" },
+    } });
+    api.actOnAuthorities.mockResolvedValue(allowed);
+    api.buildAuthorities.mockResolvedValue({ product: allowed, receipt: {} });
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      {...workspaceRoute(saved.id)} /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "Build" }));
+    const warning = await screen.findByRole("dialog", { name: "Missing PDFs" });
+    expect(api.buildAuthorities).not.toHaveBeenCalled();
+    await userEvent.click(within(warning).getByRole("button", { name: "Build anyway" }));
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith(saved.id, saved.revision,
+      { type: "set-settings", settings: { allowIncomplete: true } }));
+    await waitFor(() => expect(api.buildAuthorities).toHaveBeenCalledWith(saved.id, allowed.revision,
+      expect.any(AbortSignal)));
+  });
+
+  it("offers an unlinked-citations report after a final export abstains", async () => {
+    const saved = documentDraft(); saved.state.stage = "build";
+    saved.state.settings = { ...saved.state.settings, finalPdf: true, linkPinpoints: true };
+    const built = structuredClone(saved); built.revision += 1;
+    built.outputs["final-pdf"] = { documentId: "final", versionId: "v1", filename: "Brief and Book.pdf" };
+    built.outputs["link-report"] = { documentId: "report", versionId: "v2", filename: "Unlinked citations.txt" };
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.buildAuthorities.mockResolvedValue({ product: built, receipt: { linkWarnings: [
+      { occurrenceId: "o1", citation: "2024 ABKB 1", pinpoint: "7", reason: "pinpoint-unlocated" },
+    ] } });
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      {...workspaceRoute(saved.id)} /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "Build" }));
+    expect(await screen.findByText(/1 link wasn't added/u)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Download Unlinked citations.txt" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Download Brief and Book.pdf" })).toBeEnabled();
+  });
+
+  it("keeps final PDF preferences independent from the Word output choice", async () => {
+    let current = documentDraft(); current.state.stage = "build";
+    current.state.insertIntoDocument = false;
+    api.getWorkProduct.mockResolvedValue(current);
+    api.actOnAuthorities.mockImplementation(async (_id, _revision, action) => {
+      current = structuredClone(current); current.revision += 1;
+      if (action.type === "set-settings") Object.assign(current.state.settings, action.settings);
+      return current;
+    });
+    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+      {...workspaceRoute(current.id)} /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "Final PDF export" }));
+    const dialog = screen.getByRole("dialog", { name: "Final PDF export" });
+    expect(within(dialog).queryByRole("checkbox", { name: /Link pinpoints/u })).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: /Append the book/u }));
+    const tabLinks = await within(dialog).findByRole("checkbox", { name: /Link tab references/u });
+    await waitFor(() => expect(tabLinks).toBeEnabled());
+    await userEvent.click(tabLinks);
+    await waitFor(() => expect(tabLinks).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole("checkbox", { name: /Link pinpoints/u }));
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Done" })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Word output" }));
+    expect(within(screen.getByRole("dialog", { name: "Word output" }))
+      .getByRole("radio", { name: /Build a book only/u })).toBeChecked();
+    expect(current.state.settings).toMatchObject({ finalPdf: true, linkTabs: true, linkPinpoints: true });
+    expect(current.state.insertIntoDocument).toBe(false);
+  });
 
   it("remembers a missing attached PDF and offers its replacement", async () => {
     const saved = add(draft(), authority("alpha", "Alpha",
@@ -1045,6 +1203,58 @@ describe("Authorities UI contracts", () => {
     expect(screen.getByText("Tab 1")).toBeVisible();
     expect(await screen.findByRole("button", { name: "Upload for Alpha" })).toBeVisible();
   });
+
+  it("shows a restored authority PDF when its replacement has the same binding and hash", async () => {
+    const saved = add(draft(), authority("alpha", "Alpha",
+      attachedSource("authority:alpha", "alpha.pdf")));
+    saved.state.stage = "sources";
+    saved.state.bindings["authority:alpha"] = { kind: "document", documentId: "alpha", version: "latest" };
+    const restored = structuredClone(saved); restored.revision += 1;
+    let readable = false;
+    api.getWorkProduct.mockResolvedValue(saved);
+    api.getWorkProductResolution.mockImplementation(async () => ({ inputs: readable ? {} : {
+      "authority:alpha": { status: "missing", reason: "deleted" },
+    } }));
+    api.attachAuthorityPdf.mockImplementation(async () => { readable = true; return restored; });
+    const host = { ...beaverAuthoritiesHost, readSource: async () => new Blob(["%PDF-1.7"]) };
+    render(<MemoryRouter><AuthoritiesWorkspace host={host}
+      {...workspaceRoute(saved.id)} /></MemoryRouter>);
+
+    const row = (await screen.findByRole("heading", { name: "Alpha" })).closest("article")!;
+    expect(await within(row).findByText("PDF unavailable")).toBeVisible();
+    await userEvent.upload(within(row).getByLabelText("Upload PDF for Alpha"),
+      new File(["%PDF-1.7"], "alpha.pdf", { type: "application/pdf" }));
+    expect(await within(row).findByRole("button", { name: "View PDF for Alpha" })).toBeEnabled();
+    expect(within(row).queryByText("PDF unavailable")).not.toBeInTheDocument();
+    expect(within(row).getByText("Tab 1")).toBeVisible();
+  });
+
+  it.each(["cover", "index", "supplemental"] as const)(
+    "recognizes restored shared PDF bytes after replacing a %s with the same file", async (slot) => {
+      const saved = add(draft(), authority("alpha", "Alpha",
+        attachedSource("authority:alpha", "shared.pdf")));
+      saved.state.bindings["authority:alpha"] = { kind: "document", documentId: "shared", version: "latest" };
+      const part = { bindingRole: `book:${slot}`, filename: "shared.pdf", sourceSha256: "a".repeat(64) };
+      saved.state.bindings[part.bindingRole] = saved.state.bindings["authority:alpha"];
+      if (slot === "supplemental") saved.state.bookParts.supplements = [{ ...part, id: "shared" }];
+      else saved.state.bookParts[slot] = part;
+      const restored = structuredClone(saved); restored.revision += 1;
+      let readable = false;
+      api.getWorkProduct.mockResolvedValue(saved);
+      api.getWorkProductResolution.mockImplementation(async () => ({ inputs: readable ? {} : {
+        "authority:alpha": { status: "missing", reason: "deleted" },
+      } }));
+      api.attachAuthoritiesBookPdf.mockImplementation(async () => { readable = true; return restored; });
+      render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
+        {...workspaceRoute(saved.id)} /></MemoryRouter>);
+
+      expect(await screen.findByText(/1 missing PDF/u)).toBeVisible();
+      const row = slot === "supplemental" ? screen.getByText("shared.pdf").closest("div.grid")!
+        : screen.getByText(slot === "cover" ? "Cover" : "Index").parentElement!;
+      await userEvent.upload(within(row).getByLabelText("Replace"),
+        new File(["%PDF-1.7"], "shared.pdf", { type: "application/pdf" }));
+      await waitFor(() => expect(screen.queryByText(/1 missing PDF/u)).not.toBeInTheDocument());
+    });
 
   // A Beaver input the last build read at an older version is not an issue: the next build
   // reads the current file, and relinking it on open bumped the revision on every open
@@ -1323,6 +1533,8 @@ describe("Authorities UI contracts", () => {
     expect(contents).toBeVisible();
     expect(screen.queryByText(/labelled pages will be added/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Build" }));
+    await userEvent.click(within(await screen.findByRole("dialog", { name: "Missing PDFs" }))
+      .getByRole("button", { name: "Build anyway" }));
     await waitFor(() => expect(api.buildAuthorities).toHaveBeenCalledWith(
       "draft-1", 2, expect.any(AbortSignal)));
     expect(screen.getByText("Saved to Court outputs")).toBeVisible();
@@ -1393,7 +1605,7 @@ describe("Authorities UI contracts", () => {
       { type: "set-cover", cover: covered.state.cover }));
     await waitFor(() => expect(within(screen.getByText("Cover").parentElement!)
       .getByText("Generated")).toBeVisible());
-    expect(screen.getByText("1 missing PDF.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Build" })).toBeEnabled();
     const filedBy = screen.getByLabelText("Filed by");
     expect(within(filedBy).getAllByRole("option").map(({ textContent }) => textContent))
       .toEqual(["Plaintiff", "Defendant", "Applicant", "Respondent", "Moving party",
@@ -1444,7 +1656,10 @@ describe("Authorities UI contracts", () => {
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     await screen.findByRole("button", { name: /Court:/u });
-    expect(screen.getByText("1 missing PDF.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Build" }));
+    const missing = await screen.findByRole("dialog", { name: "Missing PDFs" });
+    expect(within(missing).getByRole("button", { name: "Build anyway" })).toBeEnabled();
+    await userEvent.click(within(missing).getByRole("button", { name: "Close" }));
     await userEvent.click(screen.getByText("Options"));
     expect(screen.queryByLabelText("Missing sources")).not.toBeInTheDocument();
   });

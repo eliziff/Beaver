@@ -2,6 +2,7 @@ import { structureNative, type NativePdfPassageGeometry } from "./structureNativ
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
 import { reporterStartPages } from "./pdfPagination";
+import { docxToPdf } from "./convert";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
@@ -23,6 +24,7 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { documentProjectionService } from "./documentProjectionService";
+import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -144,8 +146,9 @@ export function createAuthoritiesWorkspaceApplication(
   }
 
   async function currentLibraryVersion(scope: ApplicationScope, binding: LibraryBinding,
-    expected: "pdf" | "docx") {
+    expected: "pdf" | "docx", allowMissing = false) {
     const version = await documents.metadata(scope, binding.documentId);
+    if (!version && allowMissing) return null;
     if (!version) throw new ApplicationError(409,
       "This Library file is no longer available. Add it again.");
     if (version.file_type.toLowerCase() !== expected) throw new ApplicationError(409,
@@ -170,7 +173,7 @@ export function createAuthoritiesWorkspaceApplication(
     if (draft.import.kind === "document") {
       const binding = libraryBinding(draft, draft.import.bindingRole);
       if (binding.version === "latest") {
-        const version = await currentLibraryVersion(scope, binding, draft.import.fileType);
+        const version = (await currentLibraryVersion(scope, binding, draft.import.fileType))!;
         const snapshot = draft.import.snapshot;
         if (!snapshot || snapshot.documentId !== binding.documentId ||
             snapshot.versionId !== version.id || snapshot.sha256 !== version.source_sha256 ||
@@ -185,9 +188,15 @@ export function createAuthoritiesWorkspaceApplication(
       const binding = libraryBinding(draft, role);
       return binding.version === "latest" ? [{ role, binding }] : [];
     });
+    const plan = createAuthoritiesPreparation(draft);
+    const authorityRoles = new Set(plan.authoritySources
+      .map(({ source }) => source.bindingRole));
+    const bookRoles = new Set(plan.bookPdfs
+      .map(({ bindingRole }) => bindingRole));
     const current = await Promise.all(latest.map(async (item) => ({ ...item,
-      version: await currentLibraryVersion(scope, item.binding, "pdf") })));
-    for (const item of current) draft = adoptCurrentPdf(
+      version: await currentLibraryVersion(scope, item.binding, "pdf",
+        !!draft.settings.allowIncomplete && authorityRoles.has(item.role) && !bookRoles.has(item.role)) })));
+    for (const item of current) if (item.version) draft = adoptCurrentPdf(
       draft, item.role, item.binding, item.version);
     return draft;
   }
@@ -200,6 +209,7 @@ export function createAuthoritiesWorkspaceApplication(
   async function buildSources(scope: ApplicationScope, draft: AuthoritiesDraft,
     signal?: AbortSignal) {
     const result: NonNullable<AuthoritiesBuildInput["sources"]> = {};
+    const plan = createAuthoritiesPreparation(draft);
     if (draft.import.kind === "document" && draft.import.snapshot) {
       const { bindingRole, snapshot, filename } = draft.import;
       const binding = libraryBinding(draft, bindingRole);
@@ -219,7 +229,7 @@ export function createAuthoritiesWorkspaceApplication(
       result[bindingRole] = { resolved: { kind: "document",
         documentId: source.documentId, versionId: source.versionId,
         filename: resolvedFilename, sha256: source.sourceSha256 } };
-      if (draft.insertIntoDocument) {
+      if (draft.insertIntoDocument || draft.settings.finalPdf) {
         const file = await documents.read(scope, binding.documentId, source.versionId, false);
         if (!file || file.fileType.toLowerCase() !== draft.import.fileType ||
             file.version.source_sha256 !== snapshot.sha256 ||
@@ -227,18 +237,22 @@ export function createAuthoritiesWorkspaceApplication(
           throw new ApplicationError(409, "The imported document changed. Refresh before building.");
         }
         result[bindingRole].bytes = file.bytes;
+        Object.assign(result[bindingRole], await plan.prepareText(bindingRole, {
+          bytes: file.bytes, documentId: binding.documentId, versionId: source.versionId,
+          sourceSha256: source.sourceSha256, pdfProfile: file.pdfProfile, signal,
+        }));
       }
     }
-    const plan = createAuthoritiesPreparation(draft);
     const preparedRoles = new Set([...plan.bookRoles, ...plan.textRoles]);
     const preparation = new Map(preparedRoles.size
       ? (await documents.parseStates(scope, [...preparedRoles].map((role) =>
         libraryBinding(draft, role).documentId))).map((state) => [state.id, state.parse_state])
       : []);
-    const readPdf = async (source: BoundPdf, label: string) => {
+    const readPdf = async (source: BoundPdf, label: string, allowMissing = false) => {
       const binding = libraryBinding(draft, source.bindingRole);
       const file = await documents.read(scope, binding.documentId,
         binding.version === "latest" ? null : binding.version.versionId, false);
+      if (!file && allowMissing) return null;
       if (!file || file.fileType.toLowerCase() !== "pdf" ||
           file.version.source_sha256 !== source.sourceSha256 ||
           sha256(file.bytes) !== source.sourceSha256) throw new ApplicationError(409,
@@ -250,7 +264,10 @@ export function createAuthoritiesWorkspaceApplication(
     // A book can hold hundreds of PDFs: read and prepare a few at a time, not all at once.
     await mapBounded(plan.authoritySources, async ({ source, authority }) => {
       signal?.throwIfAborted();
-      const { binding, file, resolved } = await readPdf(source, "Attached PDF");
+      const input = await readPdf(source, "Attached PDF", !!draft.settings.allowIncomplete &&
+        !plan.bookPdfs.some(({ bindingRole }) => bindingRole === source.bindingRole));
+      if (!input) return;
+      const { binding, file, resolved } = input;
       const forBook = plan.bookRoles.has(source.bindingRole);
       if (forBook && !file.pdfProfile) {
         const state = preparation.get(binding.documentId);
@@ -278,7 +295,7 @@ export function createAuthoritiesWorkspaceApplication(
     });
     await mapBounded(plan.bookPdfs, async (source) => {
       signal?.throwIfAborted();
-      const { file, resolved } = await readPdf(source, "Book PDF");
+      const { file, resolved } = (await readPdf(source, "Book PDF"))!;
       result[source.bindingRole] = { bytes: file.bytes, resolved };
     });
     return result;
@@ -289,9 +306,10 @@ export function createAuthoritiesWorkspaceApplication(
     attach: (draft: AuthoritiesDraft, binding: WorkProductInput, filename: string, hash: string) => AuthoritiesDraft) {
     if (input.file.fileType.toLowerCase() !== "pdf") throw new ApplicationError(400, "Attach a PDF file");
     const { product, draft } = await edit(scope, id, input.revision);
+    const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
+    await validateAuthoritiesPdf(bytes);
     if (input.authorityId !== undefined && attachableAuthority(draft, input.authorityId).source.kind === "pending-canlii") {
-      await checkCanliiPdf(draft, input.authorityId,
-        "bytes" in input.file ? input.file.bytes : await readFile(input.file.path));
+      await checkCanliiPdf(draft, input.authorityId, bytes);
     }
     const created = await files.create(scope, "authorities", input.file,
       { projectId: product.projectId, pdfOcrProvider: null });
@@ -426,7 +444,7 @@ export function createAuthoritiesWorkspaceApplication(
         return saveRefresh(scope, product, draft, input.revision,
           { ...binding, version: "latest" });
       }
-      const version = await currentLibraryVersion(scope, binding, "pdf");
+      const version = (await currentLibraryVersion(scope, binding, "pdf"))!;
       return workProducts.save(scope, id, { revision: input.revision,
         state: adoptCurrentPdf(draft, input.role, binding, version) });
     },
@@ -449,10 +467,11 @@ export function createAuthoritiesWorkspaceApplication(
           version.file_type.toLowerCase() !== "pdf") {
         throw new ApplicationError(409, "Select the current PDF version from Library");
       }
+      const file = await documents.read(scope, input.documentId, input.versionId, false);
+      if (!file) throw new ApplicationError(409, "The PDF is no longer available.");
+      await validateAuthoritiesPdf(file.bytes);
       if (input.target.kind === "authority" &&
           draft.authorities[input.target.authorityId]?.source.kind === "pending-canlii") {
-        const file = await documents.read(scope, input.documentId, input.versionId, false);
-        if (!file) throw new ApplicationError(409, "The PDF is no longer available.");
         await checkCanliiPdf(draft, input.target.authorityId, file.bytes);
       }
       const binding = { kind: "document" as const, documentId: input.documentId,
@@ -558,7 +577,9 @@ export function createAuthoritiesWorkspaceApplication(
       let built: AuthoritiesBuildResult;
       try {
         built = await builder({ draft, title: product.title,
-          workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal });
+          workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal,
+          finalPdfSource: async (bytes) => docxToPdf(Buffer.from(bytes)),
+        });
       } catch (error) {
         if (error instanceof ApplicationError) throw error;
         throw new ApplicationError(409,
@@ -568,7 +589,8 @@ export function createAuthoritiesWorkspaceApplication(
         (item): item is NonNullable<typeof item> => Boolean(item)).map((artifact) => ({
           role: artifact.role,
           file: { filename: artifact.filename,
-            fileType: artifact.mimeType === "application/pdf" ? "pdf" : "docx",
+            fileType: artifact.mimeType === "application/pdf" ? "pdf"
+              : artifact.mimeType === "text/plain" ? "txt" : "docx",
             bytes: artifact.bytes, expectedSha256: artifact.sha256 },
           receipt: artifact.receipt,
         }));

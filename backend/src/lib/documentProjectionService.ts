@@ -551,9 +551,10 @@ async function pdfPassageGeometry(
   const bytes = await readBytes();
   const prepared = await preparedForSource(() => bytes, reference, options);
   const starts = options.reporterOriginal ? reporterStartPages(options.citations ?? []) : [];
-  const labels = await cachedPagination(reference, starts,
-    () => paginationFor(prepared.document, starts));
-  return nativePdfPassageGeometry(prepared.document, bytes, targets.map(target => target.locatorKind === "page"
+  const labels = targets.some(target => target.locatorKind === "page" && target.physicalPages === undefined)
+    ? await cachedPagination(reference, starts, () => paginationFor(prepared.document, starts)) : [];
+  return nativePdfPassageGeometry(prepared.document, bytes, targets.map(target => target.locatorKind === "page" &&
+      target.physicalPages === undefined
     ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map(index => index + 1) } : target));
 }
 

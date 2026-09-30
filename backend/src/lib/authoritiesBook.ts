@@ -21,7 +21,8 @@ export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   sources: PreparedBookSource<Bytes>[];
 };
 export type BuiltAuthorityBook = { role: "book" | `book-${number}`; filename: string;
-  mimeType: "application/pdf"; bytes: Uint8Array; pageCount: number };
+  mimeType: "application/pdf"; bytes: Uint8Array; pageCount: number;
+  placements: Array<{ key: string; pageIndex: number; sourcePageIndices: number[] }> };
 
 export async function mapAuthorityBookBytes<From, To>(book: PreparedAuthoritiesBook<From>,
   convert: (bytes: From, role: string) => To | Promise<To>): Promise<PreparedAuthoritiesBook<To>> {
@@ -54,6 +55,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
     "The required Federal volume front matter exceeds the filing page limit.");
   const volumes = limits && singlePages > limits.maxPages
     ? splitPdfPageRanges(all, limits.maxPages - splitOverhead) : [all];
+  let placements: BuiltAuthorityBook["placements"][] = [];
   const built = await engine.volumes(volumes, (volumes) => {
     const multi = volumes.length > 1, generatedToc = !customIndex;
     if (customIndex && multi && limits?.completeToc) throw new Error(
@@ -76,6 +78,8 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
       globalStart += localStart + backPageCount;
       return result;
     });
+    placements = plans.map(({ slices }) => slices.map(({ source, localStart, pageIndices }) =>
+      ({ key: source.key, pageIndex: localStart, sourcePageIndices: pageIndices })));
     return plans.map((plan, volumeIndex): PdfAssemblyInput<"serif" | "serifBold" | "regular" | "bold"> => {
       const margin = federal ? 99.21 : 72, contentWidth = 612 - (2 * margin);
       const volumeLabel = `Volume ${volumeIndex + 1} of ${volumes.length}`;
@@ -148,7 +152,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               const bodySize = federal ? 12 : 8.8, tabX = federal ? margin + 6 : 54;
               const titleX = federal ? margin + 52 : 102, sourceX = federal ? 447 : 477;
               const pageRight = federal ? 612 - margin : 547;
-              page.drawText(token.entry.tab, { x: tabX, y, size: federal ? 12 : 7.5, font: bold });
+              page.drawText(pdfText(token.entry.tab), { x: tabX, y, size: federal ? 12 : 7.5, font: bold });
               page.drawText(fit(serif, token.entry.name, bodySize,
                 token.entry.sourceUrl ? sourceX - titleX - 8 : pageRight - titleX - 28),
               { x: titleX, y, size: bodySize, font: serif });
@@ -217,7 +221,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
     if (count < 2) throw new Error("One PDF page exceeds the Federal electronic filing size limit.");
     return splitPdfPageRanges(volume, Math.ceil(count / 2));
   });
-  return built.map((output, index) => ({ ...output, role: index ? `book-${index + 1}` : "book",
+  return built.map((output, index) => ({ ...output, placements: placements[index], role: index ? `book-${index + 1}` : "book",
     mimeType: "application/pdf", filename: volumes.length > 1 ? input.filename.replace(/\.pdf$/iu,
       `.volume-${index + 1}-of-${volumes.length}.pdf`) : input.filename }));
 }
@@ -232,7 +236,7 @@ export function fit(font: PdfFont, value: string, size: number, width: number) {
 
 export const pdfNormalized = (value: string) => value.normalize("NFKC")
   .replace(/[\u2018\u2019]/gu, "'").replace(/[\u201c\u201d]/gu, '"')
-  .replace(/[\u2010-\u2014]/gu, "-").replace(/\u2026/gu, "...");
+  .replace(/[\u2010-\u2015\u2212]/gu, "-").replace(/\u2026/gu, "...");
 
 export const pdfText = (value: string) =>
   pdfNormalized(value).replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/gu, "?");

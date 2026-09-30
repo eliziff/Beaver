@@ -143,6 +143,8 @@ const settingsShape = closed<AuthoritiesSettings>({
   profileId: text, sourceMode: choice("sourceMode"), tabStyle: choice("tabStyle"),
   tabStart: maybe(integer), tabPrefix: maybe(text), tabLabels: maybe(list(10_000, text)),
   allowIncomplete: maybe(flag), tableOrder: choice("tableOrder"),
+  citationSuffix: maybe(choice("citationSuffix")), finalPdf: maybe(flag),
+  linkTabs: maybe(flag), linkPinpoints: maybe(flag),
   tableDelivery: choice("tableDelivery"), tableLocation: choice("tableLocation"),
   passageMarking: choice("passageMarking"), scannedPdfPolicy: choice("scannedPdfPolicy"),
   missingSourcePolicy: choice("missingSourcePolicy"), filingMedium: maybe(choice("filingMedium")),
@@ -1062,11 +1064,15 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         throw new AuthoritiesDomainError("That court profile requires a filing document.");
       }
       const sourceModeChanged = profile.defaults.settings.sourceMode !== draft.settings.sourceMode;
+      const delivery = profile.locked?.settings?.tableDelivery ?? draft.settings.tableDelivery;
+      const exportSettings = Object.fromEntries(["citationSuffix", "finalPdf", "linkTabs", "linkPinpoints"]
+        .filter((key) => Object.hasOwn(draft.settings, key))
+        .map((key) => [key, draft.settings[key as keyof AuthoritiesBuildSettings]]));
       draft.outputMode = draft.import.kind === "manual" ? "book" : profile.defaults.outputMode;
       draft.settings = { profileId: action.profileId,
-        ...structuredClone(profile.defaults.settings) };
-      draft.insertIntoDocument = !!profile.requirements?.documentOutputDefault &&
-        draft.import.kind === "document";
+        ...structuredClone(profile.defaults.settings), ...exportSettings, tableDelivery: delivery };
+      if (draft.import.kind === "document" && draft.import.fileType === "pdf")
+        draft.insertIntoDocument = !!profile.requirements?.documentOutputDefault;
       if (sourceModeChanged) clearAutomaticSources(draft);
       break;
     }
@@ -1091,13 +1097,9 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         throw new AuthoritiesDomainError("That court profile fixes the output type.");
       }
       draft.outputMode = action.outputMode;
-      if (action.outputMode === "book") draft.insertIntoDocument = false;
       break;
     }
     case "set-document-output": {
-      if (action.enabled && draft.outputMode === "book") {
-        throw new AuthoritiesDomainError("A Book-only draft cannot create a source-document copy.");
-      }
       draft.insertIntoDocument = action.enabled;
       break;
     }
@@ -1134,8 +1136,11 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
     errors.push("Output settings conflict with the court profile.");
   }
   if (typeof draft.insertIntoDocument !== "boolean" || draft.insertIntoDocument &&
-      (draft.import.kind !== "document" || draft.outputMode === "book")) {
+      draft.import.kind !== "document") {
     errors.push("Filing output requires an imported document.");
+  }
+  if (draft.settings.finalPdf && draft.import.kind !== "document") {
+    errors.push("Final PDF export requires an imported document.");
   }
   if (draft.import.kind === "document" && !draft.bindings[draft.import.bindingRole]) {
     errors.push("Imported document binding is missing.");

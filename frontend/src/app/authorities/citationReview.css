@@ -1,0 +1,46 @@
+.citation-review{display:grid;grid-template-columns:11rem minmax(0,1fr);height:clamp(21rem,calc(100dvh - 17rem),48rem);min-height:0}
+.citation-outline{overflow-y:auto;min-height:0;padding:.8rem .6rem;border-inline-end:1px solid #e5e7eb;font-size:.76rem}
+.citation-outline h3{margin:0 .45rem .5rem;font-size:.7rem;font-weight:650;color:#4b5563}
+.citation-outline>[role=group]+[role=group]{margin-top:1.2rem}
+.citation-outline button{display:block;width:100%;text-align:start;padding:.4rem .5rem;border-radius:4px;color:#4b5563;line-height:1.4}
+.citation-outline button>span,.citation-outline small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.citation-outline small{font-size:.65rem;color:#6b7280;margin-top:.1rem}
+.citation-outline button:hover{background:#f3f4f6}
+.citation-outline button[aria-selected=true]{background:#fff1f0;color:#991b1b;box-shadow:inset 2px 0 #b91c1c}
+.citation-outline button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px}
+.citation-note{display:grid;grid-template-columns:1.4rem minmax(0,1fr);align-items:start;margin-bottom:.65rem}
+.citation-note>div{border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
+.citation-note-number{padding-top:.4rem;color:#374151;font-size:.7rem;font-weight:650;text-align:center}
+.citation-outline .citation-finding{color:#991b1b}
+.citation-reader{min-width:0;min-height:0;display:flex;flex-direction:column}
+.citation-document{display:flex;flex:1;min-height:10rem;min-width:0;overflow:hidden}
+.citation-document>div{border-radius:0}
+.citation-document .docx-view-scroll{padding:1.1rem}
+.citation-document .docx-view-container{outline:none}
+.citation-document:has(.docx-view-container:focus-visible){outline:2px solid #b91c1c;outline-offset:-2px}
+.citation-document .docx-text-highlight{background:transparent!important;border:0!important}
+.citation-mark{background:#fce7e3;box-decoration-break:clone;-webkit-box-decoration-break:clone;cursor:pointer;color:inherit}
+.citation-mark[data-active=true]{background:#f7d2ca;box-shadow:0 1px #a73b2e}
+.citation-mark[data-pinpoint]{background:#f9edbd}
+.citation-mark[data-pinpoint][data-active=true]{background:#f5dc86;box-shadow:0 1px #947018}
+.pdf-text-layer .citation-mark{position:static;background:rgb(213 43 30 / .12);cursor:pointer}
+.pdf-text-layer .citation-mark[data-active=true]{background:rgb(213 43 30 / .22)}
+.pdf-text-layer .citation-mark[data-pinpoint]{background:rgb(230 183 38 / .22)}
+.pdf-text-layer .citation-mark[data-pinpoint][data-active=true]{background:rgb(230 183 38 / .4)}
+.citation-document .pdf-text-highlight{padding:0}
+.citation-controls{padding:.7rem .9rem;background:white;border-top:1px solid #e5e7eb;flex-shrink:0}
+.citation-tools{display:flex;flex-wrap:wrap;gap:.35rem}
+.citation-tools button,.citation-link button{font-size:.7rem;min-height:2rem;height:auto;padding:.35rem .6rem}
+.citation-tools button:first-child,.citation-tools button:nth-child(2){padding:.35rem;min-width:1.9rem}
+.citation-help{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:space-between;margin-top:.65rem;font-size:.67rem;color:#6b7280}
+.citation-key{display:flex;align-items:center;gap:.3rem;white-space:nowrap}
+.citation-key i{display:inline-block;width:.7rem;height:.7rem;background:#f7d2ca;border-bottom:1px solid #a73b2e}
+.citation-key .pinpoint-key{background:#f5dc86;border-color:#947018;margin-inline-start:.5rem}
+.citation-link{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;margin-top:.7rem;font-size:.72rem}
+.citation-link>span{flex:1;min-width:9rem}
+.citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.8rem}
+.citation-fallback{padding:.65rem .9rem;font-size:.75rem;border-top:1px solid #e5e7eb}
+.citation-fallback>div{white-space:pre-wrap;max-height:10rem;overflow:auto;padding:.7rem 0;line-height:1.8}
+.citation-fallback>div:focus-visible{outline:2px solid #b91c1c}
+@container(max-width:42rem){.citation-review{grid-template-columns:8.5rem minmax(0,1fr);height:32rem}.citation-controls{padding:.6rem}}
+@container(max-width:29rem){.citation-review{grid-template-columns:1fr;height:auto}.citation-outline{max-height:10rem;border-inline-end:0;border-bottom:1px solid #e5e7eb}.citation-document{flex:none;height:25rem}.citation-note{margin-bottom:.3rem}}

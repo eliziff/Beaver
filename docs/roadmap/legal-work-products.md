@@ -48,7 +48,7 @@ changed, missing(deleted/permission/unavailable) or needs-review; statuses are
 computed, not persisted stale flags. Reject direct/indirect cycles with involved
 drafts before output mutation.
 
-Output roles: Authorities table/book/annotated-document/manifest only when produced;
+Output roles: Authorities table/book/annotated-document/final-pdf/link-report/manifest only when produced;
 Court record plus profile-required separate roles. First Beaver build creates
 one ordinary output document per role; rebuild adds immutable versions to that
 stable identity. Project outputs/uploads use the configured Project workflow
@@ -240,6 +240,28 @@ and production LoC against machine baseline; reject regressions, not invent
 hardware-free budgets.
 
 ## Execution and live proof
+
+Legislation publisher originals are an optional acquisition path; reconstruction
+remains the default. A focused comparison of six independently located operative
+passages in Alberta's Administrative Procedures and Jurisdiction Act and the
+Federal Courts Act found exact-quote geometry for two original-PDF passages and
+all six reconstructed passages. Sampled operative text agreed; whole federal
+consolidation parity was not established. Both representations' found whole-section
+extents included the following heading, and one reconstructed passage included
+page furniture. Close that shared extent/precision gate against independent gold
+and broaden edition-matched statutory evidence before changing the default.
+
+Numbered supra notes with distinct same-named authorities now remain unresolved
+unless an explicit short-name definition identifies one target. Reference parity
+still needs broader independent evidence. DOCX/PDF projection gates remain open:
+PDF projection can discard a citation on the first line of a page;
+cropped quarter-turn pages can omit paragraph continuation text. Preserve the
+independent inputs and expectations when fixing the owning engines. Close
+readable owner-restricted PDF assembly, retention of source accessibility tags
+and publisher bookmarks, and browser responsiveness with large citation ledgers.
+Application intake, source replacement, large multipart builds and proven
+manual-source pinpoint destinations have focused checks; these do not establish
+corpus or all-profile release readiness.
 
 1. Maintain the full profile/source/gap matrix, normative/example/discretionary
    classification, official forms/real-reference hashes, CanLII terms/links,

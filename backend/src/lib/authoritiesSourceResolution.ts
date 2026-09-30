@@ -69,7 +69,7 @@ export type PreparedAuthoritySource = {
   sourceSha256: string;
   sourceUrl: string | null;
   origin: "original" | "reconstructed";
-  language: "en" | "fr";
+  language: "en" | "fr" | "bilingual";
 };
 
 /** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
@@ -118,7 +118,7 @@ export async function resolveAuthoritiesSources(
     return unavailable ? { unavailable: true as const } : { source: null };
   });
   type ResolvedSource = Pick<NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>,
-    "citation" | "alternateCitation" | "name" | "date" | "url" | "dataset" | "language" |
+    "citation" | "alternateCitation" | "name" | "date" | "url" | "publisherUrl" | "dataset" | "language" |
     "searchText" | "verifiedPdf"> & { provider?: string; identity?: string };
   const resolvedSources = new Map<string, ResolvedSource>();
   for (let index = 0; index < candidates.length; index += 1) {
@@ -205,12 +205,14 @@ export async function resolveAuthoritiesSources(
     const { authority, source } = item;
     const pdfUrl = source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url)
       ? source.verifiedPdf.url : null;
-    const sourceUrl = source.url && !isCanliiUrl(source.url) ? source.url : null;
+    const publisherUrl = source.publisherUrl ?? source.url;
+    const sourceUrl = publisherUrl && !isCanliiUrl(publisherUrl) ? publisherUrl : null;
     const provider = source.provider ?? "a2aj";
     let publisher: string | undefined;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
     let verificationUrl: string | undefined;
-    if (originals && (pdfUrl || sourceUrl)) try {
+    if (originals && (authority.kind !== "legislation" || draft.settings.sourceMode === "manual-originals") &&
+        (pdfUrl || sourceUrl)) try {
       publisher = new URL(sourceUrl ?? pdfUrl!).origin;
       const blockedUrl = blockedPublishers.get(publisher);
       if (blockedUrl) throw new PublisherVerificationRequired(blockedUrl);
@@ -236,17 +238,27 @@ export async function resolveAuthoritiesSources(
     if (reconstruct && !original && !verificationUrl && source.searchText.trim()) try {
       reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
-        sourceUrl: source.url, text: source.searchText });
+        sourceUrl: source.publisherUrl ?? source.url, text: source.searchText });
     } catch { signal?.throwIfAborted(); }
     return { ...item, original, verificationUrl, bytes: original?.bytes ?? reconstructed };
   }, 1);
   for (const { authorityId, source, paired, original, bytes } of prepared) {
     if (!bytes) continue;
+    const digest = sha256(bytes);
+    const sameOriginal = original && paired && attachments.find(item =>
+      item.authorityId === authorityId && item.origin === "original" &&
+      item.sourceSha256 === digest && item.language !== source.language);
+    if (sameOriginal) {
+      sameOriginal.language = "bilingual";
+      sameOriginal.filename = pdfFilename(source.name ?? source.citation);
+      continue;
+    }
     attachments.push({ authorityId,
       filename: pdfFilename(`${source.name ?? source.citation}${paired
         ? ` (${source.language === "en" ? "English" : "French"})` : ""}`), bytes,
-      sourceSha256: sha256(bytes), sourceUrl: original
-        ? original.url ?? source.verifiedPdf?.url ?? source.url : source.url ?? null,
+      sourceSha256: digest, sourceUrl: original
+        ? original.url ?? source.verifiedPdf?.url ?? source.publisherUrl ?? source.url
+        : source.publisherUrl ?? source.url ?? null,
       origin: original ? "original" : "reconstructed", language: source.language });
   }
   for (const authorityId of new Set(prepared.map(item => item.authorityId))) {

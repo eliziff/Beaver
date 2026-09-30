@@ -34,6 +34,7 @@ export interface PdfCanvasProps {
     onUnavailable?: () => void;
     recognizedText?: PdfRecognizedText;
     loadRecognizedText?: PdfPageTextLoader;
+    onTextReady?: (page: number, element: HTMLElement, focus: boolean) => void;
 }
 
 
@@ -42,7 +43,7 @@ type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
 export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
     rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
-    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false}: PdfCanvasProps) {
+    recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady}: PdfCanvasProps) {
     const containerRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
     const layoutRef = useRef<Layout | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
@@ -60,6 +61,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const [zoom, setZoom] = useState(1), [currentPage, setCurrentPage] = useState(1), [numPages, setNumPages] = useState(0);
     const [embeddedPageLabels, setEmbeddedPageLabels] = useState<readonly (string | null)[]>();
     const notifyUnavailable = useEffectEvent(() => onUnavailable?.());
+    const notifyTextReady = useEffectEvent((page: number, element: HTMLElement, focus = false) => onTextReady?.(page, element, focus));
     useLayoutEffect(() => { setEmbeddedPageLabels(undefined); }, [bytes, source, authoredPageLabels]);
     useLayoutEffect(() => {
         editorRef.current = annotationEditor; quotesRef.current = quotes;
@@ -122,7 +124,9 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                 container:scrollRef.current!,element:containerRef.current!,signal,
                 readEditor:() => editorRef.current,readText:number => recognizedRef.current.get(number),
                 readTextLoader:() => textLoaderRef.current,
-                onTextReady:(number,element) => highlightQuote(element,found.get(number) ?? []),
+                onTextReady:(number,element) => {
+                    highlightQuote(element,found.get(number) ?? []); notifyTextReady(number, element);
+                },
                 onZoom:setZoom,onPage:number => { setCurrentPage(number);  },
                 onRendered:() => { clearPreview(); setPreparing(false); },onError:fail});
             viewer = session.viewer;
@@ -149,6 +153,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                             const mark = pages[number - 1].querySelector<HTMLElement>('.pdf-text-highlight');
                             if (mark) mark.scrollIntoView({block:'center'});
                         }
+                        notifyTextReady(number, pages[number - 1], true);
                         break;
                     }
                 }

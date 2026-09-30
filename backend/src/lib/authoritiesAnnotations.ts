@@ -7,15 +7,26 @@ export type { AnnotationPreparation } from 'mike/shared/pdf-annotations.mjs';
 
 type Style = 'none' | 'margin' | 'paragraph' | 'text' | 'sidelined';
 const labelFor = (kind: string, value: string) => `${kind === 'paragraph' ? 'para' : kind === 'section' ? 's' : 'p'} ${value}`;
-const normal = (rect: number[], width: number, height: number): AnnotationRect =>
+export const normalizePassageRect = (rect: number[], width: number, height: number): AnnotationRect =>
   [rect[0] / width, rect[1] / height, rect[2] / width, rect[3] / height]
     .map(v => Math.min(1, Math.max(0, v))) as AnnotationRect;
+
+export function hasPrintedParagraphLocator(target: NativePdfPassageGeometry['targets'][number]) {
+  if (target.locatorKind !== 'paragraph') return true;
+  return target.locator.split(/\s*[-\u2013\u2014]\s*/u).every(label => {
+    if (!/^\d+$/u.test(label)) return false;
+    if (target.printedLocators) return target.printedLocators.includes(label);
+    const printed = new RegExp(String.raw`(?:^|\n)\s*(?:\[\s*${label}\s*\]|\(${label}\)|${label}[.)])(?=\s|$)`, 'u');
+    return target.pages.some(({ text }) => printed.test(text ?? ''));
+  });
+}
 
 /** Both pre-build review and unreviewed exports use these exact initial marks. */
 export function initialAuthorityAnnotations(input: {
   sourceSha256: string; style: Style; geometry?: NativePdfPassageGeometry;
   pages: Array<{ width: number; height: number }>; citedPages: Set<number>;
   exclusions?: ReadonlySet<string>;
+  requirePrintedParagraphLocator?: boolean;
 }): AnnotationPreparation {
   const marks: PdfAnnotation[] = [], unlocated: string[] = [];
   const add = (kind: PdfAnnotation['kind'], label: string, excerpt: string, fragments: AnnotationFragment[]) => {
@@ -34,10 +45,11 @@ export function initialAuthorityAnnotations(input: {
   if (input.style !== 'none') for (const target of targets) {
     const label = labelFor(target.locatorKind, target.locator);
     const excerpt = target.pages.map(page => page.text ?? '').join(' ').trim().slice(0, 2_000);
-    const found = target.status === 'found';
+    const found = target.status === 'found' &&
+      (!input.requirePrintedParagraphLocator || hasPrintedParagraphLocator(target));
     const fragments = found ? target.pages.flatMap(page => {
       if (page.source !== 'native' || !input.pages[page.pageNumber - 1] || page.width <= 0 || page.height <= 0) return [];
-      const rects = page.passageRects.map(r => normal(r, page.width, page.height)).filter(validRect);
+      const rects = page.passageRects.map(r => normalizePassageRect(r, page.width, page.height)).filter(validRect);
       return rects.length ? [{ pageNumber: page.pageNumber, rects }] : [];
     }) : [];
     if (!fragments.length && target.locatorKind !== 'page') unlocated.push(label);
@@ -56,7 +68,7 @@ export function initialAuthorityAnnotations(input: {
         .flatMap(fragment => {
           const page = target.pages.find(page => page.pageNumber === fragment.pageNumber);
           return page && input.pages[page.pageNumber - 1] ? [{ pageNumber: page.pageNumber,
-            rects: fragment.rects.map(rect => normal(rect, page.width, page.height)).filter(validRect) }] : [];
+            rects: fragment.rects.map(rect => normalizePassageRect(rect, page.width, page.height)).filter(validRect) }] : [];
         });
       if (quote.status !== 'found' || !quoteFragments.length || quoteFragments.some(f => !f.rects.length)) continue;
       add('highlight', `${label} · Quote`, quote.text, quoteFragments);
@@ -70,7 +82,9 @@ export function initialAuthorityAnnotations(input: {
     if (!allExcluded) for (const [index, { width, height }] of input.pages.entries()) {
       const pageNumber = index + 1;
       const hasMark = marks.some(mark => mark.kind === 'margin' && mark.fragments.some(f => f.pageNumber === pageNumber));
-      const hasTarget = marginal && targets.some(target => target.status === 'found' && target.pages.some(page => page.pageNumber === pageNumber));
+      const hasTarget = marginal && targets.some(target => target.status === 'found' &&
+        (!input.requirePrintedParagraphLocator || hasPrintedParagraphLocator(target)) &&
+        target.pages.some(page => page.pageNumber === pageNumber));
       if (!hasMark && (input.citedPages.has(index) || hasTarget)) add('margin', 'Cited page', '', [{ pageNumber,
         rects: [[6.75 / width, 18 / height, 9.25 / width, 1 - 18 / height]] }]);
     }

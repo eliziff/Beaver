@@ -26,8 +26,11 @@ function supportedDraft(state: AuthoritiesDraft): AuthoritiesDraft {
     : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" } };
 }
 
-async function resolveExact(input: WorkProductInput) {
+async function resolveExact(input: WorkProductInput): Promise<File>;
+async function resolveExact(input: WorkProductInput, allowMissing: boolean): Promise<File | null>;
+async function resolveExact(input: WorkProductInput, allowMissing = false) {
   const result = await resolveStandaloneFile(input, true);
+  if (result.status === "missing" && allowMissing) return null;
   if (result.status === "missing") throw new Error(result.reason === "permission"
     ? "Allow access to the connected file, then try again."
     : "A connected file could not be found. Reconnect it, then try again.");
@@ -111,17 +114,26 @@ const validPdf = async (file: File) => await file.slice(0, 5).text() === "%PDF-"
 
 async function buildInputs(product: AuthoritiesProduct, progress?: (message: string) => void,
   signal?: AbortSignal) {
-    const roles = [...authoritiesInputPlan(product.state,
-      authoritiesProfile(product.state.settings.profileId).requirements).byteRoles];
+    const plan = authoritiesInputPlan(product.state,
+      authoritiesProfile(product.state.settings.profileId).requirements);
+    const authorityRoles = new Set(plan.authoritySources.map(({ source }) => source.bindingRole));
+    const requiredRoles = new Set([
+      ...plan.bookPdfs.map(({ bindingRole }) => bindingRole),
+      ...(product.state.import.kind === "document" ? [product.state.import.bindingRole] : []),
+    ]);
+    const roles: string[] = [];
     const form = new FormData(); form.append("draft", JSON.stringify(product.state));
     form.append("id", product.id); form.append("revision", String(product.revision));
     form.append("title", product.title);
     progress?.("Preparing sources");
-    for (const role of roles) {
+    for (const role of plan.byteRoles) {
       signal?.throwIfAborted();
-      const file = await resolveExact(product.state.bindings[role]);
+      const file = await resolveExact(product.state.bindings[role],
+        !!product.state.settings.allowIncomplete && authorityRoles.has(role) && !requiredRoles.has(role));
       signal?.throwIfAborted();
+      if (!file) continue;
       form.append("files", file, file.name);
+      roles.push(role);
     }
     form.append("roles", JSON.stringify(roles));
     return form;
@@ -293,8 +305,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
         return { role, ...detail, bytes: new Uint8Array(await file.arrayBuffer()) };
       }));
     const prepared = response.get("book");
-    if (prepared) {
-      const book = await mapAuthorityBookBytes(JSON.parse(String(prepared)) as PreparedAuthoritiesBook<string>,
+    if (typeof prepared === "string") {
+      const book = await mapAuthorityBookBytes(JSON.parse(prepared) as PreparedAuthoritiesBook<string>,
         async (role) => {
           const source = response.get(role);
           if (!(source instanceof File)) throw new Error(`The prepared PDF ${role} is missing.`);

@@ -44,9 +44,10 @@ type RequirementDraft = {
   import: { kind: "manual" } | { kind: "document"; fileType: "pdf" | "docx" };
   outputMode: "table" | "book" | "both";
   insertIntoDocument: boolean;
+  settings?: { finalPdf?: boolean };
 };
 type BookDraft = RequirementDraft & {
-  settings: { allowIncomplete?: boolean; missingSourcePolicy: "placeholder" | "omit" };
+  settings: { allowIncomplete?: boolean; missingSourcePolicy: "placeholder" | "omit"; finalPdf?: boolean };
 };
 type RequirementAuthority = {
   kind: string;
@@ -85,6 +86,7 @@ export function authoritiesInputPlan<A extends SourceAuthority & { excluded: boo
   bookParts: AuthoritiesBookParts;
   outputMode: "table" | "book" | "both";
   insertIntoDocument: boolean;
+  settings?: { finalPdf?: boolean };
 }, requirements?: AuthoritySourceRequirements | null): {
   authoritySources: Array<{ authority: A; source: AttachedAuthoritySource }>;
   bookPdfs: AuthoritiesBoundPdf[];
