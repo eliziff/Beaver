@@ -2,6 +2,7 @@
     "name": "mike",
     "private": true,
     "scripts": {
+        "check:privacy": "python scripts/check_privacy.py",
         "measure:source": "node scripts/measure-source.mjs",
         "test:source-budget": "node scripts/measure-source.mjs --self-test",
         "check:source-budget": "node scripts/measure-source.mjs --check scripts/legal-structure-guardrails.json",
