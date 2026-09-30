@@ -131,6 +131,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         const data = await getTabularReview(reviewId);
         setReview(data.review); setCells(data.cells); setDocuments(data.documents);
         setUi({ generating: data.review.is_running === true });
+        return data;
     }, [reviewId, setUi]);
 
     useEffect(() => {
@@ -435,8 +436,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     }, [workspaceId, workspace.file?.document.id, workspace.setSelection, selectedScopeKey]);
     async function prepareRows() {
         const file = await workspace.ensure({ tableId: reviewId });
-        const data = await getTabularReview(reviewId);
-        setReview(data.review); setCells(data.cells); setDocuments(data.documents);
+        const data = await refreshReview();
         const ids = new Set(scopedRows.map(({ id }) => id));
         const rows = data.documents.filter(({ id }) => ids.has(id));
         const selection = chatSelection(discussion?.rowId ? rows.filter(({ id }) => id === discussion.rowId) : rows, data.cells);
@@ -549,7 +549,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
         <div className="flex h-full overflow-hidden">
             <div className="flex flex-1 flex-col overflow-hidden">
                 <PageHeader shrink breadcrumbs={breadcrumbs} actions={headerActions} />
-                {review && <ResearchChanges review={review} documents={documents} onChanged={refreshReview}
+                {review && <ResearchChanges review={review} documents={documents} onChanged={async () => { await refreshReview(); }}
                     historyOpen={ui.historyOpen} onCloseHistory={() => setUi({ historyOpen: false })} />}
                 <div className="flex flex-1 overflow-hidden">
                     <div className={`flex flex-1 flex-col overflow-hidden ${dockTab ? "max-md:hidden" : ""}`}>
@@ -671,7 +671,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
                 onClose={() => setUi({ modal: null })} onSave={saveDetails} />
             <AccessModal open={modal === "people"} onClose={() => setUi({ modal: null })}
                 kind="review" resourceId={reviewId} title={reviewTitle}
-                onChange={refreshReview} />
+                onChange={async () => { await refreshReview(); }} />
             <WorkflowPickerModal open={workflowStatus !== null} onSelect={applyWorkflow}
                 onClose={() => { if (workflowStatus !== "applying") setUi({ workflowStatus: null }); }}
                 execution="tabular" breadcrumbs={[...modalCrumbs, "Add workflow"]}
