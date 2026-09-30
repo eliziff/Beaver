@@ -24,7 +24,8 @@ async function begin(options: Partial<StreamChatParams> = {}) {
   const child = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(),
   });
-  spawn.mockReturnValue(child);
+  // The CLI starts after the tool bridge and prompt files are ready; wait for that, not a poll deadline.
+  const spawned = new Promise<void>(resolve => spawn.mockImplementation(() => { resolve(); return child; }));
   const callbacks = { onContextUsage: vi.fn(), onContentDelta: vi.fn(), onContentBlockEnd: vi.fn(),
     onReasoningDelta: vi.fn(), onReasoningBlockEnd: vi.fn(), onToolCallStart: vi.fn(), onActivity: vi.fn() };
   const result = streamClaudeP({ model: `claude-p:${model}`, systemPrompt: "Synthetic transport check",
@@ -32,7 +33,8 @@ async function begin(options: Partial<StreamChatParams> = {}) {
     callbacks, ...options });
   void result.catch(() => undefined);
   runs.push({ controller, result });
-  await vi.waitFor(() => expect(spawn).toHaveBeenCalledOnce());
+  await spawned;
+  expect(spawn).toHaveBeenCalledOnce();
   const send = (message: unknown) => child.stdout.write(`${JSON.stringify(message)}\n`);
   const event = (value: object, parent_tool_use_id: string | null = null) =>
     send({ type: "stream_event", event: value, parent_tool_use_id });
