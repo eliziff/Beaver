@@ -44,6 +44,16 @@ stored-document operation to call.
 
 ## Growing resources
 
+Each new user message carries a submission-origin declaration. Interactive browser
+requests declare `human`; marked test browsers and isolated test processes declare
+`machine_test` with a run ID and optional scenario. Unlabelled API calls and
+historical records remain `unknown`. These values describe declared provenance,
+not authenticated identity. Answers to assistant questions and steering carry
+their own origin; retries preserve the original declaration. The shared local and
+cloud chat repository, queued job and audit receipt retain it. Existing provider
+session formats are unchanged; content-free test receipts provide the run-to-session
+link for provider histories.
+
 Assistant conversations live beneath Assistant in the sidebar, with a separate
 new-conversation action and a searchable, paged conversation browser. Projects,
 Library, and Sources remain primary destinations; Workflows, Court Records,

@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+
+process.env.BEAVER_TEST_RUN_ID ??= `playwright-${randomUUID()}`;
 
 /**
  * Run `npx playwright install` to download the browsers.

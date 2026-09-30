@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { test as base, expect, type APIResponse, type Page } from "@playwright/test";
+import { test as base, expect, type APIResponse, type Page } from "./fixtures/test";
 
 type Created = { chats: string[]; projects: string[] };
 

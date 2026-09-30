@@ -19,7 +19,7 @@ afterEach(async () => {
   directory = undefined;
 });
 
-it("writes only opt-in numeric LLM metrics", async () => {
+it("writes opt-in content-free LLM metrics with test origin", async () => {
   directory = await mkdtemp(path.join(os.tmpdir(), "beaver-llm-metrics-"));
   const filename = path.join(directory, "metrics.jsonl");
   process.env.MIKE_LLM_METRICS_PATH = filename;
@@ -43,6 +43,7 @@ it("writes only opt-in numeric LLM metrics", async () => {
 
   const persisted = await readFile(filename, "utf8");
   expect(JSON.parse(persisted)).toMatchObject({
+    submission: { origin: "machine_test", run_id: process.env.BEAVER_TEST_RUN_ID },
     usage: { inputTokens: 2, outputTokens: 1 },
     rounds: [{ inputBytes: 12, toolBytes: 2 }],
   });

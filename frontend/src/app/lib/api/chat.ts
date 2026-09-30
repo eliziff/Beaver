@@ -11,6 +11,17 @@ import {
 } from "@/app/lib/api/client";
 import type { AssistantTranscriptMessage } from "@/app/lib/assistantSession";
 import type { ResearchSelection } from "@/app/lib/researchFiles";
+import { promptSubmissionSchema, type PromptSubmission } from "../../../../../backend/src/lib/promptSubmission";
+
+export function browserPromptSubmission(): PromptSubmission {
+  try {
+    const stored = sessionStorage.getItem("beaver.promptSubmission");
+    if (!stored) return { origin: "human" };
+    const value = promptSubmissionSchema.safeParse(JSON.parse(stored));
+    if (value.success && value.data.origin === "machine_test") return value.data;
+  } catch { /* An unreadable declaration cannot establish human origin. */ }
+  return { origin: "unknown" };
+}
 
 export interface Chat {
   role?: "viewer" | "editor" | "owner" | null;
@@ -38,6 +49,7 @@ export type { AskInputsEvent, AskInputsResponseEvent } from "../../../../../back
 export type WorkflowRunEvent = WireWorkflowRunEvent & { id: string };
 export type WorkflowOperationName = WorkflowRunEvent["tool"];
 export interface Message {
+  submission?: PromptSubmission;
   research_file_id?: string | null;
   research_selection?: ResearchSelection | null;
   id?: string;
@@ -120,7 +132,9 @@ export const streamChatJob = (jobId: string, signal: AbortSignal) =>
   });
 export const steerChat = (chatId: string, id: string, text: string,
   readers?: import("../../../../../backend/src/lib/chat/assistantWire").ReaderSettings) =>
-  post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, { id, text, ...(readers && { readers }) });
+  post<{ steered: true }>(`/chat/${segment(chatId)}/steer`, {
+    id, text, submission: browserPromptSubmission(), ...(readers && { readers }),
+  });
 export const compactChat = (chatId: string, model: string) =>
   post<{ compacted: true; transcriptVersion?: number; provider?: string; summary?: string }>(
     `/chat/${segment(chatId)}/compact`,
@@ -144,6 +158,7 @@ type StreamCurrentTurn =
       )[];
     };
 export const streamChat = (payload: {
+  submission?: PromptSubmission;
   research_file_id?: string | null;
   research_selection?: ResearchSelection | null;
   current_turn: StreamCurrentTurn;
@@ -170,7 +185,7 @@ export const streamChat = (payload: {
   signal?: AbortSignal;
 }) => {
   const { signal, ...body } = payload;
-  return streamRequest("/chat", body, {
+  return streamRequest("/chat", { ...body, submission: body.submission ?? browserPromptSubmission() }, {
     signal, accept: "text/event-stream", allowStatuses: [409],
   });
 };

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { promptSubmissionSchema } from "../promptSubmission";
 import { WORK_PRODUCT_KINDS } from "mike/shared/work-products.mjs";
 import { buildCanliiLawUrl } from "../canliiLawUrls";
 
@@ -110,12 +111,13 @@ export const sharedEvents = [
   z.object({ type: z.literal("reasoning"), text: longText }).strict(),
   z.object({ type: z.literal("content"), text: longText }).strict(),
   z.object({ type: z.literal("tool_activity"), ...activity.shape }).strict(),
-  ask, z.object({ type: z.literal("ask_inputs_response"), responses: z.array(response).max(32) }).strict(),
+  ask, z.object({ type: z.literal("ask_inputs_response"), responses: z.array(response).max(32),
+    submission: promptSubmissionSchema.optional() }).strict(),
   z.object({ type: z.literal("document_artifact"), action: z.enum(["created", "edited"]),
     filename: id, download_url: validUrl.refine((value) => value.startsWith("/")),
     document_id: id, version_id: id, version_number: integer.nullable(),
     edit_mode: z.enum(["manual", "auto"]).optional(), annotations: z.array(annotation).max(256).optional() }).strict(),
-  workflow, z.object({ type: z.literal("steering"), id, text }).strict(),
+  workflow, z.object({ type: z.literal("steering"), id, text, submission: promptSubmissionSchema.optional() }).strict(),
   z.object({ type: z.literal("context_usage"), used_tokens: finite.min(0), window_tokens: finite.positive() }).strict(),
   z.object({ type: z.literal("compaction"), status: z.enum(["running", "completed", "failed"]),
     provider: short.optional(), summary: longText.optional() }).strict(),
@@ -141,6 +143,7 @@ export type AskInputOption = z.infer<typeof choice>["options"][number];
 export type AskInputsEvent = z.infer<typeof ask>;
 export type AskInputResponseItem = z.infer<typeof response>;
 export type AskInputsResponseEvent = Extract<PublicAssistantEvent, { type: "ask_inputs_response" }>;
-export type AskInputsResponseRequest = { responses: AskInputResponseItem[] };
+export type AskInputsResponseRequest = { responses: AskInputResponseItem[];
+  submission?: AskInputsResponseEvent["submission"] };
 export type WorkflowRunEvent = z.infer<typeof workflow>;
 export const parsePublicAssistantEvent = (value: unknown): PublicAssistantEvent => publicEvent.parse(value);

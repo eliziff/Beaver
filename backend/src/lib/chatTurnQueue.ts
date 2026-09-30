@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolvePromptSubmission } from "./promptSubmission";
 import type { ChatTurnInput } from "./chat/chatApplication";
 import type { ChatScope } from "./chatStore";
 import { parsePublicAssistantEvent, type PublicAssistantEvent } from "./chat/assistantEvents";
@@ -28,6 +29,7 @@ export type ChatTurnQueue = {
 
 export const durableChatTurns: ChatTurnQueue = {
   async enqueue(scope, input) {
+    input = { ...input, submission: resolvePromptSubmission(input.submission) };
     const durable = input.current_turn.kind === "message" && !input.current_turn.turn_id
       ? { ...input, current_turn: { ...input.current_turn, turn_id: randomUUID() } }
       : input;

@@ -13,6 +13,7 @@ export type AssistantTranscriptMessage = {
   workflow?: Message["workflow"] | null;
   citations?: Citation[] | null;
   turn_id?: string;
+  submission?: Message["submission"];
   turn_complete?: boolean;
 };
 

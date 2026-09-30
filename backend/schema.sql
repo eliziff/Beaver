@@ -260,6 +260,7 @@ create table if not exists chat_messages (
   id text primary key, chat_id text not null references chats(id) on delete cascade,
   turn_id text, role text not null, content jsonb not null, files jsonb,
   workflow jsonb, citations jsonb, created_at text not null,
+  submission jsonb,
   check(role in ('user','assistant'))
 );
 create table if not exists chat_message_events (
@@ -433,6 +434,8 @@ create table if not exists memory_receipts (
 );
 create index if not exists memory_receipts_pending on memory_receipts(scope,owner_id,applied_at,created_at);
 -- BEAVER_CORE_END
+
+alter table chat_messages add column if not exists submission jsonb;
 alter table user_api_keys add constraint user_api_keys_auth_user
   foreign key(user_id) references auth.users(id) on delete cascade;
 

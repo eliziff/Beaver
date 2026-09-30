@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 
 test("assistant landing reflows and the mobile sidebar behaves modally", async ({
     page,

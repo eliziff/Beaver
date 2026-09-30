@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { PromptSubmission } from "../promptSubmission";
 import { readerHandoff } from "./readerHandoff";
 import type { QueryHistorySource } from "./queryHistory";
 import { parseAssistantCitations, PROVIDER_ERROR_MESSAGES } from "./assistantWire";
@@ -100,6 +101,7 @@ function contentBoundarySeparator(before: string, after: string) {
 }
 
 export async function runChatTurn(options: {
+  submission?: PromptSubmission;
   model: string;
   outputSchema?: Record<string, unknown>;
   systemPrompt: string;
@@ -595,7 +597,7 @@ export async function runChatTurn(options: {
         ...(checkpoint.provider === "openai" ? { payload: checkpoint.item } : {}),
       });
     },
-    onSteer(message: { id: string; text: string }) {
+    onSteer(message: { id: string; text: string; submission?: PromptSubmission }) {
       activeMessages = [...activeMessages, { role: "user", content: message.text }];
       partialEvents();
       text = "";
@@ -620,7 +622,7 @@ export async function runChatTurn(options: {
       throwIfAborted(providerSignal);
       if (message.readers) readerSelection = { ...message.readers };
       if (!message.text.trim()) return;
-      message = { id: message.id, text: message.text };
+      message = { id: message.id, text: message.text, submission: message.submission ?? { origin: "unknown" } };
       if (!nativeControl) {
         steering.push(message);
         return;
@@ -639,6 +641,7 @@ export async function runChatTurn(options: {
             : message)
       : activeMessages;
     const result = await streamChatWithTools({
+    submission: options.submission,
     model: options.model,
     outputSchema: options.outputSchema,
     systemPrompt: [systemPrompt, resumePrompt].filter(Boolean).join("\n\n"),

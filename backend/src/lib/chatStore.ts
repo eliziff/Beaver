@@ -2,6 +2,7 @@ import { visibleChatMessages, type VisibleChatMessage } from "./chat/chatTranscr
 import type { AssistantEvent } from "./chat/assistantEvents";
 import { abortChatTurnForDeletion } from "./chatTurns";
 import type { ResearchSelection } from "./researchSelection";
+import type { PromptSubmission } from "./promptSubmission";
 
 export type ChatScope = { userId: string; userEmail?: string };
 export type ChatRecord = Record<string, unknown> & {
@@ -15,6 +16,7 @@ export type ChatRecord = Record<string, unknown> & {
 export type ChatMessageRecord = Record<string, unknown> & {
   id: string; chat_id: string; turn_id?: string; role: "user" | "assistant";
   content: string | AssistantEvent[]; files?: unknown; workflow?: unknown; citations?: unknown;
+  submission?: PromptSubmission;
 };
 
 export type ChatCommitResult = { status: "missing" }
@@ -26,7 +28,7 @@ export type ChatCommitResult = { status: "missing" }
 // attempt it replaces keeps writing while this one prepares. Turn identity checks
 // (already completed, mutation committed, a newer user message) still guard it.
 export type ChatTurnCommit = { expectedVersion: number | null;
-  userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown };
+  userMessage?: { id: string; turnId?: string; content: string; files?: unknown; workflow?: unknown; submission?: PromptSubmission };
   assistantMessage?: { id: string; turnId?: string; content: AssistantEvent[]; citations?: unknown[] } };
 
 export class ChatStoreError extends Error {

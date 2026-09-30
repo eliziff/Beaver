@@ -31,6 +31,17 @@ saved research, Organize revision/acceptance/undo, Library and project folders,
 research table conversion, tabular extraction/regeneration and parallel research
 readers. All live legs use `codex:gpt-6-luna` at low effort with synthetic or public
 sources; the tabular leg disables optional Jev routing so it exercises Luna.
+New test submissions carry `submission.origin = machine_test`, a `run_id` and
+an optional scenario. FullSweep, backend Vitest, Playwright, Selenium helpers and
+lean smoke set these declarations. Standalone model harnesses must set
+`BEAVER_TEST_RUN_ID` and optionally `BEAVER_TEST_SCENARIO`, or declare
+`submission: { origin: "machine_test", run_id: "...", scenario: "..." }` on a
+chat request. Origin declarations survive queueing, retries, answers and steering;
+provider receipts link test runs to opaque continuation IDs without repeating
+prompt or response bodies. An isolated application's data directory does not
+isolate the provider's own history: the Codex adapter uses `BEAVER_CODEX_HOME`,
+then `CODEX_HOME`, then the user's ordinary Codex home. Review that separate
+retention boundary before using a live provider.
 Each run retains its receipt, logs and per-leg test results. Independent test and
 live legs continue after a failure to expose other regressions; the final result
 fails if any leg failed. Native/build/startup prerequisites still gate their

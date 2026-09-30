@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/test";
 import { sharedUser, logoutUser, signIn } from "./fixtures/auth";
 
 // These cases must not inherit the authenticated storage state.

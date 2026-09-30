@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { validateModelOutput } from "./structured";
 import { providerForModel } from "./models";
+import { resolvePromptSubmission } from "../promptSubmission";
 import type {
   Provider,
   StreamChatParams,
@@ -26,7 +27,23 @@ export async function streamChatWithTools(
   params: StreamChatParams,
 ): Promise<StreamChatResult> {
   const provider = providerForModel(params.model);
-  const result = await streamProvider(provider, params);
+  const submission = resolvePromptSubmission(params.submission);
+  const receipt = (continuationId?: string) => {
+    if (submission.origin === "machine_test") console.info("[llm] test submission", JSON.stringify({
+      submission, model: params.model, ...(continuationId && { continuation_id: continuationId }),
+    }));
+  };
+  receipt();
+  const result = await streamProvider(provider, { ...params, submission,
+    ...(params.providerSession && { providerSession: { ...params.providerSession,
+      onContinuationId: async id => {
+        receipt(id);
+        await params.providerSession?.onContinuationId?.(id);
+      },
+    } }),
+  });
+  result.submission = submission;
+  receipt(result.continuationId);
   await appendMetrics(result);
   if (params.outputSchema && result.output === undefined) {
     const checked = validateModelOutput(params.outputSchema, JSON.parse(result.fullText));
@@ -41,6 +58,7 @@ async function appendMetrics(result: StreamChatResult) {
   const filename = process.env.MIKE_LLM_METRICS_PATH?.trim();
   if (!filename) return;
   const line = `${JSON.stringify({
+    submission: result.submission ?? { origin: "unknown" },
     usage: result.usage ?? null,
     rounds: result.contextRounds ?? [],
   })}\n`;
@@ -61,10 +79,11 @@ export async function completeText(params: {
   maxTokens?: number;
   reasoningEffort?: string;
   apiKeys?: UserApiKeys;
+  submission?: StreamChatParams["submission"];
 }): Promise<string> {
-  const provider = providerForModel(params.model);
   return (
-    await streamProvider(provider, {
+    await streamChatWithTools({
+      submission: params.submission,
       model: params.model,
       systemPrompt: params.systemPrompt ?? "",
       messages: [{ role: "user", content: params.user }],
