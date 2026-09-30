@@ -330,6 +330,40 @@ page must be checked before its inner page. One Tribunal case returned outer
 404 but its inner page challenged, so probing the inner page alone would
 incorrectly present a CAPTCHA workflow for an unavailable case URL.
 
+## Expanded non-SCR Canadian inventory (2026-09-28)
+
+`tmp/pdf-pagination/canadian-non-scr-expanded/manifest.json` contains 285 distinct,
+SHA-256-verified original judgment PDFs across 22 Canadian court codes and 7,629
+physical pages. This expands the earlier 105-document general-judgment evaluation
+set; it is an acquisition inventory, not a new accuracy result. The largest
+groups are NBCA (118), MBKB (62), MBCA (29) and ONCA (20); many other courts
+still have only a few examples. All 285 have native opening-page text, so this
+expansion does not add image-only openings.
+
+The receipts come from the existing Decisia acquisition and the courts' public
+[Manitoba recent judgments](https://www.manitobacourts.mb.ca/court-of-appeal/recent-judgments/),
+[Alberta recent judgments](https://albertacourts.ca/ca/publications/recent-judgments),
+and [New Brunswick monthly decisions](https://www.gnb.ca/content/cour/en/appeal/content/decisions.html).
+The New Brunswick sampler took up to four linked PDFs from each of 33 monthly
+indexes in 2024–2026. Its 118 unique originals exclude six official PDFs that
+timed out; three timed out again on retry. Manitoba's current indexes yielded
+29 MBCA and 62 MBKB PDFs. The MBKB row labelled `2026 MBKB 23` contains an
+empty link to the `2026 MBKB 104` PDF before the actual MBKB 23 link. The
+downloader now selects the link matching the row citation, and the inventory
+checks the PDFs' opening citations. `excluded.json` records any remaining
+mismatches; `summary.json` gives counts by court and source.
+
+Reproduce the snapshot with:
+
+```sh
+node benchmarks/pdf-pagination/fetch-manitoba-recent.cjs --max-per-court 100
+node benchmarks/pdf-pagination/fetch-new-brunswick.cjs --per-month 4
+python benchmarks/pdf-pagination/inventory-canadian-non-scr.py
+```
+
+The inventory step checks each PDF's signature, hash, page count and opening
+text without OCR. It does not redownload publisher files.
+
 ## Cross-court original PDF folios (2026-09-28)
 
 The Canadian general-judgment sample contains 77 SHA-256-verified Decisia

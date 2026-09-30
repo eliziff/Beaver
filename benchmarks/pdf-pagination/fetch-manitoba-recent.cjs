@@ -12,8 +12,8 @@ const pdfFolder = path.join(folder, 'pdfs');
 fs.mkdirSync(pdfFolder, { recursive: true });
 const index = process.argv.indexOf('--max-per-court');
 const maxPerCourt = index < 0 ? 12 : Number(process.argv[index + 1]);
-if (!Number.isSafeInteger(maxPerCourt) || maxPerCourt < 1 || maxPerCourt > 50)
-  throw new Error('Use --max-per-court 1..50');
+if (!Number.isSafeInteger(maxPerCourt) || maxPerCourt < 1 || maxPerCourt > 100)
+  throw new Error('Use --max-per-court 1..100');
 async function get(url, maxBytes) {
   const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
@@ -31,7 +31,13 @@ async function get(url, maxBytes) {
     for (const match of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)) {
       const row = match[1];
       const citation = row.match(new RegExp(`20\\d{2}\\s+${source.court}\\s+\\d+`, 'u'))?.[0];
-      const link = row.match(/\bhref=["']([^"']+\.pdf)["']/iu)?.[1];
+      const links = [...row.matchAll(/\bhref=["']([^"']+\.pdf)["']/giu)].map(x => x[1]);
+      const normalized = citation?.replace(/\u00c2\u00a0/g, ' ').replace(/\s+/g, '').toUpperCase();
+      const matching = links.filter(link => {
+        const match = new URL(link, source.listingUrl).pathname.match(/(20\d{2})_mb(ca|kb)_(\d+)\.pdf$/i);
+        return match && normalized === `${match[1]}MB${match[2]}${Number(match[3])}`.toUpperCase();
+      });
+      const link = matching.length === 1 ? matching[0] : links.length === 1 ? links[0] : null;
       if (!citation || !link) continue;
       const url = new URL(link.replaceAll('&amp;', '&'), source.listingUrl);
       if (url.hostname !== 'www.manitobacourts.mb.ca' ||
@@ -42,9 +48,18 @@ async function get(url, maxBytes) {
     if (!candidates.length) throw new Error(`No judgment PDFs on ${source.listingUrl}`);
     for (const candidate of candidates.slice(0, maxPerCourt)) {
       const receipt = path.join(folder, `${candidate.citation.replaceAll(' ', '-')}.json`);
-      if (fs.existsSync(receipt)) {
-        receipts.push(JSON.parse(fs.readFileSync(receipt)));
+      const embedded = new URL(candidate.url).pathname.match(/(20\d{2})_mb(ca|kb)_(\d+)\.pdf$/i);
+      const cited = candidate.citation.replace(/\u00c2\u00a0/g, ' ').replace(/\s+/g, '').toUpperCase();
+      if (embedded && cited !== `${embedded[1]}MB${embedded[2]}${Number(embedded[3])}`.toUpperCase()) {
+        const row = { ...candidate, outcome: 'citation_mismatch',
+          observedCitation: `${embedded[1]} MB${embedded[2].toUpperCase()} ${Number(embedded[3])}` };
+        fs.writeFileSync(receipt, JSON.stringify(row, null, 2));
+        receipts.push(row);
         continue;
+      }
+      if (fs.existsSync(receipt)) {
+        const prior = JSON.parse(fs.readFileSync(receipt));
+        if (prior.url === candidate.url.toString()) { receipts.push(prior); continue; }
       }
       try {
         const bytes = await get(candidate.url, 20_000_000);
