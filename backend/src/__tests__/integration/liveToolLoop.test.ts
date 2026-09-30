@@ -353,7 +353,10 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         model: MODEL, reasoning_effort: REASONING_EFFORT, expected_version: 0,
         current_turn: { kind: "message", content:
           "Do this work in the Library, not merely in your answer. Research Canadian appellate " +
-          "cases on the duty of procedural fairness. Create a research file titled exactly " +
+          "cases on the duty of procedural fairness, using primary court decisions only. " +
+          "Include Mission Institution v. Khela, Canadian Pacific Railway Company v. Canada " +
+          "(Attorney General), and Nova-BioRubber Green Technologies Inc. v. Investment " +
+          "Agriculture Foundation British Columbia. Create a research file titled exactly " +
           "'Luna fairness pilot'. Save at least three verified cases and relevant passage evidence. " +
           "Create source labels 'Procedural fairness' (#315EFB), with children 'Scope' (#8B5CF6) " +
           "and 'Remedy' (#E05D3D), and assign every saved case to a child with a short case note. " +
@@ -377,6 +380,29 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
       expect(researchDocument).toBeTruthy(); expect(documents).toHaveLength(1);
       const { readResearchEvidenceParts, readResearchFile, readResearchQueries } =
         await import("../../lib/researchFile");
+      const chats = await request(api).get("/chat"), chatId = chats.body[0].id,
+        transcript = await request(api).get(`/chat/${chatId}`);
+      const reviewed = await request(api).post("/chat").timeout(240_000).send({
+        chat_id: chatId, expected_version: transcript.body.chat.transcript_version,
+        model: MODEL, reasoning_effort: REASONING_EFFORT,
+        current_turn: { kind: "message", content:
+          "Review the saved Luna fairness pilot research file against the original request. " +
+          "Preserve completed work and correct any missing work in that same file. " +
+          "Ensure at least three verified Canadian appellate cases are collected, including " +
+          "the three requested cases; read and save any missing case passages. Ensure EVERY saved case " +
+          "has a Scope or Remedy child label and a short case note. Preserve the requested label " +
+          "hierarchies and colours. Ensure at least three saved passages have Legal test or " +
+          "Application child labels and at least one has a note. Finish the saved literal " +
+          "fairness query and Luna fairness pilot memo with clickable citations to saved evidence " +
+          "if either is missing. Use exact returned evidence IDs and continuation tokens. " +
+          "Make the durable corrections and give a brief completion report." },
+      });
+      expect(reviewed.status, reviewed.text).toBe(200);
+      console.info("LIVE research review", { calls: toolCalls(sseEvents(reviewed.text)),
+        answer: visibleText(sseEvents(reviewed.text)) });
+      const finalPage = await store.localLibraryStore.page(scope,
+        { q: "Luna fairness pilot", parentFolderId: null, limit: 20, after: null });
+      expect(finalPage.items.filter(({ kind }) => kind === "document")).toHaveLength(1);
       const research = await readResearchFile(store.localDocuments, scope, researchDocument!.id);
       expect(research).toBeTruthy();
       const labels = Object.values(research!.state.labels), sources = Object.values(research!.state.sources)
@@ -407,7 +433,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         counts: { labels: labels.length, sources: sources.length, passages: evidence.length },
         research: researchDocument!.filename });
     },
-    480_000,
+    720_000,
   );
 
   it(

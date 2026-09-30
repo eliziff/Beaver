@@ -231,6 +231,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'memo',title,references:[reference from Read findings],mode?:'append'|'replace'} copies original cited findings into the memo without rewriting them; defaults to append. " +
       "{type:'memo',title,markdown,mode?:'replace'|'append'} writes new prose into the workspace memo with " +
       "verified source links; use [@evidence_id] with exact saved passage IDs for inline citations. " +
+      "Put the actual returned ID in each marker; evidence_ids does not define aliases. " +
       "IDs are opaque: annotate only returned label_id/source_id or matches[].evidence_id." } } : {}),
   }, ["action"]),
 });
@@ -2101,7 +2102,11 @@ export function assistantTools<Context extends {
           if (!receipt || !source) return null;
           return researchMemoCitation(research, source, receipt).markdown;
         });
-      if (citations.some((citation) => citation === null)) return fail("Unknown or unsaved evidence ID");
+      const unknown = ids.filter((_id, index) => citations[index] === null);
+      if (unknown.length) return result({ ok: false, error: "Unknown or unsaved evidence ID",
+        unknown_evidence_ids: unknown,
+        next: "Replace each invalid [@evidence_id] marker with the exact ID returned for a saved passage. " +
+          "The evidence_ids list does not define aliases. Read or save missing passages before citing them." });
       const links = new Map(ids.map((id, index) => [id, citations[index]!]));
       const body = markdown.replace(/^#\s+[^\r\n]*(?:\r?\n)+/u, "")
         .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!);

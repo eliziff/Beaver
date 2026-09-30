@@ -159,7 +159,9 @@ JSON and embedded reference bytes when advancing the application distribution.
   internal evidence targets. The citation picker lists collected sources, not
   background reads. Existing formatting and Markdown round-tripping remain.
   Assistant-authored memo Markdown resolves `[@evidence_id]` directly to exact
-  saved, verified passage links; unknown or unsaved IDs reject the write.
+  saved, verified passage links; unknown or unsaved IDs reject the write and are
+  identified in the error result so the author can correct them. An explicit
+  evidence-ID list does not define aliases for inline markers.
 
 ## Tabular Review
 
