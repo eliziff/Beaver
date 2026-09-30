@@ -219,7 +219,9 @@ export function nativePinpoints(text: string): Pinpoint[] {
   return [
     ...native.citationOccurrencesInText(text).flatMap((occurrence) => occurrence.pinpoints),
     ...native.authorityReferencesInText(text).flatMap((reference) => reference.pinpoints),
-  ].map((pinpoint) => ({ kind: pinpoint.kind, value: pinpoint.text.trim() }));
+  ].flatMap((pinpoint) => pinpoint.last
+    ? [{ kind: pinpoint.kind, value: pinpoint.first }, { kind: pinpoint.kind, value: pinpoint.last }]
+    : [{ kind: pinpoint.kind, value: pinpoint.first ?? pinpoint.text.trim() }]);
 }
 
 /**
