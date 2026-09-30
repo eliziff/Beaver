@@ -1213,6 +1213,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
   const [linkOpen, setLinkOpen] = useState(false);
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const linked = authorities.find(({ id }) => id === selected.reference?.targetAuthorityId);
+  const referenceKind = selected.reference?.kind ?? selected.referenceKind;
   const rememberSelection = () => setSelection(selectionRange(surface.current));
   useEffect(() => onFocusChange?.({ itemId: selected.id,
     ...(selection && { selection }) }),
@@ -1282,7 +1283,8 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
       <span className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[35rem]:flex-1">
         {linked ? `Linked to ${authorityLabel(linked)}` : "Not linked"}</span>
       <Button type="button" variant="outline" className="h-9 min-w-0 px-2 text-xs"
-        disabled={busy} onClick={() => setLinkOpen(true)}><Link2 /> Link to authority</Button>
+        disabled={busy || !referenceKind}
+        onClick={() => setLinkOpen(true)}><Link2 /> Link to authority</Button>
       <Button type="button" variant="ghost" className="h-9 min-w-0 px-2 text-xs"
         disabled={busy || !selected.reference}
         onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
@@ -1293,8 +1295,8 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
         options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item) }))}
         onClose={() => setLinkOpen(false)} onChange={(id) => {
           setLinkOpen(false);
-          if (id) submit({ type: "set-reference", occurrenceId: selected.id, reference: {
-            kind: /\bibid\b/iu.test(selected.text) ? "ibid" : "supra", targetAuthorityId: id } });
+          if (id && referenceKind) submit({ type: "set-reference", occurrenceId: selected.id, reference: {
+            kind: referenceKind, targetAuthorityId: id } });
         }} />
     </div>}
   </div>;

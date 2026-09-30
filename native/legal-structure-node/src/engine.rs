@@ -603,6 +603,25 @@ mod pdf {
         }))
     }
 
+    pub fn pdf_page_labels(document: &NativeDocument) -> CoreResult<Vec<Option<String>>> {
+        let document = pdf_of(document, "PDF page labels require a PDF document")?;
+        let mut labels = vec![None; document.summary().page_count];
+        for node in &document.structure().nodes {
+            if node.kind != legal_structure::NodeKind::Page {
+                continue;
+            }
+            if let (Some(index), Some(label)) = (
+                node.page_indexes.first(),
+                node.aliases.as_ref().and_then(|aliases| aliases.first()),
+            ) {
+                if let Some(slot) = labels.get_mut(*index) {
+                    *slot = Some(label.clone());
+                }
+            }
+        }
+        Ok(labels)
+    }
+
     pub fn pdf_authority_text_units(document: &NativeDocument) -> CoreResult<impl Serialize + '_> {
         Ok(pdf_of(document, "PDF authority text units require a PDF document")?.authority_text_units())
     }
@@ -611,6 +630,8 @@ mod pdf {
     #[serde(rename_all = "camelCase")]
     pub struct PassageTarget {
         id: String,
+        #[serde(default)]
+        physical_pages: Option<Vec<u32>>,
         locator_kind: String,
         locator: String,
     }
@@ -791,7 +812,7 @@ mod pdf {
                     &target.locator_kind,
                     &target.locator,
                 ));
-                let lines = lookup
+                let mut lines: Vec<String> = lookup
                     .matches
                     .iter()
                     .filter_map(|id| {
@@ -808,17 +829,20 @@ mod pdf {
                     .iter()
                     .flat_map(|unit| unit.page_numbers.iter().copied())
                     .collect::<Vec<_>>();
-                if pages.is_empty() && target.locator_kind == "page" {
-                    pages.extend(
-                        legal_pdf_support::parse_ordinal("page", &target.locator)
-                            .filter(|page| *page <= document.page_count())
-                            .map(|page| page as u32),
-                    );
+                let mut status = lookup.status;
+                if target.locator_kind == "page" {
+                    if let Some(physical) = target.physical_pages {
+                        pages = physical.into_iter().filter(|page| *page > 0 &&
+                            (*page as usize) <= document.page_count()).collect();
+                        lines.clear();
+                        status = if pages.is_empty() { legalpdf::PdfLookupStatus::NotFound }
+                            else { legalpdf::PdfLookupStatus::Found };
+                    }
                 }
                 PassagePlan {
                     id: target.id,
                     page: target.locator_kind == "page",
-                    status: lookup.status,
+                    status,
                     pages,
                     lines,
                     paragraph: (target.locator_kind == "paragraph").then_some(target.locator),

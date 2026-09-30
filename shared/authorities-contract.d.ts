@@ -67,6 +67,8 @@ export type AuthoritySourceIdentity = {
 export type AuthorityHighlightExclusion = { kind: string; label: string };
 
 export type AuthorityIdentity = {
+  /** Explicit link printed in the imported document; not a verified source identity. */
+  sourceUrl?: string;
   id: string;
   key: string;
   kind: AuthorityKind;
@@ -110,7 +112,8 @@ export type AuthorityOccurrence = {
   kind: AuthorityKind | "reference";
   citation: string;
   authorityId: string | null;
-  reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null;
+  reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null;
+  referenceKind?: "short" | "supra" | "ibid";
   pinpoints: Array<{ kind: string; text: string }>;
   evidenceIds: string[];
   sourceTextSha256: string;
@@ -142,7 +145,7 @@ export type AuthoritiesUserAction =
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
   | { type: "set-reference"; occurrenceId: string;
-      reference: { kind: "supra" | "ibid"; targetAuthorityId: string } | null }
+      reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null }
   | { type: "begin-canlii-handoff"; authorityId: string }
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "clear-book-part"; slot: "cover" | "index" }

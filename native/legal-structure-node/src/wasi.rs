@@ -62,6 +62,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         }
         "deriveDocumentStructure" => done(engine::derive_document_structure(call.get("request")?).map(store)),
         "deriveDocumentFingerprint" => done(engine::derive_document_fingerprint(call.get("request")?).and_then(value)),
+        #[cfg(feature = "legalpdf")]
         "fixDocxSupraCrossReferences" => {
             let result = engine::fix_docx_supra_cross_references(bytes)?;
             Ok((json!({
@@ -72,27 +73,43 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
                     "unsafe_or_split_fields": result.unsafe_or_split_fields },
             }), result.bytes))
         }
+        #[cfg(feature = "legalpdf")]
         "hasDocxSupraReferences" => done(engine::has_docx_supra_references(bytes).and_then(value)),
+        #[cfg(feature = "legalpdf")]
         "deriveDocxDocument" => done(engine::derive_docx_document(
             bytes, call.get("id")?, call.get::<Option<bool>>("drafting")?.unwrap_or(false)).map(store)),
+        #[cfg(feature = "legalpdf")]
         "docxText" => done(engine::docx_text(
             bytes, call.get::<Option<bool>>("drafting")?.unwrap_or(false), call.get("limit")?).and_then(value)),
+        #[cfg(feature = "legalpdf")]
         "docxAuthorityTextUnits" => done(engine::docx_authority_text_units(bytes).and_then(value)),
+        #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
+        #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(engine::prepare_pdf_document(bytes, &call.get("request")?).and_then(value)),
+        #[cfg(feature = "legalpdf")]
         "restorePdfDocument" => done(engine::restore_pdf_document(&call.get("request")?)
             .map(|document| document.map(store).unwrap_or(Value::Null))),
+        #[cfg(feature = "legalpdf")]
         "pdfDocumentSummary" => done(with_document(doc()?, |d| engine::pdf_document_summary(d).and_then(value))),
+        #[cfg(feature = "legalpdf")]
         "pdfRecognizedText" => done(with_document(doc()?, |d|
             engine::pdf_recognized_text(d, call.get("pages")?).and_then(value))),
+        #[cfg(feature = "legalpdf")]
+        "pdfPageLabels" => done(with_document(doc()?, |d|
+            engine::pdf_page_labels(d).and_then(value))),
+        #[cfg(feature = "legalpdf")]
         "pdfAuthorityTextUnits" => done(with_document(doc()?, |d|
             engine::pdf_authority_text_units(d).and_then(value))),
+        #[cfg(feature = "legalpdf")]
         "pdfPassageGeometryPages" => {
             let job = with_document(doc()?, |d| engine::pdf_passage_pages_job(d, call.get("targets")?))?;
             done(job.compute(bytes))
         }
+        #[cfg(feature = "legalpdf")]
         "pdfLookupUnitSpans" => done(with_document(doc()?, |d|
             engine::pdf_lookup_unit_spans(d, &call.get::<Vec<String>>("ids")?).and_then(value))),
+        #[cfg(feature = "legalpdf")]
         "queryPdfDocument" => done(with_document(doc()?, |d| engine::query_pdf_document(
             d, call.get("locatorKind")?, call.get("locator")?, call.get("endLocator")?,
             call.get("contextBlocks")?, call.get("page")?, call.get("occurrence")?).and_then(value))),
@@ -108,6 +125,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         "documentAnchors" => done(with_document(doc()?, |d| value(engine::document_anchors(d, call.get("end")?)))),
         "legalSourceViewer" => done(with_document(doc()?, |d| engine::legal_source_viewer(
             d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
+        #[cfg(feature = "legalpdf")]
         "textLayout" => done(value(engine::text_layout(&call.get::<String>("text")?))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),

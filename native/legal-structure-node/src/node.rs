@@ -373,6 +373,11 @@ mod legalpdf_exports {
         js_value(env, &engine::pdf_recognized_text(document, pages).map_err(reason)?)
     }
 
+    #[napi(js_name = "pdfPageLabels")]
+    pub fn pdf_page_labels_node(document: &External<NativeDocument>) -> napi::Result<Vec<Option<String>>> {
+        engine::pdf_page_labels(document).map_err(reason)
+    }
+
     #[napi(js_name = "pdfAuthorityTextUnits")]
     pub fn pdf_authority_text_units_node(
         env: Env,
@@ -519,6 +524,7 @@ pub fn legal_source_viewer_node(
     js_value(env, &engine::legal_source_viewer(document, &primary_kind, limit).map_err(reason)?)
 }
 
+#[cfg(feature = "legalpdf")]
 #[napi(js_name = "textLayout")]
 pub fn text_layout_node(env: Env, text: String) -> napi::Result<Unknown<'static>> {
     js_value(env, &engine::text_layout(&text))

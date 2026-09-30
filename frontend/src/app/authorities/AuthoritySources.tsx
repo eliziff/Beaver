@@ -171,6 +171,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         title={citationLine}>{citationLine}</span>
     </>}
     <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
+      {authority.sourceUrl && <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
+        className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
+        title="Link printed in the imported document" aria-label={`Open document link for ${title}`}>
+        <ExternalLink className="h-3.5 w-3.5" />Document link</a>}
       {needsPdf && (authority.source.kind === "pending-canlii"
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer" aria-label={`CanLII PDF for ${title}`} title="CanLII"
             className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-red-800 outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600")}>

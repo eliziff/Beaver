@@ -210,7 +210,14 @@ const seed = closed<AuthoritySeed>({ key: text, kind: authorityKind, provider: t
   stableSourceId: text, sourceSha256: text, citation: text, name: nullable(text),
   version: nullable(text), externalUrl: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator) });
+export function isObservedSourceUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 8192) return false;
+  try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) &&
+    !url.username && !url.password; }
+  catch { return false; }
+}
 const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: authorityKind,
+  sourceUrl: maybe(isObservedSourceUrl),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
   source: sourceDecision, highlightExclusions: maybe(list(500, locator)),
@@ -233,6 +240,7 @@ const occurrence = closed<AuthorityOccurrence>({ id: text, unitId: text, ...span
   authoritySpan, coreSpan: authoritySpan, pinpointSpan: nullable(authoritySpan),
   kind: (value) => authorityKind(value) || value === "reference", citation: text,
   authorityId: nullable(text), reference: nullable(reference),
+  referenceKind: maybe(oneOf(AUTHORITIES_ACTION_CHOICES.reference)),
   pinpoints: list(50_000, pinpoint), evidenceIds: strings, sourceTextSha256: text,
   localOrdinal: integer, reviewed: flag });
 const ledgerOccurrence = closed<AuthoritiesLedgerOccurrence>({ id: text, markerId: text,
@@ -388,8 +396,10 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
         ? "reference" : authority.kind,
       citation: authority.citation,
       authorityId: item.authorityKey,
-      reference: item.displayedForm === "supra" || item.displayedForm === "ibid"
+      reference: item.displayedForm === "short" || item.displayedForm === "supra" || item.displayedForm === "ibid"
         ? { kind: item.displayedForm, targetAuthorityId: item.authorityKey } : null,
+      referenceKind: item.displayedForm === "short" || item.displayedForm === "supra" || item.displayedForm === "ibid"
+        ? item.displayedForm : undefined,
       pinpoints: [...item.pinpoints], evidenceIds: [...item.evidenceIds],
       sourceTextSha256: item.unit.sourceTextSha256,
       localOrdinal: item.localOrdinal, reviewed: true,
@@ -944,9 +954,14 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       break;
     case "set-reference": {
       const occurrence = requireRecord(draft.occurrences, action.occurrenceId, "occurrence");
+      if (action.reference && occurrence.referenceKind &&
+          action.reference.kind !== occurrence.referenceKind) {
+        throw new AuthoritiesDomainError("Reference kind does not match the parsed citation.");
+      }
       if (action.reference) requireRecord(draft.authorities,
         action.reference.targetAuthorityId, "authority");
       occurrence.reference = structuredClone(action.reference);
+      if (action.reference) occurrence.referenceKind = action.reference.kind;
       occurrence.authorityId = action.reference?.targetAuthorityId ?? null;
       occurrence.kind = "reference";
       occurrence.reviewed = true;
