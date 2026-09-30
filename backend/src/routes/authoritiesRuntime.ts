@@ -142,8 +142,8 @@ export function createAuthoritiesRuntimeRouter(
   router.post("/source-text", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));
     const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
-    const source = Object.values(state.authorities).flatMap(authority => authority.source.kind === "attached"
-      ? authority.source.sources : []).find(source => source.bindingRole === role);
+    const source = Object.values(state.authorities).flatMap(authority =>
+      attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
     if (!source || sha256(bytes) !== source.sourceSha256)
       return reject(409, "The PDF no longer matches this authority source");
     const pages = req.body?.pages === undefined ? undefined : json(req.body.pages, "pages");

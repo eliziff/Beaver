@@ -66,6 +66,24 @@ describe("standalone Authorities runtime", () => {
       .attach("file", bytes, "Example.pdf").expect(400);
   });
 
+  it("requires the attached PDF's exact bytes and positive page numbers before recognition", async () => {
+    const bytes = Buffer.from("%PDF-1.7\nsource-text transport fixture\n%%EOF");
+    const sourceSha256 = sha256(bytes), state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
+      name: "Example.pdf", size: bytes.length, modified: 1, sha256: sourceSha256,
+    } };
+    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "source",
+      filename: "Example.pdf", sourceSha256, sourceUrl: null, origin: "manual", language: "en" }] };
+    await request(app).post("/authorities-runtime/source-text")
+      .field("draft", JSON.stringify(state)).field("role", "source")
+      .attach("file", Buffer.from("%PDF-1.7\nchanged\n%%EOF"), "Example.pdf").expect(409);
+    for (const pages of [[], [0], [1.5]]) {
+      await request(app).post("/authorities-runtime/source-text")
+        .field("draft", JSON.stringify(state)).field("role", "source")
+        .field("pages", JSON.stringify(pages)).attach("file", bytes, "Example.pdf").expect(400);
+    }
+  });
+
   it("rejects an aggregate build upload above 512 MB before reading files", () => {
     expect(() => assertAuthoritiesBuildUploadSize([{ size: 512 * 1024 ** 2 + 1 }]))
       .toThrow(expect.objectContaining({ status: 413,

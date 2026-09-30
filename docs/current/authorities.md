@@ -29,10 +29,20 @@ After Sources, scanned inputs open the **Recognize text** modal before Highlight
 Authorities uses the shared folder-aware document chooser for existing files.
 Initial imports show PDF and DOCX files; authority and book attachments show PDFs
 only. It does not maintain a separate search-only Library picker.
-The modal lists scanned PDFs, page choices, recognition controls and progress;
+The modal lists scanned PDFs, recognition scope, controls and progress;
 eager recognition does not bypass it. Physical page citations can narrow OCR; paragraph/section targets may
 need broader processing. Missing runtime dependencies are actionable errors.
 Manual-only marks and margin-only workflows do not silently require full OCR.
+
+Highlight review opens the attached PDF before automatic marks finish. Text
+recognition continues in the background; completed pages become selectable without
+reopening the editor. Manual edits take precedence over late automatic marks and
+are saved against the reviewed source and draft revision.
+
+Authority titles and citation cores remain separate: cases use their style of
+cause, journals use author/title with the journal citation beside it, and other
+sources use their observed title when available. A short-form alias does not replace
+the title. Missing non-case titles are edited as **Title**.
 
 Build rechecks actual source availability. **Missing PDFs** warns about unresolved
 and unavailable attached PDFs and offers **Review sources** or **Build anyway**.
@@ -79,12 +89,13 @@ No iframe, proxy, server fetch, scraper, automated navigation, Downloads-folder
 watcher or background acquisition is part of this handoff.
 
 When a case page itself presents a challenge, or its advertised PDF challenges
-the downloader, the existing source row offers **Solve CAPTCHA** if the response
-contains an exact same-origin CAPTCHA form, or **Open publisher** for a challenge
-without one. A challenged case page may still prove to have no PDF once opened.
+the downloader, the source row offers **Open publisher** using that authority's
+document page or advertised PDF, rather than a downloader-session CAPTCHA URL.
+A challenged case page may still prove to have no PDF once opened.
 The browser and server-side downloader do not share publisher verification cookies.
 The recovery path is to download the publisher PDF in the browser and use the
-existing **Upload** control. **Retry download** retries that source alone, but a
+existing **Upload** control. **Retry download** in the row's options menu retries
+that source alone, but a
 successful browser visit does not imply the downloader is cleared. A guessed PDF route
 that challenges while the case page advertises no PDF is treated as no published
 PDF, not as a user-solvable CAPTCHA. A plain HTTP 403 is also not enough to claim
@@ -92,6 +103,8 @@ a CAPTCHA. Upload uses opening-citation verification. Downloads run sequentially
 within a preparation batch; after a confirmed challenge, remaining PDFs from
 that publisher are left for manual recovery while other publishers continue.
 This is a per-batch guard, not a cross-user rate limiter.
+Automatic source handling may build a PDF from available source text after a
+blocked download; manual-originals handling continues to require the original.
 
 Authorities acquisition owns PDF discovery: A2AJ resolution does not separately
 fetch publisher HTML first. For approved Decisia hosts, both downloaders try the

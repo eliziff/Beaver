@@ -300,7 +300,8 @@ async function scanReview(
     const observedText = source?.fields.citation_with_style || source?.part.text.trim() ||
       (full.length ? representative.span.text : representative.fullSpan.text);
     authorities[key] = { id: key, key, kind: source ? sourceKind : kindOf(representative),
-      citation: observedText, name: source ? observedText : representative.shortName ?? null,
+      citation: source?.fields.bare_citation || observedText,
+      name: source ? null : representative.style?.text?.trim() || null,
       displayName: null, excluded: false,
       evidenceIds: [], locators: [], sourceIdentity: null,
       source: { kind: "unresolved" }, scanOnly: true,

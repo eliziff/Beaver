@@ -199,7 +199,7 @@ export async function resolveAuthoritiesSources(
       .map((document) => ({ ...item, source: document,
         paired: documents.length === 2 || existing.size > 0 }));
   })).flat();
-  const blockedPublishers = new Map<string, string>();
+  const blockedPublishers = new Set<string>();
   const prepared = await mapBounded(languageSources, async (item) => {
     signal?.throwIfAborted();
     const { authority, source } = item;
@@ -214,8 +214,8 @@ export async function resolveAuthoritiesSources(
     if (originals && (authority.kind !== "legislation" || draft.settings.sourceMode === "manual-originals") &&
         (pdfUrl || sourceUrl)) try {
       publisher = new URL(sourceUrl ?? pdfUrl!).origin;
-      const blockedUrl = blockedPublishers.get(publisher);
-      if (blockedUrl) throw new PublisherVerificationRequired(blockedUrl);
+      if (blockedPublishers.has(publisher))
+        throw new PublisherVerificationRequired(pdfUrl ?? sourceUrl!);
       original = await sources.download({ provider,
         identity: source.identity ?? stableA2AJSourceId(source), sourceUrl, pdfUrl,
         source: { provider, id: source.citation, kind: authority.kind as "case" | "legislation",
@@ -230,17 +230,18 @@ export async function resolveAuthoritiesSources(
     } catch (error) {
       signal?.throwIfAborted();
       if (error instanceof PublisherVerificationRequired) {
-        verificationUrl = error.pageUrl;
-        if (publisher) blockedPublishers.set(publisher, error.pageUrl);
+        verificationUrl = pdfUrl ?? sourceUrl ?? error.pageUrl;
+        if (publisher) blockedPublishers.add(publisher);
       }
     }
     let reconstructed: Buffer | null = null;
-    if (reconstruct && !original && !verificationUrl && source.searchText.trim()) try {
+    if (reconstruct && !original && source.searchText.trim()) try {
       reconstructed = await renderAuthoritySourcePdf({ kind: authority.kind,
         name: source.name, citation: source.citation, date: source.date,
         sourceUrl: source.publisherUrl ?? source.url, text: source.searchText });
     } catch { signal?.throwIfAborted(); }
-    return { ...item, original, verificationUrl, bytes: original?.bytes ?? reconstructed };
+    return { ...item, original, verificationUrl: reconstructed ? undefined : verificationUrl,
+      bytes: original?.bytes ?? reconstructed };
   }, 1);
   for (const { authorityId, source, paired, original, bytes } of prepared) {
     if (!bytes) continue;

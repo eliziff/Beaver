@@ -203,6 +203,38 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   },
   mode: "standalone",
   recognitionAvailable,
+  sourceOcr: {
+    async start(id, roles, pages, scannedPages) {
+      const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
+      return roles.map(role => {
+        const binding = product.state.bindings[role];
+        if (binding?.kind !== "local-file" || !binding.lastSeen.sha256) throw new Error("This source is unavailable.");
+        const documentId = `${id}:${role}:${binding.lastSeen.sha256}`;
+        const previous = recognitionJobs.get(documentId);
+        if (previous && !previous.controller.signal.aborted && !previous.progress.error)
+          return { role, documentId, done: previous.progress.done };
+        const job: RecognitionJob = { controller: new AbortController(), progress: {
+          id: documentId, done: false, pages: pages ?? [], recognized: 0 } };
+        recognitionJobs.set(documentId, job);
+        void (async () => {
+          const file = await resolveExact(binding);
+          await prepareSourceText(product, role, file, pages, scannedPages?.[role], job.controller.signal,
+            recognized => { job.progress = { ...job.progress, recognized }; });
+          job.progress = { ...job.progress, done: true, pages: [] };
+        })().catch((error: Error) => {
+          if (!job.controller.signal.aborted) job.progress = { ...job.progress, error: error.message };
+        });
+        return { role, documentId };
+      });
+    },
+    async cancel(id, roles) {
+      for (const [key, job] of recognitionJobs) if (roles.some(role => key.startsWith(`${id}:${role}:`)))
+        job.controller.abort();
+    },
+    async progress(ids) {
+      return ids.flatMap(id => recognitionJobs.has(id) ? [recognitionJobs.get(id)!.progress] : []);
+    },
+  },
   drafts: standaloneWorkProducts,
   async create({ source, title, settings }) {
     if (source.kind === "document") {

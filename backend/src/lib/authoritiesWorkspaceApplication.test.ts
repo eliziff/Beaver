@@ -938,10 +938,39 @@ describe("Authorities workspace application", () => {
     const result = await prepareSources(runtime, imported);
     expect(runtime.sources.download).toHaveBeenCalledTimes(2);
     const authorities = (result.state as AuthoritiesDraft).authorities;
-    expect(authorities["2009 SCC 32"].sourceVerificationUrl).toContain("blocked.example");
-    expect(authorities["2014 SCC 71"].sourceVerificationUrl).toContain("blocked.example");
+    expect(authorities["2009 SCC 32"].sourceVerificationUrl).toBe("https://blocked.example/2009%20SCC%2032");
+    expect(authorities["2014 SCC 71"].sourceVerificationUrl).toBe("https://blocked.example/2014%20SCC%2071");
     expect(authorities["2023 SCC 14"].sourceVerificationUrl).toBeUndefined();
   });
+
+  it.each(["automatic", "manual-originals"] as const)(
+    "handles a blocked original according to the %s source choice", async (sourceMode) => {
+      const { PublisherVerificationRequired } = await import("./providerPdfLibraryBridge");
+      let draft = createAuthoritiesDraft({ kind: "manual" });
+      draft.settings.sourceMode = sourceMode;
+      draft = reduceAuthoritiesDraft(draft, { type: "add-authority", authority: {
+        id: "grant", key: "grant", kind: "case", citation: "2009 SCC 32", name: "R v Grant",
+        displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "unresolved" } } });
+      const sourceUrl = "https://blocked.example/grant";
+      const runtime = harness({ draft, resolve: async () => ({ docType: "cases", dataset: "SCC",
+        citation: "2009 SCC 32", alternateCitation: null, name: "R v Grant", date: null,
+        url: sourceUrl, verifiedPdf: null, language: "en", upstreamLicense: null,
+        searchText: "[1] Public source text for the judgment. [2] The judgment continues.",
+        native: {} as never, searchNative: {} as never }),
+      download: async () => { throw new PublisherVerificationRequired(
+        "https://blocked.example/robocop/captcha/en/query.do?token=server-session"); } });
+      const imported = await runtime.application.importDraft(scope, { source: { kind: "manual" } });
+      const result = await prepareSources(runtime, imported);
+      const authority = (result.state as AuthoritiesDraft).authorities.grant;
+      if (sourceMode === "automatic") {
+        expect(authority.source).toMatchObject({ kind: "attached", sources: [{ origin: "reconstructed" }] });
+        expect(authority.sourceVerificationUrl).toBeUndefined();
+      } else {
+        expect(authority.source.kind).toBe("resolved");
+        expect(authority.sourceVerificationUrl).toBe(sourceUrl);
+      }
+    });
 
   it("reports A2AJ revision drift and accepts the existing manual-PDF recovery", async () => {
     const citation = "2009 SCC 32", savedRevision = "b".repeat(64),

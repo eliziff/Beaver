@@ -172,10 +172,7 @@ async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal)
       }, { label: "Source PDF URL", timeoutMs: 30_000 });
     } catch (error) {
       if ((error as { code?: unknown })?.code !== "verification_required") throw error;
-      const supplied = (error as { verificationUrl?: unknown }).verificationUrl;
-      const challenge = typeof supplied === "string" ? publisherChallengeUrl("", supplied) : null;
-      throw new PublisherVerificationRequired(challenge && new URL(challenge).origin === url.origin
-        ? challenge : rawUrl);
+      throw new PublisherVerificationRequired(rawUrl);
     }
     if (response.status < 300 || response.status >= 400) return { response, url };
     const location = response.headers.get("location");
@@ -183,9 +180,7 @@ async function fetchSource(rawUrl: string, accept: string, signal?: AbortSignal)
     if (!location || redirects === 5) throw new Error("Source PDF redirect could not be resolved");
     current = new URL(location, url);
     if (verificationPage(current.href)) {
-      const challengeUrl = current.origin === new URL(rawUrl).origin
-        ? publisherChallengeUrl("", current) : null;
-      throw new PublisherVerificationRequired(challengeUrl ?? rawUrl);
+      throw new PublisherVerificationRequired(rawUrl);
     }
   }
   throw new Error("Source PDF redirect limit exceeded");
@@ -235,7 +230,7 @@ async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal
         markup = await response.text();
         const challengeUrl = publisherChallengeUrl(markup, url);
         if (challengeUrl || response.headers.get("cf-mitigated") === "challenge")
-          throw new PublisherVerificationRequired(challengeUrl ?? request.canonicalUrl ?? request.url);
+          throw new PublisherVerificationRequired(request.canonicalUrl ?? request.url);
       }
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
