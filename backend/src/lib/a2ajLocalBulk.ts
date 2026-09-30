@@ -97,6 +97,7 @@ function a2ajDocumentFromRow(row: Row, language: Language,
   if (!text || !metadata) return null;
   return {
     ...metadata,
+    publisherUrl: metadata.url,
     docType: string(row, "doc_type") === "laws" ? "laws" : "cases",
     verifiedPdf: null,
     text: text.length > maxChars ? text.slice(0, maxChars) : text,
