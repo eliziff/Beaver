@@ -293,7 +293,8 @@ def native_collection(doc, family):
     names = {'table': 'TextTables', 'frame': 'TextFrames', 'footnote': 'Footnotes', 'endnote': 'Endnotes',
              'bookmark': 'Bookmarks', 'field': 'TextFields', 'section': 'TextSections', 'drawing': 'DrawPage',
              'index': 'DocumentIndexes', 'revision': 'Redlines', 'control': 'ContentControls'}
-    if family not in names: raise ValueError('Unknown target family')
+    if family not in names:
+        raise ValueError('Unknown target family ' + family + '; use one of paragraph, cell, ' + ', '.join([*STYLE_FAMILIES, *names, *PAGE_STORIES]))
     if not hasattr(doc, names[family]): raise ValueError('This LibreOffice version does not expose ' + family)
     return getattr(doc, names[family])
 
@@ -324,6 +325,9 @@ def resolve(doc, target):
     if family == 'cell':
         table, _, cell = name.partition('/')
         return doc.TextTables.getByName(unquote(table)).getCellByName(unquote(cell))
+    if family == 'page-style' and name.startswith('paragraph:'):
+        # The page style laying out that paragraph (a Word section after export).
+        return doc.StyleFamilies.getByName('PageStyles').getByName(resolve(doc, name).PageStyleName)
     if family in PAGE_STORIES:
         story = page_story(doc.StyleFamilies.getByName('PageStyles').getByName(unquote(name)), family)
         if story is None: raise ValueError('Header/footer is disabled or shared; inspect its page style')
@@ -424,12 +428,20 @@ def properties(node, names, *, operation="get", values=None):
     Attribute writes remain separate; only actual beans properties use sorted
     XMultiPropertySet calls. Unknown names must not be silently ignored by UNO.
     """
+    # Replacing text invalidates a previously selected character cursor. Apply it
+    # before resolving formatting ranges, regardless of the object's key order.
+    if operation == 'set' and 'String' in names and len(names) > 1:
+        properties(node, ['String'], operation='set', values=values)
+        properties(node, [name for name in names if name != 'String'], operation='set', values=values)
+        return properties(node, names)
     groups, result, cursor = {}, {}, None
     paragraph = bool(names) and hasattr(node, 'supportsService') and node.supportsService('com.sun.star.text.Paragraph')
     for name in names:
         check_name(name)
         subject = node
         if name.startswith('Char') and paragraph or not hasattr(node, name):
+            # Only text ranges defer character properties to a cursor over their text.
+            if not hasattr(node, 'Start'): raise ValueError('No property ' + name + ' here; describe(filter) lists the members')
             if cursor is None:
                 owner = node.getText() if paragraph else node
                 cursor = owner.createTextCursorByRange(node.Start); cursor.gotoRange(node.End, True)
@@ -462,7 +474,7 @@ def properties(node, names, *, operation="get", values=None):
 
 def bounded(request, key, default, maximum):
     value = request.get(key, default)
-    if type(value) is not int or not 0 <= value <= maximum: raise ValueError(key + ' is outside the supported range')
+    if type(value) is not int or not 0 <= value <= maximum: raise ValueError(f'{key} must be an integer from 0 to {maximum}')
     return value
 
 
@@ -479,9 +491,35 @@ def page(entries, request):
 
 def revision_range(revision):
     start = revision.RedlineStart
+    # A table tracked in this session is one redline anchored at the table, not text.
+    if not hasattr(start, 'getText'):
+        raise ValueError('Review mode cannot verify a tracked table insertion or deletion; it needs direct (Auto) editing')
     cursor = start.getText().createTextCursorByRange(start)
     cursor.gotoRange(revision.RedlineEnd, True)
     return cursor
+
+
+def body_margins(style):
+    """Word's top/bottom margins reach the body text; LibreOffice's stop at an enabled header/footer."""
+    return {'TopMargin': style.TopMargin + (style.HeaderHeight if style.HeaderIsOn else 0),
+            'BottomMargin': style.BottomMargin + (style.FooterHeight if style.FooterIsOn else 0)}
+
+
+def reading(node, deleting=False):
+    """Accepted paragraph text, and the same text with {-deleted-}{+inserted+} marks.
+
+    String interleaves deleted and inserted text; inspection shows what the paragraph reads.
+    """
+    plain, marked = [], []
+    for _, portion in enumerate_values(node):
+        if portion.TextPortionType == 'Redline':
+            if portion.RedlineType == 'Delete':
+                deleting = portion.IsStart; marked.append('{-' if deleting else '-}')
+            elif portion.RedlineType == 'Insert': marked.append('{+' if portion.IsStart else '+}')
+            continue
+        marked.append(portion.String)
+        if not deleting: plain.append(portion.String)
+    return ''.join(plain), ''.join(marked), deleting
 
 
 def inspect(doc, request):
@@ -492,12 +530,16 @@ def inspect(doc, request):
     for name in names: check_name(name)
     def selected(node):
         return {'properties': {name: encode(value) for name, value in properties(node, names).items()}} if names else {}
+    tracked = doc.Redlines.Count > 0
     target = request.get('target')
     if target:
         node = resolve(doc, target)
         result = {'target': target, **selected(node)}
         if request.get('include_text', True):
             text = getattr(node, 'String', '')
+            if tracked and target.startswith('paragraph:'):
+                text, marked, _ = reading(node)
+                if marked != text: result['tracked'] = marked[:limit * 100]
             result.update(text=text[offset:offset + limit * 100], total_chars=len(text),
                           next_offset=offset + limit * 100 if offset + limit * 100 < len(text) else None)
         if target.startswith('table:'):
@@ -508,14 +550,19 @@ def inspect(doc, request):
         return result
     family = request.get('family', 'paragraph')
     entries, pagination = page(lambda start: collection(doc, family, start), request)
-    rows = []
+    rows, deleting = [], False
     for key, node in entries:
         row = {'target': family + ':' + quote(key, safe=''), **selected(node)}
         if family == 'revision':
             row.update(author=node.RedlineAuthor, type=node.RedlineType)
             if request.get('include_text', True):
                 row['text'] = revision_range(node).String[:1000]
+        elif family == 'paragraph' and tracked and request.get('include_text', True):
+            text, marked, deleting = reading(node, deleting)
+            row['text'] = text[:300]
+            if marked != text: row['tracked'] = marked[:600]
         elif request.get('include_text', True): row['text'] = getattr(node, 'String', '')[:300]
+        if family == 'page-style': row.update(in_use=node.isInUse(), word_margins=body_margins(node))
         rows.append(row)
     return {'family': family, 'items': rows, **pagination}
 

@@ -99,6 +99,7 @@ beforeEach(async () => {
   vi.stubEnv("SUPABASE_URL", "");
   vi.stubEnv("SUPABASE_SECRET_KEY", "");
   vi.stubEnv("GEMINI_API_KEY", "test-key");
+  vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "off");
   mocks.supabaseCalls = 0;
   mocks.streamChatWithTools.mockReset();
   mocks.streamChatWithTools.mockImplementation(submitFixture);

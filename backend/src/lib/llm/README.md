@@ -42,10 +42,34 @@ expands the tool list without forcing a newly discovered tool to execute. Native
 MCP transports advertise the complete scoped turn catalog (`staticTools`) once;
 `load_tools` activates specialists in `TurnToolRegistry`, not in the client's tool
 catalog. This avoids depending on list-change notifications over stateless HTTP.
-Unloaded tools remain blocked by the registry, and failures retain MCP `isError`.
+Claude Code keeps native schema deferral (`ENABLE_TOOL_SEARCH=true`) and exposes
+only its `ToolSearch` built-in to retrieve deferred definitions; other native
+built-ins remain disabled. `load_tools` changes execution availability within the same turn;
+it does not require another user message or a second client-side discovery step.
+Claude's partial stream forwards public thinking deltas and block boundaries,
+never signatures/redacted content or child-agent text. Summary visibility is
+independent of reasoning effort. Native stream and tool heartbeats share the
+watchdog, and cancellation closes blocks and ignores buffered late events.
+The context meter uses the latest main-loop request's input plus cache-read and
+cache-write tokens, updated during the stream. Aggregate result usage remains
+accounting only; it cannot overwrite the meter. Missing usage stays unknown and
+leaves the existing host estimate intact. The native reported context window is
+used when available for the same model, without borrowing a subagent's usage.
+A valid call to an in-scope specialist activates it, so clients that already
+hold the schema need no loader round; failures retain MCP `isError`.
+The loader returns the selected canonical definitions, including their parameter
+schemas; repeat loads return those definitions again. Names without an executor
+cannot be registered, and oversized discovery results refuse before activation.
+Hosted adapters still send only `resolveTools()` definitions. If the model emits
+loading and a known deferred call in one batch, the SDK's pre-load `NoSuchToolError`
+is resolved by the ordered registry, not persisted instead of the real result.
+Unknown names, malformed arguments and incomplete generations remain rejected. The full scoped catalog is not sent to hosted models.
 The bridge preserves MCP annotations; a write is not advertised as read-only.
 Codex's `default_tools_approval_mode: "approve"` applies only to the authenticated
-`mike_runtime` bridge. Claude Code uses its existing `--allowedTools` allowlist.
+`mike_runtime` bridge. Claude Code enables only its native `ToolSearch` discovery
+builtin alongside the Beaver MCP allowlist; native schema deferral stays enabled.
+This lets its client retrieve deferred MCP definitions without enabling native
+shell, filesystem, agent or other execution tools.
 Neither changes Beaver's execution authorization or grants native shell/file
 permissions. Native dispatch also requires exactly one matching result per call.
 
@@ -126,4 +150,7 @@ Contract references: [Vercel external execution](https://ai-sdk.dev/docs/ai-sdk-
 [Codex configuration](https://developers.openai.com/codex/config-reference),
 [Claude Code MCP permissions](https://code.claude.com/docs/en/permissions#mcp),
 [OpenCode Go endpoints and client headers](https://opencode.ai/docs/go/),
+[Claude tool search](https://code.claude.com/docs/en/agent-sdk/tool-search),
+[Claude usage](https://code.claude.com/docs/en/agent-sdk/cost-tracking),
+[Claude streaming](https://platform.claude.com/docs/en/build-with-claude/streaming),
 and [MCP tool results](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
