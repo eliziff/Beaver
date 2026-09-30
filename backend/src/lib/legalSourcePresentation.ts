@@ -85,7 +85,7 @@ export function publisherPdfSourceUrl(raw: string): URL | null {
     : bc && /^\/jdb-txt\/(?:sc|ca)\/[a-z0-9/_-]+\.(?:htm|html|pdf)$/i.test(url.pathname);
   if (bc && url.protocol === "http:") url.protocol = "https:";
   if (url.protocol !== "https:" || url.port || url.username || url.password || !validPath ||
-      /[%\]/.test(url.pathname)) return null;
+      /[%\\]/.test(url.pathname)) return null;
   url.hash = ""; url.search = "";
   return url;
 }
