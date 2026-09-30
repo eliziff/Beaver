@@ -567,7 +567,7 @@ describe("standalone Authorities sources", () => {
       drafts.get.mockResolvedValue(saved);
       fileStore.resolveStandaloneFile.mockResolvedValue({ status: "missing", reason });
       await expect(standaloneAuthoritiesHost.build(saved)).rejects.toThrow(
-        reason === "permission" ? "Allow access" : "Reconnect");
+        reason === "permission" ? "permission to read" : "Reconnect");
       expect(api.apiResponse).not.toHaveBeenCalled();
 
       saved.state.settings.allowIncomplete = true;

@@ -165,6 +165,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     outputFreshness: "unbuilt" | "current" | "stale";
   }>({ draftId: "", sourceKey: "", revision: -1, issues: {}, outputFreshness: "unbuilt" });
   const [sourceAccessVersion, setSourceAccessVersion] = useState(0);
+  const [accessPrompt, setAccessPrompt] = useState<{ draftId: string; denied: boolean }>();
   const [review, setReview] = useState<{ id: string; key: string;
     items: AuthoritiesDiscrepancy[]; error: string }>();
   const draftRef = useRef(draft);
@@ -385,6 +386,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const importedRole = draft?.state.import.kind === "document"
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
+  const unreadable = draft && host.requestSourceAccess ? Object.entries(sourceIssues)
+    .filter(([, issue]) => relinkable(issue)).flatMap(([role]) => {
+      const input = draft.state.bindings[role];
+      return input?.kind === "local-file" ? [{ role, name: input.lastSeen.name }] : [];
+    }) : [];
+  const accessOpen = !!draft && unreadable.length > 0 &&
+    (accessPrompt?.draftId !== draft.id || accessPrompt.denied);
+  async function requestSourceAccess() {
+    if (!draft || !host.requestSourceAccess) return;
+    const id = draft.id, granted = await host.requestSourceAccess(draft).catch(() => false);
+    setAccessPrompt({ draftId: id, denied: !granted });
+    if (granted) { inspectionRequest.current += 1; setSourceAccessVersion((value) => value + 1); }
+  }
   const reviewError = !globalTab ? currentReview?.error || "" : "";
   // Work a step starts reports itself in that step, and so does the reason it stopped;
   // only unattached work needs the page-level line.
@@ -1039,6 +1053,19 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
             </label>)}
           </div>
         </fieldset>
+      </Modal>
+      <Modal open={accessOpen} size="md" breadcrumbs={["File access"]} fit
+        onClose={() => draft && setAccessPrompt({ draftId: draft.id, denied: false })}
+        secondaryAction={{ label: "Not now", onClick: () => draft &&
+          setAccessPrompt({ draftId: draft.id, denied: false }) }}
+        primaryAction={{ label: "Allow access", onClick: () => void requestSourceAccess() }}>
+        <p className="text-sm leading-6 text-gray-700">Chrome asks again before this draft can read
+          its files. Choose <strong>Allow on every visit</strong> so it won’t ask next time.</p>
+        <ul className="my-3 max-h-36 divide-y divide-gray-200 overflow-y-auto rounded-lg border border-gray-300 bg-gray-50 text-sm">
+          {unreadable.map(file => <li key={file.role} className="truncate px-3 py-2" title={file.name}>{file.name}</li>)}
+        </ul>
+        {accessPrompt?.denied && <p role="alert" className="pb-3 text-sm text-red-800">Chrome did not allow
+          access. Allow it again, or choose the file with Allow file access.</p>}
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
