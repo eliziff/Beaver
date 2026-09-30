@@ -112,3 +112,9 @@ original_details.jsonl
 # Local standalone Authorities build and runtime artifacts
 .authorities-dev/
 .court-records-dev/
+
+# Private citation comparison inputs, frozen checkouts and receipts.
+/benchmarks/docx_corpus/private_comparison/
+
+# Court-record exhibit benchmark: private records and tooling stay local.
+/benchmarks/court-record-exhibits/
