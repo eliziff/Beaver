@@ -12,7 +12,7 @@ import JSZip from "jszip";
 import { parseAsync, renderDocument } from "docx-preview";
 import { describe, expect, it } from "vitest";
 
-import { DOCX_RENDER_OPTIONS } from "./DocxView";
+import { DOCX_RENDER_OPTIONS } from "./DocxCanvas";
 import { finalizeDocxDom, tagDocxMarkers, type DocxNoteModel } from "./docxNotes";
 
 /**

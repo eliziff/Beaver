@@ -39,12 +39,15 @@ const drafts: WorkProductStore = {
 };
 
 async function prepareSourcePdfs(draft: Parameters<AuthoritiesHost["build"]>[0],
-  progress?: (message: string) => void, signal?: AbortSignal) {
-    if (draft.state.outputMode !== "table") {
+    progress?: (message: string) => void, signal?: AbortSignal) {
+    if (draft.state.outputMode !== "table" || draft.state.settings.finalPdf) {
+      const unavailable = draft.state.settings.allowIncomplete
+        ? (await getWorkProductResolution(draft.id)).inputs : {};
       const sources = new Map(draft.state.authorityOrder.flatMap((authorityId) => {
         const authority = draft.state.authorities[authorityId];
         if (!authority || authority.excluded || authority.source.kind !== "attached") return [];
         return authority.source.sources.flatMap((source) => {
+          if (unavailable[source.bindingRole]?.status === "missing") return [];
           const binding = draft.state.bindings[source.bindingRole];
           return binding?.kind === "document"
             ? [[binding.documentId, source.filename] as const] : [];

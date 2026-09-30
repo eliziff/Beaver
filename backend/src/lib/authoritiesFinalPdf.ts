@@ -1,0 +1,221 @@
+import * as pdf from "pdf-lib";
+import { quadBounds, rectToPdfQuad, validRect } from "mike/shared/pdf-annotations.mjs";
+import { attachedAuthoritySources } from "mike/shared/authorities-sources.mjs";
+import type { AuthoritiesBuildReceipt, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
+import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
+import { pdfAssembly, type PdfOutline } from "./pdfAssembly";
+import { authorityProcedureInput, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
+import { sha256 } from "./hash";
+import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
+
+const { appendPages, applyOutlines, destinationReader } = pdfAssembly(pdf);
+const LINK_PREFIX = "https://beaver-authorities.invalid/";
+export const filingLinkUrl = (kind: "tab" | "pinpoint", id: string) =>
+  `${LINK_PREFIX}${kind}/${encodeURIComponent(id)}`;
+type Book = Pick<AuthoritiesBuildArtifact, "role" | "bytes" | "bookPlacements">;
+type Warnings = NonNullable<AuthoritiesBuildReceipt["linkWarnings"]>;
+
+export function filingTabText(unitText: string, occurrence: AuthorityOccurrence, tab?: string) {
+  const following = unitText.slice(occurrence.end).trimStart();
+  return tab && [`[${tab}]`, `[Book of authorities ${tab}]`].find((text) => following.startsWith(text)) ||
+    occurrence.authoritySpan.text;
+}
+
+function pdfOutlines(document: pdf.PDFDocument, offset = 0): PdfOutline[] {
+  const pages = new Map(document.getPages().map((page, index) => [String(page.ref), index]));
+  const destination = destinationReader(document);
+  const seen = new Set<pdf.PDFDict>();
+  const branch = (first: pdf.PDFDict | undefined): PdfOutline[] => {
+    const result: PdfOutline[] = [];
+    for (let node = first; node && !seen.has(node) && seen.size < 10_000;
+      node = node.lookupMaybe(pdf.PDFName.of("Next"), pdf.PDFDict)) {
+      seen.add(node);
+      const title = node.lookupMaybe(pdf.PDFName.of("Title"), pdf.PDFString, pdf.PDFHexString);
+      const dest = destination(node);
+      const pageIndex = dest && pages.get(String(dest.get(0)));
+      const children = branch(node.lookupMaybe(pdf.PDFName.of("First"), pdf.PDFDict));
+      if (title && pageIndex !== undefined) result.push({ title: title.decodeText(),
+        pageIndex: offset + pageIndex, ...(children.length ? { children } : {}) });
+    }
+    return result;
+  };
+  return branch(document.catalog.lookupMaybe(pdf.PDFName.of("Outlines"), pdf.PDFDict)
+    ?.lookupMaybe(pdf.PDFName.of("First"), pdf.PDFDict));
+}
+
+export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
+  sourceBytes: Uint8Array, books: Book[]) {
+  const draft = input.draft, sources = input.sources ?? {};
+  let document: pdf.PDFDocument;
+  try { document = await pdf.PDFDocument.load(sourceBytes, { updateMetadata: false }); }
+  catch { throw new Error("The brief PDF could not be opened for final export."); }
+  const sourcePages = document.getPageCount();
+  if (!sourcePages) throw new Error("The brief PDF is empty.");
+  const originalOutlines = pdfOutlines(document);
+  const outlines: PdfOutline[] = [{ title: "Brief", pageIndex: 0,
+    ...(originalOutlines.length ? { children: originalOutlines } : {}) }];
+  const destinations = new Map<string, { tab: number; pages: Map<number, number> }>();
+  for (const output of books) {
+    input.signal?.throwIfAborted();
+    const offset = document.getPageCount(), book = await pdf.PDFDocument.load(output.bytes, { updateMetadata: false });
+    const children = pdfOutlines(book, offset);
+    const volume = output.role === "book" ? "1" : output.role.slice(5);
+    outlines.push({ title: books.length > 1 ? `Book of authorities — Volume ${volume}` : "Book of authorities",
+      pageIndex: offset, children });
+    for (const placement of output.bookPlacements ?? []) {
+      if (!placement.key.startsWith("authority:")) continue;
+      const id = placement.key.slice("authority:".length);
+      const placed = destinations.get(id) ?? { tab: offset + placement.pageIndex, pages: new Map<number, number>() };
+      placement.sourcePageIndices.forEach((pageIndex, index) =>
+        placed.pages.set(pageIndex, offset + placement.pageIndex + index));
+      destinations.set(id, placed);
+    }
+    await appendPages(document, book);
+  }
+  const warnings: Warnings = [], warned = new Set<string>();
+  const tabs = new Map(deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose: "book" }))
+    .map(({ id, tab }) => [id, tab]));
+  const unitTexts = new Map(draft.units.map(({ id, text }) => [id, text]));
+  const warn = (id: string, reason: Warnings[number]["reason"], pinpoint = false) => {
+    const occurrence = draft.occurrences[id], key = `${id}\0${pinpoint}`;
+    if (!occurrence || warned.has(key)) return;
+    warned.add(key); warnings.push({ occurrenceId: id, citation: occurrence.authoritySpan.text,
+      pinpoint: pinpoint ? occurrence.pinpointSpan?.text ?? null : null,
+      tab: tabs.get(occurrence.authorityId ?? ""), reason });
+  };
+  const sourceOffsets = new Map<string, number>();
+  if (draft.settings.linkPinpoints) for (const authority of Object.values(draft.authorities)) {
+    if (authority.excluded) continue;
+    let offset = 0;
+    for (const source of attachedAuthoritySources(authority.source)) {
+      sourceOffsets.set(source.bindingRole, offset);
+      offset += sources[source.bindingRole]?.bytes === undefined ? 1
+        : (await pdf.PDFDocument.load(sources[source.bindingRole].bytes!, { updateMetadata: false })).getPageCount();
+    }
+  }
+  const pinpointDestination = (id: string) => {
+    const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
+    const placement = destinations.get(authority?.id ?? "");
+    if (!authority || !placement || authority.source.kind !== "attached") {
+      warn(id, "source-missing", true); return null;
+    }
+    const manual = authority.source.sources.filter(({ origin }) => origin === "manual");
+    if (manual.length && manual.every(({ bindingRole }) => !sources[bindingRole]?.bytes)) {
+      warn(id, "source-missing", true); return null;
+    }
+    let ambiguous = false;
+    for (const source of manual) {
+      const geometry = sources[source.bindingRole]?.passageGeometry;
+      if (!sources[source.bindingRole]?.bytes || geometry?.sourceSha256 !== source.sourceSha256) continue;
+      const matching = geometry.targets.filter((target) => occurrence.pinpoints.some(({ kind, text }) =>
+        target.locatorKind === kind && target.locator.trim() === text.trim()));
+      ambiguous ||= matching.some(({ status }) => status === "ambiguous");
+      if (!matching.length || occurrence.pinpoints.some(({ kind, text }) => !matching.some((target) =>
+        target.locatorKind === kind && target.locator.trim() === text.trim())) ||
+        matching.some(target => target.status !== "found" || !target.pages.length ||
+          !hasPrintedParagraphLocator(target))) continue;
+      const pages = matching.flatMap(({ pages }) => pages).sort((left, right) => left.pageNumber - right.pageNumber);
+      const page = pages[0], sourceIndex = (sourceOffsets.get(source.bindingRole) ?? 0) + page.pageNumber - 1;
+      const pageIndex = placement.pages.get(sourceIndex);
+      if (pageIndex === undefined) continue;
+      const target = document.getPage(pageIndex), rawRect = page.passageRects[0];
+      const rect = rawRect && normalizePassageRect(rawRect, page.width, page.height);
+      const rotation = ((target.getRotation().angle % 360) + 360) % 360;
+      if (rect && (!validRect(rect) || ![0, 90, 180, 270].includes(rotation))) continue;
+      const top = rect ? Math.max(...rectToPdfQuad(rect, target.getCropBox(), target.getRotation().angle)
+        .filter((_value, index) => index % 2 === 1)) : target.getCropBox().y + target.getCropBox().height;
+      return { pageIndex, top, sourcePageNumber: page.pageNumber };
+    }
+    warn(id, ambiguous ? "pinpoint-ambiguous" : "pinpoint-unlocated", true); return null;
+  };
+  const pinpointCache = new Map<string, ReturnType<typeof pinpointDestination>>();
+  const destination = (kind: string, id: string) => {
+    if (kind === "tab") {
+      const value = destinations.get(draft.occurrences[id]?.authorityId ?? "");
+      if (!value) { warn(id, "source-missing"); return null; }
+      return { pageIndex: value.tab, top: null };
+    }
+    if (!pinpointCache.has(id)) pinpointCache.set(id, pinpointDestination(id));
+    return pinpointCache.get(id) ?? null;
+  };
+  const linked = new Set<string>();
+  for (let pageIndex = 0; pageIndex < sourcePages; pageIndex++) {
+    const page = document.getPage(pageIndex), annots = page.node.lookupMaybe(pdf.PDFName.of("Annots"), pdf.PDFArray);
+    for (let index = (annots?.size() ?? 0) - 1; index >= 0; index--) {
+      const annotation = annots!.lookup(index, pdf.PDFDict), action = annotation.lookupMaybe(pdf.PDFName.of("A"), pdf.PDFDict);
+      const uri = action?.lookupMaybe(pdf.PDFName.of("URI"), pdf.PDFString, pdf.PDFHexString)?.decodeText();
+      if (!uri?.startsWith(LINK_PREFIX)) continue;
+      const [kind, encodedId] = uri.slice(LINK_PREFIX.length).split("/");
+      let id: string;
+      try { id = decodeURIComponent(encodedId); } catch { annots!.remove(index); continue; }
+      if (!draft.occurrences[id] || !(kind === "tab" ? draft.settings.linkTabs :
+        kind === "pinpoint" && draft.settings.linkPinpoints)) {
+        annots!.remove(index); continue;
+      }
+      const target = destination(kind, id);
+      if (!target) { annots!.remove(index); continue; }
+      annotation.delete(pdf.PDFName.of("A"));
+      annotation.set(pdf.PDFName.of("Dest"), document.context.obj(target.top === null
+        ? [document.getPage(target.pageIndex).ref, "Fit"]
+        : [document.getPage(target.pageIndex).ref, "XYZ", null, target.top, null]));
+      linked.add(`${kind}:${id}`);
+    }
+  }
+  const importedGeometry = draft.import.kind === "document" && draft.import.fileType === "pdf"
+    ? sources[draft.import.bindingRole]?.passageGeometry : undefined;
+  const verifiedImportedGeometry = importedGeometry?.sourceSha256 === sha256(Buffer.from(sourceBytes))
+    ? importedGeometry : undefined;
+  for (const occurrence of Object.values(draft.occurrences)) {
+    const authority = draft.authorities[occurrence.authorityId ?? ""];
+    if (!authority || authority.excluded) continue;
+    for (const kind of ["tab", "pinpoint"] as const) {
+      if (!(kind === "tab" ? draft.settings.linkTabs : draft.settings.linkPinpoints && occurrence.pinpointSpan &&
+        attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"))) continue;
+      if (linked.has(`${kind}:${occurrence.id}`)) continue;
+      const quoteText = kind === "tab" ? filingTabText(unitTexts.get(occurrence.unitId) ?? "", occurrence,
+        tabs.get(authority.id)) : occurrence.pinpointSpan!.text;
+      const geometryTarget = verifiedImportedGeometry?.targets.find(({ id }) => id === `filing:${occurrence.id}`);
+      const quote = geometryTarget?.quotes.find(({ text }) => text === quoteText);
+      const fragments = quote?.fragments?.length ? quote.fragments : quote?.pageNumber
+        ? [{ pageNumber: quote.pageNumber, rects: quote.rects }] : [];
+      if (quote?.status !== "found" || !fragments.length || fragments.some(({ pageNumber, rects }) => {
+        if (pageNumber < 1 || pageNumber > sourcePages || !rects.length) return true;
+        const geometryPage = geometryTarget?.pages.find((page) => page.pageNumber === pageNumber);
+        const rotation = ((document.getPage(pageNumber - 1).getRotation().angle % 360) + 360) % 360;
+        return !geometryPage || geometryPage.source !== "native" || geometryPage.width <= 0 || geometryPage.height <= 0 ||
+          ![0, 90, 180, 270].includes(rotation) || rects.some((rect) =>
+            !validRect(normalizePassageRect(rect, geometryPage.width, geometryPage.height)));
+      })) {
+        warn(occurrence.id, "citation-location", kind === "pinpoint");
+        if (kind === "pinpoint") {
+          const target = destination(kind, occurrence.id);
+          const warning = warnings.find((row) => row.occurrenceId === occurrence.id && row.pinpoint !== null);
+          if (target && warning && "sourcePageNumber" in target)
+            warning.sourcePageNumber = target.sourcePageNumber;
+        }
+        continue;
+      }
+      const target = destination(kind, occurrence.id);
+      if (!target) continue;
+      for (const fragment of fragments) {
+        const page = document.getPage(fragment.pageNumber - 1);
+        const geometryPage = geometryTarget!.pages.find(({ pageNumber }) => pageNumber === fragment.pageNumber)!;
+        for (const rect of fragment.rects) {
+          const normalized = normalizePassageRect(rect, geometryPage.width, geometryPage.height);
+          const bounds = quadBounds([rectToPdfQuad(normalized, page.getCropBox(), page.getRotation().angle)]);
+          page.node.addAnnot(document.context.register(document.context.obj({
+            Type: "Annot", Subtype: "Link", Rect: bounds, Border: [0, 0, 0],
+            Dest: target.top === null ? [document.getPage(target.pageIndex).ref, "Fit"]
+              : [document.getPage(target.pageIndex).ref, "XYZ", null, target.top, null],
+          })));
+        }
+      }
+    }
+  }
+  applyOutlines(document, outlines, true);
+  document.setTitle(`${draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : ""}Brief and Book of Authorities`);
+  document.setCreator("Beaver"); document.setProducer("Beaver / pdf-lib");
+  input.signal?.throwIfAborted();
+  return { bytes: Buffer.from(await document.save({ useObjectStreams: false })),
+    pageCount: document.getPageCount(), warnings };
+}

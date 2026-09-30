@@ -85,17 +85,30 @@ export function publisherPdfSourceUrl(raw: string): URL | null {
     : bc && /^\/jdb-txt\/(?:sc|ca)\/[a-z0-9/_-]+\.(?:htm|html|pdf)$/i.test(url.pathname);
   if (bc && url.protocol === "http:") url.protocol = "https:";
   if (url.protocol !== "https:" || url.port || url.username || url.password || !validPath ||
-      /[%\\]/.test(url.pathname)) return null;
+      /[%\]/.test(url.pathname)) return null;
   url.hash = ""; url.search = "";
   return url;
 }
 
-/** Decisia's observed document route; availability still requires a successful PDF response. */
+/** Observed publisher routes are candidates; availability requires a validated PDF response. */
 export function publisherPdfCandidate(rawUrl: string | URL) {
   const source = decisiaIndexUrl(rawUrl);
-  if (!source) return null;
-  source.pathname = source.pathname.replace(/\/item\/(\d+)\/index\.do$/iu, "/$1/1/document.do");
-  return source.toString();
+  if (source) {
+    source.pathname = source.pathname.replace(/\/item\/(\d+)\/index\.do$/iu, "/$1/1/document.do");
+    return source.toString();
+  }
+  const publisher = httpUrl(String(rawUrl));
+  if (!publisher || publisher.protocol !== "https:" || publisher.port) return null;
+  if (publisher.hostname === "kings-printer.alberta.ca" && publisher.pathname === "/1266.cfm") {
+    const page = publisher.searchParams.get("page"), type = publisher.searchParams.get("leg_type");
+    if (page && /^[a-z0-9][a-z0-9_-]*\.cfm$/iu.test(page) && (type === "Acts" || type === "Regs"))
+      return `${publisher.origin}/documents/${type}/${page.slice(0, -4)}.pdf`;
+  }
+  if (publisher.hostname === "laws-lois.justice.gc.ca") {
+    const file = publisher.pathname.match(/^\/(?:eng|fra)\/XML\/([a-z0-9][a-z0-9.-]*)\.xml$/iu)?.[1];
+    if (file && !file.includes("..") && !file.endsWith(".")) return `${publisher.origin}/PDF/${file}.pdf`;
+  }
+  return null;
 }
 
 /** One attribute's value in any quoting style; "" when the attribute is absent. */

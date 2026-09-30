@@ -1,7 +1,7 @@
 import { authoritiesInputPlan } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { updateAuthoritiesDraft } from "./authoritiesActions";
-import { authoritiesTextRoles, authorityPassageTargets } from "./authoritiesBuild";
+import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets } from "./authoritiesBuild";
 import { authorityCitationForms, authoritiesProfile, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction } from "./authoritiesDomain";
 import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { authorityPdfText } from "./authorityPdfText";
@@ -47,11 +47,17 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
       if (!textRoles.has(role)) return { pageBindings: undefined };
       const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
       const authority = attached?.authority;
-      const targets = authority ? authorityPassageTargets(draft, authority.id) : [];
-      const text = await authorityPdfText({ ...input, scannedPdfPolicy: draft.settings.scannedPdfPolicy,
+      const filing = !authority && draft.import.kind === "document" &&
+        draft.import.fileType === "pdf" && role === draft.import.bindingRole;
+      const targets = authority ? authorityPassageTargets(draft, authority.id)
+        : filing ? authorityFilingTargets(draft) : [];
+      const linkGeometry = !!(draft.settings.finalPdf && draft.settings.linkPinpoints);
+      const text = await authorityPdfText({ ...input,
+        scannedPdfPolicy: filing ? "page-margin" : draft.settings.scannedPdfPolicy,
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         reporterOriginal: attached?.source.origin === "original",
-        ocrTargets: targets, passageTargets: draft.settings.passageMarking === "none" ? [] : targets });
+        ocrTargets: filing ? [] : targets,
+        passageTargets: filing || linkGeometry || draft.settings.passageMarking !== "none" ? targets : [] });
       input.signal?.throwIfAborted();
       return { pageTextByPage: text.pageTextByPage,
         ...(text.pageLabels ? { pageLabels: text.pageLabels, pageBindings: text.pageBindings } : {}),

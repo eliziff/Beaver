@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesDraft, AuthoritiesProduct } from "./types";
 import { attachAuthoritySource } from "../../../../shared/authorities-sources.mjs";
+import { PDFDocument, PDFName } from "pdf-lib";
+import type { PreparedAuthoritiesBook } from "../../../../backend/src/lib/authoritiesBook";
 
 const { api, fileStore, drafts, unexpected } = vi.hoisted(() => ({
   api: { apiResponse: vi.fn() },
@@ -412,6 +414,23 @@ describe("standalone Authorities sources", () => {
     expect(await included.text()).toBe("docx");
   });
 
+  it("includes the imported Word bytes for final PDF export when Word marking is off", async () => {
+    const source = new File(["docx"], "Factum.docx", { lastModified: 1 });
+    const saved = product(input(await sha256(source), source.size, "export-handle"));
+    saved.state.settings.finalPdf = true;
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "ready", file: source,
+      input: saved.state.bindings.source });
+    fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+    api.apiResponse.mockResolvedValue(emptyBuild());
+
+    await standaloneAuthoritiesHost.build(saved);
+
+    const request = api.apiResponse.mock.calls[0][1].body as FormData;
+    expect(JSON.parse(String(request.get("roles")))).toEqual(["source"]);
+    expect(await (request.getAll("files")[0] as File).text()).toBe("docx");
+  });
+
   it("includes both authority language PDFs with an Alberta appeal filing PDF", async () => {
     const filing = new File(["%PDF-filing"], "Factum.pdf", { lastModified: 1 });
     const authorities = [
@@ -472,6 +491,119 @@ describe("standalone Authorities sources", () => {
     expect(result).toMatchObject({ product: built, notice: expect.stringContaining("ready to download") });
     fileStore.getStandaloneOutputFolder.mockResolvedValue("Court outputs");
     await expect(standaloneAuthoritiesHost.outputFolder!.get()).resolves.toBe("Court outputs");
+  });
+
+  it("renders and saves a nonempty prepared book received from the runtime", async () => {
+    const saved = product(input("0".repeat(64)));
+    saved.state.outputMode = "book";
+    const source = await PDFDocument.create(); source.addPage([612, 792]);
+    const bytes = await source.save();
+    const row = { key: "authority:case", name: "Non‑profit Society v Example, 2024 ABKB 1", tab: "1" };
+    const book: PreparedAuthoritiesBook<string> = {
+      filename: "Factum.book-of-authorities.pdf", subtitle: "Factum",
+      documentTitle: "Book of Authorities", bookTitle: "Book of Authorities",
+      federal: false, electronic: false, court: "", cover: saved.state.cover,
+      allowIncomplete: false, coverLine: null, paperCover: null,
+      coverPageCount: 1, customIndexPages: 0,
+      groups: [{ label: "Cases", entries: [row] }],
+      sources: [{ ...row, bytes: "book-source-0", pageIndices: [0],
+        databaseReference: null, bookmarks: [{ title: "para 1", pageIndex: 0 }] }],
+    };
+    const response = new FormData();
+    response.append("receipt", JSON.stringify({ schemaVersion: "beaver.authorities-build.v1",
+      builtAt: "2026-08-31T00:00:00Z", outputs: {} }));
+    response.append("book", JSON.stringify(book));
+    response.append("book-source-0", new File([bytes.slice().buffer], "source.pdf",
+      { type: "application/pdf" }));
+    drafts.get.mockResolvedValue(saved); fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+    api.apiResponse.mockResolvedValue({ formData: async () => response });
+
+    const result = await standaloneAuthoritiesHost.build(saved);
+
+    const [artifact] = fileStore.saveStandaloneArtifacts.mock.calls[0][1];
+    expect(artifact).toMatchObject({ role: "book", pageCount: 3, mimeType: "application/pdf",
+      filename: book.filename, sha256: await sha256(new Blob([artifact.bytes.slice().buffer])) });
+    const document = await PDFDocument.load(artifact.bytes);
+    expect(document.getPageCount()).toBe(3);
+    expect(document.catalog.has(PDFName.of("Outlines"))).toBe(true);
+    expect(result.receipt.outputs.book?.sha256).toBe(artifact.sha256);
+    expect(fileStore.writeStandaloneArtifactsToOutputFolder.mock.calls[0][0][0].bytes)
+      .toEqual(artifact.bytes);
+  });
+
+  it("saves completed book and final PDF artifacts without interpreting the book file as a plan", async () => {
+    const saved = product(input("0".repeat(64)));
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const bytes = await pdf.save(), digest = await sha256(new Blob([bytes.slice().buffer]));
+    const outputs = Object.fromEntries(["book", "final-pdf"].map((role) => [role, {
+      filename: `Factum.${role}.pdf`, mimeType: "application/pdf", sha256: digest, pageCount: 1,
+    }]));
+    const response = new FormData();
+    response.append("receipt", JSON.stringify({ schemaVersion: "beaver.authorities-build.v1",
+      builtAt: "2026-08-31T00:00:00Z", outputs }));
+    for (const [role, detail] of Object.entries(outputs)) response.append(role,
+      new File([bytes.slice().buffer], detail.filename, { type: detail.mimeType }));
+    drafts.get.mockResolvedValue(saved); fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+    api.apiResponse.mockResolvedValue({ formData: async () => response });
+
+    const result = await standaloneAuthoritiesHost.build(saved);
+
+    expect(fileStore.saveStandaloneArtifacts.mock.calls[0][1].map(({ role }: { role: string }) => role))
+      .toEqual(["book", "final-pdf"]);
+    expect(result.receipt.outputs).toEqual(outputs);
+  });
+
+  it.each(["deleted", "permission", "unavailable"] as const)(
+    "omits a %s authority PDF only after incomplete building is enabled", async (reason) => {
+      const saved = product(input("0".repeat(64)));
+      saved.state.outputMode = "book";
+      const role = "authority:case:en", binding = input("a".repeat(64), 5, "case-handle");
+      saved.state.authorities.case = { id: "case", key: "case", kind: "case",
+        citation: "2024 ABKB 1", name: null, displayName: null, excluded: false,
+        evidenceIds: [], locators: [], sourceIdentity: null,
+        source: { kind: "attached", sources: [{ bindingRole: role, filename: "Case.pdf",
+          sourceSha256: "a".repeat(64), sourceUrl: null, origin: "manual", language: "en" }] } };
+      saved.state.authorityOrder = ["case"]; saved.state.bindings[role] = binding;
+      drafts.get.mockResolvedValue(saved);
+      fileStore.resolveStandaloneFile.mockResolvedValue({ status: "missing", reason });
+      await expect(standaloneAuthoritiesHost.build(saved)).rejects.toThrow(
+        reason === "permission" ? "Allow access" : "Reconnect");
+      expect(api.apiResponse).not.toHaveBeenCalled();
+
+      saved.state.settings.allowIncomplete = true;
+      fileStore.saveStandaloneArtifacts.mockResolvedValue(saved);
+      api.apiResponse.mockResolvedValue(emptyBuild());
+      await standaloneAuthoritiesHost.build(saved);
+
+      const request = api.apiResponse.mock.calls[0][1].body as FormData;
+      expect(JSON.parse(String(request.get("roles")))).toEqual([]);
+      expect(request.getAll("files")).toEqual([]);
+      expect(JSON.parse(String(request.get("draft"))).authorities.case.source)
+        .toEqual(saved.state.authorities.case.source);
+    });
+
+  it("still rejects changed authority bytes and missing source or book parts in incomplete builds", async () => {
+    const saved = product(input("0".repeat(64)), true);
+    saved.state.outputMode = "book"; saved.state.settings.allowIncomplete = true;
+    const role = "authority:case:en", binding = input("a".repeat(64), 5, "case-handle");
+    saved.state.authorities.case = { id: "case", key: "case", kind: "case",
+      citation: "2024 ABKB 1", name: null, displayName: null, excluded: false,
+      evidenceIds: [], locators: [], sourceIdentity: null,
+      source: { kind: "attached", sources: [{ bindingRole: role, filename: "Case.pdf",
+        sourceSha256: "a".repeat(64), sourceUrl: null, origin: "manual", language: "en" }] } };
+    saved.state.authorityOrder = ["case"]; saved.state.bindings[role] = binding;
+    drafts.get.mockResolvedValue(saved);
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "changed" });
+    await expect(standaloneAuthoritiesHost.build(saved)).rejects.toThrow("changed");
+
+    fileStore.resolveStandaloneFile.mockResolvedValue({ status: "missing", reason: "deleted" });
+    await expect(standaloneAuthoritiesHost.build(saved)).rejects.toThrow("Reconnect");
+
+    saved.state.insertIntoDocument = false;
+    const part = { bindingRole: "book:cover", filename: "Cover.pdf", sourceSha256: "b".repeat(64) };
+    saved.state.bookParts.cover = part; saved.state.bindings[part.bindingRole] = input(part.sourceSha256);
+    await expect(standaloneAuthoritiesHost.build(saved)).rejects.toThrow("Reconnect");
+    expect(api.apiResponse).not.toHaveBeenCalled();
   });
 
 });

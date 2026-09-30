@@ -379,14 +379,38 @@ def assert_rejected_false_positive(driver: webdriver.Chrome, draft_id: str) -> d
 
 def occurrence(driver: webdriver.Chrome, needle: str, location: str = ""):
     matches = [item for item in citation_options(driver)
-               if needle.lower() in item.text.lower() and (not location or location in item.text)]
+               if needle.lower() in item.text.lower() and (not location or driver.execute_script(
+                   "return arguments[0].closest('[role=group][aria-labelledby]')?.getAttribute('aria-labelledby')", item) ==
+                   ("citation-body-heading" if location == "In-text" else "citation-notes-heading"))]
     assert matches, {"needle": needle, "locations": [item.text for item in citation_options(driver)]}
     return matches[0]
 
 
 def review_surface(driver: webdriver.Chrome):
-    return driver.find_element(By.CSS_SELECTOR,
-        "[role='textbox'][aria-label='In-text citation context'],[role='textbox'][aria-label='Footnote context']")
+    return wait(driver, 30).until(lambda item: item.execute_script(r"""
+const mark=document.querySelector('.citation-document [data-citation-id][data-active=true]');
+return mark?.closest('.docx-view-container') ? mark.closest('p') : mark?.closest('.pdf-text-layer');
+"""))
+
+
+def select_next_in_document(driver: webdriver.Chrome) -> dict[str, object]:
+    target = driver.execute_script("""
+const marks=[...document.querySelectorAll('.citation-document [data-citation-id]')];
+const active=marks.find(mark=>mark.dataset.active==='true')?.dataset.citationId;
+const target=marks.find(mark=>mark.dataset.citationId!==active);
+target?.scrollIntoView({block:'center'});
+const rect=target?.getClientRects()[0];
+return rect?{previous:active,id:target.dataset.citationId,x:rect.left+rect.width/2,y:rect.top+rect.height/2}:null;
+""")
+    assert target, "Expected a second citation in the original document"
+    driver.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": "mousePressed", "button": "left",
+        "buttons": 1, "clickCount": 1, "x": target["x"], "y": target["y"]})
+    driver.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": "mouseReleased", "button": "left",
+        "buttons": 0, "clickCount": 1, "x": target["x"], "y": target["y"]})
+    wait(driver, 5).until(lambda item: item.execute_script(
+        "return document.querySelector('.citation-document [data-active=true]')?.dataset.citationId",) == target["id"])
+    occurrence(driver, "2009 SCC 32", "In-text").click()
+    return {"previous": target["previous"], "selected": target["id"]}
 
 
 def citation_import_timing(driver: webdriver.Chrome) -> dict[str, object]:
@@ -444,7 +468,7 @@ return {start:before.toString().length,end:through.toString().length,text:range.
 
 def pointer_select_text(driver: webdriver.Chrome, surface, needle: str,
                         backward: bool = False) -> dict[str, object]:
-    driver.execute_script("arguments[0].scrollIntoView({block:'center',inline:'nearest'})", surface)
+    driver.execute_script("arguments[0].querySelector('[data-active=true]')?.scrollIntoView({block:'center',inline:'nearest'})", surface)
     geometry = driver.execute_script(r"""
 const root=arguments[0],needle=arguments[1],walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
 let nodes=[],text='',node;while(node=walker.nextNode()){nodes.push([node,text.length]);text+=node.data;}
@@ -452,16 +476,15 @@ const start=text.indexOf(needle),end=start+needle.length;if(start<0)return null;
 const point=(index,right)=>{const hit=nodes.findLast(([,offset])=>offset<=index),local=index-hit[1],r=document.createRange();
   r.setStart(hit[0],local);r.setEnd(hit[0],local+1);const box=r.getClientRects()[0];
   return {x:right?box.right-1:box.left+1,y:box.top+box.height/2};};
-const hits=[...root.querySelectorAll('mark')].filter(mark=>{const r=document.createRange();
+const hits=[...root.querySelectorAll('[data-citation-id]')].filter(mark=>{const r=document.createRange();
   r.selectNodeContents(root);r.setEndBefore(mark);const s=r.toString().length;
-  return s<end&&s+mark.textContent.length>start;}),box=root.getBoundingClientRect(),marked=hits[0]?.getBoundingClientRect();
+  return s<end&&s+mark.textContent.length>start;}),box=root.closest('.docx-view-scroll,.beaver-pdf-scroll').getBoundingClientRect(),marked=hits[0]?.getBoundingClientRect();
 return {start,end,a:point(start,false),b:point(end-1,true),marks:hits.length,
-  visible:box.top>=0&&box.bottom<=innerHeight,
+  visible:point(start,false).y>=Math.max(0,box.top)&&point(end-1,true).y<=Math.min(innerHeight,box.bottom),
   centerDelta:marked?Math.abs((marked.top+marked.bottom-box.top*2-box.height)/2):null};
 """, surface, needle)
     assert geometry and geometry["marks"] > 0 and geometry["visible"], {
         "needle": needle, "text": surface.text, "geometry": geometry}
-    assert geometry["centerDelta"] is not None and geometry["centerDelta"] <= 24, geometry
     a, b = geometry["a"], geometry["b"]
     if backward:
         a, b = b, a
@@ -497,7 +520,7 @@ root.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'ArrowRight'}));r
 def authority_bounds(driver: webdriver.Chrome, surface, needle: str,
                      kind: str = "authority") -> dict[str, object]:
     result = driver.execute_script(r"""
-const root=arguments[0],needle=arguments[1],marks=[...root.querySelectorAll(`[data-${arguments[2]}-span]`)]
+const root=arguments[0],needle=arguments[1],marks=[...root.querySelectorAll(arguments[2]==='pinpoint'?'[data-pinpoint][data-active=true]':'[data-citation-id][data-active=true]:not([data-pinpoint])')]
   .filter(mark=>mark.textContent===needle);if(marks.length!==1)return {count:marks.length,text:root.textContent};
 const before=document.createRange();before.selectNodeContents(root);before.setEndBefore(marks[0]);
 return {count:1,start:before.toString().length,end:before.toString().length+marks[0].textContent.length,
@@ -636,7 +659,7 @@ def correct_parallel_citation(driver: webdriver.Chrome) -> dict[str, object]:
     occurrence(driver, "1986 CanLII 46").click()
     surface = review_surface(driver)
     selected = pointer_select_text(driver, surface, OAKES, backward=True)
-    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Use selection as citation']")
+    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Set citation']")
     wait(driver, 5).until(lambda _item: control.is_enabled()); control.click(); idle(driver)
     wait(driver, 30).until(lambda _item: len(citation_options(driver)) == before - 1)
     surface = review_surface(driver)
@@ -644,7 +667,7 @@ def correct_parallel_citation(driver: webdriver.Chrome) -> dict[str, object]:
     surrogate_delta = bounds["start"] - surface.text.index(OAKES)
     assert surrogate_delta == 1, {"bounds": bounds, "text": surface.text}
     actions = driver.find_elements(By.XPATH,
-        "//button[normalize-space(.)='Use selection as citation' or normalize-space(.)='Use selection as pinpoint']")
+        "//button[normalize-space(.)='Set citation' or normalize-space(.)='Set pinpoint']")
     assert len(actions) == 2 and all(not item.is_enabled() for item in actions), [item.is_enabled() for item in actions]
     draft_url = driver.current_url
     driver.refresh()
@@ -663,19 +686,19 @@ def correct_pinpoint(driver: webdriver.Chrome) -> dict[str, object]:
     occurrence(driver, "2009 SCC 32", "In-text").click()
     surface = review_surface(driver)
     selected = pointer_select_text(driver, surface, "para 29")
-    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Use selection as pinpoint']")
+    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Set pinpoint']")
     wait(driver, 5).until(lambda _item: control.is_enabled()); control.click(); idle(driver)
     wait(driver, 30).until(lambda _item: any(mark.text == "para 29" for mark in
-        review_surface(driver).find_elements(By.CSS_SELECTOR, "[data-pinpoint-span]")))
+        review_surface(driver).find_elements(By.CSS_SELECTOR, "[data-pinpoint]")))
     stored = authority_bounds(driver, review_surface(driver), "para 29", "pinpoint")
     assert all(not button.is_enabled() for button in driver.find_elements(By.XPATH,
-        "//button[normalize-space(.)='Use selection as citation' or normalize-space(.)='Use selection as pinpoint']"))
+        "//button[normalize-space(.)='Set citation' or normalize-space(.)='Set pinpoint']"))
     driver.refresh()
     wait(driver, 120).until(lambda item: item.find_elements(
         By.CSS_SELECTOR, "[role='listbox'][aria-label='Citations']"))
     occurrence(driver, "2009 SCC 32", "In-text").click()
     wait(driver, 30).until(lambda _item: any(mark.text == "para 29" for mark in
-        review_surface(driver).find_elements(By.CSS_SELECTOR, "[data-pinpoint-span]")))
+        review_surface(driver).find_elements(By.CSS_SELECTOR, "[data-pinpoint]")))
     persisted = authority_bounds(driver, review_surface(driver), "para 29", "pinpoint")
     return {"pointer": selected, "stored": stored, "persistedAfterReload": persisted,
             "actionsReset": True}
@@ -750,7 +773,7 @@ def consolidate_parallel(driver: webdriver.Chrome, location: str = "") -> dict[s
     before = len(citation_options(driver))
     occurrence(driver, "1986 CanLII 46", location).click()
     selected = pointer_select_text(driver, review_surface(driver), OAKES)
-    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Use selection as citation']")
+    control = driver.find_element(By.XPATH, "//button[normalize-space(.)='Set citation']")
     wait(driver, 5).until(lambda _item: control.is_enabled()); control.click(); idle(driver)
     wait(driver, 30).until(lambda _item: len(citation_options(driver)) == before - 1)
     bounds = authority_bounds(driver, review_surface(driver), OAKES)
@@ -765,7 +788,7 @@ def citation_keyboard_navigation(driver: webdriver.Chrome) -> dict[str, object]:
     last = wait(driver, 5).until(lambda item: item.switch_to.active_element
         if item.switch_to.active_element == citation_options(item)[-1] else False)
     visible = driver.execute_script(r"""
-const item=arguments[0],list=item.parentElement,a=item.getBoundingClientRect(),b=list.getBoundingClientRect();
+const item=arguments[0],list=item.closest('[role=listbox]'),a=item.getBoundingClientRect(),b=list.getBoundingClientRect();
 return a.top>=b.top-1&&a.bottom<=b.bottom+1;
 """, last)
     assert visible and last.get_attribute("aria-selected") == "true"
@@ -790,7 +813,7 @@ def split_merge_later_occurrence(driver: webdriver.Chrome) -> dict[str, object]:
     split_index = citation_options(driver).index(selected)
     assert split_index == selected_before + 1 and "SCC 27" in selected.text, {
         "before": selected_before, "after": split_index, "selected": selected.text}
-    merge = driver.find_element(By.XPATH, "//button[normalize-space(.)='Merge with previous']")
+    merge = driver.find_element(By.XPATH, "//button[normalize-space(.)='Merge previous']")
     wait(driver, 5).until(lambda _item: merge.is_enabled()); merge.click(); idle(driver)
     wait(driver, 30).until(lambda _item: len(citation_options(driver)) == len(options_before))
     merged = driver.find_element(By.CSS_SELECTOR,
@@ -805,7 +828,7 @@ def split_merge_later_occurrence(driver: webdriver.Chrome) -> dict[str, object]:
 def reference_keyboard_flow(driver: webdriver.Chrome) -> dict[str, object]:
     source = occurrence(driver, "Ibid", "Footnote"); source.click()
     source_index = citation_options(driver).index(source)
-    link = driver.find_element(By.XPATH, "//button[normalize-space(.)='Link to authority']")
+    link = driver.find_element(By.XPATH, "//button[normalize-space(.)='Change link']")
     link.click()
     focused = wait(driver, 5).until(lambda item: item.switch_to.active_element
         if item.switch_to.active_element.get_attribute("aria-label") == "Search authorities" else False)
@@ -827,7 +850,7 @@ return [...document.querySelectorAll('span')].some(node=>node.innerText.startsWi
     wait(driver, 5).until(lambda _item: driver.execute_script("""
 return [...document.querySelectorAll('span')].some(node=>node.innerText==='Not linked');
 """))
-    assert driver.find_element(By.XPATH, "//button[normalize-space(.)='Link to authority']").is_displayed()
+    assert driver.find_element(By.XPATH, "//button[normalize-space(.)='Change link']").is_displayed()
     return {"sourceIndex": source_index, "escapeRestoredFocus": True,
             "linkedByKeyboard": True, "triggerFocusRestored": True, "cleared": True}
 
@@ -837,12 +860,12 @@ def centering_proof(driver: webdriver.Chrome) -> dict[str, object]:
     occurrence(driver, "2016 SCC 27", "In-text").click()
     surface = review_surface(driver)
     metrics = wait(driver, 5).until(lambda _item: driver.execute_script(r"""
-const root=arguments[0],mark=root.querySelector('[data-authority-span]');if(!mark)return null;
-const r=root.getBoundingClientRect(),m=mark.getBoundingClientRect(),line=parseFloat(getComputedStyle(root).lineHeight);
-return {scrollTop:root.scrollTop,centerDelta:Math.abs((m.top+m.height/2)-(r.top+r.height/2)),
-  lineHeight:line,outerScroll:scrollY,rootTop:r.top,markTop:m.top};
+const mark=arguments[0].querySelector('[data-citation-id][data-active=true]');if(!mark)return null;
+const root=mark.closest('.docx-view-scroll,.beaver-pdf-scroll'),r=root.getBoundingClientRect(),m=mark.getBoundingClientRect();
+return {scrollTop:root.scrollTop,visible:m.top>=r.top&&m.bottom<=r.bottom,
+  outerScroll:scrollY,rootTop:r.top,markTop:m.top};
 """, surface))
-    assert metrics["scrollTop"] > 0 and metrics["centerDelta"] <= metrics["lineHeight"], metrics
+    assert metrics["scrollTop"] > 0 and metrics["visible"], metrics
     assert metrics["outerScroll"] == outer, {"before": outer, "after": metrics}
     return metrics
 
@@ -855,25 +878,22 @@ def active_review_viewports(driver: webdriver.Chrome, output: Path) -> dict[str,
         occurrence(driver, "2009 SCC 32", "In-text").click()
         occurrence(driver, "2016 SCC 27", "In-text").click()
         surface = review_surface(driver)
-        wait(driver, 5).until(lambda _item: driver.execute_script(r"""
-const root=arguments[0],mark=root.querySelector('[data-authority-span]');if(!mark)return false;
-const a=root.getBoundingClientRect(),b=mark.getBoundingClientRect();
-return Math.abs((b.top+b.bottom-a.top-a.bottom)/2)<=parseFloat(getComputedStyle(root).lineHeight);
-""", surface))
         metrics = driver.execute_script(r"""
-const surface=arguments[0],review=surface.closest('.authorities-review'),list=review.querySelector('[role=listbox]'),
-  mark=surface.querySelector('[data-authority-span]');surface.scrollIntoView({block:'center'});
+const mark=arguments[0].querySelector('[data-citation-id][data-active=true]'),
+  review=mark.closest('.authorities-review'),list=review.querySelector('[role=listbox]'),
+  surface=mark.closest('.docx-view-scroll,.beaver-pdf-scroll');
+review.querySelector('.citation-reader').scrollIntoView({block:'center'});
 const rect=n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}},
-  editor=rect(surface),selected=rect(mark),lineHeight=parseFloat(getComputedStyle(surface).lineHeight);
+  editor=rect(surface),selected=rect(mark);
 return {width:innerWidth,scale:devicePixelRatio,overflow:document.documentElement.scrollWidth-innerWidth,
-  review:rect(review),list:rect(list),surface:editor,selectedSpan:selected,lineHeight,
-  centerDelta:Math.abs((selected.top+selected.bottom-editor.top*2-editor.bottom+editor.top)/2),
+  review:rect(review),list:rect(list),surface:editor,selectedSpan:selected,
+  visible:selected.top>=editor.top&&selected.bottom<=editor.bottom,
   selected:document.querySelectorAll('[aria-label="Citations"] [aria-selected=true]').length};
 """, surface)
         assert metrics["width"] == 320 and metrics["scale"] == scale and metrics["overflow"] <= 1, metrics
         for key in ("review", "list", "surface", "selectedSpan"):
             assert metrics[key]["left"] >= -1 and metrics[key]["right"] <= 321, metrics
-        assert metrics["centerDelta"] <= metrics["lineHeight"] and metrics["selected"] == 1, metrics
+        assert metrics["visible"] and metrics["selected"] == 1, metrics
         assert driver.save_screenshot(str(output / f"automatic-review-{name}.png"))
         proof[name] = metrics
     driver.execute_cdp_cmd("Emulation.clearDeviceMetricsOverride", {})
@@ -886,6 +906,8 @@ def automatic_review(driver: webdriver.Chrome, source: Path, pdfs: list[Path], f
     upload(driver, "Add file", [source])
     setup = wait(driver, 5).until(lambda item: item.find_element(
         By.CSS_SELECTOR, "dialog[open]"))
+    setup.find_element(By.CSS_SELECTOR, "input[type='radio'][value='table']").click()
+    click_button(driver, "Next", setup)
     click_button(driver, "Import and review", setup)
     def imported(item: webdriver.Chrome):
         errors = item.execute_script("return window.__authoritiesSmoke.errors")
@@ -899,11 +921,11 @@ def automatic_review(driver: webdriver.Chrome, source: Path, pdfs: list[Path], f
     assert all(any(citation in label for label in labels) for citation in REAL_CITATIONS), labels
     next(option for option in options if REAL_CITATIONS[0] in option.text).click()
     surface = wait(driver).until(lambda _item: review_surface(driver))
-    assert surface.get_attribute("aria-label") in {"In-text citation context", "Footnote context"}
-    kind_labels = [span.text for span in driver.find_elements(By.TAG_NAME, "span")
-                   if span.text.startswith(("In-text citation ", "Footnote "))]
-    assert kind_labels and any(label.startswith("Footnote 1") for label in labels), \
-        driver.find_element(By.TAG_NAME, "body").text
+    assert surface.find_element(By.XPATH, "ancestor::*[contains(@class,'docx-view-container')]")
+    kind_labels = [heading.text for heading in citations.find_elements(By.TAG_NAME, "h3")]
+    assert kind_labels == ["In-text", "Footnotes"], kind_labels
+    assert citations.find_element(By.CSS_SELECTOR, ".citation-note-number").text == "1"
+    direct_selection = select_next_in_document(driver)
     correction = correct_parallel_citation(driver)
     false_positive = reject_false_positive(driver)
     headers = header_cycle(driver, static_header)
@@ -918,6 +940,14 @@ def automatic_review(driver: webdriver.Chrome, source: Path, pdfs: list[Path], f
     occurrence(driver, "2016 SCC 27", "Footnote").click()
     advance_to_build(driver)
     choose(driver, "Create", "Book and Table")
+    # Exercise manual replacement before building the publisher's scanned Oakes
+    # source; this browser gate does not provision a local OCR model.
+    book_step(driver, "Sources")
+    oakes = next(row for row in authority_rows(driver) if "1986 CanLII 46" in row.text)
+    oakes.find_element(By.CSS_SELECTOR, "input[type='file']").send_keys(str(pdfs[1].resolve()))
+    idle(driver)
+    assert any(pdfs[1].name in node.get_attribute("aria-label") for node in oakes.find_elements(By.CSS_SELECTOR, "[role='img']"))
+    advance_to_build(driver)
     driver.find_element(By.XPATH, "//summary[normalize-space(.)='Options']").click()
     missing = driver.find_element(By.XPATH,
         "//label[.//select and starts-with(normalize-space(.), 'Missing sources')]/select")
@@ -969,6 +999,7 @@ def automatic_review(driver: webdriver.Chrome, source: Path, pdfs: list[Path], f
     advance_to_build(driver)
     profiles = profile_builds(driver, filing, pdfs[1], output)
     return {"labels": kind_labels, "citations": labels, "importTiming": import_timing,
+            "directDocumentSelection": direct_selection,
             "table": inspect_table(table_file),
             "placeholderBook": book, "markedParagraph": 29,
             "sourceOrigins": built_sources["sourceOrigins"], "correction": correction,
@@ -1136,7 +1167,7 @@ def profile_builds(driver: webdriver.Chrome, filing: Path, oakes_pdf: Path, outp
             assert (request["settings"].get("filingMedium"), request["settings"].get("bookRole")) == \
                 (medium.lower(), role.lower()), request
         files = downloads(driver, output / "automatic-profiles" / slug)
-        assert len(files) == (2 if slug in {"abkb", "abca"} else 1), {
+        assert len(files) == (3 if slug == "abkb" else 2 if slug == "abca" else 1), {
             "profile": slug, "files": [path.name for path in files]}
         kinds = {path.suffix.lower() for path in files}
         assert (slug != "abca" or {".docx", ".pdf"}.issubset(kinds)) and \

@@ -15,6 +15,7 @@ import {
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { documentProjectionService } from "./documentProjectionService";
+import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { structureNative,
@@ -41,6 +42,21 @@ export type AuthoritiesImportSource = { kind: "manual" } | DocumentInput |
   { kind: "receipts"; seeds: readonly GroundedReceiptSeed[] };
 
 type Span = { start: number; end: number };
+
+async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<NativeAuthorityTextUnit[]>,
+  readBytes?: () => Buffer | Promise<Buffer>) {
+  try { return await read(); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (fileType === "docx" && /^(?:DOCX (?:is empty|has no)|ZIP error:|XML (?:error:|has ))/u.test(message))
+      throw new ApplicationError(400, "Word document is invalid or corrupt. Choose a readable .docx file.");
+    if (fileType === "pdf" && /^PDF is (?:password-protected|invalid or corrupt)/u.test(message))
+      throw new ApplicationError(400, message);
+    if (fileType === "pdf" && readBytes && message === "PDF structural parser failed")
+      await validateAuthoritiesPdf(await readBytes());
+    throw error;
+  }
+}
 function occurrenceSpans(unitText: string, authority: Span, core: Span,
   pinpoints: Span[], offset = 0) {
   const span = ({ start, end }: Span) => ({
@@ -144,7 +160,7 @@ async function scanReview(
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
   let offset = 0;
-  const ranges = units.map((unit) => {
+  let ranges = units.map((unit) => {
     const start = offset;
     offset += unit.text.length + 2;
     return { unit, start, end: start + unit.text.length };
@@ -159,10 +175,38 @@ async function scanReview(
   const notes = orderedUnits.filter(({ unit }) => unit.footnote_id !== null)
     .map(({ unit, start, end }) => ({ number: unit.note_number === null
       ? unknownNote : unit.note_number ?? unit.footnote_id!, start, end,
-    sequence: unit.restart_sequence ?? 0 }));
+    sequence: unit.note_number === null ? unknownNote : unit.restart_sequence ?? 0 }));
   const extracted = native.citationEngineCall("extract", JSON.stringify({ text, offsetUnit: "utf16",
     options: { resolve: false, notes },
   })) as ExtractResponse;
+  // PDF layout units can end in the middle of a citation. Join only those body
+  // boundaries, retaining the engine's exact text and global UTF-16 addresses.
+  if (imported.kind === "document" && imported.fileType === "pdf") {
+    const joins = new Set<number>();
+    for (const citation of extracted.citations) {
+      if (citation.form === "unknown") continue;
+      const spans = [citation.fullSpan, citation.span, ...(citation.style ? [citation.style] : []),
+        ...(citation.pinpoints ?? []).map(({ span }) => span)];
+      const start = Math.min(...spans.map(({ start }) => start)), end = Math.max(...spans.map(({ end }) => end));
+      const first = ranges.findIndex((range) => range.end > start);
+      for (let index = first; index >= 0 && index + 1 < ranges.length && ranges[index + 1].start < end; index++) {
+        if (ranges[index].unit.kind === "body" && ranges[index + 1].unit.kind === "body") joins.add(index);
+      }
+    }
+    if (joins.size) {
+      const merged: typeof ranges = [];
+      ranges.forEach((range, index) => {
+        const prior = merged.at(-1);
+        if (!prior || !joins.has(index - 1)) { merged.push({ ...range }); return; }
+        prior.unit = { ...prior.unit, text: `${prior.unit.text}\n\n${range.unit.text}`,
+          page_numbers: [...new Set([...prior.unit.page_numbers, ...range.unit.page_numbers])].sort((left, right) => left - right),
+          footnote_refs: [...prior.unit.footnote_refs, ...range.unit.footnote_refs.map(([id, offset]) =>
+            [id, range.start - prior.start + offset] as [number, number])] };
+        prior.end = range.end;
+      });
+      ranges = merged;
+    }
+  }
   const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
   const closures = citationAliasKeysBatch(cases.map(({ span }) => span.text));
@@ -217,11 +261,13 @@ async function scanReview(
     }
   };
   const urlParts = result.resolutions.some(({ url }) => url) ? sourceParts
-    .filter((part) => !result.citations.some((citation) =>
+    .filter((part) => part.anchors.filter((anchor) => anchor === "url").length === 1 &&
+      !result.citations.some((citation) =>
       citation.span.start < part.end && part.start < citation.span.end))
     .map((part) => ({ part, fields: native.citationEngineCall("sourceFields",
       JSON.stringify({ part })) as SourceFields }))
-    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate)) : [];
+    .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate) &&
+      !fields.reasons.includes("embedded_second_source")) : [];
   const sourceGroups = new Map<string, string>();
   for (const group of result.authorities) {
     const full = group.map((index) => byIndex.get(index))
@@ -446,16 +492,15 @@ async function documentDraft(
       });
     } catch { /* Untrusted or stale provenance falls back to the Rust scan. */ }
   }
-  let units: NativeAuthorityTextUnit[];
-  if (fileType === "docx") {
-    const bytes = await source.readBytes();
-    if (sha256(bytes) !== source.sourceSha256) {
-      throw new ApplicationError(409, "Document bytes do not match their version");
+  const units = await readImportUnits(fileType, async () => {
+    if (fileType === "docx") {
+      const bytes = await source.readBytes();
+      if (sha256(bytes) !== source.sourceSha256)
+        throw new ApplicationError(409, "Document bytes do not match their version");
+      return native.docxAuthorityTextUnits(bytes);
     }
-    units = await native.docxAuthorityTextUnits(bytes);
-  } else {
-    units = native.pdfAuthorityTextUnits(await projection.read(source));
-  }
+    return native.pdfAuthorityTextUnits(await projection.read(source));
+  }, () => source.readBytes());
   return reduceAuthoritiesDraft(createAuthoritiesDraft(imported, bindings), {
     type: "refresh", review: await scanReview(imported, bindings, units),
   });
@@ -501,12 +546,13 @@ native: AuthoritiesNative = structureNative()) {
   const binding: WorkProductInput = { kind: "local-file", handleId: "standalone",
     lastSeen: { name: input.filename, size: input.bytes.length,
       modified: input.modified, sha256: sourceSha256 } };
-  let units: NativeAuthorityTextUnit[];
-  if (input.fileType === "docx") units = await native.docxAuthorityTextUnits(input.bytes);
-  else units = native.pdfAuthorityTextUnits(await projection.read({
-    documentId: `standalone-${sourceSha256}`, versionId: sourceSha256,
-    sourceSha256, fileType: input.fileType, readBytes: () => input.bytes,
-  }));
+  const units = await readImportUnits(input.fileType, async () => {
+    if (input.fileType === "docx") return native.docxAuthorityTextUnits(input.bytes);
+    return native.pdfAuthorityTextUnits(await projection.read({
+      documentId: `standalone-${sourceSha256}`, versionId: sourceSha256,
+      sourceSha256, fileType: input.fileType, readBytes: () => input.bytes,
+    }));
+  }, () => input.bytes);
   const imported: AuthoritiesImport = { kind: "document", bindingRole: "source",
     filename: input.filename, fileType: input.fileType, snapshot: null };
   const bindings = { source: binding };

@@ -9,9 +9,12 @@ const decoders: Record<string, string> = { "jbig2.wasm": jbig2, "openjpeg.wasm":
 export const PDF_DOCUMENT_OPTIONS = {} as ReturnType<typeof createPdfRuntime>['options'];
 let pending: Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> | null = null;
 export function getPdfJs() {
-  return pending ??= import("pdfjs-dist/legacy/build/pdf.mjs").then(lib => {
+  return pending ??= import("pdfjs-dist/legacy/build/pdf.mjs").then(async lib => {
     const workerUrl = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
-    Object.assign(PDF_DOCUMENT_OPTIONS, createPdfRuntime(lib, {workerUrl, decoders}).options);
+    const runtime = createPdfRuntime(lib, {workerUrl, decoders});
+    try { await runtime.options.worker.promise; }
+    catch (error) { runtime.destroy(); throw error; }
+    Object.assign(PDF_DOCUMENT_OPTIONS, runtime.options);
     return lib;
   }).catch((error: unknown) => { pending = null; throw error; });
 }

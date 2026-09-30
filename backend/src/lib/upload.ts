@@ -21,14 +21,16 @@ export const requiredFile = (req: Request): Express.Multer.File =>
   req.file ?? reject(400, "file is required");
 export const requiredUpload = (req: Request) => uploadedDocument(requiredFile(req));
 
-export function multipleFileUpload(fieldName: string, maxFiles: number): RequestHandler {
+export function multipleFileUpload(fieldName: string, maxFiles: number, fieldSize = 1024 * 1024): RequestHandler {
   if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > MAX_FILES_PER_UPLOAD) {
     throw new Error(`maxFiles must be between 1 and ${MAX_FILES_PER_UPLOAD}`);
   }
-  return stagedFiles(stagedUpload(maxFiles).array(fieldName, maxFiles));
+  if (!Number.isSafeInteger(fieldSize) || fieldSize < 1 || fieldSize > MAX_UPLOAD_SIZE_BYTES)
+    throw new Error("Upload field size is invalid");
+  return stagedFiles(stagedUpload(maxFiles, fieldSize).array(fieldName, maxFiles));
 }
 
-function stagedUpload(maxFiles: number) {
+function stagedUpload(maxFiles: number, fieldSize = 1024 * 1024) {
   return multer({
     storage: multer.diskStorage({ destination: tmpdir() }),
     limits: {
@@ -37,7 +39,7 @@ function stagedUpload(maxFiles: number) {
       fields: maxFiles === 1 ? 10 : maxFiles + 10,
       parts: maxFiles === 1 ? 11 : maxFiles * 2 + 10,
       fieldNameSize: 100,
-      fieldSize: 1024 * 1024,
+      fieldSize,
     },
   });
 }

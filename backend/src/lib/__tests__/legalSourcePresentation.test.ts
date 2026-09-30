@@ -15,6 +15,25 @@ it('validates publisher URLs consistently for browser downloads', () => {
 });
 
 describe("verified Decisia PDF evidence", () => {
+  it("derives only supported Alberta and federal legislation candidates", () => {
+    expect(publisherPdfCandidate("https://kings-printer.alberta.ca/1266.cfm?page=A03.cfm&leg_type=Acts&display=html"))
+      .toBe("https://kings-printer.alberta.ca/documents/Acts/A03.pdf");
+    expect(publisherPdfCandidate("https://kings-printer.alberta.ca/1266.cfm?page=1999_124.cfm&leg_type=Regs"))
+      .toBe("https://kings-printer.alberta.ca/documents/Regs/1999_124.pdf");
+    for (const language of ["eng", "fra"])
+      expect(publisherPdfCandidate(`https://laws-lois.justice.gc.ca/${language}/XML/F-7.xml?x=1#s-18`))
+        .toBe("https://laws-lois.justice.gc.ca/PDF/F-7.pdf");
+    for (const url of [
+      "https://kings-printer.alberta.ca.evil.test/1266.cfm?page=A03.cfm&leg_type=Acts",
+      "https://kings-printer.alberta.ca/1266.cfm?page=../A03.cfm&leg_type=Acts",
+      "https://kings-printer.alberta.ca/1266.cfm?page=A03.cfm&leg_type=Other",
+      "http://laws-lois.justice.gc.ca/eng/XML/F-7.xml",
+      "https://laws-lois.justice.gc.ca:444/eng/XML/F-7.xml",
+      "https://user:secret@laws-lois.justice.gc.ca/eng/XML/F-7.xml",
+      "https://laws-lois.justice.gc.ca/eng/XML/Code..xml",
+    ]) expect(publisherPdfCandidate(url)).toBeNull();
+  });
+
   it("limits candidates to safe supported case URLs and removes navigation state", () => {
     expect(publisherPdfCandidate("https://decisions.scc-csc.ca/scc-csc/scc-csc/fr/item/14438/index.do?iframe=true#par4"))
       .toBe("https://decisions.scc-csc.ca/scc-csc/scc-csc/fr/14438/1/document.do");

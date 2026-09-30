@@ -19,6 +19,10 @@ export type DocxAuthorityMark = {
   longName: string;
   shortName: string;
   category: 1 | 2 | 3 | 5;
+  suffix?: string;
+  mark?: boolean;
+  tabUrl?: string;
+  pinpointLink?: { start: number; end: number; url: string };
 };
 export type DocxTableDelivery = "native-marks" | "native-append" | "linked-append";
 export type DocxLinkedAuthority = { label: string; url: string | null };
@@ -135,7 +139,7 @@ function fieldRuns(instruction: string, hidden: boolean) {
   ];
 }
 
-function insertField(root: XNode, offset: number, instruction: string) {
+function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
   let cursor = 0;
   let target: { node: XNode; run: XNode; parent: XNode } | null = null;
   const descend = (node: XNode, parent: XNode | null, run: XNode | null,
@@ -173,10 +177,12 @@ function insertField(root: XNode, offset: number, instruction: string) {
     rightChildren[textIndex], ...rightChildren.slice(textIndex + 1),
   ];
   setChildren(rightRun, tail);
-  parentChildren.splice(runIndex + 1, 0, ...fieldRuns(instruction, true),
+  parentChildren.splice(runIndex + 1, 0, ...nodes,
     ...(visibleText(rightRun) || tail.some((child) => elName(child) !== "w:rPr")
       ? [rightRun] : []));
 }
+const insertField = (root: XNode, offset: number, instruction: string) =>
+  insertAtOffset(root, offset, fieldRuns(instruction, true));
 
 const fieldText = (value: string) => value.replace(/\s+/gu, " ").trim()
   .replace(/["\\]/gu, "'");
@@ -217,15 +223,28 @@ export async function applyTableOfAuthorities(
   linked: readonly DocxLinkedAuthority[] = [],
 ) {
   const { session, document, targets, save } = await authorityUnitPackage(bytes, units);
-  if (delivery !== "linked-append") {
-    for (const mark of [...marks].sort((left, right) =>
+  for (const mark of [...marks].sort((left, right) =>
       right.unitId.localeCompare(left.unitId) || right.offset - left.offset)) {
       const target = targets.get(mark.unitId);
       if (!target) throw new Error(`Reviewed Word location is missing: ${mark.unitId}.`);
-      insertField(target, mark.offset,
+      if (mark.suffix) {
+        const run = makeEl("w:r", [makeEl("w:t", [makeText(mark.suffix)], { "xml:space": "preserve" })]);
+        insertAtOffset(target, mark.offset, [mark.tabUrl ? makeEl("w:fldSimple", [run], {
+          "w:instr": ` HYPERLINK "${mark.tabUrl}" `,
+        }) : run]);
+      }
+      if (delivery !== "linked-append" && mark.mark !== false) insertField(target, mark.offset,
         ` TA \\l "${fieldText(mark.longName)}" \\s "${fieldText(mark.shortName)}" \\c ${mark.category} `);
+      if (mark.pinpointLink) {
+        const { start, end, url } = mark.pinpointLink;
+        insertAtOffset(target, end, [makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "end" })])]);
+        insertAtOffset(target, start, [
+          makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "begin" })]),
+          makeEl("w:r", [makeEl("w:instrText", [makeText(` HYPERLINK "${url}" `)], { "xml:space": "preserve" })]),
+          makeEl("w:r", [makeEl("w:fldChar", [], { "w:fldCharType": "separate" })]),
+        ]);
+      }
     }
-  }
   const body = document.body, children = elChildren(body);
   const section = children.findIndex((node) => elName(node) === "w:sectPr");
   const appended = delivery === "native-append" ? [

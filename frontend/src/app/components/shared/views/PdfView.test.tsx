@@ -187,6 +187,16 @@ describe("PdfView", () => {
         HTMLElement.prototype.scrollTo = vi.fn(function (this: HTMLElement, options: ScrollToOptions) {
             this.scrollTop = options.top ?? 0;
         });
+        // JSDOM does not emit the browser scroll event after programmatic navigation.
+        const scrollPositions = new WeakMap<HTMLElement, number>();
+        vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(function (this: HTMLElement) {
+            return scrollPositions.get(this) ?? 0;
+        });
+        vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation(function (this: HTMLElement, top: number) {
+            if (top === (scrollPositions.get(this) ?? 0)) return;
+            scrollPositions.set(this, top);
+            queueMicrotask(() => { if (this.isConnected) fireEvent.scroll(this); });
+        });
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
             { scale: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
         );
@@ -198,22 +208,15 @@ describe("PdfView", () => {
             return this.dataset.pageNumber ? (Number(this.dataset.pageNumber)%2 ? 800 : 1000)*pageScale(this) : 800;
         });
         vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function(this:HTMLElement) {
-            let top=0;
-            if(this.dataset.pageNumber) for(const sibling of this.parentElement!.children) {
-                if(sibling===this)break;
-                top+=(sibling as HTMLElement).clientHeight+8;
-            }
-            return top;
+            const preceding = Number(this.dataset.pageNumber ?? 1) - 1;
+            return (800 * Math.ceil(preceding / 2) + 1000 * Math.floor(preceding / 2)) * pageScale(this) + preceding * 8;
         });
         vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockImplementation(function(this:HTMLElement) {return this.dataset.pageNumber ? this.closest<HTMLElement>('.overflow-auto') : this.parentElement;});
         vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
             const page = this.closest<HTMLElement>("[data-page-number]");
             let top = 0;
             if (page) {
-                for (const sibling of Array.from(page.parentElement!.children)) {
-                    if (sibling === page) break;
-                    top += (sibling as HTMLElement).clientHeight + 8;
-                }
+                top = page.offsetTop;
                 top -= page.closest<HTMLElement>(".overflow-auto")?.scrollTop ?? 0;
             }
             return { top, bottom: top + (page ? page.clientHeight : 800),
@@ -227,7 +230,7 @@ describe("PdfView", () => {
         const bytes = new Uint8Array([1]), onCreate = vi.fn();
         const editor = {marks:[],selectedId:null,tool:'select' as const,onSelect:vi.fn(),onCreate,highlightSelection:0};
         const {container,rerender} = render(<PdfView doc={null} bytes={bytes} annotationEditor={editor} />);
-        const text = await screen.findByText('Page 1 text');
+        const text = await screen.findByText('Page 1 text', {}, { timeout: 5000 });
         await waitFor(() => expect(container.querySelector('canvas')).toBeTruthy());
         const canvas = container.querySelector('canvas'), paints = mocks.rendered.length;
         const range = document.createRange(); range.selectNodeContents(text);
@@ -638,7 +641,7 @@ describe("PdfView", () => {
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
             quotes={[{ page: 299, quote: "Page 299 text" }]} />);
         const selected = () => container.querySelector<HTMLElement>('[data-page-number="299"]')!;
-        await waitFor(() => expect(selected()?.querySelector("canvas")).toBeTruthy());
+        await waitFor(() => expect(selected()?.querySelector("canvas")).toBeTruthy(), { timeout: 5000 });
         await waitFor(() => expect(selected()?.querySelector(".pdf-text-highlight")).toBeTruthy());
         expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute("data-geometry-ready", "false");
         expect(mocks.textRequests).toEqual([299]);

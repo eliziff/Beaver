@@ -331,6 +331,13 @@ describe("standalone Authorities runtime", () => {
       .field("draft", JSON.stringify(manualState())).field("slot", "index")
       .field("modified", "1").attach("file", Buffer.from("not a pdf"), "Index.pdf")
       .expect(400);
+    for (const fields of [{ slot: "cover" }, { authority_id: "case", language: "en" }]) {
+      let upload = request(app).post("/authorities-runtime/pdf")
+        .field("draft", JSON.stringify(manualState())).field("modified", "1");
+      for (const [key, value] of Object.entries(fields)) upload = upload.field(key, value!);
+      await upload.attach("file", Buffer.from("%PDF-1.7\ncorrupt\n%%EOF"), "Broken.pdf")
+        .expect(400);
+    }
   });
 
   it("derives the manual CanLII handoff without making a CanLII request", async () => {
@@ -437,5 +444,154 @@ describe("standalone Authorities runtime", () => {
     const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
     expect(book.pageCount).toBe(3);
     expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(3);
+  });
+
+  it("returns the combined final PDF as a complete multipart artifact", async () => {
+    const source = await PDFDocument.create(); source.addPage();
+    const bytes = Buffer.from(await source.save()), digest = sha256(bytes);
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.outputMode = "book";
+    state.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf",
+      fileType: "pdf", snapshot: null };
+    state.settings = { ...state.settings, passageMarking: "none", finalPdf: true };
+    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
+      name: "Factum.pdf", size: bytes.length, modified: 1, sha256: digest,
+    } };
+    state.bindings.authority = { kind: "local-file", handleId: "authority", lastSeen: {
+      name: "Case.pdf", size: bytes.length, modified: 1, sha256: digest,
+    } };
+    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "authority",
+      filename: "Case.pdf", sourceSha256: digest, sourceUrl: null, origin: "manual", language: "en" }] };
+
+    const response = await request(app).post("/authorities-runtime/build")
+      .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(["source", "authority"]))
+      .field("id", "draft-final").field("revision", "1").field("title", "Factum")
+      .attach("files", bytes, "Factum.pdf").attach("files", bytes, "Case.pdf")
+      .buffer(true).parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      }).expect(200);
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    const receipt = JSON.parse(String(form.get("receipt")));
+    const final = Buffer.from(await (form.get("final-pdf") as File).arrayBuffer());
+
+    expect(form.get("book")).toBeInstanceOf(File);
+    expect(receipt.outputs["final-pdf"]).toMatchObject({ mimeType: "application/pdf", pageCount: 4,
+      sha256: sha256(final) });
+    expect((await PDFDocument.load(final)).getPageCount()).toBe(4);
+  });
+
+  it("exports a large reviewed draft with more than 100 attached authority PDFs", async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const bytes = Buffer.from(await pdf.save()), digest = sha256(bytes);
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.outputMode = "book";
+    state.settings.passageMarking = "none";
+    state.authorityOrder = [];
+    state.authorities = {};
+    state.units = Array.from({ length: 11 }, (_, ordinal) => ({
+      id: `body:${ordinal}`, kind: "body", ordinal, footnoteId: null,
+      footnoteRefs: [], pageNumbers: [], text: "Reviewed source text. ".repeat(5_000),
+      occurrenceIds: [],
+    }));
+    const roles = Array.from({ length: 101 }, (_, index) => `authority:${index}`);
+    for (const [index, role] of roles.entries()) {
+      const id = `case-${index}`;
+      state.authorityOrder.push(id);
+      state.authorities[id] = { ...manualState().authorities.case, id, key: id,
+        citation: `2024 ABKB ${index + 1}`, name: `Example ${index + 1}`,
+        source: { kind: "attached", sources: [{ bindingRole: role,
+          filename: `${id}.pdf`, sourceSha256: digest, sourceUrl: null,
+          origin: "manual", language: "en" }] } };
+      state.bindings[role] = { kind: "local-file", handleId: id, lastSeen: {
+        name: `${id}.pdf`, size: bytes.length, modified: 1, sha256: digest,
+      } };
+    }
+    let build = request(app).post("/authorities-runtime/build")
+      .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(roles))
+      .field("id", "draft-large").field("revision", "1").field("title", "Authorities");
+    for (const [index] of roles.entries()) build = build.attach("files", bytes, `case-${index}.pdf`);
+    const response = await build.buffer(true).parse((res, done) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => done(null, Buffer.concat(chunks)));
+    }).expect(200);
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    const plan = await mapAuthorityBookBytes(JSON.parse(String(form.get("book"))) as PreparedAuthoritiesBook<string>,
+      async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
+    expect(plan.sources.map(({ key }) => key)).toEqual(state.authorityOrder.map(id => `authority:${id}`));
+    const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
+    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(107);
+  });
+
+  it("prepares an incomplete book with a placeholder for unavailable attached bytes", async () => {
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.outputMode = "book";
+    state.settings = { ...state.settings, passageMarking: "none", allowIncomplete: true };
+    state.bindings.authority = { kind: "local-file", handleId: "missing", lastSeen: {
+      name: "Case.pdf", size: 3, modified: 1, sha256: "a".repeat(64),
+    } };
+    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "authority",
+      filename: "Case.pdf", sourceSha256: "a".repeat(64), sourceUrl: null, origin: "manual", language: "en" }] };
+
+    const response = await request(app).post("/authorities-runtime/build")
+      .field("draft", JSON.stringify(state)).field("roles", "[]")
+      .field("id", "draft-incomplete").field("revision", "1").field("title", "Factum")
+      .buffer(true).parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      }).expect(200);
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    const plan = await mapAuthorityBookBytes(JSON.parse(String(form.get("book"))) as PreparedAuthoritiesBook<string>,
+      async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
+    const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
+
+    expect(book.pageCount).toBe(3);
+    expect(JSON.parse(String(form.get("receipt"))).authorities[0]).toMatchObject({ tab: "Tab 1" });
+  });
+
+  it("converts an unmarked Word filing through the existing converter for final export", async () => {
+    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
+      new Paragraph("Factum with 2024 ABKB 123."),
+    ] }] }));
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const converted = Buffer.from(await pdf.save());
+    const converter = vi.spyOn(await import("../lib/convert"), "docxToPdf").mockResolvedValue(converted);
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.import = { kind: "document", bindingRole: "source", filename: "Factum.docx",
+      fileType: "docx", snapshot: null };
+    state.settings = { ...state.settings, passageMarking: "none", finalPdf: true, allowIncomplete: true };
+    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
+      name: "Factum.docx", size: bytes.length, modified: 1, sha256: sha256(bytes),
+    } };
+
+    const response = await request(app).post("/authorities-runtime/build")
+      .field("draft", JSON.stringify(state)).field("roles", JSON.stringify(["source"]))
+      .field("id", "draft-word-final").field("revision", "1").field("title", "Factum")
+      .attach("files", bytes, "Factum.docx").buffer(true).parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      }).expect(200);
+    const form = await new Response(response.body as Buffer, { headers: {
+      "content-type": response.headers["content-type"],
+    } }).formData();
+    const final = Buffer.from(await (form.get("final-pdf") as File).arrayBuffer());
+
+    expect(converter).toHaveBeenCalledOnce();
+    const word = await JSZip.loadAsync(converter.mock.calls[0][0]);
+    const text = await word.file("word/document.xml")!.async("string");
+    expect(text).toContain("Factum with 2024 ABKB 123.");
+    expect(text).not.toContain("<w:instrText");
+    expect((await PDFDocument.load(final)).getPageCount()).toBe(4);
+    expect(form.get("annotated-document")).toBeNull();
   });
 });

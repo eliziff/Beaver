@@ -60,5 +60,10 @@ describe("Authorities workflow contracts", () => {
     expect(() => decodeAuthoritiesUserAction({ type: "set-settings", settings: { tabStart: 0 } })).toThrow();
     expect(() => decodeAuthoritiesUserAction({ type: "set-settings", settings: { allowIncomplete: "yes" } })).toThrow();
     expect(() => decodeAuthoritiesUserAction({ type: "set-stage", stage: "export-everything" })).toThrow();
+    const exportSettings = { citationSuffix: "book-tab", finalPdf: true, linkTabs: false, linkPinpoints: true };
+    expect(decodeAuthoritiesUserAction({ type: "set-settings", settings: exportSettings }))
+      .toEqual({ type: "set-settings", settings: exportSettings });
+    expect(() => decodeAuthoritiesUserAction({ type: "set-settings", settings: { finalPdf: "yes" } })).toThrow();
+    expect(() => decodeAuthoritiesUserAction({ type: "set-settings", settings: { citationSuffix: "other" } })).toThrow();
   });
 });

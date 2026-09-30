@@ -1,6 +1,10 @@
 import { writeAuthorityAnnotations } from 'mike/shared/pdf-annotation-writer.mjs';
 import { resolvePrintedPages, type PdfPageBinding } from "./pdfPagination";
 import * as pdfLibrary from "pdf-lib";
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { gfmTable } from "micromark-extension-gfm-table";
+import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
+import type { Nodes } from "mdast";
 import { pdfAssembly } from "./pdfAssembly";
 import { renderAuthoritiesBook, fit, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "./authoritiesBook";
@@ -26,14 +30,15 @@ import {
   type AuthorityKind,
 } from "./authoritiesDomain";
 import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
-import { initialAuthorityAnnotations } from "./authoritiesAnnotations";
+import { hasPrintedParagraphLocator, initialAuthorityAnnotations } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperations";
-import { structureNative, type NativePdfPassageGeometry, type NativePdfPassageTarget } from "./structureNative";
+import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
 import { isCanliiUrl, urlHostname } from "./canliiUrls";
+import { assembleFinalAuthoritiesPdf, filingLinkUrl, filingTabText } from "./authoritiesFinalPdf";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
@@ -44,6 +49,7 @@ export type AuthoritiesBuildArtifact = {
   sha256: string;
   pageCount: number | null;
   receipt: WorkProductBuildReceipt;
+  bookPlacements?: import("./authoritiesBook").BuiltAuthorityBook["placements"];
 };
 export type AuthoritiesBuildResult = {
   artifacts: Partial<Record<AuthoritiesOutputRole, AuthoritiesBuildArtifact>>;
@@ -57,6 +63,7 @@ export type AuthoritiesBuildInput = {
     pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
     passageGeometry?: NativePdfPassageGeometry }>;
   signal?: AbortSignal;
+  finalPdfSource?: (bytes: Uint8Array, filename: string) => Promise<Uint8Array>;
 };
 
 export type AuthorityPassageRequest = {
@@ -102,10 +109,29 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
   }).map((target, index) => ({ id: `passage:${index + 1}`, ...target }));
 }
 
+/** Exact reviewed text on known physical filing pages; ambiguity is retained by the parser. */
+export function authorityFilingTargets(draft: AuthoritiesDraft): NativePdfPassageTarget[] {
+  const tabs = new Map(authorityProcedure(draft, "book").map(({ id, tab }) => [id, tab]));
+  return draft.units.flatMap((unit) => !unit.pageNumbers.length ? [] :
+    unit.occurrenceIds.flatMap((id) => {
+      const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
+      if (!authority || authority.excluded) return [];
+      return [{ id: `filing:${id}`, locatorKind: "page" as const,
+        locator: String(unit.pageNumbers[0]), physicalPages: unit.pageNumbers,
+        exactQuotes: draft.settings.linkTabs ? [filingTabText(unit.text, occurrence, tabs.get(authority.id))] : [],
+        quoteSelections: draft.settings.linkPinpoints && occurrence.pinpointSpan ? [{
+          text: occurrence.text, start: occurrence.pinpointSpan.start - occurrence.start,
+          end: occurrence.pinpointSpan.end - occurrence.start,
+        }] : [] }];
+    }));
+}
+
 export function authoritiesTextRoles(draft: AuthoritiesDraft) {
-  if (draft.outputMode === "table") return new Set<string>();
+  const filingRoles = draft.settings.finalPdf && (draft.settings.linkTabs || draft.settings.linkPinpoints) &&
+    draft.import.kind === "document" && draft.import.fileType === "pdf" ? [draft.import.bindingRole] : [];
+  if (draft.outputMode === "table" && !draft.settings.finalPdf) return new Set(filingRoles);
   const federal = authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting;
-  return new Set(Object.values(draft.authorities).flatMap((authority) => {
+  return new Set([...filingRoles, ...Object.values(draft.authorities).flatMap((authority) => {
     if (authority.excluded || authority.source.kind !== "attached") return [];
     const paperExtract = federal && draft.settings.filingMedium === "paper" &&
       freePublicDatabaseReference(authority);
@@ -113,16 +139,17 @@ export function authoritiesTextRoles(draft: AuthoritiesDraft) {
     const locatorKinds = new Set(requests.flatMap(({ locators }) =>
       locators.map(({ kind }) => kind)));
     const needsOcr = draft.settings.scannedPdfPolicy !== "page-margin";
-    const needsLocatorText = draft.settings.passageMarking !== "none" &&
+    const needsLinkGeometry = !!(draft.settings.finalPdf && draft.settings.linkPinpoints && requests.length);
+    const needsLocatorText = (draft.settings.passageMarking !== "none" || draft.settings.finalPdf && draft.settings.linkPinpoints) &&
       (locatorKinds.has("paragraph") || locatorKinds.has("section"));
     const needsQuoteText = ["margin", "text"].includes(draft.settings.passageMarking) &&
       requests.some(({ exactQuotes }) => exactQuotes.length);
     return authority.source.sources.flatMap(source => {
       const saved = annotationSetForSource(authority.annotations, source.bindingRole, source.sourceSha256);
-      return paperExtract || needsOcr || !saved && (needsLocatorText || needsQuoteText)
+      return paperExtract || needsOcr || needsLinkGeometry || !saved && (needsLocatorText || needsQuoteText)
         ? [source.bindingRole] : [];
     });
-  }));
+  })]);
 }
 
 type BareArtifact = Omit<AuthoritiesBuildArtifact, "receipt">;
@@ -139,11 +166,12 @@ type PdfModule = typeof import("pdf-lib");
 type PdfDocument = import("pdf-lib").PDFDocument;
 type PdfPage = import("pdf-lib").PDFPage;
 
-type RequestedRole = Exclude<AuthoritiesOutputRole, `book-${number}`>;
+type RequestedRole = Exclude<AuthoritiesOutputRole, `book-${number}` | "link-report">;
 const RENDERERS: Record<RequestedRole, string> = {
   table: "beaver.authorities.table-docx.v1",
   book: "beaver.authorities.book-pdf.v3",
-  "annotated-document": "beaver.authorities.filing-output.v1",
+  "annotated-document": "beaver.authorities.filing-output.v2",
+  "final-pdf": "beaver.authorities.final-pdf.v1",
 };
 
 function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
@@ -287,24 +315,38 @@ function nativeMark(draft: AuthoritiesDraft, authority: AuthorityIdentity,
 }
 
 async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filename: string,
-  bytes: Uint8Array, sourceSha256: string) {
+  bytes: Uint8Array, sourceSha256: string, finalLinks = false) {
   if (!bytes.byteLength || sha256(Buffer.from(bytes)) !== sourceSha256) {
     throw new Error("The imported Word document changed before building.");
   }
   const seen = new Set<string>();
+  const tabs = new Map(authorityProcedure(draft, "book").map(({ id, tab }) => [id, tab]));
   const marks = draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
     const occurrence = draft.occurrences[id], authority = occurrence?.authorityId
       ? draft.authorities[occurrence.authorityId] : null;
     const key = authority && `${unit.id}\0${occurrence.end}\0${authority.id}`;
-    if (!authority || !key || seen.has(key)) return [];
+    if (!authority || authority.excluded || !key || seen.has(key)) return [];
     seen.add(key);
-    return [nativeMark(draft, authority, unit.id, occurrence.end)];
+    const suffix = draft.settings.citationSuffix ?? "none", tab = tabs.get(authority.id)!;
+    return [{ ...nativeMark(draft, authority, unit.id, occurrence.end),
+      mark: draft.insertIntoDocument,
+      ...((suffix !== "none" || finalLinks && draft.settings.linkTabs) && {
+        suffix: ` [${suffix === "book-tab" ? "Book of authorities " : ""}${tab}]`,
+        ...(finalLinks && draft.settings.linkTabs && { tabUrl: filingLinkUrl("tab", occurrence.id) }),
+      }),
+      ...(finalLinks && draft.settings.linkPinpoints && occurrence.pinpointSpan &&
+        authority.source.kind === "attached" && authority.source.sources.some(({ origin }) => origin === "manual") && {
+        pinpointLink: { start: occurrence.pinpointSpan.start, end: occurrence.pinpointSpan.end,
+          url: filingLinkUrl("pinpoint", occurrence.id) },
+      }),
+    }];
   }));
   const linked = groups.flatMap(({ entries }) => entries.map(({ name, sourceUrl }) => ({
     label: name, url: sourceUrl,
   })));
   const output = await applyTableOfAuthorities(Buffer.from(bytes), draft.units, marks,
-    draft.settings.tableDelivery, linked);
+    draft.insertIntoDocument ? finalLinks && draft.settings.tableDelivery === "native-append"
+      ? "linked-append" : draft.settings.tableDelivery : "native-marks", linked);
   return artifact("annotated-document", filename,
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     output, null);
@@ -319,6 +361,9 @@ export async function renderAuthoritySourcePdf(input: {
   const pdf = await import("pdf-lib"), document = await pdf.PDFDocument.create();
   const serif = await document.embedFont(pdf.StandardFonts.TimesRoman);
   const bold = await document.embedFont(pdf.StandardFonts.TimesRomanBold);
+  const italic = await document.embedFont(pdf.StandardFonts.TimesRomanItalic);
+  const boldItalic = await document.embedFont(pdf.StandardFonts.TimesRomanBoldItalic);
+  const mono = await document.embedFont(pdf.StandardFonts.Courier);
   const sans = await document.embedFont(pdf.StandardFonts.Helvetica);
   const width = 612, height = 792, left = 66, right = 66, top = 58, bottom = 54;
   const title = pdfText(input.name?.trim() || input.citation.trim());
@@ -339,31 +384,96 @@ export async function renderAuthoritySourcePdf(input: {
   current.drawLine({ start: { x: left, y: y - 6 }, end: { x: width - right, y: y - 6 },
     thickness: .8, color: pdf.rgb(.6, .6, .6) });
   y -= 34;
-  // A2AJ text puts each paragraph on its own line; the engine's grammar says which lines
-  // are headings or list items and how deeply they nest.
-  const text = input.text.replace(/\r\n?/gu, "\n")
-    .replace(/\x5b([^\x5d]+)\x5d\([^\s)]+\)/gu, "$1").replace(/[*_`]/gu, "");
-  for (const block of structureNative().textLayout(text)) {
-    const heading = block.kind === "heading", item = block.kind === "list_item";
-    const font = heading ? bold : serif;
-    const size = heading ? [13, 12, 11][Math.min(block.level, 2)] : 10.5;
-    const leading = heading ? size + 4 : 14.5;
-    // List items hang their enumerator in a gutter, one step in per level.
-    const indent = item ? 18 * (block.level + 1) : 0, gutter = item ? 22 : 0;
-    const marker = !item && block.marker ? `${block.marker} ` : "";
-    const lines = wrapped(font, marker + block.text, size, width - left - right - indent - gutter);
-    if (heading) y -= 8;
-    // A heading keeps at least two lines of what follows it on its page.
-    const keep = lines.length * leading + (heading ? 2 * 14.5 : 0);
-    if (y - Math.min(keep, 4 * leading) < bottom + 18) { current = page(); y = height - top; }
-    lines.forEach((line, index) => {
+  type Run = { text: string; font: pdfLibrary.PDFFont };
+  const inline = (node: Nodes, strong = false, emphasis = false): Run[] => {
+    if (node.type === "strong") strong = true;
+    if (node.type === "emphasis") emphasis = true;
+    const font = strong ? emphasis ? boldItalic : bold : emphasis ? italic : serif;
+    if (node.type === "break") return [{ text: "\n", font }];
+    if (node.type === "inlineCode" || node.type === "code") return [{ text: node.value, font: mono }];
+    if (node.type === "image" || node.type === "imageReference") return [{ text: node.alt ?? "", font }];
+    if ("children" in node) return node.children.flatMap(child => inline(child, strong, emphasis));
+    return "value" in node ? [{ text: node.value, font }] : [];
+  };
+  const layout = (runs: Run[], size: number, available: number) => {
+    const lines: Run[][] = [[]];
+    let used = 0;
+    for (const run of runs) for (const token of pdfText(run.text).split(/(\n|[^\S\n]+)/u)) {
+      if (!token) continue;
+      if (token === "\n") { lines.push([]); used = 0; continue; }
+      const whitespace = /^\s+$/u.test(token), text = whitespace ? " " : token;
+      const tokenWidth = run.font.widthOfTextAtSize(text, size);
+      if (used && used + tokenWidth > available) { lines.push([]); used = 0; }
+      if (whitespace && !used) continue;
+      // Split oversized words too, so long URLs and identifiers stay inside the page.
+      for (const character of text) {
+        const advance = run.font.widthOfTextAtSize(character, size);
+        if (used + advance > available && used) { lines.push([]); used = 0; }
+        const line = lines[lines.length - 1], last = line[line.length - 1];
+        if (last?.font === run.font) last.text += character;
+        else line.push({ text: character, font: run.font });
+        used += advance;
+      }
+    }
+    return lines;
+  };
+  const drawLine = (runs: Run[], x: number, size: number) => {
+    for (const run of runs) {
+      current.drawText(run.text, { x, y, size, font: run.font });
+      x += run.font.widthOfTextAtSize(run.text, size);
+    }
+  };
+  const draw = (runs: Run[], indent = 0, size = 10.5) => {
+    const leading = size + 4, lines = layout(runs, size, width - left - right - indent);
+    if (lines.length * leading <= height - top - bottom - 18 &&
+      y - lines.length * leading < bottom + 18) { current = page(); y = height - top; }
+    for (const line of lines) {
       if (y < bottom + leading) { current = page(); y = height - top; }
-      if (item && !index && block.marker) current.drawText(pdfText(block.marker),
-        { x: left + indent, y, size, font });
-      current.drawText(line, { x: left + indent + gutter, y, size, font }); y -= leading;
-    });
-    y -= heading ? 4 : item ? 5 : 9;
-  }
+      drawLine(line, left + indent, size);
+      y -= leading;
+    }
+    y -= 9;
+  };
+  const block = (node: Nodes, indent = 0) => {
+    if (node.type === "definition") return;
+    if (node.type === "list") {
+      node.children.forEach((item, index) => {
+        const marker = node.ordered ? `${(node.start ?? 1) + index}. ` : "\u00b7 ";
+        item.children.forEach((child, childIndex) => {
+          if (childIndex === 0 && child.type === "paragraph")
+            draw([{ text: marker, font: serif }, ...inline(child)], indent + 14);
+          else block(child, indent + 14);
+        });
+      });
+    } else if (node.type === "blockquote") node.children.forEach(child => block(child, indent + 18));
+    else if (node.type === "root" || node.type === "listItem") node.children.forEach(child => block(child, indent));
+    else if (node.type === "thematicBreak") {
+      if (y < bottom + 20) { current = page(); y = height - top; }
+      current.drawLine({ start: { x: left + indent, y }, end: { x: width - right, y }, thickness: .5 });
+      y -= 14;
+    } else if (node.type === "table") {
+      const columnWidth = (width - left - right - indent) / node.children[0].children.length;
+      node.children.forEach((row, index) => {
+        const cells = row.children.map(cell => layout(inline(cell, index === 0), 10.5, columnWidth - 12));
+        const count = Math.max(...cells.map(cell => cell.length));
+        if (count * 14.5 < height - top - bottom - 18 && y - count * 14.5 < bottom + 18) {
+          current = page(); y = height - top;
+        }
+        for (let line = 0; line < count; line++) {
+          if (y < bottom + 14.5) { current = page(); y = height - top; }
+          cells.forEach((cell, column) => drawLine(cell[line] ?? [], left + indent + column * columnWidth, 10.5));
+          y -= 14.5;
+        }
+        current.drawLine({ start: { x: left + indent, y: y + 4 },
+          end: { x: width - right, y: y + 4 }, thickness: index ? .25 : .75,
+          color: pdf.rgb(.6, .6, .6) });
+        y -= 6;
+      });
+      y -= 3;
+    } else draw(inline(node, node.type === "heading"), indent,
+      node.type === "heading" ? 17 - node.depth : 10.5);
+  };
+  block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
   pages.forEach((item, index) => {
     if (index) {
       item.drawText(fit(sans, `${title}  |  ${citation}`, 7.5, width - left - right),
@@ -382,7 +492,7 @@ export async function renderAuthoritySourcePdf(input: {
 
 async function filingPdfArtifact(groups: Group[], filename: string,
   bytes: Uint8Array, sourceSha256: string,
-  attached: NonNullable<AuthoritiesBuildInput["sources"]>) {
+  attached: NonNullable<AuthoritiesBuildInput["sources"]>, allowIncomplete = false) {
   const pdf = await import("pdf-lib"), sourceBytes = Buffer.from(bytes);
   if (!sourceBytes.length || sha256(sourceBytes) !== sourceSha256) {
     throw new Error("The imported filing PDF changed before building.");
@@ -395,7 +505,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   const appended = await Promise.all(entries.flatMap((entry) => {
     const source = entry.authority.source;
     return !entry.sourceUrl && source.kind === "attached"
-      ? [loadAuthorityPdf(pdf, source.sources, entry.name, attached)
+      ? [loadAuthorityPdf(pdf, source.sources, entry.name, attached, undefined, allowIncomplete)
         .then(({ document }) => ({ entry, document }))]
       : [];
   }));
@@ -498,11 +608,14 @@ export function prepareAuthorityAnnotations(
     const crop = page.getCropBox(), rotated = Math.abs(page.getRotation().angle % 180) === 90;
     return { width: rotated ? crop.height : crop.width, height: rotated ? crop.width : crop.height };
   });
+  const requirePrinted = attachedAuthoritySources(authority.source)
+    .find(({ bindingRole }) => bindingRole === source.bindingRole)?.origin === "manual";
   return initialAuthorityAnnotations({ sourceSha256: source.sourceSha256,
     style: draft.settings.passageMarking, geometry: text.passageGeometry, pages,
+    requirePrintedParagraphLocator: requirePrinted,
     citedPages: citedSourcePages(draft, authority.id, text.pageTextByPage ?? [],
       text.pageBindings,
-      document.getPageCount(), text.passageGeometry),
+      document.getPageCount(), text.passageGeometry, requirePrinted),
     exclusions: new Set((authority.highlightExclusions ?? []).map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`)) });
 }
 
@@ -510,14 +623,17 @@ async function loadAuthorityPdf(
   pdf: PdfModule, sources: AttachedAuthoritySource[], label: string,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>,
   editing?: { draft: AuthoritiesDraft; authority: AuthorityIdentity },
+  allowIncomplete = !!editing?.draft.settings.allowIncomplete,
 ) {
   const loaded = await Promise.all(sources.map(async (source) => ({ source,
-    document: await loadBookPdf(pdf, source, label, attached),
+    document: allowIncomplete && attached[source.bindingRole]?.bytes === undefined
+      ? await missingSourcePdf(pdf, label, false, `${source.filename} is unavailable. This draft is incomplete.`)
+      : await loadBookPdf(pdf, source, label, attached),
     text: attached[source.bindingRole] })));
   const markedPages = new Set<number>();
   let sourceOffset = 0;
   for (const item of loaded) {
-    if (editing) {
+    if (editing && attached[item.source.bindingRole]?.bytes !== undefined) {
       const { annotations } = prepareAuthorityAnnotations(pdf, item.document, editing.draft,
         editing.authority, item.source, item.text);
       writeAuthorityAnnotations(pdf, item.document, annotations, item.source.bindingRole);
@@ -682,15 +798,19 @@ async function prepareAuthorityBook(
     groups: rowGroups,
     sources: await Promise.all(sources.map(async (source) => {
       const seen = new Set<string>();
+      const requirePrinted = source.authority && attachedAuthoritySources(source.authority.source)
+        .some(({ origin }) => origin === "manual");
       const bookmarks = source.passageGeometry?.targets.flatMap((target) =>
-        target.status === "found" ? target.pages.flatMap(({ pageNumber }) => {
+        target.status === "found" && (!requirePrinted || hasPrintedParagraphLocator(target))
+          ? target.pages.flatMap(({ pageNumber }) => {
           const key = `${target.locatorKind}\0${target.locator}\0${pageNumber}`;
           if (seen.has(key)) return []; seen.add(key);
           const title = target.locatorKind === "paragraph" ? "para" : target.locatorKind === "section" ? "s" : "p";
           return [{ title: `${title} ${target.locator}`, pageIndex: pageNumber - 1 }];
         }) : []) ?? [];
       const cited = source.authority ? citedSourcePages(draft, source.authority.id,
-        source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry) : new Set<number>();
+        source.pageTextByPage ?? [], undefined, source.document.getPageCount(), source.passageGeometry,
+        !!requirePrinted) : new Set<number>();
       const ocrTextByPage = source.authority ? source.ocrTextByPage?.map((text, index) =>
         draft.settings.scannedPdfPolicy === "full" ||
           draft.settings.scannedPdfPolicy === "cited-pages" && cited.has(index)
@@ -704,23 +824,27 @@ async function prepareAuthorityBook(
 
 async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal) {
   return (await renderAuthoritiesBook(pdfLibrary, plan, signal)).map((item) =>
-    artifact(item.role, item.filename, item.mimeType, Buffer.from(item.bytes), item.pageCount));
+    ({ ...artifact(item.role, item.filename, item.mimeType, Buffer.from(item.bytes), item.pageCount),
+      bookPlacements: item.placements }));
 }
 
 export function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, pages: string[],
-  pageBindings?: readonly PdfPageBinding[], pageCount = pages.length, geometry?: NativePdfPassageGeometry) {
+  pageBindings?: readonly PdfPageBinding[], pageCount = pages.length, geometry?: NativePdfPassageGeometry,
+  requirePrintedParagraphLocator = false) {
   const authority = draft.authorities[authorityId];
   const locators = [...(authority?.locators ?? []), ...Object.values(draft.occurrences)
     .flatMap((occurrence) => occurrence.authorityId === authorityId
       ? occurrence.pinpoints.map(({ kind, text }) => ({ kind, label: text })) : [])];
   const result = new Set<number>();
+  const found = (target: NativePdfPassageGeometry['targets'][number]) => target.status === "found" &&
+    (!requirePrintedParagraphLocator || hasPrintedParagraphLocator(target));
   for (const { kind, label } of locators) {
     if (kind === "page") {
       if (pageBindings?.length === pageCount) resolvePrintedPages(label, pageBindings).forEach(index => result.add(index));
     }
     // A paragraph the geometry could not place still has a page: the one whose
     // text prints its number. That page carries the mark instead of nothing.
-    if (kind === "paragraph" && !geometry?.targets.some((target) => target.status === "found" &&
+    if (kind === "paragraph" && !geometry?.targets.some((target) => found(target) &&
         target.locatorKind === kind && target.locator.trim() === label.trim())) {
       const number = /\d+/u.exec(label)?.[0];
       const index = number ? pages.findIndex((text) =>
@@ -728,7 +852,7 @@ export function citedSourcePages(draft: AuthoritiesDraft, authorityId: string, p
       if (index >= 0) result.add(index);
     }
   }
-  geometry?.targets.filter(target => target.status === "found").forEach(target =>
+  geometry?.targets.filter(found).forEach(target =>
     target.pages.forEach(({ pageNumber }) => { if (pageNumber > 0 && pageNumber <= pageCount) result.add(pageNumber - 1); }));
   return result;
 }
@@ -745,7 +869,8 @@ function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf) {
     source.pageTextByPage?.[index]?.trim() || source.ocrTextByPage?.[index] || "");
   const reasonsStart = text.findIndex((page) =>
     /(?:^|\n)\s*(?:\[\s*1\s*\]|1[.)])(?:\s|$)/u.test(page));
-  const cited = citedSourcePages(draft, source.authority.id, text, source.pageBindings, pageCount, source.passageGeometry);
+  const cited = citedSourcePages(draft, source.authority.id, text, source.pageBindings, pageCount, source.passageGeometry,
+    attachedAuthoritySources(source.authority.source).some(({ origin }) => origin === "manual"));
   source.markedPages?.forEach(index => cited.add(index));
   if (reasonsStart < 0 || !cited.size) return null;
   const selected = new Set(Array.from({ length: reasonsStart + 1 }, (_, index) => index));
@@ -803,12 +928,13 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
   const sources = input.sources ?? {};
   const wanted: RequestedRole[] = input.draft.outputMode === "both"
     ? ["table", "book"] : [input.draft.outputMode];
+  if (input.draft.settings.finalPdf && !wanted.includes("book")) wanted.push("book");
   const profile = authoritiesProfile(input.draft.settings.profileId);
   const strictBook = wanted.includes("book") && !input.draft.settings.allowIncomplete;
   const requirements = {
     completeBookSources: strictBook && !!profile.requirements?.completeBookSources,
     bilingualEnactments: strictBook && !!profile.requirements?.bilingualEnactments,
-    unlinkedPdfTableSources: !!profile.requirements?.unlinkedPdfTableSources,
+    unlinkedPdfTableSources: !input.draft.settings.allowIncomplete && !!profile.requirements?.unlinkedPdfTableSources,
   };
   const owed = (authority: AuthorityIdentity) => authorityName(input.draft, authority);
   const sourceMessage = {
@@ -851,9 +977,11 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     if (authority.source.kind !== "attached") return [];
     return authority.source.sources.map((source) => {
       const role = source.bindingRole;
+      if (input.draft.settings.allowIncomplete && sources[role]?.bytes === undefined &&
+          sources[role]?.resolved === undefined) return null;
       return { role, resolved: resolvedInput(role, input.draft.bindings[role],
         source.filename, source.sourceSha256, sources[role]?.resolved) };
-    });
+    }).filter((value): value is NonNullable<typeof value> => value !== null);
   }), ...(wanted.includes("book") ? authoritiesBookPdfs(input.draft).map((part) => {
       const role = part.bindingRole;
       return { role, resolved: resolvedInput(role, input.draft.bindings[role],
@@ -877,12 +1005,47 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
         ? [await filingPdfArtifact(tableGroups,
           `${base}.with-table-of-authorities.pdf`,
           sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array(),
-          imported[0]?.resolved.sha256 ?? "", sources)]
+          imported[0]?.resolved.sha256 ?? "", sources, !!input.draft.settings.allowIncomplete)]
         : [await documentArtifact(input.draft, tableGroups,
-          `${base}.with-table-of-authorities.docx`,
+          `${base}.${input.draft.settings.tableDelivery === "native-marks" ? "marked-authorities" : "with-table-of-authorities"}.docx`,
           sources[input.draft.import.kind === "document"
             ? input.draft.import.bindingRole : "source"]?.bytes ?? new Uint8Array(),
           imported[0]?.resolved.sha256 ?? "")]))).flat();
+  let linkWarnings: AuthoritiesBuildReceipt["linkWarnings"];
+  if (input.draft.settings.finalPdf && input.draft.import.kind === "document") {
+    input.signal?.throwIfAborted();
+    const importedFilename = input.draft.import.filename;
+    const source = sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array();
+    if (!source.byteLength || sha256(Buffer.from(source)) !== imported[0]?.resolved.sha256)
+      throw new Error("The imported document changed before final PDF export.");
+    const sourcePdf = input.draft.import.fileType === "pdf" ? source : await (async () => {
+      if (!input.finalPdfSource) throw new Error("Word-to-PDF conversion is unavailable for final export.");
+      if (!input.draft.insertIntoDocument && (!input.draft.settings.citationSuffix || input.draft.settings.citationSuffix === "none") &&
+          !input.draft.settings.linkTabs && !input.draft.settings.linkPinpoints)
+        return input.finalPdfSource(source, importedFilename);
+      const document = await documentArtifact(input.draft, tableGroups,
+        importedFilename, source, imported[0].resolved.sha256, true);
+      return input.finalPdfSource(document.bytes, importedFilename);
+    })();
+    const filename = `${base}${input.draft.settings.allowIncomplete ? ".draft-incomplete" : ""}.final.pdf`;
+    const combined = await assembleFinalAuthoritiesPdf(input, sourcePdf,
+      built.filter(({ role }) => role.startsWith("book")));
+    built.push(artifact("final-pdf", filename, "application/pdf", combined.bytes, combined.pageCount));
+    wanted.push("final-pdf");
+    if (input.draft.settings.linkTabs || input.draft.settings.linkPinpoints) {
+      linkWarnings = combined.warnings;
+      if (linkWarnings.length) {
+        const reasons = { "citation-location": "Citation location could not be verified",
+          "source-missing": "Source PDF unavailable", "pinpoint-unlocated": "Pinpoint not located",
+          "pinpoint-ambiguous": "Pinpoint is ambiguous" };
+        const report = [filename, `${linkWarnings.length} links were not added. Add them in a PDF editor.`, "",
+          ...linkWarnings.map((row) => `${row.citation}${row.pinpoint ? ` — ${row.pinpoint}` : ""}` +
+            `${row.tab ? ` [${row.tab}]` : ""}${row.sourcePageNumber ? `, source PDF page ${row.sourcePageNumber}` : ""}` +
+            `: ${reasons[row.reason]}.`)].join("\n");
+        built.push(artifact("link-report", `${base}.unlinked-citations.txt`, "text/plain", Buffer.from(report), null));
+      }
+    }
+  }
   input.signal?.throwIfAborted();
   const builtAt = new Date().toISOString();
   const settings: WorkProductBuildReceipt["settings"] = {
@@ -920,7 +1083,12 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
   const artifacts = Object.fromEntries(built.map((item) => [item.role, { ...item,
     receipt: { schemaVersion: "beaver.work-product-build.v2", builtAt,
       workProduct: { ...input.workProduct, kind: "authorities" }, inputs, settings,
-      steps: item.role === "table" ? ["Rendered grouped Table of Authorities"]
+      steps: item.role === "link-report" ? ["Listed citations needing manual PDF links"]
+        : item.role === "final-pdf" ? ["Combined the brief and complete Book of Authorities",
+          "Preserved book index links and bookmarks",
+          ...(input.draft.settings.linkTabs ? ["Linked citations to book tabs"] : []),
+          ...(input.draft.settings.linkPinpoints ? ["Linked verified manual PDF pinpoints"] : [])]
+        : item.role === "table" ? ["Rendered grouped Table of Authorities"]
         : item.role.startsWith("book")
           ? ["Combined attached PDFs", "Added index links and PDF bookmarks"]
           : item.mimeType === "application/pdf"
@@ -959,5 +1127,6 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
         structuredClone(input.draft.bindings[bindingRole])),
     })),
     outputs,
+    ...(linkWarnings && { linkWarnings }),
   } };
 }

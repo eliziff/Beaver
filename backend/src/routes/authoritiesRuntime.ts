@@ -1,6 +1,7 @@
 import { decodePdfProfileSelection } from "../lib/documentStore";
 import { authorityCitationForms } from "../lib/authoritiesDomain";
 import { documentProjectionService } from "../lib/documentProjectionService";
+import { docxToPdf } from "../lib/convert";
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -16,6 +17,7 @@ import { authorityPdfText } from "../lib/authorityPdfText";
 import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
   checkCanliiPdf, attachAuthoritiesBookPdf, authoritiesReview } from "../lib/authoritiesActions";
+import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
 import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -282,6 +284,7 @@ export function createAuthoritiesRuntimeRouter(
     const { filename, fileType, bytes, modified } = await standaloneSource(req);
     if (!filename.trim() || filename.length > 500 || /[\u0000-\u001f\u007f]/u.test(filename) ||
         fileType !== "pdf" || bytes.subarray(0, 5).toString("ascii") !== "%PDF-") reject(400, "Add a valid PDF");
+    await validateAuthoritiesPdf(bytes);
     const sourceSha256 = sha256(bytes), binding = { kind: "local-file" as const, handleId: "standalone",
       lastSeen: { name: filename, size: bytes.length, modified, sha256: sourceSha256 } };
     if (req.body?.authority_id !== undefined) {
@@ -300,7 +303,7 @@ export function createAuthoritiesRuntimeRouter(
       res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
     }
   }));
-  router.post("/build", multipleFileUpload("files", 100), asyncRoute(async (req, res) => {
+  router.post("/build", multipleFileUpload("files", 500, 16 * 1024 * 1024), asyncRoute(async (req, res) => {
     const build = new AbortController();
     res.once("close", () => build.abort());
     let raw: unknown, roles: unknown;
@@ -341,7 +344,9 @@ export function createAuthoritiesRuntimeRouter(
       }));
     let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,
-      workProduct: { id, revision }, sources, signal: build.signal }, async (prepared) => {
+      workProduct: { id, revision }, sources, signal: build.signal,
+      finalPdfSource: async (bytes) => docxToPdf(Buffer.from(bytes)),
+    }, state.settings.finalPdf ? undefined : async (prepared) => {
       book = prepared; return [];
     }).catch((error) => {
       if (build.signal.aborted) throw error;

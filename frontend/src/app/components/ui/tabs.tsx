@@ -65,9 +65,8 @@ export function TabList<T extends string>({ value, onValueChange, options,
         const list = listRef.current;
         const tab = refs.current[active];
         if (!list || !tab) return;
-        // A closed <dialog> is display:none, so the first measurement can be
-        // zero while the parent Modal has yet to call showModal. Re-measure on
-        // the next frame, once the dialog is visible, to reveal the active tab.
+        // Measure once on the next frame, after the parent dialog is visible
+        // and the browser can batch layout with the rest of the new content.
         const reveal = () => {
             if (list.scrollWidth <= list.clientWidth + 1) return;
             const rail = list.getBoundingClientRect();
@@ -75,7 +74,6 @@ export function TabList<T extends string>({ value, onValueChange, options,
             if (item.left < rail.left) list.scrollLeft -= rail.left - item.left;
             else if (item.right > rail.right) list.scrollLeft += item.right - rail.right;
         };
-        reveal();
         const frame = requestAnimationFrame(reveal);
         return () => cancelAnimationFrame(frame);
     }, [active]);

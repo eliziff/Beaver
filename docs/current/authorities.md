@@ -10,7 +10,11 @@ reference parity; remaining release gates are in
 
 ## Workflow
 
-Import a brief/factum and choose import options. Source acquisition starts when
+Import a brief/factum and choose import options. DOCX intake starts with a **Word output**
+modal: book only, citation marks without a table, marks and a table, or marks and
+a table with `[Book of authorities Tab n]` / `[Tab n]` suffixes. The choice controls
+a Word copy; original input bytes remain unchanged. Reopen this setup from Build outputs.
+Source acquisition starts when
 the imported citations enter review, before the user advances to Sources, and
 reconciles changed citations and newly linked references. Attached scans begin OCR
 after inspection unless the user chose page-margin mode. Pinpoint changes update
@@ -30,9 +34,12 @@ eager recognition does not bypass it. Physical page citations can narrow OCR; pa
 need broader processing. Missing runtime dependencies are actionable errors.
 Manual-only marks and margin-only workflows do not silently require full OCR.
 
-**Continue with stubs** is an explicit incomplete-draft path. Preserve missing
-sources in the book's slots and identify incomplete output in its metadata/cover;
-it does not waive version checks, verification or filing requirements.
+Build rechecks actual source availability. **Missing PDFs** warns about unresolved
+and unavailable attached PDFs and offers **Review sources** or **Build anyway**.
+The latter explicitly permits incomplete output, retaining tab numbers with
+labelled pages or omitted PDFs according to the existing missing-source policy.
+Identify incomplete output in its metadata/cover; source version checks,
+attachment verification and required cover details still apply.
 
 User authority order is distinct from Table of Authorities sorting. Each included
 authority occupies a monotonically numbered slot even when its PDF is missing;
@@ -42,6 +49,15 @@ Custom tab labels/styles belong to fixed slots, not to the authorities moving
 between them.
 
 ## Source and quotation review
+
+Citation review renders the retained Word or PDF bytes through the shared document
+viewers. Clicking a highlighted citation selects its row; the outline groups
+in-text citations separately from numbered footnotes. Pinpoints use a distinct
+fill. Source selections can reset the whole citation range, set a pinpoint, split
+at the cursor, merge adjacent occurrences or remove a detection. These operations
+change reviewed ranges, never the source bytes. Whole-range edits preserve the
+unselected portions of overlapping neighbouring detections. If a rendered passage
+cannot be mapped reliably, the extracted-text editor remains available.
 
 Rust citation records and verified provider aliases own identity. Do not resolve
 an ambiguous citation by selecting the first plausible candidate or recreating
@@ -92,6 +108,13 @@ tracked browser distribution, generated with
 `--check` to verify it matches the canonical source. Host and representation-control
 rules live in that same source, not build-script patches.
 
+In **Use available original PDFs**, legislation acquisition uses retained publisher
+URLs and validated download controls. Narrow Alberta King's Printer HTML-record
+and federal Justice XML routes also supply PDF candidates; downloaded bytes must
+pass the normal PDF validation. Identical English/French original hashes attach as
+one bilingual source. Automatic legislation acquisition continues to reconstruct
+text until independent statute/version/highlighting evidence supports a new default.
+
 Quotation review distinguishes exact/normalized/editorial matches, ambiguity and
 unlocated targets. Word-level differences and bounded source context support the
 review; a supported quotation is not a judgment about editorial fairness or the
@@ -99,6 +122,29 @@ legal proposition. Do not invent a target or coordinates to hide an unresolved
 match.
 
 ## Visual highlights and export
+
+**Final PDF export** optionally joins the source PDF (or the existing DOCX-to-PDF
+conversion) to the entire book, including every volume. Bookmarks and copied
+book-index destinations point into the combined page tree. It does not embed
+authority PDFs in Word. Tab references can link to book tabs; for DOCX, final-only
+tab links add references to the export copy without changing the persistent Word
+output choice. For PDF input, verified citation text supplies the link rectangle.
+
+The separate pinpoint option applies to manually attached PDFs. It reuses the
+prepared-PDF structure/geometry operation even when visual marks are disabled;
+paragraph destinations, initial passage marks and generated passage bookmarks
+also require evidence of the printed paragraph number in that source. Detached
+margin numbers are supported; inferred paragraph ordinals supply no destination.
+Only exact-source, found passages receive destinations. Unknown/ambiguous passages
+and unlocated filing citations abstain. When enabled and any links abstain, output
+shows a short notice and an **Unlinked citations** text report with citation,
+pinpoint, tab and known target page for manual PDF editing. No report is produced
+when the optional links are disabled or all requested links succeed.
+
+Reconstructed source PDFs parse Markdown headings, emphasis, lists, quotations,
+links, code and tables into searchable styled text. This applies to statutes and
+other authorities built from source text in both hosts; attached original PDFs
+retain their existing formatting.
 
 **Edit in PDF** uses the shared viewer and a highlight sidebar. Initial passage
 preferences seed automatic marks; **None** starts without them and still permits
@@ -156,11 +202,12 @@ assembled-book pages remain distinct. The builder applies the reviewed set befor
 merging language versions, extracting pages or splitting volumes; it does not
 regenerate marks at export. Manually marked pages remain in paper extracts.
 
-Native paragraph geometry uses printed addresses, including sequential detached
-margin numbers in parallel-column reports. A passage can span physical PDF pages;
-its extent includes continuation lines and excludes the following section heading.
-Missing, repeated or unbounded addresses are refused rather than replaced with
-structural paragraph ordinals.
+Paragraph geometry can span physical PDF pages and use detached margin numbers.
+Independent checks still find omitted continuation text in some cropped, rotated
+PDFs and extents that include following headings. The
+[remaining precision gates](../roadmap/legal-work-products.md#execution-and-live-proof)
+apply to automatic passage marking; a located destination does not certify the
+whole highlight's extent.
 
 Passage marks export as ordinary `/Highlight` annotations with `/QuadPoints`,
 printable appearances and stable names; margin/sideline marks use `/Square`.
@@ -170,6 +217,13 @@ rectangles. Editable export is not a claim of manual compatibility testing in
 every PDF editor.
 
 ## Run the standalone host
+
+Build uploads accept up to 500 files, 100 MB per file and 512 MB together, with
+up to 16 MB of serialized draft state. Malformed Word/PDF inputs and PDFs the
+writer cannot open are rejected before attachment. Encrypted PDFs need an
+unencrypted copy, including readable PDFs with owner restrictions that the current
+writer does not support. Replacing an unavailable retained file refreshes its
+preview availability even when its content hash is unchanged.
 
 Restore the [repository checkout](local-subrepositories.md), install root/backend/
 frontend npm dependencies, and build the native addon for the current platform:

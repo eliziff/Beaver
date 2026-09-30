@@ -1,5 +1,4 @@
 import type JSZip from "jszip";
-import { Readable } from "node:stream";
 
 export type ZipReadBudget = { remaining: number };
 export const zipReadBudget = (maxBytes: number): ZipReadBudget => ({ remaining: maxBytes });
@@ -9,16 +8,22 @@ export async function readZipEntry(entry: JSZip.JSZipObject, maxBytes: number,
   budget = zipReadBudget(maxBytes), label = "ZIP entry") {
   const chunks: Buffer[] = [];
   let size = 0;
-  const stream = new Readable({ read() {} }).wrap(entry.nodeStream());
-  for await (const value of stream) {
-    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
-    size += chunk.byteLength;
-    if (size > maxBytes || chunk.byteLength > budget.remaining)
-      throw new Error(`${label} expands beyond the read limit`);
-    budget.remaining -= chunk.byteLength;
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks, size);
+  return new Promise<Buffer>((resolve, reject) => {
+    // JSZip's declarations omit this documented portable streaming API.
+    const stream = (entry as JSZip.JSZipObject & {
+      internalStream(type: "uint8array"): JSZip.JSZipStreamHelper<Uint8Array>;
+    }).internalStream("uint8array");
+    stream.on("data", (chunk) => {
+      size += chunk.byteLength;
+      if (size > maxBytes || chunk.byteLength > budget.remaining) {
+        stream.pause();
+        reject(new Error(`${label} expands beyond the read limit`));
+        return;
+      }
+      budget.remaining -= chunk.byteLength;
+      chunks.push(Buffer.from(chunk));
+    }).on("error", reject).on("end", () => resolve(Buffer.concat(chunks, size))).resume();
+  });
 }
 
 /** jszip costs ~50ms to require; load it on first archive open, not at boot. */

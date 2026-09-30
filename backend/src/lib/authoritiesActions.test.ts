@@ -18,6 +18,26 @@ const add = (draft: AuthoritiesDraft, needle: string) => applyAuthoritiesUserAct
   { type: "add-occurrence", unitId: "body:7", ...at(needle) });
 
 describe("Authorities citation boundary actions", () => {
+  it("resizes a whole citation across a neighbour and preserves the neighbour's outside text", () => {
+    const original = add(add(bodyDraft(), 'Bhasin v Hrynew, 2014 SCC 71 at para 33'), 'R v Jordan, 2016 SCC 27');
+    const [id] = original.units[0].occurrenceIds;
+    const start = TEXT.indexOf('Bhasin'), end = TEXT.indexOf('Jordan');
+    const changed = applyAuthoritiesUserAction(original, decodeAuthoritiesUserAction({
+      type: 'set-citation-range', occurrenceId: id, start, end,
+    }));
+    const parts = changed.units[0].occurrenceIds.map(id => changed.occurrences[id]);
+    expect(parts.map(part => part.text)).toEqual([
+      TEXT.slice(start, end).trim(), 'Jordan, 2016 SCC 27',
+    ]);
+    expect(parts[0].id).toBe(id);
+    expect(parts[0].pinpoints).toContainEqual({ kind: 'paragraph', text: '33' });
+    expect(parts[1].authorityId).toBe(original.occurrences[original.units[0].occurrenceIds[1]].authorityId);
+    expect(parts[0].end).toBeLessThanOrEqual(parts[1].start);
+    expect(original.units[0].occurrenceIds).toHaveLength(2);
+    expect(original.occurrences[id].text).toBe('Bhasin v Hrynew, 2014 SCC 71 at para 33');
+    expect(() => applyAuthoritiesUserAction(original, { type: 'set-citation-range', occurrenceId: id,
+      start: -1, end })).toThrow();
+  });
   it("clears a pinpoint attached to the wrong citation", () => {
     const whole = add(bodyDraft(), TEXT.slice(TEXT.indexOf("Bhasin")));
     const split = applyAuthoritiesUserAction(whole, { type: "split-occurrence",

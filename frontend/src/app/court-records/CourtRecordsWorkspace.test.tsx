@@ -2,7 +2,7 @@
 
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import type { WorkProduct, WorkProductStore } from "@/app/lib/workProducts";
 import { BeaverApiError } from "@/app/lib/api/client";
@@ -19,6 +19,8 @@ vi.mock("./host", async (original) => ({
 vi.mock("@/app/components/shared/views/PdfView", () => ({
   PdfView: ({ ariaLabel }: { ariaLabel: string }) => <div role="region" aria-label={ariaLabel} />,
 }));
+
+beforeAll(async () => { await import("@/app/components/modals/AddDocumentsModal"); });
 
 async function uploadFiles(control: HTMLElement, files: File[]) {
   await userEvent.click(control);

@@ -1,4 +1,5 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
+import { CitationReview } from "./CitationReview";
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress, StepSection } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
@@ -7,8 +8,8 @@ import { authorityName, authorityLabel,
   requiresBilingualSources,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
-  History, Link2, Loader2, Plus, Scale, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
+  History, Loader2, Plus, Scale, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
@@ -27,23 +28,25 @@ import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { Sources } from "./AuthoritySources";
+import { AuthoritiesWordOptions, type AuthoritiesWordOptionsValue } from "./AuthoritiesWordOptions";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
   AuthoritiesLibraryPdfTarget,
   AuthoritiesSourceIssue } from "./host";
 import { AUTHORITIES_PROFILES, AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
-import type { AuthoritiesAction, AuthoritiesBuildSettings, AuthoritiesProduct,
+import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettings, AuthoritiesProduct,
   AuthoritiesCover,
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthorityOccurrence, AuthoritySourceLanguage } from "./types";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
+import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 import { AuthoritiesHighlights, SourceOcrProgress } from "./AuthoritiesHighlightEditor";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
-type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & {
+type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & AuthoritiesWordOptionsValue & {
   profileId: AuthoritiesProfileId;
 };
 type PendingImport = {
@@ -55,7 +58,7 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" },
 ];
-const WORKSPACE_FRAME = "mx-auto w-full max-w-[50rem] px-4 sm:px-6 md:mx-auto";
+const WORKSPACE_FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -149,6 +152,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText; pageLabels?: Array<string | null> }>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
   const [stubWarning, setStubWarning] = useState(false);
+  const [buildLinks, setBuildLinks] = useState<{ draftId: string; revision: number;
+    warnings: NonNullable<AuthoritiesBuildReceipt["linkWarnings"]> }>();
   const [recognitionAsked, setRecognitionAsked] = useState(false);
   const [recognizeScope, setRecognizeScope] =
     useState<AuthoritiesBuildSettings["scannedPdfPolicy"]>("cited-pages");
@@ -159,6 +164,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     issues: Record<string, AuthoritiesSourceIssue>;
     outputFreshness: "unbuilt" | "current" | "stale";
   }>({ draftId: "", sourceKey: "", revision: -1, issues: {}, outputFreshness: "unbuilt" });
+  const [sourceAccessVersion, setSourceAccessVersion] = useState(0);
   const [review, setReview] = useState<{ id: string; key: string;
     items: AuthoritiesDiscrepancy[]; error: string }>();
   const draftRef = useRef(draft);
@@ -180,6 +186,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       previewRequest.current += 1; setSourcePreview(undefined);
       setSelectedId(orderedOccurrences(next)[0]?.id ?? "");
       setPendingAttachment(undefined); setError(""); setMessage("");
+      setBuildLinks(undefined);
     }
     draftRef.current = next; setDraft(next);
     if (next) {
@@ -193,6 +200,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }
     return true;
   }, [projectId, host.mode, resetOcr]);
+  function adoptSourceWrite(next: AuthoritiesProduct) {
+    if (!adopt(next)) return false;
+    // Replacing missing bytes with the same file leaves its binding and hash unchanged.
+    inspectionRequest.current += 1;
+    setSourceAccessVersion((value) => value + 1);
+    return true;
+  }
   const load = useCallback(async (id: string, preserveTab = false, remembered = false) => {
     const request = ++routeRequest.current;
     setLoading(!draftRef.current);
@@ -283,7 +297,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }), Object.values(draft.state.occurrences).map(({ authorityId, reference, pinpoints }) =>
       [authorityId, reference, pinpoints]), draft.state.settings.sourceMode,
   ]) : "";
-  const scannedSources = useScannedSources(host, draft, `${sourceKey}:${citationKey}`);
+  const scannedSources = useScannedSources(host, draft, `${sourceKey}:${citationKey}:${sourceAccessVersion}`);
   useEffect(() => {
     if (scannedSources.checking || draft?.state.settings.scannedPdfPolicy === "page-margin") return;
     const pending = scannedSources.files.filter(file => {
@@ -336,7 +350,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       }
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
-  }, [draftId, sourceKey, refreshToken, host]);
+  }, [draftId, sourceKey, sourceAccessVersion, refreshToken, host]);
   const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
   useEffect(() => {
     reviewRequest.current?.abort();
@@ -367,7 +381,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
   const authorities = draft ? authorityPlan.map(({ id }) => draft.state.authorities[id]) : [];
   const authorityTabs = new Map(authorityPlan.map(({ id, tab }) => [id, tab]));
-  const missingPdfs = draft ? missingSources(draft) : [];
+  const missingPdfs = draft ? missingSources(draft, sourceIssues) : [];
   const importedRole = draft?.state.import.kind === "document"
     ? draft.state.import.bindingRole : undefined;
   const importedIssue = importedRole ? sourceIssues[importedRole] : undefined;
@@ -484,9 +498,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }
   function importDocument() {
     if (!pendingImport) return;
+    const filename = pendingImport.source.kind === "document" ? pendingImport.source.document.filename
+      : pendingImport.source.selected.file.name;
+    const settings = filename.toLowerCase().endsWith(".docx")
+      ? { ...pendingImport.preferences, insertIntoDocument: pendingImport.preferences.insertIntoDocument ?? false,
+        tableDelivery: pendingImport.preferences.tableDelivery ?? authoritiesProfile(pendingImport.preferences.profileId).defaults.settings.tableDelivery,
+        citationSuffix: pendingImport.preferences.citationSuffix ?? "none" as const }
+      : pendingImport.preferences;
     void run(() => host.create({ ...pendingImport, projectId,
-      settings: pendingImport.preferences }), (next) => {
-      setPreferences(pendingImport.preferences); setPendingImport(undefined);
+      settings }), (next) => {
+      setPreferences(settings); setPendingImport(undefined);
       adopt(next, true);
     });
   }
@@ -523,7 +544,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           ? await host.attachLibraryPdf!(current.id, current.revision, selected,
             { kind: "authority", authorityId, language: "en" })
           : await host.attach(current.id, authorityId, current.revision, selected);
-        adopt(current);
+        adoptSourceWrite(current);
       }
       return current;
     }, (next) => { adopt(next, true); }, `${pdfs.length} PDF${pdfs.length === 1 ? "" : "s"} added`);
@@ -538,7 +559,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     void run(() => isLibraryDocument(selected)
       ? host.attachLibraryPdf!(current.id, current.revision, selected,
         { kind: "authority", authorityId, language: language ?? "en" })
-      : host.attach(current.id, authorityId, current.revision, selected, language), adopt,
+      : host.attach(current.id, authorityId, current.revision, selected, language), adoptSourceWrite,
     `${pdfChoiceName(selected)} attached`);
   }
   function attachBookFiles(slot: AuthoritiesBookSlot,
@@ -554,7 +575,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           ? await host.attachLibraryPdf!(current.id, current.revision, selected,
             { kind: "book", slot, supplementId })
           : await host.attachBookPdf!(current.id, current.revision, slot, selected, supplementId);
-        adopt(current);
+        adoptSourceWrite(current);
       }
       return current;
     }, adopt, files.length > 1 ? `${files.length} files added` : `${pdfChoiceName(files[0])} added`);
@@ -580,7 +601,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     });
   }
   function relinkAdopted(next: AuthoritiesProduct, role: string) {
-    if (!adopt(next)) return;
+    if (!adoptSourceWrite(next)) return;
     setSourceIssueState((current) => {
       const { [role]: _resolved, ...issues } = current.issues;
       return { ...current, issues };
@@ -690,14 +711,25 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       setDrafts((current) => current.filter((item) => item.id !== id)); newDraft();
     });
   }
-  function build(current = draftRef.current, force = false) {
+  async function build(current = draftRef.current, force = false) {
     if (!current) return;
-    if (!force && !current.state.settings.allowIncomplete && missingSources(current).length) {
-      setStubWarning(true); return;
-    }
     const request = new AbortController(); buildRequest.current = request; setBuilding(true);
-    void run(() => host.build(current, setMessage, request.signal),
-      ({ product, notice }) => {
+    void run(async () => {
+      const inspection = await host.inspectDraft(current);
+      request.signal.throwIfAborted();
+      if (draftRef.current?.id !== current.id || draftRef.current.revision !== current.revision)
+        throw new Error("The draft changed. Build again to use the current version.");
+      setSourceIssueState({ draftId: current.id, sourceKey: sourceIssueKey(current),
+        revision: current.revision, issues: inspection.sourceIssues,
+        outputFreshness: inspection.outputFreshness });
+      if (!force && missingSources(current, inspection.sourceIssues).length) {
+        setStubWarning(true); return null;
+      }
+      return host.build(current, setMessage, request.signal);
+    },
+      (result) => {
+        if (!result) return;
+        const { product, notice, receipt } = result;
         inspectionRequest.current += 1;
         setSourceIssueState((current) => {
           const key = sourceIssueKey(product);
@@ -706,6 +738,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
               ? current.issues : {}, outputFreshness: "current" };
         });
         adopt(product); setMessage(notice || "Outputs ready");
+        setBuildLinks({ draftId: product.id, revision: product.revision,
+          warnings: receipt.linkWarnings ?? [] });
       }).finally(() => {
         if (buildRequest.current === request) {
           buildRequest.current = null; setBuilding(false);
@@ -814,6 +848,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const buildPanel = draft && stage === "build" && <BuildPanel draft={draft} busy={busy} building={building}
     recognitionAvailable={host.recognitionAvailable !== false}
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
+    linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
+      ? buildLinks.warnings : undefined}
     missing={missingPdfs.length} onAction={act} sourceIssues={sourceIssues}
     onRelink={relinkSource} onOpenSource={host.readSource ? openSource : undefined}
     onBookFiles={(slot, files, supplementId) => attachBookFiles(slot,
@@ -895,8 +931,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     ariaLabel="Book steps" variant="subtab" panelId="authorities-step" />
                   <div id="authorities-step" role="tabpanel"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
-                  {stage === "citations" && draft.state.import.kind === "document" && <><StepSection title="Import and review" subtitle={draft.state.import.filename}
-                    subtitleTitle={draft.state.import.filename}
+                  {stage === "citations" && draft.state.import.kind === "document" && <><StepSection className="mt-3 @container" title={draft.state.import.filename}
                     actions={<>
                       {importedRole && importedIssue && host.relinkSource &&
                         relinkable(importedIssue) && <Button type="button"
@@ -907,7 +942,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                       <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
                         Next<ChevronRight /></Button>
                     </>}>
-                    {operation !== "Finding source PDFs" && <CitationReview occurrences={occurrences} units={draft.state.units}
+                    {operation !== "Finding source PDFs" && <CitationReview product={draft} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
                       dismissed={Object.values(draft.state.dismissedOccurrences ?? {})}
                       busy={busy} onSelect={setSelectedId} onAction={act}
@@ -1007,13 +1042,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       </Modal>
       <Modal open={stubWarning} onClose={() => setStubWarning(false)} size="md"
         breadcrumbs={["Missing PDFs"]} fit
+        secondaryAction={{ label: "Review sources", disabled: busy, onClick: () => {
+          setStubWarning(false); viewStep("sources");
+        } }}
         primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
           setStubWarning(false);
-          act({ type: "set-settings", settings: { allowIncomplete: true } },
-            (next) => build(next, true));
+          if (draftRef.current?.state.settings.allowIncomplete) void build(draftRef.current, true);
+          else act({ type: "set-settings", settings: { allowIncomplete: true } },
+              (next) => build(next, true));
         } }}>
-        <p className="pb-4 text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
-          ? "y has" : "ies have"} no PDF. Labelled stub pages will hold those tab slots and the build will not be filing-ready.</p>
+        <p className="text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
+          ? "y has" : "ies have"} no available PDF. {draft?.state.settings.missingSourcePolicy === "omit"
+            ? "Build a draft without those PDFs, keeping the tab numbers."
+            : "Labelled pages will hold those tab slots."} The output will be marked incomplete.</p>
+        <ul className="mt-3 space-y-1 pb-4 text-sm text-gray-800">
+          {missingPdfs.map(item => <li key={item.id}>{authorityLabel(item)}</li>)}
+        </ul>
       </Modal>
       <Modal open={!!sourcePreview} size="2xl" breadcrumbs={[sourcePreview?.name ?? "Source PDF"]}
         className="h-[min(900px,calc(100dvh-2rem))] [&_.modal-body]:p-0"
@@ -1068,15 +1112,25 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClo
   onChange: (value: StartPreferences) => void; onClose: () => void; onImport: () => void;
 }) {
   const value = pending?.preferences ?? DEFAULTS;
-  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={["Import options"]}
+  const filename = pending?.source.kind === "document" ? pending.source.document.filename
+    : pending?.source.selected.file.name;
+  const word = filename?.toLowerCase().endsWith(".docx") ?? false;
+  const [step, setStep] = useState<"word" | "sources">("word");
+  useEffect(() => setStep("word"), [pending?.source]);
+  const wordStep = word && step === "word";
+  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={[wordStep ? "Word output" : "Import options"]}
     className="!h-[min(32rem,calc(100dvh-2rem))]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
-    primaryAction={{ label: busy ? "Finding citations" : "Import and review", disabled: busy,
+    secondaryAction={word && !wordStep ? { label: "Back", disabled: busy, onClick: () => setStep("word") } : undefined}
+    primaryAction={{ label: wordStep ? "Next" : busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
-      onClick: onImport }}>
+      onClick: wordStep ? () => setStep("sources") : onImport }}>
     <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
-      jurisdictionOrder={jurisdictionOrder} />
+    {wordStep ? <AuthoritiesWordOptions value={value} disabled={busy}
+      lockedDelivery={authoritiesProfile(value.profileId).locked?.settings?.tableDelivery}
+      onChange={options => onChange({ ...value, ...options })} />
+      : <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
+        jurisdictionOrder={jurisdictionOrder} />}
     <div className="h-5" />
   </Modal>;
 }
@@ -1173,180 +1227,13 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
   </>;
 }
 
-function CitationReview({ occurrences, units, selected, authorities, discrepancies, dismissed,
-  onSelect, onAction, onReview, busy, onFocusChange }: {
-  occurrences: AuthorityOccurrence[]; selected?: AuthorityOccurrence;
-  dismissed: Array<{ occurrence: AuthorityOccurrence }>;
-  units: AuthoritiesProduct["state"]["units"]; authorities: AuthorityIdentity[];
-  discrepancies: AuthoritiesDiscrepancy[]; busy: boolean;
-  onSelect: (id: string) => void; onAction: ActionHandler;
-  onFocusChange?: (focus?: WorkProductFocus) => void;
-  onReview: (id: string) => void;
-}) {
-  const options = useRef<Array<HTMLButtonElement | null>>([]);
-  const locations = useMemo(() => occurrenceLocations(occurrences, units), [occurrences, units]);
-  // Text marked "Not a citation" stays listed, so a wrong call can be taken back.
-  const notCitations = dismissed.length > 0 && <details className="shrink-0 border-t border-gray-200">
-    <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-600">Not citations ({dismissed.length})</summary>
-    {dismissed.map(({ occurrence }) => <div key={occurrence.id} className="flex items-center gap-2 px-3 py-1 text-xs text-gray-500">
-      <span className="min-w-0 flex-1 truncate line-through" title={occurrence.text}>{occurrence.citation || occurrence.text}</span>
-      <Button type="button" variant="ghost" className="h-7 shrink-0 px-2 text-xs" disabled={busy}
-        onClick={() => onAction({ type: "restore-occurrence", occurrenceId: occurrence.id },
-          () => onSelect(occurrence.id))}>Restore</Button></div>)}
-  </details>;
-  if (!occurrences.length) return <div className="grid h-80 grid-rows-[1fr_auto] text-sm text-gray-500">
-    <p className="place-self-center">No citations found.</p>{notCitations}</div>;
-  const unit = units.find(({ id }) => id === selected?.unitId), unitText = unit?.text ?? selected?.text ?? "";
-  const authorityById = new Map(authorities.map((item) => [item.id, item]));
-  const findingByOccurrence = new Map(discrepancies.map((item) => [item.occurrenceId, item]));
-  return <div className="authorities-review grid min-h-0 grid-rows-[14rem_auto] overflow-hidden @min-[35rem]:h-[30rem] @min-[35rem]:grid-cols-[18rem_minmax(0,1fr)] @min-[35rem]:grid-rows-1">
-    <div className="flex min-h-0 flex-col border-b border-gray-200 @min-[35rem]:border-b-0 @min-[35rem]:border-e">
-    <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]" role="listbox"
-      aria-label="Citations">
-      {occurrences.map((item, index) => {
-        const authority = item.authorityId ? authorityById.get(item.authorityId) : undefined;
-        const finding = findingByOccurrence.get(item.id);
-        return <button key={item.id} ref={(node) => { options.current[index] = node; }}
-          type="button" role="option" aria-selected={item.id === selected?.id}
-          tabIndex={item.id === selected?.id ? 0 : -1} onClick={() => onSelect(item.id)}
-          onKeyDown={(event) => {
-            if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-            event.preventDefault();
-            const next = event.key === "Home" ? 0 : event.key === "End" ? occurrences.length - 1
-              : (index + (event.key === "ArrowDown" ? 1 : -1) + occurrences.length) % occurrences.length;
-            onSelect(occurrences[next].id);
-            options.current[next]?.focus();
-          }} className={cn("block min-h-[3.6rem] w-full border-b border-s-4 border-gray-100 px-3 py-2 text-left outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-600", item.id === selected?.id ? "border-s-red-700 bg-red-50" : "border-s-transparent hover:bg-red-50")}>
-          <span className="flex min-w-0 items-center gap-2 text-xs text-gray-500">
-            <span className="min-w-0 flex-1 truncate">{locations[index]}</span>
-            {finding && <span className="shrink-0 font-medium text-red-800">Check quotation</span>}
-          </span>
-          {authority && authorityName(authority) !== authority.citation &&
-            <span className="block truncate text-sm font-semibold text-gray-900">{authorityName(authority)}</span>}
-          <span className="block truncate text-xs text-gray-700">{item.citation}</span>
-        </button>;
-      })}
-    </div>{notCitations}</div>
-    {selected && <CitationEditor key={selected.id} selected={selected} unitText={unitText}
-      footnote={unit?.kind === "footnote"} canMerge={(unit?.occurrenceIds.indexOf(selected.id) ?? 0) > 0}
-      authorities={authorities} busy={busy} finding={findingByOccurrence.get(selected.id)}
-      onFocusChange={onFocusChange} onAction={onAction} onReview={onReview} />}
-  </div>;
-}
-
-function CitationEditor({ selected, unitText, footnote, canMerge, authorities, finding, onAction,
-  onReview, busy, onFocusChange }: {
-  selected: AuthorityOccurrence; unitText: string; footnote: boolean; canMerge: boolean;
-  authorities: AuthorityIdentity[]; onAction: ActionHandler; busy: boolean;
-  finding?: AuthoritiesDiscrepancy;
-  onReview: (id: string) => void;
-  onFocusChange?: (focus?: WorkProductFocus) => void;
-}) {
-  const surface = useRef<HTMLDivElement>(null);
-  const linkButton = useRef<HTMLButtonElement>(null), restoreLinkFocus = useRef(false);
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
-  const linked = authorities.find(({ id }) => id === selected.reference?.targetAuthorityId);
-  const referenceKind = selected.reference?.kind ?? selected.referenceKind;
-  useEffect(() => {
-    if (busy || linkOpen || !restoreLinkFocus.current) return;
-    restoreLinkFocus.current = false;
-    linkButton.current?.focus({ preventScroll: true });
-  }, [busy, linkOpen]);
-  const rememberSelection = () => setSelection(selectionRange(surface.current));
-  useEffect(() => onFocusChange?.({ itemId: selected.id,
-    ...(selection && { selection }) }),
-  [onFocusChange, selected.id, selection]);
-  useEffect(() => () => onFocusChange?.(), [onFocusChange]);
-  useEffect(() => {
-    // selectionchange fires on every caret move; an unchanged range must not re-render the page.
-    const update = () => setSelection((current) => {
-      const next = selectionRange(surface.current);
-      return current?.start === next?.start && current?.end === next?.end ? current : next;
-    });
-    document.addEventListener("selectionchange", update);
-    return () => document.removeEventListener("selectionchange", update);
-  }, []);
-  // A different span or text drops the remembered selection.
-  const spanKey = `${selected.authoritySpan.start}:${selected.authoritySpan.end}\n${unitText}`;
-  const [selectionFor, setSelectionFor] = useState(spanKey);
-  if (selectionFor !== spanKey) { setSelectionFor(spanKey); setSelection(null); }
-  useLayoutEffect(() => {
-    const root = surface.current;
-    const marks = root && [...root.querySelectorAll<HTMLElement>("[data-authority-span]")];
-    if (!root || !marks?.length) return;
-    const rootBox = root.getBoundingClientRect(), first = marks[0].getBoundingClientRect(),
-      last = marks[marks.length - 1].getBoundingClientRect();
-    root.scrollTop += (first.top + last.bottom - rootBox.top * 2 - rootBox.height) / 2;
-  }, [selected.id, selected.authoritySpan.start, selected.authoritySpan.end, unitText]);
-  const submit = (action: AuthoritiesAction) => onAction(action, () => {
-    window.getSelection()?.removeAllRanges(); setSelection(null);
-  });
-  const actionClass = "h-auto min-h-10 min-w-0 whitespace-normal px-2 py-1.5 text-xs leading-tight @min-[35rem]:min-h-9 @min-[35rem]:whitespace-nowrap";
-  return <div className="min-h-0 min-w-0 overflow-y-auto p-3 [scrollbar-gutter:stable]">
-    {finding && <div className="mb-2 flex min-h-8 items-center">
-      <Button type="button" variant="outline" className="h-8 border-red-300 px-2 text-xs text-red-800"
-        onClick={() => onReview(finding.id)}>Review quotation</Button>
-    </div>}
-    <div ref={surface} contentEditable suppressContentEditableWarning role="textbox" aria-readonly="true"
-      aria-multiline="true"
-      aria-label={`${footnote ? "Footnote" : "In-text citation"} context`} spellCheck={false}
-      onMouseUp={rememberSelection} onKeyUp={rememberSelection}
-      onBeforeInput={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()}
-      onDrop={(event) => event.preventDefault()} onKeyDown={(event) => {
-        if ((!event.ctrlKey && !event.metaKey && event.key.length === 1) ||
-            ["Backspace", "Delete", "Enter"].includes(event.key)) event.preventDefault();
-      }} className="h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-300 bg-white px-3 py-12 text-sm leading-6 text-gray-800 outline-none [scrollbar-width:thin] focus-visible:ring-2 focus-visible:ring-red-600 @min-[35rem]:h-32">{highlight(unitText, selected)}</div>
-    <div className="mt-2 grid min-h-[5.5rem] grid-cols-2 content-start gap-2">
-      <Button type="button" className={actionClass} disabled={busy || !usableSelection(selection)}
-        onMouseDown={(event) => event.preventDefault()} onClick={() => selection && submit({
-          type: "set-authority-span", occurrenceId: selected.id,
-          start: selection.start, end: selection.end })}>Use selection as citation</Button>
-      <Button type="button" variant="outline" className={actionClass}
-        disabled={busy || !usableSelection(selection)} onMouseDown={(event) => event.preventDefault()}
-        onClick={() => selection && submit({ type: "set-pinpoint-span",
-          occurrenceId: selected.id, start: selection.start, end: selection.end })}>Use selection as pinpoint</Button>
-      <Button type="button" variant="outline" className={actionClass}
-        disabled={busy || !selection || selection.start !== selection.end ||
-          selection.start <= selected.start || selection.start >= selected.end}
-        onMouseDown={(event) => event.preventDefault()} onClick={() => selection && submit({
-          type: "split-occurrence", occurrenceId: selected.id, cursor: selection.start })}>Split at cursor</Button>
-      <Button type="button" variant="outline" className={actionClass}
-        disabled={busy || !canMerge} onClick={() => submit({
-          type: "merge-occurrence", occurrenceId: selected.id })}>Merge with previous</Button>
-      <Button type="button" variant="outline" className={cn(actionClass, "col-span-2")} disabled={busy}
-        onClick={() => submit({ type: "remove-occurrence",
-          occurrenceId: selected.id })}>Not a citation</Button>
-    </div>
-    {selected.kind === "reference" && <div className="mt-2 grid min-h-16 grid-cols-2 items-center gap-2 border-t border-gray-200 pt-2 @min-[35rem]:flex @min-[35rem]:min-h-12">
-      <span className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[35rem]:flex-1">
-        {linked ? `Linked to ${authorityLabel(linked)}` : "Not linked"}</span>
-      <Button ref={linkButton} type="button" variant="outline" className="h-9 min-w-0 px-2 text-xs"
-        disabled={busy || !referenceKind}
-        onClick={() => setLinkOpen(true)}><Link2 /> Link to authority</Button>
-      <Button type="button" variant="ghost" className="h-9 min-w-0 px-2 text-xs"
-        disabled={busy || !selected.reference}
-        onClick={() => submit({ type: "set-reference", occurrenceId: selected.id,
-          reference: null })}>Clear link</Button>
-      <SearchableChoiceModal open={linkOpen} title="Link to authority" size="md"
-        searchLabel="Search authorities" value={selected.reference?.targetAuthorityId ?? null}
-        className="!h-[min(28rem,calc(100dvh-2rem))]"
-        closeOnSelect={false}
-        options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item), disabled: busy }))}
-        onClose={() => { if (!busy) setLinkOpen(false); }} onChange={(id) => {
-          if (id && referenceKind) onAction({ type: "set-reference", occurrenceId: selected.id, reference: {
-            kind: referenceKind, targetAuthorityId: id } }, () => { restoreLinkFocus.current = true; setLinkOpen(false); });
-        }} />
-    </div>}
-  </div>;
-}
-
 function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
-  outputFreshness, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
+  outputFreshness, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean; missing: number;
   recognitionAvailable: boolean;
   outputFreshness: "unbuilt" | "current" | "stale";
+  linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
   jurisdictionOrder: string[];
   onAction: (action: AuthoritiesAction) => void; onBuild: () => void; onCancel: () => void;
   sourceIssues: Record<string, AuthoritiesSourceIssue>; onRelink: (role: string) => void;
@@ -1358,8 +1245,11 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   onDownload: (documentId: string, versionId: string, filename: string) => void;
 }) {
   const [coverOpen, setCoverOpen] = useState(false);
+  const [wordOpen, setWordOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const profile = authoritiesProfile(draft.state.settings.profileId);
   const manual = draft.state.import.kind === "manual";
+  const wordDocument = draft.state.import.kind === "document" && draft.state.import.fileType === "docx";
   const book = draft.state.outputMode !== "table";
   const filingMedia = profile.options?.filingMedium;
   const bookRoles = profile.options?.bookRole;
@@ -1371,11 +1261,18 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   const previousOutput = outputFreshness === "stale";
   const missingText = !coverDetailsReady ? "Add cover details before building."
     : !filingRoleReady ? "Choose who is filing before building."
-    : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}${draft.state.settings.allowIncomplete
-      ? ": stub pages will keep their tab slots. Not filing-ready." : "."}`
+    : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}. Build to review the incomplete-draft options.`
     : "";
   return <section className="mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-    <h2 className="font-semibold text-gray-950">Build outputs</h2>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 className="font-semibold text-gray-950">Build outputs</h2>
+      {!manual && <div className="flex flex-wrap gap-2">
+        {wordDocument && <Button type="button" variant="outline" className="h-9 px-2 text-xs"
+          disabled={busy} onClick={() => setWordOpen(true)}>Word output</Button>}
+        <Button type="button" variant="outline" className="h-9 px-2 text-xs"
+          disabled={busy} onClick={() => setExportOpen(true)}>Final PDF export</Button>
+      </div>}
+    </div>
     <div className={cn("mt-3 grid gap-3 sm:items-end", manual
       ? "sm:grid-cols-[minmax(0,1fr)_9rem]"
       : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem]")}>
@@ -1433,7 +1330,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
             settings: { missingSourcePolicy } })}
           options={[{ value: "placeholder", label: "Add labelled pages" },
             { value: "omit", label: "Leave out of book" }]} />}
-        {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && <SelectField label="Word table" value={draft.state.settings.tableDelivery}
+        {draft.state.import.kind === "document" && draft.state.outputMode !== "book" && !wordDocument && <SelectField label="Word table" value={draft.state.settings.tableDelivery}
           disabled={busy} onChange={(tableDelivery) => onAction({ type: "set-settings", settings: { tableDelivery } })}
           options={[{ value: "native-append", label: "Append a native table" },
             { value: "linked-append", label: "Append a linked table" },
@@ -1447,21 +1344,23 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
           options={[{ value: "page-margin", label: "Keep scan; mark cited pages" },
             { value: "cited-pages", label: "OCR cited pages" },
             { value: "full", label: "OCR every page" }]} />}
-        {draft.state.import.kind === "document" && draft.state.import.fileType === "docx" &&
-          draft.state.outputMode !== "book" &&
-          <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md text-sm text-gray-800 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
-            <input type="checkbox" className="h-4 w-4 accent-red-700" disabled={busy}
-              checked={draft.state.insertIntoDocument} onChange={(event) => onAction({
-                type: "set-document-output", enabled: event.target.checked })} />
-            Add the table to a Word copy
-          </label>}
       </div>
     </details>
+    {draft.state.settings.finalPdf && <p className="mb-3 text-sm text-gray-700">
+      Final PDF: source document and Book of Authorities{draft.state.settings.linkTabs ? ", with linked tabs" : ""}
+      {draft.state.settings.linkPinpoints ? ", with pinpoint links where located" : ""}.
+    </p>}
     <div className="min-h-12 border-t border-gray-200 pt-2">
       {!!Object.keys(draft.outputs).length && <p className={cn(
         "mb-1 min-h-5 text-xs leading-5 text-gray-600",
         !previousOutput && "invisible",
       )}>{previousOutput ? "Previous build — rebuild to update" : "Current build"}</p>}
+      {!previousOutput && draft.outputs["link-report"] && draft.state.settings.finalPdf &&
+        (draft.state.settings.linkTabs || draft.state.settings.linkPinpoints) &&
+        <p className="mb-2 text-sm text-gray-700" role="status">
+          {linkWarnings?.length ? `${linkWarnings.length} link${linkWarnings.length === 1 ? " wasn't" : "s weren't"} added.`
+            : "Some links weren't added."} Use Unlinked citations to finish them in a PDF editor.
+        </p>}
       {Object.entries(draft.outputs).map(([role, output]) => <button key={role} type="button"
         aria-label={`Download ${previousOutput ? "previous " : ""}${output.filename}`}
         title={output.filename}
@@ -1469,7 +1368,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
         className="grid min-h-10 w-full grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 text-left text-sm outline-none hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50">
         <Download className="h-4 w-4 text-red-700" />
         <span className="font-medium text-gray-900">{previousOutput && "Previous "}{role === "table" ? "Table"
-          : role.startsWith("book") ? "Book"
+          : role === "final-pdf" ? "Final PDF" : role === "link-report" ? "Unlinked citations" : role.startsWith("book") ? "Book"
             : output.filename.toLowerCase().endsWith(".pdf") ? "Filing PDF" : "Word copy"}</span>
         <span className="min-w-0 truncate text-gray-500">{output.filename}</span>
         <span className="text-[11px] uppercase text-gray-500">{output.filename.split(".").at(-1)}</span>
@@ -1479,6 +1378,45 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
       busy={busy} onClose={() => setCoverOpen(false)} onSave={(cover) => {
         setCoverOpen(false); onAction({ type: "set-cover", cover });
       }} />}
+    <Modal open={wordOpen} onClose={() => setWordOpen(false)} size="lg" fit
+      breadcrumbs={["Word output"]} primaryAction={{ label: "Done", disabled: busy,
+        onClick: () => setWordOpen(false) }}>
+      <AuthoritiesWordOptions value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
+        disabled={busy} lockedDelivery={profile.locked?.settings?.tableDelivery}
+        onChange={({ insertIntoDocument, ...settings }) => {
+          onAction({ type: "set-document-output", enabled: !!insertIntoDocument });
+          onAction({ type: "set-settings", settings });
+        }} />
+    </Modal>
+    <Modal open={exportOpen} onClose={() => setExportOpen(false)} size="lg" fit
+      breadcrumbs={["Final PDF export"]} primaryAction={{ label: "Done", disabled: busy,
+        onClick: () => setExportOpen(false) }}>
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm text-gray-950 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
+        <input type="checkbox" className="mt-1 accent-red-700" disabled={busy}
+          checked={!!draft.state.settings.finalPdf} onChange={event => onAction({ type: "set-settings",
+            settings: { finalPdf: event.target.checked } })} />
+        <span><span className="block font-medium">Append the book to the source document PDF</span>
+          <span className="block text-xs leading-5 text-gray-600">Build one PDF containing the document and all authority tabs.</span></span>
+      </label>
+      {draft.state.settings.finalPdf && <div className="mt-3 space-y-2">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm text-gray-950 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
+          <input type="checkbox" className="mt-1 accent-red-700" disabled={busy}
+            checked={!!draft.state.settings.linkTabs} onChange={event => onAction({ type: "set-settings",
+              settings: { linkTabs: event.target.checked } })} />
+          <span><span className="block font-medium">Link tab references to the book</span>
+            <span className="block text-xs leading-5 text-gray-600">{wordDocument
+              ? "Add clickable tab references beside citations in the final PDF."
+              : "Link citation text to the authority tab in the final PDF."}</span></span>
+        </label>
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm text-gray-950 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
+          <input type="checkbox" className="mt-1 accent-red-700" disabled={busy}
+            checked={!!draft.state.settings.linkPinpoints} onChange={event => onAction({ type: "set-settings",
+              settings: { linkPinpoints: event.target.checked } })} />
+          <span><span className="block font-medium">Link pinpoints in uploaded PDFs</span>
+            <span className="block text-xs leading-5 text-gray-600">Link only located passages in PDFs you attached. Unlinked pinpoints are listed after export for manual linking.</span></span>
+        </label>
+      </div>}
+    </Modal>
   </section>;
 }
 
@@ -1746,7 +1684,7 @@ function SelectField<T extends string>({ label, value, options, onChange, disabl
 function Status({ busy, busyText, status, error }: { busy: boolean; busyText: string;
   status: string; error: boolean }) {
   const visible = (busy && !!busyText) || !!status;
-  return <p className={cn("mb-1 flex min-h-6 items-center px-1 text-sm",
+  return <p className={cn(visible ? "mb-1 flex min-h-6 items-center px-1 text-sm" : "sr-only",
     visible && "font-medium", busy && !status && "beaver-loading-indicator",
     error ? "text-red-800" : "text-gray-600")}
     role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}>
@@ -1797,10 +1735,15 @@ const withProfile = (value: StartPreferences, profileId: AuthoritiesProfileId): 
   ({ ...value, profileId, passageMarking: authoritiesProfile(profileId).requirements?.markedPassages &&
     value.passageMarking === "none" ? "margin" : value.passageMarking });
 
-function missingSources(draft: AuthoritiesProduct) {
+function missingSources(draft: AuthoritiesProduct,
+  sourceIssues: Record<string, AuthoritiesSourceIssue> = {}) {
+  const roles = authoritiesInputPlan(draft.state,
+    authoritiesProfile(draft.state.settings.profileId).requirements).byteRoles;
   return planAuthorities(draft).map(({ id }) => draft.state.authorities[id])
     .filter((item) => !item.excluded &&
-      missingSource(draft.state, item, draft.state.stage !== "citations"));
+      (missingSource(draft.state, item, draft.state.stage !== "citations") ||
+        item.source.kind === "attached" && item.source.sources.some(source =>
+          roles.has(source.bindingRole) && sourceIssues[source.bindingRole]?.status === "missing")));
 }
 function orderedOccurrences(draft?: AuthoritiesProduct) {
   if (!draft) return [];
@@ -1831,51 +1774,9 @@ function discrepancyKey(draft?: AuthoritiesProduct) {
 function metadata({ state: _state, ...item }: AuthoritiesProduct) { return item; }
 const sourceIssueKey = (draft?: AuthoritiesProduct) => draft
   ? canonicalJson([draft.id, draft.state.bindings]) : "";
-function highlight(text: string, occurrence: AuthorityOccurrence) {
-  const spans = [occurrence.authoritySpan, occurrence.pinpointSpan].filter((span): span is NonNullable<typeof span> =>
-    !!span && span.start >= 0 && span.end > span.start && span.end <= text.length)
-    .sort((a, b) => a.start - b.start);
-  if (!spans.length) return text;
-  const boundaries = [...new Set([0, text.length, ...spans.flatMap(({ start, end }) =>
-    [start, end])])].sort((a, b) => a - b), nodes: ReactNode[] = [];
-  for (let index = 0; index < boundaries.length - 1; index += 1) {
-    const start = boundaries[index], end = boundaries[index + 1],
-      authority = start < occurrence.authoritySpan.end && occurrence.authoritySpan.start < end,
-      pinpoint = !!occurrence.pinpointSpan && start < occurrence.pinpointSpan.end &&
-        occurrence.pinpointSpan.start < end, value = text.slice(start, end);
-    nodes.push(authority || pinpoint ? <mark key={`${start}:${end}`}
-      data-authority-span={authority || undefined} data-pinpoint-span={pinpoint || undefined}
-      className={cn("rounded px-0.5 text-inherit", pinpoint ? "bg-yellow-200" : "bg-red-100")}>
-      {value}</mark> : value);
-  }
-  return <>{nodes}</>;
-}
-/** Where each occurrence sits: its footnote, or its position among in-text citations. */
-function occurrenceLocations(all: AuthorityOccurrence[], units: AuthoritiesProduct["state"]["units"]) {
-  const byId = new Map(units.map((unit) => [unit.id, unit]));
-  let body = 0;
-  return all.map(({ unitId }) => {
-    const unit = byId.get(unitId);
-    if (unit?.kind === "body") body += 1;
-    return unit?.kind === "footnote" ? `Footnote ${unit.footnoteId ?? unit.ordinal + 1}` : `In-text citation ${body}`;
-  });
-}
 function planAuthorities({ state }: AuthoritiesProduct) {
   return deriveAuthorityProcedure(authorityProcedureInput(state,
     { purpose: state.outputMode === "table" ? "table" : "book" }));
-}
-function selectionRange(root: HTMLElement | null) {
-  const selection = window.getSelection();
-  if (!root || !selection || selection.rangeCount !== 1) return null;
-  const range = selection.getRangeAt(0);
-  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
-  const prefix = document.createRange(); prefix.selectNodeContents(root);
-  prefix.setEnd(range.startContainer, range.startOffset); const start = prefix.toString().length;
-  prefix.setEnd(range.endContainer, range.endOffset); const end = prefix.toString().length;
-  return { start: Math.min(start, end), end: Math.max(start, end) };
-}
-function usableSelection(value: { start: number; end: number } | null) {
-  return !!value && value.start !== value.end;
 }
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
 const lastDraftKey = (projectId: string | undefined, mode: AuthoritiesHost["mode"]) =>

@@ -23,11 +23,8 @@ vi.mock("@/app/hooks/useDocumentFile", () => ({
     useDocumentFile: mocks.useDocumentFile,
 }));
 
-import {
-    DocxView,
-    fitDocxPages,
-    quietBrokenDocxImages,
-} from "./DocxView";
+import { DocxView } from "./DocxView";
+import { fitDocxPages, quietBrokenDocxImages } from "./DocxCanvas";
 
 class ResizeObserverMock {
     observe() {}

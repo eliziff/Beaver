@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import JSZip from "jszip";
 
 const scope = { userId: "user-1" };
 
@@ -74,6 +75,26 @@ const receipt = (evidenceId: string, label: string): LegalEvidenceReceipt => ({
 });
 
 describe("authorities import application", () => {
+  it("rejects unreadable Word inputs with an actionable error before creating a draft", async () => {
+    const missing = new JSZip(); missing.file("[Content_Types].xml", "<Types/>");
+    const malformed = new JSZip(); malformed.file("word/document.xml", "<w:document><w:body>");
+    for (const bytes of [Buffer.alloc(0), Buffer.from("renamed text"),
+      await missing.generateAsync({ type: "nodebuffer" }),
+      await malformed.generateAsync({ type: "nodebuffer" })]) {
+      await expect(importStandaloneAuthoritiesFile({ filename: "Broken.docx", fileType: "docx",
+        bytes, modified: 0 })).rejects.toMatchObject({ status: 400,
+          message: expect.stringContaining("Choose a readable .docx") });
+    }
+  });
+
+  it("preserves service failures instead of reporting them as damaged source files", async () => {
+    const failure = new Error("Native addon unavailable");
+    await expect(importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx",
+      bytes: Buffer.from("unused"), modified: 0 }, { read: vi.fn() as never }, {
+      docxAuthorityTextUnits: async () => { throw failure; }, pdfAuthorityTextUnits: vi.fn(),
+    })).rejects.toBe(failure);
+  });
+
   it("propagates Form 66 fields from an imported filing", async () => {
     const lines = ["Court File No. T-982-19", "FEDERAL COURT", "BETWEEN:",
       "North Prairie Ltd.", "Applicant", "and", "Attorney General of Canada", "Respondent",
@@ -203,6 +224,27 @@ describe("authorities import application", () => {
       reference: { kind: "ibid", targetAuthorityId: state.authorityOrder[0] } });
   });
 
+  it("preserves a complete PDF citation and pinpoint spanning layout units and pages", async () => {
+    const document = await PDFDocument.create(), font = await document.embedFont(StandardFonts.TimesRoman);
+    for (const text of ["Liu v. T & H Machine, Inc., 191 F.3d 790,", "798 (7th Cir. 1999)."] ) {
+      const page = document.addPage([612, 792]);
+      page.drawText("Synthetic public PDF fixture", { x: 72, y: 750, font, size: 12 });
+      page.drawText(text, { x: 72, y: 650, font, size: 12 });
+    }
+    const bytes = Buffer.from(await document.save());
+    const state = await importStandaloneAuthoritiesFile({ filename: "Multiline.pdf", fileType: "pdf", bytes, modified: 1 });
+    expect(state.authorityOrder).toHaveLength(1);
+    const occurrence = Object.values(state.occurrences)[0], unit = state.units.find(({ id }) => id === occurrence.unitId)!;
+    expect(occurrence.authoritySpan.text).toBe("Liu v. T & H Machine, Inc., 191 F.3d 790");
+    expect(occurrence.coreSpan.text).toBe("191 F.3d 790");
+    expect(occurrence.pinpointSpan?.text).toBe("798");
+    expect(occurrence.pinpoints).toEqual([{ kind: "page", text: "798" }]);
+    expect(occurrence.text).toBe("Liu v. T & H Machine, Inc., 191 F.3d 790,\n\n798 (7th Cir. 1999)");
+    expect(unit.pageNumbers).toEqual([1, 2]);
+    expect(unit.text.slice(occurrence.pinpointSpan!.start, occurrence.pinpointSpan!.end)).toBe("798");
+    expect(occurrence.sourceTextSha256).toBe(sha256(unit.text));
+  });
+
   it("links supra notes only when their native reference target is unambiguous", async () => {
     const runtime = structureNative();
     const text = [
@@ -220,8 +262,9 @@ describe("authorities import application", () => {
       authorityReferencesInText: (value: string) => runtime.authorityReferencesInText(value),
       citationLookupKey: (value: string) => runtime.citationLookupKey(value),
     };
+    const pdf = await PDFDocument.create(); pdf.addPage();
     const state = await importStandaloneAuthoritiesFile({ filename: "Brief.pdf",
-      fileType: "pdf", bytes: Buffer.from("%PDF-1.7\n%%EOF"), modified: 1 },
+      fileType: "pdf", bytes: Buffer.from(await pdf.save()), modified: 1 },
     { read: vi.fn(async () => ({})) as never }, native);
     const references = Object.values(state.occurrences)
       .filter(({ kind }) => kind === "reference");

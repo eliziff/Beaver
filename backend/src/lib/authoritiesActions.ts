@@ -357,6 +357,36 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   return removeUnusedDetections(changed, donors, occurrence.authorityId);
 }
 
+/** A whole citation selection owns its range; partially overlapped neighbours keep
+ * their outside text. All replacements are validated before the host saves once. */
+function setCitationRange(draft: AuthoritiesDraft,
+  action: Extract<AuthoritiesUserAction, { type: "set-citation-range" }>, sources: CitationServices) {
+  const selected = selectedRange(draft, action.occurrenceId, action.start, action.end);
+  if (!intersects(selected.start, selected.end, selected.occurrence))
+    throw new ApplicationError(400, "Select the citation being corrected");
+  const donors = selected.unit.occurrenceIds.map(id => draft.occurrences[id])
+    .filter(item => item.id === action.occurrenceId || intersects(selected.start, selected.end, item));
+  const replacement = manualOccurrence(draft, selected.unit, selected.start, selected.end, donors, sources);
+  replacement.occurrence.id = selected.occurrence.id;
+  const replacements = [replacement];
+  for (const donor of donors) {
+    if (donor.id === action.occurrenceId) continue;
+    for (const [start, end] of [[donor.start, selected.start], [selected.end, donor.end]]) {
+      if (start < end && selected.unit.text.slice(start, end).trim())
+        replacements.push(manualOccurrence(draft, selected.unit, start, end, [donor], sources));
+    }
+  }
+  let changed = draft;
+  for (const donor of donors) changed = updateAuthoritiesDraft(changed,
+    { type: "remove-occurrence", occurrenceId: donor.id });
+  for (const { occurrence, discovered } of replacements) {
+    if (discovered && !changed.authorities[discovered.id]) changed = updateAuthoritiesDraft(changed,
+      { type: "add-authority", authority: discovered });
+    changed = updateAuthoritiesDraft(changed, { type: "add-occurrence", occurrence });
+  }
+  return removeUnusedDetections(changed, donors, replacement.occurrence.authorityId);
+}
+
 /** The counterpart of set-pinpoint-span: a pinpoint that belongs to another citation. */
 function clearPinpoint(draft: AuthoritiesDraft, occurrenceId: string) {
   const current = draft.occurrences[occurrenceId];
@@ -451,6 +481,7 @@ export function applyAuthoritiesUserAction(
   if (action.type === "set-authority-span" || action.type === "set-pinpoint-span") {
     return correctOccurrenceSpan(draft, action, sources);
   }
+  if (action.type === "set-citation-range") return setCitationRange(draft, action, sources);
   if (action.type === "clear-pinpoint") return clearPinpoint(draft, action.occurrenceId);
   if (action.type === "add-occurrence") return addOccurrence(draft, action, sources);
   if (action.type === "remove-occurrence") {

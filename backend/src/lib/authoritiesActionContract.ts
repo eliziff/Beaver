@@ -53,6 +53,7 @@ export const AUTHORITIES_SETTINGS_CHOICES = {
   sourceMode: ["automatic", "manual-originals", "render"], tabStyle: ["numeric", "alpha", "lower-alpha", "roman", "lower-roman"],
   tableOrder: ["first-reference", "alphabetical"],
   tableDelivery: ["native-marks", "native-append", "linked-append"],
+  citationSuffix: ["none", "book-tab", "tab"],
   tableLocation: ["pages", "pinpoints", "combined"],
   passageMarking: ["none", "margin", "paragraph", "text", "sidelined"],
   scannedPdfPolicy: ["page-margin", "cited-pages", "full"],
@@ -68,7 +69,7 @@ function settings(value: unknown, initial: true): AuthoritiesInitialSettings;
 function settings(value: unknown, initial?: false): Partial<AuthoritiesBuildSettings>;
 function settings(value: unknown, initial = false) {
   const item = object(value), allowed = new Set([
-    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "allowIncomplete", ...(initial
+    ...Object.keys(AUTHORITIES_SETTINGS_CHOICES), "tabStart", "tabPrefix", "tabLabels", "allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints", ...(initial
       ? ["profileId", "outputMode", "insertIntoDocument"] : []),
   ]);
   if (Object.keys(item).some((key) => !allowed.has(key))) return bad();
@@ -88,8 +89,8 @@ function settings(value: unknown, initial = false) {
     if (!Array.isArray(item.tabLabels) || item.tabLabels.length > 10_000) return bad();
     result.tabLabels = item.tabLabels.map((label) => plain(label, 100));
   }
-  if (item.allowIncomplete !== undefined)
-    result.allowIncomplete = typeof item.allowIncomplete === "boolean" ? item.allowIncomplete : bad();
+  for (const key of ["allowIncomplete", "finalPdf", "linkTabs", "linkPinpoints"])
+    if (item[key] !== undefined) result[key] = typeof item[key] === "boolean" ? item[key] : bad();
   if (initial && item.profileId !== undefined) result.profileId = choice(
     item.profileId, authoritiesProfileIds) as AuthoritiesProfileId;
   if (initial && item.outputMode !== undefined) result.outputMode = choice(
@@ -166,6 +167,7 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "remove-occurrence":
     case "restore-occurrence": return { type, occurrenceId: text(item.occurrenceId) };
     case "set-authority-span":
+    case "set-citation-range":
     case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
       start: integer(item.start), end: integer(item.end, 1) };
     case "clear-pinpoint": return { type, occurrenceId: text(item.occurrenceId) };
