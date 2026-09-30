@@ -1136,6 +1136,8 @@ def profile_builds(driver: webdriver.Chrome, filing: Path, oakes_pdf: Path, outp
             document_selection = select_next_in_document(driver)
             correction = consolidate_parallel(driver)
             advance_to_build(driver)
+            # This new draft needs the same manual scanned-source replacement
+            # as the Word draft; local OCR is outside this browser gate.
             book_step(driver, "Sources")
             oakes = next(row for row in authority_rows(driver) if "1986 CanLII 46" in row.text)
             oakes.find_element(By.CSS_SELECTOR, "input[type='file']").send_keys(str(oakes_pdf.resolve()))
