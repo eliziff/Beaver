@@ -16,12 +16,12 @@ from xml.sax.saxutils import escape
 import fitz
 from docx import Document
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.wait import WebDriverWait
+from browser_helpers import chrome as start_chrome
 
 
 OAKES = "R v Oakes, [1986] 1 SCR 103, 1986 CanLII 46 (SCC)"
@@ -29,12 +29,6 @@ FALSE_POSITIVE = "2024 ABKB 999"
 RECONSTRUCTED = "2021 BCCA 222"
 REAL_CITATIONS = ("2009 SCC 32", "2016 SCC 27", "2026 SCC 16", RECONSTRUCTED)
 CITATION_RENDER_BUDGET_MS = 50
-CHROME = next((path for path in (
-    Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
-    Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
-) if path.is_file()), None)
-CHROMEDRIVER = next(iter(sorted(Path.home().parent.glob(
-    r"*/.cache/selenium/chromedriver/win64/*/chromedriver.exe"), reverse=True)), None)
 
 
 def digest(path: Path) -> str:
@@ -112,24 +106,11 @@ def fixtures(directory: Path) -> tuple[Path, list[Path], Path]:
 
 
 def chrome(profile: Path, headed: bool) -> webdriver.Chrome:
-    if not CHROME:
-        raise RuntimeError("Google Chrome is required.")
-    options = webdriver.ChromeOptions()
-    options.binary_location = str(CHROME)
-    if not headed:
-        options.add_argument("--headless=new")
-    for flag in ("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
-                 "--disable-crash-reporter", "--no-first-run"):
-        options.add_argument(flag)
-    options.add_argument(f"--user-data-dir={profile}")
-    options.add_experimental_option("prefs", {
+    driver = start_chrome(profile, headed, prefs={
         "download.prompt_for_download": False,
         "plugins.always_open_pdf_externally": True,
         "profile.default_content_setting_values.automatic_downloads": 1,
     })
-    options.set_capability("goog:loggingPrefs", {"browser": "ALL", "performance": "ALL"})
-    driver = webdriver.Chrome(options=options,
-        service=Service(str(CHROMEDRIVER)) if CHROMEDRIVER else None)
     driver.execute_cdp_cmd("Network.enable", {})
     driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled": True})
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": r"""
@@ -227,7 +208,7 @@ window.fetch=async(...args)=>{
 };
 window.__observeAuthoritiesFetch();
 addEventListener('load',()=>{
-  if(/\/authorities(?:\.html|\/(?:index\.html)?)?$/i.test(location.pathname))window.__observeAuthoritiesFetch();
+  if(/\/authorities(?:\.html|\/)?$/i.test(location.pathname))window.__observeAuthoritiesFetch();
 });
 new MutationObserver(()=>{
   const timing=window.__authoritiesSmoke.importUi;
@@ -343,7 +324,7 @@ def citation_options(driver: webdriver.Chrome):
 
 
 def draft_state(driver: webdriver.Chrome, draft_id: str) -> dict[str, object]:
-    if urlparse(driver.current_url).path.rstrip("/").lower().endswith(("/authorities.html", "/authorities", "/authorities/index.html")):
+    if urlparse(driver.current_url).path.rstrip("/").lower().endswith(("/authorities.html", "/authorities")):
         result = driver.execute_async_script(r"""
 const id=arguments[0],done=arguments[arguments.length-1],opening=
   indexedDB.open('beaver-work-products');
@@ -1616,7 +1597,7 @@ def main() -> int:
     parser.add_argument("--expected-pdf-page", type=int, default=1)
     args = parser.parse_args()
     native_performance = native_citation_performance()
-    standalone = urlparse(args.url).path.rstrip("/").lower().endswith(("/authorities.html", "/authorities", "/authorities/index.html"))
+    standalone = urlparse(args.url).path.rstrip("/").lower().endswith(("/authorities.html", "/authorities"))
     mode = "standalone" if standalone else "beaver"
     with tempfile.TemporaryDirectory(prefix=f"authorities-{mode}-") as temporary:
         temporary_path = Path(temporary)
@@ -1679,9 +1660,7 @@ fetch(entry.name,{cache:'no-store'}).then(async response=>{
                 if (urlparse(url).hostname or "").lower().endswith("canlii.org")]
             assert not canlii_requests, canlii_requests
             severe = [entry for entry in driver.get_log("browser")
-                      if entry.get("level") == "SEVERE" and not (
-                          "/favicon.ico - Failed to load resource" in entry.get("message", "")
-                          and "404" in entry.get("message", ""))]
+                      if entry.get("level") == "SEVERE"]
             assert not severe, severe
             result = {"schema_version": "beaver.authorities-browser-proof.v3",
                 "created_at": datetime.now(timezone.utc).isoformat(), "mode": mode,

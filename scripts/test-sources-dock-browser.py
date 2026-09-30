@@ -8,34 +8,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import runpy
 from contextlib import suppress
 import tempfile
+from functools import partial
 from pathlib import Path
 from urllib.parse import urljoin
 from uuid import uuid4
 
-from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
-
-
-chrome = runpy.run_path(str(Path(__file__).with_name("test-authorities-browser.py")))["chrome"]
-
-def visible(driver, by: str, value: str, timeout=30):
-    return WebDriverWait(driver, timeout, ignored_exceptions=(StaleElementReferenceException,)).until(lambda page: next(
-        (node for node in page.find_elements(by, value) if node.is_displayed()), None))
-
-
-def click_text(driver, text: str, root=None):
-    xpath = f".//button[normalize-space()='{text}' or @aria-label='{text}']"
-    scope = root or driver
-    node = WebDriverWait(driver, 30).until(lambda _page: next(
-        (item for item in scope.find_elements(By.XPATH, xpath) if item.is_displayed() and item.is_enabled()), None))
-    driver.execute_script("arguments[0].scrollIntoView({block:'center'})", node)
-    node.click()
-    return node
+from browser_helpers import chrome, visible, click_text, api as request, upload as upload_text
 
 
 def main() -> None:
@@ -50,28 +34,13 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory(prefix="beaver-chrome-") as profile:
         driver = chrome(Path(profile), args.headed)
-
+        api = partial(request, driver)
+        upload = partial(upload_text, driver)
         def screenshot(name):
             driver.save_screenshot(str(output / name))
 
         try:
             driver.set_window_size(1440, 900)
-
-            def api(method, path, body=None):
-                result = driver.execute_async_script("""const [method,path,body,done]=arguments;
-fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined})
-  .then(async r=>done({status:r.status,value:await r.json().catch(()=>null)})).catch(e=>done({error:String(e)}));""",
-                    method, path, body)
-                assert result.get("status") in (200, 201, 204), {"path": path, "result": result}
-                return result.get("value")
-
-            def upload(filename, text):
-                result = driver.execute_async_script("""const [name,text,done]=arguments;
-const form=new FormData();form.append('file',new File([text],name,{type:'text/plain'}));
-fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>done({status:r.status,value:await r.json()}))
-  .catch(e=>done({error:String(e)}));""", filename, text)
-                assert result.get("status") == 201, result
-                return result["value"]
 
             print("Sources dock: seed a library document", flush=True)
             driver.get(urljoin(args.url, "/library"))

@@ -1,14 +1,13 @@
 """Inspect a real model's saved research through Beaver's ordinary UI."""
 import argparse
 import json
-import runpy
 import tempfile
 from pathlib import Path
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 
-chrome = runpy.run_path(str(Path(__file__).with_name("test-authorities-browser.py")))["chrome"]
+from browser_helpers import chrome
 
 
 def main():
