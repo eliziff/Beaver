@@ -1,25 +1,31 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidateRange(1, 65535)]
+    [int]$Port = 3100
+)
 
 $ErrorActionPreference = 'Stop'
-# Keep the desktop responsive while this deliberately long battery runs.
-[Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'BelowNormal'
-$env:NODE_NO_WARNINGS = '1'
+# Keep heavy checks serialized while this deliberately long battery runs.
 $Repo = Split-Path -Parent $PSScriptRoot
 $Mike = Join-Path $PSScriptRoot 'mike.ps1'
 $ReceiptDirectory = Join-Path $Repo '.tmp\full-sweep'
 $ReceiptFile = Join-Path $ReceiptDirectory 'latest.json'
 $ReceiptTemporary = "$ReceiptFile.new"
+$RunDirectory = Join-Path $ReceiptDirectory ([Guid]::NewGuid().ToString())
 $script:StepLog = $null
 $script:SurfaceStarted = $false
 $script:Failed = $false
 $script:Receipt = [ordered]@{
     started_at = [DateTime]::UtcNow.ToString('o')
     status = 'running'
+    model = 'codex:gpt-6-luna'
+    reasoning_effort = 'low'
+    run_directory = $RunDirectory
     steps = @()
 }
 
 New-Item -ItemType Directory -Force -Path $ReceiptDirectory | Out-Null
+New-Item -ItemType Directory -Force -Path $RunDirectory | Out-Null
 $Mutex = [Threading.Mutex]::new($false, 'Local\BeaverFullSweep')
 if (-not $Mutex.WaitOne(0)) {
     $Mutex.Dispose()
@@ -30,6 +36,7 @@ function Save-Receipt {
     $script:Receipt | ConvertTo-Json -Depth 5 |
         Set-Content -LiteralPath $ReceiptTemporary -Encoding UTF8
     Move-Item -LiteralPath $ReceiptTemporary -Destination $ReceiptFile -Force
+    Copy-Item -LiteralPath $ReceiptFile -Destination (Join-Path $RunDirectory 'receipt.json') -Force
 }
 
 function Invoke-Checked([string]$Command, [string[]]$Arguments) {
@@ -49,10 +56,10 @@ function Invoke-Checked([string]$Command, [string[]]$Arguments) {
     }
 }
 
-function Invoke-Step([string]$Name, [scriptblock]$Action) {
+function Invoke-Step([string]$Name, [scriptblock]$Action, [switch]$KeepGoing) {
     Write-Host "`n==> $Name"
     $slug = $Name.ToLowerInvariant() -replace '[^a-z0-9]+', '-'
-    $script:StepLog = Join-Path $ReceiptDirectory "latest-$slug.log"
+    $script:StepLog = Join-Path $RunDirectory "$slug.log"
     Set-Content -LiteralPath $script:StepLog -Value ''
     $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
@@ -62,7 +69,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
             name = $Name
             status = 'passed'
             seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
-            log = Split-Path -Leaf $script:StepLog
+            log = $script:StepLog
         }
         Save-Receipt
         Write-Host "PASS $Name ($([Math]::Round($watch.Elapsed.TotalSeconds, 1))s)"
@@ -74,7 +81,12 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
             status = 'failed'
             seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
             error = $_.Exception.Message
-            log = Split-Path -Leaf $script:StepLog
+            log = $script:StepLog
+        }
+        if ($KeepGoing) {
+            Save-Receipt
+            Write-Warning "$Name failed: $($_.Exception.Message)"
+            return
         }
         $script:Receipt.status = 'failed'
         $script:Receipt.finished_at = [DateTime]::UtcNow.ToString('o')
@@ -84,11 +96,12 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
 }
 
 $PreviousEnvironment = @{}
-$RunDirectory = Join-Path $ReceiptDirectory ([Guid]::NewGuid().ToString())
-New-Item -ItemType Directory -Force -Path $RunDirectory | Out-Null
 $SweepEnvironment = @{
-    PORT = '3100'
+    PORT = [string]$Port
     AUTH_MODE = 'local'
+    LIVE_E2E = '0'
+    NODE_NO_WARNINGS = '1'
+    BEAVER_JEV_TABULAR_MODE = 'off'
     MIKE_LAUNCHER_STATE_DIR = (Join-Path $RunDirectory 'launcher')
     OPEN_LEGAL_DATA_HOME = (Join-Path $RunDirectory 'legal-data')
     MIKE_LOCAL_DATA_DIR = (Join-Path $RunDirectory 'library')
@@ -97,6 +110,32 @@ $SweepEnvironment = @{
 foreach ($name in $SweepEnvironment.Keys) {
     $PreviousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
     [Environment]::SetEnvironmentVariable($name, $SweepEnvironment[$name], 'Process')
+}
+
+function Invoke-LiveStep([string]$Name, [string]$Pattern) {
+    Invoke-Step $Name -KeepGoing {
+        $previous = @{}
+        $liveEnvironment = @{ LIVE_E2E = '1'; LIVE_MODEL = $script:Receipt.model;
+            LIVE_REASONING_EFFORT = $script:Receipt.reasoning_effort; BEAVER_JEV_TABULAR_MODE = 'off' }
+        foreach ($name in $liveEnvironment.Keys) {
+            $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+            [Environment]::SetEnvironmentVariable($name, $liveEnvironment[$name], 'Process')
+        }
+        Push-Location (Join-Path $Repo 'backend')
+        try {
+            $result = [IO.Path]::ChangeExtension($script:StepLog, '.json')
+            Invoke-Checked npx.cmd @('vitest', 'run', '--maxWorkers=1',
+                '--silent=false',
+                '--reporter=default', '--reporter=json', "--outputFile=$result",
+                'src/__tests__/integration/liveToolLoop.test.ts', '-t', $Pattern)
+        }
+        finally {
+            Pop-Location
+            foreach ($name in $previous.Keys) {
+                [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+            }
+        }
+    }
 }
 
 try {
@@ -108,60 +147,84 @@ try {
     Invoke-Step 'Native adapter check' {
         Invoke-Checked cargo @(
             'check', '--manifest-path',
-            (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'), '--offline', '--quiet', '--jobs', '1'
+            (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'), '--locked', '--offline', '--quiet', '--jobs', '1'
         )
     }
     Invoke-Step 'Native release build' {
         Invoke-Checked cargo @(
             'build', '--manifest-path',
             (Join-Path $Repo 'native\legal-structure-node\Cargo.toml'),
-            '--release', '--offline', '--quiet', '--jobs', '1'
+            '--release', '--locked', '--offline', '--quiet', '--jobs', '1'
         )
     }
-    Invoke-Step 'Backend tests' {
+    Invoke-Step 'Backend tests' -KeepGoing {
         # Tests choose per-case data homes; a global explicit library path overrides them.
         $libraryDirectory = $env:MIKE_LOCAL_DATA_DIR
         try {
             Remove-Item Env:MIKE_LOCAL_DATA_DIR -ErrorAction SilentlyContinue
-            Invoke-Checked npm.cmd @('test', '--prefix', 'backend')
+            Invoke-Checked npm.cmd @('test', '--prefix', 'backend', '--', '--maxWorkers=1', '--no-file-parallelism',
+                '--reporter=verbose',
+                '--testTimeout=120000', '--hookTimeout=120000')
         } finally { $env:MIKE_LOCAL_DATA_DIR = $libraryDirectory }
     }
-    Invoke-Step 'Frontend tests' { Invoke-Checked npm.cmd @('test', '--prefix', 'frontend') }
+    Invoke-Step 'Frontend tests' -KeepGoing {
+        Invoke-Checked npm.cmd @('test', '--prefix', 'frontend', '--', '--maxWorkers=1',
+            '--no-file-parallelism', '--reporter=verbose', '--testTimeout=120000', '--hookTimeout=120000')
+    }
+    Invoke-Step 'Shared PDF behavior' {
+        Invoke-Checked node @('--test', 'shared/browser-pdf.test.mjs', 'shared/canlii-downloads.test.mjs')
+    }
     Invoke-Step 'Backend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'backend') }
     Invoke-Step 'Frontend build' { Invoke-Checked npm.cmd @('run', 'build', '--prefix', 'frontend') }
-    Invoke-Step 'Production browser smoke' {
+    Invoke-Step 'Start isolated production surface' {
         & $Mike start -NoBrowser
         if (-not $?) { throw 'Could not start the production surface.' }
         $script:SurfaceStarted = $true
-        & $Mike smoke -Full
-        if (-not $?) { throw 'Production browser smoke failed.' }
+        $profile = @{ titleModel = $script:Receipt.model; tabularModel = $script:Receipt.model;
+            lastSelectedChatModel = $script:Receipt.model } | ConvertTo-Json
+        Invoke-RestMethod -Method Patch -Uri "http://127.0.0.1:$Port/api/user/profile" `
+            -ContentType 'application/json' -Body $profile | Out-Null
+        & $Mike smoke
+        if (-not $?) { throw 'Production health smoke failed.' }
     }
-    Invoke-Step 'Live Luna low tool loop' {
-        $previousLive = $env:LIVE_E2E
-        $previousModel = $env:LIVE_MODEL
-        $previousEffort = $env:LIVE_REASONING_EFFORT
-        try {
-            $env:LIVE_E2E = '1'
-            $env:LIVE_MODEL = 'codex:gpt-5.6-luna'
-            $env:LIVE_REASONING_EFFORT = 'low'
-            Push-Location (Join-Path $Repo 'backend')
-            try {
-                Invoke-Checked npx.cmd @(
-                    'vitest', 'run', '--maxWorkers=1', 'src/__tests__/integration/liveToolLoop.test.ts'
-                )
-            }
-            finally { Pop-Location }
-        }
-        finally {
-            $env:LIVE_E2E = $previousLive
-            $env:LIVE_MODEL = $previousModel
-            $env:LIVE_REASONING_EFFORT = $previousEffort
-        }
+    Invoke-Step 'Authorities browser' -KeepGoing {
+        Invoke-Checked python @((Join-Path $Repo 'scripts\test-authorities-browser.py'),
+            '--url', "http://127.0.0.1:$Port/table-of-authorities", '--artifacts', (Join-Path $RunDirectory 'authorities-browser'))
     }
-    $script:Receipt.status = 'passed'
+    Invoke-Step 'Assistant dock and document browser' -KeepGoing {
+        Invoke-Checked powershell.exe @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Mike,
+            'smoke', '-WithAssistantDock')
+    }
+    Invoke-Step 'Production Playwright smoke' -KeepGoing {
+        Invoke-Checked (Join-Path $Repo 'node_modules\.bin\playwright.cmd') @('test', '--config=playwright.local-smoke.config.ts')
+    }
+    Invoke-Step 'Tabular review browser' -KeepGoing {
+        $output = Join-Path $RunDirectory 'tabular-browser'
+        Invoke-Checked python @((Join-Path $Repo 'scripts\test-tabular-review-browser.py'),
+            '--url', "http://127.0.0.1:$Port", '--output', $output)
+        $report = Get-Content -LiteralPath (Join-Path $output 'report.json') -Raw | ConvertFrom-Json
+        if ($report.designOutcome -ne 'columns-proposed') { throw 'The live tabular design did not produce columns.' }
+    }
+    Invoke-Step 'Stop isolated production surface' {
+        if ($script:SurfaceStarted) {
+            & $Mike stop
+            if (-not $?) { throw 'Could not stop the isolated production surface.' }
+        }
+        $script:SurfaceStarted = $false
+    }
+    Invoke-LiveStep 'Live Luna 6 library reading and lint' 'reads an uploaded lease|routes a drafting-errors'
+    Invoke-LiveStep 'Live Luna 6 Authorities and Court Records' 'uses the selected parallel|fills only empty Court'
+    Invoke-LiveStep 'Live Luna 6 saved research' 'builds one labelled'
+    Invoke-LiveStep 'Live Luna 6 Organize revisions and undo' 'organizes research'
+    Invoke-LiveStep 'Live Luna 6 Library and project folder organization' 'organizes library folders|organizes project folders'
+    Invoke-LiveStep 'Live Luna 6 research table layout' 'creates a suggested research table'
+    Invoke-LiveStep 'Live Luna 6 tabular generation and regeneration' 'generates grounded tabular answers'
+    Invoke-LiveStep 'Live Luna 6 parallel subagent research' 'delegates parallel source review'
+    $script:Failed = @($script:Receipt.steps | Where-Object { $_.status -eq 'failed' }).Count -gt 0
+    $script:Receipt.status = if ($script:Failed) { 'failed' } else { 'passed' }
     $script:Receipt.finished_at = [DateTime]::UtcNow.ToString('o')
     Save-Receipt
-    Write-Host "`nFullSweep passed. Receipt: $ReceiptFile"
+    Write-Host "`nFullSweep $($script:Receipt.status). Receipt: $ReceiptFile"
 }
 catch {
     $script:Failed = $true

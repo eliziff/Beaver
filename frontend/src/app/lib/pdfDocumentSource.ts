@@ -4,9 +4,11 @@ import { documentFileSession } from "@/app/hooks/useDocumentFile";
 import type { PdfByteSource } from "@/app/components/shared/views/PdfCanvas";
 
 const CHUNK = 64 * 1024, MAX_BYTES = 100 * 1024 * 1024;
-export const getDocumentPdfPageLabels = (id: string, versionId?: string | null, signal?: AbortSignal) =>
+export const getDocumentPdfPageLabels = (id: string, versionId?: string | null, signal?: AbortSignal,
+  context?: { citations: string[]; reporterOriginal: boolean; sourceSha256: string }) =>
   apiRequest<{ pageLabels: Array<string | null> }>(pagePath(`/single-documents/${segment(id)}/pdf-page-labels`,
-    { version_id: versionId }), { signal });
+    { version_id: versionId, ...(context ? { citations: JSON.stringify(context.citations),
+      reporter_original: context.reporterOriginal ? "1" : "0", source_sha256: context.sourceSha256 } : {}) }), { signal });
 function representation(response: Response) {
   const match = /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(response.headers.get("Content-Range") ?? "");
   const etag = response.headers.get("ETag");

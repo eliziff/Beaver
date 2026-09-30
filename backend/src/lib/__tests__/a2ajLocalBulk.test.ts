@@ -182,7 +182,7 @@ describe("local A2AJ bulk data", () => {
     ]);
     const aliases = ["2024 SCC 1", "2024 CSC 1", "500 D.L.R. (4th) 10"];
     expect(bulk.a2ajCitationAliasGroups(aliases)?.map(({ keys }) => keys)).toEqual(
-      aliases.map(() => ["2024csc1", "2024scc1", "500dlr4th10"]));
+      aliases.map(() => ["3:neutral:2024:scc:1", "3:reporter:dlr:dlr4th:500:10"]));
 
     const longDocument = bulk.fetchLocalA2AJDocument({
       citation: "2022 SCC 88",

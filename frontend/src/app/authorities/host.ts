@@ -65,6 +65,7 @@ export interface AuthoritiesHost {
     target: AuthoritiesLibraryPdfTarget): Promise<AuthoritiesProduct>;
   readSource?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Blob>;
   readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal, pages?: number[]): Promise<PdfRecognizedText>;
+  readSourcePageLabels?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Array<string | null>>;
   sourceOcr?: AuthoritiesOcrPort;
   outputFolder?: OutputFolderPort;
 }

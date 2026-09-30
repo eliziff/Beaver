@@ -21,9 +21,20 @@ SUPABASE_SECRET_KEY=your-service-role-key
 Model-provider and object-storage credentials also stay in `backend/.env`.
 Use separate test projects, buckets, accounts, and capped keys.
 
-The authorized FullSweep uses port 3100 and a fresh data/launcher directory
-under `.tmp/full-sweep/`. It stops its own surface afterward and leaves the
-ordinary launcher and local data alone. A busy port fails the sweep. For manual
+The authorized FullSweep uses port 3100 (or `-Port`) and a fresh data/launcher
+directory under `.tmp/full-sweep/`. It stops its own surface afterward and leaves
+the ordinary launcher and local data alone. A busy port fails the sweep. Its
+serialized checks include the complete application suites/builds, native adapter,
+production browser/dock/Authorities smoke and tabular browser. Separate GPT-6 Luna
+legs exercise Library reading and lint, Authorities and Court Records edits,
+saved research, Organize revision/acceptance/undo, Library and project folders,
+research table conversion, tabular extraction/regeneration and parallel research
+readers. All live legs use `codex:gpt-6-luna` at low effort with synthetic or public
+sources; the tabular leg disables optional Jev routing so it exercises Luna.
+Each run retains its receipt, logs and per-leg test results. Independent test and
+live legs continue after a failure to expose other regressions; the final result
+fails if any leg failed. Native/build/startup prerequisites still gate their
+dependent checks. For manual
 isolated runs, set `PORT`, `MIKE_LAUNCHER_STATE_DIR`, `OPEN_LEGAL_DATA_HOME` and
 `MIKE_LOCAL_DATA_DIR`; the launcher, build guard and browser smoke use that port.
 

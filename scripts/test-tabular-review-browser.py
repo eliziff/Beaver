@@ -71,6 +71,15 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             review = request("POST", "/api/tabular-review", {"title": title,
                 "document_ids": [doc["id"] for doc in documents], "columns_config": columns})
             report["reviewId"] = review["id"]
+            research_title = "Contract research " + review["id"][:8]
+            research = request("POST", "/api/source-workspaces", {"title": research_title})
+            research_id = research["document"]["id"]
+            for document in documents:
+                research = request("POST", f"/api/source-workspaces/{research_id}/actions", {
+                    "version_id": research["versionId"], "working_revision": research["workingRevision"],
+                    "action": {"type": "source", "reference": {"provider": "library", "kind": "document",
+                        "id": document["id"], "versionId": document["current_version_id"], "title": document["filename"]}}})
+            report["researchId"] = research_id
 
             print("Tabular browser: grid, header menu, selection strip", flush=True)
             driver.get(f"{args.url}/tabular-reviews/{review['id']}")
@@ -91,7 +100,7 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             driver.execute_script("arguments[0].click()", header.find_element(By.CSS_SELECTOR, "button[aria-label='Parties actions']"))
             menu = visible("[role='menu'][aria-label='Parties actions']")
             items = [node.text for node in menu.find_elements(By.CSS_SELECTOR, "[role^='menuitem']")]
-            assert items == ["Edit", "Rerun column", "Clear column", "Delete"], items
+            assert {"Edit", "Rerun column", "Clear column", "Discuss column", "Labels from this column", "Delete"}.issubset(items), items
             screenshot("02-column-menu.png")
             driver.switch_to.active_element.send_keys(Keys.ESCAPE)
             row_boxes = [node for node in driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']") if node.is_displayed()]
@@ -116,7 +125,12 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
                 By.XPATH, ".//button[normalize-space()='Propose design']") if node.is_displayed()), None))
             failed = [node for node in driver.find_elements(By.XPATH,
                 "//p[@role='alert' and contains(normalize-space(),'Could not propose a design')]") if node.is_displayed()]
-            report["designOutcome"] = "error-shown" if failed else "columns-proposed"
+            assert not failed, "The live model did not propose a table design"
+            report["proposedColumns"] = [node.text for node in visible("section[aria-label='Columns']")
+                .find_elements(By.CSS_SELECTOR, "button[aria-expanded]")]
+            assert len(report["proposedColumns"]) >= 2, report
+            assert all(name.strip() for name in report["proposedColumns"]), report
+            report["designOutcome"] = "columns-proposed"
             screenshot("04-assist-proposal.png")
             driver.switch_to.active_element.send_keys(Keys.ESCAPE)
 
@@ -125,13 +139,17 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             click_text("New tabular review")
             click_text("Create custom")
             click_text("Import a Research set")
-            visible("fieldset legend")
-            rows = visible("fieldset")
-            assert "Sources" in rows.text and "Passages" in rows.text, rows.text
-            assert driver.find_elements(By.XPATH,
-                "//button[normalize-space()='Create']"), "Import Create action missing"
+            visible(f"input[aria-label^='Select {research_title}']").click()
+            click_text("Suggest a table")
+            WebDriverWait(driver, 180).until(lambda page: next((node for node in page.find_elements(
+                By.XPATH, "//button[normalize-space()='Create table']") if node.is_displayed() and node.is_enabled()), None))
+            assert driver.find_elements(By.CSS_SELECTOR, "input[aria-label^='Column name']"), "Import proposed no columns"
             screenshot("05-import-step.png")
-            driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+            click_text("Create table")
+            wait.until(lambda page: "/tabular-reviews/" in page.current_url)
+            report["importedReviewId"] = driver.current_url.rstrip("/").split("/")[-1]
+            imported = request("GET", f"/api/tabular-review/{report['importedReviewId']}")
+            assert len(imported["documents"]) == 2, imported
 
             print("Tabular browser: chat and Sources dock tabs", flush=True)
             driver.get(f"{args.url}/tabular-reviews/{review['id']}")
@@ -142,7 +160,7 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             assert "Export XLSX" in report["actions"] and "History" in report["actions"], report["actions"]
             driver.switch_to.active_element.send_keys(Keys.ESCAPE)
             click_text("Chat")
-            tabs = visible("[role='tablist']")
+            tabs = visible("[data-assistant-dock] [role='tablist']")
             names = [node.text for node in tabs.find_elements(By.CSS_SELECTOR, "[role='tab']")]
             assert "Chat" in names and "Sources" in names, names
             tabs.find_element(By.XPATH, ".//*[@role='tab' and normalize-space()='Sources']").click()

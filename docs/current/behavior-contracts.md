@@ -158,6 +158,8 @@ JSON and embedded reference bytes when advancing the application distribution.
   as ordinary linked text, not Cite chips; insertion and dragging preserve exact
   internal evidence targets. The citation picker lists collected sources, not
   background reads. Existing formatting and Markdown round-tripping remain.
+  Assistant-authored memo Markdown resolves `[@evidence_id]` directly to exact
+  saved, verified passage links; unknown or unsaved IDs reject the write.
 
 ## Tabular Review
 

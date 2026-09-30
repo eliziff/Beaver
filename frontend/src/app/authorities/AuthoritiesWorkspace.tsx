@@ -66,9 +66,9 @@ const DEFAULTS: StartPreferences = {
   profileId: GENERAL_PROFILE.id, sourceMode: GENERAL_PROFILE.defaults.settings.sourceMode,
   passageMarking: GENERAL_PROFILE.defaults.settings.passageMarking,
 };
-const bookPreferences = (value: StartPreferences) =>
-  authoritiesProfile(value.profileId).locked?.outputMode === "table"
-    ? withProfile(value, GENERAL_PROFILE.id) : value;
+const bookPreferences = ({ profileId, sourceMode, passageMarking }: StartPreferences): StartPreferences =>
+  withProfile({ profileId, sourceMode, passageMarking },
+    authoritiesProfile(profileId).locked?.outputMode === "table" ? GENERAL_PROFILE.id : profileId);
 export type AuthoritiesDocumentPickerProps = {
   open: boolean; title: string; busy?: boolean; projectId?: string;
   formats: readonly ("pdf" | "docx")[];
@@ -146,7 +146,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
-    quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText }>();
+    quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText; pageLabels?: Array<string | null> }>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
   const [stubWarning, setStubWarning] = useState(false);
   const [recognitionAsked, setRecognitionAsked] = useState(false);
@@ -733,7 +733,11 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     void host.readSourceText?.(current, role).then(recognizedText => {
       if (request === previewRequest.current && draftRef.current?.id === current.id)
         setSourcePreview(value => value ? { ...value, recognizedText } : value);
-    }).catch(() => { /* The PDF remains readable if optional text/label preparation fails. */ });
+    }).catch(() => { /* The PDF remains readable if optional text preparation fails. */ });
+    void host.readSourcePageLabels?.(current, role).then(pageLabels => {
+      if (request === previewRequest.current && draftRef.current?.id === current.id)
+        setSourcePreview(value => value ? { ...value, pageLabels } : value);
+    }).catch(() => { /* Unknown labels retain physical navigation. */ });
   }
   // The quotation belongs at the pinpoint the author cited, so open the PDF on that passage.
   function openFindingSource(finding: AuthoritiesDiscrepancy) {
@@ -1012,7 +1016,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         onClose={() => { previewRequest.current += 1; setSourcePreview(undefined); }}>
         <div className="flex h-[min(70dvh,750px)] min-h-60">
           <PdfCanvas bytes={sourcePreview?.bytes} loading={!!sourcePreview && !sourcePreview.bytes && !sourcePreview.error}
-            recognizedText={sourcePreview?.recognizedText}
+            recognizedText={sourcePreview?.recognizedText} pageLabels={sourcePreview?.pageLabels}
             error={sourcePreview?.error} quoteFocusKey={sourcePreview?.quote}
             quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
         </div>
@@ -1235,10 +1239,16 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
   onFocusChange?: (focus?: WorkProductFocus) => void;
 }) {
   const surface = useRef<HTMLDivElement>(null);
+  const linkButton = useRef<HTMLButtonElement>(null), restoreLinkFocus = useRef(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const linked = authorities.find(({ id }) => id === selected.reference?.targetAuthorityId);
   const referenceKind = selected.reference?.kind ?? selected.referenceKind;
+  useEffect(() => {
+    if (busy || linkOpen || !restoreLinkFocus.current) return;
+    restoreLinkFocus.current = false;
+    linkButton.current?.focus({ preventScroll: true });
+  }, [busy, linkOpen]);
   const rememberSelection = () => setSelection(selectionRange(surface.current));
   useEffect(() => onFocusChange?.({ itemId: selected.id,
     ...(selection && { selection }) }),
@@ -1307,7 +1317,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
     {selected.kind === "reference" && <div className="mt-2 grid min-h-16 grid-cols-2 items-center gap-2 border-t border-gray-200 pt-2 @min-[35rem]:flex @min-[35rem]:min-h-12">
       <span className="col-span-2 min-w-0 truncate text-xs text-gray-500 @min-[35rem]:flex-1">
         {linked ? `Linked to ${authorityLabel(linked)}` : "Not linked"}</span>
-      <Button type="button" variant="outline" className="h-9 min-w-0 px-2 text-xs"
+      <Button ref={linkButton} type="button" variant="outline" className="h-9 min-w-0 px-2 text-xs"
         disabled={busy || !referenceKind}
         onClick={() => setLinkOpen(true)}><Link2 /> Link to authority</Button>
       <Button type="button" variant="ghost" className="h-9 min-w-0 px-2 text-xs"
@@ -1319,6 +1329,7 @@ function CitationEditor({ selected, unitText, footnote, canMerge, authorities, f
         className="!h-[min(28rem,calc(100dvh-2rem))]"
         options={authorities.map((item) => ({ value: item.id, label: authorityLabel(item) }))}
         onClose={() => setLinkOpen(false)} onChange={(id) => {
+          restoreLinkFocus.current = true;
           setLinkOpen(false);
           if (id && referenceKind) submit({ type: "set-reference", occurrenceId: selected.id, reference: {
             kind: referenceKind, targetAuthorityId: id } });

@@ -230,7 +230,7 @@ const documentOperationTool = (research = true): Tool & BeaverToolPolicy => ({
       "{type:'note',markdown}; or " +
       "{type:'memo',title,references:[reference from Read findings],mode?:'append'|'replace'} copies original cited findings into the memo without rewriting them; defaults to append. " +
       "{type:'memo',title,markdown,mode?:'replace'|'append'} writes new prose into the workspace memo with " +
-      "verified source links from top-level evidence_ids; use [@evidence_id] for inline citations; " +
+      "verified source links; use [@evidence_id] with exact saved passage IDs for inline citations. " +
       "IDs are opaque: annotate only returned label_id/source_id or matches[].evidence_id." } } : {}),
   }, ["action"]),
 });
@@ -1634,11 +1634,12 @@ export function assistantTools<Context extends {
     const source = legalEvidenceSourceReference(receipt);
     if (source) knownSources.set(researchSourceResource(source), source);
   }
-  const publishGenerated = (document: DocumentRecord, workingRevision = 0) => {
+  const publishGenerated = (document: DocumentRecord, workingRevision = 0, sameTurn = true) => {
     allowedDocumentIds?.add(document.id);
     knownDocumentNames.set(document.id, document.filename);
     turnEditState?.set(document.id, { versionId: document.current_version_id,
-      workingRevision, parentVersionId: document.current_version_id, turnVersionId: document.current_version_id });
+      workingRevision, parentVersionId: document.current_version_id,
+      turnVersionId: sameTurn ? document.current_version_id : undefined });
     return artifactResult({ type: "document_artifact", action: "created", document_id: document.id,
       version_id: document.current_version_id, version_number: document.active_version_number, filename: document.filename,
       download_url: `/api/single-documents/${encodeURIComponent(document.id)}/file?version_id=${encodeURIComponent(document.current_version_id)}` });
@@ -1724,8 +1725,10 @@ export function assistantTools<Context extends {
       if (saved) {
         if (researchContext && !researchContext.restricted) Object.assign(researchContext,
           await sources.context(scope, saved.document.id));
+        const edit = turnEditState?.get(saved.document.id);
         turnEditState?.set(saved.document.id, { versionId: saved.versionId, workingRevision: saved.workingRevision,
-          parentVersionId: saved.versionId, turnVersionId: turnEditState?.get(saved.document.id)?.turnVersionId });
+          parentVersionId: saved.versionId, turnVersionId: edit?.versionId === saved.versionId &&
+            edit.workingRevision === saved.workingRevision ? edit.turnVersionId : undefined });
         return readResearchWorkspace(documents, scope, saved, args, signal, legalEvidenceState, researchContext);
       }
     }
@@ -2077,8 +2080,9 @@ export function assistantTools<Context extends {
         return fail("memo requires a title and Markdown content");
       if (!research || research.versionId !== versionId ||
           research.workingRevision !== edit.workingRevision) return fail("Version conflict");
-      const ids = [...new Set(Array.isArray(input.evidence_ids)
-        ? input.evidence_ids.map(trimmed).filter(Boolean) : [])], wanted = new Set(ids),
+      const inlineIds = [...markdown.matchAll(/\[@([^\]\n]+)\]/gu)].map((match) => match[1]),
+        ids = [...new Set([...inlineIds, ...(Array.isArray(input.evidence_ids)
+          ? input.evidence_ids.map(trimmed).filter(Boolean) : [])])], wanted = new Set(ids),
         sourceByKey = new Map(Object.values(research.state.sources).map((source) =>
           [researchSourceKey(source.reference), source])), sourceIds = [...new Set(ids.flatMap((id) => {
           const receipt = legalEvidenceState?.evidence.get(id)?.receipt,
@@ -2099,8 +2103,6 @@ export function assistantTools<Context extends {
         });
       if (citations.some((citation) => citation === null)) return fail("Unknown or unsaved evidence ID");
       const links = new Map(ids.map((id, index) => [id, citations[index]!]));
-      if ([...markdown.matchAll(/\[@([^\]\n]+)\]/gu)].some((match) => !links.has(match[1])))
-        return fail("Use saved evidence IDs in inline citations: [@evidence_id]");
       const body = markdown.replace(/^#\s+[^\r\n]*(?:\r?\n)+/u, "")
         .replace(/\[@([^\]\n]+)\]/gu, (_marker, id: string) => links.get(id)!);
       const memo = `${command.mode === "append" && research.state.note ? `${research.state.note}\n\n` : ""}` +
@@ -2148,7 +2150,7 @@ export function assistantTools<Context extends {
     } else {
       let action: ResearchFileAction;
       if (command.type === "save") {
-        if (!legalEvidenceState) throw new Error("No verified legal evidence is available");
+        if (!legalEvidenceState) return fail("Read source passages before saving verified evidence");
         const queryIds = Array.isArray(input.query_ids)
           ? input.query_ids.filter((id): id is string => typeof id === "string") : [];
         const queries = queryIds.map((id) => legalEvidenceState.queries.get(id));
@@ -2157,8 +2159,9 @@ export function assistantTools<Context extends {
         savedEvidenceIds = [...evidenceIds];
         const evidence = [...evidenceIds].map((id) => legalEvidenceState.evidence.get(id)?.receipt);
         if (evidence.some((item) => !item) || queries.some((item) => !item))
-          throw new Error("Unknown evidence or query ID");
-        if (!evidence.length && !queries.length) throw new Error("Select evidence_ids or query_ids");
+          return fail("Use exact evidence_ids or query_ids returned by Read or search_sources");
+        if (!evidence.length && !queries.length) return fail(
+          "save requires top-level evidence_ids or query_ids alongside research_action. Use the verified IDs returned by Read or search_sources.");
         action = { type: "merge" as const,
           evidence: evidence.filter((item): item is LegalEvidenceReceipt => !!item),
           queries: queries.filter(Boolean).map((receipt) => researchQueryReceipt(receipt!)) };
@@ -2245,7 +2248,8 @@ export function assistantTools<Context extends {
             : await sources.create(scope, { title, projectId: matterId }, createActor);
           onMutationCommitted();
           if (onResearchWorkspace) file = await onResearchWorkspace(file.document.id, legalEvidenceState) ?? file;
-          return publishGenerated(file.document, file.workingRevision);
+          // Binding and automatic observations can replace the version or reuse an existing workspace.
+          return publishGenerated(file.document, file.workingRevision, !chatId && !onResearchWorkspace);
         }
         return updateResearch(call, input, signal);
       default:

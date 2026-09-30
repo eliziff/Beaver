@@ -1353,10 +1353,14 @@ describe("local assistant tools", () => {
     const sourceOutput = JSON.parse(saved.content);
     expect(sourceOutput).toMatchObject({ ok: true, counts: { sources: 1 } });
     expect(sourceOutput.source_id).toMatch(/^[0-9a-f-]{36}$/u);
-    const [passage] = await tools.runLocalAssistantTools("local-user", [{ id: "save-passage",
+    const [missingIds, passage] = await tools.runLocalAssistantTools("local-user", [{ id: "missing-save-ids",
+      name: "document_operation", input: { action: "research", document_id: sourceOutput.resource,
+        research_action: { type: "save" } } }, { id: "save-passage",
       name: "document_operation", input: { action: "research", document_id: sourceOutput.resource,
         evidence_ids: [receipt.evidence_id], research_action: { type: "save" } } }],
     { legalEvidence: evidence, documentNames, edits });
+    expect(JSON.parse(missingIds.content)).toMatchObject({ ok: false,
+      error: expect.stringContaining("top-level evidence_ids or query_ids") });
     const passageOutput = JSON.parse(passage.content), savedPassage = passageOutput.saved[0];
     expect(savedPassage).toEqual({ evidence_id: receipt.evidence_id, source_id: sourceOutput.source_id });
     await tools.runLocalAssistantTools("local-user", [{ id: "annotate-passage",
@@ -1377,7 +1381,7 @@ describe("local assistant tools", () => {
         labelIds: [highlightLabel], note: "Controls." })]);
   });
 
-  it("writes the cited memo inside its research file", async () => {
+  it("writes the cited memo inside its research file from inline evidence IDs", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-memo-"));
     process.env.MIKE_LOCAL_DATA_DIR = temporaryDirectory;
     const store = await import("./support/localDocumentFixtures");
@@ -1395,15 +1399,17 @@ describe("local assistant tools", () => {
       [{ type: "merge", evidence: [receipt] }]), research = seeded.document, exact = seeded.resource;
     const tools = await import("./support/localAssistantTools"), evidence = createLegalEvidenceTurnState();
     registerLegalEvidence(evidence, receipt); registerLegalEvidence(evidence, unsaved);
-    const [, created, rejected] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
+    const [, created, rejected, rejectedInline] = await tools.runLocalAssistantTools("local-user", [{ id: "read-research",
       name: "Read", input: { file_path: exact } }, { id: "memo",
       name: "document_operation", input: { action: "research", document_id: exact,
-        evidence_ids: [receipt.evidence_id],
         research_action: { type: "memo", title: "Case memo",
           markdown: `# Case memo\n\n## Analysis\n\nThe authorities support the proposition. [@${receipt.evidence_id}]` } } }, { id: "unsupported-memo",
       name: "document_operation", input: { action: "research", document_id: exact,
         evidence_ids: [unsaved.evidence_id], research_action: { type: "memo", title: "Unsupported",
-          markdown: "An unsupported proposition." } } }], {
+          markdown: "An unsupported proposition." } } }, { id: "unsupported-inline-memo",
+      name: "document_operation", input: { action: "research", document_id: exact,
+        research_action: { type: "memo", title: "Unsupported inline",
+          markdown: `An unsupported proposition. [@${unsaved.evidence_id}]` } } }], {
       documentNames: new Map([[research.id, research.filename]]), edits: new Map(),
       legalEvidence: evidence });
     const output = JSON.parse(created.content), file = await store.localDocuments.read(
@@ -1418,6 +1424,8 @@ describe("local assistant tools", () => {
     expect(markdown).not.toContain("document://");
     expect(markdown).not.toContain("[@");
     expect(JSON.parse(rejected.content)).toEqual({ ok: false,
+      error: "Unknown or unsaved evidence ID" });
+    expect(JSON.parse(rejectedInline.content)).toEqual({ ok: false,
       error: "Unknown or unsaved evidence ID" });
     expect((await store.localDocuments.metadata({ userId: "local-user" }, output.document_id))
       ?.project_id).toBeNull();

@@ -98,6 +98,13 @@ export function createChatToolRunner(options: Omit<AssistantToolsDependencies, T
 
   return {
     createTools,
+    observeResearch({ previous, file }: Awaited<ReturnType<SourceWorkspaceApplication["observe"]>>) {
+      const edit = main.edits.get(file.document.id);
+      // Advance only over this observation's accepted revision, never over another user's edit.
+      if (edit?.versionId === previous.versionId && edit.workingRevision === previous.workingRevision)
+        Object.assign(edit, { versionId: file.versionId, workingRevision: file.workingRevision,
+          turnVersionId: undefined }); // Observation replacement ends the stored same-turn provenance.
+    },
     commitMutation,
     mutationCommitted: () => mutationCommitted,
   };

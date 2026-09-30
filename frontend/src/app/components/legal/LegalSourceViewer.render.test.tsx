@@ -404,7 +404,7 @@ describe("legal source reader", () => {
 
     it("arms highlighter mode and captures the next block click", async () => {
         api.direct.mockResolvedValue(viewerPayload());
-        api.researchItems.mockResolvedValue(researchPage());
+        api.researchItems.mockResolvedValue({ ...researchPage(), items: [] });
         api.actOnResearchFile.mockResolvedValue({ ...researchFile, sourceId: "saved", evidenceId: "evidence" });
         const { container } = render(sourceViewer({ researchFile }));
         await screen.findByText("ratio");

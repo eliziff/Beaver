@@ -3,6 +3,8 @@ export function createPdfRuntime(lib, { workerUrl, decoders = {}, fileOrigin = g
   lib.GlobalWorkerOptions.workerSrc = workerUrl;
   const port = fileOrigin ? new Worker(workerUrl, { type: 'module' }) : undefined;
   const worker = new lib.PDFWorker(port ? { port } : {});
+  // Preloading may never open a document; its task reports startup failures when used.
+  void worker.promise.catch(() => {});
   class BinaryDataFactory {
     constructor(urls) { this.urls = urls; }
     async fetch({ kind, filename }) {

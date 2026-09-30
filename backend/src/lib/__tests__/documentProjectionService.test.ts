@@ -45,7 +45,7 @@ describe("DocumentProjectionService", () => {
       const page = pdf.addPage([612, 792]);
       page.drawText(index === 0 ? "Cover" : "Reasons for judgment and the disposition of this appeal.",
         { x: 72, y: 650, size: 11 });
-      if (index === 1) page.drawText("145", { x: 290, y: 27, size: 10 });
+      if (index < 2) page.drawText(String(144 + index), { x: 290, y: 27, size: 10 });
     }
     const bytes = Buffer.from(await pdf.save()), projections = await service();
     const reference = { documentId: "reporter-binding", versionId: "v1", sourceSha256: sha256(bytes) };
@@ -53,8 +53,8 @@ describe("DocumentProjectionService", () => {
       reporterOriginal: true };
     const citations = ["[1986] 1 SCR 145"];
     expect(await projections.pdfPageLabels({ ...source, reporterOriginal: false }, citations))
-      .toEqual([null, "145", null, null, null, null, null, null]);
-    expect(await projections.pdfPageLabels(source, citations)).toEqual([null,"145","146","147","148","149","150","151"]);
+      .toEqual(["144", "145", null, null, null, null, null, null]);
+    expect(await projections.pdfPageLabels(source, citations)).toEqual(["144","145","146","147","148","149","150","151"]);
     const prepared = await projections.preparePdf({ ...reference, bytes, ocrProvider: null });
     const geometry = await projections.pdfPassageGeometry(() => bytes,
       [{ id: "pinpoint", locatorKind: "page", locator: "150" }],

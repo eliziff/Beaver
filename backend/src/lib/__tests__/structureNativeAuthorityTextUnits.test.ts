@@ -50,7 +50,7 @@ describe("native authority text units", () => {
     expect(await native.docxAuthorityTextUnits(bytes)).toEqual([
       { key: "body:0", kind: "body", ordinal: 0, footnote_id: null,
         page_numbers: [], text: "A😀B", footnote_refs: [[1, 3]] },
-      { key: "footnote:7", kind: "footnote", ordinal: 1, footnote_id: 1,
+      { key: "footnote:7", kind: "footnote", ordinal: 1, footnote_id: 1, note_number: 1, restart_sequence: 0,
         page_numbers: [], text: "Note.", footnote_refs: [] },
     ]);
 

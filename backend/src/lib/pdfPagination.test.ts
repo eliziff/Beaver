@@ -38,6 +38,16 @@ describe("shared printed pagination", () => {
     expect(resolvePrintedPages("150",printedPageIndices([null,null]),2)).toEqual([]);
   });
 
+  it("resolves shortened page ranges only with complete unique bindings and rejects unsafe numbers", () => {
+    const labels = printedPageIndices(["138", "139", "140"]);
+    expect(resolvePrintedPages("138-39", labels, 3)).toEqual([0, 1]);
+    expect(resolvePrintedPages("138-40", labels, 3)).toEqual([0, 1, 2]);
+    expect(resolvePrintedPages("138-7", labels, 3)).toEqual([]);
+    expect(resolvePrintedPages("138-39", printedPageIndices(["138", "139", null]), 3)).toEqual([]);
+    expect(resolvePrintedPages("138-39", printedPageIndices(["138", "139", "139"]), 3)).toEqual([]);
+    expect(resolvePrintedPages("100000000000000000000", labels, 3)).toEqual([]);
+  });
+
   it("reads Roman, prefixed, and repeated embedded number-tree labels", async () => {
     const document = await PDFDocument.create();
     for(let i=0;i<5;i++) document.addPage();

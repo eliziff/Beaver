@@ -10,6 +10,16 @@ const deferred = <T,>() => {
   return { promise: new Promise<T>(done => { resolve = done; }), resolve: (value: T) => resolve(value) };
 };
 describe("changing OCR demand", () => {
+  it("recognizes the whole PDF when no cited page has a safe binding", async () => {
+    const host = { sourceOcr: { progress: vi.fn(), cancel: vi.fn(),
+      start: async (_id: string, _roles: string[], pages?: number[]) => {
+        if (pages && !pages.length) throw new Error("Choose at least one page");
+        return [{ role: "scan", documentId: "whole-pdf", done: true }];
+      } } } as unknown as AuthoritiesHost;
+    const { result } = renderHook(() => useSourceOcr(host, "draft"));
+    await act(async () => { await result.current.begin([{ ...scan, priorityPages: [] }]); });
+    expect(result.current.tracked.scan).toMatchObject({ state: "done", documentId: "whole-pdf" });
+  });
   it("does not let an earlier completion finish newly requested pages", async () => {
     const first = deferred<Array<{ role: string; documentId: string; done: boolean }>>();
     const start = vi.fn().mockReturnValueOnce(first.promise)

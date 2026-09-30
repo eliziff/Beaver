@@ -1021,12 +1021,12 @@ describe("Research v2 parts", () => {
       application = createSourceWorkspaceApplication(f.documents as never, { chats: {} as never, tables: {} as never,
         tabular: async () => { throw new Error("No table work in this test"); } }), turn = createLegalEvidenceTurnState();
     [first, second].forEach((item) => registerLegalEvidence(turn, item));
-    let file = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
+    let { file } = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
     expect(Object.values(file.state.sources).filter((source) => source.collected)).toEqual([]);
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(0);
     expect((await pageResearchItems(f.documents as never, scope, file, "evidence")).total).toBe(2);
     turn.answer = [{ text: "A grounded finding", evidence_ids: [first.evidence_id] }];
-    file = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
+    ({ file } = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!));
     expect(Object.values(file.state.sources).filter((source) => source.collected).map(({ reference }) => reference.id)).toEqual(["a"]);
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).total).toBe(0);
     const source = Object.values(file.state.sources).find(({ reference }) => reference.id === "a")!;
@@ -1034,7 +1034,7 @@ describe("Research v2 parts", () => {
     const type = Object.values(file.state.labels).find(({ name }) => name === "Highlight")!;
     expect(type).toMatchObject({ scope: "highlight", color: "#d6b85a", parentId: null });
     expect(researchHighlightCount(file.state.sources[source.id])).toBe(1);
-    file = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!);
+    ({ file } = await application.observe(scope, "doc-1", legalEvidenceReceiptEvent(turn)!));
     expect((await pageResearchItems(f.documents as never, scope, file, "passages")).items)
       .toMatchObject([{ value: { receipt: first, labelIds: [type.id] } }]);
     expect((await pageResearchItems(f.documents as never, scope, file, "evidence")).total).toBe(2);

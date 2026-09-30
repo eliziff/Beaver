@@ -411,6 +411,7 @@ describe("Authorities UI contracts", () => {
     api.attachAuthorityPdf.mockResolvedValue(attached);
     localStorage.setItem("beaver.authorities.preferences", JSON.stringify({
       profileId: "ab-court-of-appeal", sourceMode: "automatic", passageMarking: "none",
+      insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "book-tab",
     }));
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute()} /></MemoryRouter>);
@@ -926,6 +927,24 @@ describe("Authorities UI contracts", () => {
     expect(api.getWorkProductResolution).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["cancelled", "failed"] as const)("builds image-only books after optional OCR is %s", async (status) => {
+    const saved = add(draft(), authority("scan", "Scanned decision",
+      attachedSource("authority:scan", "Decision.pdf")));
+    saved.state.settings.scannedPdfPolicy = "page-margin";
+    saved.state.bindings["authority:scan"] = { kind: "document", documentId: "pdf-1", version: "latest" };
+    api.getDocumentParseStates.mockResolvedValue([{ id: "pdf-1",
+      parse_state: { status, page_count: 41, error: "Recognition did not finish" } }]);
+    const output = { product: saved, receipt: {} };
+    api.buildAuthorities.mockResolvedValue(output);
+    await expect(beaverAuthoritiesHost.build(saved)).resolves.toBe(output);
+    saved.state.settings.scannedPdfPolicy = "cited-pages";
+    await expect(beaverAuthoritiesHost.build(saved)).rejects.toThrow("Recognition did not finish");
+    saved.state.settings.scannedPdfPolicy = "page-margin";
+    api.getDocumentParseStates.mockResolvedValue([{ id: "pdf-1",
+      parse_state: { status, phase: "extracting", error: "PDF itself could not be prepared" } }]);
+    await expect(beaverAuthoritiesHost.build(saved)).rejects.toThrow("PDF itself could not be prepared");
+  });
+
   it("keeps prepared sources revisitable when the final build fails", async () => {
     const saved = add(documentDraft(), authority("case", "Example v Example",
       { kind: "unresolved" }));
@@ -1274,7 +1293,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(api.prepareAuthoritiesSources)
-      .toHaveBeenCalledWith("draft-1", 2, undefined));
+      .toHaveBeenCalledWith("draft-1", 2, undefined, undefined));
     expect(await screen.findByRole("link", { name: /^CanLII PDF for/ })).toBeVisible();
     const row = screen.getByRole("heading", { name: "R v Jordan" }).closest("article")!;
     await userEvent.click(within(row).getByRole("button", { name: "Options for R v Jordan" }));

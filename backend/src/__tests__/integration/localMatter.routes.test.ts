@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   toolResults: [] as string[],
   modelInputs: [] as {
     systemPrompt: string;
-    messages: { role: string; content: string }[];
+    messages: { role: string; content: string; modelState?: { messages: { role: string; content: unknown }[] } }[];
   }[],
   streamChatWithTools: vi.fn(),
 }));
@@ -40,6 +40,11 @@ vi.mock("../../lib/llm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/llm")>()),
   streamChatWithTools: mocks.streamChatWithTools,
 }));
+
+function modelText(input: (typeof mocks.modelInputs)[number]) {
+  return [input.systemPrompt, ...input.messages.flatMap(message => [message.content,
+    ...(message.modelState?.messages.map(item => typeof item.content === "string" ? item.content : "") ?? [])])].join("\n");
+}
 
 let dataHome: string;
 let closeLocalStores: (() => Promise<void>) | null = null;
@@ -299,16 +304,16 @@ describe("account-free matter routes", () => {
       });
     expect(continued.status).toBe(200);
     const focusedInput = mocks.modelInputs.at(-1)!;
-    expect(focusedInput.systemPrompt).toContain(
+    expect(modelText(focusedInput)).toContain(
       'Displayed document: "appeal-record.xlsx"',
     );
-    expect(focusedInput.systemPrompt).toContain(
+    expect(modelText(focusedInput)).toContain(
       'User-attached documents for this turn:\n- "appeal-record.xlsx"',
     );
-    const lastContent = focusedInput.messages.at(-1)?.content ?? "";
+    const lastContent = modelText(focusedInput);
     expect(lastContent).toContain(
       "[The user attached the following document(s) to this message:\n" +
-        "- doc-0: appeal-record.xlsx]",
+        "- appeal-record.xlsx]",
     );
     expect(lastContent).toContain(
       "[User responses to requested inputs]\n" +
@@ -402,7 +407,7 @@ describe("account-free matter routes", () => {
     expect(turn.status).toBe(200);
     expect(turn.text).not.toContain('"accepted":false');
     expect(turn.text).toContain('"type":"ask_inputs"');
-    expect(mocks.modelInputs.at(-1)?.messages.at(-1)?.content).toContain(
+    expect(modelText(mocks.modelInputs.at(-1)!)).toContain(
       "(id: quote-checking; variant: builtin-quote-checking-general)");
     const transcript = await request(api).get(`/chat/${chat.body.id}`);
     expect(transcript.body.messages.find((message: { role: string }) => message.role === "user").workflow)
@@ -450,7 +455,7 @@ describe("account-free matter routes", () => {
         });
 
     expect((await turn(0)).status).toBe(200);
-    expect(mocks.modelInputs.at(-1)?.messages.at(-1)?.content).toContain(
+    expect(modelText(mocks.modelInputs.at(-1)!)).toContain(
       "(id: document-review; variant: builtin-extract-key-terms)",
     );
     expect((await turn(2)).status).toBe(200);

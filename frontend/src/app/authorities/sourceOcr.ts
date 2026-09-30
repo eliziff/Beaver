@@ -30,11 +30,14 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     const update = (updates: Record<string, Partial<SourceOcrStatus>>) =>
       merge(Object.fromEntries(Object.entries(updates).filter(([role]) => operations.current.get(role) === operation)));
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
-      [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.recognized ?? 0,
+      [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.sourceSha256 === file.sourceSha256
+        ? current[file.role].recognized : 0,
         state: "running" as const, pages: pages ?? [], error: undefined }])) }));
-    await (pending.current = pending.current.then(async () => (await Promise.all(files.map(file =>
-      port.start(draftId, [file.role], pages ?? file.priorityPages, {[file.role]:file.textlessPages})))).flat())
-      .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
+    await (pending.current = pending.current.then(async () => (await Promise.all(files.filter(file => operations.current.get(file.role) === operation).map(file => {
+      const selection = pages ?? file.priorityPages;
+      return port.start(draftId, [file.role], selection?.length ? selection : undefined, {[file.role]:file.textlessPages});
+    }))).flat())
+      .then((started) => update(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
       .catch((error: Error) => update(Object.fromEntries(files.map(({ role }) =>
         [role, { state: "failed" as const, error: error.message }])))));
@@ -136,7 +139,10 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
         const priorityPages = [...citedSourcePages(draft.state, id, inspected.pageTexts, labels, inspected.pageCount)]
           .map(index => index + 1).filter(page => textlessPages.includes(page));
         const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
-          name: authorityName(authority), textlessPages, priorityPages };
+          name: authorityName(authority), textlessPages, priorityPages,
+          demand: canonicalJson([authority.locators, Object.values(draft.state.occurrences)
+            .filter(item => item.authorityId === id).map(item => [item.citation, item.pinpoints]),
+          draft.state.settings.scannedPdfPolicy]) };
         files.push(file);
       }
     }

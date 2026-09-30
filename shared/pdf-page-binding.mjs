@@ -77,8 +77,10 @@ export function resolvePrintedPages(label, labels, pageCount) {
   if (new Set([...labels.values()].flat()).size !== pageCount) return [];
   const match = /^\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*$/u.exec(label);
   if (!match) return labels.get(label.trim())?.length === 1 ? labels.get(label.trim()) : [];
-  const first = Number(match[1]), last = Number(match[2] ?? match[1]);
-  if (last < first || last - first > 2000) return [];
+  const first = Number(match[1]), end = match[2] ?? match[1];
+  const last = Number(end.length < match[1].length
+    ? match[1].slice(0, match[1].length - end.length) + end : end);
+  if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || last < first || last - first > 2000) return [];
   const result = [];
   for (let number = first; number <= last; number++) {
     const pages = labels.get(String(number));

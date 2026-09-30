@@ -15,21 +15,15 @@ for (const name of ["sqliteWorker", "localDatabase", "relational", "jobNotificat
     }).outputText);
 }
 
-// Dependencies first loaded under fake clocks must not retain those clocks in another file.
-const timerSuites = ["src/**/{jobNotifications,httpStreaming,chatCancellation,chatCommands,jobScheduling,jobEventBatching,localChatStore,memoryApplication}.test.ts"];
-
 export default defineConfig({
     resolve: { alias: [{ find: /^.*\/sqliteWorker$/, replacement: fileURLToPath(new URL("sqliteWorker.js", workerDirectory)) }] },
     test: {
         environment: "node",
-        isolate: false,
-        projects: [
-            { extends: true, test: { name: "application", include: ["src/**/*.test.ts"], exclude: timerSuites } },
-            { extends: true, test: { name: "timers", isolate: true, include: timerSuites } },
-        ],
+        isolate: true,
+        include: ["src/**/*.test.ts"],
         setupFiles: ["./vitest.setup.ts"],
         pool: "forks",
-        execArgv: ["--max-old-space-size=256"],
+        execArgv: ["--max-old-space-size=512"],
         env: {
             AUTH_MODE: "cloud",
             MIKE_PDF_LAYOUT_PROVIDER: "none",

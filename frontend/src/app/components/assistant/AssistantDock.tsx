@@ -216,7 +216,6 @@ export function AssistantDock({
             data-assistant-dock
             role={workspaceOnly ? "region" : undefined}
             aria-label={workspaceOnly ? "Workspace" : "Assistant dock"}
-            aria-hidden={!expanded}
             inert={!expanded ? true : undefined}
             className={cn(
                 expanded ? "@container flex min-h-0 shrink-0 flex-col overflow-hidden border border-gray-300 bg-app-surface shadow-lg" : "hidden",

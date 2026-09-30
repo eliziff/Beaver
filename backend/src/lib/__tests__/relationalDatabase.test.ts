@@ -72,4 +72,17 @@ describe("local relational database", () => {
     expect(database.prepare("SELECT count(*) count FROM chats").get()).toEqual({ count: 0 });
     expect(database.prepare("SELECT count(*) count FROM provider_sessions").get()).toEqual({ count: 0 });
   });
+
+  it("reopens committed data for existing consumers after a module reload closes the connection", async () => {
+    const original = await store(), database = await original.relationalDatabase();
+    await database.query(original.sql`INSERT INTO projects(user_id,id,name,created_at,updated_at)
+      VALUES('owner','reload','Retained matter','now','now')`);
+    vi.resetModules();
+    const reloaded = await store();
+    await reloaded.relationalDatabase();
+    await reloaded.closeRelationalDatabase();
+    const reopened = await original.relationalDatabase();
+    expect((await reopened.query(original.sql`SELECT name FROM projects WHERE id='reload'`)).rows)
+      .toEqual([{ name: "Retained matter" }]);
+  });
 });

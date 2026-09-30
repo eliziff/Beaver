@@ -183,6 +183,26 @@ async function scanReview(
     supraHintMode: "aggressive", supraLinkingMode: "safe",
     aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
   })) as ResolveResponse;
+  // Case references follow the document's citation reading order. Source-part
+  // URL chains serve sources without citation cores and do not define case identity.
+  if (cases.length) {
+    const caseResult = native.citationEngineCall("resolve", JSON.stringify({ citations: extracted.citations,
+      notes, readingOrder: order, sourceParts: [], supraHintMode: "aggressive", supraLinkingMode: "safe",
+      aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
+    })) as ResolveResponse;
+    const fullCases = new Set(cases.map(({ index }) => index));
+    const isCaseGroup = (group: number[]) => group.some(index => fullCases.has(index));
+    const groups = caseResult.authorities.filter(isCaseGroup);
+    const caseIndices = new Set([...groups, ...result.authorities.filter(isCaseGroup)].flat());
+    const citations = new Map(caseResult.citations.map(citation => [citation.index, citation]));
+    const resolutions = new Map(caseResult.resolutions.map(resolution => [resolution.index, resolution]));
+    result.citations = result.citations.map(citation => caseIndices.has(citation.index)
+      ? citations.get(citation.index)! : citation);
+    result.resolutions = result.resolutions.map(resolution => caseIndices.has(resolution.index)
+      ? resolutions.get(resolution.index)! : resolution);
+    result.authorities = [...result.authorities.filter(group => !isCaseGroup(group))
+      .map(group => group.filter(index => !caseIndices.has(index))).filter(group => group.length), ...groups];
+  }
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
   const byResolution = new Map(result.resolutions.map((resolution) => [resolution.index, resolution]));
   const authorityOf = new Map<number, string>();

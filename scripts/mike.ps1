@@ -371,7 +371,6 @@ function Start-LoggedProcess(
     $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
         -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-    $process.PriorityClass = 'BelowNormal'
     return [pscustomobject]@{
         Process = $process
         Stdout = $stdout
@@ -543,7 +542,7 @@ function Start-Stack {
         $previousPort = [Environment]::GetEnvironmentVariable('PORT', 'Process')
         [Environment]::SetEnvironmentVariable('PORT', [string]$ListenPort, 'Process')
         [Environment]::SetEnvironmentVariable('NODE_ENV', 'production', 'Process')
-        $backendStart = Start-LoggedProcess 'beaver' $node @('--env-file=.env', 'dist/supervisor.js') $Backend $state
+        $backendStart = Start-LoggedProcess 'beaver' $node @('--env-file-if-exists=.env', 'dist/supervisor.js') $Backend $state
         $launched += [pscustomobject]@{
             Id = $backendStart.Process.Id
             StartedAt = Get-ProcessStamp $backendStart.Process.Id
