@@ -5,7 +5,8 @@ import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
   getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readStandaloneOutput,
-  relinkStandaloneFile, resolveStandaloneFile, retainStandaloneFile, saveStandaloneArtifacts,
+  relinkStandaloneFile, requestStandaloneFileAccess, resolveStandaloneFile, retainStandaloneFile,
+  saveStandaloneArtifacts,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
@@ -32,7 +33,7 @@ async function resolveExact(input: WorkProductInput, allowMissing = false) {
   const result = await resolveStandaloneFile(input, true);
   if (result.status === "missing" && allowMissing) return null;
   if (result.status === "missing") throw new Error(result.reason === "permission"
-    ? "Allow access to the connected file, then try again."
+    ? "Chrome needs your permission to read this file again."
     : "A connected file could not be found. Reconnect it, then try again.");
   if (result.status === "changed") throw new Error(
     `${input.kind === "local-file" ? input.lastSeen.name : "A connected file"} changed. Relink it before building.`,
@@ -385,6 +386,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return { sourceIssues: await findSourceIssues(draft.state), outputFreshness };
   },
   pickFiles: ({ multiple, accept }) => pickRetainedFiles(multiple, accept),
+  requestSourceAccess: (draft) => requestStandaloneFileAccess(Object.values(draft.state.bindings)),
   async relinkSource(id, role, revision) {
     const product = await currentProduct(id, revision);
     const binding = product.state.bindings[role];

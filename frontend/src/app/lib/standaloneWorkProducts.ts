@@ -55,6 +55,9 @@ type LocalFileInput = Extract<WorkProductInput, { kind: "local-file" }>;
 const storedFileId = (sha256: string) => `stored:${sha256}`;
 
 const selectedInputs = new WeakMap<File, LocalFileInput>();
+// Chrome withdraws a picked file's read grant once its handle object is collected; a copy
+// restored from IndexedDB does not hold it. Reads go through the live handle.
+const liveHandles = new Map<string, FileSystemFileHandle>();
 
 export const standaloneWorkProducts: WorkProductStore = {
   async list(kind, projectId) {
@@ -303,7 +306,9 @@ async function cleanupHandles(store: IDBObjectStore, drafts: WorkProduct[],
     .sort((left, right) => right.createdAt - left.createdAt);
   const cutoff = Date.now() - UNCLAIMED_HANDLE_MAX_AGE;
   unclaimed.forEach((item, index) => {
-    if (removed.has(item.id) || item.createdAt < cutoff || index >= maximum) store.delete(item.id);
+    if (removed.has(item.id) || item.createdAt < cutoff || index >= maximum) {
+      store.delete(item.id); liveHandles.delete(item.id);
+    }
   });
 }
 
@@ -419,6 +424,7 @@ export async function pickRetainedFiles(multiple: boolean, accept: "source" | "p
   const createdAt = Date.now();
   for (const { handle, handleId } of selected) store.put({ id: handleId, handle, createdAt });
   await completed(transaction);
+  for (const { handle, handleId } of selected) liveHandles.set(handleId, handle);
   return selected.map(({ file, handleId }) => {
     const input: LocalFileInput = { kind: "local-file", handleId, lastSeen: fileSnapshot(file) };
     selectedInputs.set(file, input);
@@ -512,10 +518,33 @@ export async function relinkStandaloneFile(input: WorkProductInput, verifyConten
   return resolveStandaloneFile(replacement.input, verifyContents);
 }
 
+/** Handles restored from IndexedDB need a user gesture before Chrome lets them read again; its
+ * prompt covers every file this origin held, so the first request usually restores them all. */
+export async function requestStandaloneFileAccess(inputs: WorkProductInput[]) {
+  let granted = true;
+  for (const input of inputs) {
+    if (input.kind !== "local-file" || input.handleId.startsWith("stored:")) continue;
+    const handle = liveHandles.get(input.handleId) ??
+      (await read<StoredHandle>(HANDLES, input.handleId))?.handle;
+    if (handle?.kind !== "file") continue;
+    liveHandles.set(input.handleId, handle);
+    const permission = handle as PermissionHandle;
+    try {
+      if (await permission.queryPermission?.({ mode: "read" }) === "granted") continue;
+      if (await permission.requestPermission?.({ mode: "read" }) === "granted") continue;
+    } catch { /* A consumed gesture or a dismissed prompt leaves this file unreadable. */ }
+    granted = false;
+  }
+  return granted;
+}
+
 async function resolveLocalFile(input: WorkProductInput): Promise<InputResolution> {
   if (input.kind !== "local-file") return { status: "missing", reason: "unavailable" };
+  const live = liveHandles.get(input.handleId);
+  if (live) return resolveRetainedFile(live, input);
   const saved = await read<StoredHandle>(HANDLES, input.handleId);
   if (!saved || saved.handle.kind !== "file") return { status: "missing", reason: "deleted" };
+  liveHandles.set(input.handleId, saved.handle);
   return resolveRetainedFile(saved.handle, input);
 }
 
@@ -542,13 +571,14 @@ async function resolveRetainedFile(handle: FileSystemFileHandle,
 async function relinkLocalFile(input: WorkProductInput,
   accept: "source" | "pdf"): Promise<InputResolution> {
   if (input.kind !== "local-file") return { status: "missing", reason: "unavailable" };
-  const existing = await read<StoredHandle>(HANDLES, input.handleId);
-  const requestPermission = existing?.handle.kind === "file" &&
-    (existing.handle as PermissionHandle).requestPermission;
-  if (existing?.handle.kind === "file" && requestPermission) {
+  const saved = await read<StoredHandle>(HANDLES, input.handleId);
+  const existing = liveHandles.get(input.handleId) ?? (saved?.handle.kind === "file" ? saved.handle : undefined);
+  const requestPermission = existing && (existing as PermissionHandle).requestPermission;
+  if (existing && requestPermission) {
     try {
-      if (await requestPermission.call(existing.handle, { mode: "read" }) === "granted") {
-        return resolveRetainedFile(existing.handle, input);
+      if (await requestPermission.call(existing, { mode: "read" }) === "granted") {
+        liveHandles.set(input.handleId, existing);
+        return resolveRetainedFile(existing, input);
       }
     } catch { /* The replacement picker remains available. */ }
   }
@@ -557,13 +587,14 @@ async function relinkLocalFile(input: WorkProductInput,
   if (!replacement) return { status: "missing", reason: "unavailable" };
   if (input.handleId.startsWith("stored:")) return { status: "ready",
     file: replacement.file, input: replacement.input };
-  const saved = await read<StoredHandle>(HANDLES, replacement.input.handleId);
-  if (!saved || saved.handle.kind !== "file") return { status: "missing", reason: "unavailable" };
+  const handle = liveHandles.get(replacement.input.handleId);
+  if (!handle) return { status: "missing", reason: "unavailable" };
   const database = await openDatabase(), transaction = database.transaction(HANDLES, "readwrite");
   const store = transaction.objectStore(HANDLES);
-  store.put({ id: input.handleId, handle: saved.handle, createdAt: saved.createdAt });
+  store.put({ id: input.handleId, handle, createdAt: Date.now() });
   store.delete(replacement.input.handleId);
   await completed(transaction);
+  liveHandles.set(input.handleId, handle); liveHandles.delete(replacement.input.handleId);
   const relinked = { ...replacement.input, handleId: input.handleId };
   selectedInputs.set(replacement.file, relinked);
   return { status: "ready", file: replacement.file, input: relinked };

@@ -60,6 +60,8 @@ export interface AuthoritiesHost {
   pickFiles?(options: AuthoritiesFilePick): Promise<AuthoritiesFile[]>;
   inspectDraft(draft: AuthoritiesProduct): Promise<AuthoritiesDraftInspection>;
   relinkSource?(id: string, role: string, revision: number): Promise<AuthoritiesProduct>;
+  /** Call from a click: the browser only asks for file access during a user gesture. */
+  requestSourceAccess?(draft: AuthoritiesProduct): Promise<boolean>;
   attachBookPdf?(id: string, revision: number, slot: AuthoritiesBookSlot,
     selected: AuthoritiesFile, supplementId?: string): Promise<AuthoritiesProduct>;
   attachLibraryPdf?(id: string, revision: number, document: Document,
