@@ -5,6 +5,7 @@ export type AnnotationTool = 'select' | 'highlight' | 'draw';
 export type PdfAnnotationEditorPort = {
   marks: PdfAnnotation[]; selectedId: string | null; tool: AnnotationTool; disabled?: boolean;
   focus?: { id: string; request: number };
+  highlightSelection?: number;
   onSelect(id: string | null): void;
   onCreate(fragments: AnnotationFragment[], text: string): void;
 };
@@ -35,8 +36,22 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     Object.assign(svg.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none',zIndex:'2',mixBlendMode:'multiply'});
     page.appendChild(svg); overlays.set(page,svg); return svg;
   };
+  let selectionRequest = read().highlightSelection;
+  const highlightSelection = () => {
+    const port = read(), selection = window.getSelection();
+    if (port.disabled || !selection?.rangeCount || selection.isCollapsed) return;
+    const range = selection.getRangeAt(0);
+    if (!scroller.contains(range.startContainer) || !scroller.contains(range.endContainer)) return;
+    const fragments = selectedPdfFragments(pages, range);
+    if (!fragments.length) return;
+    const text = selection.toString().replace(/\s+/gu, ' ').trim().slice(0, 2_000);
+    selection.removeAllRanges(); port.onCreate(fragments, text);
+  };
   const priorCursor=scroller.style.cursor;
   const update=()=>{
+    if (selectionRequest !== read().highlightSelection) {
+      selectionRequest = read().highlightSelection; highlightSelection();
+    }
     const port=read(), ids=new Set(port.marks.map(mark=>mark.id));
     scroller.style.cursor=port.disabled ? 'default' : port.tool === 'draw' ? 'crosshair' : 'auto';
     for(const [id,entry] of groups) if(!ids.has(id)) { entry.nodes.forEach(node=>node.remove()); groups.delete(id); }
@@ -100,13 +115,7 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     }
     const selection=window.getSelection();
     if(selection?.rangeCount && !selection.isCollapsed && port.tool==='highlight') {
-      const range=selection.getRangeAt(0);
-      if(!scroller.contains(range.startContainer) || !scroller.contains(range.endContainer)) return;
-      const fragments=selectedPdfFragments(pages,range), text=selection.toString().replace(/\s+/gu,' ').trim().slice(0,2_000);
-      selection.removeAllRanges();
-      if(fragments.length) {
-        port.onCreate(fragments,text);
-      }
+      highlightSelection();
     } else if(!moved && (!selection || selection.isCollapsed)) {
       const [x,y]=point(start.page,event.clientX,event.clientY);
       const tolerance = 5 / start.page.getBoundingClientRect().width;

@@ -46,6 +46,26 @@ const manualState = () => ({ schemaVersion: "beaver.authorities-draft.v1" as con
   } } });
 
 describe("standalone Authorities runtime", () => {
+  it("reads an unprepared source without OCR and rejects changed source bytes", async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    const bytes = Buffer.from(await pdf.save()), sourceSha256 = sha256(bytes);
+    const state = structuredClone(manualState()) as AuthoritiesDraft;
+    state.bindings.source = { kind: "local-file", handleId: "source", lastSeen: {
+      name: "Example.pdf", size: bytes.length, modified: 1, sha256: sourceSha256,
+    } };
+    state.authorities.case.source = { kind: "attached", sources: [{ bindingRole: "source",
+      filename: "Example.pdf", sourceSha256, sourceUrl: null, origin: "manual", language: "en" }] };
+    await request(app).post("/authorities-runtime/source-text")
+      .field("draft", JSON.stringify(state)).field("role", "source")
+      .attach("file", bytes, "Example.pdf").expect(200, { pages: [] });
+    await request(app).post("/authorities-runtime/source-text")
+      .field("draft", JSON.stringify(state)).field("role", "source")
+      .attach("file", Buffer.concat([bytes, Buffer.from("changed")]), "Example.pdf").expect(409);
+    await request(app).post("/authorities-runtime/source-text")
+      .field("draft", JSON.stringify(state)).field("role", "source").field("pages", "[0]")
+      .attach("file", bytes, "Example.pdf").expect(400);
+  });
+
   it("rejects an aggregate build upload above 512 MB before reading files", () => {
     expect(() => assertAuthoritiesBuildUploadSize([{ size: 512 * 1024 ** 2 + 1 }]))
       .toThrow(expect.objectContaining({ status: 413,

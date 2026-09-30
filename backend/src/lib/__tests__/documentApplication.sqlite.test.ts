@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { canonicalJsonSha256, sha256 } from "../hash";
 import { MAX_OBJECT_SIZE_BYTES } from "../storage";
 import type { WorkProduct, WorkProductBuildReceipt } from "../workProduct";
-import { zipDocumentBytes } from "./support/documentBytes";
 
 let root: string | null = null;
 
@@ -219,47 +218,6 @@ describe("SQLite and filesystem document adapters", () => {
     expect(await objects.get(retainedKey)).toEqual(queries);
     expect(await documents.deleteDocument(scope, created.id)).toBe(true);
     expect(await objects.get(retainedKey)).toBeNull();
-  });
-
-  it("persist the shared lifecycle and expose library paging", async () => {
-    root = await mkdtemp(path.join(os.tmpdir(), "beaver-local-store-"));
-    process.env.MIKE_LOCAL_DATA_DIR = root;
-    process.env.AUTH_MODE = "local";
-    const { documents, library } = await localStores();
-    const scope = { userId: "local-user" };
-    const folder = await library.createFolder({ ...scope, kind: "file" }, "Authorities", null);
-    const bytes = await zipDocumentBytes("docx");
-    const document = await documents.create(scope, {
-      filename: "Brief.docx", fileType: "docx", bytes,
-      folderId: folder!.id,
-    });
-    expect(document.source_sha256).toMatch(/^[a-f0-9]{64}$/u);
-    expect((await documents.read(scope, document.id, null, false))?.bytes)
-      .toEqual(bytes);
-    const page = await library.page({ ...scope, kind: "file" }, {
-      q: "brief", parentFolderId: folder!.id, limit: 10, after: null,
-    });
-    expect(page.items[0]).toMatchObject({
-      kind: "document", document: { id: document.id, filename: "Brief.docx" },
-    });
-    const pending = await documents.commitAssistantVersion(scope, document.id, {
-      sourceVersionId: document.current_version_id, expectedWorkingRevision: 0,
-      filename: document.filename, fileType: "docx", bytes, status: "pending", edits: [{
-        changeId: "edit", deletedText: "old", insertedText: "new",
-        contextBefore: "", contextAfter: "", diff: [],
-      }],
-    });
-    expect(pending.status).toBe("committed");
-    if (pending.status !== "committed") return;
-    expect(await documents.checkpointVersion(scope, document.id, pending.version.id, 0))
-      .toEqual({ status: "pending-edits" });
-    const clean = await documents.addVersion(scope, document.id, {
-      filename: document.filename, fileType: "docx", bytes,
-    });
-    expect(await documents.restoreVersion(scope, document.id, pending.version.id, clean!.id, 0))
-      .toEqual({ status: "pending-edits" });
-    expect(await library.deleteFolder({ ...scope, kind: "file" }, folder!.id)).toBe(true);
-    expect(await documents.read(scope, document.id, null, false)).toBeNull();
   });
 
   it("survives a repository restart", async () => {

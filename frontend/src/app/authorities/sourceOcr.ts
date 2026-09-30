@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
-import { inspectPdf } from "@/app/lib/inspectPdf";
+import { citedSourcePages } from "../../../../shared/cited-source-pages.mjs";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { inspectPdf, type PdfInspection } from "@/app/lib/inspectPdf";
 import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
-export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[] };
+export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; priorityPages?: number[] };
 /** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. */
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number;
   error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
@@ -25,7 +26,8 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
       [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.recognized ?? 0,
         state: "running" as const, pages: pages ?? [], error: undefined }])) }));
-    await (pending.current = pending.current.then(() => port.start(draftId, files.map(({ role }) => role), pages))
+    await (pending.current = pending.current.then(async () => (await Promise.all(files.map(file =>
+      port.start(draftId, [file.role], pages ?? file.priorityPages, {[file.role]:file.textlessPages})))).flat())
       .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
       .catch((error: Error) => merge(Object.fromEntries(files.map(({ role }) =>
@@ -64,11 +66,11 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
           // A pass is opaque while it runs, so pages count as recognized only once it ends:
           // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
           const updated: SourceOcrStatus = { ...item, pages: state.pages ?? [], error: state.error,
-            recognized: state.done ? state.pages?.length
+            recognized: state.recognized ?? (state.done ? state.pages?.length
               ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
               : item.textlessPages.length
               : state.pages?.length ? item.recognized
-                : Math.max(item.recognized, item.pages?.length ?? 0),
+                : Math.max(item.recognized, item.pages?.length ?? 0)),
             state: state.done ? "done" : state.error ? "failed" : "running" };
           const same = updated.state === item.state && updated.error === item.error &&
             updated.recognized === item.recognized && updated.pages!.join() === (item.pages ?? []).join();
@@ -87,11 +89,11 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     reset: useCallback(() => setTracked({}), []) };
 }
 
-/** Textless pages per source role and content hash; null when every page has text. */
-type ScanCache = Map<string, number[] | null>;
+/** Reuse native text and page labels when deriving each source's priority pages. */
+type ScanCache = Map<string, Pick<PdfInspection, "textlessPages" | "pageTexts" | "pageLabels" | "pageCount">>;
 
 async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, cache: ScanCache,
-  report: (message: string) => void, found: (file: ScannedPdf) => void, signal: AbortSignal) {
+  report: (message: string) => void, signal: AbortSignal) {
   const files: ScannedPdf[] = [], errors: string[] = [];
   for (const id of draft.state.authorityOrder) {
     const authority = draft.state.authorities[id];
@@ -101,16 +103,15 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
       if (source.origin === "reconstructed" || !host.readSource) continue;
       // A PDF is read once per content: binding another source does not rescan the book.
       const cacheKey = `${source.bindingRole}:${source.sourceSha256}`;
-      let textlessPages = cache.get(cacheKey);
-      if (textlessPages === undefined) {
+      let inspected = cache.get(cacheKey);
+      if (inspected === undefined) {
         report(`Checking pages in ${authorityName(authority)}`);
         try {
           const blob = await host.readSource(draft, source.bindingRole, signal);
-          const inspected = await inspectPdf(new File([blob], source.filename,
+          inspected = await inspectPdf(new File([blob], source.filename,
             { type: "application/pdf" }), undefined, signal);
           if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
-          textlessPages = inspected.textlessPages.length ? inspected.textlessPages : null;
-          cache.set(cacheKey, textlessPages);
+          cache.set(cacheKey, inspected);
         } catch (error) {
           // One unreadable source is reported without hiding the scans after it.
           signal.throwIfAborted();
@@ -118,10 +119,15 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
           continue;
         }
       }
-      if (textlessPages) {
+      const textlessPages = inspected.textlessPages;
+      if (textlessPages.length) {
+        const labels = inspected.pageLabels ? new Map<string, number[]>() : undefined;
+        inspected.pageLabels?.forEach((label,index) => labels!.set(label,[...(labels!.get(label) ?? []),index]));
+        const priorityPages = [...citedSourcePages(draft.state, id, inspected.pageTexts, labels, inspected.pageCount)]
+          .map(index => index + 1).filter(page => textlessPages.includes(page));
         const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
-          name: authorityName(authority), textlessPages };
-        files.push(file); found(file);
+          name: authorityName(authority), textlessPages, priorityPages };
+        files.push(file);
       }
     }
   }
@@ -134,9 +140,8 @@ const scanStart = (key: string, host: AuthoritiesHost): ScanStatus =>
   ({ key, host, files: [], checking: true, progress: "Checking PDFs", error: "" });
 
 export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProduct | undefined,
-  key: string, found: (file: ScannedPdf) => void) {
+  key: string) {
   const [stored, setStatus] = useState<ScanStatus>();
-  const onFound = useEffectEvent(found);
   const cache = useRef<ScanCache>(new Map());
   useEffect(() => {
     const abort = new AbortController();
@@ -145,7 +150,7 @@ export function useScannedSources(host: AuthoritiesHost, draft: AuthoritiesProdu
       ({ ...(current?.key === key && current.host === host ? current : scanStart(key, host)), ...patch }));
     void (draft && host.readSource ? inspectSources(host, draft, cache.current,
       (progress) => { if (!abort.signal.aborted) update({ progress }); },
-      (file) => { if (!abort.signal.aborted) onFound(file); }, abort.signal)
+      abort.signal)
       : Promise.resolve({ files: [], error: "" }))
       .then(({ files, error }) => { if (!abort.signal.aborted) update({ files, checking: false, progress: "", error }); })
       .catch((error: Error) => { if (!abort.signal.aborted) update({ checking: false, progress: "", error: error.message }); });

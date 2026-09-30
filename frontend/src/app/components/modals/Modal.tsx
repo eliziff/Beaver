@@ -18,6 +18,7 @@ interface ModalProps {
     onEscape?: () => void;
     children: ReactNode;
     role?: "dialog" | "alertdialog";
+    ariaLabel?: string;
     breadcrumbs?: ReactNode[];
     headerAction?: ReactNode;
     headerStart?: ReactNode;
@@ -44,6 +45,7 @@ export function Modal({
     onEscape = onClose,
     children,
     role,
+    ariaLabel,
     breadcrumbs,
     headerAction,
     headerStart,
@@ -92,7 +94,7 @@ export function Modal({
             ref={dialogRef}
             role={role}
             aria-labelledby={hasHeader ? titleId : undefined}
-            aria-label={hasHeader ? undefined : "Dialog"}
+            aria-label={hasHeader ? undefined : ariaLabel ?? "Dialog"}
             data-shortcut-layer
             data-shortcut-open={open ? "true" : "false"}
             data-shortcut-close

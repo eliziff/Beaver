@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import request from "supertest";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 
 const model = vi.hoisted(() => vi.fn(async () => { throw new Error("Changing research views must not invoke a model"); }));
 vi.mock("../lib/localMode", () => ({ isLocalRuntime: () => true }));
@@ -13,7 +13,7 @@ vi.mock("../lib/llm", async (original) => ({
 const owner = { userId: "00000000-0000-0000-0000-000000000001" };
 let directory: string;
 let close: (() => Promise<void>) | undefined;
-beforeEach(async () => {
+beforeAll(async () => {
   directory = await mkdtemp(path.join(os.tmpdir(), "beaver-research-views-"));
   vi.stubEnv("AUTH_MODE", "local");
   vi.stubEnv("OPEN_LEGAL_DATA_HOME", directory);
@@ -24,7 +24,8 @@ beforeEach(async () => {
   model.mockClear();
   vi.resetModules();
 });
-afterEach(async () => {
+afterEach(() => { model.mockClear(); vi.restoreAllMocks(); });
+afterAll(async () => {
   await close?.(); close = undefined;
   vi.unstubAllEnvs();
   vi.resetModules();
