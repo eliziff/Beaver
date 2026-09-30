@@ -20,6 +20,28 @@ classes, database column names, or a particular provider SDK.
 - An unavailable cloud-only account capability fails explicitly. It does not
   create a second local implementation.
 
+## PDF page navigation
+
+The shared PDF viewer always offers physical PDF-page navigation. Stored PDFs
+request printed labels from the existing native detector asynchronously, without
+delaying rendering. Prepared data, including partial OCR, is reused; a cache miss
+runs native-text extraction without initiating OCR or layout models. Authorities
+source previews and highlighting receive the labels alongside recognized text.
+When resolved or explicitly supplied labels are available, a separate Printed
+field shows the current label and accepts labels on Enter. Repeated labels offer
+the matching PDF pages for selection; missing labels never imply a physical-page
+fallback. Both fields follow scrolling. Escape cancels an unfinished entry.
+Explicit mappings may contain gaps. The viewer does not independently trust a PDF
+number tree: embedded labels need corroboration in the shared document operation.
+This control does not infer constituent-document boundaries. Reporter offsets come
+from the shared document projection: an observed opening folio matching a retained
+reporter citation establishes the sequence. Covers remain unlabelled; conflicting
+evidence and duplicate destinations prevent automatic pinpoint resolution. The
+same physical destinations drive display, cited-page recognition and highlights.
+An unavailable detection request leaves PDF navigation usable. Byte-only standalone
+previews still need supplied labels or embedded metadata because they have no
+stored-document operation to call.
+
 ## Growing resources
 
 Assistant conversations live beneath Assistant in the sidebar, with a separate
