@@ -46,6 +46,7 @@ function httpUrl(rawUrl: string, baseUrl?: URL) {
 
 export const DECISIA_HOSTS = new Set([
   "coadecisions.ontariocourts.ca",
+  "decisions.courts.ns.ca",
   "decisia.lexum.com",
   "decision.tcc-cci.gc.ca",
   "decisions.cart-crac.gc.ca",
@@ -71,6 +72,21 @@ export function decisiaIndexUrl(rawUrl: string | URL) {
   source.search = "";
   source.hash = "";
   return source;
+}
+
+/** Public decision URLs supported by the shared publisher PDF service. */
+export function publisherPdfSourceUrl(raw: string): URL | null {
+  let url: URL;
+  try { url = new URL(raw); } catch { return null; }
+  const bc = ["www.bccourts.ca", "bccourts.ca"].includes(url.hostname);
+  const validPath = DECISIA_HOSTS.has(url.hostname)
+    ? /^\/[a-z0-9/_-]+\/(?:item\/\d+\/index\.do|\d+\/document\.do)$/i.test(url.pathname)
+    : bc && /^\/jdb-txt\/(?:sc|ca)\/[a-z0-9/_-]+\.(?:htm|html|pdf)$/i.test(url.pathname);
+  if (bc && url.protocol === "http:") url.protocol = "https:";
+  if (url.protocol !== "https:" || url.port || url.username || url.password || !validPath ||
+      /[%\\]/.test(url.pathname)) return null;
+  url.hash = ""; url.search = "";
+  return url;
 }
 
 /** One attribute's value in any quoting style; "" when the attribute is absent. */
@@ -111,7 +127,7 @@ export function verifiedDecisiaPdf(
   if (pdfOnlyUrl) return { url: pdfOnlyUrl, pdfOnly: true };
 
   const documentControls: string[] = [];
-  for (const match of markup.matchAll(/<li\b([^>]*)>([\s\S]*?)<\/li\s*>/giu)) {
+  for (const match of markup.matchAll(/<(?:li|div)\b([^>]*\bdocuments\b[^>]*)>([\s\S]*?)<\/(?:li|div)\s*>/giu)) {
     if (attributeValue(match[1], CLASS_ATTRIBUTE).split(/\s+/u).includes("documents")) {
       documentControls.push(match[2]);
     }

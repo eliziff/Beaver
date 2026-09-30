@@ -54,7 +54,7 @@ type PdfLayout = {
     pages: RenderedPage[];
     schedule(): void;
     refreshText(): void;
-    destroy(): void;
+    destroy(retainCanvas?: boolean): void;
     preparePage(number: number): Promise<boolean>;
     search(quotes: CitationQuote[]): Promise<void>;
 };
@@ -104,6 +104,7 @@ export function PdfCanvas({
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.pageNumber, page])), [recognizedText]);
     const recognizedRef = useRef(recognizedPages), textLoaderRef = useRef(loadRecognizedText);
     const layoutRef = useRef<PdfLayout | null>(null);
+    const pendingLayoutRef = useRef<PdfLayout | null>(null);
     const editorRef = useRef(annotationEditor);
     useLayoutEffect(() => {
         recognizedRef.current = recognizedPages;
@@ -142,16 +143,17 @@ export function PdfCanvas({
         if (!container || !pdf) return;
         const generation = ++generationRef.current;
         const fail = (cause: unknown) => {
-            if (generation !== generationRef.current) return;
+            if (generation !== generationRef.current || (cause as { name?: string })?.name === 'RenderingCancelledException') return;
             console.error("PDF render error", cause);
             setPreparing(false);
             setViewerError(PDF_VIEWER_ERROR);
         };
         try {
             setPreparing(true);
+            container.inert = true;
             quoteGenerationRef.current += 1;
-            layoutRef.current?.destroy(); layoutRef.current = null;
-            container.replaceChildren();
+            pendingLayoutRef.current?.destroy(); pendingLayoutRef.current = null;
+            layoutRef.current?.destroy(true);
             const lib = await getPdfJs();
             if (generation !== generationRef.current) return;
             const panelWidth = container.clientWidth;
@@ -196,12 +198,13 @@ export function PdfCanvas({
                 return entry;
             });
             container.style.overflowAnchor = "none";
-            container.appendChild(fragment);
-            setLayoutRevision(value => value + 1);
+            // Render the replacement off-DOM. The displayed canvases stay intact until
+            // the first new page is ready; this retains only one outgoing layout.
+            let committed = false;
 
             let geometryVersion = cache.size;
             const updateGeometry = () => {
-                if (generation !== generationRef.current || geometryVersion === cache.size) return;
+                if (!committed || generation !== generationRef.current || geometryVersion === cache.size) return;
                 geometryVersion = cache.size;
                 const scroll = scrollRef.current;
                 const offset = (scroll?.scrollTop ?? 0) - container.offsetTop;
@@ -238,7 +241,6 @@ export function PdfCanvas({
                 if (generation !== generationRef.current) return false;
                 updateGeometry(); return true;
             };
-            scrollToHighlight(pages, scrollRef.current, target);
 
             const textLayers = new Map<number, ReturnType<typeof createPdfPageTextLayer>>();
             const pageQuotes = new Map<number, CitationQuote[]>();
@@ -283,18 +285,20 @@ export function PdfCanvas({
 
             const rendered = new Map<number, HTMLCanvasElement>();
             let rendering: { index: number; canvas: HTMLCanvasElement; task: import("pdfjs-dist").RenderTask } | undefined;
-            const destroy = () => {
+            const destroy = (retainCanvas = false) => {
                 if (rendering) { rendering.task.cancel(); rendering.canvas.width = rendering.canvas.height = 0; }
                 for (const index of textLayers.keys()) releaseTextLayer(index);
-                for (const canvas of rendered.values()) { canvas.width = canvas.height = 0; canvas.remove(); }
-                rendered.clear();
+                if (!retainCanvas) {
+                    for (const canvas of rendered.values()) { canvas.width = canvas.height = 0; canvas.remove(); }
+                    rendered.clear();
+                }
             };
             const failed = new Set<number>();
             const loadingPages = new Set<number>();
             let running = false;
             const range = () => {
                 const element = scrollRef.current;
-                const start = (element?.scrollTop ?? 0) - container.offsetTop;
+                const start = committed ? (element?.scrollTop ?? 0) - container.offsetTop : pages[target - 1].top;
                 const height = element?.clientHeight || 800;
                 return { start, end: start + height, margin: height };
             };
@@ -303,13 +307,14 @@ export function PdfCanvas({
                 return pages[index].top + pages[index].height >= start - margin * padding &&
                     pages[index].top <= end + margin * padding;
             };
+            let rasterPixels = MAX_CANVAS_PIXELS;
             const rasterPlan = () => {
                 const { start, end, margin } = range();
                 const indices = new Set<number>();
                 for (let index = pageAt(pages, start - margin);
                     index < pages.length && pages[index].top <= end + margin; index++)
                     if (pages[index].top + pages[index].height >= start - margin) indices.add(index);
-                const pixels = Math.floor(Math.min(MAX_CANVAS_PIXELS, MAX_RESIDENT_PIXELS / Math.max(1, indices.size)));
+                const pixels = rasterPixels = Math.floor(Math.min(rasterPixels, MAX_RESIDENT_PIXELS / Math.max(1, indices.size)));
                 for (const [index, canvas] of rendered) {
                     if (indices.has(index) && canvas.width * canvas.height <= pixels) continue;
                     canvas.remove(); canvas.width = canvas.height = 0; rendered.delete(index);
@@ -344,13 +349,7 @@ export function PdfCanvas({
                                 loadingPages.delete(index);
                                 if (generation !== generationRef.current) return;
                                 failed.add(index);
-                                pages[index].wrapper.style.visibility = "";
-                                const message = document.createElement("p");
-                                message.setAttribute("role", "alert");
-                                message.textContent = `Unable to render page ${index + 1}.`;
-                                pages[index].wrapper.appendChild(message);
-                                console.warn("PDF page unavailable", cause);
-                                setPreparing(false);
+                                fail(cause);
                             });
                             continue;
                         }
@@ -380,7 +379,20 @@ export function PdfCanvas({
                             }
                             pages[index].wrapper.prepend(canvas);
                             rendered.set(index, canvas);
-                            setPreparing(false);
+                            if (!committed) {
+                                layoutRef.current?.destroy();
+                                container.replaceChildren(fragment);
+                                container.inert = false;
+                                committed = true;
+                                layoutRef.current = layout;
+                                pendingLayoutRef.current = null;
+                                setLayoutRevision(value => value + 1);
+                                scrollToHighlight(pages, scrollRef.current, target);
+                                void search(quotesRef.current).catch(fail);
+                            }
+                            if (nearby(index, 0)) {
+                                setPreparing(false);
+                            }
                             void finishGeometry().catch(fail);
                             // Painting is useful before text extraction completes. Selection and
                             // quote search share a single layer, including in ordinary readers.
@@ -388,13 +400,8 @@ export function PdfCanvas({
                         } catch (cause) {
                             canvas.width = canvas.height = 0;
                             if (generation === generationRef.current && (cause as { name?: string })?.name !== "RenderingCancelledException") {
-                                console.error("PDF render error", cause);
                                 failed.add(index);
-                                const message = document.createElement("p");
-                                message.setAttribute("role", "alert");
-                                message.textContent = `Unable to render page ${index + 1}.`;
-                                pages[index].wrapper.appendChild(message);
-                                setPreparing(false);
+                                fail(cause);
                             }
                         } finally {
                             if (!rendered.has(index)) canvas.width = canvas.height = 0;
@@ -404,6 +411,7 @@ export function PdfCanvas({
                 } finally { running = false; }
             };
             const schedule = () => {
+                if (generation !== generationRef.current) return;
                 // Retain only nearby bitmaps/text, plus any live selection crossing pages.
                 const selection = document.getSelection();
                 const selected = (index: number) => {
@@ -427,6 +435,7 @@ export function PdfCanvas({
             };
 
             const search = async (entries: CitationQuote[]) => {
+                if (generation !== generationRef.current) return;
                 navigationRef.current += 1;
                 const quoteGeneration = ++quoteGenerationRef.current;
                 const current = () => generation === generationRef.current && quoteGeneration === quoteGenerationRef.current;
@@ -466,9 +475,9 @@ export function PdfCanvas({
                     }
                 }
             };
-            layoutRef.current = {pages, schedule, refreshText, destroy, preparePage, search};
+            const layout = {pages, schedule, refreshText, destroy, preparePage, search};
+            pendingLayoutRef.current = layout;
             schedule();
-            void search(quotesRef.current).catch(fail);
         } catch (cause) { fail(cause); }
     }, []);
 
@@ -621,15 +630,17 @@ export function PdfCanvas({
             setPreparing(true);
             setZoom(1);
             setCurrentPage(1);
-            setNumPages(0);
             setViewerError(null);
         });
-        /** Abandon every in-flight render and drop the DOM for this document. */
-        const teardown = () => {
+        const teardown = (retainCanvas = false) => {
             generationRef.current += 1; quoteGenerationRef.current += 1;
-            layoutRef.current?.destroy(); layoutRef.current = null;
+            pendingLayoutRef.current?.destroy(); pendingLayoutRef.current = null;
+            layoutRef.current?.destroy(retainCanvas);
             pageCacheRef.current = null;
-            containerRef.current?.replaceChildren();
+            if (!retainCanvas) {
+                layoutRef.current = null;
+                containerRef.current?.replaceChildren();
+            }
         };
         const unavailable = (cause: unknown) => {
             if (cancelled || controller.signal.aborted) return;
@@ -663,13 +674,18 @@ export function PdfCanvas({
             await renderPdf(quotesRef.current);
         })().catch(unavailable);
         return () => {
-            cancelled = true; controller.abort(); teardown();
+            cancelled = true; controller.abort(); teardown(true);
             const pdf = pdfRef.current;
             pdfRef.current = null;
             if (loadingTask) void loadingTask.destroy().catch(() => undefined);
             else void pdf?.destroy().catch(() => undefined);
         };
     }, [bytes, source, error, renderPdf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => () => {
+        pendingLayoutRef.current?.destroy();
+        layoutRef.current?.destroy();
+    }, []);
 
     useEffect(() => {
         quotesRef.current = quoteList;
@@ -691,7 +707,7 @@ export function PdfCanvas({
         return () => { layer.destroy(); annotationLayerRef.current = null; };
     }, [!!annotationEditor, layoutRevision]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { annotationLayerRef.current?.update(); },
-        [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled]);
+        [annotationEditor?.marks, annotationEditor?.tool, annotationEditor?.selectedId, annotationEditor?.disabled, annotationEditor?.highlightSelection]);
     useEffect(() => {
         const scroll = scrollRef.current, focus = editorRef.current?.focus;
         const mark = editorRef.current?.marks.find(mark => mark.id === focus?.id);
@@ -711,6 +727,7 @@ export function PdfCanvas({
     }, [annotationEditor?.focus?.request, layoutRevision]);
 
     function jumpToPage() {
+        if (loading || preparing || error || viewerError) return;
         const number = Number(pageInput);
         if (!Number.isSafeInteger(number) || number < 1 || number > numPages) {
             setPageInput(String(currentPage)); return;
@@ -727,6 +744,7 @@ export function PdfCanvas({
     }
 
     function changeZoom(event: ReactMouseEvent<HTMLButtonElement>) {
+        if (loading || error || viewerError) return;
         const next = clampZoom(zoomRef.current + Number(event.currentTarget.value));
         if (next === zoomRef.current) return;
         zoomRef.current = next;
@@ -739,8 +757,8 @@ export function PdfCanvas({
             className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-100 ${rounded ? "rounded-lg" : ""}`}
             aria-label={ariaLabel}
         >
-            {((loading) || (preparing && !error && !viewerError)) && (
-                <div role="status" className="beaver-loading-indicator pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            {numPages === 0 && ((loading) || (preparing && !error && !viewerError)) && (
+                <div role="status" className="beaver-loading-indicator pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
                     <Loader2 className="h-7 w-7 animate-spin text-gray-400" />
                     <span className="sr-only">Loading PDF…</span>
                 </div>
@@ -761,6 +779,8 @@ export function PdfCanvas({
                             {annotationEditor ? <label className="flex items-center gap-1 pointer-events-auto">
                                 <span className="sr-only">PDF page</span>
                                 <input aria-label="PDF page" value={pageInput} inputMode="numeric"
+                                    readOnly={loading || preparing || !!error || !!viewerError}
+                                    aria-disabled={loading || preparing || !!error || !!viewerError}
                                     className="w-12 bg-transparent text-center outline-none focus:ring-2 focus:ring-red-600"
                                     onChange={event => setPageInput(event.target.value)}
                                     onKeyDown={event => { if (event.key === "Enter") {
@@ -771,16 +791,16 @@ export function PdfCanvas({
                     </div>
                     <div className="absolute bottom-4 right-4 flex items-center gap-px rounded-full border border-gray-200 bg-white p-1 shadow-sm">
                         <button type="button" onClick={changeZoom} value={-ZOOM_STEP}
-                            disabled={zoom <= ZOOM_MIN} aria-label="Zoom out"
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-30">
+                            aria-disabled={loading || !!error || !!viewerError || zoom <= ZOOM_MIN} aria-label="Zoom out"
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 aria-disabled:opacity-30">
                             <ZoomOut className="h-3.5 w-3.5" />
                         </button>
                         <span className="w-9 select-none text-center text-xs font-medium tabular-nums text-gray-600">
                             {Math.round(zoom * 100)}%
                         </span>
                         <button type="button" onClick={changeZoom} value={ZOOM_STEP}
-                            disabled={zoom >= ZOOM_MAX} aria-label="Zoom in"
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-30">
+                            aria-disabled={loading || !!error || !!viewerError || zoom >= ZOOM_MAX} aria-label="Zoom in"
+                            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 aria-disabled:opacity-30">
                             <ZoomIn className="h-3.5 w-3.5" />
                         </button>
                     </div>

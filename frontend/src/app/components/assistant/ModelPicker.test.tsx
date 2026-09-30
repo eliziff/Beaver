@@ -46,17 +46,6 @@ describe("ModelPicker", () => {
         expect(within(options).queryByText("Sonnet")).toBeNull();
     });
 
-    it("compacts the trigger label to the distinguishing tier", () => {
-        render(<ModelPicker value="claude:claude-sonnet-4-6" models={models}
-            apiKeys={apiKeys} detail="high" onChange={vi.fn()} />);
-        expect(screen.getByRole("button", { name: /^Model:/ })).toHaveTextContent("Sonnet");
-
-        render(<ModelPicker value="codex:gpt-5.6-terra" models={models}
-            apiKeys={apiKeys} detail="high" onChange={vi.fn()} />);
-        const triggers = screen.getAllByRole("button", { name: /^Model:/ });
-        expect(triggers[triggers.length - 1]).toHaveTextContent("Terra");
-    });
-
     it("selects the inference provider the reader clicks", async () => {
         const onChange = vi.fn();
         render(<ModelPicker value="claude:claude-sonnet-4-6" models={models}

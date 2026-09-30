@@ -522,7 +522,7 @@ async function resolveLocalFile(input: WorkProductInput): Promise<InputResolutio
 async function resolveRetainedFile(handle: FileSystemFileHandle,
   input: Extract<WorkProductInput, { kind: "local-file" }>): Promise<InputResolution> {
   try {
-    if (!await permitted(handle, "read")) return { status: "missing", reason: "permission" };
+    // A permission query is advisory; only an actual read failure needs user action.
     const file = await handle.getFile(), current = fileSnapshot(file);
     const changed = current.name !== input.lastSeen.name || current.size !== input.lastSeen.size ||
       current.modified !== input.lastSeen.modified;

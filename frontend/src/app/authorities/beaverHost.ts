@@ -121,7 +121,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
       binding.version === "latest" ? undefined : binding.version.versionId, signal, pages, source.sourceSha256);
   },
   sourceOcr: { progress: pdfProgress,
-    start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),
+    start: (id, roles) => authoritiesSourceOcr(id, roles, false),
     cancel: (id, roles) => authoritiesSourceOcr(id, roles, true) },
   async build(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);

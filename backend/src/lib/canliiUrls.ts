@@ -27,6 +27,7 @@ function resolvedCanliiCaseUrl(
     };
     const url = urls[0]?.url;
     if (url && isCanliiUrl(url)) return url;
+
   }
   return null;
 }

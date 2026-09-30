@@ -1,7 +1,7 @@
 import { getDocumentParseStates } from "@/app/lib/api/documents";
 
 /** `pages` lists a page-limited pass; an empty list means the whole PDF is being read. */
-export type PdfProgress = { id: string; done: boolean; pages?: number[]; error?: string };
+export type PdfProgress = { id: string; done: boolean; pages?: number[]; recognized?: number; error?: string };
 
 /** One reading of PDF preparation state, for watchers and for the wait below. */
 export async function pdfProgress(documentIds: string[]): Promise<PdfProgress[]> {

@@ -171,7 +171,7 @@ describe("PdfView", () => {
             this.scrollTop = options.top ?? 0;
         });
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
-            {} as CanvasRenderingContext2D,
+            { scale: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
         );
         vi.spyOn(HTMLElement.prototype, "clientWidth", "get")
             .mockImplementation(() => mocks.clientWidth);
@@ -189,6 +189,25 @@ describe("PdfView", () => {
                 left: 0, right: 600, width: 600, height: page ? parseFloat(page.style.height) : 800,
                 x: 0, y: top, toJSON() {} };
         });
+    });
+
+    it("highlights an existing selection on request without repainting the PDF", async () => {
+        mocks.numPages = 1;
+        const bytes = new Uint8Array([1]), onCreate = vi.fn();
+        const editor = {marks:[],selectedId:null,tool:'select' as const,onSelect:vi.fn(),onCreate,highlightSelection:0};
+        const {container,rerender} = render(<PdfView doc={null} bytes={bytes} annotationEditor={editor} />);
+        const text = await screen.findByText('Page 1 text');
+        await waitFor(() => expect(container.querySelector('canvas')).toBeTruthy());
+        const canvas = container.querySelector('canvas'), paints = mocks.rendered.length;
+        const range = document.createRange(); range.selectNodeContents(text);
+        window.getSelection()!.addRange(range);
+        rerender(<PdfView doc={null} bytes={bytes} annotationEditor={{...editor,tool:'highlight',highlightSelection:1}} />);
+        await waitFor(() => expect(onCreate).toHaveBeenCalledOnce());
+        expect(onCreate.mock.calls[0][0][0].pageNumber).toBe(1);
+        expect(onCreate.mock.calls[0][1]).toBe('Page 1 text');
+        expect(container.querySelector('canvas')).toBe(canvas);
+        expect(mocks.rendered).toHaveLength(paints);
+        expect(window.getSelection()!.isCollapsed).toBe(true);
     });
 
     afterEach(() => {
@@ -223,6 +242,19 @@ describe("PdfView", () => {
             expect(page).toHaveAttribute("data-locator-value", page.dataset.pageNumber);
         }
         expect(await screen.findByText("Page 1 text")).toBeVisible();
+    });
+
+    it("keeps page and zoom controls mounted while the next PDF loads", async () => {
+        const { rerender } = render(<PdfView doc={{ document_id: "first" }} />);
+        await screen.findByText("Page 1 text");
+        const zoomIn = screen.getByRole("button", { name: "Zoom in" });
+        const pageCount = screen.getByText("1/3");
+        fileResult = null;
+        rerender(<PdfView doc={{ document_id: "second" }} />);
+        await waitFor(() => expect(mocks.hookCalls).toBe(2));
+        expect(screen.getByRole("button", { name: "Zoom in" })).toBe(zoomIn);
+        expect(zoomIn).toBeVisible();
+        expect(pageCount).toBeVisible();
     });
 
     it("installs late recognized word geometry without reopening a scanned PDF", async () => {
@@ -485,8 +517,8 @@ describe("PdfView", () => {
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
             quotes={[{ page: 299, quote: "Page 299 text" }]} />);
         const selected = () => container.querySelector<HTMLElement>('[data-page-number="299"]')!;
-        await waitFor(() => expect(selected()?.querySelector("canvas")).not.toBeNull());
-        await waitFor(() => expect(selected()?.querySelector(".pdf-text-highlight")).not.toBeNull());
+        await waitFor(() => expect(selected()?.querySelector("canvas")).toBeTruthy());
+        await waitFor(() => expect(selected()?.querySelector(".pdf-text-highlight")).toBeTruthy());
         expect(container.querySelector('[data-page-number="2"]')).toHaveAttribute("data-geometry-ready", "false");
         expect(mocks.textRequests).toEqual([299]);
         expect(mocks.textLayers.length).toBeLessThan(5);
@@ -548,6 +580,29 @@ describe("PdfView", () => {
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])}
             quotes={withQuotes ? [{ quote: "Missing passage" }] : undefined} />);
         await waitFor(() => expect(container.querySelector('canvas')).not.toBeNull());
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it("retains the displayed canvas and focused controls until a replacement renders", async () => {
+        mocks.numPages = 1;
+        const { container, rerender } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
+        await waitFor(() => expect(container.querySelector('canvas')).not.toBeNull());
+        const canvas = container.querySelector('canvas')!;
+        const zoom = screen.getByRole('button', { name: 'Zoom in' });
+        zoom.focus();
+        mocks.renderDelay = 150;
+        rerender(<PdfView doc={null} bytes={new Uint8Array([2])} />);
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+        expect(container.querySelector('canvas')).toBe(canvas);
+        expect(canvas.width).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: 'Zoom in' })).toBe(zoom);
+        expect(zoom).toHaveFocus();
+        // Supersede the delayed render; its completion must never replace this one.
+        rerender(<PdfView doc={null} bytes={new Uint8Array([3])} />);
+        await waitFor(() => expect(container.querySelector('canvas')).not.toBe(canvas));
+        expect(container.querySelector('canvas')).not.toBeNull();
+        expect(canvas.width).toBe(0);
+        expect(zoom).toHaveFocus();
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
