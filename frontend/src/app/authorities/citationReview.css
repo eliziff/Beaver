@@ -1,46 +1,91 @@
-.citation-review{display:grid;grid-template-columns:11rem minmax(0,1fr);height:clamp(21rem,calc(100dvh - 17rem),48rem);min-height:0}
-.citation-outline{overflow-y:auto;min-height:0;padding:.8rem .6rem;border-inline-end:1px solid #e5e7eb;font-size:.76rem}
+.citation-review{display:grid;grid-template-columns:11rem minmax(0,1fr) 13.5rem;height:var(--citation-review-height,32rem);min-height:0;outline:none}
+.citation-outline{overflow-y:auto;min-height:0;min-width:0;padding:.8rem .6rem;border-inline-end:1px solid #e5e7eb;font-size:.76rem}
 .citation-outline h3{margin:0 .45rem .5rem;font-size:.7rem;font-weight:650;color:#4b5563}
 .citation-outline>[role=group]+[role=group]{margin-top:1.2rem}
 .citation-outline button{display:block;width:100%;text-align:start;padding:.4rem .5rem;border-radius:4px;color:#4b5563;line-height:1.4}
-.citation-outline button>span,.citation-outline small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.citation-outline small{font-size:.65rem;color:#6b7280;margin-top:.1rem}
+.citation-outline button>span,.citation-outline small>*{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The pinpoint follows the citation while both stay legible; otherwise the citation wraps out of view. */
+.citation-outline small{display:flex;flex-flow:row-reverse wrap;column-gap:.4rem;height:1.4em;overflow:hidden;font-size:.65rem;line-height:1.4;color:#6b7280;margin-top:.1rem}
+.citation-outline small>span{flex:1 1 6em}
+.citation-outline small>em{flex:none;max-width:100%;margin-right:auto;font-style:normal;color:#4b5563}
+.citation-outline em[data-manual]::after{content:'';display:inline-block;width:4px;height:4px;margin:0 0 1px .25rem;border-radius:50%;background:#b91c1c;vertical-align:middle}
 .citation-outline button:hover{background:#f3f4f6}
 .citation-outline button[aria-selected=true]{background:#fff1f0;color:#991b1b;box-shadow:inset 2px 0 #b91c1c}
 .citation-outline button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px}
 .citation-note{display:grid;grid-template-columns:1.4rem minmax(0,1fr);align-items:start;margin-bottom:.65rem}
-.citation-note>div{border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
+.citation-note>div{min-width:0;border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
 .citation-note-number{padding-top:.4rem;color:#374151;font-size:.7rem;font-weight:650;text-align:center}
 .citation-outline .citation-finding{color:#991b1b}
-.citation-reader{min-width:0;min-height:0;display:flex;flex-direction:column}
-.citation-document{display:flex;flex:1;min-height:10rem;min-width:0;overflow:hidden}
-.citation-document>div{border-radius:0}
-.citation-document .docx-view-scroll{padding:1.1rem}
+
+.citation-document{position:relative;display:flex;min-height:10rem;min-width:0;overflow:hidden}
+.citation-document>div,.citation-document>section{border-radius:0}
+.citation-document .docx-view-scroll{position:relative;isolation:isolate;padding:1.1rem}
 .citation-document .docx-view-container{outline:none}
-.citation-document:has(.docx-view-container:focus-visible){outline:2px solid #b91c1c;outline-offset:-2px}
-.citation-document .docx-text-highlight{background:transparent!important;border:0!important}
-.citation-mark{background:#fce7e3;box-decoration-break:clone;-webkit-box-decoration-break:clone;cursor:pointer;color:inherit}
-.citation-mark[data-active=true]{background:#f7d2ca;box-shadow:0 1px #a73b2e}
-.citation-mark[data-pinpoint]{background:#f9edbd}
-.citation-mark[data-pinpoint][data-active=true]{background:#f5dc86;box-shadow:0 1px #947018}
-.pdf-text-layer .citation-mark{position:static;background:rgb(213 43 30 / .12);cursor:pointer}
-.pdf-text-layer .citation-mark[data-active=true]{background:rgb(213 43 30 / .22)}
-.pdf-text-layer .citation-mark[data-pinpoint]{background:rgb(230 183 38 / .22)}
-.pdf-text-layer .citation-mark[data-pinpoint][data-active=true]{background:rgb(230 183 38 / .4)}
-.citation-document .pdf-text-highlight{padding:0}
-.citation-controls{padding:.7rem .9rem;background:white;border-top:1px solid #e5e7eb;flex-shrink:0}
-.citation-tools{display:flex;flex-wrap:wrap;gap:.35rem}
-.citation-tools button,.citation-link button{font-size:.7rem;min-height:2rem;height:auto;padding:.35rem .6rem}
-.citation-tools button:first-child,.citation-tools button:nth-child(2){padding:.35rem;min-width:1.9rem}
-.citation-help{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:space-between;margin-top:.65rem;font-size:.67rem;color:#6b7280}
-.citation-key{display:flex;align-items:center;gap:.3rem;white-space:nowrap}
-.citation-key i{display:inline-block;width:.7rem;height:.7rem;background:#f7d2ca;border-bottom:1px solid #a73b2e}
-.citation-key .pinpoint-key{background:#f5dc86;border-color:#947018;margin-inline-start:.5rem}
-.citation-link{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;margin-top:.7rem;font-size:.72rem}
-.citation-link>span{flex:1;min-width:9rem}
+.citation-document .docx-text-highlight,.citation-document .pdf-text-highlight{background:transparent!important;border:0!important;padding:0}
+.citation-mark{cursor:pointer;color:inherit}
+.citation-mark[data-active=true]{cursor:text}
+.pdf-text-layer .citation-mark{position:static}
+.citation-document[data-split] *{cursor:crosshair}
+.citation-document[data-dragging] *{cursor:ew-resize!important}
+/* One shape per citation line, drawn over the text and multiplied into it. */
+.citation-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:4;pointer-events:none;mix-blend-mode:multiply}
+.citation-overlay>div{position:absolute;box-sizing:border-box;border-radius:3px}
+.citation-band:not([data-active])::after{content:'';position:absolute;inset:auto 0 -1px;height:1px;background:rgb(185 28 28 / .38)}
+.citation-band[data-hot]:not([data-active]){background:rgb(185 28 28 / .06)}
+.citation-band[data-active]{background:#f9d8d0}
+.citation-pinpoint{background:#efb2a4}
+.citation-grip{opacity:0;cursor:ew-resize;transition:opacity .12s}
+.citation-grip::before,.citation-grip::after{content:'';position:absolute;background:#b91c1c}
+.citation-grip::before{inset:0 calc(50% - 1px);border-radius:1px}
+.citation-grip::after{left:0;top:calc(50% - 4px);width:8px;height:8px;border-radius:50%}
+.citation-grip[data-grip^=pin]::before{inset:1px calc(50% - 1.5px);background:#9a3412}
+.citation-grip[data-grip^=pin]::after{display:none}
+.citation-overlay[data-hover=band] .citation-grip:not([data-grip^=pin]),.citation-overlay[data-hover=pin] [data-grip^=pin]{opacity:1;pointer-events:auto}
+[data-dragging] .citation-overlay .citation-grip{pointer-events:none}
+.citation-split{width:2px;margin-left:-1px;border-radius:1px!important;background:#7f1d1d}
 .citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.8rem}
-.citation-fallback{padding:.65rem .9rem;font-size:.75rem;border-top:1px solid #e5e7eb}
-.citation-fallback>div{white-space:pre-wrap;max-height:10rem;overflow:auto;padding:.7rem 0;line-height:1.8}
-.citation-fallback>div:focus-visible{outline:2px solid #b91c1c}
-@container(max-width:42rem){.citation-review{grid-template-columns:8.5rem minmax(0,1fr);height:32rem}.citation-controls{padding:.6rem}}
-@container(max-width:29rem){.citation-review{grid-template-columns:1fr;height:auto}.citation-outline{max-height:10rem;border-inline-end:0;border-bottom:1px solid #e5e7eb}.citation-document{flex:none;height:25rem}.citation-note{margin-bottom:.3rem}}
+.citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.75rem}
+.citation-fallback[data-full]{inset:0;max-height:none;border-top:0;box-shadow:none}
+.citation-fallback>p{margin:0;color:#6b7280;font-size:.68rem}
+.citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
+
+/* Information packs at the top of a fixed card; actions sit at the foot and never move. */
+.citation-rail{display:flex;flex-direction:column;gap:.6rem;padding:.6rem .8rem .75rem;border-inline-start:1px solid #e5e7eb;min-width:0;min-height:0;overflow:hidden auto;font-size:.72rem;color:#374151}
+.citation-rail>*{flex:none;min-width:0}
+.citation-rail button{font-size:.7rem;height:1.9rem;min-height:0;padding:0 .6rem;max-width:100%}
+.citation-rail-nav{display:flex;align-items:center;justify-content:space-between;height:2rem;font-variant-numeric:tabular-nums;color:#4b5563}
+.citation-rail-nav button{width:2rem;padding:0}
+.citation-rail-card{display:flex;flex-direction:column;gap:.35rem;height:11.75rem;overflow:hidden}
+.citation-rail-card strong,.citation-rail-card p{margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.citation-rail-card strong{font-size:.8rem;font-weight:650;line-height:1.3;color:#111827}
+.citation-rail-card p{line-height:1.4;color:#4b5563}
+.citation-rail-pin{display:flex;align-items:baseline;gap:.6rem;white-space:nowrap;color:#6b7280}
+.citation-rail-pin span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.citation-rail-pin button{flex:none;height:auto;padding:0;color:#991b1b;text-decoration:underline;text-underline-offset:2px}
+.citation-rail-row{display:flex;flex-wrap:wrap;gap:.3rem}
+.citation-rail-row>span{flex:1 0 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#4b5563}
+.citation-rail-actions{margin-top:auto;display:flex;flex-direction:column;gap:.25rem}
+.citation-rail-keys{margin:0;font-size:.65rem;line-height:1.5;color:#9ca3af}
+
+@container(max-width:52rem){
+  .citation-review{grid-template-columns:8.5rem minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .citation-outline,.citation-document{grid-row:2}
+  .citation-rail{grid-row:1;grid-column:1/-1;display:grid;grid-template:"nav card actions" 4.35rem/7.5rem minmax(0,1fr) 9.5rem;
+    gap:.9rem;border-inline-start:0;border-bottom:1px solid #e5e7eb;overflow:hidden}
+  .citation-rail-nav{grid-area:nav;align-self:start}
+  .citation-rail-card{grid-area:card;height:auto;flex-flow:row wrap;align-content:start;gap:.15rem .6rem}
+  .citation-rail-card strong,.citation-rail-card p{flex:0 0 100%;-webkit-line-clamp:1}
+  .citation-rail-row{flex:1;min-width:0;flex-wrap:nowrap;align-items:center}
+  .citation-rail-row>span{flex:0 1 auto;min-width:5.5em}
+  .citation-rail-row button{height:1.6rem;flex:none}
+  .citation-rail-actions{grid-area:actions;margin:0}
+  .citation-rail-keys{display:none}
+}
+@container(max-width:29rem){
+  .citation-review{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;height:auto}
+  .citation-outline{grid-row:1;max-height:10rem;border-inline-end:0;border-bottom:1px solid #e5e7eb}
+  .citation-rail{grid-row:2;grid-template:"nav actions" 2rem "card card" 4.35rem/minmax(0,1fr) auto;gap:.5rem}
+  .citation-rail-actions{flex-direction:row}
+  .citation-document{grid-row:3;height:25rem}
+  .citation-note{margin-bottom:.3rem}
+}

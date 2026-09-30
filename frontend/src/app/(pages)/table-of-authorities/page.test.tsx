@@ -691,16 +691,12 @@ describe("Authorities UI contracts", () => {
       sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false };
     add(saved, { ...authority("authority-1", "R v Example", { kind: "unresolved" }),
       citation: "2024 ABKB 1" });
-    const gathered = structuredClone(saved); gathered.revision = 2;
-    gathered.state.authorities["authority-1"].source = { kind: "resolved" };
-    const changed = structuredClone(gathered); changed.revision = 3;
+    const changed = structuredClone(saved); changed.revision = 2;
     changed.state.occurrences["occurrence-1"].authoritySpan =
       { start: 0, end, text: text.slice(0, end) };
     changed.state.occurrences["occurrence-1"].reviewed = true;
-    const gathering = deferred<AuthoritiesProduct>();
     const update = deferred<AuthoritiesProduct>(), onDraftChange = vi.fn();
     api.getWorkProduct.mockResolvedValue(saved);
-    api.prepareAuthoritiesSources.mockReturnValue(gathering.promise);
     api.actOnAuthorities.mockReturnValue(update.promise);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} onDraftChange={onDraftChange} /></MemoryRouter>);
@@ -714,22 +710,17 @@ describe("Authorities UI contracts", () => {
 
 
     selectRange(context, 0, end);
-    gathering.resolve(gathered);
-    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(gathered, true));
-    expect(window.getSelection()?.toString()).toBe(text.slice(0, end));
-    const useSelection = screen.getByRole("button", { name: "Set citation" });
-    expect(useSelection).toBeEnabled();
-    await userEvent.click(useSelection);
-    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 2, {
+    fireEvent.keyDown(context, { key: "Enter" });
+    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
       type: "set-citation-range", occurrenceId: "occurrence-1", start: 0, end,
     }));
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("status")).toHaveTextContent("Updating authorities");
-    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(gathered, false));
-    expect(useSelection).toBeDisabled();
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(saved, false));
+    fireEvent.keyDown(context, { key: "Enter" });
     update.resolve(changed);
-    await waitFor(() => expect(useSelection).toBeDisabled());
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(changed, true));
+    expect(api.actOnAuthorities).toHaveBeenCalledTimes(1);
     expect(window.getSelection()?.rangeCount).toBe(0);
   });
 
@@ -808,8 +799,11 @@ describe("Authorities UI contracts", () => {
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
     const context = await screen.findByRole("textbox", { name: "Footnote context" });
-    selectRange(context, split);
-    await userEvent.click(screen.getByRole("button", { name: "Split at cursor" }));
+    const mark = context.querySelector<HTMLElement>('[data-citation-id="whole"]')!;
+    // A stand-in for the browser's hit test: the click lands in the gap before "Beta".
+    document.caretPositionFromPoint = () => ({ offsetNode: mark.firstChild!, offset: split }) as CaretPosition;
+    fireEvent.click(mark);
+    Reflect.deleteProperty(document, "caretPositionFromPoint");
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
       type: "split-occurrence", occurrenceId: "whole", cursor: split,
     }));

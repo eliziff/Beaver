@@ -56,6 +56,23 @@ describe("Authorities citation boundary actions", () => {
       { type: "clear-pinpoint", occurrenceId: "missing" })).toThrow(/not found/u);
   });
 
+  it("keeps a reviewer's pinpoint through range edits it survives and resets to the parser's", () => {
+    const auto = add(bodyDraft(), "Bhasin v Hrynew, 2014 SCC 71 at para 33");
+    const [id] = auto.units[0].occurrenceIds, parsed = auto.occurrences[id];
+    const act = (draft: AuthoritiesDraft, action: object) => applyAuthoritiesUserAction(draft,
+      decodeAuthoritiesUserAction({ occurrenceId: id, ...action }));
+    const manual = act(auto, { type: "set-pinpoint-span", ...at("33") });
+    expect(manual.occurrences[id]).toMatchObject({ pinpointManual: true, pinpointSpan: { text: "33" } });
+    const kept = act(manual, { type: "set-citation-range", ...at("Hrynew, 2014 SCC 71 at para 33") });
+    expect(kept.occurrences[id]).toMatchObject({ pinpointManual: true, pinpointSpan: { text: "33" } });
+    const reset = act(manual, { type: "reset-pinpoint" }).occurrences[id];
+    expect(reset.pinpointManual).toBeUndefined();
+    expect([reset.pinpointSpan, reset.pinpoints]).toEqual([parsed.pinpointSpan, parsed.pinpoints]);
+    const outside = act(manual, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71") });
+    expect(outside.occurrences[id]).toMatchObject({ pinpointSpan: null, pinpoints: [] });
+    expect(outside.occurrences[id].pinpointManual).toBeUndefined();
+  });
+
   it("decodes the boundary actions the assistant sends", () => {
     expect(decodeAuthoritiesUserAction({ type: "clear-pinpoint", occurrenceId: "occ-1" }))
       .toEqual({ type: "clear-pinpoint", occurrenceId: "occ-1" });

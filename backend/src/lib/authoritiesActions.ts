@@ -346,6 +346,7 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     "Select a complete pinpoint for this authority");
   occurrence.pinpointSpan = { start: selected.start, end: selected.end, text: selected.text };
   occurrence.pinpoints = pinpointValues(pinpoints);
+  occurrence.pinpointManual = true;
   occurrence.start = Math.min(occurrence.authoritySpan.start, selected.start);
   occurrence.end = Math.max(occurrence.authoritySpan.end, selected.end);
   occurrence.text = selected.unit.text.slice(occurrence.start, occurrence.end);
@@ -358,16 +359,23 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
 }
 
 /** A whole citation selection owns its range; partially overlapped neighbours keep
- * their outside text. All replacements are validated before the host saves once. */
+ * their outside text. All replacements are validated before the host saves once. The parser
+ * re-derives the pinpoint unless a reviewer placed one that still lies inside the citation;
+ * a pinpoint reset is this edit over the citation's own range, without that exception. */
 function setCitationRange(draft: AuthoritiesDraft,
-  action: Extract<AuthoritiesUserAction, { type: "set-citation-range" }>, sources: CitationServices) {
+  action: Extract<AuthoritiesUserAction, { type: "set-citation-range" }>, sources: CitationServices,
+  reset = false) {
   const selected = selectedRange(draft, action.occurrenceId, action.start, action.end);
   if (!intersects(selected.start, selected.end, selected.occurrence))
     throw new ApplicationError(400, "Select the citation being corrected");
   const donors = selected.unit.occurrenceIds.map(id => draft.occurrences[id])
     .filter(item => item.id === action.occurrenceId || intersects(selected.start, selected.end, item));
   const replacement = manualOccurrence(draft, selected.unit, selected.start, selected.end, donors, sources);
-  replacement.occurrence.id = selected.occurrence.id;
+  const { pinpointSpan, pinpoints, pinpointManual } = selected.occurrence, next = replacement.occurrence;
+  next.id = selected.occurrence.id;
+  if (!reset && pinpointManual && pinpointSpan && pinpointSpan.start >= next.start &&
+      pinpointSpan.end <= next.end && !intersects(pinpointSpan.start, pinpointSpan.end, next.authoritySpan))
+    Object.assign(next, { pinpointSpan, pinpoints, pinpointManual });
   const replacements = [replacement];
   for (const donor of donors) {
     if (donor.id === action.occurrenceId) continue;
@@ -483,6 +491,11 @@ export function applyAuthoritiesUserAction(
   }
   if (action.type === "set-citation-range") return setCitationRange(draft, action, sources);
   if (action.type === "clear-pinpoint") return clearPinpoint(draft, action.occurrenceId);
+  if (action.type === "reset-pinpoint") {
+    const { start = 0, end = 0 } = draft.occurrences[action.occurrenceId] ?? {};
+    return setCitationRange(draft, { type: "set-citation-range", occurrenceId: action.occurrenceId,
+      start, end }, sources, true);
+  }
   if (action.type === "add-occurrence") return addOccurrence(draft, action, sources);
   if (action.type === "remove-occurrence") {
     const occurrence = draft.occurrences[action.occurrenceId];

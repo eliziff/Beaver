@@ -122,6 +122,8 @@ export type AuthorityOccurrence = {
   reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null;
   referenceKind?: "short" | "supra" | "ibid";
   pinpoints: Array<{ kind: string; text: string }>;
+  /** A reviewer placed the pinpoint; range edits keep it while it stays inside. */
+  pinpointManual?: true;
   evidenceIds: string[];
   sourceTextSha256: string;
   localOrdinal: number;
@@ -149,6 +151,7 @@ export type AuthoritiesUserAction =
   | { type: "set-citation-range"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "clear-pinpoint"; occurrenceId: string }
+  | { type: "reset-pinpoint"; occurrenceId: string }
   | { type: "add-occurrence"; unitId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }
