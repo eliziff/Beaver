@@ -33,12 +33,14 @@ import argparse
 import ast
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 import os
 
 DEFAULT_ALR = os.environ.get('ALR_QUOTE_VERIFIER_ROOT', str(Path(__file__).resolve().parents[2] / ".tmp" / "inputs" / 'default_alr'))
 DEFAULT_TOA = str(Path(__file__).resolve().parents[2] / 'AuthoritiesHelper')
+TOA_REVISION = "f6ed2216fb4565f0126262b03013fa7b87150006"
 
 UNRESOLVED = object()
 STR_METHODS = {
@@ -617,6 +619,8 @@ def main(argv=None):
                         help="ALR-Quote-Verifier repo root")
     parser.add_argument("toa_root", nargs="?", default=DEFAULT_TOA,
                         help="AuthoritiesHelper repo root")
+    parser.add_argument("--toa-ref", default=TOA_REVISION,
+                        help="historical AuthoritiesHelper revision holding the retired Python tests")
     args = parser.parse_args(argv)
     roots = {"alr": Path(args.alr_root), "toa": Path(args.toa_root)}
 
@@ -627,10 +631,19 @@ def main(argv=None):
 
     for repo, rel, kind, targets, sweep in FILES:
         path = roots[repo] / rel
-        if not path.is_file():
+        if repo == "toa":
+            # The product no longer ships these tests; the independent oracle
+            # remains reproducible from its immutable source revision.
+            source = subprocess.check_output(
+                ["git", "-C", str(roots[repo]), "show", f"{args.toa_ref}:{rel}"],
+                encoding="utf-8",
+            )
+        elif not path.is_file():
             print(f"ERROR: missing source file: {path}", file=sys.stderr)
             return 2
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        else:
+            source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
         label = f"{repo}/{Path(rel).name}"
         harvester = Harvester(kind, targets, label, capture_env=sweep)
         rows = harvester.harvest(tree)
