@@ -24,6 +24,21 @@ the latter owns project priorities and remaining gates.
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.
 
+- Use independently invented test data or identify its public source. Do not
+  reuse genuine queries, bug-report identifiers or private documents as fixtures
+  without explicit permission. Synthetic replacements must change identifying
+  URLs and locators as well as the prose.
+- Automated submissions declare `machine_test` with a run ID; missing historical
+  origin stays `unknown`. Submission origin does not establish fixture provenance.
+  Keep live-test app data and provider history separate from ordinary user data.
+- Use repository-relative paths or runtime configuration and GitHub noreply
+  attribution. Raw requests, histories, documents and receipts stay in ignored
+  `.tmp/` or private storage. Preserve third-party licenses and public-source credit.
+- Run the privacy checks in CONTRIBUTING.md before committing or publishing,
+  including the artifact check for native packages and embedded HTML releases.
+- After a privacy history rewrite, cherry-pick older work onto the cleaned branch;
+  do not merge the old history back into it.
+
 ## Validation and interface quality
 
 - Measure behavior before changing it. Native grammar/profile changes require the

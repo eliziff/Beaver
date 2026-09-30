@@ -38,6 +38,8 @@ From the repository root, select the relevant checks:
 ```sh
 node --test docs/scripts/check-docs.test.mjs
 node docs/scripts/check-docs.mjs
+python scripts/check_privacy.py --self-test
+python scripts/check_privacy.py
 npm test --prefix backend -- <focused-test-name>
 npm test --prefix frontend -- <focused-test-name>
 npm run check:source-boundaries
@@ -50,6 +52,12 @@ also runs its grammar/source guardrails. Follow each native repository's agent
 instructions for the affected feature profile. Browser/stack prerequisites are in
 [safe local testing](docs/current/safe-local-testing.md) and
 [end-to-end testing](docs/current/e2e-ci.md).
+
+Before committing, `python scripts/check_privacy.py --staged` checks staged source.
+Before publishing, `python scripts/check_privacy.py --artifact <package-or-html> ...`
+inspects archives and embedded WASM/ZIP. Source checks skip compressed media.
+These checks flag concrete paths, the known private email and private filenames;
+they do not certify fixture provenance or detect every kind of secret.
 
 For a release candidate, run both complete application test/build suites and the
 launcher-owned production smoke:
