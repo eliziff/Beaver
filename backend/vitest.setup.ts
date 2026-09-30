@@ -6,9 +6,13 @@ import { afterAll, beforeEach, expect, vi } from "vitest";
 
 vi.resetModules();
 vi.useRealTimers();
+// The application entry loads backend/.env; tests must never inherit a developer's library
+// directory or provider credentials from it.
+process.loadEnvFile = () => {};
 const environment = { ...process.env };
 const dataHome = mkdtempSync(join(tmpdir(), "beaver-test-"));
 process.env.OPEN_LEGAL_DATA_HOME = dataHome;
+delete process.env.MIKE_LOCAL_DATA_DIR;
 process.env.BEAVER_TEST_RUN_ID ??= `vitest-${randomUUID()}`;
 beforeEach(() => { process.env.BEAVER_TEST_SCENARIO = expect.getState().currentTestName?.slice(0, 300); });
 afterAll(async () => {
