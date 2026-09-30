@@ -1684,7 +1684,8 @@ function SelectField<T extends string>({ label, value, options, onChange, disabl
 function Status({ busy, busyText, status, error }: { busy: boolean; busyText: string;
   status: string; error: boolean }) {
   const visible = (busy && !!busyText) || !!status;
-  return <p className={cn(visible ? "mb-1 flex min-h-6 items-center px-1 text-sm" : "sr-only",
+  // The line keeps its height when empty so the step below never shifts as work starts and ends.
+  return <p className={cn("mb-1 flex min-h-6 items-center px-1 text-sm",
     visible && "font-medium", busy && !status && "beaver-loading-indicator",
     error ? "text-red-800" : "text-gray-600")}
     role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}>

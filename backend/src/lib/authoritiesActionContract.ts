@@ -170,7 +170,7 @@ export function decodeAuthoritiesUserAction(value: unknown): AuthoritiesUserActi
     case "set-citation-range":
     case "set-pinpoint-span": return { type, occurrenceId: text(item.occurrenceId),
       start: integer(item.start), end: integer(item.end, 1) };
-    case "clear-pinpoint": return { type, occurrenceId: text(item.occurrenceId) };
+    case "clear-pinpoint": case "reset-pinpoint": return { type, occurrenceId: text(item.occurrenceId) };
     case "add-occurrence": return { type, unitId: text(item.unitId),
       start: integer(item.start), end: integer(item.end, 1) };
     case "relink-occurrence": return { type, occurrenceId: text(item.occurrenceId),

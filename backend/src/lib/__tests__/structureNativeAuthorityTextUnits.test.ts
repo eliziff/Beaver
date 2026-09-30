@@ -126,6 +126,34 @@ it("uses the complete printed paragraph, not just its numbered first line", asyn
   expect(rect[3] - rect[1]).toBeGreaterThan(20);
 });
 
+it("locates a numeric pinpoint within a unique citation and abstains on repeated citation context", async () => {
+  const citation = "2024 SCC 1 at para 29";
+  for (const [lines, status] of [
+    [[citation, "A different number 29 appears below."], "found"],
+    [[citation, citation], "ambiguous"],
+  ] as const) {
+    const bytes = sourcePdf([...lines]), document = await structureNative().derivePdfDocument(bytes, {});
+    const result = await pdfPassageGeometry(document, bytes, [{ id: "pinpoint", locatorKind: "page",
+      locator: "1", physicalPages: [1], quoteSelections: [{ text: citation, start: 19, end: 21 }] }]);
+    expect(result.targets[0].quotes[0]).toMatchObject({ text: "29", status });
+    if (status === "found") {
+      const [rect] = result.targets[0].quotes[0].rects;
+      expect(rect[2] - rect[0]).toBeLessThan(20);
+      expect(rect[1]).toBeLessThan(85);
+    }
+  }
+});
+
+it("distinguishes printed paragraph labels from an inferred paragraph number", async () => {
+  for (const [text, printed] of [["[29] A printed numbered paragraph.", ["29"]],
+    ["Unnumbered source text has no printed paragraph label.", []]] as const) {
+    const bytes = sourcePdf(text), document = await structureNative().derivePdfDocument(bytes, {});
+    const result = await pdfPassageGeometry(document, bytes, [{ id: "paragraph", locatorKind: "paragraph",
+      locator: printed.length ? "29" : "1" }]);
+    expect(result.targets[0].printedLocators).toEqual(printed);
+  }
+});
+
 it("does not invent a paragraph when printed numbering is missing or duplicated", async () => {
   for (const [lines, status] of [
     [["[28] First paragraph with enough text.", "[30] The next paragraph with enough text."], "not_found"],

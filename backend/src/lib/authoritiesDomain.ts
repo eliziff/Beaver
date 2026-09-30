@@ -251,8 +251,8 @@ const occurrence = closed<AuthorityOccurrence>({ id: text, unitId: text, ...span
   kind: (value) => authorityKind(value) || value === "reference", citation: text,
   authorityId: nullable(text), reference: nullable(reference),
   referenceKind: maybe(oneOf(AUTHORITIES_ACTION_CHOICES.reference)),
-  pinpoints: list(50_000, pinpoint), evidenceIds: strings, sourceTextSha256: text,
-  localOrdinal: integer, reviewed: flag });
+  pinpoints: list(50_000, pinpoint), pinpointManual: maybe(literal(true)), evidenceIds: strings,
+  sourceTextSha256: text, localOrdinal: integer, reviewed: flag });
 const ledgerOccurrence = closed<AuthoritiesLedgerOccurrence>({ id: text, markerId: text,
   targetId: text, authorityKey: text,
   unit: closed<AuthoritiesLedgerOccurrence["unit"]>({ ...unitFields, sourceTextSha256: text }),
