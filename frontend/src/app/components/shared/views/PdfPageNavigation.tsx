@@ -8,6 +8,7 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
     const id = useId();
     const printedRef = useRef<HTMLInputElement>(null);
     const printed = labels?.[page - 1]?.trim() ?? "";
+    const known = labels?.map(label => label?.trim()).filter(Boolean) ?? [];
     const hasUnknownLabels = Array.from({ length: count }, (_, i) => !labels?.[i]?.trim()).some(Boolean);
     const [pdfInput, setPdfInput] = useState(String(page));
     const [printedInput, setPrintedInput] = useState(printed);
@@ -36,6 +37,7 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
             else setMatches(found);
         }
     }
+    const range = "font-normal text-gray-400 tabular-nums";
     const inputClass = "h-7 w-12 rounded bg-transparent px-1 text-center tabular-nums focus-visible:outline-2 focus-visible:outline-offset-1 disabled:opacity-50";
     return <div className="relative min-w-0 text-xs font-medium text-gray-700" onKeyDown={event => {
         if (event.key === "Escape") {
@@ -49,13 +51,14 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
                     aria-describedby={error ? id : undefined} className={`${inputClass} text-gray-950 focus-visible:outline-red-700`}
                     onChange={event => { setPdfInput(event.target.value); setError(""); setMatches([]); }}
                     onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
-                <span>of {count}</span>
+                <span className={range}>1–{count}</span>
             </label>
-            {labels?.some(label => label?.trim()) && <label className="flex items-center gap-1">Printed
+            {known.length > 0 && <label className="flex items-center gap-1">Printed
                 <input ref={printedRef} aria-label="Printed page" value={printedInput} placeholder="—" disabled={disabled}
                     aria-describedby={error ? id : undefined} className={`${inputClass} !w-16 text-gray-950 placeholder:text-gray-500 focus-visible:outline-red-700`}
                     onChange={event => { setPrintedInput(event.target.value); setError(""); setMatches([]); }}
                     onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("printed"); } }} />
+                <span className={range}>{known[0]}–{known.at(-1)}</span>
             </label>}
         </div>
         {(error || matches.length > 0) && <div className="absolute bottom-full left-0 mb-2 max-h-48 w-[min(16rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-gray-200 bg-white p-2 text-gray-900 shadow-sm">
