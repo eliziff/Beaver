@@ -127,6 +127,17 @@ it("projects queued agents into the table", async () => {
     expect(screen.getByRole("progressbar", { name: "Run progress" })).toHaveAttribute("aria-valuemax", "1");
 });
 
+it("retains the last result when a regeneration request fails", async () => {
+    mocks.getTabularReview.mockResolvedValue(fixture("done").data);
+    mocks.regenerateCell.mockRejectedValueOnce(new Error("Provider disconnected"));
+    renderReview();
+    fireEvent.click(await screen.findByRole("button", { name: "Open Term result" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled());
+    expect(screen.getByRole("region", { name: "Result details" })).toHaveTextContent("Two years");
+    expect(screen.getByRole("img", { name: "Failed" })).toBeVisible();
+});
+
 it("reruns a column one row at a time as the review goes idle", async () => {
     const first = fixture("done");
     const second = { id: "document-2", filename: "deed.pdf" } as Document;

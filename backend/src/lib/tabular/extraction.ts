@@ -239,14 +239,22 @@ export async function extractTabularAnswers(input: {
     const rejected = new Map<number, { input?: Record<string, unknown>; error: string }>();
     const runNormal = async (columns: TabularColumn[], phase: "answer" | "repair") => {
       origin = phase;
-      const attempted = new Set<number>(), active = new Set(columns.map(column => column.index)),
+      const attempted = new Set<number>(), correctionOffered = new Set<number>(),
+        active = new Set(columns.map(column => column.index)),
         pending = () => columns.filter(column => !attempted.has(column.index) && !received.has(column.index)).map(column => column.index),
         finished = () => pending().length === 0,
         deferred = (args: Record<string, unknown>, error: string): BeaverOutcome => {
           const index = Number(args.column_index), column = columns.find(value => value.index === index);
           if (column && !received.has(index) && !attempted.has(index)) {
-            attempted.add(index); rejected.set(index, { input: args, error });
+            rejected.set(index, { input: args, error });
             measure({ phase: "cell", index, origin: phase, status: "rejected", error, elapsedMs: performance.now() - started });
+            if (phase === "repair" && !correctionOffered.has(index)) {
+              correctionOffered.add(index);
+              return { result: toolText({ column_index: index, status: "retry", error,
+                instruction: "Correct this cell using the error and the supplied passage IDs, then submit_extraction again.",
+                remaining_columns: pending() }, true) };
+            }
+            attempted.add(index);
           }
           return { result: toolText({ column_index: index, status: "deferred",
             instruction: "This cell will be handled separately. Submit only the remaining cells once, then finish.",

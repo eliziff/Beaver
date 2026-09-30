@@ -443,7 +443,7 @@ export function createTabularApplication(
     for (const column of pending) {
       const key = `${item.id}:${column.index}`, current = cells.get(key);
       if (!current) return fail(404, "Cell not found");
-      const changed = await cellWrite(scope, current, "generating", null, reviewVersion, operation(current));
+      const changed = await cellWrite(scope, current, "generating", current.content, reviewVersion, operation(current));
       cells.set(key, changed);
     }
     let received: Set<number>;
@@ -484,7 +484,7 @@ export function createTabularApplication(
         const key = `${item.id}:${column.index}`, current = cells.get(key)!;
         if (current.status !== "generating") continue;
         const changed = await cellWrite(
-          scope, current, signal?.aborted ? "pending" : "error", null, reviewVersion, operation(current),
+          scope, current, signal?.aborted ? "pending" : "error", current.content, reviewVersion, operation(current),
         )
           .catch(() => null);
         if (changed) cells.set(key, changed);
@@ -493,7 +493,7 @@ export function createTabularApplication(
     }
     for (const column of pending) if (!received.has(column.index)) {
       const key = `${item.id}:${column.index}`, current = cells.get(key)!;
-      const changed = await cellWrite(scope, current, "error", null, reviewVersion, operation(current));
+      const changed = await cellWrite(scope, current, "error", current.content, reviewVersion, operation(current));
       cells.set(key, changed);
     }
   }
