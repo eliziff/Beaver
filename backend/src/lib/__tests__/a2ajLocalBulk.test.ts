@@ -16,6 +16,26 @@ afterEach(async () => {
 });
 
 describe("local A2AJ bulk data", () => {
+  it("retains the legislation publisher alongside its lookup metadata", async () => {
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-a2aj-"));
+    const filename = path.join(temporaryDirectory, "a2aj.sqlite");
+    const database = new DatabaseSync(filename);
+    try {
+      const fields = ["citation", "citation2", "name", "document_date", "url",
+        "unofficial_text", "unofficial_sections"].flatMap(field => [`${field}_en`, `${field}_fr`]);
+      database.exec(`CREATE TABLE document(id INTEGER PRIMARY KEY, doc_type, dataset,
+        ${fields.join(",")}, upstream_license);
+        INSERT INTO document(id, doc_type, dataset, citation_en, name_en, url_en, unofficial_text_en)
+        VALUES(1, 'laws', 'LEGISLATION-FED', 'RSC 1985, c F-7', 'Federal Courts Act',
+          'https://laws-lois.justice.gc.ca/eng/XML/F-7.xml', '18. Judicial review.');`);
+      process.env.MIKE_A2AJ_BULK_DB = filename;
+      const bulk = await import("../a2ajLocalBulk");
+      expect(bulk.fetchLocalA2AJDocumentsByIds({ ids: [1], docType: "laws" }).get(1))
+        .toMatchObject({ citation: "RSC 1985, c F-7", text: "18. Judicial review.",
+          publisherUrl: "https://laws-lois.justice.gc.ca/eng/XML/F-7.xml" });
+    } finally { database.close(); }
+  });
+
   it("preserves metadata language, text fallback and missing-index behavior", async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "beaver-a2aj-"));
     const filename = path.join(temporaryDirectory, "a2aj.sqlite");
