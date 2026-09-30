@@ -254,7 +254,7 @@ describe("provider PDF projection bridge", () => {
     vi.stubGlobal("fetch", fetchMock);
     const bridge = await import("../providerPdfLibraryBridge");
     await expect(bridge.downloadProviderOriginalPdf(request)).rejects.toMatchObject({
-      pageUrl: "https://publisher.example/robocop/captcha/en/query.do",
+      pageUrl: source,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const bytes = Buffer.from("%PDF-1.7 publisher original\n%%EOF\n");
@@ -267,8 +267,7 @@ describe("provider PDF projection bridge", () => {
     async (hasPdf, hasChallenge) => {
     const source = "https://decisions.fpslreb-crtespf.gc.ca/fpslreb-crtespf/d/en/item/521078/index.do";
     const candidate = "https://decisions.fpslreb-crtespf.gc.ca/fpslreb-crtespf/d/en/521078/1/document.do";
-    const challenge = "https://decisions.fpslreb-crtespf.gc.ca/robocop/captcha/en/query.do?token=example";
-    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+        const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = String(input);
       if (url === candidate) return new Response(hasChallenge
         ? '<iframe src="/robocop/captcha/en/query.do?token=example"></iframe>' : "Forbidden",
@@ -285,12 +284,12 @@ describe("provider PDF projection bridge", () => {
       source: { provider: "a2aj", id: "Example", kind: "case" as const,
         citation: "Example", collection: "fpslreb", language: "en" as const } };
     if (hasPdf && hasChallenge) await expect(bridge.downloadProviderOriginalPdf(request))
-      .rejects.toMatchObject({ pageUrl: challenge });
+      .rejects.toMatchObject({ pageUrl: source });
     else await expect(bridge.downloadProviderOriginalPdf(request)).resolves.toBeNull();
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([candidate, source]);
   });
 
-  it("opens a Decisia decision-content CAPTCHA when the guessed PDF is blocked", async () => {
+  it("opens the decision page in the browser session when decision content is blocked", async () => {
     const source = "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14385/index.do";
     const content = `${source}?iframe=true`;
     const candidate = "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/14385/1/document.do";
@@ -315,7 +314,7 @@ describe("provider PDF projection bridge", () => {
       provider: "a2aj", identity: "a2aj:en:scc:14385", sourceUrl: source,
       source: { provider: "a2aj", id: "14385", kind: "case",
         citation: "14385", collection: "scc", language: "en" },
-    })).rejects.toMatchObject({ pageUrl: content });
+    })).rejects.toMatchObject({ pageUrl: source });
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([candidate, source, content]);
   });
 

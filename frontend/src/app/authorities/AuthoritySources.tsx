@@ -106,11 +106,12 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   ocr?: SourceOcrPanel;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const styleOfCause = authority.displayName || authority.name || "";
+  const name = authority.displayName || authority.name || "";
+  const nameLabel = authority.kind === "case" ? "Style of cause" : "Title";
   const [editing, setEditing] = useState(false);
   const sources = authority.source.kind === "attached" ? authority.source.sources : [];
   const title = authorityName(authority), citationLine = citations.filter((citation) =>
-    !styleOfCause.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
+    !name.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
   const rowControl = cn(control, "w-10 justify-center px-1 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
@@ -120,8 +121,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const missingLanguage = requireLanguages && !sources.some(source => source.language === "bilingual") &&
     !(sources.some(source => source.language === "en") && sources.some(source => source.language === "fr"));
   const publisherUrl = needsPdf && (!sources.length || missingLanguage)
-    ? authority.sourceVerificationUrl : undefined;
-  const publisherCheck = !!publisherUrl && /\/robocop\/captcha\/(?:en|fr)\/query\.do(?:\?|$)/iu.test(publisherUrl);
+    ? /\/robocop\/captcha\//iu.test(authority.sourceVerificationUrl ?? "")
+      ? authority.sourceIdentity?.externalUrl ?? authority.sourceUrl
+      : authority.sourceVerificationUrl
+    : undefined;
   const fromText = sources.length ? sources.every(({ origin }) => origin === "reconstructed")
     : rebuildsFromText && authority.source.kind === "resolved";
   const missing = needsPdf && !loaded;
@@ -141,9 +144,9 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
       label: sources.map(({ filename }) => filename).join("\n") || "PDF loaded" } : null;
   const edit = () => setEditing(true);
-  const save = (name: string) => { setEditing(false);
-    if (name.trim() !== styleOfCause) onAction({ type: "rename-authority",
-      authorityId: authority.id, displayName: name.trim() || null }); };
+  const save = (value: string) => { setEditing(false);
+    if (value.trim() !== name) onAction({ type: "rename-authority",
+      authorityId: authority.id, displayName: value.trim() || null }); };
   return <article role="listitem" data-authority-id={authority.id}
     className={cn("group/row grid min-h-12 min-w-0 grid-cols-[1.5rem_1.25rem_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[30rem]/sources:grid-cols-[1.5rem_1.25rem_minmax(0,1fr)_7rem_7.5rem] @min-[44rem]/sources:grid-cols-[2.75rem_1.25rem_minmax(0,1fr)_11rem_13.75rem]",
       authority.excluded && "opacity-65")}
@@ -167,13 +170,13 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       {mark && <mark.Icon role="img" aria-label={mark.label} className={cn("h-4 w-4", mark.tone)}>
         <title>{mark.label}</title></mark.Icon>}
     </span>
-    {editing ? <StyleOfCause value={styleOfCause} onSave={save} onCancel={() => setEditing(false)} /> : <>
+    {editing ? <AuthorityName value={name} label={nameLabel} onSave={save} onCancel={() => setEditing(false)} /> : <>
       <div className="flex min-w-0 items-center gap-1">
-        {styleOfCause ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{styleOfCause}</h3>
-          : <span className="truncate text-sm italic text-gray-500">Add style of cause</span>}
-        <button type="button" disabled={busy} onClick={edit} aria-label={`Edit style of cause for ${title}`}
+        {name ? <h3 className="truncate text-sm font-medium text-gray-950" title={title}>{name}</h3>
+          : <span className="truncate text-sm italic text-gray-500">Add {nameLabel.toLocaleLowerCase()}</span>}
+        <button type="button" disabled={busy} onClick={edit} aria-label={`Edit ${nameLabel.toLocaleLowerCase()} for ${title}`}
           className={cn("shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-600 group-hover/row:opacity-100",
-            styleOfCause && "opacity-0")}><Pencil className="h-3.5 w-3.5" /></button>
+            name && "opacity-0")}><Pencil className="h-3.5 w-3.5" /></button>
       </div>
       <span className="hidden truncate text-xs font-normal text-gray-500 @min-[30rem]/sources:block"
         title={citationLine}>{citationLine}</span>
@@ -184,18 +187,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         title="Link printed in the imported document" aria-label={`Open document link for ${title}`}>
         <ExternalLink className="h-3.5 w-3.5" />Document link</a>}
       {needsPdf && (publisherUrl
-        ? <div className="flex w-28 flex-col items-center gap-1">
-            <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
-              title={publisherCheck ? "Complete publisher verification to access the PDF, then upload it here."
-                : "Download the PDF from the publisher, then upload it here."}
-              aria-label={`${publisherCheck ? "Solve CAPTCHA" : "Open publisher"} for ${title}`}
+        ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
+              title="Download the PDF from the publisher, then upload it here."
+              aria-label={`Open publisher for ${title}`}
               className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border bg-white text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}>
-              {publisherCheck ? "Solve CAPTCHA" : "Open publisher"}</a>
-            {onRetry && <button type="button" disabled={busy} onClick={onRetry}
-              aria-label={`Retry PDF download for ${title}`}
-              className="min-h-7 w-full rounded text-xs font-medium text-red-800 underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50">
-              Retry download</button>}
-          </div>
+              Open publisher</a>
         : authority.source.kind === "pending-canlii"
         ? <a href={authority.source.pdfUrl} target="_blank" rel="noopener noreferrer"
             aria-label={`CanLII PDF for ${title}`}
@@ -224,6 +220,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       <MoreActionsMenu label={`Options for ${title}`} triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600"
         items={[{ label: editableIdentity ? "Edit details" : "Edit title", disabled: busy,
           onSelect: () => { if (editableIdentity) onEditIdentity(); else edit(); } },
+          ...(publisherUrl && onRetry ? [{ label: "Retry download", disabled: busy, onSelect: onRetry }] : []),
           ...(publisherUrl && onOpen ? sources.map(source => ({
             label: `View ${sourceLanguageLabel(source.language)} PDF`, disabled: busy || !!sourceIssues[source.bindingRole],
             onSelect: () => onOpen(source.bindingRole),
@@ -248,11 +245,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   </article>;
 }
 
-function StyleOfCause({ value, onSave, onCancel }: {
-  value: string; onSave: (value: string) => void; onCancel: () => void;
+function AuthorityName({ value, label, onSave, onCancel }: {
+  value: string; label: string; onSave: (value: string) => void; onCancel: () => void;
 }) {
   const [name, setName] = useState(value), finished = useRef(false);
-  return <Input autoFocus aria-label="Style of cause" placeholder="Add style of cause" value={name}
+  return <Input autoFocus aria-label={label} placeholder={`Add ${label.toLocaleLowerCase()}`} value={name}
     onChange={(event) => setName(event.target.value)}
     onBlur={() => { if (!finished.current) { finished.current = true; onSave(name); } }}
     onKeyDown={(event) => {

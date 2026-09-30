@@ -178,6 +178,7 @@ describe("authorities import application", () => {
       fileType: "docx", bytes, modified: 1, sourceMode: "manual-originals" });
     expect(state.authorityOrder).toHaveLength(1);
     expect(state.authorities[state.authorityOrder[0]].citation).toBe("2024 ABKB 123");
+    expect(state.authorities[state.authorityOrder[0]].name).toBe("Example v Example");
     expect(state.authorities[state.authorityOrder[0]].source).toEqual({ kind: "unresolved" });
     expect(Object.values(state.occurrences).filter(({ kind }) => kind === "reference"))
       .toMatchObject([
@@ -189,6 +190,18 @@ describe("authorities import application", () => {
           pinpointSpan: { text: "11" }, authorityId: state.authorityOrder[0], reviewed: true,
           reference: { kind: "supra", targetAuthorityId: state.authorityOrder[0] } },
       ]);
+  });
+
+  it("keeps a journal's author and title separate from its journal citation", async () => {
+    const state = await importStandaloneAuthoritiesFile({ filename: "Article.docx", fileType: "docx",
+      bytes: Buffer.from("article"), modified: 1, sourceMode: "manual-originals" },
+    { read: vi.fn() as never }, scanNative([
+      'John Smith, "Judicial Review" (2020) 58:2 Alta L Rev 123 at 130.',
+    ]));
+    expect(state.authorityOrder).toHaveLength(1);
+    expect(state.authorities[state.authorityOrder[0]]).toMatchObject({ kind: "commentary",
+      name: 'John Smith, "Judicial Review"', citation: "(2020) 58:2 Alta L Rev 123" });
+    expect(Object.values(state.occurrences)[0].coreSpan?.text).toBe("(2020) 58:2 Alta L Rev 123");
   });
 
   it("keeps shared case styling within each parallel citation's own span", async () => {
