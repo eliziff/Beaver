@@ -21,6 +21,7 @@ target/
 *.tsbuildinfo
 .tmp-*
 .tmp/
+/tmp/
 .worktrees/
 next-env.d.ts
 .DS_Store
@@ -118,4 +119,3 @@ original_details.jsonl
 
 # Court-record exhibit benchmark: private records and tooling stay local.
 /benchmarks/court-record-exhibits/
-/tmp/
