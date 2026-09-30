@@ -32,8 +32,11 @@ USER_AGENT = os.environ.get(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 BeaverLegalPdfCorpus/1.0 (public legal PDF research)",
 )
 
-JURISDICTION_TARGETS = {"ca": 975, "us": 150, "uk": 225, "au": 75, "nz": 75}
-GENERATION_TARGETS = {"digitalborn": 750, "non_digital": 750}
+JURISDICTION_TARGETS = {
+    "ca": 1225, "us": 435, "uk": 260, "au": 150, "nz": 190,
+    "in": 78, "za": 255, "ie": 235, "sg": 172,
+}
+GENERATION_TARGETS = {"digitalborn": 1500, "non_digital": 1500}
 TOTAL_TARGET = sum(JURISDICTION_TARGETS.values())
 
 SOURCE_URLS = {
@@ -145,6 +148,12 @@ SOURCE_URLS = {
     "us_court_federal_claims": "https://www.uscfc.uscourts.gov/forms",
     "us_doj_civil_rights": "https://www.justice.gov/crt/cases-and-matters",
     "us_dol_litigation": "https://www.dol.gov/agencies/sol/briefs",
+    "us_govinfo_uscode": "https://www.govinfo.gov/app/collection/uscode/2023",
+    "us_govinfo_cfr": "https://www.govinfo.gov/app/collection/cfr/2020",
+    "us_govinfo_statutes": "https://www.govinfo.gov/help/statute",
+    "us_govinfo_usreports": "https://www.govinfo.gov/help/usreports",
+    "us_govinfo_usreports_granules": "https://www.govinfo.gov/help/usreports",
+    "us_supreme_opinions": "https://www.supremecourt.gov/opinions/slipopinion",
     "au_alrc": "https://www.alrc.gov.au/publications/",
     "au_accc": "https://www.accc.gov.au/publications",
     "au_solicitor_general": "https://www.ag.gov.au/about-us/who-we-are/office-solicitor-general",
@@ -197,36 +206,121 @@ SOURCE_URLS = {
     "uk_contracts_finder": "https://www.contractsfinder.service.gov.uk/Search",
     "au_tenders": "https://www.tenders.gov.au/",
     "nz_gets": "https://www.gets.govt.nz/",
+    "india_code_acts": "https://indiacode.gov.in/",
+    "india_code_rules": "https://indiacode.gov.in/",
+    "india_code_regulations": "https://indiacode.gov.in/",
+    "india_code_notifications": "https://indiacode.gov.in/",
+    "india_sci_home_documents": "https://www.sci.gov.in/",
+    "india_sci_reports": "https://www.sci.gov.in/reports/",
+    "india_sci_forms": "https://www.sci.gov.in/forms/",
+    "za_concourt_judgments": "https://collections.concourt.org.za/handle/20.500.12144/1",
+    "za_concourt_orders": "https://collections.concourt.org.za/handle/20.500.12144/1",
+    "za_concourt_submissions": "https://collections.concourt.org.za/handle/20.500.12144/1",
+    "za_concourt_case_records": "https://collections.concourt.org.za/handle/20.500.12144/1",
+    "za_concourt_hearing_lists": "https://collections.concourt.org.za/handle/20.500.12144/1",
+    "za_gov_acts": "https://www.gov.za/documents/acts",
+    "ireland_high_court_judgments": "https://www2.courts.ie/Judgments",
+    "ireland_supreme_court_judgments": "https://www2.courts.ie/Judgments",
+    "ireland_appeal_court_judgments": "https://www2.courts.ie/Judgments",
+    "ireland_other_court_judgments": "https://www2.courts.ie/Judgments",
+    "ireland_law_reform": "https://www.lawreform.ie/project-publication-by-year/",
+    "ireland_legal_archive": "https://archive.org/advancedsearch.php?q=subject%3A%22Law%20--%20Ireland%22%20AND%20mediatype%3Atexts",
+    "singapore_high_court_judgments": "https://www.elitigation.sg/gd/Home/Index?Filter=HC",
+    "singapore_appeal_court_judgments": "https://www.elitigation.sg/gd/Home/Index?Filter=HC",
+    "singapore_international_court_judgments": "https://www.elitigation.sg/gd/sic",
+    "singapore_court_forms": "https://www.judiciary.gov.sg/forms-and-fees/forms",
+    "eu_curia_digests": "https://curia.europa.eu/site/jcms/d2_5128/en/",
 }
 
 # These are intentionally ceilings rather than targets. They prevent one
 # inquiry, URL family, or semantic document kind from supplying the corpus.
 MAX_SOURCE_ACCEPTED = 80
-MAX_KIND_ACCEPTED = 40
-MAX_FALLBACK_KIND_ACCEPTED = 160
+MAX_KIND_ACCEPTED = 80
+MAX_FALLBACK_KIND_ACCEPTED = 320
 MAX_SOURCE_KIND_ACCEPTED = 12
 KIND_ACCEPTED_LIMITS = {
     # Canadiana contributes distinct scanned volumes and municipal/legal
     # records; the explicit ceiling keeps that broad archive bounded without
     # forcing the final Canadian scan quota into generic modern forms.
     "legal_monograph": 100,
+    "judgment": 800,
+    "ruling": 200,
+    "statute_compilation": 300,
+    "rules_or_regulations": 250,
+    "legal_submission": 80,
+    "court_form": 80,
+    "notice": 80,
+    "case_law_digest": 160,
 }
 SOURCE_ACCEPTED_LIMITS = {
-    "canada_commission_archive": 120,
-    "canadiana_legal_monographs": 240,
+    "canada_commission_archive": 180,
+    "canadiana_legal_monographs": 320,
+    "cullen_commission": 160,
+    "waitangi_tribunal": 200,
+    "uk_legal_monographs": 110,
+    "uk_gov_legal_workflow": 100,
+    "yukon_court_forms": 120,
+    "us_justice_employment_litigation": 100,
+    "us_govinfo_uscode": 160,
+    "us_govinfo_cfr": 120,
+    "us_govinfo_statutes": 100,
+    "us_govinfo_usreports": 100,
+    "us_govinfo_usreports_granules": 250,
+    "us_supreme_opinions": 100,
+    "za_concourt_case_records": 180,
+    "ireland_high_court_judgments": 100,
+    "ireland_law_reform": 200,
+    "ireland_legal_archive": 80,
+    "za_gov_acts": 100,
+    "singapore_high_court_judgments": 100,
+    "singapore_international_court_judgments": 100,
 }
 SOURCE_KIND_LIMITS = {
-    "canada_commission_archive": 40,
+    "canada_commission_archive": 60,
+    "cullen_commission": 20,
     "canadiana_legal_monographs": 100,
     "uk_legal_monographs": 80,
     "uk_gov_legal_workflow": 40,
-    "us_justice_employment_litigation": 20,
+    "us_justice_employment_litigation": 40,
     "us_sec_litigation": 20,
     "us_osc_public_files": 20,
+    "us_govinfo_uscode": 160,
+    "us_govinfo_cfr": 120,
+    "us_govinfo_statutes": 100,
+    "us_govinfo_usreports": 100,
+    "us_govinfo_usreports_granules": 250,
+    "us_supreme_opinions": 100,
     "cnsc_hearing_documents": 20,
     "cnsc_meeting_documents": 20,
     "crtc_legislative_review": 20,
     "saskatchewan_court_procedure": 20,
+    "waitangi_tribunal": 20,
+    "yukon_court_forms": 20,
+    "india_code_acts": 80,
+    "india_code_rules": 80,
+    "india_code_regulations": 80,
+    "india_code_notifications": 80,
+    "india_sci_home_documents": 80,
+    "india_sci_reports": 80,
+    "india_sci_forms": 80,
+    "za_concourt_judgments": 80,
+    "za_concourt_submissions": 80,
+    "za_concourt_case_records": 80,
+    "ireland_high_court_judgments": 100,
+    "ireland_supreme_court_judgments": 80,
+    "ireland_appeal_court_judgments": 80,
+    "ireland_other_court_judgments": 80,
+    "ireland_law_reform": 100,
+    "ireland_legal_archive": 80,
+    "za_gov_acts": 100,
+    "singapore_high_court_judgments": 100,
+    "singapore_appeal_court_judgments": 80,
+    "singapore_international_court_judgments": 100,
+    "singapore_court_forms": 80,
+    "ireland_high_court_judgments": 100,
+    "ireland_law_reform": 100,
+    "singapore_high_court_judgments": 100,
+    "singapore_international_court_judgments": 100,
 }
 
 SCAN_SOURCE_HINTS = frozenset({
@@ -237,6 +331,9 @@ SCAN_SOURCE_HINTS = frozenset({
     "yukon_court_forms", "toronto_zoning", "ottawa_zoning_documents",
     "vancouver_zoning_documents", "us_justice_employment_litigation",
     "canada_commission_archive", "canadiana_legal_monographs", "uk_legal_monographs",
+    "za_concourt_case_records", "za_gov_acts", "ireland_legal_archive",
+    "us_govinfo_statutes", "us_govinfo_usreports",
+    "us_govinfo_usreports_granules",
 })
 SCAN_TITLE_HINTS = (
     "scanned", "scan", "facsimile", "image-only", "image only",
@@ -260,6 +357,10 @@ SOURCE_METADATA = {
         "repository_size_signal": "Internet Archive advanced search returned 132 items for the English-law subject query during reconnaissance; discovery is restricted to bounded historical English, British, Welsh, Scottish, and Great Britain law results.",
         "size_basis": "public metadata API result count and item-level PDF file metadata",
     },
+    "us_govinfo_usreports_granules": {
+        "repository_size_signal": "Official U.S. Reports packages expose individual case granules; discovery samples ten volumes spanning 1781 to 1875.",
+        "size_basis": "GovInfo package-granule metadata API",
+    },
     "scc": {
         "repository_size_signal": "42,463 English case-page URLs were visible in the Court sitemap during reconnaissance.",
         "size_basis": "sitemap case-page count; the PDF subset is smaller and case-dependent",
@@ -279,6 +380,62 @@ SOURCE_METADATA = {
     "waitangi_tribunal": {
         "repository_size_signal": "The public Type=documents search exposed pagination through approximately 29,370 records.",
         "size_basis": "public search pagination; not every record is a PDF",
+    },
+    "india_code_acts": {
+        "repository_size_signal": "India Code exposes tens of thousands of indexed central and state legal-instrument records through its public repository API.",
+        "size_basis": "public repository search results; bounded title queries",
+    },
+    "india_code_rules": {
+        "repository_size_signal": "India Code indexes subordinate legislation, rules, regulations, notifications, orders, and circulars.",
+        "size_basis": "public repository search results; bounded title queries",
+    },
+    "india_code_regulations": {
+        "repository_size_signal": "India Code indexes subordinate legislation, rules, regulations, notifications, orders, and circulars.",
+        "size_basis": "public repository search results; bounded title queries",
+    },
+    "india_code_notifications": {
+        "repository_size_signal": "India Code indexes subordinate legislation, rules, regulations, notifications, orders, and circulars.",
+        "size_basis": "public repository search results; bounded title queries",
+    },
+    "india_sci_home_documents": {
+        "repository_size_signal": "The Supreme Court of India homepage links to official notices, updates, rules, tenders, and administrative court documents.",
+        "size_basis": "official homepage linked PDFs",
+    },
+    "ireland_law_reform": {
+        "repository_size_signal": "The Law Reform Commission publishes reports, working papers, consultation papers, and issue papers dating back to its establishment.",
+        "size_basis": "official publication-by-year index",
+    },
+    "ireland_legal_archive": {
+        "repository_size_signal": "A bounded Internet Archive query for pre-1936 Ireland-law material returned a large set of scanned books and parliamentary legal records.",
+        "size_basis": "public archive metadata search; bounded item and PDF-file crawl",
+    },
+    "za_concourt_judgments": {
+        "repository_size_signal": "The Constitutional Court repository includes case records, judgments, rolls, and filed documents from 1995 onward.",
+        "size_basis": "public court repository search API",
+    },
+    "za_concourt_orders": {
+        "repository_size_signal": "The Constitutional Court repository includes orders without hearing and other filed court records.",
+        "size_basis": "public court repository collections and search API",
+    },
+    "za_concourt_submissions": {
+        "repository_size_signal": "The Constitutional Court repository includes case records, judgments, rolls, and filed documents from 1995 onward.",
+        "size_basis": "public court repository search API",
+    },
+    "za_concourt_case_records": {
+        "repository_size_signal": "The Constitutional Court repository includes case records, judgments, rolls, and filed documents from 1995 onward.",
+        "size_basis": "public court repository search API",
+    },
+    "za_gov_acts": {
+        "repository_size_signal": "The South African Government acts index lists historical and current statutes with linked official PDFs.",
+        "size_basis": "official acts index and bounded date-ordered page crawl",
+    },
+    "za_concourt_hearing_lists": {
+        "repository_size_signal": "The Constitutional Court repository publishes forthcoming hearing lists and court-roll documents.",
+        "size_basis": "public court repository collections and search API",
+    },
+    "eu_curia_digests": {
+        "repository_size_signal": "The Court of Justice of the European Union publishes monthly case-law digests in English and French.",
+        "size_basis": "public monthly digest archive",
     },
 }
 
@@ -362,7 +519,7 @@ def slug(value: str, limit: int = 90) -> str:
 
 def is_pdf_candidate(url: str, title: str = "") -> bool:
     lowered = url.lower()
-    return ".pdf" in lowered or "documentstore.ashx" in lowered or "upload_pdf" in lowered or "/fileadmin/" in lowered or ("/file/" in lowered and "/download" in lowered and title.lower().endswith(".pdf")) or ("canadiana.ca/files/get/" in lowered and lowered.endswith("/item"))
+    return ".pdf" in lowered or lowered.rstrip("/").endswith("/pdf") or title.lower().endswith(".pdf") or "documentstore.ashx" in lowered or "upload_pdf" in lowered or "/fileadmin/" in lowered or "/sci-get-pdf" in lowered or ("/file/" in lowered and "/download" in lowered and title.lower().endswith(".pdf")) or ("canadiana.ca/files/get/" in lowered and lowered.endswith("/item"))
 
 
 def likely_non_digital(row: dict) -> bool:
@@ -371,7 +528,7 @@ def likely_non_digital(row: dict) -> bool:
 
 
 def likely_uk_legal_monograph(row: dict) -> bool:
-    """Reject obvious non-UK false positives from broad English-law searches."""
+    """Reject obvious non-UK false positives from broad UK-law searches."""
     if row.get("source") != "uk_legal_monographs":
         return True
     text = f"{row.get('title', '')} {row.get('repository_item', '')}".lower()
@@ -400,6 +557,9 @@ def source_kind_limit(source: str, kind: str) -> int:
 def infer_type(title: str, url: str = "") -> str:
     text = f"{title} {url}".lower()
     rules = (
+        ("court_decision", ("judgment", "judgement", "court decision", "court ruling", "decision of the court")),
+        ("legal_instrument", ("statute", "legislation", "act no", "act of ", "regulation", "ordinance", "bill")),
+        ("case_law_digest", ("case-law digest", "case law digest", "monthly digest")),
         ("affidavit", ("affidavit", "affirmed", "sworn")),
         ("witness_statement", ("witness statement", "witness_statement", "statement of")),
         ("brief_or_submission", ("factum", "skeleton", "submission", "submissions", "memorandum of counsel", "closing argument", "opening statement", "written argument", "outline of submissions", "brief of evidence")),
@@ -436,6 +596,7 @@ def infer_kind(title: str, url: str = "") -> str:
     if "evidence" in compact and ("hearing" in compact or "statement" in compact or "witness" in compact):
         return "evidence_record"
     rules = (
+        ("case_law_digest", ("case-law digest", "case law digest", "monthly digest")),
         ("law_report", ("law report", "law reports", "weekly notes", "weekly reporter", "report of cases", "reports of cases", "court reports", "cases adjudged", "law journal", "law review", "legal reports", "reports of decisions")),
         ("english_legal_history", ("history of the english law", "history of english law", "english law of conspiracy")),
         ("conveyancing_manual", ("conveyancing",)),
@@ -883,10 +1044,12 @@ def discover_canadiana_legal_monographs(max_pages: int) -> int:
 
 
 def discover_uk_legal_monographs(max_pages: int) -> int:
-    """Discover a bounded set of scanned historical English-law PDF volumes."""
+    """Discover a bounded set of scanned historical UK-law PDF volumes."""
     queries = (
         'subject:"English law" AND mediatype:texts AND year:[* TO 1935]',
         'subject:"Law -- Great Britain" AND mediatype:texts AND year:[* TO 1935]',
+        'subject:"Law -- Scotland" AND mediatype:texts AND year:[* TO 1935]',
+        'subject:"Law -- Wales" AND mediatype:texts AND year:[* TO 1935]',
         'title:(England OR English OR British OR Chancery OR "King s Bench") AND mediatype:texts AND year:[* TO 1935]',
         'title:("law reports" OR statutes OR commentaries) AND mediatype:texts AND year:[* TO 1935]',
     )
@@ -897,6 +1060,11 @@ def discover_uk_legal_monographs(max_pages: int) -> int:
     )
     rows: list[dict] = []
     seen_items: set[str] = set()
+    known_items = {
+        str(row.get("repository_item"))
+        for row in read_jsonl(CANDIDATES)
+        if row.get("source") == "uk_legal_monographs" and row.get("repository_item")
+    }
     for query in queries:
         for page in range(1, max_pages + 1):
             params = [
@@ -923,7 +1091,7 @@ def discover_uk_legal_monographs(max_pages: int) -> int:
                 title = str(item.get("title", "")).strip()
                 subjects = " ".join(str(value) for value in (item.get("subject") or []))
                 metadata_text = f"{title} {subjects} {item.get('creator', '')}".lower()
-                if not identifier or identifier in seen_items or not any(term in metadata_text for term in strong_uk_terms):
+                if not identifier or identifier in seen_items or identifier in known_items or not any(term in metadata_text for term in strong_uk_terms):
                     continue
                 seen_items.add(identifier)
                 metadata_url = f"https://archive.org/metadata/{quote(identifier, safe='')}"
@@ -956,7 +1124,7 @@ def discover_uk_legal_monographs(max_pages: int) -> int:
                         file_url,
                         f"{title} — {name}",
                         landing,
-                        "Publicly downloadable scanned historical English-law volume from Internet Archive; item-level rights statement and archive terms govern reuse.",
+                        "Publicly downloadable scanned historical UK-law volume from Internet Archive; item-level rights statement and archive terms govern reuse.",
                         repository_item=identifier,
                         repository_file=name,
                         repository_size=size,
@@ -967,6 +1135,79 @@ def discover_uk_legal_monographs(max_pages: int) -> int:
                 rows = []
             print(f"uk archive query {queries.index(query) + 1}/{len(queries)} page {page}/{max_pages} pdfs={page_items}", flush=True)
     return write_candidates(rows)
+
+
+def discover_ireland_legal_archive(max_pages: int) -> int:
+    queries = (
+        'subject:"Law -- Ireland" AND mediatype:texts AND year:[* TO 1935]',
+        'title:("Irish law" OR "Irish reports" OR "ancient laws of Ireland" OR "laws of Ireland" OR "Acts of Ireland") AND mediatype:texts AND year:[* TO 1935]',
+    )
+    rows: list[dict] = []
+    seen_items: set[str] = set()
+    terms = "Publicly accessible scanned Irish legal or parliamentary record from Internet Archive; consult the item-level rights statement and archive terms."
+    for query in queries:
+        for page in range(1, max_pages + 1):
+            params = [
+                ("q", query), ("fl[]", "identifier"), ("fl[]", "title"),
+                ("fl[]", "year"), ("fl[]", "creator"), ("fl[]", "subject"),
+                ("rows", "25"), ("page", str(page)), ("output", "json"),
+            ]
+            search_url = "https://archive.org/advancedsearch.php?" + urlencode(params)
+            try:
+                payload = json.loads(fetch_text(search_url, timeout=45))
+            except Exception as exc:
+                print(f"Ireland archive search page {page}/{max_pages} failed: {exc}", flush=True)
+                continue
+            documents = payload.get("response", {}).get("docs", []) or []
+            for item in documents:
+                identifier = str(item.get("identifier", "")).strip()
+                title = str(item.get("title", "")).strip()
+                subjects = " ".join(str(value) for value in (item.get("subject") or []))
+                metadata_text = f"{title} {subjects} {item.get('creator', '')}".lower()
+                if not identifier or identifier in seen_items or not any(term in metadata_text for term in ("ireland", "irish", "brehon")):
+                    continue
+                seen_items.add(identifier)
+                metadata_url = f"https://archive.org/metadata/{quote(identifier, safe='')}"
+                try:
+                    metadata = json.loads(fetch_text(metadata_url, timeout=20))
+                except Exception as exc:
+                    print(f"Ireland archive item {identifier} failed: {exc}", flush=True)
+                    continue
+                pdf_files: list[tuple[str, int]] = []
+                for file_info in metadata.get("files", []) or []:
+                    name = str(file_info.get("name", ""))
+                    file_format = str(file_info.get("format", "")).lower()
+                    if not name.lower().endswith(".pdf") or "pdf" not in file_format:
+                        continue
+                    try:
+                        size = int(file_info.get("size", 0) or 0)
+                    except (TypeError, ValueError):
+                        size = 0
+                    if size and size > 39_500_000:
+                        continue
+                    pdf_files.append((name, size))
+                if not pdf_files:
+                    continue
+                landing = f"https://archive.org/details/{quote(identifier, safe='')}"
+                lowered = title.lower()
+                legal_instrument = any(term in lowered for term in ("act", "statute", "bill", "laws of ireland"))
+                document_type = "legal_instrument" if legal_instrument else "legal_monograph"
+                kind = infer_kind(title)
+                if kind == "other":
+                    kind = "statute_compilation" if legal_instrument else "legal_monograph"
+                for name, size in sorted(pdf_files)[:8]:
+                    file_url = f"https://archive.org/download/{quote(identifier, safe='')}/{quote(name, safe='')}"
+                    rows.append(candidate(
+                        "ireland_legal_archive", "ie", file_url, f"{title} — {name}", landing, terms,
+                        document_type=document_type, kind=kind,
+                        repository_item=identifier, repository_file=name,
+                        repository_size=size, publication_year=item.get("year"),
+                    ))
+            if page % 5 == 0:
+                print(f"Ireland legal archive query {queries.index(query) + 1}/{len(queries)} page {page}/{max_pages}", flush=True)
+    added = write_candidates(rows)
+    print(f"Ireland legal archive: {len(rows)} candidate PDFs", flush=True)
+    return added
 
 
 def discover_postoffice(max_pages: int) -> int:
@@ -1974,6 +2215,42 @@ SEED_PAGES = (
         "https://www.justice.gov/crt/employment-litigation-section-cases",
         "Public US Department of Justice employment-litigation pleading or order.",
     ),
+    (
+        "india_sci_home_documents",
+        "in",
+        "https://www.sci.gov.in/",
+        "Public notice, circular, rule, tender, or administrative document published by the Supreme Court of India.",
+    ),
+    (
+        "india_sci_reports",
+        "in",
+        "https://www.sci.gov.in/reports/",
+        "Public Supreme Court of India report, manual, or legal work product.",
+    ),
+    (
+        "india_sci_forms",
+        "in",
+        "https://www.sci.gov.in/forms/",
+        "Public Supreme Court of India court form or procedural document.",
+    ),
+    (
+        "ireland_law_reform",
+        "ie",
+        "https://www.lawreform.ie/project-publication-by-year/",
+        "Public legal research or law-reform report published by the Law Reform Commission of Ireland.",
+    ),
+    (
+        "singapore_court_forms",
+        "sg",
+        "https://www.judiciary.gov.sg/forms-and-fees/forms",
+        "Public Singapore Courts form or procedural document.",
+    ),
+    (
+        "singapore_court_forms",
+        "sg",
+        "https://www.judiciary.gov.sg/miscellaneousforms",
+        "Public Singapore Courts form or procedural document.",
+    ),
 )
 
 
@@ -1992,8 +2269,441 @@ def discover_seed_pages(selected_sources: set[str] | None = None) -> int:
             lowered = url.lower()
             if not is_pdf_candidate(url, title):
                 continue
-            rows.append(candidate(source, jurisdiction, url, title, landing, terms))
+            filename = Path(urlsplit(url).path).name
+            if re.fullmatch(r"\s*(?:view|download)(?:\s*\([^)]*\))?\s*", title, re.I):
+                title = f"Supreme Court of India {source.removeprefix('india_sci_').replace('_', ' ')} ({filename})" if source.startswith("india_sci_") else filename
+            metadata: dict[str, object] = {}
+            if source == "india_sci_forms":
+                metadata.update(document_type="court_form", kind="court_form")
+            elif source == "india_sci_reports":
+                metadata["document_type"] = "work_product"
+                if infer_kind(title, url) == "other":
+                    metadata["kind"] = "research_report"
+            rows.append(candidate(source, jurisdiction, url, title, landing, terms, **metadata))
         print(f"seed page {source}: {landing}", flush=True)
+    return write_candidates(rows)
+
+
+def dspace_pdf_files(
+    base_url: str,
+    query: str,
+    max_items: int,
+    seen_items: set[str],
+    *,
+    scope: str | None = None,
+    sort: str | None = None,
+) -> list[dict]:
+    files: list[dict] = []
+    page_size = 50
+    base_url = base_url.rstrip("/")
+    for page in range((max_items + page_size - 1) // page_size):
+        endpoint = urljoin(base_url, "/server/api/discover/search/objects")
+        params: dict[str, str | int] = {"query": query, "size": page_size, "page": page}
+        if scope:
+            params["scope"] = scope
+        if sort:
+            params["sort"] = sort
+        search_url = endpoint + "?" + urlencode(params)
+        try:
+            payload = json.loads(fetch(search_url, timeout=45, max_bytes=30_000_000).decode("utf-8", "replace"))
+        except Exception as exc:
+            print(f"repository search failed ({query}, page {page}): {exc}", flush=True)
+            break
+        hits = payload.get("_embedded", {}).get("searchResult", {}).get("_embedded", {}).get("objects", [])
+        if not hits:
+            break
+        for index, hit in enumerate(hits):
+            if page * page_size + index >= max_items:
+                break
+            item = hit.get("_embedded", {}).get("indexableObject", {})
+            item_id = str(item.get("id") or item.get("uuid") or "")
+            if not item_id or item_id in seen_items:
+                continue
+            seen_items.add(item_id)
+            item_title = str(item.get("name") or "")
+            bundles_url = item.get("_links", {}).get("bundles", {}).get("href")
+            if not bundles_url:
+                continue
+            try:
+                bundles = json.loads(fetch(bundles_url + "?embed=bitstreams", timeout=45).decode("utf-8", "replace"))
+                for bundle in bundles.get("_embedded", {}).get("bundles", []):
+                    if str(bundle.get("name", "")).upper() != "ORIGINAL":
+                        continue
+                    bitstreams = bundle.get("_embedded", {}).get("bitstreams", {}).get("_embedded", {}).get("bitstreams", [])
+                    if not bitstreams:
+                        bitstreams_url = bundle.get("_links", {}).get("bitstreams", {}).get("href")
+                        if bitstreams_url:
+                            payload = json.loads(fetch(bitstreams_url, timeout=45).decode("utf-8", "replace"))
+                            bitstreams = payload.get("_embedded", {}).get("bitstreams", [])
+                    for bitstream in bitstreams:
+                        filename = str(bitstream.get("name") or "")
+                        download_url = bitstream.get("_links", {}).get("content", {}).get("href")
+                        if filename.lower().endswith(".pdf") and download_url:
+                            files.append({
+                                "item_title": item_title,
+                                "filename": filename,
+                                "url": str(download_url),
+                                "record_url": str(item.get("_links", {}).get("self", {}).get("href") or ""),
+                            })
+            except Exception as exc:
+                print(f"repository item skipped ({item_title}): {exc}", flush=True)
+            time.sleep(0.08)
+            if (page * page_size + index + 1) % 25 == 0:
+                print(f"repository search {query}: {page * page_size + index + 1}/{max_items} items", flush=True)
+        if len(hits) < page_size:
+            break
+    return files
+
+
+def discover_us_govinfo() -> int:
+    rows: list[dict] = []
+    code_landing = SOURCE_URLS["us_govinfo_uscode"]
+    code_terms = "Public federal statutory compilation published by the U.S. Government Publishing Office through GovInfo."
+    for year in (2000, 2012, 2023):
+        for title_number in range(1, 55):
+            package = f"USCODE-{year}-title{title_number}"
+            url = f"https://www.govinfo.gov/content/pkg/{package}/pdf/{package}.pdf"
+            rows.append(candidate(
+                "us_govinfo_uscode", "us", url,
+                f"United States Code {year}, Title {title_number}", code_landing, code_terms,
+                document_type="legal_instrument", kind="statute_compilation",
+                edition_year=year, title_number=title_number,
+            ))
+
+    cfr_landing = SOURCE_URLS["us_govinfo_cfr"]
+    cfr_terms = "Public Code of Federal Regulations volume published by the Office of the Federal Register and U.S. Government Publishing Office."
+    for year in (2000, 2012, 2020):
+        for title_number in range(1, 51):
+            package = f"CFR-{year}-title{title_number}-vol1"
+            url = f"https://www.govinfo.gov/content/pkg/{package}/pdf/{package}.pdf"
+            rows.append(candidate(
+                "us_govinfo_cfr", "us", url,
+                f"Code of Federal Regulations {year}, Title {title_number}, Volume 1",
+                cfr_landing, cfr_terms, document_type="rules_or_regulations",
+                kind="rules_or_regulations", edition_year=year, title_number=title_number,
+                volume_number=1,
+            ))
+
+    statutes_landing = SOURCE_URLS["us_govinfo_statutes"]
+    statutes_terms = "Public bound volume of the United States Statutes at Large published by the Office of the Federal Register and digitized by GovInfo."
+    for volume_number in range(1, 117):
+        package = f"STATUTE-{volume_number}"
+        url = f"https://www.govinfo.gov/content/pkg/{package}/pdf/{package}.pdf"
+        rows.append(candidate(
+            "us_govinfo_statutes", "us", url,
+            f"United States Statutes at Large, Volume {volume_number}",
+            statutes_landing, statutes_terms, document_type="legal_instrument",
+            kind="statute_compilation", volume_number=volume_number,
+        ))
+
+    reports_landing = SOURCE_URLS["us_govinfo_usreports"]
+    reports_terms = "Public bound volume of official U.S. Supreme Court reports published by the Reporter of Decisions and digitized by GovInfo."
+    for volume_number in range(2, 102):
+        package = f"USREPORTS-{volume_number}"
+        url = f"https://www.govinfo.gov/content/pkg/{package}/pdf/{package}.pdf"
+        rows.append(candidate(
+            "us_govinfo_usreports", "us", url,
+            f"United States Reports, Volume {volume_number}",
+            reports_landing, reports_terms, document_type="court_decision",
+            kind="judgment", volume_number=volume_number,
+        ))
+    added = write_candidates(rows)
+    print(f"GovInfo legal collections: {len(rows)} candidate URLs", flush=True)
+    return added
+
+
+def discover_usreports_granules() -> int:
+    rows: list[dict] = []
+    terms = "Official U.S. Supreme Court case published in a digitized bound volume of the United States Reports."
+    landing_base = "https://www.govinfo.gov/app/details"
+    for volume_number in (2, 10, 20, 30, 40, 50, 60, 70, 80, 90):
+        package = f"USREPORTS-{volume_number}"
+        endpoint = (
+            f"https://api.govinfo.gov/packages/{package}/granules"
+            "?offset=0&pageSize=1000&api_key=DEMO_KEY"
+        )
+        try:
+            payload = json.loads(fetch(endpoint, timeout=45).decode("utf-8", "replace"))
+        except Exception as exc:
+            print(f"GovInfo U.S. Reports metadata failed for volume {volume_number}: {exc}", flush=True)
+            continue
+        for granule in payload.get("granules", []):
+            if str(granule.get("granuleClass", "")).upper() != "CASE":
+                continue
+            granule_id = str(granule.get("granuleId") or "")
+            title = str(granule.get("title") or "")
+            if not granule_id or not title:
+                continue
+            url = f"https://www.govinfo.gov/content/pkg/{package}/pdf/{granule_id}.pdf"
+            landing = f"{landing_base}/{package}/{granule_id}"
+            rows.append(candidate(
+                "us_govinfo_usreports_granules", "us", url, title, landing, terms,
+                document_type="court_decision", kind="judgment",
+                volume_number=volume_number, decision_date=granule.get("dateIssued") or None,
+            ))
+        time.sleep(0.1)
+    added = write_candidates(rows)
+    print(f"GovInfo U.S. Reports case granules: {len(rows)} candidate URLs", flush=True)
+    return added
+
+
+def discover_us_supreme_opinions() -> int:
+    rows: list[dict] = []
+    terms = "Public U.S. Supreme Court opinion published in the Court's official slip-opinion archive."
+    for term in range(18, 26):
+        landing = f"https://www.supremecourt.gov/opinions/slipopinion/{term}"
+        try:
+            links = links_from(landing)
+        except Exception as exc:
+            print(f"Supreme Court opinion page failed: {landing}: {exc}", flush=True)
+            continue
+        for url, title in links:
+            parsed = urlsplit(url)
+            if "/opinions/" not in parsed.path.lower() or not parsed.path.lower().endswith(".pdf"):
+                continue
+            title = title or f"U.S. Supreme Court slip opinion {Path(parsed.path).name}"
+            rows.append(candidate(
+                "us_supreme_opinions", "us", url, title, landing, terms,
+                document_type="court_decision", kind="judgment", term_year=2000 + term,
+            ))
+    added = write_candidates(rows)
+    print(f"Supreme Court opinion archive: {len(rows)} direct PDF links", flush=True)
+    return added
+
+
+def discover_india_code() -> int:
+    plans = (
+        ("dc.title:Act", 60),
+        ("dc.title:Rules", 60),
+        ("dc.title:Regulations", 60),
+        ("dc.title:Notification", 60),
+    )
+    rows: list[dict] = []
+    seen_items: set[str] = set()
+    base_url = "https://indiacode.gov.in"
+    landing = "https://www.indiacode.gov.in/"
+    terms = "Public legal instrument published by the Government of India through India Code; source item and language recorded."
+    for query, limit in plans:
+        source_files = dspace_pdf_files(base_url, query, limit, seen_items)
+        print(f"India Code {query}: {len(source_files)} PDF links", flush=True)
+        for item in source_files:
+            title_text = f"{item['item_title']} {item['filename']}"
+            lowered = title_text.lower()
+            if not re.search(r"\b(act|acts|rule|rules|regulation|regulations|notification|ordinance|bill|order)\b", lowered):
+                continue
+            if re.search(r"\b(rule|rules)\b", lowered):
+                source, kind = "india_code_rules", "rules_or_regulations"
+            elif "regulation" in lowered:
+                source, kind = "india_code_regulations", "rules_or_regulations"
+            elif "notification" in lowered or re.search(r"\border\b", lowered):
+                source, kind = "india_code_notifications", "notice" if "notification" in lowered else "order"
+            else:
+                source, kind = "india_code_acts", "statute_compilation"
+            language = "hi" if re.match(r"(?i)^h", item["filename"]) else "en"
+            title = f"{item['item_title']} ({language}, {item['filename']})"
+            row = candidate(source, "in", item["url"], title, landing, terms,
+                            repository_record=item["record_url"], language=language,
+                            document_type="legal_instrument", kind=kind)
+            rows.append(row)
+    return write_candidates(rows)
+
+
+def discover_za_gov_acts(max_pages: int) -> int:
+    rows: list[dict] = []
+    terms = "Official South African Act PDF linked from the South African Government documents index; item-level terms apply."
+    for page in range(max_pages):
+        query = urlencode([
+            ("lt", ""), ("order", "field_gcisdoc_document_date"),
+            ("page", str(page)), ("sort", "asc"),
+        ])
+        landing = f"https://www.gov.za/documents/acts?{query}"
+        try:
+            links = links_from(landing, timeout=45)
+        except Exception as exc:
+            print(f"South Africa Acts page {page} failed: {exc}", flush=True)
+            continue
+        detail_pages = [
+            (url, title) for url, title in links
+            if urlsplit(url).netloc.lower().endswith("gov.za")
+            and urlsplit(url).path.startswith("/documents/")
+            and urlsplit(url).path not in ("/documents", "/documents/acts")
+            and "?" not in urlsplit(url).path
+        ]
+        found = 0
+        for detail_url, title in detail_pages:
+            try:
+                files = links_from(detail_url, timeout=30)
+            except Exception as exc:
+                print(f"South Africa Act details failed: {detail_url}: {exc}", flush=True)
+                continue
+            for url, file_title in files:
+                if not is_pdf_candidate(url, file_title):
+                    continue
+                year_match = re.search(r"\b(18|19|20)\d{2}\b", title)
+                rows.append(candidate(
+                    "za_gov_acts", "za", url, title or file_title, detail_url, terms,
+                    document_type="legal_instrument", kind="statute_compilation",
+                    edition_year=int(year_match.group(0)) if year_match else None,
+                ))
+                found += 1
+            time.sleep(0.05)
+        print(f"South Africa Acts page {page}: {found} PDF links", flush=True)
+    added = write_candidates(rows)
+    print(f"South African Government Acts: {len(rows)} candidate PDFs", flush=True)
+    return added
+
+
+def discover_south_africa_concourt() -> int:
+    rows: list[dict] = []
+    landing = "https://collections.concourt.org.za/handle/20.500.12144/1"
+    terms = "Public case record or document published by the Constitutional Court of South Africa; public repository link retained."
+    base_url = "https://collections.concourt.org.za"
+    seen_items: set[str] = set()
+    collection_ids: dict[str, str] = {}
+    try:
+        payload = json.loads(fetch(base_url + "/server/api/core/collections?size=100", timeout=45).decode("utf-8", "replace"))
+        collection_ids = {
+            str(item.get("name") or ""): str(item.get("id") or "")
+            for item in payload.get("_embedded", {}).get("collections", [])
+        }
+    except Exception as exc:
+        print(f"ConCourt collection index failed: {exc}", flush=True)
+
+    scoped_plans = (
+        ("Latest Judgments", "za_concourt_judgments", 25, "court_decision", "judgment"),
+        ("Orders Without Hearing", "za_concourt_orders", 25, "court_decision", "order"),
+        ("Cases Awaiting Judgment", "za_concourt_case_records", 50, "pleading_or_order", "case_record"),
+        ("Forthcoming Hearings", "za_concourt_hearing_lists", 25, "procedural", "court_roll"),
+    )
+    for name, source, limit, document_type, kind in scoped_plans:
+        scope = collection_ids.get(name)
+        if not scope:
+            continue
+        files = dspace_pdf_files(base_url, "*", limit, seen_items, scope=scope)
+        for item in files:
+            text = f"{item['item_title']} {item['filename']}"
+            actual_kind = infer_kind(text)
+            actual_type = infer_type(text)
+            actual_kind = actual_kind if actual_kind != "other" else kind
+            actual_type = actual_type if actual_type != "other" else document_type
+            if actual_kind == "judgment":
+                actual_source, actual_type = "za_concourt_judgments", "court_decision"
+            elif actual_kind == "order":
+                actual_source, actual_type = "za_concourt_orders", "court_decision"
+            elif actual_kind in ("legal_submission", "skeleton_argument", "factum", "closing_submission", "opening_submission"):
+                actual_source, actual_type = "za_concourt_submissions", "brief_or_submission"
+            elif source in ("za_concourt_judgments", "za_concourt_orders"):
+                actual_source = "za_concourt_case_records"
+            else:
+                actual_source = source
+            rows.append(candidate(actual_source, "za", item["url"], text, landing, terms,
+                                  repository_record=item["record_url"],
+                                  document_type=actual_type,
+                                  kind=actual_kind))
+
+    for sort in ("dc.date.issued,ASC", "dc.date.issued,DESC"):
+        files = dspace_pdf_files(base_url, "CCT", 150, seen_items, sort=sort)
+        for item in files:
+            text = f"{item['item_title']} {item['filename']}"
+            if not re.search(r"\bCCT\s*\d+\s*/\s*\d+\b", text, re.I):
+                continue
+            lowered = text.lower()
+            if "judgment" in lowered or "judgement" in lowered:
+                source, kind, document_type = "za_concourt_judgments", "judgment", "court_decision"
+            elif re.search(r"\border\b", lowered):
+                source, kind, document_type = "za_concourt_orders", "order", "court_decision"
+            elif any(term in lowered for term in ("heads of argument", "submission", "written argument")):
+                source, kind, document_type = "za_concourt_submissions", "legal_submission", "brief_or_submission"
+            else:
+                source, kind, document_type = "za_concourt_case_records", infer_kind(text), "pleading_or_order"
+                if kind == "other":
+                    kind = "case_record"
+            rows.append(candidate(source, "za", item["url"], text, landing, terms,
+                                  repository_record=item["record_url"],
+                                  document_type=document_type, kind=kind))
+    return write_candidates(rows)
+
+
+def discover_ireland_judgments(max_pages: int = 20) -> int:
+    rows: list[dict] = []
+    quiet_pages = 0
+    for page in range(max_pages):
+        landing = f"https://www2.courts.ie/Judgments?page={page}"
+        try:
+            links = links_from(landing)
+        except Exception as exc:
+            print(f"Ireland judgments page {page} failed: {exc}", flush=True)
+            continue
+        found = 0
+        for url, label in links:
+            match = re.search(r"(20\d{2})_(IEHC|IESC|IECA|IEDC|IECC)_\d+\.pdf", urlsplit(url).path, re.I)
+            if not match:
+                continue
+            filename = match.group(0)
+            court = match.group(2).upper()
+            source = {
+                "IEHC": "ireland_high_court_judgments",
+                "IESC": "ireland_supreme_court_judgments",
+                "IECA": "ireland_appeal_court_judgments",
+            }.get(court, "ireland_other_court_judgments")
+            title = label if label and len(label) > 8 else f"Ireland {court} judgment {filename}"
+            rows.append(candidate(source, "ie", url, title, landing,
+                                  "Public court judgment published by the Courts Service of Ireland.",
+                                  document_type="court_decision", kind="judgment",
+                                  court_code=court))
+            found += 1
+        quiet_pages = quiet_pages + 1 if found == 0 else 0
+        print(f"Ireland judgments page {page}: {found} PDF judgments", flush=True)
+        if quiet_pages >= 2:
+            break
+    return write_candidates(rows)
+
+
+def discover_singapore_judgments(max_pages: int = 15) -> int:
+    rows: list[dict] = []
+    roots = (
+        "https://www.elitigation.sg/gd/sic",
+        "https://www.elitigation.sg/gd/Home/Index?Filter=HC",
+    )
+    terms = "Public Singapore court judgment published by the Singapore Judiciary through eLitigation."
+    for root in roots:
+        queue = [root]
+        seen_pages: set[str] = set()
+        page_count = 0
+        while queue and page_count < max_pages:
+            landing = queue.pop(0)
+            if landing in seen_pages:
+                continue
+            seen_pages.add(landing)
+            page_count += 1
+            try:
+                links = links_from(landing)
+            except Exception as exc:
+                print(f"Singapore judgment page failed: {landing}: {exc}", flush=True)
+                continue
+            for url, label in links:
+                page_match = re.search(r"CurrentPage=(\d+)", url, re.I)
+                if page_match and int(page_match.group(1)) <= max_pages:
+                    queue.append(url)
+                    continue
+                path = urlsplit(url).path.rstrip("/")
+                case_match = re.search(r"/gd/(?:[^/]+)/((?:20\d{2})_SG[A-Z0-9]+_\d+)$", path, re.I)
+                if not case_match:
+                    continue
+                case_id = case_match.group(1)
+                if "SGCAI" in case_id or "SGHCI" in case_id:
+                    source = "singapore_international_court_judgments"
+                elif "SGCA" in case_id:
+                    source = "singapore_appeal_court_judgments"
+                else:
+                    source = "singapore_high_court_judgments"
+                pdf_url = f"https://www.elitigation.sg/gd/gd/{case_id}/pdf"
+                title = label if label and len(label) > 8 else f"Singapore court judgment {case_id}"
+                rows.append(candidate(source, "sg", pdf_url, title, landing, terms,
+                                      document_type="court_decision", kind="judgment",
+                                      neutral_citation=case_id))
+            time.sleep(0.12)
+    print(f"Singapore eLitigation pages fetched: {len(rows)} linked judgments", flush=True)
     return write_candidates(rows)
 
 
@@ -2798,6 +3508,10 @@ def discover_au_royal_commission() -> int:
 def discover_all(args: argparse.Namespace) -> None:
     ensure_dirs()
     sources = args.source
+    if sources in ("all", "us-legal"):
+        discover_us_govinfo()
+        discover_usreports_granules()
+        discover_us_supreme_opinions()
     if sources in ("all", "seeds"):
         discover_direct_pdfs()
         selected = {item.strip() for item in args.seed_sources.split(",") if item.strip()}
@@ -2824,6 +3538,22 @@ def discover_all(args: argparse.Namespace) -> None:
         discover_canadiana_legal_monographs(args.canadiana_pages)
     if sources in ("all", "internet-archive"):
         discover_uk_legal_monographs(args.internet_archive_pages)
+    if sources in ("all", "india"):
+        if sources == "india":
+            discover_seed_pages({"india_sci_home_documents", "india_sci_reports", "india_sci_forms"})
+        discover_india_code()
+    if sources in ("all", "south-africa"):
+        discover_south_africa_concourt()
+        discover_za_gov_acts(args.za_pages)
+    if sources in ("all", "ireland"):
+        if sources == "ireland":
+            discover_seed_pages({"ireland_law_reform"})
+        discover_ireland_legal_archive(args.ireland_archive_pages)
+        discover_ireland_judgments(args.ireland_pages)
+    if sources in ("all", "singapore"):
+        if sources == "singapore":
+            discover_seed_pages({"singapore_court_forms"})
+        discover_singapore_judgments(args.singapore_pages)
 
 
 def pdf_features(path: Path) -> dict:
@@ -2833,6 +3563,10 @@ def pdf_features(path: Path) -> dict:
         raise RuntimeError("PyMuPDF (fitz) is required for PDF classification") from exc
     with fitz.open(path) as document:
         page_count = len(document)
+        if page_count < 1:
+            raise ValueError("PDF has no pages")
+        if getattr(document, "is_repaired", False):
+            raise ValueError("PDF requires MuPDF structural repair")
         text_lengths: list[int] = []
         image_pages = 0
         image_coverage_pages = 0
@@ -2979,6 +3713,18 @@ def choose_candidate(
     retry_visual_ids: set[str] | None = None,
 ) -> dict | None:
     retry_visual_ids = retry_visual_ids or set()
+    failed_sources = Counter(row.get("source") for row in ledger.values() if row.get("status") == "failed")
+    def route_key(row: dict) -> tuple[str, str, str]:
+        parsed = urlsplit(row.get("url", ""))
+        parts = [part for part in parsed.path.split("/") if part]
+        if parsed.netloc.lower().endswith("govinfo.gov") and parts[:2] == ["content", "pkg"]:
+            route_parts = parts[:5] if len(parts) >= 5 and parts[3].lower() == "pdf" else parts[:3]
+        else:
+            route_parts = parts[:2]
+        return row.get("source", ""), parsed.netloc.lower(), "/".join(route_parts)
+
+    failed_routes = Counter(route_key(row) for row in ledger.values() if row.get("status") == "failed")
+    accepted_routes = Counter(route_key(row) for row in ledger.values() if row.get("status") == "accepted")
     available = [
         row for row in rows
         if row.get("jurisdiction") in JURISDICTION_TARGETS
@@ -2996,14 +3742,19 @@ def choose_candidate(
         source = row["source"]
         non_digital = source_generations[(source, "non_digital")]
         digitalborn = source_generations[(source, "digitalborn")]
-        return non_digital / max(non_digital + digitalborn, 1)
+        return non_digital / max(non_digital + digitalborn + failed_sources[source], 1)
+
+    def failure_rate(row: dict) -> float:
+        route = route_key(row)
+        failed = failed_routes[route]
+        return failed / max(failed + accepted_routes[route], 1)
 
     scan_first = prefer_scan and generations["non_digital"] < generations["digitalborn"]
     if scan_first:
         scan_available = [
             row for row in available
             if row.get("candidate_id") in retry_visual_ids
-            or (likely_non_digital(row) and source_generations[(row["source"], "non_digital")] + source_generations[(row["source"], "digitalborn")] == 0)
+            or likely_non_digital(row)
             or source_generations[(row["source"], "non_digital")] > 0
         ]
         if scan_available:
@@ -3013,7 +3764,8 @@ def choose_candidate(
     return min(
         available,
         key=lambda row: (
-            0 if scan_first and likely_non_digital(row) and source_generations[(row["source"], "non_digital")] + source_generations[(row["source"], "digitalborn")] == 0 else 1,
+            0 if scan_first and likely_non_digital(row) and source_generations[(row["source"], "non_digital")] + source_generations[(row["source"], "digitalborn")] + failed_sources[row["source"]] == 0 else 1,
+            failure_rate(row),
             -scan_rate(row) if scan_first else 0,
             sources[row["source"]] / source_limit(row["source"]),
             kinds[effective_kind(row)] / kind_limit(effective_kind(row)),
@@ -3245,6 +3997,10 @@ def verify() -> None:
         "missing_paths": [],
         "out_of_root_paths": [],
         "bad_magic": [],
+        "pdf_open_errors": [],
+        "zero_page_files": [],
+        "page_count_mismatches": [],
+        "repaired_pdfs": [],
         "byte_mismatches": [],
         "hash_mismatches": [],
         "missing_hashes": [],
@@ -3270,6 +4026,22 @@ def verify() -> None:
             integrity["missing_paths"].append(candidate_id)
             continue
         integrity["path_count"] += 1
+        try:
+            import fitz  # type: ignore
+            with fitz.open(path) as document:
+                actual_pages = len(document)
+                if actual_pages < 1:
+                    integrity["zero_page_files"].append(candidate_id)
+                try:
+                    expected_pages = int(row.get("page_count", 0))
+                except (TypeError, ValueError):
+                    expected_pages = -1
+                if actual_pages != expected_pages:
+                    integrity["page_count_mismatches"].append(candidate_id)
+                if getattr(document, "is_repaired", False):
+                    integrity["repaired_pdfs"].append(candidate_id)
+        except Exception as exc:
+            integrity["pdf_open_errors"].append({"candidate_id": candidate_id, "error": f"{type(exc).__name__}: {exc}"})
         with path.open("rb") as handle:
             magic = handle.read(4)
             digest_builder = hashlib.sha256()
@@ -3315,7 +4087,7 @@ def verify() -> None:
         not missing
         and counts["total"] == TOTAL_TARGET
         and integrity["path_count"] == counts["total"]
-        and not any(integrity[key] for key in ("missing_paths", "out_of_root_paths", "bad_magic", "byte_mismatches", "hash_mismatches", "missing_hashes", "duplicate_hashes"))
+        and not any(integrity[key] for key in ("missing_paths", "out_of_root_paths", "bad_magic", "pdf_open_errors", "zero_page_files", "page_count_mismatches", "repaired_pdfs", "byte_mismatches", "hash_mismatches", "missing_hashes", "duplicate_hashes"))
         and not any(cap_violations.values())
     )
     counts["gaps"] = missing
@@ -3343,7 +4115,7 @@ def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
     discover = sub.add_parser("discover")
-    discover.add_argument("--source", choices=("all", "seeds", "scc", "cullen", "foreign", "postoffice", "aph", "au-inquiry", "waitangi", "canada-commissions", "canada-publications", "canadiana", "internet-archive"), default="all")
+    discover.add_argument("--source", choices=("all", "seeds", "scc", "cullen", "foreign", "postoffice", "aph", "au-inquiry", "waitangi", "canada-commissions", "canada-publications", "canadiana", "internet-archive", "india", "south-africa", "ireland", "singapore", "us-legal"), default="all")
     discover.add_argument("--scc-cases", type=int, default=1200)
     discover.add_argument("--cullen-pages", type=int, default=11)
     discover.add_argument("--foreign-pages", type=int, default=12)
@@ -3353,6 +4125,10 @@ def parser() -> argparse.ArgumentParser:
     discover.add_argument("--publication-pages", type=int, default=9)
     discover.add_argument("--canadiana-pages", type=int, default=8)
     discover.add_argument("--internet-archive-pages", type=int, default=5)
+    discover.add_argument("--ireland-pages", type=int, default=20)
+    discover.add_argument("--ireland-archive-pages", type=int, default=3)
+    discover.add_argument("--za-pages", type=int, default=20)
+    discover.add_argument("--singapore-pages", type=int, default=15)
     discover.add_argument("--seed-sources", default="", help="comma-separated seed source ids to crawl")
     discover.set_defaults(func=discover_all)
     download_parser = sub.add_parser("download")

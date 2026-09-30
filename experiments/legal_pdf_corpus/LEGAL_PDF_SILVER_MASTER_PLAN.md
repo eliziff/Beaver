@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-Build machine-generated silver data for the 1,500-PDF public legal corpus and
+Build machine-generated silver data for the 3,000-PDF public legal corpus and
 use it to improve, distil, and benchmark a universal Legal PDF Parser across
 two lanes:
 
@@ -76,13 +76,17 @@ page and text anchor, not advertised as `para N`.
 
 The accepted corpus contains:
 
-- 1,500 PDFs from 84 sources;
-- 750 digital-born and 750 non-digital documents;
-- approximately 86 semantic kinds and 10 coarse document types;
-- 111,542 pages in total;
-- 24,779 digital-born pages and 86,763 non-digital pages;
-- a median of 9.5 pages, a 95th percentile above 500 pages, and a maximum of
-  1,517 pages.
+- 3,000 PDFs from 104 source lanes across nine jurisdictions;
+- 1,500 digital-born and 1,500 non-digital documents;
+- 92 semantic kinds across 14 coarse document types;
+- 191,393 pages and 10,030,759,591 bytes (10.03 GB / 9.34 GiB);
+- 63,526 digital-born pages and 127,867 non-digital pages;
+- a median of 12 pages, a 90th percentile of 149 pages, and a maximum of
+  1,672 pages;
+- 187,881 portrait, 3,494 landscape, and 18 square pages, with 12,488
+  distinct page-box sizes rounded to one point; and
+- 1,019 distinct PDF font-face names after removing embedded subset prefixes,
+  present in 2,607 documents.
 
 The corpus includes forms, notices, pleadings, affidavits, witness statements,
 briefs and submissions, judgments and orders, transcripts, exhibits,
@@ -93,9 +97,13 @@ multi-column indexes, bilingual/parallel text, transcripts with line numbers,
 dense tables and schedules, fillable/dynamic forms, rotated pages, historical
 scans, long hierarchical instruments, and mixed native/image documents.
 
-The nominal 750/750 document balance therefore cannot be used as a page-level
-training weight. Source, kind, template, generation, length, and page-layout
-families must remain visible in sampling and reporting.
+The 1,500/1,500 document balance cannot be used as a page-level training
+weight. Source, kind, template, generation, length, and page-layout families
+must remain visible in sampling and reporting. These facts describe the current
+corpus membership as of 2026-09-25. Earlier 1,500-PDF parser, OCR, and cache
+receipts are historical; they do not satisfy current whole-corpus gates. The
+expansion establishes the new acquisition denominator, not downstream parser
+or OCR completion.
 
 ## 4. Canonical document representation
 
@@ -262,7 +270,7 @@ TypeScript, qualify either:
   directly into the PDF parser where appropriate and shipped as a sidecar for
   SourceDoc/provider compilation.
 
-Choose between them using cold/warm latency, 1,500-PDF throughput, existing
+Choose between them using cold/warm latency, 3,000-PDF throughput, existing
 large-provider corpus throughput, deployment size, crash isolation, and exact
 output parity. A per-document process spawn and separately maintained Rust and
 TypeScript implementations are both disallowed. Shipping profiles are
@@ -418,14 +426,14 @@ prioritize inspection; they are not findings.
 
 ### 6.2 Audit surface
 
-Materialize the complete 750-document digital-born lane because native parsing
+Materialize the complete 1,500-document digital-born lane because native parsing
 is cheap enough to make corpus-wide failure and structure inventories useful.
 Use the deterministic 60-document digital-born portion of the representative
 120-document sample as the first intensive manual-inspection stratum, then draw
 rare-structure, diagnostic, source, kind, template, and apparent false-negative
-queues from all 750 documents. The full representative sample contains 10,435
-pages, 62 sources, 70 kinds, every coarse document type, all jurisdictions, and
-lengths from 1 to 1,517 pages.
+queues from all 1,500 documents. The former 120-document representative sample
+was drawn from the previous corpus membership and is stale; regenerate it from
+the current 3,000-PDF manifest before freezing its page/source/kind coverage.
 
 Run selected PDFs through the public `prepare` contract with no OCR and no
 external layout provider. Preserve one content-addressed cache and one atomic
@@ -772,7 +780,7 @@ Machine silver is never renamed human gold.
 
 ## 11. Phase 6: corpus-scale silver production
 
-- Run deterministic parsing and proposal generation across all 1,500 PDFs.
+- Run deterministic parsing and proposal generation across all 3,000 PDFs.
 - Run the authorized Luna teacher route across the intended full silver
   surface, preserving per-document partial results.
 - Do not let long monographs dominate training. Preserve every page in the
@@ -1164,7 +1172,7 @@ Inspected pages 1–3, 10, 35, 68, and 69.
    each structure family, recording false positives, false negatives, schema
    gaps, and abstentions here rather than treating parser counters as truth.
 6. Restore the settled Kraken `cpu_fallback` runtime contract to source, finish
-   the exact 750-document non-digital run, and resolve cache-round-trip
+   the exact 1,500-document non-digital run, and resolve cache-round-trip
    determinism separately from recognition quality.
 7. Wire the authored grammar corpus and Text-Fidelity/BLLA paragraph evidence
    through the shared contract without conflating prose boundaries with legal
@@ -1214,8 +1222,8 @@ Deliver one provider-neutral legal structure engine that:
   page detection rather than replacing them;
 - derives unnumbered prose paragraph boundaries without inventing legal
   paragraph locators;
-- materializes fast native results for all 750 digital-born PDFs and settled
-  Kraken-lite results for all 750 non-digital PDFs; and
+- materializes fast native results for all 1,500 digital-born PDFs and settled
+  Kraken-lite results for all 1,500 non-digital PDFs; and
 - runs on GPU and laptop profiles with the same source-accounting and semantic
   contract.
 
@@ -1226,7 +1234,7 @@ root-plus-subrepository production source has contracted.
 
 ### 18.2 Frozen quantitative baseline and ceilings
 
-Baseline root commit: `5d29906341d17239e5e36a5442ca665f5f2a12f0`.
+Baseline root commit: `d977d1824022d4573870898984570a456015ac6b`.
 The line receipt includes the root and every repository pinned by
 `subrepos.lock.json`; moving code into a subrepo cannot improve the number.
 Vendored and generated source remain separately classified but are also
@@ -1277,11 +1285,11 @@ the structure layer during development.
 | Complete SourceDoc provider regression suite | at most 8 s |
 | Any focused backend structure test command | at most 15 s |
 | Rust cached structure replay | at least 1,000 pages/s |
-| All 24,707 successful native pages, cached replay | at most 30 s |
+| All 63,526 native pages, cached replay | at most 30 s |
 | Text-only SourceDoc recovery | at least 50 MiB/s for each provider lane and aggregate after process warmup |
 | Kraken-lite Quality, settled GPU | at least 5.5 pages/s |
 | Kraken-lite Quality, laptop profile | at least 2.0 pages/s |
-| Selective OCR over all 750 non-digital documents on GPU | at most 60 min |
+| Selective OCR over all 1,500 non-digital documents on GPU | at most 60 min |
 
 Do not run a clean whole-workspace build during an ordinary edit. Use one
 package-scoped metadata/check command, batch edits, then link once for the final
@@ -1426,7 +1434,7 @@ per-document receipt so interruption never discards completed work.
 
 - **Result:** reuse existing strong reference/body/pair/restart/proposition
   logic through the shared engine; make only corpus-proven modest corrections.
-- **Whole-corpus proof:** all 1,500 documents after OCR materialization, plus
+- **Whole-corpus proof:** all 3,000 documents after OCR materialization, plus
   frozen 661-page journal truth, with apparatus modes reported separately.
 - **Tests:** numeric/symbolic labels, restarts, continued notes, endnotes,
   tables/forms at page bottoms, citation/paragraph collisions, crossrefs, and
@@ -1441,7 +1449,7 @@ per-document receipt so interruption never discards completed work.
 - **Result:** preserve the existing page solution and fix only confirmed edge
   cases: Roman/prefixed labels, transitions/restarts, alternating folios, and
   furniture conflicts.
-- **Whole-corpus proof:** all 1,500 PDFs have complete physical page sequences;
+- **Whole-corpus proof:** all 3,000 PDFs have complete physical page sequences;
   every printed-label transition/gap is enumerated and audited by class.
 - **Tests:** covers/front matter, Roman-to-Arabic, attachments, prefixed pages,
   missing labels, restarts, transcript folios, and false paragraph/date labels.
@@ -1466,23 +1474,23 @@ per-document receipt so interruption never discards completed work.
 
 #### Stage 8 — digital-native whole-corpus acceptance
 
-- **Result:** all 750 digital-born PDFs parse, or an ingestion failure has an
+- **Result:** all 1,500 digital-born PDFs parse, or an ingestion failure has an
   explicit recovery/failed-closed receipt; current two CanadaBuys failures are
   resolved or bounded.
-- **Whole-corpus proof:** 24,779 attempted pages, exact source accounting,
+- **Whole-corpus proof:** 63,526 attempted pages, exact source accounting,
   structure invariants, provider consumer lookups, and audited delta classes.
 - **Tests:** cached replay every edit; full extraction only at stage close.
 - **LoC:** whole-project ceilings and contraction target pass.
 - **Speed:** cached proof under 30 s; one full native extraction pass under
   12 min, resumable and parallel without duplicate outputs.
-- **Receipt:** 750 compact rows plus one phase summary.
+- **Receipt:** 1,500 compact rows plus one phase summary.
 
 #### Stage 9 — non-digital Kraken-lite materialization
 
-- **Result:** every one of the 750 non-digital PDFs is assessed; pages needing
+- **Result:** every one of the 1,500 non-digital PDFs is assessed; pages needing
   OCR use the settled Kraken-lite profile and all usable native pages remain
   native.
-- **Whole-corpus proof:** 86,763 physical pages, routing reason per page,
+- **Whole-corpus proof:** 127,867 physical pages, routing reason per page,
   model/runtime hashes, source-anchor accounting, and resumable completion.
 - **Tests:** small cross-cutting smoke before launch; recognition/segmentation
   contract, native preservation, cache replay, and interruption/resume.
@@ -1491,14 +1499,14 @@ per-document receipt so interruption never discards completed work.
   under 60 min. Reject repeated model/process startup if it threatens budget.
 - **Disk:** no copied PDFs/page images; compressed reusable OCR evidence under
   10 GiB excluding sources/models.
-- **Receipt:** 750 compact rows, atomic partial summary, and final routing/
+- **Receipt:** 1,500 compact rows, atomic partial summary, and final routing/
   throughput/artifact summary.
 
 #### Stage 10 — intentional quality improvements and machine silver
 
 - **Result:** only audit-backed structure deltas are admitted; Luna silver is
   bounded to unresolved cases and never repairs ordinary native mechanics.
-- **Whole-corpus proof:** all 1,500 documents, stratified by source, kind,
+- **Whole-corpus proof:** all 3,000 documents, stratified by source, kind,
   generation, layout, length, and hardware profile; existing human truth is
   regression-only.
 - **Tests:** consumer-level exact lookups, hierarchy, note/proposition pairs,
@@ -1514,7 +1522,7 @@ per-document receipt so interruption never discards completed work.
 
 - **Result:** old detector implementations and temporary compatibility paths
   are gone; one engine and one authored grammar corpus ship.
-- **Whole-corpus proof:** repeat provider, 750-native, 750-non-digital, grammar,
+- **Whole-corpus proof:** repeat provider, 1,500-native, 1,500-non-digital, grammar,
   source, build, binary-size, disk, and release gates from clean locked commits.
 - **Tests:** repository release checks plus the compact harness; no redundant
   full corpus copies.
@@ -1847,7 +1855,7 @@ provider blocks and anchors are always the oracle and remain byte-identical.
 #### 18.9.3 Detector deletion and ownership budget
 
 The following gross physical-line deletion ledger is pinned to design baseline
-`e111f1dce255a45249f8a45320f0cea2fa88c64f`. It names only detector/merge code,
+`f183791e39f82366064964b1af0e88101744d196`. It names only detector/merge code,
 not retained fetchers, renderers, provider ordering, native claim extraction,
 or `SourceDoc` projection:
 
@@ -1933,6 +1941,12 @@ back, a provider is below the warmed speed floor, or project LoC grows.
 
 ### 18.10 Every-local-corpus proof registry
 
+The public legal PDF corpus membership changed on 2026-09-25 from 1,500 to
+3,000 accepted documents. The prior membership manifest and every parser/OCR
+receipt tied to it are historical and must be regenerated before they can
+support a current whole-corpus claim. Acquisition verification passes for the
+new 3,000-PDF membership; downstream parser and OCR gates remain unproven.
+
 Before the first production change and again at release, the harness scans the
 known repository, subrepository, ignored benchmark, and configured local-data
 roots and writes one compact corpus registry. Each row records:
@@ -1961,11 +1975,11 @@ Known applicable local surfaces to register immediately include at least:
 
 | Surface | Known current/historical denominator | Required proof |
 | --- | ---: | --- |
-| Universal legal-PDF corpus | 1,500 PDFs: 750 digital-born + 750 non-digital | every document and physical page accounted; both lanes share semantic output contract |
-| Acquisition ledger | 4,693 rows / 1,735 accepted, but exactly 1,500 accepted rows currently map to materialized PDFs | provenance accounting only; the 235 accepted-but-unmaterialized rows cannot inflate or replace the run denominator |
-| Digital-native extraction/cache lane | 750 documents / 24,779 attempted pages; 748 documents / 24,707 pages currently materialized; two CanadaBuys failures / 72 pages | full baseline and candidate hashes; failures remain explicit and are not removed from denominator |
-| Non-digital lane | 750 documents / 86,763 physical pages; 15,795 pages are currently only a sparse-routing estimate | route every page; OCR every routed page; prove native-page preservation and exact routing denominator |
-| Deterministic cross-lane sample | 120 PDFs / 10,435 pages, but current cache has only 36 pairs / 1,627 pages and historical summary completed two | execute all 120 before making a sample claim; partial caches/summaries stay explicitly partial |
+| Universal legal-PDF corpus | Current: 3,000 PDFs (1,500 digital-born + 1,500 non-digital), 191,393 pages | every current document and physical page accounted; both lanes share semantic output contract |
+| Acquisition ledger | 7,273 attempt rows / 6,466 unique candidates / 3,000 accepted PDFs; all accepted rows map to materialized files | provenance accounting only; the acquisition verifier passes, but this does not satisfy parser/OCR gates |
+| Digital-native extraction/cache lane | Current: 1,500 documents / 63,526 pages; pre-expansion cache: 748 materialized / 24,707 pages plus two CanadaBuys failures / 72 pages | regenerate baseline and candidate hashes for current membership; old cache receipt is historical; failures remain explicit |
+| Non-digital lane | Current: 1,500 documents / 127,867 physical pages; 43,558 pages are a text-sparsity routing estimate | route every page; OCR every routed page; prove native-page preservation and exact routing denominator |
+| Deterministic cross-lane sample | Previous sample: 120 PDFs / 10,435 pages; its cache has 36 pairs / 1,627 pages and historical summary completed two | regenerate the 120-PDF sample from current membership and execute all before making a sample claim; old partial caches stay historical |
 | Public cache-contract PDFs | 8 PDFs / 425 pages, all locally present | cold/warm/prepare/selected-page/lookup/corrupt-cache/source-identity parity through a new batched gate; the old 4,127.5 s / 14,264-call method is rejected as too slow |
 | Historical frozen journal qualification | 1,024 articles / 27,391 pages / 8,192 product sidecars, not currently materialized | historical evidence only until exact source inputs are local again; it cannot be a current release pass |
 | Historical external digital-born qualification | 29 URL rows and prior 1,445-page / 232-sidecar results, but source PDFs are not local | historical evidence only; URLs are not runnable corpus bytes |
