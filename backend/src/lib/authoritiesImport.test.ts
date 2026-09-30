@@ -224,6 +224,21 @@ describe("authorities import application", () => {
     ]);
   });
 
+  it("starts a case name after the pinpoint of the reference before it", async () => {
+    const text = "Campbell, supra note 1 at para 43. R v Lukacs, 2021 BCSC 1769 at para 40.";
+    const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [
+      new Paragraph(text),
+    ] }] }));
+    const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx",
+      fileType: "docx", bytes, modified: 1 });
+    const unit = state.units.find(({ text: value }) => value === text)!;
+    expect(unit.occurrenceIds.map((id) => state.occurrences[id]).map(
+      ({ text: value, pinpointSpan }) => [value, pinpointSpan?.text])).toEqual([
+      ["supra note 1 at para 43", "43"],
+      ["R v Lukacs, 2021 BCSC 1769 at para 40", "40"],
+    ]);
+  });
+
   it("finds ordinary references through a real PDF projection", async () => {
     const pdf = await PDFDocument.create(), page = pdf.addPage(),
       font = await pdf.embedFont(StandardFonts.Helvetica);
