@@ -182,10 +182,6 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         title={citationLine}>{citationLine}</span>
     </>}
     <div className="col-span-3 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1">
-      {authority.sourceUrl && <a href={authority.sourceUrl} target="_blank" rel="noopener noreferrer"
-        className={cn(rowControl, "inline-flex items-center gap-1 rounded-md border text-gray-800 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-600")}
-        title="Link printed in the imported document" aria-label={`Open document link for ${title}`}>
-        <ExternalLink className="h-3.5 w-3.5" />Document link</a>}
       {needsPdf && (publisherUrl
         ? <a href={publisherUrl} target="_blank" rel="noopener noreferrer"
               title="Download the PDF from the publisher, then upload it here."
