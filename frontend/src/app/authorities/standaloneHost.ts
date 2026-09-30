@@ -150,7 +150,6 @@ const recognitionJobs = new Map<string, RecognitionJob>();
 
 export const standaloneAuthoritiesHost: AuthoritiesHost = {
   prepareAnnotations,
-  readSourceText: sourceText,
   sourceOcr: {
     async start(id, roles, pages, scannedPages) {
       const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
@@ -317,11 +316,13 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     return new Blob([saved.bytes.slice().buffer], { type: saved.output.mimeType });
   },
   readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
-  async readSourceText(draft, role, signal) {
+  readSourceText: sourceText,
+  async readSourcePageLabels(draft, role, signal) {
     const file = await resolveExact(draft.state.bindings[role]);
     const form = new FormData(); form.append("file", file, file.name);
     form.append("draft", JSON.stringify(draft.state)); form.append("bindingRole", role);
-    return (await runtimeResponse("page-labels", form, false, signal)).json();
+    const { pageLabels } = await (await runtimeResponse("page-labels", form, false, signal)).json();
+    return pageLabels;
   },
   async inspectDraft(draft) {
     const role = Object.keys(draft.outputs)[0];

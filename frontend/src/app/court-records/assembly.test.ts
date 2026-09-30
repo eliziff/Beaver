@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import { readFile } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFRawStream,
   StandardFonts } from "pdf-lib";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { buildCourtRecord } from "./assembly";
 import { COURT_PROFILES, COURT_PROFILE_BY_ID } from "./profiles";
 import type { CourtProfile, CoverValues, RecordEntry } from "./types";
@@ -103,8 +104,13 @@ function profileCover(profile: CourtProfile): CoverValues {
   };
 }
 
+beforeAll(async () => {
+  const { GlobalWorkerOptions } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  GlobalWorkerOptions.workerSrc = pathToFileURL(resolve("node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")).href;
+});
+
 const pdfJsOptions = {
-  standardFontDataUrl: resolve("node_modules/pdfjs-dist/standard_fonts") + sep,
+  standardFontDataUrl: resolve("node_modules/pdfjs-dist/standard_fonts").replaceAll("\\", "/") + "/",
 };
 
 async function pdfText(bytes: Uint8Array, pageNumber = 1) {
@@ -161,7 +167,8 @@ async function firstPageFill(bytes: Uint8Array) {
   const document = await getDocument({ data: bytes, ...pdfJsOptions }).promise;
   const operators = await (await document.getPage(1)).getOperatorList();
   const index = operators.fnArray.indexOf(OPS.setFillRGBColor);
-  return index < 0 ? [] : Array.from(operators.argsArray[index] as Uint8Array);
+  const color = operators.argsArray[index]?.[0] as string | undefined;
+  return color?.match(/[a-f0-9]{2}/giu)?.map(value => Number.parseInt(value, 16)) ?? [];
 }
 
 async function pageTextLayout(bytes: Uint8Array, pageNumber: number) {

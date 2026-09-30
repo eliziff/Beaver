@@ -1,7 +1,6 @@
 import { createPdfSession, type PdfSession, PDF_ZOOM_MIN as ZOOM_MIN, PDF_ZOOM_MAX as ZOOM_MAX, PDF_ZOOM_STEP as ZOOM_STEP } from '../../../../../../shared/pdf/viewer';
 import "pdfjs-dist/web/pdf_viewer.css";
 import "../../../../../../shared/pdf/pdfTextLayer.css";
-import "../loading.css";
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
     type MouseEvent as ReactMouseEvent } from "react";
 import { Loader2, ZoomIn, ZoomOut } from "lucide-react";

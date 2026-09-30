@@ -9,6 +9,7 @@ import { authoritiesTextRoles, authorityPassageRequests, authorityPassageTargets
 import { createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
+import { fit } from "./authoritiesBook";
 
 async function sourcePdf(label: string, sizes: Array<[number, number]>) {
   const pdf = await PDFDocument.create();
@@ -161,11 +162,14 @@ function draft(
 }
 
 describe("Authorities output builder", () => {
-  it("renders publisher text containing Unicode punctuation", async () => {
-    const bytes = await renderAuthoritySourcePdf({ kind: "case", name: "A ‑ B",
+  it("renders publisher text containing Unicode punctuation and multiline titles", async () => {
+    const bytes = await renderAuthoritySourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
       citation: "2026 SCC 16", date: null, sourceUrl: null,
       text: "The Court said “source text” — not source metadata." });
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+    const document = await PDFDocument.load(bytes);
+    expect(document.getPageCount()).toBe(1);
+    const font = await document.embedFont(StandardFonts.Helvetica);
+    expect(fit(font, "A ‑ B\r\nSecond\tline", 12, 400)).toBe("A - B Second line");
   });
 
   it("uses a corrected manual PDF identity in the generated book index", async () => {
@@ -756,7 +760,8 @@ describe("Authorities output builder", () => {
       workProduct: { id: "missing-source", revision: 1 }, sources });
     const placeholderBook = await PDFDocument.load(placeholder.artifacts.book!.bytes);
     expect(placeholderBook.getPageCount()).toBe(5);
-    expect(placeholderBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(3);
+    expect(placeholderBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).asArray()
+      .filter(ref => placeholderBook.context.lookup(ref, PDFDict).has(PDFName.of("Dest"))).length).toBe(3);
     expect(pageContent(placeholderBook, placeholderBook.getPage(3)).toUpperCase()).toContain(
       Buffer.from("Source PDF unavailable", "latin1").toString("hex").toUpperCase(),
     );
@@ -770,7 +775,8 @@ describe("Authorities output builder", () => {
       workProduct: { id: "missing-source", revision: 2 }, sources });
     const omitBook = await PDFDocument.load(omitResult.artifacts.book!.bytes);
     expect(omitBook.getPageCount()).toBe(4);
-    expect(omitBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).size()).toBe(2);
+    expect(omitBook.getPage(1).node.lookup(PDFName.of("Annots"), PDFArray).asArray()
+      .filter(ref => omitBook.context.lookup(ref, PDFDict).has(PDFName.of("Dest"))).length).toBe(2);
     expect(omitBook.getPage(3).getSize()).toEqual({ width: 400, height: 500 });
     expect(omitResult.receipt.authorities.find(({ id }) => id === "fca")?.tab)
       .toBe("Tab 2");

@@ -134,14 +134,7 @@ export function createDocumentsRouter(
       ...(source.pdfProfile ? { cacheKey: source.pdfProfile.cacheKey } : {}),
     }, { pdfProfile: source.pdfProfile, pages: requestedPages, signal: abort.signal });
     res.setHeader("Cache-Control", "private, no-store");
-    let citations: string[] = [];
-    try {
-      citations = z.array(z.string().max(2000)).max(50).parse(
-        req.query.citations ? JSON.parse(z.string().max(100_000).parse(req.query.citations)) : []);
-    } catch { reject(400, "Invalid citation context"); }
-    const pageMap = await documentProjectionService.pdfPagination({ ...source,
-      reporterOriginal: req.query.reporter_original === "1" }, citations);
-    res.json({ pages, pageLabels: pageMap.map(entry => entry.label), pageMap });
+    res.json({ pages });
   }));
 
   router.get("/:documentId/pdf-page-labels", asyncRoute(async (req, res) => {
@@ -149,7 +142,15 @@ export function createDocumentsRouter(
       ?? reject(404, "Document version not found");
     if (source.fileType !== "pdf") reject(400, "Page labels require a PDF");
     res.setHeader("Cache-Control", "private, no-store");
-    const pageMap = await documentProjectionService.pdfPagination(source);
+    if (req.query.source_sha256 !== undefined && req.query.source_sha256 !== source.sourceSha256)
+      reject(409, "This PDF changed. Relink the source before editing highlights.");
+    let citations: string[] = [];
+    try {
+      citations = z.array(z.string().max(2000)).max(50).parse(
+        req.query.citations ? JSON.parse(z.string().max(100_000).parse(req.query.citations)) : []);
+    } catch { reject(400, "Invalid citation context"); }
+    const pageMap = await documentProjectionService.pdfPagination({ ...source,
+      reporterOriginal: req.query.reporter_original === "1" }, citations);
     res.json({ pageLabels: pageMap.map(entry => entry.label), pageMap });
   }));
 

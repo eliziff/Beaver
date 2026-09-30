@@ -156,7 +156,9 @@ export function attachPdfTextSelection(scroller: HTMLElement, enabled: () => boo
         range.compareBoundaryPoints(Range.START_TO_END, previous) === 0);
         let anchor: Node | null = modifyStart ? range.startContainer : range.endContainer;
         if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode;
-        const layer = (anchor as Element | null)?.parentElement?.closest<HTMLElement>(".pdf-text-layer");
+        const layer = (anchor as Element | null)?.closest<HTMLElement>(".pdf-text-layer");
+        // Keep the selection sentinel outside nested citation and quote highlights.
+        while (anchor && layer && anchor.parentNode !== layer) anchor = anchor.parentNode;
         const end = layer?.querySelector<HTMLElement>(":scope .endOfContent");
         if (layer && end && anchor) {
         end.style.width = layer.style.width; end.style.height = layer.style.height;

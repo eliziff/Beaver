@@ -113,8 +113,8 @@ describe("DOCX evidence citations", () => {
 
     expect(ledger).toMatchObject({
       schemaVersion: "beaver.authority-ledger.v1",
-      seeds: [{ key: "2026scc1", evidenceIds: ["e_paragraph_5"] }],
-      occurrences: [{ markerId: "rule", authorityKey: "2026scc1",
+      seeds: [{ key: "3:neutral:2026:scc:1", evidenceIds: ["e_paragraph_5"] }],
+      occurrences: [{ markerId: "rule", authorityKey: "3:neutral:2026:scc:1",
         unit: { id: "body:0", text: "The rule applies. Example v State, 2026 SCC 1 at para 5" },
         text: "Example v State, 2026 SCC 1 at para 5", displayedForm: "full",
         evidenceIds: ["e_paragraph_5"] }],

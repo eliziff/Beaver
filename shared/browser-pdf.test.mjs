@@ -15,7 +15,10 @@ test('opening concurrent documents preserves caller bytes across worker transfer
 });
 
 test('host assets are loaded without eval and missing decoders fail explicitly', async () => {
-  const runtime = createPdfRuntime({GlobalWorkerOptions: {}, PDFWorker: class {destroy() {}}}, {
+  const runtime = createPdfRuntime({GlobalWorkerOptions: {}, PDFWorker: class {
+    promise = Promise.resolve();
+    destroy() {}
+  }}, {
     fileOrigin: false, workerUrl: '/pdf.worker.mjs',
     decoders: {'jbig2.wasm': 'data:application/wasm;base64,AAE='},
   });

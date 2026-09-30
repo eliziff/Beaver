@@ -1,5 +1,6 @@
 import { legalSourceOperations } from "../legalSourceApplication";
 import crypto from "node:crypto";
+import type { ExtractResponse } from "legal-citations";
 
 import {
   a2ajLegalSourceProvider,
@@ -791,14 +792,17 @@ export function legalEvidenceProseIntegrityErrors(text: string,
   const named = new Map<string, Set<string>>();
   // One scan for the whole draft: rescanning per citation made the check quadratic.
   const quoted = native.markedQuoteSpans(text);
-  for (const citation of native.citationOccurrencesInText(text).filter((citation) =>
-    !quoted.some((quote) => citation.start >= quote.start && citation.end <= quote.end))) {
-    const key = native.citationLookupKey(citation.coreCitation.text), labels = named.get(key) ?? new Set<string>();
-    const paragraphs = citation.pinpoints.filter(({ kind }) => kind === "paragraph");
+  const extracted = native.citationEngineCall("extract", JSON.stringify({
+    text, offsetUnit: "utf16", options: { resolve: false },
+  })) as ExtractResponse;
+  for (const citation of extracted.citations.filter((citation) =>
+    !quoted.some((quote) => citation.span.start >= quote.start && citation.span.end <= quote.end))) {
+    const key = citation.key ?? native.citationLookupKey(citation.span.text), labels = named.get(key) ?? new Set<string>();
+    const paragraphs = (citation.pinpoints ?? []).filter(({ kind }) => kind === "paragraph");
     if (!paragraphs.length) continue;
     named.set(key, labels);
     paragraphs.forEach((point) => {
-      const first = point.first ?? point.text, last = point.last ?? first;
+      const first = point.first ?? point.span.text, last = point.last ?? first;
       const start = Number(first), end = Number(last);
       // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
       if (Number.isSafeInteger(start) && end >= start && end - start < 60)

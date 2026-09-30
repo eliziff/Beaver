@@ -77,7 +77,7 @@ describe("Authorities edits report their own delta", () => {
       citation: "2016 SCC 27", authority_span: { ...at("R v Jordan, 2016 SCC 27"),
         text: "R v Jordan, 2016 SCC 27" } }] });
     expect(removal.authorities_removed).toEqual([
-      { id: "2016scc27", label: "R v Jordan, 2016 SCC 27" }]);
+      { id: "3:neutral:2016:scc:27", label: "R v Jordan, 2016 SCC 27" }]);
 
     const survivors = tools.occurrenceIds();
     const addition = await tools.edit({ type: "add-occurrence", unitId: "body:7",
@@ -85,9 +85,9 @@ describe("Authorities edits report their own delta", () => {
     const added = tools.occurrenceIds().find((id) => !survivors.includes(id));
     expect(addition).toMatchObject({ type: "add-occurrence", changed: [{
       occurrence_id: added, unit_id: "body:7", status: "added",
-      citation: "2016 SCC 27", authority_id: "2016scc27" }] });
+      citation: "2016 SCC 27", authority_id: "3:neutral:2016:scc:27" }] });
     expect(addition.authorities_added).toEqual([
-      { id: "2016scc27", label: "R v Jordan, 2016 SCC 27" }]);
+      { id: "3:neutral:2016:scc:27", label: "R v Jordan, 2016 SCC 27" }]);
   });
 
   it("reports an empty change list when the edit moved nothing", async () => {

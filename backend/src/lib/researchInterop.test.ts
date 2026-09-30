@@ -56,6 +56,42 @@ async function fixture() {
   }
   return { runtime, documents, tables, sources, chats, research, legal, labelId, typeId, sourceId, receipts, chat, act, turn, file: () => file };
 }
+it.each([false, true])("records research reads without losing edit ownership (concurrent human edit: %s)", async (humanEdit) => {
+  const f = await fixture(), { createChatToolRunner } = await import("./chat/chatToolRunner"),
+    { TurnToolRegistry } = await import("./chat/toolRegistry"),
+    { resourceReference, parseResourceReference } = await import("./resourceReferences"),
+    evidence = f.legal.createLegalEvidenceTurnState(), turnId = randomUUID(),
+    context = { evidence, research: {}, operation: { executor: "assistant" as const, model: "test-model", turnId },
+      addEvent() {} },
+    runner = createChatToolRunner({ userId: owner.userId, documents: f.documents, sources: f.sources,
+      library: await f.runtime.library(), projects: await f.runtime.projects(),
+      workProducts: await f.runtime.workProducts(), authorities: await f.runtime.authoritiesWorkspace(),
+      includeResearchTools: true, model: "test-model", turnId, onMutationCommitted() {},
+      onResearchWorkspace: (id) => f.sources.collect(owner, id, { evidence: [f.receipts[0]] }) }),
+    registry = new TurnToolRegistry(runner.createTools(evidence, "main", context));
+  const [created] = await registry.run([{ id: "create", name: "document_operation", input: {
+    action: "research", research_action: { type: "create", title: "Observed research" } } }], context),
+    id = (parseResourceReference(JSON.parse(created.content).resource) as { documentId: string }).documentId,
+    original = (await f.sources.get(owner, id))!,
+    resource = resourceReference.document(id, original.versionId);
+  await registry.run([{ id: "read", name: "Read", input: { file_path: resource } }], context);
+  if (humanEdit) await f.sources.update(owner, id, { versionId: original.versionId,
+    workingRevision: original.workingRevision, action: { type: "label", name: "Human classification", scope: "source" } });
+  f.legal.registerLegalEvidence(evidence, f.receipts[0]);
+  runner.observeResearch(await f.sources.observe(owner, id, f.legal.legalEvidenceReceiptEvent(evidence)!, context.operation));
+  const [edited] = await registry.run([{ id: "label", name: "document_operation", input: {
+    action: "research", document_id: resource,
+    research_action: { type: "label", name: "Assistant classification", scope: "source" } } }], context),
+    saved = (await f.sources.get(owner, id))!;
+  expect((await f.sources.items(owner, id, { kind: "evidence", offset: 0, limit: 50 })).total).toBe(1);
+  if (humanEdit) {
+    expect(edited.status).toBe("error");
+    expect(Object.values(saved.state.labels).map(({ name }) => name)).toEqual(["Human classification"]);
+  } else {
+    expect(edited.status).toBe("ok");
+    expect(Object.values(saved.state.labels).map(({ name }) => name)).toEqual(["Assistant classification"]);
+  }
+});
 it("files a chat's cited passage under every reviewed concept and undoes the whole proposal", async () => {
   const f = await fixture(); await f.turn("How do these duties interact?", "The provisions are read together.", f.receipts[0]);
   const { researchImportCatalog } = await import("./tabular/researchImport"), file = f.file(),

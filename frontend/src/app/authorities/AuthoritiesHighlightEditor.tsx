@@ -89,7 +89,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const [choices] = useState(initialChoices);
   const [role, setRole] = useState(choices[0].bindingRole);
   const [documents, setDocuments] = useState<Record<string,OpenPdf>>({});
-  const [pdf, setPdf] = useState<{ role: string; bytes: Uint8Array } | null>(null);
+  const [pdf, setPdf] = useState<{ role: string; bytes: Uint8Array; pageLabels?: Array<string | null> } | null>(null);
   const [tool, setTool] = useState<AnnotationTool>('select');
   const [highlightSelection, setHighlightSelection] = useState(0);
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -145,6 +145,9 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
       abort.signal.throwIfAborted();
       if (hash !== source.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
       setPdf({role, bytes});
+      void host.readSourcePageLabels?.(base, role, abort.signal).then(pageLabels => {
+        if (!abort.signal.aborted) setPdf(current => current?.role === role ? { ...current, pageLabels } : current);
+      }).catch(() => { /* Unknown labels retain physical navigation. */ });
       const loaded = readDocument(role);
       setLoading(false);
       if (loaded && loaded.review !== 'preparing') return;
@@ -267,7 +270,7 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(16rem,1fr)_minmax(8rem,.45fr)] md:grid-cols-[minmax(0,1fr)_19rem] md:grid-rows-1">
           <div className="flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {pdf ? <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
-              loading={loading} loadRecognizedText={pdf.role === role && host.readSourceText ? loadRecognizedText : undefined}
+              loading={loading} pageLabels={pdf.pageLabels} loadRecognizedText={pdf.role === role && host.readSourceText ? loadRecognizedText : undefined}
               annotationEditor={{marks: pdf.role === role ? marks : [],tool,selectedId,focus,highlightSelection,disabled: disabled || pdf.role !== role,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);

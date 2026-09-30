@@ -563,7 +563,7 @@ async function paginationFor(document: NativeDocument, bytes: Buffer, citations:
   const native = structureNative(), starts = reporterOriginal ? reporterStartPages(citations) : [];
   let observed = native.pdfPageLabels(document);
   if (starts.length && !observed.some(label => label && starts.includes(Number(label)))) {
-    const recognized = native.pdfRecognizedText(document);
+    const recognized = native.pdfRecognizedText(document) ?? [];
     const opening = Array.from({ length: Math.min(3, observed.length) }, (_, index) => index + 1);
     const raw = await native.pdfPassageGeometryPages(document, bytes,
       [{ id: "opening-folios", locatorKind: "page", locator: "", physicalPages: opening }]);

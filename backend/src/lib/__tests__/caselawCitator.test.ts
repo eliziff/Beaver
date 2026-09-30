@@ -5,27 +5,8 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 
-/**
- * Drives the REAL build script (scripts/build_citator_graph.py) over a tiny
- * fixture via its --jsonl input mode, then reads the product surface
- * (src/lib/caselawCitator.ts) plus a few edge-level rows straight from the
- * built SQLite. Nothing touches the network or the real corpus (resolution
- * is skipped by design in jsonl mode, so the French-twin/parallel-citation
- * union stays off and the literal-key behavior is what gets asserted).
- *
- * The rows are synthetic, but their column names and value shapes mirror the
- * real A2AJ cases parquet files (dataset, citation_en/_fr, citation2_en/_fr,
- * name_en/_fr, document_date_en/_fr, url_en/_fr, unofficial_text_en/_fr,
- * cases_cited_en, cases_citing_en), probed with duckdb over the local
- * SCC/FC/ONCA families on
- * 2026-07-28 - including the corpus habit of opening every text with a
- * header that repeats the decision's own citation. Carter v. Canada is real
- * ("2015 SCC 5", parallel report "[2015] 1 SCR 331"), which keeps the
- * non-conflation assertions honest: the S.C.R. form and French twin of the
- * SAME decision sit beside the neutral citation and must still be distinct
- * keys, because only corpus resolution evidence (absent here) may union
- * them.
- */
+/** The real graph builder over synthetic JSONL. Versioned citation identities unite
+ * bilingual spellings; reporter parallels stay distinct without provider evidence. */
 const fixtureRows: Array<Record<string, unknown>> = [
   {
     // The cited case itself: its only occurrences are its own header
@@ -64,7 +45,7 @@ const fixtureRows: Array<Record<string, unknown>> = [
       "2015 SCC 5, [2015] 1 S.C.R. 331, requires a demonstrated " +
       "deprivation of the right to life, liberty or security of the " +
       "person.\n" +
-      "[3] Carter, 2015 SCC 5, instructs at para 86 that the claimant " +
+      "[3] Carter, 2015 SCC 5 at para 86, instructs that the claimant " +
       "bears that burden throughout the proceeding.\n" +
       "[4] The applicants also invoke Miranda v. Arizona, 384 U.S. 436 " +
       "(1966), but that American authority does not assist them here.\n" +
@@ -76,7 +57,7 @@ const fixtureRows: Array<Record<string, unknown>> = [
   {
     // French-only row: text/citation/date/url all fall back to the _fr
     // columns, and the French neutral citation "2015 CSC 5" is its own
-    // distinct key - never silently folded into "2015 SCC 5".
+    // same authority key as the English spelling "2015 SCC 5".
     dataset: "FC",
     citation_fr: "2021 CF 200",
     name_fr: "Tremblay c. Canada (Procureur général)",
@@ -129,7 +110,7 @@ describe("caselaw citator note-up graph", () => {
     const citator = await import("../caselawCitator");
     expect(
       citator.citationLookupKey("R v Tak, 2005 BCCA 293 at para 4"),
-    ).toBe("2005bcca293");
+    ).toBe("3:neutral:2005:bcca:293");
     expect(() =>
       citator.citationLookupKey("2015 SCC 5 and 2019 SCC 5"),
     ).toThrow(/multiple citations/u);
@@ -143,8 +124,7 @@ describe("caselaw citator note-up graph", () => {
       const input = path.join(temporaryDirectory, "cases.jsonl");
       const database = path.join(temporaryDirectory, "noteup.sqlite");
       // Hermetic alias behavior: without this, a locally installed A2AJ bulk
-      // index unions Carter's French-twin/reporter keys via the provider lane
-      // and the literal-key assertions below stop holding.
+      // index also joins Carter's reporter parallel through provider evidence.
       process.env.MIKE_A2AJ_BULK_DB = path.join(temporaryDirectory, "absent-bulk.sqlite");
       await writeFile(
         input,
@@ -178,8 +158,11 @@ describe("caselaw citator note-up graph", () => {
       const citator = await import("../caselawCitator");
 
       const noteUp = citator.noteUpCitations({ citation: "2015 SCC 5" });
-      expect(noteUp).toMatchObject({ total: 2 });
+      expect(noteUp).toMatchObject({ total: 3 });
       expect(noteUp!.entries).toMatchObject([
+        { citation: "2021 CF 200", name: fixtureRows[2].name_fr,
+          court: "FC", date: "2021-03-15", paragraph: null, occurrences: 1,
+          citedAs: "2015 CSC 5", excerpt: expect.stringContaining("norme constitutionnelle") },
         {
           citation: "2020 FC 100",
           name: "Doe v. Canada (Citizenship and Immigration)",
@@ -217,25 +200,25 @@ describe("caselaw citator note-up graph", () => {
       });
       // The citing list hangs off the decision, so every one of the
       // decision's own citation keys reaches it - the French twin included -
-      // while citingInCorpus stays keyed to the literal queried form.
+      // while citingInCorpus shares the same bilingual authority key.
       expect(
         citator.noteUpCitations({ citation: "2015 CSC 5" })!.provider,
       ).toEqual({
-        citingInCorpus: 0,
+        citingInCorpus: 1,
         citingReported: ["2018 ONCA 50", "2020 FC 100", "2023 ABKB 999"],
       });
       expect(
         citator.noteUpCitations({ citation: "384 US 436" })!.provider,
       ).toEqual({ citingInCorpus: 0, citingReported: [] });
 
-      // Punctuation/whitespace variants of one form share a key...
-      expect(citator.noteUpCitations({ citation: "2015 S.C.C. 5" })!.entries).toHaveLength(2);
-      expect(citator.noteUpCitations({ citation: "2015   SCC  5" })!.entries).toHaveLength(2);
+      // Whitespace variants share a neutral identity; unregistered dotted courts do not.
+      expect(citator.noteUpCitations({ citation: "2015 S.C.C. 5" })!.entries).toHaveLength(0);
+      expect(citator.noteUpCitations({ citation: "2015   SCC  5" })!.entries).toHaveLength(3);
       // A capped page still reports the true total — the bug that made a
       // full-corpus Vavilov note-up look like 10 citing cases.
       const capped = citator.noteUpCitations({ citation: "2015 SCC 5", size: 1 });
-      expect(capped!.entries).toMatchObject([{ citation: "2020 FC 100" }]);
-      expect(capped!.total).toBe(2);
+      expect(capped!.entries).toMatchObject([{ citation: "2021 CF 200" }]);
+      expect(capped!.total).toBe(3);
       expect(
         citator.noteUpCitations({
           citation: "2015 SCC 5",
@@ -257,7 +240,7 @@ describe("caselaw citator note-up graph", () => {
           citation: "2015 SCC 5",
           courtCode: "fc",
         }),
-      ).toMatchObject({ total: 1, entries: [{ citation: "2020 FC 100" }] });
+      ).toMatchObject({ total: 2, entries: [{ citation: "2021 CF 200" }, { citation: "2020 FC 100" }] });
       expect(
         citator.noteUpCitations({
           citation: "2015 SCC 5",
@@ -285,21 +268,9 @@ describe("caselaw citator note-up graph", () => {
           citation: "2015 SCC 5",
           sort: "most_discussed",
         })!.entries.map((entry) => entry.citation),
-      ).toEqual(["2020 FC 100", "2018 ONCA 50"]);
-      // ...but distinct forms are distinct nodes. Without resolution
-      // evidence the French twin finds only French-keyed edges, and the
-      // S.C.R. parallel citation only its own occurrences.
-      expect(citator.noteUpCitations({ citation: "2015 CSC 5" })!.entries).toMatchObject([
-        {
-          citation: "2021 CF 200",
-          name: "Tremblay c. Canada (Procureur général)",
-          court: "FC",
-          date: "2021-03-15",
-          paragraph: null,
-          citedAs: "2015 CSC 5",
-          excerpt: expect.stringContaining("norme constitutionnelle"),
-        },
-      ]);
+      ).toEqual(["2020 FC 100", "2018 ONCA 50", "2021 CF 200"]);
+      // Bilingual spellings share an authority; reporter parallels need independent evidence.
+      expect(citator.noteUpCitations({ citation: "2015 CSC 5" })!.entries).toEqual(noteUp!.entries);
       expect(
         citator.noteUpCitations({ citation: "[2015] 1 S.C.R. 331" })!.entries,
       ).toMatchObject([{ citation: "2020 FC 100", citedAs: "[2015] 1 S.C.R. 331" }]);
@@ -323,12 +294,12 @@ describe("caselaw citator note-up graph", () => {
         "",
       ];
       expect(citator.citationAliasKeysBatch(batchInputs)).toEqual([
-        ["2015scc5"],
-        ["2015scc5"],
-        ["2015csc5"],
-        ["20151scr331"],
-        ["384us436"],
-        ["nocitationhere"],
+        ["3:neutral:2015:scc:5"],
+        ["3:reporter:unknown:scc:2015:5"],
+        ["3:neutral:2015:scc:5"],
+        ["3:reporter:scr:scr:2015:1:331"],
+        ["3:reporter:us:us:384:436"],
+        [],
         [],
       ]);
       expect(citator.citationAliasKeysBatch([])).toEqual([]);
@@ -337,8 +308,8 @@ describe("caselaw citator note-up graph", () => {
       // court level (ONCA level 4 outranks FC level 3), prose windows
       // extracted by the excerpt classifier, sha receipts over the text.
       const profile = citator.noteUpAnalysis({ citation: "2015 SCC 5" })!;
-      expect(profile.totalCiters).toBe(2);
-      expect(profile.judicialDiscussion).toHaveLength(2);
+      expect(profile.totalCiters).toBe(3);
+      expect(profile.judicialDiscussion).toHaveLength(3);
       expect(profile.judicialDiscussion[0]).toMatchObject({
         citingCitation: "2018 ONCA 50",
         citingCourt: "ONCA",
@@ -368,12 +339,9 @@ describe("caselaw citator note-up graph", () => {
       // No journal commentary DB installed -> the source reports null,
       // never an empty count that would read as "looked and found nothing".
       expect(profile.commentary).toBeNull();
-      // The French twin profiles only French-keyed citing prose.
       const frenchProfile = citator.noteUpAnalysis({ citation: "2015 CSC 5" })!;
-      expect(frenchProfile.totalCiters).toBe(1);
-      expect(frenchProfile.judicialDiscussion[0].text).toContain(
-        "norme constitutionnelle",
-      );
+      expect(frenchProfile.totalCiters).toBe(3);
+      expect(frenchProfile.judicialDiscussion).toEqual(profile.judicialDiscussion);
 
       // Journal commentary source (pair_journal_footnotes.py schema): a
       // paired note's proposition sentence joins the profile as an
@@ -410,9 +378,9 @@ describe("caselaw citator note-up graph", () => {
           (2, 1, '2', 1, 'paired', '3', '3', 'See Carter.', 'x', 0,
            'Implications for Medical Practice 245 Conclusion 249', 'y', NULL);
         INSERT INTO note_citation VALUES
-          (1, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, 'par86'),
-          (2, 1, 'neutral', '2015 SCC 5', '2015scc5', NULL, NULL),
-          (1, 2, 'neutral', '2019 SCC 5', '2019scc5', NULL, NULL);
+          (1, 1, 'neutral', '2015 SCC 5', '3:neutral:2015:scc:5', NULL, 'par86'),
+          (2, 1, 'neutral', '2015 SCC 5', '3:neutral:2015:scc:5', NULL, NULL),
+          (1, 2, 'neutral', '2019 SCC 5', '3:neutral:2019:scc:5', NULL, NULL);
       `);
       commentary.close();
       process.env.MIKE_JOURNAL_COMMENTARY_DB = commentaryDb;
@@ -420,7 +388,7 @@ describe("caselaw citator note-up graph", () => {
         citation: "2015 SCC 5",
       })!;
       expect(withCommentary.commentary).toEqual({ considered: 2, rejected: 1 });
-      expect(withCommentary.judicialDiscussion).toHaveLength(2);
+      expect(withCommentary.judicialDiscussion).toHaveLength(3);
       expect(withCommentary.journalAnalysis).toHaveLength(1);
       const commentaryCandidate = withCommentary.journalAnalysis![0];
       expect(commentaryCandidate).toMatchObject({
@@ -452,10 +420,10 @@ describe("caselaw citator note-up graph", () => {
 
       // Typed refusals when nothing survives normalization.
       expect(() => citator.noteUpCitations({ citation: "" })).toThrow(
-        /citation is required/u,
+        /no citation was found/u,
       );
       expect(() => citator.noteUpCitations({ citation: "??? ---" })).toThrow(
-        /citation is required/u,
+        /no citation was found/u,
       );
 
       // Edge-level facts straight from the built database: paragraph
@@ -468,7 +436,7 @@ describe("caselaw citator note-up graph", () => {
             `SELECT case_doc.citation AS citing, edge.paragraph, edge.pinpoints,
                     edge.cited_short
              FROM edge JOIN case_doc ON case_doc.id = edge.case_id
-             WHERE edge.cited_key = '2015scc5'
+             WHERE edge.cited_key = '3:neutral:2015:scc:5'
              ORDER BY case_doc.id, edge.text_offset`,
           )
           .all();
@@ -480,6 +448,7 @@ describe("caselaw citator note-up graph", () => {
             cited_short: "Carter v. Canada (Attorney General)",
           },
           { citing: "2020 FC 100", paragraph: 3, pinpoints: "par86" },
+          { citing: "2021 CF 200", paragraph: null, pinpoints: null },
           { citing: "2018 ONCA 50", paragraph: null, pinpoints: null },
         ]);
         expect(
@@ -494,14 +463,14 @@ describe("caselaw citator note-up graph", () => {
             )
             .all(),
         ).toMatchObject([
-          { case_id: 1, direction: "citing", citation: "2020 FC 100", citation_key: "2020fc100" },
-          { case_id: 1, direction: "citing", citation: "2018 ONCA 50", citation_key: "2018onca50" },
-          { case_id: 1, direction: "citing", citation: "2023 ABKB 999", citation_key: "2023abkb999" },
-          { case_id: 2, direction: "cited", citation: "2015 SCC 5", citation_key: "2015scc5" },
-          { case_id: 2, direction: "cited", citation: "2019 SCC 5", citation_key: "2019scc5" },
+          { case_id: 1, direction: "citing", citation: "2020 FC 100", citation_key: "3:neutral:2020:fc:100" },
+          { case_id: 1, direction: "citing", citation: "2018 ONCA 50", citation_key: "3:neutral:2018:onca:50" },
+          { case_id: 1, direction: "citing", citation: "2023 ABKB 999", citation_key: "3:neutral:2023:abkb:999" },
+          { case_id: 2, direction: "cited", citation: "2015 SCC 5", citation_key: "3:neutral:2015:scc:5" },
+          { case_id: 2, direction: "cited", citation: "2019 SCC 5", citation_key: "3:neutral:2019:scc:5" },
         ]);
         // Every case's own citation keys are recorded - Carter carries all
-        // four forms (neutral, French twin, S.C.R., R.C.S.).
+        // two authorities across four bilingual citation forms.
         expect(
           graph
             .prepare(
@@ -509,10 +478,8 @@ describe("caselaw citator note-up graph", () => {
             )
             .all(),
         ).toMatchObject([
-          { citation_key: "20151rcs331" },
-          { citation_key: "20151scr331" },
-          { citation_key: "2015csc5" },
-          { citation_key: "2015scc5" },
+          { citation_key: "3:neutral:2015:scc:5" },
+          { citation_key: "3:reporter:scr:scr:2015:1:331" },
         ]);
         expect(
           graph.prepare("SELECT value FROM meta WHERE key = 'source'").get(),
@@ -642,7 +609,7 @@ describe("caselaw citator note-up graph", () => {
            'The Court recognized that the presumptive ceiling governs delay.',
            'y', NULL);
         INSERT INTO note_citation VALUES
-          (1, 1, 'neutral', '2016 SCC 27', '2016scc27', NULL, NULL);
+          (1, 1, 'neutral', '2016 SCC 27', '3:neutral:2016:scc:27', NULL, NULL);
       `);
       commentary.close();
       process.env.MIKE_JOURNAL_COMMENTARY_DB = commentaryDb;
@@ -717,11 +684,11 @@ describe("caselaw citator note-up graph", () => {
     );
     const citator = await import("../caselawCitator");
     expect(citator.noteUpCitations({ citation: "2015 SCC 5" })).toBeNull();
-    // With both exact-identity indexes absent, keep literal normalized keys.
+    // With both provider indexes absent, retain valid engine identities and reject prose.
     const inputs = ["2015 SCC 5", "prose that keys anyway", "  -- "];
     expect(citator.citationAliasKeysBatch(inputs)).toEqual([
-      ["2015scc5"],
-      ["prosethatkeysanyway"],
+      ["3:neutral:2015:scc:5"],
+      [],
       [],
     ]);
   });

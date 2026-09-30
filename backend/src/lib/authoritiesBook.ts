@@ -223,6 +223,7 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
 }
 
 export function fit(font: PdfFont, value: string, size: number, width: number) {
+  value = pdfText(value).replace(/\s+/gu, " ").trim();
   if (font.widthOfTextAtSize(value, size) <= width) return value;
   let text = value;
   while (text && font.widthOfTextAtSize(`${text}…`, size) > width) text = text.slice(0, -1);
@@ -231,7 +232,7 @@ export function fit(font: PdfFont, value: string, size: number, width: number) {
 
 export const pdfNormalized = (value: string) => value.normalize("NFKC")
   .replace(/[\u2018\u2019]/gu, "'").replace(/[\u201c\u201d]/gu, '"')
-  .replace(/[\u2013\u2014]/gu, "-").replace(/\u2026/gu, "...");
+  .replace(/[\u2010-\u2014]/gu, "-").replace(/\u2026/gu, "...");
 
 export const pdfText = (value: string) =>
   pdfNormalized(value).replace(/[^\x09\x0a\x0d\x20-\x7e\xa0-\xff]/gu, "?");

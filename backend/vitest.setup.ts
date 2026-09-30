@@ -8,7 +8,10 @@ vi.useRealTimers();
 const environment = { ...process.env };
 const dataHome = mkdtempSync(join(tmpdir(), "beaver-test-"));
 process.env.OPEN_LEGAL_DATA_HOME = dataHome;
-afterAll(() => {
+afterAll(async () => {
+    // Module isolation does not close the process-wide SQLite worker.
+    await (await vi.importActual<typeof import("./src/lib/relationalDatabase")>(
+        "./src/lib/relationalDatabase")).closeRelationalDatabase();
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();

@@ -181,7 +181,7 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
   const value = draft.settings.tableLocation === "pages" ? pages
     : draft.settings.tableLocation === "pinpoints" ? pinpoints
       : [pages, pinpoints].filter(Boolean).join("; ");
-  return value || "â€”";
+  return value || "—";
 }
 
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
@@ -261,7 +261,7 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
             new Paragraph({ children: entry.sourceUrl ? [new ExternalHyperlink({
               link: entry.sourceUrl, children: [new TextRun({ text: "Open source",
                 style: "Hyperlink", size: 19 })],
-            })] : [new TextRun({ text: "â€”", size: 19 })] }),
+            })] : [new TextRun({ text: "—", size: 19 })] }),
           ] }),
         ] })),
       ] }));
@@ -377,7 +377,7 @@ export async function renderAuthoritySourcePdf(input: {
       size: 8, font: sans, color: pdf.rgb(.4, .4, .4) });
   });
   document.setTitle(title); document.setSubject(citation); document.setCreator("Beaver");
-  document.setProducer("Beaver Â· pdf-lib"); document.setCreationDate(new Date(0));
+  document.setProducer("Beaver · pdf-lib"); document.setCreationDate(new Date(0));
   document.setModificationDate(new Date(0));
   return Buffer.from(await document.save({ useObjectStreams: false }));
 }
@@ -604,7 +604,7 @@ async function prepareAuthorityBook(
     ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
   const bookTitle = profile.bookTitle ??
     (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
-  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT â€” incomplete sources Â· " : "") +
+  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : "") +
     (draft.cover.title || bookTitle);
   if (federal && !draft.bookParts.cover && !role) {
     throw new Error("Choose who is filing the Federal Court book.");

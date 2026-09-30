@@ -251,7 +251,7 @@ export async function resolveAuthoritiesSources(
   }
   for (const authorityId of new Set(prepared.map(item => item.authorityId))) {
     const blocked = prepared.find(item => item.authorityId === authorityId && item.verificationUrl);
-    draft = update(draft, { type: "set-source-verification", authorityId,
+    editor.apply({ type: "set-source-verification", authorityId,
       pageUrl: blocked?.verificationUrl ?? null });
   }
   // One CanLII handoff rule for every case left without bytes, whichever

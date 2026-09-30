@@ -951,7 +951,7 @@ ${registeredWorkflow.skill_md}` : "",
             ...(tabularReviewId ? { reviewId: tabularReviewId } : {}) },
           onResearchObserved: async (receipt, operation) => {
             const current = await currentWorkspace();
-            if (current) await deps.sources.observe(auth, current.document.id, receipt, operation);
+            if (current) localTools.observeResearch(await deps.sources.observe(auth, current.document.id, receipt, operation));
           },
           emit: (event) => {
             sink.emit(event);

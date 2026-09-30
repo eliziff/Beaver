@@ -184,8 +184,9 @@ describe("SQLite relational repository contract", () => {
     const documents = createDocumentApplication(documentRepository,
       objects.filesystemDocumentObjects());
     const worker = queue.startJobWorker(pdfJobHandlers(documents));
+    let selective!: Awaited<ReturnType<typeof documents.create>>;
     try {
-      const selective = await documents.create(owner, { filename: "selective.pdf",
+      selective = await documents.create(owner, { filename: "selective.pdf",
         fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nselective") });
       const full = await documents.create(owner, { filename: "full.pdf",
         fileType: "pdf", bytes: Buffer.from("%PDF-1.7\nfull") });
@@ -199,5 +200,19 @@ describe("SQLite relational repository contract", () => {
           ]));
       }, { timeout: 3_000, interval: 10 });
     } finally { await worker.stop(); }
+    const { enqueuePdfReprocess } = await import("../pdfJobs");
+    const { relationalDatabase, sql } = await import("../relationalDatabase");
+    const document = selective;
+    const pending = await enqueuePdfReprocess({ userId: owner.userId, documentId: document.id,
+      versionId: document.current_version_id, sourceSha256: document.source_sha256,
+      ocrProvider: "kraken-lite" });
+    await expect(documents.parseStates(owner, [document.id])).resolves.toMatchObject([
+      { parse_state: { status: "queued", page_count: 4 } }]);
+    await queue.requestJobCancellation(pending.id, owner.userId);
+    await expect(documents.parseStates(owner, [document.id])).resolves.toMatchObject([
+      { parse_state: { status: "cancelled", page_count: 4 } }]);
+    await (await relationalDatabase()).query(sql`UPDATE application_jobs SET status='failed' WHERE id=${pending.id}`);
+    await expect(documents.parseStates(owner, [document.id])).resolves.toMatchObject([
+      { parse_state: { status: "failed", page_count: 4 } }]);
   });
 });

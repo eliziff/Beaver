@@ -121,15 +121,18 @@ function remoteDatabase() {
 }
 
 let active: Promise<RelationalDatabase> | undefined;
-export const relationalDatabase = () => active ??=
-  Promise.resolve(isLocalRuntime()
-    ? (localState.relational ??= createSqliteWorker(path.join(mikeLocalDataHome(), "application.sqlite"))) : remoteDatabase());
+export const relationalDatabase = () => isLocalRuntime()
+  ? Promise.resolve(localState.relational ??= createSqliteWorker(path.join(mikeLocalDataHome(), "application.sqlite")))
+  : active ??= Promise.resolve(remoteDatabase());
 
 export async function closeRelationalDatabase() {
   const current = active;
   active = undefined;
-  if (current) await (await current).close();
-  localState.native?.close();
-  localState.native = undefined;
+  const local = localState.relational, native = localState.native;
+  // Detach before draining: another module must not acquire a connection being closed.
   localState.relational = undefined;
+  localState.native = undefined;
+  try {
+    await Promise.all([current?.then((database) => database.close()), local?.close()]);
+  } finally { native?.close(); }
 }

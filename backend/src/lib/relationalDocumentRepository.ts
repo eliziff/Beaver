@@ -61,7 +61,10 @@ const pdfParseState = (row: Row): DocumentParseState | null => {
   const pages = Array.isArray(progress.pages) ? progress.pages
     .filter((page): page is number => Number.isInteger(page) && page > 0)
     .slice(0, 32) : undefined;
-  const detail = { ...(phase ? { phase } : {}), ...(pages ? { pages } : {}) };
+  const detail = { ...(phase ? { phase } : {}), ...(pages ? { pages } : {}),
+    // An unfinished recognition job does not invalidate the retained PDF profile.
+    ...(stored && Number.isSafeInteger(row.pdf_page_count) && Number(row.pdf_page_count) > 0
+      ? { page_count: Number(row.pdf_page_count) } : {}) };
   if (status === "queued") return { status, ...detail };
   if (status === "running") return { status: "parsing", ...detail };
   if (status === "cancelled") return {

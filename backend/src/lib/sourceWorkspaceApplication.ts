@@ -67,17 +67,20 @@ export function createSourceWorkspaceApplication(documents: DocumentStore, depen
     return priorLegalEvidenceReceipts(events).filter(({ evidence_id }) => ids.has(evidence_id))
       .flatMap((receipt) => researchReferenceFromEvidence(receipt) ?? []);
   };
-  async function collect(scope: Scope, id: string, input: Observations, actor?: Operation): Promise<ResearchFile> {
+  async function merge(scope: Scope, id: string, input: Observations, actor?: Operation) {
     const queries = input.queries?.map((query) => "sourceIds" in query ? query : researchQueryReceipt(query));
     for (let attempt = 0; attempt < 10; attempt++) {
       const current = await required(scope, id), saved = await commitResearchFile(documents, scope, current,
         { type: "merge", ...input, queries }, undefined, operation(actor));
-      if (saved) return saved;
+      if (saved) return { previous: current, file: saved };
     }
     return conflict("The workspace changed. Try this operation again.");
   }
+  async function collect(scope: Scope, id: string, input: Observations, actor?: Operation): Promise<ResearchFile> {
+    return (await merge(scope, id, input, actor)).file;
+  }
   async function observe(scope: Scope, id: string, event: LegalEvidenceReceiptEvent, actor?: Operation) {
-    return collect(scope, id, { evidence: event.evidence, queries: event.queries, sources: groundedSources([event]),
+    return merge(scope, id, { evidence: event.evidence, queries: event.queries, sources: groundedSources([event]),
       ...(actor?.chatId ? { chats: [actor.chatId] } : {}), ...(actor?.reviewId ? { tables: [actor.reviewId] } : {}) }, actor);
   }
   async function create(scope: Scope, input: { title: string; projectId?: string | null; folderId?: string | null } & Observations,

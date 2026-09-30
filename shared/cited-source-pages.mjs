@@ -1,3 +1,5 @@
+import { resolvePrintedPages } from "./pdf-page-binding.mjs";
+
 export function citedSourcePages(draft, authorityId, pages,
   pageLabels, pageCount = pages.length, geometry) {
   const authority = draft.authorities[authorityId];
@@ -7,15 +9,7 @@ export function citedSourcePages(draft, authorityId, pages,
   const result = new Set();
   for (const { kind, label } of locators) {
     if (kind === "page") {
-      const [firstText = "0", lastText] = [...label.matchAll(/\d+/gu)].map(([value]) => value);
-      const first = Number(firstText);
-      // A shortened end ("138-39") keeps the start's leading digits: 138 to 139.
-      const last = lastText === undefined ? first : Number(lastText) >= first ? Number(lastText)
-        : Number(firstText.slice(0, Math.max(0, firstText.length - lastText.length)) + lastText);
-      for (let number = first; number <= Math.max(first, last); number += 1) {
-        if (pageLabels) pageLabels.get(String(number))?.forEach((index) => result.add(index));
-        else if (number > 0 && number <= pageCount) result.add(number - 1);
-      }
+      if (pageLabels) resolvePrintedPages(label, pageLabels, pageCount).forEach(index => result.add(index));
     }
     // A paragraph the geometry could not place still has a page: the one whose
     // text prints its number. That page carries the mark instead of nothing.

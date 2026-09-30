@@ -98,7 +98,7 @@ it("returns judicial and journal analysis as separate attributed lanes", { timeo
        'The Court recognized that the presumptive ceiling governs delay.',
        'y', NULL);
     INSERT INTO note_citation VALUES
-      (1, 1, 'neutral', '2016 SCC 27', '2016scc27', NULL, 'par1');
+      (1, 1, 'neutral', '2016 SCC 27', '3:neutral:2016:scc:27', NULL, 'par1');
   `);
   commentary.close();
   process.env.MIKE_JOURNAL_COMMENTARY_DB = commentaryDb;
