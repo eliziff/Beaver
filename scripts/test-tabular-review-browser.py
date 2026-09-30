@@ -4,15 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import runpy
 import tempfile
+from functools import partial
 from pathlib import Path
 
 from selenium.webdriver import ActionChains, Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-chrome = runpy.run_path(str(Path(__file__).with_name("test-authorities-browser.py")))["chrome"]
+from browser_helpers import chrome, visible as wait_visible, click_text as click_button, api, upload as upload_text
 
 
 def main():
@@ -27,33 +27,10 @@ def main():
         driver = chrome(Path(profile), args.headed)
         wait = WebDriverWait(driver, 60)
 
-        def visible(selector, root=None):
-            return wait.until(lambda page: next((node for node in (root or page).find_elements(
-                By.CSS_SELECTOR, selector) if node.is_displayed()), None))
-
-        def click_text(text, root=None):
-            xpath = f".//button[normalize-space()='{text}' or @aria-label='{text}']"
-            node = wait.until(lambda page: next((item for item in (root or page).find_elements(By.XPATH, xpath)
-                if item.is_displayed()), None))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'})", node)
-            node.click()
-            return node
-
-        def request(method, path, body=None):
-            result = driver.execute_async_script("""const [method,path,body,done]=arguments;
-fetch(path,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined})
-  .then(async r=>done({status:r.status,value:await r.json().catch(()=>null)})).catch(e=>done({error:String(e)}));""",
-                method, path, body)
-            assert result.get("status") in (200, 201, 204), {"path": path, "result": result}
-            return result.get("value")
-
-        def upload(filename, text):
-            result = driver.execute_async_script("""const [name,text,done]=arguments;
-const form=new FormData();form.append('file',new File([text],name,{type:'text/plain'}));
-fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>done({status:r.status,value:await r.json()}))
-  .catch(e=>done({error:String(e)}));""", filename, text)
-            assert result.get("status") == 201, result
-            return result["value"]
+        visible = partial(wait_visible, driver, By.CSS_SELECTOR, timeout=60)
+        click_text = partial(click_button, driver, timeout=60)
+        request = partial(api, driver)
+        upload = partial(upload_text, driver)
 
         def screenshot(name):
             driver.save_screenshot(str(args.output / name))

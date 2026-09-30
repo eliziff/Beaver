@@ -63,50 +63,40 @@ function Invoke-Step([string]$Name, [scriptblock]$Action, [switch]$KeepGoing) {
     $script:StepLog = Join-Path $RunDirectory "$slug.log"
     Set-Content -LiteralPath $script:StepLog -Value ''
     $watch = [Diagnostics.Stopwatch]::StartNew()
+    $step = [ordered]@{ name = $Name; status = 'passed'; seconds = 0; log = $script:StepLog }
     try {
         & $Action
-        $watch.Stop()
-        $script:Receipt.steps += [ordered]@{
-            name = $Name
-            status = 'passed'
-            seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
-            log = $script:StepLog
-        }
-        Save-Receipt
-        Write-Host "PASS $Name ($([Math]::Round($watch.Elapsed.TotalSeconds, 1))s)"
     }
     catch {
-        $watch.Stop()
-        $script:Receipt.steps += [ordered]@{
-            name = $Name
-            status = 'failed'
-            seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
-            error = $_.Exception.Message
-            log = $script:StepLog
-        }
+        $step.status = 'failed'
+        $step.error = $_.Exception.Message
         if ($KeepGoing) {
-            Save-Receipt
             Write-Warning "$Name failed: $($_.Exception.Message)"
-            return
         }
-        $script:Receipt.status = 'failed'
-        $script:Receipt.finished_at = [DateTime]::UtcNow.ToString('o')
+        else {
+            $script:Receipt.status = 'failed'
+            $script:Receipt.finished_at = [DateTime]::UtcNow.ToString('o')
+            throw
+        }
+    }
+    finally {
+        $watch.Stop()
+        $step.seconds = [Math]::Round($watch.Elapsed.TotalSeconds, 2)
+        $script:Receipt.steps += $step
         Save-Receipt
-        throw
+    }
+    if ($step.status -eq 'passed') {
+        Write-Host "PASS $Name ($([Math]::Round($watch.Elapsed.TotalSeconds, 1))s)"
     }
 }
 
 $PreviousEnvironment = @{}
-$CodexAuthHome = if ($env:BEAVER_CODEX_HOME) { $env:BEAVER_CODEX_HOME }
-    elseif ($env:CODEX_HOME) { $env:CODEX_HOME }
-    else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.codex' }
 $SweepEnvironment = @{
     PORT = [string]$Port
     AUTH_MODE = 'local'
     LIVE_E2E = '0'
     NODE_NO_WARNINGS = '1'
     BEAVER_JEV_TABULAR_MODE = 'off'
-    BEAVER_CODEX_HOME = (Join-Path $RunDirectory 'codex')
     BEAVER_TEST_RUN_ID = (Split-Path -Leaf $RunDirectory)
     BEAVER_TEST_SCENARIO = 'FullSweep'
     MIKE_LAUNCHER_STATE_DIR = (Join-Path $RunDirectory 'launcher')
@@ -146,11 +136,6 @@ function Invoke-LiveStep([string]$Name, [string]$Pattern) {
 }
 
 try {
-    New-Item -ItemType Directory -Force -Path $env:BEAVER_CODEX_HOME | Out-Null
-    $auth = Join-Path $CodexAuthHome 'auth.json'
-    if (Test-Path -LiteralPath $auth -PathType Leaf) {
-        Copy-Item -LiteralPath $auth -Destination (Join-Path $env:BEAVER_CODEX_HOME 'auth.json')
-    }
     Save-Receipt
     Invoke-Step 'Check isolated port' {
         $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, [int]$env:PORT)

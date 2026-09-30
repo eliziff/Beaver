@@ -1,7 +1,6 @@
 """Real Chrome folder creation through Settings; removes only its own fixtures."""
 import argparse
 import json
-import runpy
 import tempfile
 import uuid
 from pathlib import Path
@@ -10,7 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
-helpers = runpy.run_path(str(Path(__file__).with_name("test-authorities-browser.py")))
+from browser_helpers import chrome
 
 
 def main():
@@ -20,7 +19,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="beaver-folder-chrome-") as profile:
-        driver = helpers["chrome"](Path(profile), False)
+        driver = chrome(Path(profile), False)
         wait = WebDriverWait(driver, 30)
         original = None
 

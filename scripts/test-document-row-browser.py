@@ -1,14 +1,13 @@
 """Keep View reachable with degraded OCR; stub only the directory read, never stored files."""
 import argparse
 import json
-import runpy
 import tempfile
 from pathlib import Path
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-chrome = runpy.run_path(str(Path(__file__).with_name("test-authorities-browser.py")))["chrome"]
+from browser_helpers import chrome
 
 
 def main():

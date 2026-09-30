@@ -21,6 +21,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select, WebDriverWait
+from browser_helpers import mark_test_prompts
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -196,6 +197,7 @@ def start_browser(profile: Path, headed: bool) -> webdriver.Chrome:
         options=options,
         service=Service(str(CHROMEDRIVER)) if CHROMEDRIVER else None,
     )
+    mark_test_prompts(driver)
     driver.execute_cdp_cmd("Network.enable", {})
     driver.execute_cdp_cmd("Network.setCacheDisabled", {"cacheDisabled": True})
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
