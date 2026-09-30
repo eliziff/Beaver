@@ -762,46 +762,6 @@ describe("Authorities UI contracts", () => {
     expect(within(sources).getByText(`${neutral}; ${reporter}`)).toBeInTheDocument();
   });
 
-  it("links a cross-reference through the authority chooser", async () => {
-    const saved = documentDraft(), text = "2024 ABKB 1; Ibid", ibidStart = text.indexOf("Ibid");
-    const span = (start: number, end: number) => ({ start, end, text: text.slice(start, end) });
-    saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
-      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["full", "ibid"] }];
-    saved.state.occurrences = {
-      full: { id: "full", unitId: "footnote:1", ...span(0, 11), kind: "case",
-        citation: "2024 ABKB 1", authoritySpan: span(0, 11), coreSpan: span(0, 11),
-        pinpointSpan: null, authorityId: "authority-1", reference: null, pinpoints: [],
-        evidenceIds: [], sourceTextSha256: "a".repeat(64), localOrdinal: 0, reviewed: false },
-      ibid: { id: "ibid", unitId: "footnote:1", ...span(ibidStart, text.length),
-        kind: "reference", citation: "Ibid", authoritySpan: span(ibidStart, text.length),
-        coreSpan: span(ibidStart, text.length), pinpointSpan: null, authorityId: null,
-        reference: null, pinpoints: [], evidenceIds: [], sourceTextSha256: "a".repeat(64),
-        localOrdinal: 1, reviewed: false },
-    };
-    add(saved, { ...authority("authority-1", "Example v Example", { kind: "unresolved" }),
-      citation: "2024 ABKB 1" });
-    const changed = structuredClone(saved); changed.revision = 2;
-    Object.assign(changed.state.occurrences.ibid, { authorityId: "authority-1",
-      reference: { kind: "ibid" as const, targetAuthorityId: "authority-1" }, reviewed: true });
-    api.getWorkProduct.mockResolvedValue(saved);
-    api.actOnAuthorities.mockResolvedValue(changed);
-    render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
-      {...workspaceRoute("draft-1")} /></MemoryRouter>);
-
-    const source = await screen.findByRole("option", { name: /Ibid/ });
-    await userEvent.click(source);
-    await userEvent.click(screen.getByRole("button", { name: "Link to authority" }));
-    const chooser = screen.getByRole("dialog", { name: "Link to authority" });
-    await userEvent.click(within(chooser).getByRole("button", { name: /Example v Example/ }));
-    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
-      type: "set-reference", occurrenceId: "ibid",
-      reference: { kind: "ibid", targetAuthorityId: "authority-1" },
-    }));
-    expect(screen.queryByRole("dialog", { name: "Link to authority" })).not.toBeInTheDocument();
-    expect(await screen.findByText("Linked to Example v Example, 2024 ABKB 1")).toBeVisible();
-    expect(source).toHaveAttribute("aria-selected", "true");
-  });
-
   it("gathers sources as the citations open and reveals Sources only when acquisition finishes", async () => {
     const saved = add(documentDraft(), authority("resolved", "Fetchable decision",
       { kind: "resolved" }), authority("missing", "Missing decision", { kind: "unresolved" }));

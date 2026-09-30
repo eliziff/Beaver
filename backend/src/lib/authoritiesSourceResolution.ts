@@ -238,7 +238,7 @@ export async function resolveAuthoritiesSources(
     if (authority?.kind !== "case" || attached.has(id) ||
         authority.source.kind === "attached") continue;
     const source = resolvedSources.get(authority.sourceIdentity?.stableSourceId ?? "");
-    const external = authority.sourceIdentity?.externalUrl;
+    const external = authority.sourceIdentity?.externalUrl ?? authority.sourceUrl;
     const pageUrl = external && buildCanliiPdfUrl(external) ? external
       : buildCanliiCaseUrlFromCitation([source?.citation, source?.alternateCitation,
         ...authorityCitationForms(draft, id)].filter((value) => !!value), source?.language);

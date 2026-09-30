@@ -16,6 +16,7 @@ import type { WorkProductInput } from "./workProduct";
 export const authorityCitationServices = {
   key: (value: string) => structureNative().citationLookupKey(value),
   occurrences: (value: string) => structureNative().citationOccurrencesInText(value),
+  references: (value: string) => structureNative().authorityReferencesInText(value),
 };
 type CitationServices = typeof authorityCitationServices;
 
@@ -170,22 +171,33 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   const key = match ? lookupKey(sources, match.coreCitation.text) : "";
   const authority = knownAuthority(draft, key, sources);
   const donorIds = donors.map(({ authorityId }) => authorityId);
-  const authorityId = authority?.id ?? (sameValue(donorIds) ? donorIds[0] : null);
+  const parsed = sources.references(text);
+  const selectedReference = !matches.length && parsed.length === 1 ? parsed[0] : null;
   const donorReferences = donors.map(({ reference }) => reference);
-  const reference = sameValue(donorReferences) && /\b(?:ibid|supra)\b/iu.test(text)
-    ? structuredClone(donorReferences[0]) : null;
+  const reference = selectedReference && sameValue(donorReferences) && donorReferences[0] &&
+    donors.every((donor) => {
+      const prior = sources.references(donor.text);
+      return donor.authorityId === donor.reference?.targetAuthorityId && prior.length === 1 &&
+        donor.start + prior[0].token.start === start + selectedReference.token.start &&
+        prior[0].kind === selectedReference.kind && prior[0].token.text === selectedReference.token.text &&
+        prior[0].noteNumber === selectedReference.noteNumber;
+    }) ? structuredClone(donorReferences[0]) : null;
+  const authorityId = match ? authority?.id ?? (sameValue(donorIds) &&
+      donors.every(({ citation }) => citation === match.coreCitation.text) ? donorIds[0] : null)
+    : donors.some(({ kind }) => kind === "reference") ? reference?.targetAuthorityId ?? null
+    : sameValue(donorIds) ? donorIds[0] : null;
   const occurrence: AuthorityOccurrence = {
     id: `${unit.id}:manual:${start}:${end}`, unitId: unit.id, start, end, text,
     ...(match ? nativeOccurrenceSpans(match, unit.text, start) : {
       authoritySpan: { start, end, text }, coreSpan: { start, end, text },
       pinpointSpan: null,
     }),
-    kind: reference ? "reference" : match ? parsedKind(match)
+    kind: selectedReference ? "reference" : match ? parsedKind(match)
       : sameValue(donors.map(({ kind }) => kind)) ? donors[0].kind : "other",
-    citation: match?.coreCitation.text ??
+    citation: match?.coreCitation.text ?? selectedReference?.token.text ??
       (sameValue(donors.map(({ citation }) => citation)) ? donors[0].citation : text.trim()),
-    authorityId, reference,
-    pinpoints: match ? pinpointValues(match.pinpoints) : [],
+    authorityId, reference, referenceKind: selectedReference?.kind,
+    pinpoints: pinpointValues(match?.pinpoints ?? selectedReference?.pinpoints ?? []),
     evidenceIds: [...new Set(donors.flatMap(({ evidenceIds }) => evidenceIds))].sort(),
     // A unit's own text hash, except where donors carry the hash the import recorded.
     sourceTextSha256: donors[0]?.sourceTextSha256 ?? unit.occurrenceIds
