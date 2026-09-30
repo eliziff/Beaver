@@ -128,7 +128,9 @@ export function openLocalDatabase(filename: string) {
   const database = new DatabaseSync(filename);
   if (process.platform !== "win32") chmodSync(filename, 0o600);
   try {
-    database.exec("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=30000;");
+    // The busy timeout comes first: converting a new file to WAL needs an exclusive lock, and
+    // another connection opening the same library at that moment must wait, not fail.
+    database.exec("PRAGMA busy_timeout=30000; PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;");
     const version = Number((database.prepare("PRAGMA user_version").get() as
       { user_version: number }).user_version);
     if (version !== 0 && version !== LOCAL_SCHEMA_VERSION) throw new Error(
