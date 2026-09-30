@@ -9,6 +9,15 @@ vi.useRealTimers();
 // The application entry loads backend/.env; tests must never inherit a developer's library
 // directory or provider credentials from it.
 process.loadEnvFile = () => {};
+// Nor may they reach a live model unless a run opts in with LIVE_E2E=1: a developer shell's
+// provider keys and installed Codex CLI otherwise turn table routing and agent tests into real,
+// slow provider runs. This matches CI, which has neither.
+if (process.env.LIVE_E2E !== "1") {
+    for (const name of Object.keys(process.env)) {
+        if (/(?:_API_KEY|_TOKEN|_SECRET|_SECRET_KEY)$/iu.test(name)) delete process.env[name];
+    }
+    process.env.CODEX_COMMAND = "beaver-test-codex-unavailable";
+}
 const environment = { ...process.env };
 const dataHome = mkdtempSync(join(tmpdir(), "beaver-test-"));
 process.env.OPEN_LEGAL_DATA_HOME = dataHome;
