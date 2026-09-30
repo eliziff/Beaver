@@ -181,6 +181,7 @@ try {
         if (-not $?) { throw 'Could not start the production surface.' }
         $script:SurfaceStarted = $true
         $profile = @{ titleModel = $script:Receipt.model; tabularModel = $script:Receipt.model;
+            lastSelectedReasoningEffort = $script:Receipt.reasoning_effort;
             lastSelectedChatModel = $script:Receipt.model } | ConvertTo-Json
         Invoke-RestMethod -Method Patch -Uri "http://127.0.0.1:$Port/api/user/profile" `
             -ContentType 'application/json' -Body $profile | Out-Null

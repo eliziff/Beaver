@@ -502,8 +502,9 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
         subagents: true, subagent_model: MODEL, subagent_effort: REASONING_EFFORT,
         current_turn: { kind: "message", content:
           "Use two parallel research readers: one on the content of the duty of procedural fairness, " +
-          "and another on remedies for its breach in Canadian appellate decisions. Compare their " +
-          "findings and give me the governing authorities and their exact passages." },
+          "and another on remedies for its breach. Use Canadian appellate cases only. Each reader " +
+          "should identify one controlling case and read its relevant passages. Compare their " +
+          "findings with exact passage citations." },
       });
       expect(streamed.status).toBe(200);
       const events = sseEvents(streamed.text), calls = toolCalls(events);
@@ -515,6 +516,7 @@ describe.skipIf(!LIVE)("live tool loop (account-free, real model)", () => {
       const completed = new Map(readers.filter(({ status }) => status === "completed").map((event) => [event.id, event]));
       expect(completed.size).toBeGreaterThanOrEqual(2);
       expect(visibleText(events).trim()).not.toBe("");
+      expect(visibleText(events)).toMatch(/\[\d+\]/u);
       const chats = await request(api).get("/chat");
       const transcript = await request(api).get(`/chat/${chats.body[0].id}`);
       expect(transcript.status).toBe(200);

@@ -240,7 +240,7 @@ function TRViewContent({ reviewId, projectId }: Props) {
     async function regenerateCell(documentId: string, columnIndex: number) {
         if (generating || modelUnavailable()) return;
         setUi({ generating: true });
-        patchCell(documentId, columnIndex, { status: "generating", content: null });
+        patchCell(documentId, columnIndex, { status: "generating" });
         try {
             await regenerateTabularCell(reviewId, documentId, columnIndex, { model, reasoningEffort });
         } catch (error) {

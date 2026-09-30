@@ -176,6 +176,9 @@ JSON and embedded reference bytes when advancing the application distribution.
   remain separate. Opening one hands the passage to the shared source reader,
   following the cited source and original version, which may differ from the table
   row's document. Failed regeneration retains the answer and offers retry.
+- Invalid cell submissions are repaired independently. A rejected repair returns
+  its error and permits one correction before leaving that cell failed; accepted
+  sibling answers remain saved.
 - A cell mapped from existing research is presented as that research, without
   Answer or Explanation framing; only model-extracted cells carry it.
 

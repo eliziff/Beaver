@@ -374,6 +374,21 @@ describe("TabularApplication", () => {
     expect(observed.flatMap(({ queries }) => queries ?? []).filter(({ tool }) => tool === "Read")).toHaveLength(1);
   });
 
+  it.each(["rejected", "disconnected"])("retains a completed answer when regeneration is %s", async (failure) => {
+    const columns = [0, 1].map((index) => ({ index, name: "Law", prompt: "Extract" }));
+    const { repository, cells } = generated(columns, [
+      { ...cell, status: "done", content }, { ...cell, id: "cell1", column_index: 1, status: "done", content },
+    ]);
+    const sibling = { ...cells[1] };
+    const app = createTabularApplication(repository, documentStore(), projects, { settings, sources,
+      runTurn: model(async () => { if (failure === "disconnected") throw new Error("Provider disconnected"); }) });
+    const regeneration = app.runAgent(scope, { reviewId: "review", documentId: "document", columnIndex: 0 });
+    if (failure === "disconnected") await expect(regeneration).rejects.toThrow("Provider disconnected");
+    else await regeneration;
+    expect(cells[0]).toMatchObject({ status: "error", content });
+    expect(cells[1]).toEqual(sibling);
+  });
+
   it("generates only missing cells and can explicitly regenerate one completed cell", async () => {
     const columns = [0, 1].map((index) => ({ index, name: "Law", prompt: "Extract" }));
     const { repository, cells } = generated(columns, [

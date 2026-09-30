@@ -20,9 +20,9 @@ export const TabularCell = memo(function TabularCell({ cell, column, onExpand }:
         "whitespace-normal hover:bg-gray-50 focus-within:bg-gray-50", numeric ? "text-right" : "text-left")}>
         <button type="button" className="absolute inset-0 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-700"
             aria-label={`Open ${column?.name ?? "cell"} result`} onClick={() => onExpand(cell)} />
+        {cell.status === "error" && <span role="img" aria-label="Failed" title="Failed. Open the cell to regenerate it."
+            className="relative text-red-600"><AlertCircle aria-hidden="true" className="size-3.5" /></span>}
         {cell.status === "generating" ? <SkeletonLine className="relative h-3 w-2/3 animate-pulse motion-reduce:animate-none" />
-            : cell.status === "error" ? <span role="img" aria-label="Failed" title="Failed. Open the cell to regenerate it."
-                className="relative text-red-600"><AlertCircle aria-hidden="true" className="size-3.5" /></span>
             : cell.status === "pending" || !answer ? null
             : answer.outcome === "not_found" ? <span aria-label="Not found" className="relative text-gray-400">—</span>
             : <>

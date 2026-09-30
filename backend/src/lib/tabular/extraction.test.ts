@@ -10,7 +10,8 @@ import { sha256 } from "../hash";
 beforeEach(() => { vi.stubEnv("BEAVER_JEV_TABULAR_MODE", "off"); stream.mockReset(); });
 afterEach(() => vi.unstubAllEnvs());
 
-it.each([true, false])("repairs only the invalid cell and preserves accepted siblings (repair succeeds: %s)", async (succeeds) => {
+it.each(["first_try", "corrected", "fails"])("repairs only the invalid cell and preserves accepted siblings (repair: %s)", async (outcome) => {
+  const succeeds = outcome !== "fails";
   const bytes = Buffer.from("The fee is CAD 1000.\nEffective date: 2026-01-15."), sourceSha256 = sha256(bytes),
     accepted: { index: number; cell: TabularCellContent }[] = [], measurements: import("./extraction").TabularMeasurement[] = [],
     documents = { metadata: async () => ({ filename: "terms.txt" }), versions: async () => ({ versions: [{ id: "v1", size_bytes: bytes.length }] }),
@@ -34,7 +35,9 @@ it.each([true, false])("repairs only the invalid cell and preserves accepted sib
       expect(schema.properties.column_index.enum).toEqual([1]);
       expect(params.messages[0].content).not.toContain("Fee question only");
       expect(params.messages[0].content).toContain("15 January 2026");
-      await params.runTools([{ id: "repair", name: "submit_extraction", input: payload(1, succeeds ? "2026-01-15" : "still invalid") }]);
+      await params.runTools([{ id: "repair", name: "submit_extraction", input: payload(1, outcome === "first_try" ? "2026-01-15" : "still invalid") }]);
+      if (outcome !== "first_try") await params.runTools([{ id: "correct-repair", name: "submit_extraction",
+        input: payload(1, succeeds ? "2026-01-15" : "still invalid") }]);
     }
     // Tabular completion must not trigger generic chat repair of this unused prose.
     params.callbacks.onContentDelta("See Example v Example, 2024 SCC 1.");

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import runpy
 import tempfile
 from pathlib import Path
@@ -62,8 +63,8 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             driver.get(args.url + "/tabular-reviews")
             visible("main, [role='main'], body")
             print("Tabular browser: seeding documents and reviews", flush=True)
-            documents = [upload("Lease agreement.txt", "This lease between Alpha Ltd and Beta Inc is signed. Total rent is $12,000."),
-                         upload("Services contract.txt", "Services contract between Gamma Corp and Delta LLC. Fee: $4,500. Unsigned draft.")]
+            documents = [upload("Lease agreement.txt", "This lease between Alpha Ltd and Beta Inc is signed. Total rent is CAD 12,000."),
+                         upload("Services contract.txt", "Services contract between Gamma Corp and Delta LLC. Fee: CAD 4,500. Unsigned draft.")]
             columns = [{"index": 0, "name": "Parties", "prompt": "Identify the parties to the agreement.", "format": "text"},
                        {"index": 1, "name": "Amount", "prompt": "State the total amount payable.", "format": "monetary_amount"},
                        {"index": 2, "name": "Signed", "prompt": "Is the document signed?", "format": "yes_no"}]
@@ -112,6 +113,58 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
             screenshot("03-selection-strip.png")
             row_boxes[1].click()
             wait.until(lambda page: not [node for node in page.find_elements(By.XPATH, "//*[contains(normalize-space(),'1 selected')]") if node.is_displayed()])
+
+            print("Tabular browser: live generation, cell regeneration and reopen", flush=True)
+            driver.execute_script("""window.tabularRuns=[];const original=window.fetch;
+window.fetch=async (...args)=>{const path=String(args[0]);
+  const run=/\\/(generate|regenerate-cell)$/.test(path)?{path,input:JSON.parse(args[1].body)}:null;
+  if(run)window.tabularRuns.push(run);const response=await original(...args);
+  if(run)run.status=response.status;return response;};""")
+            click_text("Run")
+
+            def completed(_page):
+                saved = request("GET", f"/api/tabular-review/{review['id']}")
+                assert not [cell for cell in saved["cells"] if cell["status"] == "error"], saved
+                return saved if not saved["review"]["is_running"] and len(saved["cells"]) == 6 and all(
+                    cell["status"] == "done" for cell in saved["cells"]) else False
+
+            generated = WebDriverWait(driver, 180).until(completed)
+            for document, parties, amount, signed in zip(documents,
+                    (("Alpha Ltd", "Beta Inc"), ("Gamma Corp", "Delta LLC")), (12000, 4500), (True, False)):
+                answers = {cell["column_index"]: cell["content"] for cell in generated["cells"]
+                    if cell["document_id"] == document["id"]}
+                assert all(party in answers[0]["value"] for party in parties), answers
+                assert float(re.sub(r"[^0-9.]", "", answers[1]["value"])) == amount, answers
+                assert "CAD" in answers[1]["value"], answers
+                assert answers[2]["value"] is signed, answers
+                for answer in answers.values():
+                    evidence = {item["evidence_id"] for item in answer["evidence"] if item["span_text"].strip()}
+                    assert answer["outcome"] == "answered" and answer["claims"] and evidence, answer
+                    assert all(claim["evidence_ids"] and set(claim["evidence_ids"]) <= evidence
+                        for claim in answer["claims"]), answer
+            wait.until(lambda page: all(name in page.find_element(By.CSS_SELECTOR, "main").text
+                for name in ("Alpha Ltd", "Gamma Corp")))
+            wait.until(lambda page: any(node.is_displayed() and node.is_enabled() for node in
+                page.find_elements(By.XPATH, "//button[normalize-space()='Run']")))
+            screenshot("07-generated-table.png")
+            visible("button[aria-label='Open Parties result']").click()
+            click_text("Regenerate")
+            wait.until(lambda page: page.execute_script("return window.tabularRuns.some(run=>run.path.endsWith('/regenerate-cell')&&run.status===202)"))
+            regenerated = WebDriverWait(driver, 180).until(completed)
+            assert regenerated["review"]["updated_at"] != generated["review"]["updated_at"], regenerated
+            for cell in generated["cells"]:
+                if cell["document_id"] != documents[0]["id"] or cell["column_index"] != 0:
+                    assert next(item for item in regenerated["cells"] if item["id"] == cell["id"])["content"] == cell["content"]
+            runs = driver.execute_script("return window.tabularRuns")
+            assert len(runs) == 2 and all(run["status"] == 202 and
+                run["input"]["model"] == "codex:gpt-6-luna" and
+                run["input"]["reasoning_effort"] == "low" for run in runs), runs
+            report["generation"] = {"requests": runs, "cells": len(regenerated["cells"]), "grounded": True}
+            driver.get(f"{args.url}/tabular-reviews/{review['id']}")
+            visible("[data-tr-col-header]")
+            wait.until(lambda page: "Alpha Ltd" in page.find_element(By.CSS_SELECTOR, "main").text and
+                "Gamma Corp" in page.find_element(By.CSS_SELECTOR, "main").text)
+            screenshot("08-reopened-generated-table.png")
 
             print("Tabular browser: chat-assist proposal flow", flush=True)
             driver.get(f"{args.url}/tabular-reviews")
