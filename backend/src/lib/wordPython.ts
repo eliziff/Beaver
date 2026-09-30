@@ -21,15 +21,16 @@ const containerEnv = () => isolatedProcessEnv(["DOCKER_HOST", "CONTAINER_HOST"])
 export const wordPython = () => process.env.BEAVER_WORD_PYTHON?.trim() || process.env.BEAVER_PYTHON?.trim() ||
   (windows ? "python" : "python3");
 
-let probed: { python: string; ready: Promise<void> } | undefined;
-/** probe.py accepts only an interpreter with requirements.txt installed exactly; failures are retried. */
-function checkPython(python: string): Promise<void> {
+let probed: { python: string; ready: Promise<string> } | undefined;
+/** probe.py accepts only an interpreter with requirements.txt installed exactly and reports its absolute path;
+ * a sandboxed program runs with an empty PATH, where a bare command name cannot resolve. Failures are retried. */
+function checkPython(python: string): Promise<string> {
   if (probed?.python === python) return probed.ready;
-  const ready = new Promise<void>((resolve, reject) => execFile(python, ["-I", "-B", path.join(SCRIPTS, "probe.py")],
+  const ready = new Promise<string>((resolve, reject) => execFile(python, ["-I", "-B", path.join(SCRIPTS, "probe.py")],
     { env: isolatedProcessEnv(), windowsHide: true, timeout: 20_000 }, (_error, stdout) => {
       let probe: Report | undefined;
       try { probe = JSON.parse(String(stdout).trim().split(/\r?\n/u).pop() ?? ""); } catch { /* reported below */ }
-      if (probe?.ok === true) return resolve();
+      if (probe?.ok === true && typeof probe.executable === "string" && path.isAbsolute(probe.executable)) return resolve(probe.executable);
       reject(new Error(`Word editing is unavailable: ${python} ${typeof probe?.error === "string" ? probe.error : "could not run"}. ` +
         `Install with "${python} -m pip install -r ${path.join(SCRIPTS, "requirements.txt")}" or set BEAVER_WORD_PYTHON.`));
     }));
@@ -40,7 +41,8 @@ function checkPython(python: string): Promise<void> {
 
 /** One worker process. `dir` is the only host directory it sees: its cwd locally, mounted at /job in a
  * container. Arguments are relative to it. */
-type Step = { command: "python" | "soffice"; args: string[]; dir: string; input?: string; sandbox?: boolean; timeoutMs: number };
+type Step = { command: "python" | "soffice"; args: string[]; dir: string; input?: string; sandbox?: boolean; timeoutMs: number;
+  /** The probed interpreter's absolute path; unused in a container. */ python?: string };
 const script = (name: string) => image() ? `/app/${name}` : path.join(SCRIPTS, name);
 
 function run(step: Step, signal: AbortSignal): Promise<string> {
@@ -54,7 +56,7 @@ function run(step: Step, signal: AbortSignal): Promise<string> {
       "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m", "--mount", `type=bind,src=${step.dir},dst=/job`, "-w", "/job",
       container, ...(step.command === "python" ? ["python3", "-I", "-B", "-X", "utf8"] : ["soffice"]), ...step.args];
   } else if (step.command === "python") {
-    command = wordPython(); args = ["-I", "-B", "-X", "utf8", ...step.args];
+    command = step.python ?? wordPython(); args = ["-I", "-B", "-X", "utf8", ...step.args];
     // A model program sees only its directory: no inherited credentials, configuration or PATH.
     env = step.sandbox ? { SYSTEMROOT: process.env.SYSTEMROOT, TEMP: step.dir, TMP: step.dir, TMPDIR: step.dir,
       HOME: step.dir, PATH: "" } : isolatedProcessEnv();
@@ -136,14 +138,14 @@ export async function runWordPython(bytes: Buffer, request: Record<string, unkno
   const snapshot = hash(bytes);
   const program = typeof request.program === "string" ? request.program : "";
   const author = typeof request.author === "string" && request.author.trim() ? request.author.trim().slice(0, 255) : "Beaver";
-  if (!image()) await checkPython(wordPython());
+  const python = image() ? undefined : await checkPython(wordPython());
   const root = await mkdtemp(path.join(os.tmpdir(), "beaver-word-python-"));
   const work = path.join(root, "work");
   try {
     await writeFile(path.join(root, "source.docx"), bytes, { flag: "wx", mode: 0o600 });
     if (request.action === "inspect" && !program) {
       const view = { offset: request.offset, limit: request.limit, target: request.target };
-      const report = reply(await run({ command: "python", args: [script("verify.py"), "inspect", "source.docx"], dir: root,
+      const report = reply(await run({ command: "python", python, args: [script("verify.py"), "inspect", "source.docx"], dir: root,
         input: JSON.stringify(view), timeoutMs: 60_000 }, signal));
       return { report: { ...report, snapshot, mode: "read-only" } };
     }
@@ -151,7 +153,7 @@ export async function runWordPython(bytes: Buffer, request: Record<string, unkno
     if (!["tracked", "direct", "read-only"].includes(mode)) throw new Error("Unknown review mode");
     await mkdir(work);
     await writeFile(path.join(work, "document.docx"), bytes, { flag: "wx", mode: 0o600 });
-    const ran = reply(await run({ command: "python", args: [script("sandbox.py")], dir: work, sandbox: true,
+    const ran = reply(await run({ command: "python", python, args: [script("sandbox.py")], dir: work, sandbox: true,
       input: JSON.stringify({ program, mode, author }), timeoutMs: 60_000 }, signal));
     const output = { result: ran.result, ...(ran.stdout ? { stdout: ran.stdout } : {}),
       ...(Array.isArray(ran.warnings) && ran.warnings.length ? { warnings: ran.warnings } : {}) };
@@ -161,7 +163,7 @@ export async function runWordPython(bytes: Buffer, request: Record<string, unkno
     if (!stat?.isFile() || !stat.size || stat.size > MAX_BYTES) throw new Error("The program did not produce a valid candidate");
     const candidate = await readFile(produced);
     await writeFile(path.join(root, "checked.docx"), candidate, { flag: "wx" });
-    const verified = reply(await run({ command: "python", args: [script("verify.py"), "verify", "source.docx", "checked.docx", mode],
+    const verified = reply(await run({ command: "python", python, args: [script("verify.py"), "verify", "source.docx", "checked.docx", mode],
       dir: root, timeoutMs: 60_000 }, signal));
     if (verified.candidate_sha256 !== hash(candidate)) throw new Error("Verified bytes differ from the candidate");
     const pages = await render(root, "checked.docx", signal);
