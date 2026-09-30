@@ -555,7 +555,6 @@ describe("PdfView", () => {
     it("refits immediately when a preview narrows", async () => {
         const { container } = render(<PdfView doc={null} bytes={new Uint8Array([1])} />);
         await waitFor(() => expect(container.querySelectorAll("[data-page-number]")).toHaveLength(3));
-        const requests = mocks.pageRequests.length;
         mocks.clientWidth = 200;
         await act(async () => {
             mocks.resize!([{ contentRect: { width: 200 } } as ResizeObserverEntry],

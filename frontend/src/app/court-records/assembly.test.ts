@@ -7,7 +7,7 @@ import { decodePDFRawStream, PDFArray, PDFDict, PDFDocument, PDFHexString, PDFNa
   StandardFonts } from "pdf-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { buildCourtRecord } from "./assembly";
-import { COURT_PROFILES, COURT_PROFILE_BY_ID } from "./profiles";
+import { COURT_PROFILE_BY_ID } from "./profiles";
 import type { CourtProfile, CoverValues, RecordEntry } from "./types";
 
 async function sourcePdf(name: string, pages = 1, rotation = 0) {

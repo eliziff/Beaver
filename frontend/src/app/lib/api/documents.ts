@@ -1,4 +1,3 @@
-import type { RecognizedPage } from '../../../../../shared/pdf/pdfRecognizedText';
 import {
   apiRequest,
   segment,
