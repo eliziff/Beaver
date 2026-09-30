@@ -11,8 +11,9 @@ import zipfile
 from pathlib import Path
 
 # Exact address fingerprints avoid flagging public court records and licenses.
+# Standard build accounts and conventional synthetic placeholders are not identities.
 PRIVATE_EMAILS = set(filter(None, __import__('os').environ.get('BEAVER_PRIVATE_EMAIL_SHA256', '').split(',')))
-HOME = re.compile(r'(?:[a-z]:[\\/]+Users[\\/]+|/(?:Users|home)/)(?!(?:runner|runneradmin|sandbox|build|Public|Shared|Default)(?:[\\/]|$))[a-z0-9_.@-]+[\\/]', re.I)
+HOME = re.compile(r'(?:[a-z]:[\\/]+Users[\\/]+|/mnt/[a-z]/Users/|(?<![a-z0-9_.-])/(?:Users|home)/)(?!(?:runner|runneradmin|sandbox|build|Public|Shared|Default|user|someone)(?:[\\/]|$))[a-z0-9_.@-]+[\\/]', re.I)
 EMAIL = re.compile(r'[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,63}', re.I)
 PRIVATE_FILE = re.compile(r'(?:^|/)(?:private_sources|private_comparison|court-record-exhibits|prompt_live|\.auth)(?:/|$)|(?:^|/)(?:\.codex/sessions/|private_manifest\.jsonl?$|auth\.json$|storageState\.json$|application\.(?:sqlite|db)(?:-wal|-shm)?$)', re.I)
 EMBEDDED = re.compile(rb'(?:AGFzb|UEsDB)[A-Za-z0-9+/=]{400,}')
@@ -51,10 +52,13 @@ def inspect_artifact(raw,name,depth=0):
 def git(*args): return subprocess.check_output(['git',*args])
 
 def self_test():
-    example=('C:'+ '/Users/'+'someone'+'/project').encode()
+    example=('C:'+ '/Users/'+'private-person'+'/project').encode()
     assert findings(example)==['personal home path']
     assert findings(example.decode().encode('utf-16-le'))==['personal home path']
     assert findings(b'https://example.test/source; project/relative/file.ts')==[]
+    assert findings(b'https://example.test/home/someone/project')==[]
+    assert findings((b'file:///home/' + b'private-person/project'))==['personal home path']
+    assert findings((b'/mnt/c/Users/' + b'private-person/project'))==['personal home path']
     assert findings(('C:'+ '/Users/'+'<username>'+'/project').encode())==[]
     assert PRIVATE_FILE.search('benchmarks/private_sources/document.docx')
     assert PRIVATE_FILE.search('benchmarks/private_manifest.jsonl')
