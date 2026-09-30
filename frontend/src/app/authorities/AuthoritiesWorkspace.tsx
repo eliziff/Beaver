@@ -958,7 +958,6 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     </>}>
                     {operation !== "Finding source PDFs" && <CitationReview product={draft} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={discrepancies}
-                      dismissed={Object.values(draft.state.dismissedOccurrences ?? {})}
                       busy={busy} onSelect={setSelectedId} onAction={act}
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </StepSection>{quotationReview}</>}

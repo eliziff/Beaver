@@ -182,7 +182,19 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     return () => removeEventListener('resize', fit);
   }, [!!(selected && unit)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!selected || !unit) return <p className="p-8 text-sm text-gray-500">No citations found.</p>;
+  // Text marked "Not a citation" stays listed so a wrong call can be taken back.
+  const dismissed = Object.values(product.state.dismissedOccurrences ?? {});
+  const notCitations = dismissed.length > 0 && <details className="citation-dismissed">
+    <summary>Not citations ({dismissed.length})</summary>
+    {dismissed.map(({ occurrence }) => <div key={occurrence.id}>
+      <s title={occurrence.text}>{occurrence.citation || occurrence.text}</s>
+      <Button type="button" variant="ghost" className="h-7 shrink-0 px-2 text-xs" disabled={busy}
+        onClick={() => onAction({ type: 'restore-occurrence', occurrenceId: occurrence.id },
+          () => onSelect(occurrence.id))}>Restore</Button>
+    </div>)}
+  </details>;
+  if (!selected || !unit) return <div className="p-8 text-sm text-gray-500">
+    <p>No citations found.</p>{notCitations}</div>;
   const submit = (action: AuthoritiesAction, then?: () => void) => onAction(action, () => {
     window.getSelection()?.removeAllRanges(); setSelection(null); then?.();
   });
@@ -322,6 +334,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
             <div>{note.occurrenceIds.map(id => product.state.occurrences[id]).filter(Boolean).map(item)}</div>
           </div>;
         })}</div>}
+      {notCitations}
     </div>
     <div ref={documentRef} className="citation-document"
       onPointerMove={hover} onPointerDown={event => {
