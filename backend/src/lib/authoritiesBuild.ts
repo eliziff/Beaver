@@ -1,5 +1,7 @@
 import { citedSourcePages } from "../../../shared/cited-source-pages.mjs";
 export { citedSourcePages } from "../../../shared/cited-source-pages.mjs";
+import { writeAuthorityAnnotations } from 'mike/shared/pdf-annotation-writer.mjs';
+import { printedPageIndices } from "./pdfPagination";
 import * as pdfLibrary from "pdf-lib";
 import { pdfAssembly } from "./pdfAssembly";
 import { renderAuthoritiesBook, fit, pdfNormalized, pdfText, wrapped,
@@ -26,7 +28,7 @@ import {
   type AuthorityKind,
 } from "./authoritiesDomain";
 import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
-import { initialAuthorityAnnotations, writeAuthorityAnnotations } from "./authoritiesAnnotations";
+import { initialAuthorityAnnotations } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperations";
 import { structureNative, type NativePdfPassageGeometry, type NativePdfPassageTarget } from "./structureNative";
@@ -54,7 +56,7 @@ export type AuthoritiesBuildInput = {
   title: string;
   workProduct: { id: string; revision: number };
   sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput;
-    pageTextByPage?: string[]; ocrTextByPage?: string[];
+    pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[];
     passageGeometry?: NativePdfPassageGeometry }>;
   signal?: AbortSignal;
 };
@@ -179,7 +181,7 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
   const value = draft.settings.tableLocation === "pages" ? pages
     : draft.settings.tableLocation === "pinpoints" ? pinpoints
       : [pages, pinpoints].filter(Boolean).join("; ");
-  return value || "—";
+  return value || "â€”";
 }
 
 const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
@@ -259,7 +261,7 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
             new Paragraph({ children: entry.sourceUrl ? [new ExternalHyperlink({
               link: entry.sourceUrl, children: [new TextRun({ text: "Open source",
                 style: "Hyperlink", size: 19 })],
-            })] : [new TextRun({ text: "—", size: 19 })] }),
+            })] : [new TextRun({ text: "â€”", size: 19 })] }),
           ] }),
         ] })),
       ] }));
@@ -375,7 +377,7 @@ export async function renderAuthoritySourcePdf(input: {
       size: 8, font: sans, color: pdf.rgb(.4, .4, .4) });
   });
   document.setTitle(title); document.setSubject(citation); document.setCreator("Beaver");
-  document.setProducer("Beaver · pdf-lib"); document.setCreationDate(new Date(0));
+  document.setProducer("Beaver Â· pdf-lib"); document.setCreationDate(new Date(0));
   document.setModificationDate(new Date(0));
   return Buffer.from(await document.save({ useObjectStreams: false }));
 }
@@ -449,7 +451,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 
 type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
   markedPages?: Set<number>;
-  pageTextByPage?: string[]; ocrTextByPage?: string[];
+  pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[];
   passageGeometry?: NativePdfPassageGeometry };
 type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
   databaseReference: { url: string; host: string } | null };
@@ -487,7 +489,7 @@ async function loadBookPdf(
 
 /** Preparing highlights does not require assembling a book or emitting an artifact. */
 export function prepareAuthorityAnnotations(
-  pdf: PdfModule, document: PdfDocument, draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  _pdf: PdfModule, document: PdfDocument, draft: AuthoritiesDraft, authority: AuthorityIdentity,
   source: AuthoritiesBoundPdf, text: NonNullable<AuthoritiesBuildInput["sources"]>[string] = {},
   regenerate = false,
 ) {
@@ -501,7 +503,7 @@ export function prepareAuthorityAnnotations(
   return initialAuthorityAnnotations({ sourceSha256: source.sourceSha256,
     style: draft.settings.passageMarking, geometry: text.passageGeometry, pages,
     citedPages: citedSourcePages(draft, authority.id, text.pageTextByPage ?? [],
-      document.catalog.has(pdf.PDFName.of("PageLabels")) ? pdfPageLabelIndices(pdf, document) : undefined,
+      printedPageIndices(text.pageLabels ?? []),
       document.getPageCount(), text.passageGeometry),
     exclusions: new Set((authority.highlightExclusions ?? []).map(({ kind, label }) => `${kind.trim()}\0${label.trim()}`)) });
 }
@@ -527,16 +529,19 @@ async function loadAuthorityPdf(
     sourceOffset += item.document.getPageCount();
   }
   if (loaded.length === 1) return { document: loaded[0].document, markedPages,
+    pageLabels: loaded[0].text?.pageLabels,
     pageTextByPage: loaded[0].text?.pageTextByPage,
     ocrTextByPage: loaded[0].text?.ocrTextByPage,
     passageGeometry: loaded[0].text?.passageGeometry };
   const document = await pdf.PDFDocument.create();
   const pageTextByPage: string[] = [], ocrTextByPage: string[] = [];
+  const pageLabels: (string | null)[] = [];
   const geometries: Array<{ offset: number; value: NativePdfPassageGeometry }> = [];
   let offset = 0;
   for (const item of loaded) {
     const count = item.document.getPageCount();
     await appendPages(document, item.document);
+    pageLabels.push(...(item.text?.pageLabels ?? Array<string | null>(count).fill(null)));
     pageTextByPage.push(...Array.from({ length: count }, (_, index) =>
       item.text?.pageTextByPage?.[index] ?? ""));
     ocrTextByPage.push(...Array.from({ length: count }, (_, index) =>
@@ -556,7 +561,7 @@ async function loadAuthorityPdf(
             pageNumber: quote.pageNumber + pageOffset,
           }) })) }))),
   } satisfies NativePdfPassageGeometry : undefined;
-  return { document, pageTextByPage, markedPages,
+  return { document, pageTextByPage, pageLabels, markedPages,
     ocrTextByPage: ocrTextByPage.some(Boolean) ? ocrTextByPage : undefined,
     passageGeometry };
 }
@@ -599,7 +604,7 @@ async function prepareAuthorityBook(
     ? FEDERAL_APPEAL_PAPER_COVERS[role as keyof typeof FEDERAL_APPEAL_PAPER_COVERS] : null;
   const bookTitle = profile.bookTitle ??
     (draft.import.kind === "manual" ? subtitle : "Book of Authorities");
-  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT — incomplete sources · " : "") +
+  const documentTitle = (draft.settings.allowIncomplete ? "DRAFT â€” incomplete sources Â· " : "") +
     (draft.cover.title || bookTitle);
   if (federal && !draft.bookParts.cover && !role) {
     throw new Error("Choose who is filing the Federal Court book.");
@@ -652,7 +657,7 @@ async function prepareAuthorityBook(
       ? loadBookPdf(pdf, draft.bookParts.index, "the custom index", attached) : null,
   ]);
   const sources: PreparedBookPdf[] = [...authoritySources, ...supplementalSources].map((source) => {
-    const pageLabels = pdfPageLabelIndices(pdf, source.document);
+    const pageLabels = printedPageIndices(source.pageLabels ?? []);
     const extract = federalPaperExtract(draft, source, pageLabels);
     return { ...source, pageIndices: extract?.pageIndices ?? source.document.getPageIndices(),
       databaseReference: extract?.databaseReference ?? null };
@@ -703,41 +708,6 @@ async function bookArtifacts(plan: PreparedAuthoritiesBook, signal?: AbortSignal
 }
 
 
-function pdfPageLabelIndices(pdf: PdfModule, document: PdfDocument) {
-  const result = new Map<string, number[]>();
-  if (!document.catalog.has(pdf.PDFName.of("PageLabels"))) return result;
-  const rules: Array<{ index: number; prefix: string; style: string; start: number }> = [];
-  const visit = (node: import("pdf-lib").PDFDict) => {
-    if (node.has(pdf.PDFName.of("Nums"))) {
-      const nums = node.lookup(pdf.PDFName.of("Nums"), pdf.PDFArray);
-      for (let offset = 0; offset + 1 < nums.size(); offset += 2) {
-        const index = nums.lookup(offset, pdf.PDFNumber).asNumber();
-        const spec = nums.lookup(offset + 1, pdf.PDFDict);
-        const prefix = spec.lookupMaybe(pdf.PDFName.of("P"), pdf.PDFString, pdf.PDFHexString);
-        const style = spec.lookupMaybe(pdf.PDFName.of("S"), pdf.PDFName);
-        const start = spec.lookupMaybe(pdf.PDFName.of("St"), pdf.PDFNumber);
-        rules.push({ index, prefix: prefix?.decodeText() ?? "",
-          style: style?.asString().slice(1) ?? "", start: start?.asNumber() ?? 1 });
-      }
-    }
-    if (node.has(pdf.PDFName.of("Kids"))) {
-      const kids = node.lookup(pdf.PDFName.of("Kids"), pdf.PDFArray);
-      for (let index = 0; index < kids.size(); index += 1)
-        visit(kids.lookup(index, pdf.PDFDict));
-    }
-  };
-  visit(document.catalog.lookup(pdf.PDFName.of("PageLabels"), pdf.PDFDict));
-  rules.sort((left, right) => left.index - right.index);
-  let active = -1;
-  for (let index = 0; index < document.getPageCount(); index += 1) {
-    if (rules[active + 1]?.index === index) active += 1;
-    const rule = rules[active];
-    if (!rule || rule.style !== "D") continue;
-    const label = `${rule.prefix}${rule.start + index - rule.index}`;
-    (result.get(label) ?? result.set(label, []).get(label)!).push(index);
-  }
-  return result;
-}
 
 function federalPaperExtract(draft: AuthoritiesDraft, source: LoadedBookPdf,
   pageLabels = new Map<string, number[]>()) {

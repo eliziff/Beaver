@@ -66,11 +66,27 @@ describe("authority PDF text preparation", () => {
     const pdfPassageGeometry = vi.fn(async () => ({ targets: [{ status: "found", pages: [{ pageNumber: 3 }] }] }));
     const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "cited-pages",
       ocrTargets: [{ id: "p", locatorKind: "page", locator: "42" }] },
-      { preparePdf, lookupPdf, pdfPassageGeometry } as never);
+      { preparePdf, lookupPdf, pdfPassageGeometry, pdfPageLabels: async () => ["40", "41", "42"] } as never);
     // The engine numbers requested pages from one; cited page 3 must be requested as 3.
     expect(preparePdf.mock.calls[1][0]).toMatchObject({ ocrProvider: "kraken-lite", pages: [3] });
     expect(result.pageTextByPage).toEqual(["page 1", "page 2", "page 3"]);
     expect(result.ocrTextByPage).toEqual(["", "", "page 3"]);
   });
 
+  it("retains the reporter anchor alongside cited pages in a partial OCR result", async () => {
+    const preparePdf = vi.fn(async (request) => ({ pageCount: 8, profile: {},
+      ocrRoutedPages: (request.pages ?? []).map((page: number) => page - 1) }));
+    const lookupPdf = vi.fn(async (_read, input) => ({ status: "found", pages: [
+      { page_number: Number(input.locator), text: `page ${input.locator}` },
+    ] }));
+    const pdfPassageGeometry = vi.fn().mockResolvedValueOnce({ targets: [{ status: "not_found", pages: [] }] })
+      .mockResolvedValue({ targets: [{ status: "found", pages: [{ pageNumber: 6 }] }] });
+    const result = await authorityPdfText({ bytes: Buffer.from("source"), scannedPdfPolicy: "cited-pages",
+      citations: ["[1986] 1 SCR 145"], reporterOriginal: true,
+      ocrTargets: [{ id: "p", locatorKind: "page", locator: "150" }] },
+      { preparePdf, lookupPdf, pdfPassageGeometry, pdfPageLabels: vi.fn()
+        .mockResolvedValueOnce(Array(8).fill(null))
+        .mockResolvedValue(["145", "146", "147", "148", "149", "150", "151", "152"]) } as never);
+    expect(result.ocrTextByPage).toEqual(["page 1", "", "", "", "", "page 6", "", ""]);
+  });
 });

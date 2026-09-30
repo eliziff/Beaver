@@ -1,4 +1,4 @@
-import { validRect, type AnnotationFragment, type AnnotationRect } from '../../../../../../shared/pdf-annotations.mjs';
+import { validRect, type AnnotationFragment, type AnnotationRect } from '../pdf-annotations.mjs';
 
 // Line selection adapted from Zotero reader's getClosestLine/getLineSelectionRect:
 // https://github.com/zotero/reader/blob/2a0bc6554c1d595b1cd7d1a7c61c500a722a4e14/src/pdf/selection.js

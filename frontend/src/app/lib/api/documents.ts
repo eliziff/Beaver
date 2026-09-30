@@ -1,3 +1,4 @@
+import type { RecognizedPage } from '../../../../../shared/pdf/pdfRecognizedText';
 import {
   apiRequest,
   segment,
@@ -19,13 +20,15 @@ export type DocumentReaderText = { revision: string;
 export const getDocumentReaderText = (id: string, versionId: string, signal?: AbortSignal) =>
   apiRequest<DocumentReaderText>(pagePath(`/single-documents/${segment(id)}/reader-text`,
     { version_id: versionId }), { signal });
-export type PdfRecognizedText = { pages: Array<{ pageNumber: number; width: number; height: number;
+export type PdfRecognizedText = { pageLabels?: Array<string | null>; pages: Array<{ pageNumber: number; width: number; height: number;
   lines: Array<{ id: string; text?: string; rect: [number, number, number, number];
     words: Array<{ text: string; rect: [number, number, number, number] }> }> }> };
 export const getDocumentPdfTextLayer = (id: string, versionId: string | undefined, signal?: AbortSignal,
-  pages?: number[], sourceSha256?: string) =>
+  pages?: number[], sourceSha256?: string, citations: string[] = [], reporterOriginal = false) =>
   apiRequest<PdfRecognizedText>(pagePath(`/single-documents/${segment(id)}/pdf-text-layer`,
-    { version_id: versionId, pages: pages?.join(","), source_sha256: sourceSha256 }), { signal });
+    { version_id: versionId, pages: pages?.join(","), source_sha256: sourceSha256,
+      ...(citations.length ? { citations: JSON.stringify(citations) } : {}),
+      ...(reporterOriginal ? { reporter_original: "1" } : {}) }), { signal });
 
 export interface Folder {
   id: string;

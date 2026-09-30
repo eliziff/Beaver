@@ -413,6 +413,18 @@ describe("authorities draft domain", () => {
       .toEqual(["2009 SCC 32", "[2009] 2 SCR 353"]);
   });
 
+  it("retains provider reporter citations after saving a neutral-citation authority", () => {
+    const draft = createAuthoritiesDraft({ kind: "manual" });
+    draft.authorities.grant = { ...authority("grant"), citation: "2009 SCC 32",
+      source: { kind: "resolved" }, sourceIdentity: { provider: "a2aj", stableSourceId: "grant",
+        sourceSha256: "a".repeat(64), version: null, externalUrl: null,
+        citationForms: ["2009 SCC 32", "[2009] 2 SCR 353"] } };
+    draft.authorityOrder = ["grant"];
+    const reopened = decodeAuthoritiesDraft(JSON.parse(JSON.stringify(draft)));
+    expect(reopened).not.toBeNull();
+    expect(authorityCitationForms(reopened!, "grant")).toEqual(["2009 SCC 32", "[2009] 2 SCR 353"]);
+  });
+
   it("keeps grounded identity orthogonal to unresolved review state", () => {
     const draft = reduceAuthoritiesDraft(createAuthoritiesDraft({ kind: "manual" }), {
       type: "add-authority", authority: authority("manual", "2024-abkb-1"),

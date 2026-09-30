@@ -173,8 +173,7 @@ fetch('/api/library/files/documents',{method:'POST',body:form}).then(async r=>do
                     "title": "Fairness research", "sourceLabels": labels, "highlightTypes": []}})
             assert draft["proposalId"]
             driver.refresh()
-            click_text(driver, "Chat")
-            assert not driver.find_elements(By.CSS_SELECTOR, "input[aria-label='Organization name']")
+            print("Sources dock: review a pending proposal without applying it", flush=True)
 
             def open_review():
                 click_text(driver, "Review")

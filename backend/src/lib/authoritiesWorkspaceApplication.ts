@@ -1,5 +1,7 @@
 import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
 import { mapBounded } from "./mapBounded";
+import { authorityCitationForms } from "./authoritiesDomain";
+import { printedPageIndices, reporterStartPages } from "./pdfPagination";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
@@ -107,8 +109,8 @@ export function createAuthoritiesWorkspaceApplication(
   }
 
   async function resolveSources(scope: ApplicationScope, initial: AuthoritiesDraft,
-    projectId?: string | null, signal?: AbortSignal) {
-    let { draft, attachments } = await resolveAuthoritiesSources(initial, sources, signal);
+    projectId?: string | null, signal?: AbortSignal, onlyAuthorityId?: string) {
+    let { draft, attachments } = await resolveAuthoritiesSources(initial, sources, signal, onlyAuthorityId);
     const created: DocumentRollback[] = [];
     return withRollback(scope, created, async () => {
       for (const attachment of attachments) {
@@ -120,11 +122,15 @@ export function createAuthoritiesWorkspaceApplication(
         if (saved.source_sha256 !== attachment.sourceSha256) {
           throw new Error("Saved authority PDF hash does not match its prepared source");
         }
+        const verificationUrl = draft.authorities[attachment.authorityId].sourceVerificationUrl;
         draft = attachSource(draft, draft.authorities[attachment.authorityId],
           { kind: "document", documentId: saved.id,
             version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
           saved.filename, saved.source_sha256, attachment.language,
           attachment.origin, attachment.sourceUrl);
+        // Another language can remain blocked after this original is attached.
+        if (verificationUrl) draft = update(draft, { type: "set-source-verification",
+          authorityId: attachment.authorityId, pageUrl: verificationUrl });
       }
       return { draft, created };
     }, "Authority sources could not be saved or rolled back");
@@ -242,7 +248,7 @@ export function createAuthoritiesWorkspaceApplication(
         filename: file.filename, sha256: file.version.source_sha256 } };
     };
     // A book can hold hundreds of PDFs: read and prepare a few at a time, not all at once.
-    await mapBounded(plan.authoritySources, async ({ source }) => {
+    await mapBounded(plan.authoritySources, async ({ source, authority }) => {
       signal?.throwIfAborted();
       const { binding, file, resolved } = await readPdf(source, "Attached PDF");
       const forBook = plan.bookRoles.has(source.bindingRole);
@@ -263,6 +269,10 @@ export function createAuthoritiesWorkspaceApplication(
         ...await plan.prepareText(source.bindingRole, { bytes: file.bytes,
           documentId: binding.documentId, versionId: file.version.id,
           sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal }),
+        pageLabels: forBook ? await documentProjectionService.pdfPageLabels({ documentId: binding.documentId,
+          versionId: file.version.id, sourceSha256: file.version.source_sha256, fileType: "pdf",
+          readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
+          reporterOriginal: source.origin === "original" }, authorityCitationForms(draft, authority.id)) : undefined,
         resolved };
     });
     await mapBounded(plan.bookPdfs, async (source) => {
@@ -380,10 +390,13 @@ export function createAuthoritiesWorkspaceApplication(
       return workProducts.save(scope, id, { revision, state: changed });
     },
     async prepareSources(scope: ApplicationScope, id: string, revision: number,
-      signal?: AbortSignal) {
+      signal?: AbortSignal, onlyAuthorityId?: string) {
       const { product, draft } = await edit(scope, id, revision);
+      if (onlyAuthorityId && !draft.authorities[onlyAuthorityId]?.sourceVerificationUrl)
+        throw new ApplicationError(409, "This authority has no publisher check to retry.");
       const resolved = await resolveSources(scope,
-        await followLatestBindings(scope, draft, signal), product.projectId, signal);
+        onlyAuthorityId ? draft : await followLatestBindings(scope, draft, signal),
+        product.projectId, signal, onlyAuthorityId);
       // Every reducer hands back a fresh object, so re-offering a CanLII handoff
       // the draft already holds reads as a change. Opening a draft that needed
       // nothing must not spend a revision: compare the state, not the reference.
@@ -513,15 +526,23 @@ export function createAuthoritiesWorkspaceApplication(
             bytes: await resolved.readBytes(), ocrProvider: null });
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
+          const citations = authorityCitationForms(draft, authority.id);
+          const labels = pages ? [] : await documentProjectionService.pdfPageLabels({ ...resolved,
+            reporterOriginal: source.origin === "original" }, citations);
           const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
           // Page pinpoints locate themselves without any text, so a scan whose passages the
           // geometry cannot find still has its cited pages recognized before the whole PDF.
           const citedPages = pages ? [] : [...citedSourcePages(draft, authority.id, [],
-            undefined, prepared.pageCount)].map((index) => index + 1);
+            printedPageIndices(labels), prepared.pageCount)].map((index) => index + 1);
+          if (!pages && !citedPages.length && targets.some(target => target.locatorKind === "page") &&
+              source.origin === "original" && reporterStartPages(citations).length) {
+            // Let the existing priority OCR pass establish an opening reporter anchor first.
+            citedPages.push(...Array.from({ length: Math.min(3, prepared.pageCount) }, (_, index) => index + 1));
+          }
           for (let start = 0; start < targets.length; start += 100) {
             const geometry = await documentProjectionService.pdfPassageGeometry(resolved.readBytes,
               targets.slice(start, start + 100), { ...reference, cacheKey: prepared.cacheKey },
-              { pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
+              { citations, pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status } });
             citedPages.push(...geometry.targets.flatMap(target => target.status === "found"
               ? target.pages.map(page => page.pageNumber) : []));
           }

@@ -1,6 +1,6 @@
 import { annotationLineBands, selectedPdfFragments } from "./pdfSelectionGeometry";
 import { markContains, validRect, type AnnotationFragment, type AnnotationRect,
-  type PdfAnnotation } from '../../../../../../shared/pdf-annotations.mjs';
+  type PdfAnnotation } from '../pdf-annotations.mjs';
 export type AnnotationTool = 'select' | 'highlight' | 'draw';
 export type PdfAnnotationEditorPort = {
   marks: PdfAnnotation[]; selectedId: string | null; tool: AnnotationTool; disabled?: boolean;
@@ -29,7 +29,7 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
   const overlays=new Map<HTMLElement,SVGSVGElement>();
   const groups=new Map<string,{ mark:PdfAnnotation; selected:boolean; nodes:SVGGElement[]; fragments:AnnotationFragment[] }>();
   const overlay=(page:HTMLElement)=>{
-    let svg=overlays.get(page); if(svg) return svg;
+    let svg=overlays.get(page); if(svg?.parentNode === page) return svg;
     svg=document.createElementNS(NS,'svg');
     svg.setAttribute('viewBox','0 0 1 1'); svg.setAttribute('preserveAspectRatio','none'); svg.setAttribute('aria-hidden','true');
     svg.dataset.pdfAnnotations='true';
@@ -48,7 +48,7 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     selection.removeAllRanges(); port.onCreate(fragments, text);
   };
   const priorCursor=scroller.style.cursor;
-  const update=()=>{
+  const update=(pageNumber?: number)=>{
     if (selectionRequest !== read().highlightSelection) {
       selectionRequest = read().highlightSelection; highlightSelection();
     }
@@ -56,8 +56,9 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
     scroller.style.cursor=port.disabled ? 'default' : port.tool === 'draw' ? 'crosshair' : 'auto';
     for(const [id,entry] of groups) if(!ids.has(id)) { entry.nodes.forEach(node=>node.remove()); groups.delete(id); }
     for(const mark of port.marks) {
+      if(pageNumber && !mark.fragments.some(fragment=>fragment.pageNumber===pageNumber))continue;
       const selected=mark.id===port.selectedId, old=groups.get(mark.id);
-      if(old?.mark===mark && old.selected===selected) continue;
+      if(old?.mark===mark && old.selected===selected && old.nodes.every(node=>node.isConnected)) continue;
       old?.nodes.forEach(node=>node.remove());
       const nodes:SVGGElement[]=[], fragments:AnnotationFragment[]=[];
       for(const fragment of mark.fragments) {
@@ -65,7 +66,8 @@ export function attachPdfAnnotationLayer(scroller: HTMLElement, pages: HTMLEleme
         const group=document.createElementNS(NS,'g'); group.dataset.annotationId=mark.id; overlay(page).appendChild(group);
         const scale=Number(page.dataset.pdfScale) || 1;
         const rects=mark.kind==='highlight' ? annotationLineBands(fragment.rects,
-          parseFloat(page.style.width)/scale,parseFloat(page.style.height)/scale) : fragment.rects;
+          (page.clientWidth || parseFloat(page.style.width))/scale,
+          (page.clientHeight || parseFloat(page.style.height))/scale) : fragment.rects;
         fragments.push({pageNumber:fragment.pageNumber,rects});
         for(const r of rects) rectangle(group,r,`rgb(${mark.rgb.map(v=>Math.round(v*255)).join(' ')})`,
           Math.min(1,mark.opacity+(selected ? .1 : 0)),selected && mark.kind==='margin');

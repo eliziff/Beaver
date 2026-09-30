@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publisherPdfSourceUrl, rankedPublisherPdfLinks, verifiedDecisiaPdf } from "../legalSourcePresentation";
+import { publisherPdfSourceUrl, publisherPdfCandidate, rankedPublisherPdfLinks, verifiedDecisiaPdf } from "../legalSourcePresentation";
 
 it('validates publisher URLs consistently for browser downloads', () => {
   expect(publisherPdfSourceUrl('http://www.bccourts.ca/jdb-txt/sc/24/0123.htm?tracking=1#para3')?.href)
@@ -15,6 +15,26 @@ it('validates publisher URLs consistently for browser downloads', () => {
 });
 
 describe("verified Decisia PDF evidence", () => {
+  it("limits candidates to safe supported case URLs and removes navigation state", () => {
+    expect(publisherPdfCandidate("https://decisions.scc-csc.ca/scc-csc/scc-csc/fr/item/14438/index.do?iframe=true#par4"))
+      .toBe("https://decisions.scc-csc.ca/scc-csc/scc-csc/fr/14438/1/document.do");
+    for (const url of ["not a URL", "http://decisions.scc-csc.ca/a/item/1/index.do",
+      "https://user:password@decisions.scc-csc.ca/a/item/1/index.do",
+      "https://decisions.scc-csc.ca.evil.example/a/item/1/index.do",
+      "https://www.bccourts.ca/jdb-txt/CA/12/04/2012BCCA0480.htm",
+      "https://decisions.scc-csc.ca/a%2fb/item/1/index.do",
+      "https://decisions.scc-csc.ca/a/1/1/document.do"])
+      expect(publisherPdfCandidate(url)).toBeNull();
+  });
+  it.each([
+    "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14438/index.do",
+    "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/530291/index.do",
+    "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/item/464621/index.do",
+    "https://decisia.lexum.com/nsc/nssc/en/item/42/index.do",
+  ])("derives a download candidate without claiming representation evidence: %s", (url) => {
+    expect(publisherPdfCandidate(url)).toBe(url.replace(/\/item\/(\d+)\/index.do$/, "/$1/1/document.do"));
+    expect(verifiedDecisiaPdf("", url)).toBeNull();
+  });
   it("accepts the PDF anchor in the Decisia documents control", () => {
     const canonical =
       "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/530291/index.do";
@@ -24,6 +44,11 @@ describe("verified Decisia PDF evidence", () => {
       url: "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/530291/1/document.do",
       pdfOnly: false,
     });
+  });
+  it("reads current div documents controls without following judgment-body citations", () => {
+    const url = "https://decisions.courts.ns.ca/nsc/nssc/en/item/42/index.do";
+    expect(verifiedDecisiaPdf('<div class="documents"><a href="/nsc/nssc/en/42/1/document.do">PDF</a></div>', url))
+      .toEqual({ url: "https://decisions.courts.ns.ca/nsc/nssc/en/42/1/document.do", pdfOnly: false });
   });
 
   it("retains the publisher's explicit PDF-only evidence", () => {

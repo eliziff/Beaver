@@ -4,8 +4,9 @@ import { inspectPdf, type PdfInspection } from "@/app/lib/inspectPdf";
 import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
+import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
-export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; priorityPages?: number[] };
+export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; priorityPages?: number[]; demand?: string };
 /** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. */
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number;
   error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
@@ -16,6 +17,7 @@ export type SourceOcrPanel = Pick<ReturnType<typeof useSourceOcr>, "tracked" | "
 export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   const [tracked, setTracked] = useState<Record<string, SourceOcrStatus>>({});
   const pending = useRef(Promise.resolve());
+  const operations = useRef(new Map<string, object>());
   const port = host.sourceOcr;
   const merge = useCallback((updates: Record<string, Partial<SourceOcrStatus>>) =>
     setTracked((current) => Object.fromEntries(Object.entries(current).map(([role, item]) =>
@@ -23,6 +25,10 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
 
   const begin = useCallback(async (files: ScannedPdf[], pages?: number[]) => {
     if (!port || !draftId || !files.length) return;
+    const operation = {};
+    files.forEach(file => operations.current.set(file.role, operation));
+    const update = (updates: Record<string, Partial<SourceOcrStatus>>) =>
+      merge(Object.fromEntries(Object.entries(updates).filter(([role]) => operations.current.get(role) === operation)));
     setTracked((current) => ({ ...current, ...Object.fromEntries(files.map((file) =>
       [file.role, { ...current[file.role], ...file, recognized: current[file.role]?.recognized ?? 0,
         state: "running" as const, pages: pages ?? [], error: undefined }])) }));
@@ -30,18 +36,21 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
       port.start(draftId, [file.role], pages ?? file.priorityPages, {[file.role]:file.textlessPages})))).flat())
       .then((started) => merge(Object.fromEntries(started.map((item) => [item.role,
         { documentId: item.documentId, ...(item.done ? { state: "done" as const } : {}) }]))))
-      .catch((error: Error) => merge(Object.fromEntries(files.map(({ role }) =>
+      .catch((error: Error) => update(Object.fromEntries(files.map(({ role }) =>
         [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
 
   const stop = useCallback(async (roles: string[], paused: boolean) => {
     if (!port || !draftId || !roles.length) return;
+    const operation = {};
+    roles.forEach(role => operations.current.set(role, operation));
     const stopped = Object.fromEntries(roles.map((role) => [role,
       { state: paused ? "paused" as const : "cancelled" as const }]));
     merge(stopped);
-    await (pending.current = pending.current.then(() => port.cancel(draftId, roles)).then(() => merge(stopped))
+    await (pending.current = pending.current.then(async () => { await port.cancel(draftId, roles); })
       .catch((error: Error) => merge(Object.fromEntries(
-        roles.map((role) => [role, { state: "failed" as const, error: error.message }])))));
+        roles.filter(role => operations.current.get(role) === operation)
+          .map((role) => [role, { state: "failed" as const, error: error.message }])))));
   }, [draftId, merge, port]);
 
   const watching = Object.values(tracked)
@@ -53,6 +62,7 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     const poll = async () => {
       if (polling) return;
       polling = true;
+      const requested = new Map(operations.current);
       const states = new Map((await port.progress(watching.split(",")).catch(() => []))
         .map((state) => [state.id, state]));
       polling = false;
@@ -60,7 +70,7 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
       setTracked((current) => {
         let changed = false;
         const next = Object.fromEntries(Object.entries(current).map(([role, item]) => {
-          const state = item.state === "running" && item.documentId
+          const state = requested.get(role) === operations.current.get(role) && item.state === "running" && item.documentId
             ? states.get(item.documentId) : undefined;
           if (!state) return [role, item];
           // A pass is opaque while it runs, so pages count as recognized only once it ends:
@@ -86,7 +96,7 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
   }, [port, watching]);
 
   return { tracked: port ? tracked : {}, begin, stop,
-    reset: useCallback(() => setTracked({}), []) };
+    reset: useCallback(() => { operations.current.clear(); setTracked({}); }, []) };
 }
 
 /** Reuse native text and page labels when deriving each source's priority pages. */

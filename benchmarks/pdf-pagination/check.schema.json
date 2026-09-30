@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pages"
+  ],
+  "properties": {
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pdf_page",
+          "status",
+          "labels"
+        ],
+        "properties": {
+          "pdf_page": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "readable",
+              "absent",
+              "unreadable",
+              "ambiguous"
+            ]
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "location"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "location": {
+                  "type": "string",
+                  "enum": [
+                    "header",
+                    "footer",
+                    "other"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

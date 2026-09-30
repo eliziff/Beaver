@@ -1,4 +1,5 @@
 import { decodePdfProfileSelection } from "../lib/documentStore";
+import { authorityCitationForms } from "../lib/authoritiesDomain";
 import { documentProjectionService } from "../lib/documentProjectionService";
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { randomUUID } from "node:crypto";
@@ -23,7 +24,7 @@ import { sha256 } from "../lib/hash";
 import { multipleFileUpload, requiredFile, singleFileUpload } from "../lib/upload";
 import { checkQuotes, decodeQuoteLinks } from "../lib/quoteCheck";
 import { decodeAuthoritiesDiscrepancyAction, decodeAuthoritiesInitialSettings,
-  decodeAuthoritiesUserAction } from "../lib/authoritiesActionContract";
+  decodeAuthoritiesUserAction, text } from "../lib/authoritiesActionContract";
 
 const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
 
@@ -57,12 +58,15 @@ function attachPreparedSources(state: AuthoritiesDraft, attachments: PreparedAut
     if (sha256(attachment.bytes) !== attachment.sourceSha256) {
       reject(500, "Prepared authority source hash is invalid");
     }
+    const verificationUrl = draft.authorities[attachment.authorityId].sourceVerificationUrl;
     draft = attachAuthorityPdf(draft, draft.authorities[attachment.authorityId],
       { kind: "local-file", handleId: `stored:${attachment.sourceSha256}`,
         lastSeen: { name: attachment.filename, size: attachment.bytes.length,
           modified: 0, sha256: attachment.sourceSha256 } },
       attachment.filename, attachment.sourceSha256, attachment.language,
       attachment.origin, attachment.sourceUrl);
+    if (verificationUrl) draft = reduceAuthoritiesDraft(draft, { type: "set-source-verification",
+      authorityId: attachment.authorityId, pageUrl: verificationUrl });
   }
   return draft;
 }
@@ -161,6 +165,22 @@ export function createAuthoritiesRuntimeRouter(
       { pdfProfile: profile, signal: abort.signal, pages }) : [];
     res.json({ pages: text });
   }));
+  router.post("/page-labels", singleFileUpload("file"), asyncRoute(async (req, res) => {
+    const state = draft(json(req.body?.draft, "draft"));
+    const role = String(req.body?.bindingRole);
+    const authority = Object.values(state.authorities).find(item =>
+      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
+    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
+    if (!authority || !source) return reject(400, "The authority PDF is not attached");
+    const bytes = await readFile(requiredFile(req).path);
+    if (sha256(bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before reading page labels.");
+    const pageLabels = await documentProjectionService.pdfPageLabels({
+      documentId: `standalone-authority:${source.sourceSha256}`, versionId: source.sourceSha256,
+      sourceSha256: source.sourceSha256, fileType: "pdf", readBytes: () => bytes,
+      reporterOriginal: source.origin === "original",
+    }, authorityCitationForms(state, authority.id));
+    res.json({ pages: [], pageLabels });
+  }));
   router.post("/annotations", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const state = draft(json(req.body?.draft, "draft"));
     const authority = state.authorities[String(req.body?.authorityId)];
@@ -178,6 +198,8 @@ export function createAuthoritiesRuntimeRouter(
     // Manual editing never forces OCR or depends on a successful automatic match.
     const text = state.settings.passageMarking !== "none" && targets.length
       ? await authorityPdfText({ bytes, signal: abort.signal, passageTargets: targets,
+          citations: authorityCitationForms(state, authority.id),
+          reporterOriginal: source.origin === "original",
           scannedPdfPolicy: state.settings.scannedPdfPolicy }) : {};
     res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
@@ -218,8 +240,12 @@ export function createAuthoritiesRuntimeRouter(
   }));
   router.post("/sources", asyncRoute(async (req, res) => {
     const preparation = new AbortController(); res.once("close", () => preparation.abort());
-    const prepared = await resolveSources(draft(req.body?.draft), undefined,
-      preparation.signal);
+    const current = draft(req.body?.draft);
+    const onlyAuthorityId = req.body?.authorityId === undefined
+      ? undefined : text(req.body.authorityId, 200);
+    if (onlyAuthorityId && !current.authorities[onlyAuthorityId]?.sourceVerificationUrl)
+      reject(409, "This authority has no publisher check to retry.");
+    const prepared = await resolveSources(current, undefined, preparation.signal, onlyAuthorityId);
     await sendDraft(res, attachPreparedSources(prepared.draft, prepared.attachments),
       prepared.attachments);
   }));

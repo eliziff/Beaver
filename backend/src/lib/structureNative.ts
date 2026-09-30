@@ -66,6 +66,7 @@ type Rect = [number, number, number, number];
 type PassageStatus = "found" | "not_found" | "ambiguous" | "invalid" | "unavailable";
 
 export type NativePdfPassageTarget = {
+  physicalPages?: number[];
   id: string;
   locatorKind: "paragraph" | "section" | "page";
   locator: string;
@@ -162,6 +163,7 @@ type StructureAddon = {
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;
+  pdfPageLabels(document: NativeDocument): Array<string | null>;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   pdfPassageGeometryPages(document: NativeDocument, bytes: Buffer,
     targets: Array<Omit<NativePdfPassageTarget, "exactQuotes">>): Promise<NativePdfPassagePages>;
@@ -198,7 +200,8 @@ type StructureAddon = {
   citationLookupKeys(texts: string[]): string[];
   providerCitationsInText(text: string): Array<{
     text: string; start: number; end: number;
-    family: "neutral" | "reporter" | "statute";
+    family: "neutral" | "reporter" | "canlii" | "database" | "statute";
+    key?: string;
     jurisdiction?: string;
     year?: string; court?: string; number?: string;
     volume?: string; reporter?: string; page?: string;
