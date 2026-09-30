@@ -272,6 +272,8 @@ const chat = lazy(async () => {
       background(audit().then((store) => store.recordChatTurn({ userId: auth.userId,
         userEmail: auth.userEmail, chatId: input.chatId, projectId: input.projectId,
         title: input.title, model: input.model,
+        detail: { submission: input.submission, turn_id: input.turnId,
+          continuation_id: input.continuationId },
         ...(input.status ? { status: input.status } : {}) }, input.events)),
       "[audit] unavailable");
     }, async load(auth) {

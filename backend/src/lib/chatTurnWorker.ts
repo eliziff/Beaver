@@ -1,4 +1,5 @@
 import { readerSettings } from "./chat/assistantWire";
+import { promptSubmissionSchema } from "./promptSubmission";
 import { randomUUID } from "node:crypto";
 import { ChatApplicationError, chatTurnInputSchema,
   type ChatApplication, type EventSink } from "./chat/chatApplication";
@@ -105,8 +106,11 @@ export function chatTurnJobHandler(
             const id = typeof payload?.id === "string" ? payload.id : "";
             const text = typeof payload?.text === "string" ? payload.text : "";
             const readers = readerSettings.safeParse(payload?.readers);
+            const submission = promptSubmissionSchema.safeParse(payload?.submission ?? { origin: "unknown" });
             if (command.kind === "steer" && id && (text || readers.success) && claimedChatId &&
+                submission.success &&
                 await steerChatTurn(claimedChatId, { id, text,
+                  submission: submission.data,
                   ...(readers.success && { readers: readers.data }) })) {
               if (commandStop.signal.aborted || controller.signal.aborted) return;
               if (readers.success) {

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures/test";
 import path from "node:path";
 
 const PDF_FIXTURE = path.join(__dirname, "fixtures/test.pdf");

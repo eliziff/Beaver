@@ -94,6 +94,8 @@ async function main() {
         env: {
           ...process.env,
           LEAN_SMOKE_CHILD: "1",
+          BEAVER_TEST_RUN_ID: process.env.BEAVER_TEST_RUN_ID || `lean-smoke-${Date.now()}`,
+          BEAVER_TEST_SCENARIO: "lean-smoke",
           NODE_ENV: "",
           AUTH_MODE: "local",
           OPEN_LEGAL_DATA_HOME: dataHome,

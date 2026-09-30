@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures/test";
 import { createProject, PDF_FIXTURE } from "./fixtures/project";
 
 test.describe.configure({ timeout: 60_000 });

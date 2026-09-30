@@ -1068,6 +1068,7 @@ describe("chat PDF evidence durability", () => {
   });
 
   it("keeps a failed structured continuation retryable without duplicating it", async () => {
+    const submission = { origin: "machine_test", run_id: "answer-run", scenario: "Synthetic choice" };
     let continuationAttempt = 0;
     mocks.streamChatWithTools.mockImplementation(async (params) => {
       mocks.providerMessages.push(
@@ -1118,6 +1119,7 @@ describe("chat PDF evidence durability", () => {
         chat_id: created.body.id,
         expected_version: 1,
         current_turn: responseTurn,
+        submission,
       });
     expect(failed.status).toBe(200);
     expect((await storedChat(loaded.store, created.body.id))
@@ -1144,6 +1146,7 @@ describe("chat PDF evidence durability", () => {
         chat_id: created.body.id,
         expected_version: 3,
         current_turn: responseTurn,
+        submission: { origin: "machine_test", run_id: "another-answer-run" },
       });
     expect(retried.status).toBe(200);
     expect((await storedChat(loaded.store, created.body.id))
@@ -1153,6 +1156,8 @@ describe("chat PDF evidence durability", () => {
     expect(
       events.filter((event) => event.type === "ask_inputs_response"),
     ).toHaveLength(1);
+    expect(events.find(event => event.type === "ask_inputs_response")?.submission).toEqual(submission);
+    expect(mocks.streamChatWithTools.mock.calls.at(-1)?.[0].submission).toEqual(submission);
     expect(
       mocks.providerMessages[1].filter(
         (message) =>
@@ -1542,16 +1547,18 @@ it.each(["host", "native", "model-switch"])("reformats stored grounded claims wi
 });
 
 it("keeps SDK reads and steering in causal order across a failed read-only retry", async () => {
+  vi.stubEnv("BEAVER_TEST_RUN_ID", "");
   let attempt = 0;
   const model = "gemini-3-flash-preview", turn_id = crypto.randomUUID();
   mocks.streamChatWithTools.mockImplementation(async params => {
+    expect(params.submission).toEqual({ origin: "human" });
     if (attempt++ === 0) {
       await params.callbacks.onModelMessages({ model, messages: [
         { role: "assistant", content: [{ type: "tool-call", toolCallId: "r1", toolName: "Read", input: {} }] },
         { role: "tool", content: [{ type: "tool-result", toolCallId: "r1", toolName: "Read",
           output: { type: "text", value: "Already read: exact source passage" } }] },
       ] });
-      params.callbacks.onSteer({ id: "steer1", text: "Use only the saved passage." });
+      params.callbacks.onSteer({ id: "steer1", text: "Use only the saved passage.", submission: { origin: "human" } });
       await params.callbacks.onModelMessages({ model, messages: [{ role: "assistant", content: "After steering" }] });
       throw new Error("Interrupted after a completed read");
     }
@@ -1563,14 +1570,17 @@ it("keeps SDK reads and steering in causal order across a failed read-only retry
   });
   const loaded = await loadApp(), created = await request(loaded.app).post("/chat/create").send({});
   const current_turn = { kind: "message", turn_id, content: "Read and answer." };
-  await request(loaded.app).post("/chat").send({ chat_id: created.body.id, expected_version: 0, model, current_turn });
+  await request(loaded.app).post("/chat").send({ chat_id: created.body.id, expected_version: 0, model, current_turn,
+    submission: { origin: "human" } });
   const failed = (await storedChat(loaded.store, created.body.id))!;
+  expect(failed.messages[0].submission).toEqual({ origin: "human" });
   const events = failed.messages.at(-1)!.content as any[];
   expect(events.filter(event => event.type === "model_messages" && event.id.startsWith("context:"))).toHaveLength(1);
   expect(events.filter(event => ["model_messages", "steering"].includes(event.type) && !event.id?.startsWith("context:")).map(event => event.type))
     .toEqual(["model_messages", "steering", "model_messages"]);
   const retry = await request(loaded.app).post("/chat").send({ chat_id: created.body.id,
-    expected_version: failed.transcript_version, model, current_turn });
+    expected_version: failed.transcript_version, model, current_turn,
+    submission: { origin: "machine_test", run_id: "retry-run" } });
   expect(retry.text).toContain("Resumed without rereading.");
   const resumed = (await storedChat(loaded.store, created.body.id))!.messages.at(-1)!.content as any[];
   expect(resumed.filter(event => event.type === "model_messages" && event.id.startsWith("context:"))).toHaveLength(1);

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures/test";
 import { hasLlmKey, LLM_SKIP_REASON } from "./llm";
 import { createProject, PDF_FIXTURE } from "./fixtures/project";
 

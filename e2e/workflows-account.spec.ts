@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures/test";
 
 async function createWorkflow(page: Page, title: string) {
     await page.goto("/workflows");

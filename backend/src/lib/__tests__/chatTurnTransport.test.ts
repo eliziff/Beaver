@@ -74,8 +74,13 @@ it("reattaches a retried send to the job identified by its turn id", async () =>
     activity_detail: "auto" as const,
   };
   const first = await durableChatTurns.enqueue(scope, input);
+  const submission = { origin: "machine_test", run_id: process.env.BEAVER_TEST_RUN_ID,
+    scenario: process.env.BEAVER_TEST_SCENARIO };
+  expect(first.job.payload).toMatchObject({ input: { submission } });
+  vi.stubEnv("BEAVER_TEST_RUN_ID", "another-worker-run");
   const retry = await durableChatTurns.enqueue(scope, input);
   expect(retry).toMatchObject({ created: true, job: { id: first.job.id } });
+  expect(retry.job.payload).toMatchObject({ input: { submission } });
 });
 
 it.each([[401, true], [400, true], [429, false], [503, false]])(

@@ -1,13 +1,16 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { afterAll, vi } from "vitest";
+import { afterAll, beforeEach, expect, vi } from "vitest";
 
 vi.resetModules();
 vi.useRealTimers();
 const environment = { ...process.env };
 const dataHome = mkdtempSync(join(tmpdir(), "beaver-test-"));
 process.env.OPEN_LEGAL_DATA_HOME = dataHome;
+process.env.BEAVER_TEST_RUN_ID ??= `vitest-${randomUUID()}`;
+beforeEach(() => { process.env.BEAVER_TEST_SCENARIO = expect.getState().currentTestName?.slice(0, 300); });
 afterAll(async () => {
     // Module isolation does not close the process-wide SQLite worker.
     await (await vi.importActual<typeof import("./src/lib/relationalDatabase")>(

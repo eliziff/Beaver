@@ -1,4 +1,5 @@
 import type { ModelMessage } from "ai" with { "resolution-mode": "import" };
+import type { PromptSubmission } from "../promptSubmission";
 
 // Shared provider-neutral LLM types. Tool contracts use MCP's standard shape;
 // provider adapters only translate at their wire boundary.
@@ -83,11 +84,12 @@ export type StreamCallbacks = {
   }) => void;
   onCompaction?: (status: "running" | "completed" | "failed", details?: CompactionDetails) => void;
   onContextCheckpoint?: (checkpoint: ProviderContextCheckpoint) => void;
-  onSteer?: (message: { id: string; text: string }) => void;
+  onSteer?: (message: { id: string; text: string; submission?: PromptSubmission }) => void;
 };
 
 export type ProviderTurnControl = {
   steer: (message: { id: string; text: string;
+    submission?: PromptSubmission;
     readers?: import("../chat/assistantWire").ReaderSettings }) => Promise<void>;
 };
 
@@ -106,6 +108,7 @@ export type UserApiKeys = {
 };
 
 export type StreamChatParams = {
+  submission?: PromptSubmission;
   model: string;
   systemPrompt: string;
   messages: LlmMessage[];
@@ -198,6 +201,7 @@ export type LlmContextRoundReceipt = {
 };
 
 export type StreamChatResult = {
+  submission?: PromptSubmission;
   /** Validated machine-consumed result, separate from streamed prose. */
   output?: unknown;
   finishReason?: string;

@@ -44,6 +44,25 @@ afterEach(async () => {
 });
 
 describe("local chat store", () => {
+  it("reopens human, machine and legacy unknown origins without copying prompt content into metadata", async () => {
+    let store = await loadStore();
+    const chat = await store.create(scope(), { projectId: null, tabularReviewId: null });
+    const submissions = [{ origin: "human" } as const,
+      { origin: "machine_test", run_id: "synthetic-run", scenario: "Library folders" } as const,
+      undefined];
+    for (const [version, submission] of submissions.entries()) await store.commitTurn(scope(), chat.id, {
+      expectedVersion: version,
+      userMessage: { id: randomUUID(), content: "Synthetic question", submission },
+    });
+    const legacy = (await store.transcript(scope(), chat.id))![2];
+    const { relationalDatabase, sql } = await import("../relationalDatabase");
+    await (await relationalDatabase()).query(sql`UPDATE chat_messages SET submission=NULL WHERE id=${legacy.id}`);
+    store = await reopenStore();
+    expect((await store.transcript(scope(), chat.id))?.map(message => message.submission)).toEqual([
+      submissions[0], submissions[1], { origin: "unknown" },
+    ]);
+  });
+
   it("reopens the transcript and resumes only its matching provider session", async () => {
     vi.useFakeTimers();
     vi.setSystemTime("2026-07-26T12:00:00.000Z");

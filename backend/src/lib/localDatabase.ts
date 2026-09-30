@@ -106,6 +106,7 @@ const LOCAL_SCHEMA_VERSION = 17;
 // an existing table are reconciled before the schema runs (its indexes may reference them).
 const ADDED_COLUMNS: readonly (readonly [table: string, column: string, type: string])[] = [
   ["chats", "work_product_id", "text"],
+  ["chat_messages", "submission", "jsonb"],
 ];
 
 function addMissingColumns(database: DatabaseSync) {

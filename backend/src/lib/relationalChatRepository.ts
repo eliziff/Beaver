@@ -23,6 +23,7 @@ const chatRecord = (row: Row): ChatRecord => ({ ...row, role: roleFromRank(row.a
 const chatMessage = (row: Row, content?: unknown[]): ChatMessageRecord => ({ ...row, id: String(row.id),
   chat_id: String(row.chat_id), ...(row.turn_id ? { turn_id: String(row.turn_id) } : {}),
   role: row.role === "user" ? "user" : "assistant",
+  ...(row.role === "user" ? { submission: decode(row.submission, { origin: "unknown" } as const) } : {}),
   content: row.role === "user" ? decode<string>(row.content, "")
     : (content ?? []).flatMap((event) => parseAssistantEvent(event) ?? []),
   ...(row.files !== null ? { files: decode(row.files, null) } : {}),
@@ -117,10 +118,11 @@ async function commitChat(scope: ApplicationScope, id: string, mutation: ChatMut
     } else {
       const { userMessage, assistantMessage } = mutation.turn;
       if (userMessage) await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
-        content,files,workflow,citations,created_at) VALUES(${userMessage.id},${id},
+        content,files,workflow,citations,submission,created_at) VALUES(${userMessage.id},${id},
         ${userMessage.turnId ?? null},'user',${encode(userMessage.content)},
         ${userMessage.files === undefined ? null : encode(userMessage.files)},
-        ${userMessage.workflow === undefined ? null : encode(userMessage.workflow)},${null},${created})`, tx);
+        ${userMessage.workflow === undefined ? null : encode(userMessage.workflow)},${null},
+        ${encode(userMessage.submission ?? { origin: "unknown" })},${created})`, tx);
       if (assistantMessage) {
         await changes(sql`INSERT INTO chat_messages(id,chat_id,turn_id,role,
         content,files,workflow,citations,created_at) VALUES(${assistantMessage.id},${id},

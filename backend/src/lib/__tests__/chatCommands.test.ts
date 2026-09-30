@@ -34,6 +34,7 @@ it("delivers pending steering as soon as the provider becomes ready, and resumes
   const clientCall = deferred<string>(), result = deferred<unknown>(), chatId = randomUUID();
   const readers = { enabled: true, model: "opencode-go/deepseek-v4-pro", effort: "high" };
   const configured = deferred();
+  const submission = { origin: "machine_test", run_id: "steering-run", scenario: "Synthetic steering" };
   // The only double is the model turn. Real persistence, worker, control loop,
   // event parser, and observer deliver the steering and client result.
   const application = { turn: async (_scope, _input, sink, signal, execution) => {
@@ -42,7 +43,7 @@ it("delivers pending steering as soon as the provider becomes ready, and resumes
     await enableControl.promise;
     sink.setControl({ steer: async message => {
       if (message.readers) { expect(message.text).toBe(""); expect(message.readers).toEqual(readers); configured.resolve(); }
-      else steered.resolve(message.text);
+      else { expect(message.submission).toEqual(submission); steered.resolve(message.text); }
     } });
     result.resolve(await execution!.clientTool!("word.read", {}, signal));
     return { chatId, transcriptVersion: 1 };
@@ -53,7 +54,7 @@ it("delivers pending steering as soon as the provider becomes ready, and resumes
   const observing = durableChatTurns.observe({ userId: "owner" }, job.id, new AbortController().signal,
     event => { if (event.type === "client_tool_call") clientCall.resolve(event.callId); });
   await accepted.promise;
-  await queue.enqueueJobCommand("owner", job.id, "steer", { id: "steer-1", text: "Use the new instructions" });
+  await queue.enqueueJobCommand("owner", job.id, "steer", { id: "steer-1", text: "Use the new instructions", submission });
   enableControl.resolve();
   expect(await steered.promise).toBe("Use the new instructions");
   await queue.enqueueJobCommand("owner", job.id, "steer", { id: "settings-1", text: "", readers });

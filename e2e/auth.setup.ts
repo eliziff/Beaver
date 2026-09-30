@@ -1,4 +1,4 @@
-import { test as setup } from "@playwright/test";
+import { test as setup } from "./fixtures/test";
 import path from "path";
 import fs from "fs";
 import { sharedUser, logoutUser, signIn } from "./fixtures/auth";

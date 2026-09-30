@@ -80,6 +80,7 @@ import type { ChatCreateInput } from "../chatStore";
 import { researchSelectionSchema } from "../researchSelection";
 import { researchResultFilter, researchReadContextPrompt } from "../researchReader";
 import type { AuditStore } from "../audit";
+import { promptSubmissionSchema, resolvePromptSubmission, type PromptSubmission } from "../promptSubmission";
 
 const uuid = z.string().uuid();
 const userMessage = textField(200_000);
@@ -127,6 +128,7 @@ export const chatTurnInputSchema = z.object({
   research_file_id: uuid.nullish(),
   research_selection: researchSelectionSchema.nullish(),
   current_turn: currentTurn,
+  submission: promptSubmissionSchema.optional(),
   expected_version: z.number().int().nonnegative(),
   model: textField(200)
     .refine(isSupportedModel, "Unsupported model").optional(),
@@ -237,6 +239,9 @@ export type ChatApplicationFeatures = {
     model: string;
     status?: "cancelled" | "failed";
     events: AssistantEvent[] | null;
+    submission: PromptSubmission;
+    turnId?: string;
+    continuationId?: string;
   }): void;
 };
 
@@ -288,7 +293,7 @@ function pendingAskInputs(messages: ChatMessageRecord[]) {
       ask = event.items.length ? event : null;
       response = null; failed = false; mutationCommitted = false;
     } else if (event.type === "ask_inputs_response" && ask) {
-      response = { responses: event.responses };
+      response = { responses: event.responses, submission: event.submission };
       failed = false; mutationCommitted = false;
     } else if (response && event.type === LOCAL_MUTATION_COMMITTED_EVENT) {
       mutationCommitted = true;
@@ -505,6 +510,7 @@ export function createChatApplication(deps: Dependencies) {
       execution?: ChatTurnExecution,
     ) {
       const selectedModel = requestedModel(input.model);
+      let submission = resolvePromptSubmission(input.submission);
       const responseProvider = providerForModel(selectedModel);
       let chat = input.chat_id ? await deps.chats.get(auth, input.chat_id) : null;
       if (input.chat_id && !chat) throw new ChatApplicationError(404, "Chat not found");
@@ -598,9 +604,11 @@ export function createChatApplication(deps: Dependencies) {
           "chat_retry_blocked_after_mutation", chat?.transcript_version ?? 0,
           "The prior continuation changed data before it stopped. Review that result before sending a new instruction.",
         );
-        if (!pending.retryResponse) assistantContent.push({
+        if (pending.retryResponse) submission = pending.retryResponse.submission ?? { origin: "unknown" };
+        else assistantContent.push({
           type: "ask_inputs_response",
           responses: canonical.responses,
+          submission,
         });
         commit = {
           expectedVersion: commitVersion,
@@ -615,6 +623,7 @@ export function createChatApplication(deps: Dependencies) {
       } else {
         const prior = turnId ? normalTurnState(rows, turnId) : null;
         if (prior) {
+          submission = prior.user.submission ?? { origin: "unknown" };
           const same = prior.user.content === input.current_turn.content &&
             JSON.stringify(prior.user.files ?? []) === JSON.stringify(canonicalFiles) &&
             JSON.stringify(prior.user.workflow ?? null) ===
@@ -651,6 +660,7 @@ export function createChatApplication(deps: Dependencies) {
           userMessage: {
             id: randomUUID(), turnId,
             content: input.current_turn.content,
+            submission,
             files: canonicalFiles.length ? canonicalFiles : undefined,
             workflow: canonicalWorkflow,
           },
@@ -935,10 +945,11 @@ ${registeredWorkflow.skill_md}` : "",
       const auditTurn = (outcome: {
         status?: "cancelled" | "failed"; events: AssistantEvent[] | null }) =>
         deps.features.audit?.(auth, { chatId: chat!.id, projectId, title: chat!.title,
-          model: selectedModel, ...outcome });
+          model: selectedModel, submission, turnId, continuationId: activeContinuationId, ...outcome });
       try {
         sink.emit({ type: "chat_id", chatId: chat.id, transcriptVersion: version });
         const result = await runChatTurn({
+          submission,
           model: selectedModel,
           systemPrompt,
           turnContext,

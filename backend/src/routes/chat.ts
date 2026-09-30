@@ -15,6 +15,7 @@ import { jsonRecord, trimmedText } from "../lib/value";
 import { ApplicationError } from "../lib/applicationError";
 import { z } from "zod";
 import { researchSelectionSchema } from "../lib/researchSelection";
+import { promptSubmissionSchema, resolvePromptSubmission } from "../lib/promptSubmission";
 
 const historyQuery = z.object({
   search_scope: z.enum(["all", "titles", "transcripts"]).default("all"),
@@ -237,10 +238,12 @@ export function createChatRouter(
     }
     const id = text(req.body?.id), instruction = text(req.body?.text);
     const readers = req.body?.readers === undefined ? undefined : readerSettings.safeParse(req.body.readers);
-    if (!CODEX_THREAD_ID.test(id) || (!instruction && !readers?.success) || readers?.success === false) {
+    const submission = promptSubmissionSchema.optional().safeParse(req.body?.submission);
+    if (!CODEX_THREAD_ID.test(id) || (!instruction && !readers?.success) || readers?.success === false || !submission.success) {
       return void res.status(400).json({ detail: "A valid id and instruction or reader settings are required" });
     }
     if (!await turns.steer(scope, req.params.chatId, { id, text: instruction,
+      submission: resolvePromptSubmission(submission.data),
       ...(readers?.success && { readers: readers.data }) })) {
       return void res.status(409).json({
         detail: "No steerable response is running",
