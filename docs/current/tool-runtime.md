@@ -41,6 +41,27 @@ This is Beaver's only current tool-runtime contract. The displaced registry,
 parallel policy tables, and artifact-generation tools are not compatibility
 surfaces.
 
+## Deferred discovery and execution
+
+Specialists stay deferred. `load_tools` activates exact registered names and
+returns their canonical descriptions and argument schemas, including `word_uno`'s
+real help/inspect/describe/preview/apply entry points. An absent executor is a
+registration failure, not a successful load. Repeat discovery returns the same
+schemas; oversized results refuse before changing the active set.
+
+On hosted providers, the next request contains the selected functions, not the
+whole specialist catalog. A response may batch `load_tools` and the function it
+loads. The SDK validates against the earlier request catalog; Beaver resolves
+a known-but-deferred call through its existing ordered registry and persists
+exactly its actual result. A call whose arguments pass the specialist's schema
+activates it without a separate loader round; unknown names and invalid
+arguments are still errors. No new dispatcher or generic invocation tool is introduced.
+
+Native MCP clients retain a static scoped discovery catalog; the registry still
+validates every call against the turn's scope and schemas. Claude's native `ToolSearch` builtin is available with native
+deferral enabled, rather than disabling search while relying on its deferred
+schemas. Other native execution builtins remain disabled.
+
 ## Reader and turn lifecycle (September 2026)
 
 Provider adapters remove Beaver's picker prefix before sending model IDs. OpenCode
@@ -471,7 +492,7 @@ fallback dispatchers, or transition registries.
 - Every provider sees an equivalent canonical schema after transport-only
   normalization.
 - Writes and interactions are absent from reader catalogs.
-- Unloaded specialists cannot execute.
+- Specialists outside the turn's scope cannot execute.
 - Cancellation reaches every executor.
 - Mixed sequential batches and all returned results preserve source order.
 - `Write` creates faithful DOCX/XLSX/PPTX artifacts through existing renderers.

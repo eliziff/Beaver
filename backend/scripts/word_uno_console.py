@@ -2,9 +2,11 @@
 from __future__ import annotations
 from collections import Counter
 from hashlib import sha256
+from itertools import zip_longest
 import json
 import os
 from pathlib import Path
+import posixpath
 import re
 import sys
 import tempfile
@@ -13,7 +15,7 @@ import zipfile
 from urllib.parse import quote
 
 from word_uno import (W, collection, resolve, resolve_many, encode, decode, check_name, check_value,
-                      package, props, writer, load, inspect, properties, page, enumerate_values, STYLE_FAMILIES, PAGE_STORIES, page_story, revision_range)
+                      package, props, writer, load, inspect, properties, page, enumerate_values, STYLE_FAMILIES, PAGE_STORIES, page_story, revision_range, body_margins)
 import uno
 
 # Discover document interfaces rather than maintaining a formatting catalogue.
@@ -30,6 +32,7 @@ METHODS = {
 }
 READ_METHOD = re.compile(r'^(?:get|has|is|supports|createTextCursor|createSearchDescriptor|createEnumeration|nextElement|find|goto|goLeft|goRight|collapse|compareRegion)')
 DOCUMENT_SERVICES = re.compile(r'^com\.sun\.star\.(?:text|style|drawing)\.')
+PAGE_LAYOUT = ('Width', 'Height', 'IsLandscape', 'LeftMargin', 'RightMargin')
 ACTIVE_SERVICES = re.compile(r'OLE|Applet|Plugin|MediaShape|Script|Macro|Database|DDE|DataSource', re.I)
 
 
@@ -59,6 +62,42 @@ def semantic_package(path):
                 for n in z.namelist() if not n.endswith('/') and not n.startswith('docProps/thumbnail.')}
 
 
+def word_sections(path):
+    """Word's page setup per section as the DOCX stores it: inches, and whether its
+    header/footer shows text (None when Word repeats the previous section's)."""
+    R = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+    with zipfile.ZipFile(path) as z:
+        rels = {r.get('Id'): r.get('Target') for r in ET.fromstring(z.read('word/_rels/document.xml.rels'))}
+        def story(sect, kind):
+            ref = next((n.get(R + 'id') for n in sect.iter(W + kind + 'Reference') if n.get(W + 'type') == 'default'), None)
+            if ref is None: return None
+            root = ET.fromstring(z.read(posixpath.normpath(posixpath.join('word', rels[ref]))))
+            return any((n.text or '').strip() for n in root.iter() if n.tag in (W + 't', W + 'instrText'))
+        sections, paragraphs = [], 0
+        for node in ET.fromstring(z.read('word/document.xml')).find(W + 'body'):
+            sect = node if node.tag == W + 'sectPr' else node.find(f'{W}pPr/{W}sectPr')
+            paragraphs += node.tag == W + 'p'
+            if sect is None: continue
+            size, margins = sect.find(W + 'pgSz'), sect.find(W + 'pgMar')
+            inches = lambda element, name: round(int(element.get(W + name, 0)) / 1440, 2) if element is not None else None
+            sections.append({**({'ends_at': 'paragraph:' + str(paragraphs - 1)} if node.tag == W + 'p' else {}),
+                'orientation': size.get(W + 'orient', 'portrait') if size is not None else None,
+                'page_in': [inches(size, 'w'), inches(size, 'h')],
+                'margins_in': {name: inches(margins, name) for name in ('top', 'bottom', 'left', 'right', 'header', 'footer')},
+                'header': story(sect, 'header'), 'footer': story(sect, 'footer')})
+        return sections
+
+
+def equivalent(expected, actual):
+    """Writer accepts and reports some enum properties as their ordinal (ParaAdjust, CharPosture)."""
+    if expected == actual: return True
+    enum, number = (expected, actual) if isinstance(expected, dict) else (actual, expected)
+    if not (isinstance(enum, dict) and set(enum) == {'enum', 'value'} and type(number) is int): return False
+    types = uno.getComponentContext().getValueByName('/singletons/com.sun.star.reflection.theTypeDescriptionManager')
+    description = types.getByHierarchicalName(enum['enum'])
+    return dict(zip(description.getEnumNames(), description.getEnumValues())).get(enum['value']) == number
+
+
 def page_text(story):
     # Pagination displays are calculated; retain field identity, not cached digits.
     paragraphs = []
@@ -76,15 +115,21 @@ def page_text(story):
 
 def native_state(doc):
     """Ordered text/story and structural readback; not a complete OOXML validator."""
+    # Page styles in use become Word sections and may be renamed on reopen.
+    used = dict.fromkeys(node.PageStyleName for _, node in collection(doc, 'paragraph'))
+    styles = doc.StyleFamilies.getByName('PageStyles')
     return {
-        'body': [('table', node.Name) if node.supportsService('com.sun.star.text.TextTable') else ('paragraph', node.String)
+        # Word tables have no names; LibreOffice renumbers them on reopen.
+        'body': [('table', node.Rows.Count) if node.supportsService('com.sun.star.text.TextTable') else ('paragraph', node.String)
                  for _, node in enumerate_values(doc.Text)],
         'stories': {**{family: [(key, node.String) for key, node in collection(doc, family)]
                        for family in ('footnote', 'endnote', 'frame')},
-                    **{family + ':' + key: page_text(story) for key, style in collection(doc, 'page-style')
-                       for family in PAGE_STORIES if (story := page_story(style, family, include_shared=True)) is not None}},
-        'tables': [(name, tuple((cell, table.getCellByName(cell).String) for cell in table.getCellNames()), table.Rows.Count)
-                   for name, table in collection(doc, 'table')],
+                    # An empty header equals none: Word sections otherwise inherit the previous one.
+                    **{family + ':' + str(order): text for order, name in enumerate(used) for family in PAGE_STORIES
+                       if (story := page_story(styles.getByName(name), family, include_shared=True)) is not None
+                       and any(text := page_text(story))}},
+        'tables': sorted((tuple((cell, table.getCellByName(cell).String) for cell in table.getCellNames()), table.Rows.Count)
+                         for _, table in collection(doc, 'table')),
         'bookmarks': [(name, bookmark.Anchor.String) for name, bookmark in collection(doc, 'bookmark')],
         'drawings': [(name, shape.ShapeType, encode(shape.Position), encode(shape.Size)) for name, shape in collection(doc, 'drawing')],
         'revisions': [(r.RedlineAuthor, r.RedlineType, revision_range(r).String) for _, r in collection(doc, 'revision')],
@@ -147,6 +192,7 @@ class Broker:
         self.scratch = set()
         self.metadata = {}
         self.removed_review = Counter()
+        self.unsaved = []
         self.calls = 0
         ctx = uno.getComponentContext()
         self.introspection = ctx.ServiceManager.createInstanceWithContext('com.sun.star.beans.Introspection', ctx)
@@ -196,9 +242,10 @@ class Broker:
         if op == 'describe':
             offset, limit = command.get('offset', 0), command.get('limit', 50)
             if type(offset) is not int or type(limit) is not int or offset < 0 or not 1 <= limit <= 100: raise ValueError('Invalid metadata page')
-            info = self.info(obj); pattern = command.get('filter', '').lower()
-            members = [('property', p) for p in info.getProperties(-1) if pattern in p.Name.lower()] + [
-                ('method', m) for m in info.getMethods(-1) if pattern in m.Name.lower() and self.method_allowed(obj, m.Name, m)]
+            info = self.info(obj); patterns = str(command.get('filter', '')).lower().split('|')
+            matches = lambda name: any(p in name.lower() for p in patterns)
+            members = [('property', p) for p in info.getProperties(-1) if matches(p.Name)] + [
+                ('method', m) for m in info.getMethods(-1) if matches(m.Name) and self.method_allowed(obj, m.Name, m)]
             rows = []
             # Signatures and values are expensive remote objects: expand only this page.
             for kind, member in members[offset:offset + limit]:
@@ -246,7 +293,8 @@ class Broker:
             if op == 'set':
                 expected = {name: encode(value) for name, value in requested.items()}
                 if 'String' in expected and self.doc.RecordChanges: after['String'] = expected['String']
-                if after != expected: raise ValueError('Writer did not retain requested properties')
+                lost = {name: {'requested': expected[name], 'actual': after.get(name)} for name in expected if not equivalent(expected[name], after.get(name))}
+                if lost: raise ValueError('Writer did not retain ' + json.dumps(lost)[:400])
                 self.resets.get(obj, set()).difference_update(values)
                 if target in self.targets or obj in self.find_scopes:
                     self.checks.setdefault(obj, {}).update({name: value for name, value in after.items()
@@ -270,21 +318,30 @@ class Broker:
             return self.save(self.doc.createInstance(service))
         if op == 'call':
             name, args = command.get('name'), command.get('args', [])
-            if not self.method_allowed(obj, name): raise ValueError('Method is not a document-only capability: ' + str(name))
             if not isinstance(args, list) or len(args) > 20: raise ValueError('Too many native arguments')
-            if name == 'setParentStyle':
-                if len(args) != 1: raise ValueError('setParentStyle requires one style name')
-                return self.rpc({'op': 'set', 'target': target, 'values': {'ParentStyle': args[0]}})
-            aliases = {'getPropertyDefaults': 'default', 'getPropertyDefault': 'default', 'getPropertyState': 'state', 'getPropertyStates': 'state',
-                       'setPropertyToDefault': 'reset', 'setPropertiesToDefault': 'reset'}
+            # Native property/factory interfaces share the checked property and create paths.
+            if name == 'createInstance' and len(args) == 1:
+                return self.rpc({'op': 'create', 'service': args[0]})
+            if name in ('setPropertyValue', 'setPropertyValues', 'setParentStyle'):
+                values = ({'ParentStyle': args[0]} if name == 'setParentStyle' and len(args) == 1 else
+                          {args[0]: args[1]} if name == 'setPropertyValue' and len(args) == 2 else
+                          dict(zip(args[0], args[1])) if len(args) == 2 and all(isinstance(a, list) for a in args) and len(args[0]) == len(args[1]) else None)
+                if values is None: raise ValueError(name + ' has the wrong arguments')
+                return self.rpc({'op': 'set', 'target': target, 'values': values})
+            aliases = {'getPropertyValue': 'get', 'getPropertyValues': 'get', 'getPropertyDefaults': 'default', 'getPropertyDefault': 'default',
+                       'getPropertyState': 'state', 'getPropertyStates': 'state', 'setPropertyToDefault': 'reset', 'setPropertiesToDefault': 'reset'}
             if name in aliases:
                 if len(args) != 1: raise ValueError('Property access requires one name or name list')
-                plural = name in ('getPropertyStates', 'getPropertyDefaults', 'setPropertiesToDefault')
+                plural = name in ('getPropertyValues', 'getPropertyStates', 'getPropertyDefaults', 'setPropertiesToDefault')
                 names = args[0] if plural else [args[0]]
                 if not isinstance(names, list): raise ValueError('Property access requires a property-name list')
                 result = self.rpc({'op': aliases[name], 'target': target, 'names': names, 'name': names})
                 if aliases[name] == 'reset': return result
                 return [result[n] for n in names] if plural else result[names[0]]
+            if not self.method_allowed(obj, name):
+                try: self.info(obj).getMethod(str(name), -1)
+                except Exception: raise ValueError('This object has no native method ' + str(name) + '; describe(filter) lists its members') from None
+                raise ValueError('Method is not a document-only capability: ' + str(name))
             if not READ_METHOD.match(name): self.mutate()
             result = uno.invoke(obj, name, tuple(decode(a, self.refs) for a in args))
             if not READ_METHOD.match(name): self.changes.append({'target': self.targets.get(target, target), 'method': name})
@@ -295,9 +352,12 @@ class Broker:
             values = command.get('values')
             if not isinstance(values, dict) or not 1 <= len(values) <= 100: raise ValueError('expect requires 1-100 properties')
             actual = {name: encode(value) for name, value in properties(obj, values).items()}
-            if actual != values: raise ValueError('Postcondition failed: ' + str(target))
-            self.checks.setdefault(obj, {}).update(values)
+            failed = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if not equivalent(values[name], actual.get(name))}
+            if failed: raise ValueError('Postcondition failed: ' + json.dumps(failed)[:400])
+            self.checks.setdefault(obj, {}).update(actual)
             return True
+        if op == 'section':
+            return self.section(target, obj, command.get('values', {}))
         if op == 'review':
             self.mutate()
             targets = command.get('targets', [target])
@@ -311,6 +371,43 @@ class Broker:
             self.changes.append({'review': command.get('decision'), 'count': len(removed)})
             return True
         raise ValueError('Unknown document console operation')
+
+    def section(self, target, paragraph, values):
+        """A Word section break: the paragraph starts a new page with a copy of its current
+        page style, header/footer content included, then `values` (IsLandscape swaps the size)."""
+        self.mutate()
+        if not isinstance(values, dict) or not hasattr(paragraph, 'supportsService') or not paragraph.supportsService('com.sun.star.text.Paragraph'):
+            raise ValueError('word.section(paragraph, values) starts a section at a body paragraph')
+        styles = self.doc.StyleFamilies.getByName('PageStyles')
+        current = styles.getByName(paragraph.PageStyleName)
+        name = next(n for i in range(2, 10000) if not styles.hasByName(n := 'Section ' + str(i)))
+        styles.insertByName(name, self.doc.createInstance('com.sun.star.style.PageStyle'))
+        style = styles.getByName(name)
+        # Copy the layout; the new style follows itself, not the previous section's style.
+        layout = sorted(p.Name for p in current.getPropertySetInfo().getProperties() if not p.Attributes & 16 and p.Name != 'FollowStyle')
+        for prop, value in zip(layout, current.getPropertyValues(tuple(layout))):
+            try: style.setPropertyValue(prop, value)
+            except Exception: pass  # Unset optional values (e.g. absent border colours).
+        key = target if target in self.refs else self.save(paragraph, target)['ref']
+        self.rpc({'op': 'set', 'target': key, 'values': {'PageDescName': name}})
+        self.checks.setdefault(paragraph, {})['PageDescName'] = name
+        # Stories are copied through Writer's own clipboard format, keeping fields and formatting.
+        controller = self.doc.CurrentController
+        for family, (prop, _, _) in PAGE_STORIES.items():
+            if page_story(current, family) is None: continue
+            source, copy = getattr(current, prop).createTextCursor(), getattr(style, prop).createTextCursor()
+            source.gotoEnd(True); copy.gotoEnd(True)
+            controller.select(source); transferable = controller.getTransferable()
+            controller.select(copy); controller.insertTransferable(transferable)
+        # Content can resize dynamic header/footer areas; restore the copied Word margins.
+        style.setPropertyValues(('FooterHeight', 'HeaderHeight'), (current.FooterHeight, current.HeaderHeight))
+        if 'IsLandscape' in values and values['IsLandscape'] != current.IsLandscape and not {'Width', 'Height'} & set(values):
+            values = {**values, 'Width': current.Height, 'Height': current.Width}
+        address = 'page-style:' + quote(name, safe='')
+        handle = self.save(style, address)
+        if values: self.rpc({'op': 'set', 'target': handle['ref'], 'values': values})
+        self.changes.append({'section': address, 'starts_at': self.targets.get(key, target)})
+        return handle
 
 
 def freeze_checks(broker):
@@ -364,7 +461,27 @@ def freeze_checks(broker):
                     remember('cell:' + quote(name, safe='') + '/' + quote(cell, safe=''), obj.getCellByName(cell))
             if not pending: break
     if pending: raise ValueError('Postcondition object was removed or has no persistent document address')
-    accepted, raw = [], []
+    accepted, raw, pages = [], [], {}
+    def portable(obj, address, values, defaults):
+        """Word keeps sections and lists, not LibreOffice page/list style names.
+
+        Unused page styles are not saved. Used ones are checked through a paragraph
+        they lay out; applied page styles by their layout; list names by labels.
+        """
+        values, checks = dict(values), []
+        if values.get('NumberingStyleName') or 'NumberingRules' in values:
+            values.pop('NumberingStyleName', None); values.pop('NumberingRules', None)
+            if hasattr(obj, 'ListLabelString'): values['ListLabelString'] = obj.ListLabelString
+        if not pages:
+            for index, node in collection(broker.doc, 'paragraph'): pages.setdefault(node.PageStyleName, 'paragraph:' + index)
+        if address.startswith('page-style:'):
+            if not obj.isInUse(): broker.unsaved.append(address); return []
+            if obj.Name in pages: address = 'page-style:' + pages[obj.Name]
+            values.update({name: value for name, value in body_margins(obj).items() if name in values})
+        if values.get('PageDescName') and address.startswith('paragraph:'):
+            style = broker.doc.StyleFamilies.getByName('PageStyles').getByName(values.pop('PageDescName'))
+            checks.append(('page-style:' + address, None, None, {**{name: getattr(style, name) for name in PAGE_LAYOUT}, **body_margins(style)}, ()))
+        return checks + ([(address, None, None, values, defaults)] if values or defaults else [])
     for obj, values in broker.checks.items():
         if obj not in broker.find_scopes:
             # Formatting/explicit expectations describe the actual redline view.
@@ -372,7 +489,7 @@ def freeze_checks(broker):
             if broker.doc.RecordChanges and 'String' in values and properties(obj, ['String'])['String'] != values['String']:
                 accepted.append((addresses[obj], None, None, {'String': values['String']}, ()))
                 values = {name: value for name, value in values.items() if name != 'String'}
-            if values: raw.append((addresses[obj], None, None, values, tuple(broker.resets.get(obj, ()))))
+            raw.extend(portable(obj, addresses[obj], values, tuple(broker.resets.get(obj, ()))))
             continue
         scope, text = broker.find_scopes[obj], obj.String
         if not text: raise ValueError('An empty selection has no persistent formatting to verify')
@@ -388,7 +505,9 @@ def verify_properties(doc, checks):
         obj = scopes[target]
         if prefix is not None: obj = unique_range(doc, obj, text, prefix)
         actual = {name: encode(value) for name, value in properties(obj, values).items()}
-        if actual != values: raise ValueError('Export/reopen lost properties at ' + target)
+        if target.startswith('page-style:'): actual.update({name: value for name, value in body_margins(obj).items() if name in values})
+        lost = {name: {'expected': values[name], 'actual': actual.get(name)} for name in values if not equivalent(values[name], actual.get(name))}
+        if lost: raise ValueError('Export/reopen lost properties at ' + target + ': ' + json.dumps(lost)[:400])
         if any(state.value != 'DEFAULT_VALUE' for state in properties(obj, defaults, operation='state').values()):
             raise ValueError('Export/reopen restored direct formatting at ' + target)
 
@@ -438,7 +557,14 @@ def transact(source, output, request, binary, interact):
             if preserved - after_protected: raise ValueError('Export lost existing review content, bindings or opaque assets')
             reopened = load(desktop, output)
             try:
-                if native_state(reopened) != expected: raise ValueError('Export/reopen changed text, ordering or structural objects')
+                state = native_state(reopened)
+                if state != expected:
+                    # Name only the entries that differ (expected, then reopened), not whole lists.
+                    def differing(before, after):
+                        if isinstance(before, dict): before, after = sorted(before.items()), sorted(after.items())
+                        return [(i, b, a) for i, (b, a) in enumerate(zip_longest(before, after)) if b != a][:3]
+                    changed = {key: differing(expected[key], state[key]) for key in expected if state[key] != expected[key]}
+                    raise ValueError('Export/reopen changed ' + str(changed)[:800])
                 new_indices = [i for i, (who, _, _) in enumerate(expected['revisions']) if who == author]
                 verify_properties(reopened, raw_checks)
                 if mode == 'tracked' and new_indices and checks:
@@ -465,6 +591,9 @@ def transact(source, output, request, binary, interact):
                 'review_verified': mode == 'tracked',
                 'changes': broker.changes[:20], 'change_count': len(broker.changes),
                 'changes_truncated': len(broker.changes)>20, 'native_calls': broker.calls,
+                **({'unused_page_styles_not_saved': broker.unsaved} if broker.unsaved else {}),
+                # What Word will show when page layout changed: its margins include an enabled header/footer.
+                **({'word_sections': sections} if (sections := word_sections(output)) != word_sections(source) else {}),
                 'revision_count': len(expected['revisions']), 'new_revision_count': len(new_indices), 'author': author,
                 'changed_parts': [n for n in sorted(set(before_parts)|set(after_parts)) if before_parts.get(n)!=after_parts.get(n)],
                 'warning': 'LibreOffice compatibility and tested native postconditions, not universal Word-identical fidelity.'}
@@ -478,8 +607,16 @@ def serve(source, output, request, binary):
     if action not in ('console', 'inspect', 'describe'): raise ValueError('Unknown action')
     if action != 'console': request = {**request, 'read_only': True}
     def interact(broker, source_hash, version):
-        if action != 'console':
-            return broker.rpc({**request, 'op': 'describe', 'values': True}) if action == 'describe' else inspect(broker.doc, request)
+        if action == 'describe':
+            # Without a target, describe the family's first object.
+            target = request.get('target')
+            if not target:
+                family = request.get('family', 'document')
+                first = next(collection(broker.doc, family), None)
+                if first is None: raise ValueError('No ' + family + ' object to describe')
+                target = family + ':' + quote(first[0], safe='')
+            return {'target': target, **broker.rpc({**request, 'target': target, 'op': 'describe', 'values': True})}
+        if action != 'console': return inspect(broker.doc, request)
         emit({'rpc': 'ready', 'snapshot': source_hash, 'engine_version': version})
         while True:
             line = sys.stdin.readline(262145)
@@ -490,6 +627,13 @@ def serve(source, output, request, binary):
             if command.get('op') == 'finish': return
             try: emit({'rpc': 'result', 'id': command.get('id'), 'value': broker.rpc(command)})
             except Exception as error:
-                emit({'rpc': 'result', 'id': command.get('id'), 'error': str(error)[:1000]})
+                member = command.get('name') if isinstance(command.get('name'), str) else command.get('op')
+                # Writer's message for a descriptor that was never inserted or was since removed.
+                native = isinstance(error, uno.getClass('com.sun.star.uno.Exception'))
+                reason = ('the object is not in the document; insert new content with insertTextContent before using it'
+                          if 'Lost connection to core objects' in str(error) else
+                          ': '.join(filter(None, (type(error).__name__, str(error)))) if native else
+                          'no native member ' + str(error) + '; describe(filter) lists members' if isinstance(error, AttributeError) else str(error))
+                emit({'rpc': 'result', 'id': command.get('id'), 'error': (str(member) + ': ' + reason)[:1000]})
                 raise
     return transact(source, output, request, binary, interact)
