@@ -202,7 +202,8 @@ const RENDERERS: Record<RequestedRole, string> = {
 
 function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   const forms = authorityCitationForms(draft, authority.id), values: string[] = [];
-  const lower = (value: string) => value.toLocaleLowerCase("en-CA");
+  // "R. v. Oakes" (a source's title) and "R v Oakes" (the brief) are one name.
+  const lower = (value: string) => value.toLocaleLowerCase("en-CA").replace(/\./gu, "").replace(/\s+/gu, " ");
   const add = (value: string | null | undefined) => {
     const exact = value?.trim();
     if (!exact || values.some((item) => lower(item).includes(lower(exact)))) return;
@@ -210,8 +211,7 @@ function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
     values.splice(0, values.length, ...values.filter((item) => !lower(exact).includes(lower(item))), exact);
   };
   const heading = authority.displayName ?? authority.name;
-  if (!heading || !forms.some((form) => form.toLocaleLowerCase("en-CA")
-    .includes(heading.trim().toLocaleLowerCase("en-CA")))) add(heading);
+  if (!heading || !forms.some((form) => lower(form).includes(lower(heading.trim())))) add(heading);
   forms.forEach(add);
   return values.join(", ");
 }
