@@ -575,6 +575,16 @@ async function pdfOutline(
   return structureNative().documentOutline(document, options.legislation === true);
 }
 
+/** Every page's text as a page lookup returns it, in one native read. */
+async function pdfPageTexts(
+  readBytes: () => Buffer | Promise<Buffer>,
+  reference: ProjectionReference,
+  options: PdfSourceOptions = {},
+) {
+  const document = await pdfDocumentForSource(readBytes, reference, options);
+  return structureNative().pdfPageTexts(document);
+}
+
 async function paginationFor(document: NativeDocument, starts: number[]) {
   const native = structureNative();
   let observed = native.pdfPageLabels(document);
@@ -688,6 +698,7 @@ export const documentProjectionService = Object.freeze({
   lookupPdf,
   pdfPassageGeometry,
   pdfOutline,
+  pdfPageTexts,
   pdfTextLayer,
   pdfPageLabels,
   pdfPagination,
