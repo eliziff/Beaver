@@ -61,10 +61,11 @@ pub struct NativeDocument {
 pub(crate) struct InstrumentReading {
     structure: DocumentStructure,
     /// Each paragraph read: its (start, end) in the reading's text, the PDF structure node
-    /// it comes from, that node's lines it holds, and whether it is a title (a heading or
-    /// a marginal note) that opens what follows. A marginal note and the provision under
-    /// it can share a node; each is its own paragraph.
-    parts: Vec<(usize, usize, usize, Vec<String>, bool)>,
+    /// it comes from, that node's lines it holds, whether it is a title (a heading or a
+    /// marginal note) that opens what follows, and whether it is a history note that closes
+    /// what precedes. A marginal note and the provision under it can share a node, as can a
+    /// provision and its history note; each is its own paragraph.
+    parts: Vec<(usize, usize, usize, Vec<String>, bool, bool)>,
 }
 
 /// A line opening a provision: "(2) ...", "(a) ...", or a section number before its text
@@ -77,12 +78,35 @@ fn provision_opening(line: &str) -> bool {
         && number.trim_start().starts_with(|c: char| c == '(' || c == '[' || c.is_uppercase())
 }
 
+/// A history note under a provision lists the enactments that made or amended it, each a
+/// year or revision and its chapter: "1991, c. 43, s. 4; 2005, c. 22, s. 20", "R.S., c. C-34,
+/// s. 1", "R.S., 1985, c. 27 (1st Supp.), s. 13", "2009 c50 s7". It is references only, with
+/// no word longer than "suppl."; an amendment's text ("2019, c. 25, s. 5, is replaced by")
+/// is no history note.
+#[cfg(feature = "legalpdf")]
+fn history_note(line: &str) -> bool {
+    if line.split(|c: char| !c.is_alphabetic()).any(|word| word.chars().count() > 5) {
+        return false;
+    }
+    let revised = ["R.S.C.", "R.S.", "L.R.C.", "S.R.", "S.C."].iter()
+        .find_map(|prefix| line.strip_prefix(prefix)).map(|rest| rest.trim_start_matches([',', ' ']));
+    let rest = revised.unwrap_or(line);
+    let year = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    let rest = match year {
+        4 => rest[4..].trim_start_matches([',', ' ']),
+        0 if revised.is_some() => rest,
+        _ => return false,
+    };
+    rest.starts_with("c. ") || rest.starts_with("ch. ")
+        || rest.strip_prefix('c').is_some_and(|number| number.starts_with(|c: char| c.is_ascii_digit()))
+}
+
 impl InstrumentReading {
     /// The paragraphs a range of the reading covers: their PDF node, lines, and whether
-    /// each is a title.
-    fn parts(&self, start: usize, end: usize) -> impl Iterator<Item = (usize, &[String], bool)> + '_ {
+    /// each is a title and a history note.
+    fn parts(&self, start: usize, end: usize) -> impl Iterator<Item = (usize, &[String], bool, bool)> + '_ {
         self.parts.iter().filter(move |(from, to, ..)| *from < end && start < *to)
-            .map(|(_, _, node, lines, title)| (*node, lines.as_slice(), *title))
+            .map(|(_, _, node, lines, title, note)| (*node, lines.as_slice(), *title, *note))
     }
 }
 
@@ -102,8 +126,10 @@ impl NativeDocument {
         let lines = pages.iter().flat_map(|page| page.lines.iter().map(move |line| (line.id.as_str(), (line, page.page_number))))
             .collect::<std::collections::HashMap<_, _>>();
         let (mut text, mut parts, mut offset) = (String::new(), Vec::new(), 0);
-        // The page of the last paragraph read while its sentence is still open.
+        // The page of the last paragraph read while its sentence is still open, and whether
+        // that paragraph is a history note.
         let mut open: Option<u32> = None;
+        let mut open_note = false;
         // The provisions follow a contents list at the front; what precedes it is front matter.
         let structure = pdf.structure();
         let mut contents = structure.nodes.iter().filter(|node| node.grammar.as_deref() == Some("contents"))
@@ -137,13 +163,19 @@ impl NativeDocument {
             let title = |lines: &[String], last: &str| heading
                 || lines.len() == 1 && !last.ends_with(['.', ';', ':', ',', ')', ']']);
             let mut part = (offset, Vec::new());
+            // Whether the paragraph being read is a history note.
+            let mut noted = history_note(first) || carried && open_note;
             for (at, line) in found.iter().enumerate() {
                 let line_text = line.text.trim();
+                let note = history_note(line_text);
                 // A provision's number opening a line starts a new paragraph after one that
-                // ended, or after a marginal note: a line standing alone above it.
-                if at > 0 && provision_opening(line_text) && (ends(at - 1) || at == 1 || ends(at - 2)) {
+                // ended, or after a marginal note: a line standing alone above it. A history
+                // note starts one after the provision it follows ends.
+                if at > 0 && (provision_opening(line_text) && (ends(at - 1) || at == 1 || ends(at - 2))
+                    || note && ends(at - 1)) {
                     let title = title(&part.1, found[at - 1].text.trim());
-                    parts.push((part.0, offset, index, std::mem::take(&mut part.1), title));
+                    parts.push((part.0, offset, index, std::mem::take(&mut part.1), title && !noted, noted));
+                    noted = note;
                     text.push_str("\n\n");
                     offset += 2;
                     part.0 = offset;
@@ -158,7 +190,8 @@ impl NativeDocument {
             let last = found[found.len() - 1].text.trim();
             let title = title(&part.1, last);
             open = (!title && !last.ends_with(['.', ';', ':'])).then(|| found_pages[found.len() - 1]);
-            parts.push((part.0, offset, index, part.1, title));
+            open_note = noted;
+            parts.push((part.0, offset, index, part.1, title && !noted, noted));
         }
         let structure = analyze_instrument(text, pdf.structure().document_id.clone(), &[], false).ok()?;
         Some(InstrumentReading { structure, parts })
@@ -852,11 +885,16 @@ mod pdf {
             return Some((Status::Ambiguous, Vec::new(), Vec::new()));
         }
         let mut parts = reading.parts(block.block.start, block.block.end).collect::<Vec<_>>();
-        // A heading or marginal note closing the block opens the next provision.
-        while parts.len() > 1 && parts.last().is_some_and(|(.., title)| *title) {
+        // A history note lists a provision's enactments and closes it: neither it nor what
+        // follows it is the provision's text. A heading or marginal note closing the block
+        // opens the next provision.
+        if let Some(note) = parts.iter().skip(1).position(|(.., note)| *note) {
+            parts.truncate(note + 1);
+        }
+        while parts.len() > 1 && parts.last().is_some_and(|(_, _, title, _)| *title) {
             parts.pop();
         }
-        let lines = parts.iter().flat_map(|(_, lines, _)| lines.iter().cloned()).collect::<Vec<_>>();
+        let lines = parts.iter().flat_map(|(_, lines, ..)| lines.iter().cloned()).collect::<Vec<_>>();
         let page_of = native_line_pages(native);
         let mut pages = lines.iter().filter_map(|line| page_of.get(line.as_str()).copied()).collect::<Vec<_>>();
         pages.sort_unstable();
