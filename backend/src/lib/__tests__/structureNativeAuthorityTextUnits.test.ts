@@ -248,3 +248,43 @@ it("locates a rebuilt statute's sections and subsections, and reads its pages in
   expect(found("9(2)").pages.map((page) => page.text).join(" ")).not.toContain("rule 10");
   expect(found("40").status).toBe("not_found");
 });
+
+it("reads a bilingual statute's sections from its English body, not its contents or French column", async () => {
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.TimesRoman);
+  const page = (english: string, french: string) => {
+    const result = pdf.addPage([612, 792]);
+    result.drawText(english, { x: 48, y: 750, size: 7, font });
+    result.drawText(french, { x: 318, y: 750, size: 7, font });
+    return result;
+  };
+  const rows = (target: ReturnType<typeof page>, pairs: Array<[string, string]>) => pairs.forEach(([english, french], row) => {
+    target.drawText(english, { x: 48, y: 700 - row * 14, size: 9, font });
+    target.drawText(french, { x: 318, y: 700 - row * 14, size: 9, font });
+  });
+  const titles: Array<[string, string]> = [["Short title", "Titre abrégé"], ["Dues", "Droits"],
+    ["Waiver of dues", "Dispense des droits"], ["Berths", "Postes"]];
+  for (const half of [titles.slice(0, 2), titles.slice(2)]) {
+    rows(page("TABLE OF PROVISIONS", "TABLE ANALYTIQUE"), half.map(([english, french]) => {
+      const number = titles.findIndex(([title]) => title === english) + 1;
+      return [`${number}  ${english}`, `${number}  ${french}`] as [string, string];
+    }));
+  }
+  const english = (number: number) => [[titles[number - 1][0], titles[number - 1][1]],
+    [`${number} (1)  The harbour master of the port sets the rule for`, `${number} (1)  Le capitaine du port fixe la règle pour`],
+    ["the vessels that are at a berth in the port and the", "les navires qui sont à un poste dans le port et les"],
+    ["owners of the cargo that is on the wharf.", "propriétaires de la cargaison qui est sur le quai."],
+    [`(2)  A master of a vessel may ask for a waiver of rule ${number}.`, `(2)  Le capitaine d’un navire peut demander une dispense.`]] as Array<[string, string]>;
+  for (const pair of [[1, 2], [3, 4]]) rows(page("Harbour Berths Act", "Loi sur les postes d’amarrage"), pair.flatMap(english));
+  const bytes = Buffer.from(await pdf.save()), native = structureNative();
+  const document = await native.derivePdfDocument(bytes, {});
+  const result = await pdfPassageGeometry(document, bytes, ["2", "3(2)", "9"].map((locator) =>
+    ({ id: locator, locatorKind: "section" as const, locator })));
+  const found = (id: string) => result.targets.find((target) => target.id === id)!;
+  expect(found("2").status).toBe("found");
+  expect(found("2").pages.map((target) => target.pageNumber)).toEqual([3]);
+  expect(found("2").pages[0].text).toContain("2 (1) The harbour master of the port sets the rule for");
+  expect(found("2").pages[0].text).not.toMatch(/capitaine|Short title/);
+  expect(found("3(2)").status).toBe("found");
+  expect(found("3(2)").pages.map((target) => target.text).join(" ")).toContain("waiver of rule 3");
+  expect(found("9").status).toBe("not_found");
+});

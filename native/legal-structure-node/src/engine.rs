@@ -60,14 +60,29 @@ pub struct NativeDocument {
 /// without the running heads, folios and notes between them, each at its offset.
 pub(crate) struct InstrumentReading {
     structure: DocumentStructure,
-    /// (start, end) in the reading's text, and the PDF structure node read there.
-    nodes: Vec<(usize, usize, usize)>,
+    /// Each paragraph read: its (start, end) in the reading's text, the PDF structure node
+    /// it comes from, that node's lines it holds, and whether it is a title (a heading or
+    /// a marginal note) that opens what follows. A marginal note and the provision under
+    /// it can share a node; each is its own paragraph.
+    parts: Vec<(usize, usize, usize, Vec<String>, bool)>,
+}
+
+/// A line opening a provision: "(2) ...", "(a) ...", or a section number before its text
+/// ("12 (1) Every ...", "205 [Repealed ...]"), not a number in prose ("900 metres ...").
+#[cfg(feature = "legalpdf")]
+fn provision_opening(line: &str) -> bool {
+    if line.starts_with('(') { return line.contains(')'); }
+    let number = line.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.');
+    number.len() < line.len() && number.starts_with(char::is_whitespace)
+        && number.trim_start().starts_with(|c: char| c == '(' || c == '[' || c.is_uppercase())
 }
 
 impl InstrumentReading {
-    /// The PDF nodes a range of the reading covers.
-    fn nodes(&self, start: usize, end: usize) -> impl Iterator<Item = usize> + '_ {
-        self.nodes.iter().filter(move |(from, to, _)| *from < end && start < *to).map(|(_, _, node)| *node)
+    /// The paragraphs a range of the reading covers: their PDF node, lines, and whether
+    /// each is a title.
+    fn parts(&self, start: usize, end: usize) -> impl Iterator<Item = (usize, &[String], bool)> + '_ {
+        self.parts.iter().filter(move |(from, to, ..)| *from < end && start < *to)
+            .map(|(_, _, node, lines, title)| (*node, lines.as_slice(), *title))
     }
 }
 
@@ -85,21 +100,58 @@ impl NativeDocument {
         let NativeProduct::Pdf(pdf) = &self.product else { return None };
         let pages = pdf.passage_pages();
         let lines = pages.iter().flat_map(|page| &page.lines)
-            .map(|line| (line.id.as_str(), line.text.as_str())).collect::<std::collections::HashMap<_, _>>();
-        let (mut text, mut nodes, mut offset) = (String::new(), Vec::new(), 0);
-        for (index, node) in pdf.structure().nodes.iter().enumerate() {
-            if !matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading) { continue; }
-            let body = node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
-                .map(|line| line.trim()).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ");
-            if body.is_empty() { continue; }
+            .map(|line| (line.id.as_str(), line)).collect::<std::collections::HashMap<_, _>>();
+        let (mut text, mut parts, mut offset) = (String::new(), Vec::new(), 0);
+        // The provisions follow a contents list at the front; what precedes it is front matter.
+        let structure = pdf.structure();
+        let mut contents = structure.nodes.iter().filter(|node| node.grammar.as_deref() == Some("contents"))
+            .filter_map(|node| Some((*node.page_indexes.first()?, node.range.end))).collect::<Vec<_>>();
+        contents.sort_unstable();
+        // The list runs page after page from where it opens; a leader row further on is not it.
+        let front = contents.iter().enumerate().take_while(|(at, (page, _))|
+            *at == 0 || *page <= contents[at - 1].0 + 1).map(|(_, (_, end))| *end).max().unwrap_or(0);
+        for (index, node) in structure.nodes.iter().enumerate() {
+            if !matches!(node.kind, legal_structure::NodeKind::Prose | legal_structure::NodeKind::Heading)
+                || node.range.start < front { continue; }
+            // A contents list and a parallel translation repeat the body's sections; the body is read.
+            if matches!(node.grammar.as_deref(), Some("contents" | "translation")) { continue; }
+            let found = node.line_ids.iter().filter_map(|id| lines.get(id.as_str()))
+                .filter(|line| !line.text.trim().is_empty()).collect::<Vec<_>>();
+            let (left, right) = found.iter().fold((f64::MAX, f64::MIN), |(left, right), line|
+                (left.min(line.rect[0]), right.max(line.rect[2])));
+            // A line ends its paragraph when it stops short of the column or closes a clause.
+            let ends = |at: usize| found[at].rect[2] < right - (right - left) * 0.2
+                || found[at].text.trim_end().ends_with(['.', ';', ':']);
+            if found.is_empty() { continue; }
             if !text.is_empty() { text.push_str("\n\n"); offset += 2; }
-            let length = body.encode_utf16().count();
-            nodes.push((offset, offset + length, index));
-            text.push_str(&body);
-            offset += length;
+            let heading = node.kind == legal_structure::NodeKind::Heading;
+            // A lone line ending no clause titles the provision below it.
+            let title = |lines: &[String], last: &str| heading
+                || lines.len() == 1 && !last.ends_with(['.', ';', ':', ',', ')', ']']);
+            let mut part = (offset, Vec::new());
+            for (at, line) in found.iter().enumerate() {
+                let line_text = line.text.trim();
+                // A provision's number opening a line starts a new paragraph after one that
+                // ended, or after a marginal note: a line standing alone above it.
+                if at > 0 && provision_opening(line_text) && (ends(at - 1) || at == 1 || ends(at - 2)) {
+                    let title = title(&part.1, found[at - 1].text.trim());
+                    parts.push((part.0, offset, index, std::mem::take(&mut part.1), title));
+                    text.push_str("\n\n");
+                    offset += 2;
+                    part.0 = offset;
+                } else if at > 0 {
+                    text.push(' ');
+                    offset += 1;
+                }
+                text.push_str(line_text);
+                offset += line_text.encode_utf16().count();
+                part.1.push(line.id.clone());
+            }
+            let title = title(&part.1, found[found.len() - 1].text.trim());
+            parts.push((part.0, offset, index, part.1, title));
         }
         let structure = analyze_instrument(text, pdf.structure().document_id.clone(), &[], false).ok()?;
-        Some(InstrumentReading { structure, nodes })
+        Some(InstrumentReading { structure, parts })
     }
 
     #[cfg(not(feature = "legalpdf"))]
@@ -404,9 +456,9 @@ fn outline_entries(structure: &DocumentStructure, sections: bool) -> Vec<Outline
 }
 
 /// The document's own outline: its headings and its top-level sections, in order.
-/// A PDF's numbered sections come from the instrument grammar, and only for
-/// legislation whose sections each appear once, in order: a contents list or a
-/// second language repeats them, and a judgment's numbers are not sections.
+/// A PDF's numbered sections come from the instrument grammar's reading of its body,
+/// and only for legislation whose sections each appear once, in order; a judgment's
+/// numbers are not sections.
 pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<OutlineEntry> {
     let structure = document.structure();
     let pdf = !matches!(document.product, NativeProduct::Structure(_));
@@ -422,7 +474,7 @@ pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<Out
         if ordered {
             // A section opens where the PDF paragraph it starts in does.
             entries.extend(sections.into_iter().filter_map(|entry| {
-                let node = &structure.nodes[instrument.nodes(entry.start, entry.start + 1).next()?];
+                let node = &structure.nodes[instrument.parts(entry.start, entry.start + 1).next()?.0];
                 Some(OutlineEntry { start: node.rendered_range.unwrap_or(node.range).start,
                     page_index: node.page_indexes.first().copied(), ..entry })
             }));
@@ -772,8 +824,9 @@ mod pdf {
         Ok(pdf_of(document, "PDF page text requires a PDF document")?.page_texts())
     }
 
-    /// A section as the instrument grammar reads the PDF's text: its lines and pages.
-    /// A label the grammar finds twice (a contents list, a second language) is ambiguous.
+    /// A section as the instrument grammar reads the PDF's body: its lines and pages. A
+    /// contents list and a parallel translation are not read; a label the body prints twice
+    /// is ambiguous.
     fn instrument_section(
         native: &NativeDocument,
         locator: &str,
@@ -788,14 +841,25 @@ mod pdf {
         if instrument.nodes.iter().any(|node| node.label.as_deref().is_some_and(|label| label.starts_with(&repeated))) {
             return Some((Status::Ambiguous, Vec::new(), Vec::new()));
         }
-        let all = &native.structure().nodes;
-        let nodes = reading.nodes(block.block.start, block.block.end).map(|index| &all[index]).collect::<Vec<_>>();
-        let lines = nodes.iter().flat_map(|node| node.line_ids.iter().cloned()).collect::<Vec<_>>();
-        let mut pages = nodes.iter().flat_map(|node| node.page_indexes.iter().map(|index| *index as u32 + 1))
-            .collect::<Vec<_>>();
+        let mut parts = reading.parts(block.block.start, block.block.end).collect::<Vec<_>>();
+        // A heading or marginal note closing the block opens the next provision.
+        while parts.len() > 1 && parts.last().is_some_and(|(.., title)| *title) {
+            parts.pop();
+        }
+        let lines = parts.iter().flat_map(|(_, lines, _)| lines.iter().cloned()).collect::<Vec<_>>();
+        let page_of = native_line_pages(native);
+        let mut pages = lines.iter().filter_map(|line| page_of.get(line.as_str()).copied()).collect::<Vec<_>>();
         pages.sort_unstable();
         pages.dedup();
         (!lines.is_empty()).then_some((Status::Found, lines, pages))
+    }
+
+    /// Each native line's page number.
+    fn native_line_pages(native: &NativeDocument) -> std::collections::HashMap<String, u32> {
+        native.structure().nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Page)
+            .flat_map(|node| node.line_ids.iter().map(move |line| (line.clone(),
+                node.page_indexes.first().map_or(0, |index| *index as u32 + 1))))
+            .collect()
     }
 
     pub fn pdf_authority_text_units(document: &NativeDocument) -> CoreResult<impl Serialize + '_> {
