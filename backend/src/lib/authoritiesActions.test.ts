@@ -67,21 +67,29 @@ describe("Authorities citation boundary actions", () => {
       { type: "clear-pinpoint", occurrenceId: "missing" })).toThrow(/not found/u);
   });
 
-  it("keeps a reviewer's pinpoint through range edits it survives and resets to the parser's", () => {
+  it("gives an added citation its pinpoint as written, and derives it again on every range edit", () => {
     const auto = add(bodyDraft(), "Bhasin v Hrynew, 2014 SCC 71 at para 33");
     const [id] = auto.units[0].occurrenceIds, parsed = auto.occurrences[id];
+    expect(parsed).toMatchObject({ pinpointSpan: { text: "33" }, pinpointPhrase: { text: "at para 33" },
+      pinpoints: [{ kind: "paragraph", text: "33" }] });
     const act = (draft: AuthoritiesDraft, action: object) => applyAuthoritiesUserAction(draft,
       decodeAuthoritiesUserAction({ occurrenceId: id, ...action }));
+    expect(() => decodeAuthoritiesUserAction({ occurrenceId: id, type: "reset-pinpoint" })).toThrow();
+    // A pinpoint placed by hand gives way to the parser's at the next range edit.
     const manual = act(auto, { type: "set-pinpoint-span", ...at("33") });
-    expect(manual.occurrences[id]).toMatchObject({ pinpointManual: true, pinpointSpan: { text: "33" } });
-    const kept = act(manual, { type: "set-citation-range", ...at("Hrynew, 2014 SCC 71 at para 33") });
-    expect(kept.occurrences[id]).toMatchObject({ pinpointManual: true, pinpointSpan: { text: "33" } });
-    const reset = act(manual, { type: "reset-pinpoint" }).occurrences[id];
-    expect(reset.pinpointManual).toBeUndefined();
-    expect([reset.pinpointSpan, reset.pinpoints]).toEqual([parsed.pinpointSpan, parsed.pinpoints]);
+    expect(manual.occurrences[id]).toMatchObject({ pinpointManual: true, pinpointPhrase: { text: "at para 33" } });
+    const kept = act(manual, { type: "set-citation-range", ...at("Hrynew, 2014 SCC 71 at para 33") }).occurrences[id];
+    expect(kept.pinpointManual).toBeUndefined();
+    expect([kept.pinpointSpan, kept.pinpointPhrase, kept.pinpoints])
+      .toEqual([parsed.pinpointSpan, parsed.pinpointPhrase, parsed.pinpoints]);
     const outside = act(manual, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71") });
     expect(outside.occurrences[id]).toMatchObject({ pinpointSpan: null, pinpoints: [] });
     expect(outside.occurrences[id].pinpointManual).toBeUndefined();
+    expect(outside.occurrences[id].pinpointPhrase).toBeUndefined();
+    const back = act(outside, { type: "set-citation-range", ...at("Bhasin v Hrynew, 2014 SCC 71 at para 33") });
+    expect(back.occurrences[id].pinpointPhrase?.text).toBe("at para 33");
+    const cleared = act(back, { type: "clear-pinpoint" }).occurrences[id];
+    expect([cleared.pinpointSpan, cleared.pinpointPhrase]).toEqual([null, undefined]);
   });
 
   it("places a supra or ibid's pinpoint after its reference, and lets a reviewer set it by hand", () => {

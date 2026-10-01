@@ -253,20 +253,6 @@ function Run(page, mode) {
     await page.locator(".citation-review").evaluate((review) => review.focus({ preventScroll: true }));
     await page.evaluate((phrase) => window.__e2e.select(phrase), phrase);
   }
-  /** Double-clicks a word, as a reader picks one out. */
-  async function doubleClickWord(phrase) {
-    const { first, last } = await page.evaluate((phrase) => window.__e2e.ends(phrase), phrase);
-    await page.mouse.dblclick((first.left + last.right) / 2, (first.top + first.bottom) / 2);
-    const selected = await page.evaluate(() => getSelection().toString().trim());
-    check(selected === phrase, `${mode}: a double-click selects "${phrase}"`, selected);
-  }
-  /** Clicks the middle of a word, which leaves the caret in it (the split point is the nearest gap). */
-  async function clickInWord(word, context = word) {
-    const { first, last } = await page.evaluate(([context, length]) => window.__e2e.ends(context, 0, length), [context, word.length]);
-    await page.mouse.click((first.left + last.right) / 2, (first.top + first.bottom) / 2);
-    const caret = await page.evaluate(() => getSelection().type);
-    check(caret === "Caret", `${mode}: a click in "${word}" leaves a caret for Split`, caret);
-  }
   const rows = () => page.locator(".citation-outline [role=option]").allInnerTexts();
   const selectedRow = () => page.locator(".citation-outline [role=option][aria-selected=true]").innerText();
   const accessPrompts = () => page.getByRole("button", { name: "Allow file access" }).or(page.getByRole("button", { name: "Allow access" })).count();
@@ -355,14 +341,14 @@ function Run(page, mode) {
     check((await selectedRow()).includes("Jordan"), `${mode} ${label}: a document click selects that citation`, await selectedRow());
     check(!await page.locator("[role=tooltip], [role=toolbar], [data-radix-popper-content-wrapper]").count(), `${mode} ${label}: no popup or floating toolbar`);
 
-    // P: the selected text becomes the pinpoint; the reset restores the found one.
+    // The bar names the pinpoint as the citation writes it; its only edits are Add and Remove.
+    await chooseRow("Vavilov");
+    check(/^Pinpoint\s*at para 10$/u.test(await pinpoint()), `${mode} ${label}: the pinpoint shows as written`, await pinpoint());
     await chooseRow(EXPECTED_ROWS[2]);
-    check((await pinpoint()).includes("138–139"), `${mode} ${label}: the pinpoint is found`, await pinpoint());
-    await doubleClickWord("138");
-    await interact(`${label} P pinpoint`, () => page.keyboard.press("p"));
-    check(/Pinpoint\s*138\s*edited/u.test(await pinpoint()), `${mode} ${label}: P sets the pinpoint`, await pinpoint());
-    await interact(`${label} reset pinpoint`, () => page.getByRole("button", { name: "Reset the pinpoint" }).click());
-    check((await pinpoint()).includes("138–139") && !(await pinpoint()).includes("edited"), `${mode} ${label}: reset restores the pinpoint`, await pinpoint());
+    check(/^Pinpoint\s*at 138-139$/u.test(await pinpoint()), `${mode} ${label}: the pinpoint is found`, await pinpoint());
+    const edits = await page.getByRole("group", { name: "Edit citation" }).getByRole("button").allInnerTexts();
+    check(JSON.stringify(edits) === JSON.stringify(["Add", "Remove"]), `${mode} ${label}: the bar edits only by Add and Remove`, edits);
+    check(!await page.locator(".citation-grip[data-grip^=pin], .citation-split").count(), `${mode} ${label}: no pinpoint handles or split marker`);
 
     // Enter: the selection becomes the citation's range, and back.
     await selectAtEdge("[1986] 1 SCR 103 at 138-139");
@@ -384,27 +370,18 @@ function Run(page, mode) {
       });
       const dragged = await selectedRow();
       check(dragged === "R v Oakes, [1986] 1 SCR 103 at" || dragged === "R v Oakes, [1986] 1 SCR 103", `${mode} ${label}: the handle drags the end`, dragged);
+      check(/^No pinpoint$/u.test(await pinpoint()), `${mode} ${label}: a range without the pinpoint has none`, await pinpoint());
       await page.evaluate(() => window.__e2e.clear());
       await page.locator(".citation-review").focus();
       for (let step = 0; step < (dragged.endsWith(" at") ? 1 : 2); step += 1)
         await interact(`${label} Shift+ArrowRight`, () => page.keyboard.press("Shift+ArrowRight"), { rest: 750 });
       check(await selectedRow() === EXPECTED_ROWS[2], `${mode} ${label}: Shift+→ extends the end back`, await selectedRow());
+      check(/^Pinpoint\s*at 138-139$/u.test(await pinpoint()), `${mode} ${label}: the pinpoint is found again`, await pinpoint());
     }
 
-    // M merges the supra into the citation before it; S splits it again at the caret.
+    // A supra's pinpoint follows its reference, as written.
     await chooseRow(EXPECTED_ROWS[6]);
-    await interact(`${label} M merge`, () => page.keyboard.press("m"), { listChanges: true });
-    const merged = await rows();
-    check(merged.length === EXPECTED_ROWS.length - 1 && merged.some((row) => row.includes("46-48; Oakes, supra note 2 at 135")), `${mode} ${label}: M merges`, merged);
-    await clickInWord("Oakes", "Oakes, supra note 2");
-    await interact(`${label} S split`, () => page.keyboard.press("s"), { listChanges: true });
-    const split = await rows();
-    check(split.length === EXPECTED_ROWS.length && split.some((row) => row.startsWith("R v Jordan")) && split.some((row) => /supra note 2 at 135$/u.test(row)),
-      `${mode} ${label}: S splits`, split);
-    await chooseRow("supra note 2");
-    // Split out of Jordan's citation, the supra keeps no link it was not given; the dropup gives it one.
-    await page.waitForTimeout(300); await idle();
-    check(!(await refersTo()).includes("Jordan"), `${mode} ${label}: the split-off supra does not take Jordan's authority`, await refersTo());
+    check(/^Pinpoint\s*at 135$/u.test(await pinpoint()), `${mode} ${label}: the supra's pinpoint shows as written`, await pinpoint());
 
     // The authority dropup: In-text, then each footnote's authorities under its number.
     await interact(`${label} open the dropup`, () => page.locator(".citation-authority-trigger").click());
@@ -436,6 +413,7 @@ function Run(page, mode) {
     await dragSelect("Launch Guidance Note 7");
     await interact(`${label} Add citation`, () => button("Add").click(), { listChanges: true });
     check((await rows()).includes("Launch Guidance Note 7") && await selectedRow() === "Launch Guidance Note 7", `${mode} ${label}: Add makes the selection a citation`, await rows());
+    check(/^No pinpoint$/u.test(await pinpoint()), `${mode} ${label}: an added citation without one shows no pinpoint`, await pinpoint());
     await shots(`${label}-06-added`);
     await page.locator(".citation-review").focus();
     await interact(`${label} Delete the added citation`, () => page.keyboard.press("Delete"), { listChanges: true });
@@ -545,6 +523,9 @@ function Run(page, mode) {
     const choice = await editor.getByRole("combobox", { name: "Authority PDF" }).evaluate((select) =>
       [...select.options].find((option) => option.text.includes("Waterways"))?.value);
     await editor.getByRole("combobox", { name: "Authority PDF" }).selectOption(choice);
+    // Until the chosen source opens, the panel still shows the previous one and says it is busy.
+    const opened = () => page.waitForFunction(() => document.querySelector("aside[aria-label=Highlights]")?.getAttribute("aria-busy") === "false", null, { timeout: 30000 });
+    await opened();
     await editor.locator(".textLayer, .pdf-text-layer").first().waitFor({ timeout: 30000 });
     await editor.getByText("Preparing highlights").waitFor({ state: "detached", timeout: 30000 });
     const marks = editor.locator("aside ul > li");
@@ -576,6 +557,7 @@ function Run(page, mode) {
     const scanChoice = await editor.getByRole("combobox", { name: "Authority PDF" }).evaluate((select) =>
       [...select.options].find((option) => option.text.includes("Lakeshore"))?.value);
     await editor.getByRole("combobox", { name: "Authority PDF" }).selectOption(scanChoice);
+    await opened();
     // The scan's marks (or the note that one fell back to its page) and its recognized text layer.
     await page.waitForFunction(() => document.querySelector("dialog aside ul > li, dialog aside [role=alert]") &&
       [...document.querySelectorAll("dialog .pdf-text-layer")].some((layer) => layer.textContent.trim()), null, { timeout: 30000 }).catch(() => {});
@@ -585,69 +567,6 @@ function Run(page, mode) {
     check(scanMarks.some((mark) => mark.startsWith("para 22")), `${mode} ${label}: the recognized scan marks para 22`,
       [scanMarks, await editor.locator("aside [role=alert]").allInnerTexts()]);
     await shots(`${label}-10b-highlight-scan`);
-    await editor.getByRole("button", { name: "Close highlights" }).click();
-    await editor.waitFor({ state: "detached" });
-  }
-
-  async function downloadOutputs(label) {
-    const saved = {};
-    for (const output of await page.getByRole("button", { name: /^Download / }).all()) {
-      const name = (await output.getAttribute("aria-label")).replace(/^Download /u, "");
-      const download = page.waitForEvent("download");
-      await output.click();
-      const file = path.join(out, "downloads", mode, label, (await download).suggestedFilename());
-      await mkdir(path.dirname(file), { recursive: true });
-      await (await download).saveAs(file);
-      saved[name] = file;
-    }
-    return saved;
-  }
-  /** Build, through the Missing PDFs warning when a source is still missing; the outputs are
-   *  current (not "previous") once it finishes. */
-    // Until the chosen source opens, the panel still shows the previous one and says it is busy.
-    const opened = () => page.waitForFunction(() => document.querySelector("aside[aria-label=Highlights]")?.getAttribute("aria-busy") === "false", null, { timeout: 30000 });
-    await opened();
-  async function build(label, missing) {
-    let started = await now();
-    await button("Build").click();
-    const warning = page.getByRole("dialog").filter({ hasText: "Missing PDFs" });
-    if (missing) {
-      await warning.waitFor({ timeout: 30000 });
-      const listed = await warning.locator("li").allInnerTexts();
-      check(listed.length === 1 && missing.test(listed[0]), `${mode} ${label}: Build warns about the one missing PDF`, listed);
-      await shots(`${label}-missing-pdfs`);
-      started = await now();
-      await warning.getByRole("button", { name: "Build anyway" }).click();
-    }
-    await page.waitForFunction(() => {
-      const outputs = [...document.querySelectorAll("button[aria-label^='Download ']")];
-      return outputs.length && outputs.every((button) => !button.getAttribute("aria-label").startsWith("Download previous")) &&
-        ![...document.querySelectorAll("button, [role=dialog]")].some((element) => /^Cancel$|Missing PDFs/u.test(element.textContent.trim()));
-    }, null, { timeout: BUDGETS.build * 3, polling: 50 });
-    const built = await now() - started;
-    note(mode, `${label}-build`, built);
-    check(built < BUDGETS.build, `${mode} ${label}: build ${Math.round(built)} ms`);
-    const status = await page.locator("[role=tablist][aria-label='Book steps'] ~ [data-tabs-actions] [role=status]").innerText();
-    check(/^Outputs ready|incomplete/iu.test(status), `${mode} ${label}: the build reports its outputs`, status);
-    return downloadOutputs(label);
-  }
-
-  this.pdfBrief = async () => {
-    await importBrief(fixtures.briefPdf, "pdf", async () => {
-      await page.getByRole("checkbox", { name: "Append the book to the brief" }).check();
-      await page.getByRole("checkbox", { name: "Link citations to their tabs" }).check();
-      await page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }).check();
-    });
-    await opened();
-    const fixed = await review("pdf", true);
-    await sources("pdf", fixed);
-    await highlights("pdf");
-    await button("Next").click();
-    await page.getByRole("heading", { name: "Build outputs" }).waitFor();
-    await page.getByLabel("Create").selectOption("both");
-    await shots("pdf-11-build");
-    await noHorizontalScroll("pdf build");
-    const files = await build("pdf");
     // Moving from PDF to PDF is steady: every frame shows pages, the page area keeps its height
     // (the scrollbar never drops out), the marks swap without the list emptying, the tools and page
     // fields never dim, nothing shifts and no task blocks a frame. Sampled every frame, two switches.
@@ -686,6 +605,65 @@ function Run(page, mode) {
     note(mode, `${label}-source-switch`, { frames: switchFrames.length, ...unsteady });
     check(switchFrames.length > 10 && !unsteady.blank && !unsteady.collapsed.length && !unsteady.emptied && !unsteady.dimmed && !unsteady.shifts.length && !unsteady.longTasks.length,
       `${mode} ${label}: switching source PDFs in Highlights is steady`, unsteady);
+    await editor.getByRole("button", { name: "Close highlights" }).click();
+    await editor.waitFor({ state: "detached" });
+  }
+
+  async function downloadOutputs(label) {
+    const saved = {};
+    for (const output of await page.getByRole("button", { name: /^Download / }).all()) {
+      const name = (await output.getAttribute("aria-label")).replace(/^Download /u, "");
+      const download = page.waitForEvent("download");
+      await output.click();
+      const file = path.join(out, "downloads", mode, label, (await download).suggestedFilename());
+      await mkdir(path.dirname(file), { recursive: true });
+      await (await download).saveAs(file);
+      saved[name] = file;
+    }
+    return saved;
+  }
+  /** Build, through the Missing PDFs warning when a source is still missing; the outputs are
+   *  current (not "previous") once it finishes. */
+  async function build(label, missing) {
+    let started = await now();
+    await button("Build").click();
+    const warning = page.getByRole("dialog").filter({ hasText: "Missing PDFs" });
+    if (missing) {
+      await warning.waitFor({ timeout: 30000 });
+      const listed = await warning.locator("li").allInnerTexts();
+      check(listed.length === 1 && missing.test(listed[0]), `${mode} ${label}: Build warns about the one missing PDF`, listed);
+      await shots(`${label}-missing-pdfs`);
+      started = await now();
+      await warning.getByRole("button", { name: "Build anyway" }).click();
+    }
+    await page.waitForFunction(() => {
+      const outputs = [...document.querySelectorAll("button[aria-label^='Download ']")];
+      return outputs.length && outputs.every((button) => !button.getAttribute("aria-label").startsWith("Download previous")) &&
+        ![...document.querySelectorAll("button, [role=dialog]")].some((element) => /^Cancel$|Missing PDFs/u.test(element.textContent.trim()));
+    }, null, { timeout: BUDGETS.build * 3, polling: 50 });
+    const built = await now() - started;
+    note(mode, `${label}-build`, built);
+    check(built < BUDGETS.build, `${mode} ${label}: build ${Math.round(built)} ms`);
+    const status = await page.locator("[role=tablist][aria-label='Book steps'] ~ [data-tabs-actions] [role=status]").innerText();
+    check(/^Outputs ready|incomplete/iu.test(status), `${mode} ${label}: the build reports its outputs`, status);
+    return downloadOutputs(label);
+  }
+
+  this.pdfBrief = async () => {
+    await importBrief(fixtures.briefPdf, "pdf", async () => {
+      await page.getByRole("checkbox", { name: "Append the book to the brief" }).check();
+      await page.getByRole("checkbox", { name: "Link citations to their tabs" }).check();
+      await page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }).check();
+    });
+    const fixed = await review("pdf", true);
+    await sources("pdf", fixed);
+    await highlights("pdf");
+    await button("Next").click();
+    await page.getByRole("heading", { name: "Build outputs" }).waitFor();
+    await page.getByLabel("Create").selectOption("both");
+    await shots("pdf-11-build");
+    await noHorizontalScroll("pdf build");
+    const files = await build("pdf");
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
     // A reader reaches the step tabs at the top of the page; downloading the outputs scrolled it.

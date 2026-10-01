@@ -513,15 +513,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     actionQueue.current = result.then(() => undefined, () => undefined);
     return result;
   }
-  /** The citation that carries on an edited one: itself, the right side of a split, or the
-   * citation that now covers it. */
+  /** The citation that carries on an edited one: itself, or the citation that now covers it. */
   const carryOn = (action: AuthoritiesAction, before: AuthoritiesProduct, next: AuthoritiesProduct) => {
     const prior = "occurrenceId" in action ? before.state.occurrences[action.occurrenceId] : null;
     const unit = prior && next.state.units.find(({ id }) => id === prior.unitId);
     const items = unit?.occurrenceIds.flatMap((id) => next.state.occurrences[id] ? [next.state.occurrences[id]] : []) ?? [];
-    const replacement = prior && (next.state.occurrences[prior.id] ?? (action.type === "split-occurrence"
-      ? items.find(({ start }) => start >= action.cursor)
-      : items.find(({ start, end }) => start <= prior.start && end >= prior.end)));
+    const replacement = prior && (next.state.occurrences[prior.id] ??
+      items.find(({ start, end }) => start <= prior.start && end >= prior.end));
     if (replacement) setSelectedId(replacement.id);
   };
   const act: ActionHandler = (action, done) => {

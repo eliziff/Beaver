@@ -274,7 +274,7 @@ const origin = (scroller: Element) => {
   return { view, x: scroller.scrollLeft - view.left - scroller.clientLeft, y: scroller.scrollTop - view.top - scroller.clientTop };
 };
 
-export type CitationPaint = { active?: string; range?: Range | null; pinpoint?: Range | null };
+export type CitationPaint = { active?: string; range?: Range | null };
 export type PaintMode = 'layout' | 'active' | 'scroll';
 type Band = Box & { id: string };
 const drawn = new WeakMap<HTMLElement, Band[]>();
@@ -282,7 +282,7 @@ const drawn = new WeakMap<HTMLElement, Band[]>();
  * with the text. "layout" measures every band again (marks, zoom or size changed), as does a change
  * in the pages in view; "active" redraws only the active citation: its fill, pinpoint and grips, or the
  * range a drag or nudge previews; "scroll" does nothing more while the same pages stay in view. */
-export function paintCitations(scroller: HTMLElement, { active, range, pinpoint }: CitationPaint, mode: PaintMode) {
+export function paintCitations(scroller: HTMLElement, { active, range }: CitationPaint, mode: PaintMode) {
   const { view, x, y } = origin(scroller), all = [...scroller.querySelectorAll('.page,section.docx')];
   const shown = all.flatMap((page, i) => {
     const box = page.getBoundingClientRect();
@@ -292,8 +292,7 @@ export function paintCitations(scroller: HTMLElement, { active, range, pinpoint 
   if (!overlay) {
     overlay = scroller.appendChild(Object.assign(document.createElement('div'), { className: 'citation-overlay' }));
     overlay.dataset.citationUi = ''; overlay.setAttribute('aria-hidden', 'true');
-    overlay.append(document.createElement('div'), document.createElement('div'),
-      Object.assign(document.createElement('div'), { className: 'citation-split', hidden: true }));
+    overlay.append(document.createElement('div'), document.createElement('div'));
   }
   const [layer, own] = overlay.children as unknown as [HTMLElement, HTMLElement];
   const moved = overlay.dataset.pages !== shown;
@@ -337,38 +336,20 @@ export function paintCitations(scroller: HTMLElement, { active, range, pinpoint 
     band.hidden = !!range && band.dataset.id === active;
   }
   const lines = range ? lineBoxes(ink(range)).map(pad) : (drawn.get(overlay) ?? []).filter(band => band.id === active);
-  const marks = active && !pinpoint ? marksOf(scroller, active).filter(mark => mark.dataset.pinpoint !== undefined) : [];
-  const pins = range ? [] : lineBoxes(ink(pinpoint ?? marks)).flatMap(pin => {
+  const marks = active && !range ? marksOf(scroller, active).filter(mark => mark.dataset.pinpoint !== undefined) : [];
+  const pins = lineBoxes(ink(marks)).flatMap(pin => {
     const middle = (pin.top + pin.bottom) / 2 + y, line = lines.find(band => within(band, band.left, middle));
     return line ? [{ ...line, left: Math.max(line.left, pin.left + x - 1), right: Math.min(line.right, pin.right + x + 1) }] : [];
   });
-  // Each grip is a slim bar the height of its line with a round cap: the citation's start cap sits
-  // above the line and its end cap below; the pinpoint's the other way round, so coinciding edges
-  // stay apart. The hit area is 16px wide, mostly outside the text so a selection can still start
-  // at its first letter, and a line plus its cap tall.
-  const grips = (kind: string, edges: Box[]) => edges.length ? [
-    box('citation-grip', { left: edges[0].left - 12, right: edges[0].left + 4,
-      top: edges[0].top - (kind ? 0 : 8), bottom: edges[0].bottom + (kind ? 8 : 0) }, { grip: `${kind}start`, cap: kind ? 'bottom' : 'top' }),
-    box('citation-grip', { left: edges.at(-1)!.right - 4, right: edges.at(-1)!.right + 12,
-      top: edges.at(-1)!.top - (kind ? 8 : 0), bottom: edges.at(-1)!.bottom + (kind ? 0 : 8) }, { grip: `${kind}end`, cap: kind ? 'top' : 'bottom' }),
+  // Each grip is a slim bar the height of its line with a round cap: the start cap sits above the
+  // line and the end cap below. The hit area is 16px wide, mostly outside the text so a selection
+  // can still start at its first letter, and a line plus its cap tall.
+  const grips = lines.length ? [
+    box('citation-grip', { left: lines[0].left - 12, right: lines[0].left + 4,
+      top: lines[0].top - 8, bottom: lines[0].bottom }, { grip: 'start', cap: 'top' }),
+    box('citation-grip', { left: lines.at(-1)!.right - 4, right: lines.at(-1)!.right + 12,
+      top: lines.at(-1)!.top, bottom: lines.at(-1)!.bottom + 8 }, { grip: 'end', cap: 'bottom' }),
   ] : [];
   own.replaceChildren(...range ? lines.map(line => box('citation-band', line, { active: '' })) : [],
-    ...pins.map(pin => box('citation-pinpoint', pin)), ...grips('pin-', pins), ...grips('', lines));
-}
-
-/** The active citation's band (or pinpoint) under a point, in client coordinates. */
-export function activeBand(scroller: Element, x: number, y: number, shape = '.citation-band[data-active]:not([hidden])', slack = 4) {
-  return [...scroller.querySelectorAll(`:scope>.citation-overlay ${shape}`)]
-    .map(band => band.getBoundingClientRect()).find(band =>
-      within({ left: band.left - slack, right: band.right + slack, top: band.top, bottom: band.bottom }, x, y));
-}
-
-/** Place (or hide) the split marker at client `x` across a band. */
-export function showSplit(scroller: Element, at?: { x: number; band: DOMRect }) {
-  const marker = scroller.querySelector<HTMLElement>(':scope>.citation-overlay>.citation-split');
-  if (!marker) return;
-  marker.hidden = !at;
-  if (!at) return;
-  const { x, y } = origin(scroller);
-  Object.assign(marker.style, { left: `${at.x + x}px`, top: `${at.band.top - 3 + y}px`, height: `${at.band.height + 6}px` });
+    ...pins.map(pin => box('citation-pinpoint', pin)), ...grips);
 }

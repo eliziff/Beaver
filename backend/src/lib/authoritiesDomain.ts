@@ -252,7 +252,7 @@ const reference = closed<NonNullable<AuthorityOccurrence["reference"]>>({
   kind: oneOf(AUTHORITIES_ACTION_CHOICES.reference), targetAuthorityId: text });
 const occurrence = closed<AuthorityOccurrence>({ id: text, unitId: text, ...spanFields,
   authoritySpan, coreSpan: authoritySpan, pinpointSpan: nullable(authoritySpan),
-  kind: (value) => authorityKind(value) || value === "reference", citation: text,
+  pinpointPhrase: maybe(authoritySpan), kind: (value) => authorityKind(value) || value === "reference", citation: text,
   authorityId: nullable(text), reference: nullable(reference),
   referenceKind: maybe(oneOf(AUTHORITIES_ACTION_CHOICES.reference)),
   pinpoints: list(50_000, pinpoint), pinpointManual: maybe(literal(true)), evidenceIds: strings,
@@ -1275,7 +1275,8 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
         errors.push(`Invalid occurrence span: ${id}`);
       }
       const spans = [occurrence.authoritySpan, occurrence.coreSpan,
-        ...(occurrence.pinpointSpan ? [occurrence.pinpointSpan] : [])];
+        ...(occurrence.pinpointSpan ? [occurrence.pinpointSpan] : []),
+        ...(occurrence.pinpointPhrase ? [occurrence.pinpointPhrase] : [])];
       if (spans.some((span) => !span || !Number.isInteger(span.start) ||
           !Number.isInteger(span.end) || span.start < occurrence.start ||
           span.end <= span.start || span.end > occurrence.end ||

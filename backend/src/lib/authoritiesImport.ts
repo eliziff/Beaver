@@ -58,15 +58,17 @@ async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<Nat
   }
 }
 function occurrenceSpans(unitText: string, authority: Span, core: Span,
-  pinpoints: Span[], offset = 0) {
+  pinpoints: Span[], phrase: Span | undefined, offset = 0) {
   const span = ({ start, end }: Span) => ({
     start: offset + start, end: offset + end,
     text: unitText.slice(offset + start, offset + end),
   });
   const ordered = [...pinpoints].sort((left, right) => left.start - right.start);
-  return { authoritySpan: span(authority), coreSpan: span(core),
-    pinpointSpan: ordered.length ? span({ start: ordered[0].start,
-      end: ordered.at(-1)!.end }) : null };
+  const pinpoint = ordered.length ? { start: ordered[0].start, end: ordered.at(-1)!.end } : null;
+  return { authoritySpan: span(authority), coreSpan: span(core), pinpointSpan: pinpoint && span(pinpoint),
+    // The pinpoints as written, with the words that introduce them: "at para 105".
+    ...(pinpoint && phrase && phrase.start <= pinpoint.start && phrase.end >= pinpoint.end &&
+      { pinpointPhrase: span(phrase) }) };
 }
 
 /** Format an already parsed range; never infer ranges from gaps between tokens. */
@@ -76,10 +78,10 @@ export function pinpointValues<Kind extends string>(
     text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : text }));
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
-  occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, offset);
+  occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);
 /** A supra, ibid or short form: its own token names the authority, and its pinpoints follow it. */
 export const nativeReferenceSpans = (reference: NativeAuthorityReferenceOccurrence, text: string, offset = 0) =>
-  occurrenceSpans(text, reference.token, reference.token, reference.pinpoints, offset);
+  occurrenceSpans(text, reference.token, reference.token, reference.pinpoints, reference.pinpointPhrase, offset);
 
 const CANLII_STATUTE = /^https?:\/\/(?:www\.)?canlii\.org\/(en|fr)\/(ca|on|bc)\/laws\/(?:stat|astat)\/([^/#?]+)\//iu;
 const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
@@ -343,7 +345,7 @@ async function scanReview(
         occurrenceIds.push(id);
         occurrences[id] = { id, unitId: unit.key, ...full,
           text: unit.text.slice(full.start, full.end),
-          ...occurrenceSpans(unit.text, full, local(source.core), []),
+          ...occurrenceSpans(unit.text, full, local(source.core), [], undefined),
           kind: source.kind, citation: source.citation, authorityId: source.authorityId,
           reference: null, pinpoints: [], evidenceIds: [], sourceTextSha256, localOrdinal,
           reviewed: false };
@@ -370,7 +372,8 @@ async function scanReview(
       occurrenceIds.push(id);
       occurrences[id] = { id, unitId: unit.key, ...full,
         text: unit.text.slice(full.start, full.end),
-        ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span))),
+        ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span)),
+          citation.fields.pinCite ? local(citation.fields.pinCite) : undefined),
         kind: reference ? "reference" : kindOf(citation), citation: citation.span.text, authorityId,
         reference: authorityId && (citation.form === "short" || citation.form === "ibid" || citation.form === "supra")
           ? { kind: citation.form, targetAuthorityId: authorityId } : null,
@@ -392,7 +395,7 @@ async function scanReview(
       const previous = kept.length ? occurrences[kept[kept.length - 1]] : null;
       if (previous && current.start < previous.end) {
         const previousCoreEnd = Math.max(previous.coreSpan.end,
-          previous.pinpointSpan?.end ?? 0);
+          previous.pinpointPhrase?.end ?? previous.pinpointSpan?.end ?? 0);
         if (previousCoreEnd > current.coreSpan.start) {
           delete occurrences[id];
           continue;
