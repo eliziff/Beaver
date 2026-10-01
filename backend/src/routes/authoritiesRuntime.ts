@@ -205,7 +205,10 @@ export function createAuthoritiesRuntimeRouter(
       ? await authorityPdfText({ bytes, signal: abort.signal, passageTargets: targets,
           citations: authorityCitationForms(state, authority.id),
           reporterOriginal: source.origin === "original",
-          scannedPdfPolicy: state.settings.scannedPdfPolicy }) : {};
+          scannedPdfPolicy: state.settings.scannedPdfPolicy,
+          // Page text only finds the page printing a paragraph number; sections and pages are
+          // placed by geometry, so a long statute is not read one page at a time to open.
+          pageText: targets.some(({ locatorKind }) => locatorKind === "paragraph") }) : {};
     res.json(prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true));
   }));
   router.post("/create", asyncRoute(async (req, res) => {
