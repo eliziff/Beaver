@@ -896,16 +896,22 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   function findSources() {
     if (!draftRef.current) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
+    let unavailable = "";
     void run(async () => {
       await gathering.current; await actionQueue.current;
       const current = draftRef.current;
       if (!current) throw new Error("Open a draft first.");
       const ready = gathered.current.id === current.id && gathered.current.revision === current.revision;
-      const prepared = ready ? current : await host.prepareSources(current, request.signal);
+      // A legal-source service that is down or limiting requests leaves the sources to add by hand:
+      // the step still opens, and says why nothing was found.
+      const prepared = ready ? current : await host.prepareSources(current, request.signal).catch((caught) => {
+        if ((caught as { status?: number })?.status !== 503) throw caught;
+        unavailable = errorText(caught); return current;
+      });
       request.signal.throwIfAborted();
       if (!ready) adopt(prepared);
       return host.act(prepared.id, prepared.revision, { type: "set-stage", stage: "sources" });
-    }, adopt, "", "Finding source PDFs").finally(() => {
+    }, (next) => { adopt(next); if (unavailable) setMessage(unavailable); }, "", "Finding source PDFs").finally(() => {
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }

@@ -6,7 +6,7 @@ import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   type AuthoritiesDraft, type AuthorityIdentity } from "./authoritiesDomain";
 import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl, isCanliiUrl } from "./canliiUrls";
 import { canonicalJsonSha256, sha256 } from "./hash";
-import { a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
+import { A2AJLimited, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
@@ -100,6 +100,8 @@ export async function resolveAuthoritiesSources(
     return fetchable && authoritySourceRequirement(draft, authority, owed)
       ? [{ id, authority }] : [];
   });
+  // A lookup the provider refused for its rate limit is named to the reviewer, not taken for a miss.
+  let limited: A2AJLimited | undefined;
   const resolutions = await mapBounded(candidates, async ({ id, authority }) => {
     signal?.throwIfAborted();
     if (authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj") return { source: null };
@@ -114,9 +116,15 @@ export async function resolveAuthoritiesSources(
         mismatch: true as const, revision,
       };
       return { source, revision };
-    } catch { signal?.throwIfAborted(); unavailable = true; }
+    } catch (error) {
+      signal?.throwIfAborted(); unavailable = true;
+      if (error instanceof A2AJLimited) { limited = error; break; }
+    }
     return unavailable ? { unavailable: true as const } : { source: null };
   });
+  // Nothing found while the provider refused lookups: say so rather than report every source missing.
+  if (limited && !resolutions.some((resolved) => "source" in resolved && resolved.source))
+    throw new ApplicationError(503, limited.message);
   type ResolvedSource = Pick<NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>,
     "citation" | "alternateCitation" | "name" | "date" | "url" | "publisherUrl" | "dataset" | "language" |
     "searchText" | "verifiedPdf"> & { provider?: string; identity?: string };
