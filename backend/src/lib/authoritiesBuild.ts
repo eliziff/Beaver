@@ -5,10 +5,10 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { Nodes } from "mdast";
-import { pdfAssembly } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, type PdfOutline } from "./pdfAssembly";
 import { renderAuthoritiesBook, fit, pdfNormalized, pdfText, wrapped,
   type BookRow, type PreparedAuthoritiesBook } from "./authoritiesBook";
-const { addInternalLink: addLink, applyOutlines, appendPages } = pdfAssembly(pdfLibrary);
+const { addInternalLink: addLink, applyOutlines, appendPages, readOutlines } = pdfAssembly(pdfLibrary);
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 import { legalSourceLocatorAnchor, sourceUrl as legalSourceUrl } from "./legalSourceLinks";
 import type { A2AJLocatorKind } from "./legalSources/a2aj";
@@ -33,7 +33,8 @@ import { annotationSetForSource } from "mike/shared/pdf-annotations.mjs";
 import { hasPrintedParagraphLocator, initialAuthorityAnnotations } from "./authoritiesAnnotations";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, type DocxAuthorityMark } from "./docxOperations";
-import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
+import { structureNative, type NativeOutlineEntry, type NativePdfPassageGeometry,
+  type NativePdfPassageTarget } from "./structureNative";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
@@ -63,7 +64,7 @@ export type AuthoritiesBuildInput = {
   workProduct: { id: string; revision: number };
   sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput;
     pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
-    passageGeometry?: NativePdfPassageGeometry }>;
+    passageGeometry?: NativePdfPassageGeometry; outline?: NativeOutlineEntry[] }>;
   signal?: AbortSignal;
   finalPdfSource?: (bytes: Uint8Array, filename: string) => Promise<Uint8Array>;
   /** Told what the build is doing, as it starts each part. */
@@ -421,6 +422,7 @@ export async function renderAuthoritySourcePdf(input: {
     if ("children" in node) return node.children.flatMap(child => inline(child, strong, emphasis));
     return "value" in node ? [{ text: node.value, font }] : [];
   };
+  const runsText = (runs: Run[]) => runs.map(run => run.text).join("").split(/\s+/u).join(" ").trim();
   const layout = (runs: Run[], size: number, available: number) => {
     const lines: Run[][] = [[]];
     let used = 0;
@@ -449,12 +451,24 @@ export async function renderAuthoritySourcePdf(input: {
       x += run.font.widthOfTextAtSize(run.text, size);
     }
   };
+  // The shared provider grammar reads the source's sections; where each block lands gives
+  // the outline its pages, and a provision's depth its indent.
+  const structured = input.kind === "case" || input.kind === "legislation" ? await structureNative()
+    .deriveDocumentStructure({ kind: "provider_text", input: { provider: "a2aj", citation: input.citation,
+      source_kind: input.kind === "case" ? "cases" : "laws", text: input.text } }).catch(() => null) : null;
+  const sections = structured ? structureNative().documentOutline(structured) : [];
+  const depths = new Map((structured ? structureNative().documentAnchors(structured, input.text.length) : [])
+    .filter(anchor => anchor.kind === "section").reverse()
+    .map(anchor => [anchor.start, anchor.label.split("(").length - 1]));
+  const placed: Array<{ start: number; pageIndex: number; note?: string; heading?: number; title?: string }> = [];
+  let placing: Omit<(typeof placed)[number], "pageIndex"> | null = null;
   const draw = (runs: Run[], indent = 0, size = 10.5) => {
     const leading = size + 4, lines = layout(runs, size, width - left - right - indent);
     if (lines.length * leading <= height - top - bottom - 18 &&
       y - lines.length * leading < bottom + 18) { current = page(); y = height - top; }
     for (const line of lines) {
       if (y < bottom + leading) { current = page(); y = height - top; }
+      if (placing) { placed.push({ ...placing, pageIndex: pages.length - 1 }); placing = null; }
       drawLine(line, left + indent, size);
       y -= leading;
     }
@@ -462,6 +476,15 @@ export async function renderAuthoritySourcePdf(input: {
   };
   const block = (node: Nodes, indent = 0) => {
     if (node.type === "definition") return;
+    const start = node.position?.start.offset;
+    if (start !== undefined && node.type !== "root" && node.type !== "list" && node.type !== "listItem") {
+      const text = runsText(inline(node));
+      placing = { start, ...(node.type === "heading" ? { heading: node.depth, title: text }
+        : node.type === "paragraph" && node.children.length === 1 && node.children[0].type === "strong"
+          ? { note: text } : {}) };
+      // A paragraph (a) sits under its subsection, a subparagraph (i) under that.
+      if (node.type === "paragraph") indent += 14 * Math.max(0, (depths.get(start) ?? 0) - 1);
+    }
     if (node.type === "list") {
       node.children.forEach((item, index) => {
         const marker = node.ordered ? `${(node.start ?? 1) + index}. ` : "\u00b7 ";
@@ -500,6 +523,20 @@ export async function renderAuthoritySourcePdf(input: {
       node.type === "heading" ? 17 - node.depth : 10.5);
   };
   block(fromMarkdown(input.text, { extensions: [gfmTable()], mdastExtensions: [gfmTableFromMarkdown()] }));
+  // Headings below the title, then each top-level section titled with its marginal note.
+  let headingLevel = 0;
+  const outline = nestedOutline([...placed.filter(item => (item.heading ?? 0) > 1).map(item => ({
+    start: item.start, kind: "heading", level: item.heading!, title: item.title!, pageIndex: item.pageIndex })),
+  ...sections.filter(entry => entry.kind === "section").map(entry => {
+    const at = placed.reduce((last, item, index) => item.start <= entry.start ? index : last, -1);
+    const note = placed[at - 1]?.note;
+    return { start: entry.start, kind: "section", level: 0, pageIndex: placed[at]?.pageIndex,
+      title: pdfText(note ? `${entry.title} ${note}` : entry.title) };
+  })].sort((a, b) => a.start - b.start).map(entry => {
+    if (entry.kind === "heading") headingLevel = entry.level;
+    return { ...entry, title: pdfText(entry.title), level: entry.kind === "heading" ? entry.level : headingLevel + 1 };
+  }));
+  if (outline.length) applyOutlines(document, outline, false);
   pages.forEach((item, index) => {
     if (index) {
       item.drawText(fit(sans, `${title}  |  ${citation}`, 7.5, width - left - right),
@@ -586,7 +623,7 @@ async function filingPdfArtifact(groups: Group[], filename: string,
 type LoadedBookPdf = BookRow & { document: PdfDocument; authority: AuthorityIdentity | null;
   markedPages?: Set<number>;
   pageTextByPage?: string[]; ocrTextByPage?: string[]; pageLabels?: (string | null)[]; pageBindings?: PdfPageBinding[];
-  passageGeometry?: NativePdfPassageGeometry };
+  passageGeometry?: NativePdfPassageGeometry; outline?: PdfOutline[] };
 type PreparedBookPdf = LoadedBookPdf & { pageIndices: number[];
   databaseReference: { url: string; host: string } | null };
 
@@ -657,8 +694,14 @@ async function loadAuthorityPdf(
       : await loadBookPdf(pdf, source, label, attached),
     text: attached[source.bindingRole] })));
   const markedPages = new Set<number>();
+  // Each source keeps its publisher's bookmarks, or else the headings and sections read from it.
+  const outline: PdfOutline[] = [];
   let sourceOffset = 0;
   for (const item of loaded) {
+    // A lone bookmark ("Blank Page" on some printers' statutes) is not an outline.
+    const own = readOutlines(item.document, sourceOffset);
+    outline.push(...(own.length > 1 || own[0]?.children?.length ? own : nestedOutline((item.text?.outline ?? []).map(entry => ({
+      ...entry, pageIndex: entry.pageIndex === undefined ? undefined : sourceOffset + entry.pageIndex })))));
     if (editing && attached[item.source.bindingRole]?.bytes !== undefined) {
       const { annotations } = prepareAuthorityAnnotations(pdf, item.document, editing.draft,
         editing.authority, item.source, item.text);
@@ -668,7 +711,7 @@ async function loadAuthorityPdf(
     }
     sourceOffset += item.document.getPageCount();
   }
-  if (loaded.length === 1) return { document: loaded[0].document, markedPages,
+  if (loaded.length === 1) return { document: loaded[0].document, markedPages, outline,
     pageBindings: loaded[0].text?.pageBindings,
     pageTextByPage: loaded[0].text?.pageTextByPage,
     ocrTextByPage: loaded[0].text?.ocrTextByPage,
@@ -704,7 +747,7 @@ async function loadAuthorityPdf(
             pageNumber: quote.pageNumber + pageOffset,
           }) })) }))),
   } satisfies NativePdfPassageGeometry : undefined;
-  return { document, pageTextByPage, pageBindings, markedPages,
+  return { document, pageTextByPage, pageBindings, markedPages, outline,
     ocrTextByPage: ocrTextByPage.some(Boolean) ? ocrTextByPage : undefined,
     passageGeometry };
 }
@@ -849,7 +892,8 @@ async function prepareAuthorityBook(
           ? pdfNormalized(text).replace(/[^\x20-\x7e\u00a0-\u00ff\r\n]/gu, "?") : "") : undefined;
       return { key: source.key, name: source.name, tab: source.tab, sourceUrl: source.sourceUrl,
         bytes: await source.document.save({ useObjectStreams: false }),
-        pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks };
+        pageIndices: source.pageIndices, databaseReference: source.databaseReference, ocrTextByPage, bookmarks,
+        ...(source.outline?.length ? { outline: source.outline } : {}) };
     })),
   };
 }

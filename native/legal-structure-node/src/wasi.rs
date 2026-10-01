@@ -127,6 +127,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
             d, &call.get::<String>("primaryKind")?, call.get("limit")?).and_then(value))),
         #[cfg(feature = "legalpdf")]
         "textLayout" => done(value(engine::text_layout(&call.get::<String>("text")?))),
+        "documentOutline" => done(with_document(doc()?, |d| value(engine::document_outline(
+            d, call.get::<Option<bool>>("legislation")?.unwrap_or(false))))),
         "documentTableCells" => done(with_document(doc()?, |d| value(engine::document_table_cells(d)))),
         "citationLookupKey" => done(value(engine::citation_lookup_key_of(&call.get::<String>("text")?))),
         "citationEngineCall" => done(engine::citation_engine_call(&call.get::<String>("method")?, &call.get::<String>("request")?)),

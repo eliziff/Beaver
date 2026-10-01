@@ -17,7 +17,7 @@ vi.mock("../lib/authoritiesImport", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/authoritiesImport")>(),
   importStandaloneAuthoritiesFile: mocks.importFile,
 }));
-vi.mock("../lib/authorityPdfText", () => ({ authorityPdfText: mocks.pdfText }));
+vi.mock("../lib/authorityPdfText", () => ({ authorityPdfText: mocks.pdfText, authorityPdfOutline: vi.fn(async () => []) }));
 
 const originalMode = process.env.AUTH_MODE;
 const app = express(); app.use(express.json());

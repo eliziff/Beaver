@@ -21,7 +21,7 @@ import type { WorkflowFiles } from "./workflowFiles";
 const pdfText = vi.hoisted(() => vi.fn(async () => ({
   pageTextByPage: [] as string[], ocrTextByPage: [] as string[],
 })));
-vi.mock("./authorityPdfText", () => ({ authorityPdfText: pdfText }));
+vi.mock("./authorityPdfText", () => ({ authorityPdfText: pdfText, authorityPdfOutline: vi.fn(async () => []) }));
 vi.mock("./documentProjectionService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./documentProjectionService")>();
   return { ...actual, documentProjectionService: { ...actual.documentProjectionService, pdfPagination: vi.fn(async () => []) } };

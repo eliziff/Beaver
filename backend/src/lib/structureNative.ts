@@ -26,6 +26,10 @@ type CitatorExcerptClassification = {
 
 export type NativeCitationTextSpan = { text: string; start: number; end: number };
 
+/** `start` is in the document's query text; `pageIndex` is a PDF's zero-based page. */
+export type NativeOutlineEntry = { kind: "heading" | "section"; level: number; title: string;
+  start: number; pageIndex?: number };
+
 export type NativeCitationOccurrence = NativeCitationTextSpan & {
   styledCitation: NativeCitationTextSpan;
   coreCitation: NativeCitationTextSpan;
@@ -243,6 +247,8 @@ type StructureAddon = {
       documentRevision: string;
     };
   documentTableCells(document: NativeDocument): SpreadsheetCellSpan[];
+  /** The document's headings and top-level sections in order; a section sits under the heading before it. */
+  documentOutline(document: NativeDocument, legislation?: boolean): NativeOutlineEntry[];
   /** Plain text line by line as headings, list items and paragraphs, with nesting levels. */
   textLayout(text: string): Array<{ kind: "heading" | "list_item" | "paragraph"; level: number;
     marker?: string; text: string }>;

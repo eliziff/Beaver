@@ -303,6 +303,100 @@ pub fn text_layout(text: &str) -> Vec<LayoutLine> {
     layout
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineEntry {
+    /// "heading" or "section".
+    kind: &'static str,
+    /// Headings nest by their own hierarchy; a section sits under the heading before it.
+    level: usize,
+    title: String,
+    /// The node's start in the document's query text.
+    start: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    page_index: Option<usize>,
+}
+
+/// A section label as a reader cites it: "sec33.1" is "s 33.1", "part2" "Part 2".
+fn section_title(label: &str) -> String {
+    for (prefix, name) in [("sec", "s "), ("part", "Part "), ("sched", "Schedule "),
+        ("art", "Art "), ("ann", "Annex "), ("app", "Appendix ")] {
+        if let Some(rest) = label.strip_prefix(prefix).filter(|rest| !rest.is_empty()) {
+            return format!("{name}{rest}");
+        }
+    }
+    label.to_owned()
+}
+
+fn outline_entries(structure: &DocumentStructure, sections: bool) -> Vec<OutlineEntry> {
+    use legal_structure::NodeKind;
+    let nodes = structure.nodes.iter().map(|node| (node.id.as_str(), node))
+        .collect::<std::collections::HashMap<_, _>>();
+    let depth = |node: &legal_structure::StructureNode, kind: NodeKind| {
+        let (mut level, mut parent) = (0, node.parent_id.as_deref());
+        while let Some(found) = parent.and_then(|id| nodes.get(id)).filter(|_| level < 16) {
+            if found.kind == kind { level += 1; }
+            parent = found.parent_id.as_deref();
+        }
+        level
+    };
+    structure.nodes.iter().filter_map(|node| {
+        let start = node.rendered_range.unwrap_or(node.range).start;
+        let page_index = node.page_indexes.first().copied();
+        let label = node.label.as_deref()?.split_whitespace().collect::<Vec<_>>().join(" ");
+        match node.kind {
+            NodeKind::Heading if !label.is_empty() && label.chars().count() <= 200 =>
+                Some(OutlineEntry { kind: "heading", level: depth(node, NodeKind::Heading),
+                    title: label, start, page_index }),
+            NodeKind::Section if sections && depth(node, NodeKind::Section) == 0 => Some(OutlineEntry {
+                kind: "section", level: 0, title: section_title(&label), start, page_index }),
+            _ => None,
+        }
+    }).collect()
+}
+
+/// The document's own outline: its headings and its top-level sections, in order.
+/// A PDF's numbered sections come from the instrument grammar, and only for
+/// legislation whose sections each appear once, in order: a contents list or a
+/// second language repeats them, and a judgment's numbers are not sections.
+pub fn document_outline(document: &NativeDocument, legislation: bool) -> Vec<OutlineEntry> {
+    let structure = document.structure();
+    let pdf = !matches!(document.product, NativeProduct::Structure(_));
+    let mut entries = outline_entries(structure, !pdf);
+    if pdf && legislation {
+        let instrument = analyze_instrument(structure.query_text().to_owned(), structure.document_id.clone(),
+            &[], false).ok();
+        let sections = instrument.as_ref().map(|instrument| outline_entries(instrument, true)).unwrap_or_default()
+            .into_iter().filter(|entry| entry.kind == "section").collect::<Vec<_>>();
+        let number = |title: &str| title.strip_prefix("s ")
+            .and_then(|rest| rest.split('.').next()?.parse::<u32>().ok());
+        let ordered = !sections.is_empty() && sections.windows(2).all(|pair|
+            matches!((number(&pair[0].title), number(&pair[1].title)), (Some(a), Some(b)) if a < b
+                || a == b && pair[0].title < pair[1].title));
+        if ordered {
+            let pages = structure.nodes.iter().filter(|node| node.kind == legal_structure::NodeKind::Page)
+                .map(|node| (node.rendered_range.unwrap_or(node.range), node.page_indexes.first().copied()))
+                .collect::<Vec<_>>();
+            entries.extend(sections.into_iter().map(|entry| OutlineEntry {
+                page_index: pages.iter().find(|(range, _)| range.start <= entry.start && entry.start < range.end)
+                    .and_then(|(_, page)| *page), ..entry }));
+        }
+    }
+    // A title printed atop every page is a running head, not a heading of the text.
+    let mut counts = std::collections::HashMap::<String, usize>::new();
+    for entry in entries.iter().filter(|entry| entry.kind == "heading") {
+        *counts.entry(entry.title.to_lowercase()).or_default() += 1;
+    }
+    entries.retain(|entry| entry.kind != "heading" || counts[&entry.title.to_lowercase()] < 3);
+    entries.sort_by_key(|entry| entry.start);
+    let mut heading = None;
+    for entry in &mut entries {
+        if entry.kind == "heading" { heading = Some(entry.level); }
+        else { entry.level = heading.map_or(0, |level| level + 1); }
+    }
+    entries
+}
+
 pub fn document_table_cells(document: &NativeDocument) -> impl Serialize + '_ {
     document.query.table_cells(document.structure())
 }

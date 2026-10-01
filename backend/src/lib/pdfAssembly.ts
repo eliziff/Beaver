@@ -42,6 +42,29 @@ export function splitPdfPageRanges<T extends { pageIndices: number[] }>(items: T
   return volumes;
 }
 
+/** Nests a flat outline by level: each entry goes under the last shallower one. */
+export function nestedOutline(entries: Array<{ title: string; level: number; pageIndex?: number }>) {
+  const roots: PdfOutline[] = [], open: Array<{ level: number; node: PdfOutline }> = [];
+  for (const { title, level, pageIndex } of entries) {
+    if (pageIndex === undefined) continue;
+    const node: PdfOutline = { title, pageIndex };
+    while (open.length && open[open.length - 1].level >= level) open.pop();
+    const parent = open[open.length - 1]?.node;
+    if (parent) (parent.children ??= []).push(node); else roots.push(node);
+    open.push({ level, node });
+  }
+  return roots;
+}
+
+/** An outline moved onto other pages: an entry whose page is gone gives way to its children. */
+export function mapOutline(outline: PdfOutline[], page: (pageIndex: number) => number | undefined): PdfOutline[] {
+  return outline.flatMap(({ title, pageIndex, children }) => {
+    const mapped = children ? mapOutline(children, page) : [];
+    const at = page(pageIndex);
+    return at === undefined ? mapped : [{ title, pageIndex: at, ...(mapped.length ? { children: mapped } : {}) }];
+  });
+}
+
 export function pdfAssembly(pdf: typeof import("pdf-lib")) {
   const { PDFHexString, PDFName, degrees, rgb } = pdf;
 
@@ -107,6 +130,30 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       page.drawText(chunk, { x: 1, y: 1 + index % 4, size: 1, lineHeight: 1,
         maxWidth: Math.max(1, page.getWidth() - 2), font, opacity: 0 });
     }
+  }
+
+  /** The PDF's own bookmarks, as titled, with the pages they open (shifted by `offset`). */
+  function readOutlines(document: PDFDocument, offset = 0): PdfOutline[] {
+    const pages = new Map(document.getPages().map((page, index) => [String(page.ref), index]));
+    const destination = destinationReader(document);
+    const seen = new Set<PDFDict>();
+    const branch = (first: PDFDict | undefined): PdfOutline[] => {
+      const result: PdfOutline[] = [];
+      for (let node = first; node && !seen.has(node) && seen.size < 10_000;
+        node = node.lookupMaybe(PDFName.of("Next"), pdf.PDFDict)) {
+        seen.add(node);
+        const title = node.lookupMaybe(PDFName.of("Title"), pdf.PDFString, pdf.PDFHexString);
+        const dest = destination(node);
+        const pageIndex = dest && pages.get(String(dest.get(0)));
+        const children = branch(node.lookupMaybe(PDFName.of("First"), pdf.PDFDict));
+        if (title && pageIndex !== undefined) result.push({ title: title.decodeText(),
+          pageIndex: offset + pageIndex, ...(children.length ? { children } : {}) });
+        else result.push(...children);
+      }
+      return result;
+    };
+    return branch(document.catalog.lookupMaybe(PDFName.of("Outlines"), pdf.PDFDict)
+      ?.lookupMaybe(PDFName.of("First"), pdf.PDFDict));
   }
 
   function applyPageLabels(document: PDFDocument, start: number) {
@@ -250,6 +297,6 @@ export function pdfAssembly(pdf: typeof import("pdf-lib")) {
       plans.splice(oversized, 1, ...divided);
     }
   }
-  return { drawPageNumber, applyOcrText, applyPageLabels, applyOutlines, addInternalLink,
+  return { drawPageNumber, applyOcrText, applyPageLabels, applyOutlines, readOutlines, addInternalLink,
     destinationReader, embedFonts, appendPages, assemble, volumes };
 }

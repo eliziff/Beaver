@@ -6,7 +6,24 @@ import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structu
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 type Projection = Pick<typeof documentProjectionService, "preparePdf" | "lookupPdf"> &
-  Partial<Pick<typeof documentProjectionService, "pdfPassageGeometry" | "pdfPagination">>;
+  Partial<Pick<typeof documentProjectionService, "pdfPassageGeometry" | "pdfPagination" | "pdfOutline">>;
+
+/** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
+export async function authorityPdfOutline(input: {
+  bytes: Buffer; legislation: boolean; documentId?: string; versionId?: string; sourceSha256?: string;
+  pdfProfile?: PdfProfileSelection; signal?: AbortSignal;
+}, projection: Projection = documentProjectionService) {
+  if (!projection.pdfOutline) return [];
+  const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
+  const reference = { documentId: input.documentId ?? `standalone-authority:${sourceSha256}`,
+    versionId: input.versionId ?? sourceSha256, sourceSha256 };
+  // Recognized text already retained for the source is read too; nothing new is recognized.
+  const prepared = await projection.preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
+    ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
+  return projection.pdfOutline(() => input.bytes, { ...reference, cacheKey: prepared.cacheKey },
+    { pdfProfile: { cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status },
+      legislation: input.legislation, signal: input.signal });
+}
 
 export async function authorityPdfText(input: {
   bytes: Buffer;

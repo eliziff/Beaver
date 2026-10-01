@@ -14,6 +14,7 @@ import { fit, renderAuthoritiesBook } from "./authoritiesBook";
 import { filingLinkUrl } from "./authoritiesFinalPdf";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { NativePdfPassageGeometry } from "./structureNative";
+import { pdfAssembly } from "./pdfAssembly";
 import * as pdfLibrary from "pdf-lib";
 
 async function sourcePdf(label: string, sizes: Array<[number, number]>) {
@@ -519,6 +520,36 @@ describe("Authorities output builder", () => {
     expect(document.getPageCount()).toBe(1);
     const font = await document.embedFont(StandardFonts.Helvetica);
     expect(fit(font, "A ‑ B\r\nSecond\tline", 12, 400)).toBe("A - B Second line");
+  });
+
+  it("gives reconstructed legislation an outline of its headings and sections", async () => {
+    const bytes = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Dues Act",
+      citation: "SC 2031, c 4", date: null, sourceUrl: null,
+      text: "# Harbour Dues Act\n\n## Short Title\n\n**Short title**\n\n**1** This Act is the Harbour Dues Act.\n\n" +
+        "## Dues\n\n**Dues payable**\n\n**2** (1) A vessel pays dues\n\n(a) on arrival, or\n\n(b) on departure.\n\n" +
+        "**Waiver**\n\n(2) The harbour master may waive dues.\n\n**3** Dues are paid to the harbour authority." });
+    const document = await PDFDocument.load(bytes);
+    const outline = pdfAssembly(pdfLibrary).readOutlines(document);
+    expect(outline.map(({ title, children }) => [title, children?.map(child => child.title)])).toEqual([
+      ["Short Title", ["s 1 Short title"]], ["Dues", ["s 2 Dues payable", "s 3"]]]);
+  });
+
+  it("nests an authority's own bookmarks above its pinpoints under the tab", async () => {
+    const source = await PDFDocument.load(await sourcePdf("Statute", [[400, 500], [400, 500], [400, 500]]));
+    pdfAssembly(pdfLibrary).applyOutlines(source, [{ title: "Part 1 Ferries", pageIndex: 1,
+      children: [{ title: "4 Fares", pageIndex: 2 }] }], false);
+    const pdf = Buffer.from(await source.save());
+    const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
+    state.authorities.item = attached("item", "legislation", "SC 2031, c 9", "Ferries Act", "item", pdf);
+    state.authorityOrder = ["item"];
+    state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
+      name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf) } };
+    const built = await buildAuthorities({ draft: state, title: "Authorities",
+      workProduct: { id: "outline", revision: 1 }, sources: { item: { bytes: pdf } } });
+    const book = await PDFDocument.load(built.artifacts.book!.bytes);
+    const tab = pdfAssembly(pdfLibrary).readOutlines(book).at(-1)!.children![0];
+    expect(tab.children).toEqual([{ title: "Part 1 Ferries", pageIndex: tab.pageIndex + 1,
+      children: [{ title: "4 Fares", pageIndex: tab.pageIndex + 2 }] }]);
   });
 
   it("uses a corrected manual PDF identity in the generated book index", async () => {

@@ -528,6 +528,15 @@ pub fn text_layout_node(env: Env, text: String) -> napi::Result<Unknown<'static>
     js_value(env, &engine::text_layout(&text))
 }
 
+#[napi(js_name = "documentOutline")]
+pub fn document_outline_node(
+    env: Env,
+    document: &External<NativeDocument>,
+    legislation: Option<bool>,
+) -> napi::Result<Unknown<'static>> {
+    js_value(env, &engine::document_outline(document, legislation.unwrap_or(false)))
+}
+
 #[napi(js_name = "documentTableCells")]
 pub fn document_table_cells_node(
     env: Env,

@@ -5,7 +5,7 @@ import type { AuthoritiesDiscrepancy } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
 import { authorityPdfText } from "./authorityPdfText";
 
-vi.mock("./authorityPdfText", () => ({ authorityPdfText: vi.fn() }));
+vi.mock("./authorityPdfText", () => ({ authorityPdfText: vi.fn(), authorityPdfOutline: vi.fn(async () => []) }));
 const pdfText = vi.mocked(authorityPdfText);
 const hash = "a".repeat(64), id = "d".repeat(64);
 const binding = { kind: "local-file" as const, handleId: "source", lastSeen: {

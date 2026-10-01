@@ -1,6 +1,7 @@
 import type { PDFFont as PdfFont, PDFPage as PdfPage, Color as PdfColor } from "pdf-lib";
 import type { AuthoritiesCover } from "mike/shared/authorities-contract.d.ts";
-import { pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput, type PdfOutline } from "./pdfAssembly";
+import { mapOutline, pdfAssembly, splitPdfPageRanges, type PdfAssemblyInput,
+  type PdfOutline } from "./pdfAssembly";
 
 type PdfModule = typeof import("pdf-lib");
 export type BookRow = { key: string; name: string; tab: string; sourceUrl?: string | null };
@@ -8,6 +9,8 @@ export type PreparedBookSource<Bytes = Uint8Array> = BookRow & {
   bytes: Bytes; pageIndices: number[]; ocrTextByPage?: string[];
   databaseReference: { url: string; host: string } | null;
   bookmarks: Array<{ title: string; pageIndex: number }>;
+  /** The source's own outline: its publisher bookmarks, or the headings and sections read from it. */
+  outline?: PdfOutline[];
 };
 export type PreparedAuthoritiesBook<Bytes = Uint8Array> = {
   filename: string; subtitle: string; documentTitle: string; bookTitle: string;
@@ -208,11 +211,13 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
             return local.length ? [{ title: label, pageIndex: localStarts.get(local[0].key)!,
               children: local.map((entry) => {
                 const slice = plan.slices.find(({ source }) => source.key === entry.key)!;
-                return { title: `${entry.tab} — ${entry.name}`, pageIndex: localStarts.get(entry.key)!,
-                  children: slice.source.bookmarks.flatMap(({ title, pageIndex }) => {
-                    const offset = slice.pageIndices.indexOf(pageIndex);
-                    return offset < 0 ? [] : [{ title, pageIndex: localStarts.get(entry.key)! + offset }];
-                  }) };
+                const start = localStarts.get(entry.key)!, page = (pageIndex: number) => {
+                  const offset = slice.pageIndices.indexOf(pageIndex);
+                  return offset < 0 ? undefined : start + offset;
+                };
+                return { title: `${entry.tab} — ${entry.name}`, pageIndex: start,
+                  children: [...mapOutline(slice.source.outline ?? [], page),
+                    ...mapOutline(slice.source.bookmarks, page)] };
               }) }] : [];
           }),
         ],
