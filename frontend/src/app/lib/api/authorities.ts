@@ -1,6 +1,7 @@
 import type { AuthoritiesBuildSettings, AuthoritiesProfileId, AuthoritiesOutputMode, AuthoritiesProduct, AuthoritiesAction, AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritySourceLanguage, AuthoritiesBuildReceipt } from "@/app/authorities/types";
 import { post, multipartRequest, segment, apiRequest, mutationInit } from "@/app/lib/api/client";
 import type { Document } from "@/app/lib/api/documents";
+import type { AuthoritiesBookSlot } from "../../../../../shared/authorities-sources.mjs";
 
 export const createAuthorities = (input: {
   source: { kind: "manual" } | { kind: "document"; documentId: string;
@@ -40,12 +41,12 @@ export const attachAuthorityPdf = (
 export const attachAuthoritiesLibraryPdf = (id: string, revision: number,
   documentId: string, versionId: string, target:
     { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |
-    { kind: "book"; slot: "cover" | "index" | "supplemental"; supplementId?: string }) =>
+    { kind: "book"; slot: AuthoritiesBookSlot; supplementId?: string }) =>
   post<AuthoritiesProduct>(`/authorities/${segment(id)}/library-pdfs`, {
     revision, documentId, versionId, target,
   });
 export const attachAuthoritiesBookPdf = (id: string, revision: number,
-  slot: "cover" | "index" | "supplemental", file: File, supplementId?: string) =>
+  slot: AuthoritiesBookSlot, file: File, supplementId?: string) =>
   multipartRequest<AuthoritiesProduct>(
     `/authorities/${segment(id)}/book-parts/${slot}`, file,
     { fields: { revision: String(revision), ...(supplementId ? { supplement_id: supplementId } : {}) } },

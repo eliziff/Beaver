@@ -47,17 +47,20 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
       if (!textRoles.has(role)) return { pageBindings: undefined };
       const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
       const authority = attached?.authority;
-      const filing = !authority && draft.import.kind === "document" &&
+      const brief = plan.briefPdf?.bindingRole === role;
+      const filing = brief || !authority && draft.import.kind === "document" &&
         draft.import.fileType === "pdf" && role === draft.import.bindingRole;
       const targets = authority ? authorityPassageTargets(draft, authority.id)
-        : filing ? authorityFilingTargets(draft) : [];
+        : filing && !brief ? authorityFilingTargets(draft) : [];
       const linkGeometry = !!(draft.settings.finalPdf && draft.settings.linkPinpoints);
       const text = await authorityPdfText({ ...input,
         scannedPdfPolicy: filing ? "page-margin" : draft.settings.scannedPdfPolicy,
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         reporterOriginal: attached?.source.origin === "original",
         ocrTargets: filing ? [] : targets,
-        passageTargets: filing || linkGeometry || draft.settings.passageMarking !== "none" ? targets : [] });
+        passageTargets: brief ? (pages) => draft.settings.linkTabs || draft.settings.linkPinpoints
+          ? authorityFilingTargets(draft, pages) : []
+          : filing || linkGeometry || draft.settings.passageMarking !== "none" ? targets : [] });
       input.signal?.throwIfAborted();
       return { pageTextByPage: text.pageTextByPage,
         ...(text.pageLabels ? { pageLabels: text.pageLabels, pageBindings: text.pageBindings } : {}),

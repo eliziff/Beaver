@@ -2,7 +2,8 @@ import { structureNative, type NativePdfPassageGeometry } from "./structureNativ
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
 import { reporterStartPages } from "./pdfPagination";
-import { docxToPdf } from "./convert";
+import { docxToPdf, wordToPdfAvailable } from "./convert";
+import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { readFile } from "node:fs/promises";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
@@ -62,7 +63,7 @@ function boundPdfs(draft: AuthoritiesDraft) {
     ...draft.bookParts.supplements.map((supplement) => ({ pdf: supplement,
       apply: (next: BoundPdf, binding: LibraryBinding): AuthoritiesAction =>
         ({ type: "set-book-supplement", supplement: { ...supplement, ...next }, binding }) })),
-    ...(["cover", "index"] as const).flatMap((slot) => {
+    ...(["cover", "index", "brief"] as const).flatMap((slot) => {
       const part = draft.bookParts[slot];
       return part ? [{ pdf: part, apply: (next: BoundPdf, binding: LibraryBinding):
         AuthoritiesAction => ({ type: "set-book-part", slot, pdf: { ...part, ...next }, binding }) }] : [];
@@ -298,6 +299,12 @@ export function createAuthoritiesWorkspaceApplication(
       const { file, resolved } = (await readPdf(source, "Book PDF"))!;
       result[source.bindingRole] = { bytes: file.bytes, resolved };
     });
+    if (plan.briefPdf) {
+      const { binding, file, resolved } = (await readPdf(plan.briefPdf, "Brief PDF"))!;
+      result[plan.briefPdf.bindingRole] = { bytes: file.bytes, resolved, ...await plan.prepareText(
+        plan.briefPdf.bindingRole, { bytes: file.bytes, documentId: binding.documentId,
+          versionId: file.version.id, sourceSha256: file.version.source_sha256, pdfProfile: file.pdfProfile, signal }) };
+    }
     return result;
   }
 
@@ -453,13 +460,13 @@ export function createAuthoritiesWorkspaceApplication(
     }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
       attachSource(draft, attachableAuthority(draft, input.authorityId), binding, filename, hash, input.language)),
     attachBookPdf: (scope: ApplicationScope, id: string, input: {
-      revision: number; slot: "cover" | "index" | "supplemental"; file: DocumentFile; supplementId?: string;
+      revision: number; slot: AuthoritiesBookSlot; file: DocumentFile; supplementId?: string;
     }) => uploadPdf(scope, id, input, (draft, binding, filename, hash) =>
       attachBookSource(draft, input, binding, filename, hash)),
     async attachLibraryPdf(scope: ApplicationScope, id: string, input: {
       revision: number; documentId: string; versionId: string;
       target: { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage } |
-        { kind: "book"; slot: "cover" | "index" | "supplemental"; supplementId?: string };
+        { kind: "book"; slot: AuthoritiesBookSlot; supplementId?: string };
     }) {
       const { draft } = await edit(scope, id, input.revision);
       const version = await documents.metadata(scope, input.documentId);
@@ -578,7 +585,7 @@ export function createAuthoritiesWorkspaceApplication(
       try {
         built = await builder({ draft, title: product.title,
           workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal,
-          finalPdfSource: async (bytes) => docxToPdf(Buffer.from(bytes)),
+          ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
         });
       } catch (error) {
         if (error instanceof ApplicationError) throw error;

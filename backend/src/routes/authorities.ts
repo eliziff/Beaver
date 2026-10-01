@@ -5,6 +5,8 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
   decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, integer, object,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
+import { wordToPdfAvailable } from "../lib/convert";
+import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { requireAuth } from "../middleware/auth";
 import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from "../lib/upload";
 
@@ -54,13 +56,14 @@ function libraryPdf(value: unknown): Parameters<
   const keys = Object.keys(target).sort().join(",");
   if (target.kind !== "book" || !["kind,slot", "kind,slot,supplementId"].includes(keys)) return bad();
   return { ...common, target: { kind: "book",
-    slot: choice(target.slot, ["cover", "index", "supplemental"] as const),
+    slot: choice(target.slot, AUTHORITIES_BOOK_SLOTS),
     ...(target.supplementId === undefined ? {} : { supplementId: text(target.supplementId) }) } };
 }
 
 export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplication) {
   const router = Router();
   router.use(requireAuth);
+  router.get("/capabilities", (_req, res) => void res.json({ wordToPdf: wordToPdfAvailable() }));
   router.get("/", asyncRoute(async (req, res) => {
     const limit = req.query.limit === undefined ? undefined : integer(Number(req.query.limit), 1);
     if (limit !== undefined && limit > 100) return bad();
@@ -128,7 +131,7 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
       const file = requiredFile(req);
       res.json(await application.attachBookPdf(applicationScope(res), text(req.params.id), {
         revision: revision(req.body?.revision, true),
-        slot: choice(req.params.slot, ["cover", "index", "supplemental"] as const),
+        slot: choice(req.params.slot, AUTHORITIES_BOOK_SLOTS),
         supplementId: typeof req.body?.supplement_id === "string"
           ? text(req.body.supplement_id) : undefined,
         file: uploadedDocument(file),

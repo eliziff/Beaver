@@ -12,6 +12,7 @@ import { citationAliasKeysBatch } from "./caselawCitator";
 import { sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
 import type { WorkProductInput } from "./workProduct";
+import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 
 export const authorityCitationServices = {
   key: (value: string) => structureNative().citationLookupKey(value),
@@ -107,11 +108,14 @@ export async function checkCanliiPdf(draft: AuthoritiesDraft, authorityId: strin
 }
 
 export function attachAuthoritiesBookPdf(draft: AuthoritiesDraft, input: {
-  slot: "cover" | "index" | "supplemental"; supplementId?: string;
+  slot: AuthoritiesBookSlot; supplementId?: string;
 }, binding: WorkProductInput, filename: string,
 sourceSha256: string) {
   if (input.supplementId && input.slot !== "supplemental") {
     throw new ApplicationError(400, "Only another book PDF can have a supplemental ID");
+  }
+  if (input.slot === "brief" && (draft.import.kind !== "document" || draft.import.fileType !== "docx")) {
+    throw new ApplicationError(400, "Only a Word brief takes a separate brief PDF");
   }
   const existing = input.slot === "supplemental"
     ? draft.bookParts.supplements.find(({ id }) => id === input.supplementId)

@@ -64,12 +64,18 @@ export const authoritiesBookPdfs = (draft) => [
   ...(draft.bookParts.index ? [draft.bookParts.index] : []),
   ...draft.bookParts.supplements,
 ];
+/** Where an uploaded PDF goes when it is not an authority's own source. */
+export const AUTHORITIES_BOOK_SLOTS = ["cover", "index", "supplemental", "brief"];
+/** A PDF the user saved from their Word brief: the final PDF's brief when no converter runs. */
+export const authoritiesBriefPdf = (draft) => draft.settings?.finalPdf && draft.import.kind === "document" &&
+  draft.import.fileType === "docx" && draft.bookParts.brief || null;
 
 export function removeUnusedBinding(draft, role) {
   if (!role || draft.import.kind === "document" && draft.import.bindingRole === role ||
       Object.values(draft.authorities).some((authority) =>
         attachedAuthoritySources(authority.source).some(({ bindingRole }) => bindingRole === role)) ||
-      authoritiesBookPdfs(draft).some(({ bindingRole }) => bindingRole === role)) return;
+      authoritiesBookPdfs(draft).some(({ bindingRole }) => bindingRole === role) ||
+      draft.bookParts.brief?.bindingRole === role) return;
   delete draft.bindings[role];
 }
 
@@ -99,16 +105,16 @@ export function authoritiesInputPlan(draft, requirements) {
     attachedAuthoritySources(authority.source).map((source) => ({ authority, source })));
   const included = authoritySources.filter(({ authority }) => !authority.excluded);
   const needsBook = draft.outputMode !== "table" || !!draft.settings?.finalPdf;
-  const bookPdfs = needsBook ? authoritiesBookPdfs(draft) : [];
+  const bookPdfs = needsBook ? authoritiesBookPdfs(draft) : [], briefPdf = authoritiesBriefPdf(draft);
   return {
-    authoritySources, bookPdfs,
+    authoritySources, bookPdfs, briefPdf,
     bookRoles: new Set(needsBook ? included.map(({ source }) => source.bindingRole) : []),
     byteRoles: new Set([
       ...(authorityBytesRequired(draft, requirements)
         ? included.map(({ source }) => source.bindingRole) : []),
       ...((draft.insertIntoDocument || draft.settings?.finalPdf) && draft.import.kind === "document"
         ? [draft.import.bindingRole] : []),
-      ...bookPdfs.map(({ bindingRole }) => bindingRole),
+      ...[...bookPdfs, ...briefPdf ? [briefPdf] : []].map(({ bindingRole }) => bindingRole),
     ]),
   };
 }

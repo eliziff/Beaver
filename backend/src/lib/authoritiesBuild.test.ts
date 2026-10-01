@@ -12,6 +12,7 @@ import { createAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
 import { sha256 } from "./hash";
 import { fit, renderAuthoritiesBook } from "./authoritiesBook";
 import { filingLinkUrl } from "./authoritiesFinalPdf";
+import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { NativePdfPassageGeometry } from "./structureNative";
 import * as pdfLibrary from "pdf-lib";
 
@@ -281,6 +282,69 @@ describe("Authorities final export", () => {
     expect(pageContent(combined, combined.getPage(3)).toUpperCase()).toContain(pdfTextHex("Source PDF unavailable"));
     await expect(buildAuthorities({ draft: state, title: "Changed", workProduct: { id: "changed", revision: 1 },
       sources: { source: { bytes: original } } })).rejects.toThrow(/changed/iu);
+  });
+
+  it("links a Word brief's final PDF through a PDF the user saved from Word", async () => {
+    const lines = ["Standing is settled by 2009 SCC 32 at para 12 for this appeal.",
+      "Later the panel relied on 2009 SCC 32 at para 12 [Tab 1] again."];
+    const savedBrief = async (pages: string[]) => {
+      const document = await PDFDocument.create(), font = await document.embedFont(StandardFonts.TimesRoman);
+      for (const text of pages) document.addPage([612, 792]).drawText(text, { x: 72, y: 700, font, size: 12 });
+      return Buffer.from(await document.save());
+    };
+    const brief = await savedBrief(lines), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const word = Buffer.from("word brief bytes"), state = finalDraft(word, original);
+    if (state.import.kind !== "document") throw new Error("Invalid fixture");
+    Object.assign(state.import, { fileType: "docx", filename: "Appeal brief.docx" });
+    state.settings.citationSuffix = "tab";
+    const citation = "2009 SCC 32 at para 12", stray = "2009 SCC 32 at para 14";
+    state.units = [lines[0], lines[1].replace(" [Tab 1]", ""), `Compare ${stray}.`].map((text, index) => ({
+      id: `body:${index}`, kind: index === 2 ? "footnote" as const : "body" as const, ordinal: index,
+      footnoteId: index === 2 ? 1 : null, footnoteRefs: [], pageNumbers: [], text, occurrenceIds: [`grant:${index}`] }));
+    state.units.forEach((unit, index) => {
+      const quoted = index === 2 ? stray : citation, start = unit.text.indexOf(quoted), end = start + quoted.length;
+      state.occurrences[`grant:${index}`] = { ...state.occurrences["grant:0"], id: `grant:${index}`, unitId: unit.id,
+        start, end, text: quoted, authoritySpan: { start, end: start + 11, text: "2009 SCC 32" },
+        coreSpan: { start, end: start + 11, text: "2009 SCC 32" },
+        pinpointSpan: { start: end - 7, end, text: quoted.slice(-7) },
+        pinpoints: [{ kind: "paragraph", text: quoted.slice(-2) }] };
+    });
+    const build = (sources: NonNullable<Parameters<typeof buildAuthorities>[0]["sources"]>) => buildAuthorities({
+      draft: state, title: "Appeal", workProduct: { id: "brief-pdf", revision: 1 }, sources: {
+        source: { bytes: word }, original: { bytes: original, passageGeometry: paragraphGeometry(original) }, ...sources } });
+    await expect(build({})).rejects.toThrow(/save Appeal brief\.docx as PDF, then upload it as the brief PDF/u);
+    const attach = async (bytes: Buffer) => {
+      state.bookParts.brief = { bindingRole: "brief", filename: "Appeal brief.pdf", sourceSha256: sha256(bytes) };
+      state.bindings.brief = { kind: "local-file", handleId: "brief", lastSeen: { name: "Appeal brief.pdf",
+        size: bytes.length, modified: 1, sha256: sha256(bytes) } };
+      expect(authoritiesTextRoles(state).has("brief")).toBe(true);
+      return { brief: { bytes, ...await createAuthoritiesPreparation(state).prepareText("brief", { bytes }) } };
+    };
+    const other = await savedBrief(["An unrelated memorandum about costs."]);
+    await expect(build(await attach(other))).rejects.toThrow(/doesn't match this brief: 0 of 3 citations/u);
+
+    const prepared = await attach(brief);
+    expect(prepared.brief.passageGeometry?.targets.map(({ id, locator }) => [id, locator]))
+      .toEqual([["filing:grant:0", "1"], ["filing:grant:1", "2"]]);
+    const result = await build(prepared);
+    expect(result.receipt.inputs.map(({ role }) => role)).toContain("brief");
+    const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
+    expect(combined.getPageCount()).toBe(6);
+    const links = [0, 1].map((page) => pageAnnots(combined, page).map((annotation) => ({
+      x: annotation.lookup(PDFName.of("Rect"), PDFArray).lookup(0, PDFNumber).asNumber(),
+      dest: annotation.lookup(PDFName.of("Dest"), PDFArray) })));
+    for (const page of links) {
+      expect(page.map(({ dest }) => String(dest.get(0)))).toEqual([String(combined.getPage(4).ref), String(combined.getPage(5).ref)]);
+      expect(page.map(({ dest }) => String(dest.get(1)))).toEqual(["/Fit", "/XYZ"]);
+    }
+    // The saved Word output's "[Tab 1]" carries its tab link; a plain citation carries its own.
+    expect(links[1][0].x).toBeGreaterThan(links[1][1].x);
+    expect(links[0][0].x).toBeLessThan(links[0][1].x);
+    expect(result.receipt.linkWarnings).toEqual([
+      { occurrenceId: "grant:2", citation: "2009 SCC 32", pinpoint: null, tab: "Tab 1", reason: "citation-location" },
+      { occurrenceId: "grant:2", citation: "2009 SCC 32", pinpoint: "para 14", tab: "Tab 1", reason: "citation-location" },
+    ]);
+    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("2009 SCC 32 — para 14 [Tab 1]");
   });
 
   it("marks Word citations and references with the current tab while keeping excluded citations untouched", async () => {

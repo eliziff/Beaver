@@ -347,7 +347,8 @@ export function structureNative() {
   return addon;
 }
 
-const normalizedWords = (text: string) =>
+/** Words as PDF quote matching compares them: case, width and apostrophe forms folded. */
+export const normalizedWords = (text: string) =>
   (text.normalize("NFKC").toLowerCase()
     .match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? [])
     .map((word) => word.replace(/’/g, "'"));

@@ -17,7 +17,8 @@ export async function authorityPdfText(input: {
   versionId?: string;
   sourceSha256?: string;
   pdfProfile?: PdfProfileSelection;
-  passageTargets?: NativePdfPassageTarget[];
+  /** Targets, or a function of the page text when the text says where they are. */
+  passageTargets?: NativePdfPassageTarget[] | ((pageTextByPage: string[]) => NativePdfPassageTarget[]);
   ocrTargets?: NativePdfPassageTarget[];
   scannedPdfPolicy?: AuthoritiesBuildSettings["scannedPdfPolicy"];
   signal?: AbortSignal;
@@ -26,8 +27,9 @@ export async function authorityPdfText(input: {
   const documentId = input.documentId ?? `standalone-authority:${sourceSha256}`;
   const versionId = input.versionId ?? sourceSha256;
   const policy = input.scannedPdfPolicy ?? "page-margin";
-  const targets = input.ocrTargets ?? input.passageTargets ?? [];
-  const pageOnly = targets.length > 0 && [...targets, ...(input.passageTargets ?? [])]
+  const listed = Array.isArray(input.passageTargets) ? input.passageTargets : [];
+  const targets = input.ocrTargets ?? listed;
+  const pageOnly = targets.length > 0 && [...targets, ...listed]
     .every(target => target.locatorKind === "page" && !target.exactQuotes?.length);
   const reference = { documentId, versionId, sourceSha256 };
   const options = { ...reference, bytes: input.bytes, signal: input.signal };
@@ -112,7 +114,9 @@ export async function authorityPdfText(input: {
     }));
     pageTextByPage.push(...lookups);
   }
-  const passageGeometry = input.passageTargets?.length ? await geometry(input.passageTargets) : undefined;
+  const passageTargets = typeof input.passageTargets === "function"
+    ? input.passageTargets(pageTextByPage) : input.passageTargets;
+  const passageGeometry = passageTargets?.length ? await geometry(passageTargets) : undefined;
   const pageBindings = await projection.pdfPagination?.({ ...reference, fileType: "pdf",
     readBytes: () => input.bytes, pdfProfile: selectedProfile(recognized),
     reporterOriginal: input.reporterOriginal }, input.citations);

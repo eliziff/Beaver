@@ -9,7 +9,8 @@ import type { PdfRecognizedText } from "@/app/lib/api/documents";
 
 export type AuthoritiesFile = { file: File; input?: WorkProductInput };
 export type AuthoritiesFilePick = { multiple: boolean; accept: "source" | "pdf" };
-export type AuthoritiesBookSlot = "cover" | "index" | "supplemental";
+export type { AuthoritiesBookSlot } from "../../../../shared/authorities-sources.mjs";
+import type { AuthoritiesBookSlot } from "../../../../shared/authorities-sources.mjs";
 export type AuthoritiesLibraryPdfTarget =
   | { kind: "authority"; authorityId: string; language: AuthoritySourceLanguage }
   | { kind: "book"; slot: AuthoritiesBookSlot; supplementId?: string };

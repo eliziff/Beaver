@@ -38,7 +38,9 @@ import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
 import { isCanliiUrl, urlHostname } from "./canliiUrls";
-import { assembleFinalAuthoritiesPdf, filingLinkUrl, filingTabText } from "./authoritiesFinalPdf";
+import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
+  filingTabText } from "./authoritiesFinalPdf";
+import { authoritiesBriefPdf } from "mike/shared/authorities-sources.mjs";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
@@ -109,26 +111,47 @@ export function authorityPassageTargets(draft: AuthoritiesDraft, authorityId: st
   }).map((target, index) => ({ id: `passage:${index + 1}`, ...target }));
 }
 
-/** Exact reviewed text on known physical filing pages; ambiguity is retained by the parser. */
-export function authorityFilingTargets(draft: AuthoritiesDraft): NativePdfPassageTarget[] {
+/** A quote with its neighbouring words, so one citation cited twice on a page stays two. A note
+ *  number printed against the first word, or a mark after the last, breaks one side only. */
+const inContext = (text: string, start: number, end: number) => [[4, 4], [0, 4], [4, 0]].map(([before, after]) => {
+  let from = start, to = end;
+  for (let n = 0; n < before && from > 0; n++) from = text.lastIndexOf(" ", from - 2) + 1;
+  for (let n = 0; n < after && to < text.length; n++) { const next = text.indexOf(" ", to + 1); to = next < 0 ? text.length : next; }
+  return { text: text.slice(from, to), start: start - from, end: end - from };
+});
+
+/** Exact reviewed text on known physical filing pages; ambiguity is retained by the parser.
+ *  A PDF saved from a Word brief has no recorded pages: its text places each citation. */
+export function authorityFilingTargets(draft: AuthoritiesDraft, briefPageText?: string[]): NativePdfPassageTarget[] {
   const tabs = new Map(authorityProcedure(draft, "book").map(({ id, tab }) => [id, tab]));
-  return draft.units.flatMap((unit) => !unit.pageNumbers.length ? [] :
-    unit.occurrenceIds.flatMap((id) => {
-      const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
-      if (!authority || authority.excluded) return [];
-      return [{ id: `filing:${id}`, locatorKind: "page" as const,
-        locator: String(unit.pageNumbers[0]), physicalPages: unit.pageNumbers,
-        exactQuotes: draft.settings.linkTabs ? [filingTabText(unit.text, occurrence, tabs.get(authority.id))] : [],
-        quoteSelections: draft.settings.linkPinpoints && occurrence.pinpointSpan ? [{
+  const located = briefPageText && briefOccurrencePages(draft, briefPageText);
+  const setting = draft.settings.citationSuffix;
+  const suffix = setting === "book-tab" ? "Book of authorities " : setting === "tab" ? "" : undefined;
+  return draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
+    const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
+    const pages = located ? located.has(id) ? [located.get(id)!] : [] : unit.pageNumbers;
+    if (!authority || authority.excluded || !pages.length) return [];
+    const tab = tabs.get(authority.id), tabText = filingTabText(unit.text, occurrence, tab);
+    const tabStart = tabText === occurrence.authoritySpan.text ? occurrence.authoritySpan.start
+      : unit.text.indexOf(tabText, occurrence.end), suffixText = `[${suffix}${tab}]`;
+    return [{ id: `filing:${id}`, locatorKind: "page" as const, locator: String(pages[0]), physicalPages: pages,
+      exactQuotes: draft.settings.linkTabs ? [tabText] : [],
+      quoteSelections: [...draft.settings.linkTabs ? inContext(unit.text, tabStart, tabStart + tabText.length) : [],
+        // A brief saved from the Word output carries the tab reference that output appended.
+        ...located && draft.settings.linkTabs && suffix !== undefined ? [{ text: `${occurrence.text} ${suffixText}`,
+          start: occurrence.text.length + 1, end: occurrence.text.length + 1 + suffixText.length }] : [],
+        ...draft.settings.linkPinpoints && occurrence.pinpointSpan ? [{
           text: occurrence.text, start: occurrence.pinpointSpan.start - occurrence.start,
           end: occurrence.pinpointSpan.end - occurrence.start,
-        }] : [] }];
-    }));
+        }] : []] }];
+  }));
 }
 
 export function authoritiesTextRoles(draft: AuthoritiesDraft) {
-  const filingRoles = draft.settings.finalPdf && (draft.settings.linkTabs || draft.settings.linkPinpoints) &&
-    draft.import.kind === "document" && draft.import.fileType === "pdf" ? [draft.import.bindingRole] : [];
+  const brief = authoritiesBriefPdf(draft);
+  const filingRoles = brief ? [brief.bindingRole] : draft.settings.finalPdf && (draft.settings.linkTabs ||
+    draft.settings.linkPinpoints) && draft.import.kind === "document" && draft.import.fileType === "pdf"
+    ? [draft.import.bindingRole] : [];
   if (draft.outputMode === "table" && !draft.settings.finalPdf) return new Set(filingRoles);
   const federal = authoritiesProfile(draft.settings.profileId).requirements?.federalFormatting;
   return new Set([...filingRoles, ...Object.values(draft.authorities).flatMap((authority) => {
@@ -958,6 +981,17 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     if (owing) throw new Error(sourceMessage[reason](owing));
   }
   if (input.draft.insertIntoDocument) wanted.push("annotated-document");
+  const brief = authoritiesBriefPdf(input.draft), briefSource = brief ? sources[brief.bindingRole] : undefined;
+  // A Word brief reaches the final PDF through the host's converter or a PDF the user saved from Word.
+  const briefInput = input.draft.import.kind === "document" && input.draft.settings.finalPdf &&
+    input.draft.import.fileType === "docx" && (briefSource?.bytes || !input.finalPdfSource)
+    ? ((filename: string) => {
+      if (!brief || !briefSource?.bytes) throw new Error(
+        `This app can't turn Word into PDF. In Word, save ${filename} as PDF, then upload it as the brief PDF.`);
+      assertBriefPdfMatches(input.draft, briefSource.pageTextByPage ?? [], brief.filename);
+      return { role: brief.bindingRole, bytes: briefSource.bytes, resolved: resolvedInput(brief.bindingRole,
+        input.draft.bindings[brief.bindingRole], brief.filename, brief.sourceSha256, briefSource.resolved) };
+    })(input.draft.import.filename) : undefined;
   const imported = input.draft.import.kind === "document" ? (() => {
     const { bindingRole: role, filename, snapshot } = input.draft.import;
     const binding = input.draft.bindings[role], supplied = sources[role]?.resolved;
@@ -972,7 +1006,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     }
     return [{ role, resolved }];
   })() : [];
-  const inputs = [...imported, ...input.draft.authorityOrder.flatMap((id) => {
+  const inputs = [...imported, ...briefInput ? [{ role: briefInput.role, resolved: briefInput.resolved }] : [],
+    ...input.draft.authorityOrder.flatMap((id) => {
     const authority = input.draft.authorities[id];
     if (authority.source.kind !== "attached") return [];
     return authority.source.sources.map((source) => {
@@ -1018,7 +1053,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     const source = sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array();
     if (!source.byteLength || sha256(Buffer.from(source)) !== imported[0]?.resolved.sha256)
       throw new Error("The imported document changed before final PDF export.");
-    const sourcePdf = input.draft.import.fileType === "pdf" ? source : await (async () => {
+    const sourcePdf = input.draft.import.fileType === "pdf" ? source : briefInput?.bytes ?? await (async () => {
       if (!input.finalPdfSource) throw new Error("Word-to-PDF conversion is unavailable for final export.");
       if (!input.draft.insertIntoDocument && (!input.draft.settings.citationSuffix || input.draft.settings.citationSuffix === "none") &&
           !input.draft.settings.linkTabs && !input.draft.settings.linkPinpoints)
