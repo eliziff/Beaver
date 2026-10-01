@@ -8,8 +8,64 @@
 use crate::engine::{self, CoreResult, NativeDocument};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{json, Value};
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::arch::wasm32::memory_size;
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+/// The system allocator, growing linear memory a quarter at a time. Left alone it
+/// grows by the 64 KiB it lacks, and the browser takes about a millisecond per
+/// growth: thousands of them while one large PDF is read.
+struct QuarterGrowth;
+
+const PAGE: usize = 64 * 1024;
+
+fn reserve_after(before: usize) {
+    let after = memory_size(0);
+    if after == before {
+        return;
+    }
+    // Claimed and released at once, the reserve stays at the top of the heap
+    // for the allocations that follow; linear memory never shrinks either way.
+    if let Ok(layout) = Layout::from_size_align(after * PAGE / 4, 16) {
+        // SAFETY: the layout is non-zero; the block is released unread.
+        unsafe {
+            let block = System.alloc(layout);
+            if !block.is_null() {
+                System.dealloc(block, layout);
+            }
+        }
+    }
+}
+
+// SAFETY: every call is the system allocator's own; the reserve only frees
+// what it allocated.
+unsafe impl GlobalAlloc for QuarterGrowth {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let before = memory_size(0);
+        let block = System.alloc(layout);
+        reserve_after(before);
+        block
+    }
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        let before = memory_size(0);
+        let block = System.alloc_zeroed(layout);
+        reserve_after(before);
+        block
+    }
+    unsafe fn realloc(&self, block: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+        let before = memory_size(0);
+        let moved = System.realloc(block, layout, size);
+        reserve_after(before);
+        moved
+    }
+    unsafe fn dealloc(&self, block: *mut u8, layout: Layout) {
+        System.dealloc(block, layout)
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: QuarterGrowth = QuarterGrowth;
 
 thread_local! {
     static DOCUMENTS: RefCell<(u32, HashMap<u32, NativeDocument>)> = RefCell::new((0, HashMap::new()));
