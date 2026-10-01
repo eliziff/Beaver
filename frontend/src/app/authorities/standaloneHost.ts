@@ -4,8 +4,8 @@ import { authoritiesInputPlan } from "../../../../shared/authorities-sources.mjs
 import type { AuthoritiesProduct } from "./types";
 import {
   bindStandaloneFile, chooseStandaloneOutputFolder, clearStandaloneOutputFolder,
-  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readStandaloneOutput,
-  relinkStandaloneFile, requestStandaloneFileAccess, resolveStandaloneFile, retainStandaloneFile,
+  getStandaloneOutputFolder, inspectStandaloneFile, pickRetainedFiles, readSourcePdf, readStandaloneOutput,
+  relinkStandaloneFile, rememberSourcePdf, requestStandaloneFileAccess, resolveStandaloneFile, retainStandaloneFile,
   saveStandaloneArtifacts,
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
@@ -38,6 +38,9 @@ function renderBook(book: PreparedAuthoritiesBook, signal?: AbortSignal) {
       .flatMap((bytes) => bytes ? [bytes.buffer as ArrayBuffer] : []))]);
   });
 }
+
+// The runtime asks the page for publisher PDFs it verified before (Authorities.html's page bridge).
+Object.assign(globalThis, { AUTHORITIES_SOURCE_PDFS: { read: readSourcePdf, remember: rememberSourcePdf } });
 
 const recognitionAvailable = import.meta.env.VITE_AUTHORITIES_RECOGNITION !== "unavailable";
 function supportedDraft(state: AuthoritiesDraft): AuthoritiesDraft {

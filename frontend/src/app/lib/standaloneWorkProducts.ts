@@ -54,6 +54,7 @@ type StoredHandle = {
 type StoredFile = { id: string; mimeType: string; bytes: ArrayBuffer };
 type LocalFileInput = Extract<WorkProductInput, { kind: "local-file" }>;
 const storedFileId = (sha256: string) => `stored:${sha256}`;
+const sourcePdfId = (url: string) => `source-pdf:${url}`;
 
 const selectedInputs = new WeakMap<File, LocalFileInput>();
 // Chrome withdraws a picked file's read grant once its handle object is collected; a copy
@@ -461,6 +462,20 @@ export async function bindStandaloneFile(file: File, input?: WorkProductInput) {
   };
   selectedInputs.set(file, binding);
   return binding;
+}
+
+/** A publisher PDF verified when it was fetched, by its URL and content hash. Its bytes are the
+ *  retained file of that hash, held while a draft holds it; once they are gone the URL is fetched again. */
+export async function rememberSourcePdf(url: string, sha256: string) {
+  const database = await openDatabase(), transaction = database.transaction(METADATA, "readwrite");
+  transaction.objectStore(METADATA).put({ id: sourcePdfId(url), sha256 });
+  await completed(transaction);
+}
+export async function readSourcePdf(url: string) {
+  const sha256 = (await read<{ sha256: string }>(METADATA, sourcePdfId(url)))?.sha256;
+  const saved = sha256 && await read<StoredFile>(FILES, storedFileId(sha256));
+  const bytes = saved ? new Uint8Array(saved.bytes) : null;
+  return bytes && await digestBytes(bytes) === sha256 ? bytes : null;
 }
 
 /** Retains generated/downloaded bytes without pretending they have a user filesystem handle. */
