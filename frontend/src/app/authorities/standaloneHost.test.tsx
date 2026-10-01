@@ -20,6 +20,16 @@ const { api, fileStore, drafts, unexpected } = vi.hoisted(() => ({
 vi.mock("@/app/lib/standaloneWorkProducts", () => ({
   canRetainLocalFiles: () => true, ...fileStore, standaloneWorkProducts: drafts,
 }));
+// The book worker runs the same assembly here, in the test's own thread.
+vi.mock("./bookWorker?worker&inline", () => ({ default: class {
+  onmessage?: (event: { data: unknown }) => void;
+  postMessage(book: PreparedAuthoritiesBook) {
+    void Promise.all([import("../../../../backend/src/lib/authoritiesBook"), import("pdf-lib")])
+      .then(([{ renderAuthoritiesBook }, pdf]) => renderAuthoritiesBook(pdf, book))
+      .then((built) => this.onmessage?.({ data: { built } }));
+  }
+  terminate() {}
+} }));
 // Progress is read by the client; here a followed request is the plain response it ends in.
 vi.mock("@/app/lib/api/client", () => ({ ...api,
   followedRequest: (path: string, init: RequestInit) => api.apiResponse(path, init) }));
