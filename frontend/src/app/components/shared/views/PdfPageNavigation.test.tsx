@@ -3,7 +3,8 @@ import { expect, it, vi } from "vitest";
 import { PdfPageNavigation } from "./PdfPageNavigation";
 
 function enter(name: string, value: string) {
-    const input = screen.getByRole("textbox", { name });
+    // Each field's name carries its range after the label, as in "PDF page, 1 to 9".
+    const input = screen.getByRole("textbox", { name: new RegExp(`^${name}`) });
     fireEvent.change(input, { target: { value } });
     fireEvent.keyDown(input, { key: "Enter" });
 }
@@ -11,7 +12,7 @@ function enter(name: string, value: string) {
 it("navigates physical pages without labels and rejects out-of-range input", () => {
     const navigate = vi.fn();
     render(<PdfPageNavigation page={1} count={8} disabled={false} onNavigate={navigate} />);
-    expect(screen.queryByRole("textbox", { name: "Printed page" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /^Printed page/ })).toBeNull();
     enter("PDF page", "9");
     expect(navigate).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toBeVisible();
@@ -26,14 +27,14 @@ it("disambiguates duplicate labels, supports nonnumeric labels, and synchronizes
     expect(navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "PDF 4" }));
     expect(navigate).toHaveBeenLastCalledWith(4);
-    expect(screen.getByRole("textbox", { name: "Printed page" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveFocus();
     enter("Printed page", "A-12");
     expect(navigate).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "PDF 5" }));
     expect(navigate).toHaveBeenLastCalledWith(5);
     rerender(<PdfPageNavigation page={3} count={5} labels={labels} disabled={false} onNavigate={navigate} />);
-    expect(screen.getByRole("textbox", { name: "PDF page" })).toHaveValue("3");
-    expect(screen.getByRole("textbox", { name: "Printed page" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("3");
+    expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("");
     enter("Printed page", "3");
     expect(screen.getByRole("alert")).toBeVisible();
     expect(navigate).toHaveBeenCalledTimes(2);
@@ -47,7 +48,7 @@ it("confirms a lone known printed match while other pages lack labels", () => {
     expect(screen.getByText("Other occurrences may be undetected.")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "PDF 2" }));
     expect(navigate).toHaveBeenCalledWith(2);
-    expect(screen.getByRole("textbox", { name: "Printed page" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveFocus();
 
     rerender(<PdfPageNavigation page={1} count={3} labels={["iv", "2", "3"]} disabled={false} onNavigate={navigate} />);
     enter("Printed page", "2");
@@ -61,7 +62,7 @@ it("clears stale matches on replacement and prevents navigation while unavailabl
     enter("Printed page", "5");
     rerender(<PdfPageNavigation page={1} count={2} labels={["i", "ii"]} disabled onNavigate={navigate} />);
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Printed page" })).toHaveValue("i");
+    expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("i");
     enter("PDF page", "2");
     expect(navigate).not.toHaveBeenCalled();
 });
