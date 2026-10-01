@@ -5,7 +5,7 @@ import { reporterStartPages, resolvePrintedPages } from "./pdfPagination";
 import type { NativePdfPassageGeometry, NativePdfPassageTarget } from "./structureNative";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
-type Projection = Pick<typeof documentProjectionService, "preparePdf" | "lookupPdf"> &
+type Projection = Pick<typeof documentProjectionService, "preparePdf" | "pdfPageTexts"> &
   Partial<Pick<typeof documentProjectionService, "pdfPassageGeometry" | "pdfPagination" | "pdfOutline">>;
 
 /** The authority's own headings, and a statute's sections, read from the PDF it is reproduced from. */
@@ -119,22 +119,15 @@ export async function authorityPdfText(input: {
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
   }
   const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);
-  const pageTextByPage: string[] = [], pageCount = Math.min(native.pageCount, input.maxPages ?? native.pageCount);
-  // Bound concurrent page requests rather than opening hundreds of page lookups at once.
-  for (let offset = 0; input.pageText !== false && offset < pageCount; offset += 8) {
-    input.signal?.throwIfAborted();
-    const lookups = await Promise.all(Array.from({ length: Math.min(8, pageCount - offset) }, async (_, at) => {
-      const index = offset + at;
-      const prepared = recognizedPages && !recognizedPages.has(index) ? native : recognized;
-      const lookup = await projection.lookupPdf(() => input.bytes, { locatorKind: "page", locator: String(index + 1),
-        contextBlocks: 0 }, { persistEvidence: false, ...reference,
-        signal: input.signal, pdfProfile: selectedProfile(prepared) });
-      if (lookup.status !== "found" && lookup.status !== "unavailable")
-        throw new Error("Prepared authority PDF text is unavailable.");
-      return lookup.status === "found" ? lookup.pages.find(({ page_number }) => page_number === index + 1)?.text ?? "" : "";
-    }));
-    pageTextByPage.push(...lookups);
-  }
+  const pageCount = Math.min(native.pageCount, input.maxPages ?? native.pageCount);
+  // One read of every page's text per prepared profile, not one lookup per page.
+  const texts = (prepared: typeof native) => projection.pdfPageTexts(() => input.bytes,
+    { ...reference, cacheKey: prepared.cacheKey }, { signal: input.signal, pdfProfile: selectedProfile(prepared) });
+  const nativeTexts = await texts(native);
+  const recognizedTexts = recognized === native ? nativeTexts : await texts(recognized);
+  input.signal?.throwIfAborted();
+  const pageTextByPage = Array.from({ length: pageCount }, (_, index) =>
+    (recognizedPages && !recognizedPages.has(index) ? nativeTexts : recognizedTexts)[index] ?? "");
   const passageTargets = typeof input.passageTargets === "function"
     ? input.passageTargets(pageTextByPage) : input.passageTargets;
   const passageGeometry = passageTargets?.length ? await geometry(passageTargets) : undefined;
