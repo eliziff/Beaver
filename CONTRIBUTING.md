@@ -70,6 +70,9 @@ staged source. Before publishing, run `python scripts/check_privacy.py --artifac
 WASM/ZIP payloads. The source check skips compressed documents and media. These
 checks flag concrete personal paths, the known private email and private artifact
 filenames; they do not certify fixture provenance or detect every kind of secret.
+Review new test/eval inputs separately: genuine user prompts and private context
+must not become published fixtures, even through paraphrasing or a machine test.
+Keep the behavior being tested and independently invent the scenario and data.
 
 For a release candidate, run both complete application test/build suites and the
 launcher-owned production smoke:

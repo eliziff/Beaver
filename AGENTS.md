@@ -23,12 +23,14 @@ the latter owns project priorities and remaining gates.
 - Check local data and existing implementations before fetching or adding a
   dependency. Consult official documentation for unfamiliar packages or standard
   engineering problems instead of probing blindly.
-- Use independently invented test data or identify its public source. Do not
-  reuse genuine queries, bug-report identifiers or private documents as fixtures
-  without explicit permission. Synthetic replacements must change identifying
-  URLs and locators as well as the prose.
+- Use independently invented test data or identify its public source. Never
+  publish genuine user prompts or private context in tests, evals, examples or
+  receipts, including paraphrases and identifying case/document references.
+  Translate a bug report into the behavior to test, then invent different facts,
+  text, URLs and locators. Changing names alone is not independent invention.
 - Automated submissions declare `machine_test` with a run ID; missing historical
-  origin stays `unknown`. Submission origin does not establish fixture provenance.
+  origin stays `unknown`. `machine_test` identifies the submission, not whether
+  its contents are synthetic or permitted for publication.
   Keep live-test app data and provider history separate from ordinary user data.
 - Use repository-relative paths or runtime configuration and GitHub noreply
   attribution. Raw requests, histories, documents and receipts stay in ignored
