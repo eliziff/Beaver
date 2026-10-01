@@ -27,6 +27,18 @@ const pinpointText = ({ pinpointSpan, pinpoints }: AuthorityOccurrence) => {
   return !text || !one || text.startsWith(one) ? text
     : `${pinpoints.length > 1 || pinpoints[0].text.includes('-') ? many : one} ${text}`;
 };
+/** Each footnote's number as printed. A note with its own mark (an author's "*") shows that mark
+ * and takes no number, so the notes after it are numbered as the document numbers them. */
+function noteLabels(units: Unit[]) {
+  const labels = new Map<string, string>();
+  let marked = 0;
+  for (const unit of units) if (unit.kind === 'footnote') {
+    const mark = /^\s*([*†‡§¶]+)\s/u.exec(unit.text)?.[1];
+    if (mark) marked++;
+    labels.set(unit.id, mark ?? String((unit.footnoteId ?? unit.ordinal + 1) - marked));
+  }
+  return labels;
+}
 /** A unit's citations as marked in the document: an edit marks again only the units it changed. */
 const marking = (unit: Unit, occurrences: AuthoritiesProduct['state']['occurrences']) => unit.occurrenceIds.map(id => {
   const item = occurrences[id];
@@ -50,14 +62,14 @@ const Outline = memo(function Outline({ product, occurrences, findings, busy, on
   const kinds = new Map(units.map(unit => [unit.id, unit.kind]));
   const body = occurrences.filter(row => kinds.get(row.unitId) === 'body');
   const notes = units.filter(unit => unit.kind === 'footnote' && unit.occurrenceIds.some(id => byId[id]));
-  const dismissed = Object.values(product.state.dismissedOccurrences ?? {});
+  const dismissed = Object.values(product.state.dismissedOccurrences ?? {}), labels = noteLabels(units);
   const row = (item: AuthorityOccurrence) => <Row key={item.id} row={item} finding={findings.has(item.id)} />;
   return <>
     {!!body.length && <div role="group" aria-labelledby="citation-body-heading">
       <h3 id="citation-body-heading">In-text</h3>{body.map(row)}</div>}
     {!!notes.length && <div role="group" aria-labelledby="citation-notes-heading">
       <h3 id="citation-notes-heading">Footnotes</h3>{notes.map(note => {
-        const label = note.footnoteId ?? note.ordinal + 1;
+        const label = labels.get(note.id);
         return <div key={note.id} className="citation-note" role="group" aria-label={`Footnote ${label}`}>
           <span className="citation-note-number" aria-hidden="true">{label}</span>
           <div>{note.occurrenceIds.map(id => byId[id]).filter(Boolean).map(row)}</div>
@@ -178,6 +190,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   // The document is marked from scratch only when its text changes; edits mark their own units.
   const textKey = useMemo(() => units.map(unit => `${unit.id}:${unit.text.length}`).join(), [units]);
   const unitById = new Map(units.map(unit => [unit.id, unit]));
+  const labels = useMemo(() => noteLabels(units), [units]);
   const authorityById = new Map(authorities.map(authority => [authority.id, authority]));
   const unit = selected && unitById.get(selected.unitId);
   const navigation = [...occurrences.filter(row => unitById.get(row.unitId)?.kind === 'body'), ...units.flatMap(unit =>
@@ -561,7 +574,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const options = [...new Map(navigation.flatMap(row => {
     const authority = !row.reference && authorityById.get(row.authorityId ?? ''), place = unitById.get(row.unitId);
     if (!authority || !place) return [];
-    const note = place.kind === 'footnote' ? String(place.footnoteId ?? place.ordinal + 1) : undefined;
+    const note = place.kind === 'footnote' ? labels.get(place.id) : undefined;
     return [[`${note}\0${authority.id}`, { authorityId: authority.id, section: note ? 'Footnotes' : 'In-text', note,
       label: authorityName(authority), description: authority.citation ?? '' } as AuthorityOption]] as const;
   })).values()];
