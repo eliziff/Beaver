@@ -2,11 +2,16 @@ export type RecognizedPage = { pageNumber: number; width: number; height: number
   lines: Array<{ id: string; text?: string; rect: [number, number, number, number];
     words: Array<{ text: string; rect: [number, number, number, number] }> }> };
 
+const REFERENCE = 100;
+
 /** OCR coordinates already describe the rotated visible page, unlike PDF.js text transforms. */
 export function renderRecognizedText(element: HTMLElement, page: RecognizedPage,
   width: number, height: number) {
   if (!(page.width > 0 && page.height > 0)) return;
+  // Words are measured once at one size and scaled: setting a canvas font for every word of a
+  // recognized page took tens of ms on the main thread.
   const measure = document.createElement('canvas').getContext('2d');
+  if (measure) measure.font = `${REFERENCE}px sans-serif`;
   for (const source of page.lines) {
     const line = document.createElement('div');
     line.style.display = 'contents'; line.dataset.legalText = String(page.pageNumber);
@@ -21,8 +26,7 @@ export function renderRecognizedText(element: HTMLElement, page: RecognizedPage,
       Object.assign(span.style, { left: `${x0 / page.width * width}px`, top: `${y0 / page.height * height}px`,
         fontSize: `${size}px`, fontFamily: 'sans-serif', height: `${size}px`, lineHeight: '1' });
       if (measure?.measureText) {
-        measure.font = `${size}px sans-serif`;
-        const advance = measure.measureText(word.text).width;
+        const advance = measure.measureText(word.text).width * size / REFERENCE;
         if (advance > 0) {
           span.style.width = `${advance}px`;
           span.style.transform = `scaleX(${(x1-x0) / page.width * width / advance})`;

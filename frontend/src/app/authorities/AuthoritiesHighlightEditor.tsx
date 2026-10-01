@@ -142,12 +142,16 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
   const recognition = ocr.tracked[role];
   const neighbour = (step: number) => choices[(choices.indexOf(source)+step+choices.length)%choices.length];
   const go = (step: number) => setRole(neighbour(step).bindingRole);
-  const current = documents[role], marks = current?.history[current.position] ?? [];
+  // The panel shows the source whose PDF is on screen until the next one's bytes are read, so a
+  // switch replaces the PDF's marks, status and recognition in one step instead of emptying first.
+  const shown = pdf?.role ?? role, shownRecognition = ocr.tracked[shown];
+  const current = documents[shown], marks = current?.history[current.position] ?? [];
   const [displayedCount, setDisplayedCount] = useState<number>();
   if (!loading && current && current.review !== 'preparing' && displayedCount !== marks.length)
     setDisplayedCount(marks.length);
   const visibleError = error || current?.warning || textError;
   const dirty = Object.values(documents).some(document => document.saved !== document.history[document.position]);
+  // Edits wait while the next source opens; the controls keep their look meanwhile.
   const disabled = loading || !current;
   const changeDocument = (update: (document: OpenPdf) => OpenPdf) => setDocuments(values => {
     const document = values[role]; return document ? { ...values, [role]: update(document) } : values;
@@ -312,13 +316,13 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <div className="flex min-h-0 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-gray-100 md:mr-3">
             {pdf ? <PdfView doc={null} bytes={pdf.bytes} rounded={false} ariaLabel="Authority PDF editor"
               loading={loading} pageLabels={pdf.pageLabels} loadRecognizedText={pdf.role === role && host.readSourceText ? loadRecognizedText : undefined}
-              annotationEditor={{marks: pdf.role === role ? marks : [],tool,selectedId,focus,highlightSelection,disabled: disabled || pdf.role !== role,
+              annotationEditor={{marks,tool,selectedId,focus,highlightSelection,disabled: disabled || pdf.role !== role,
                 onSelect:setSelectedId,onCreate:(fragments,text)=>{
                   const id=crypto.randomUUID();edit(marks => [...marks,{id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:text,rgb:[1,.92,.6],opacity:.45,fragments}]);setSelectedId(id);
                 }}} />
               : <div className="grid min-h-48 flex-1 place-items-center bg-gray-100 text-sm text-gray-600" role="status">{!loading && 'PDF unavailable'}</div>}
           </div>
-          <aside aria-label="Highlights" className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
+          <aside aria-label="Highlights" aria-busy={shown !== role} className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-300">
             <div className="flex items-center justify-between gap-2 px-3 pt-2">
               <h2 className="text-sm font-semibold">Highlights <span className="font-normal text-gray-500">{displayedCount ?? ''}</span></h2>
               <Button type="button" variant="ghost" size="icon-sm" aria-label="Close highlights" disabled={saving||dirty} onClick={close}><X /></Button>
@@ -335,21 +339,15 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
           <div role="group" aria-label="Highlight tool" className="grid grid-cols-3 gap-1">
             {([{value:'select',label:'Select',short:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',short:'Highlight',Icon:Highlighter},
               {value:'draw',label:'Draw highlight',short:'Draw',Icon:Pencil}] as const).map(({value,label,short,Icon})=><Button key={value} type="button"
-                variant={tool===value?'default':'ghost'} aria-pressed={tool===value} aria-label={label} title={label} disabled={disabled} onPointerDown={event=>{if(value==='highlight')event.preventDefault();}}
+                variant={tool===value?'default':'ghost'} aria-pressed={tool===value} aria-label={label} title={label} disabled={!current} onPointerDown={event=>{if(value==='highlight')event.preventDefault();}}
                 onClick={()=>{setTool(value);if(value==='highlight')setHighlightSelection(n=>n+1);}} className="h-8 min-w-0 gap-1 px-1.5 text-xs"><Icon /><span className="truncate">{short}</span></Button>)}
           </div>
           <div className="flex items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Delete selected highlight" disabled={disabled||!selectedId} onClick={()=>selectedId&&remove(selectedId)}><Trash2 /></Button>
-            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Undo" disabled={disabled||!current?.position} onClick={undo}><Undo2 /></Button>
-            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={disabled||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Undo" disabled={!current?.position} onClick={undo}><Undo2 /></Button>
+            <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Redo" disabled={!current||current.position>=current.history.length-1} onClick={redo}><Redo2 /></Button>
           </div>
         </div>
-        {recognition && <div className="mt-2 shrink-0 px-3 py-2">
-          <SourceOcrProgress status={recognition} ocr={ocr} /></div>}
-            {(visibleError || saving) && <p role={visibleError?'alert':'status'} className="px-3 pb-2 text-sm text-gray-600">
-              {visibleError || 'Saving…'}
-              {error && dirty && <Button disabled={saving} onClick={()=>void save()}>Retry</Button>}
-            </p>}
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
             <ul className="space-y-1">{marks.map(mark=><li key={mark.id}
               ref={node=>{if(node)cardRefs.current.set(mark.id,node);else cardRefs.current.delete(mark.id);}}
@@ -358,11 +356,18 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
                 <span className="flex items-baseline justify-between gap-2 text-sm font-medium text-gray-950">{mark.label}<span className="shrink-0 text-xs font-normal text-gray-500">p {mark.fragments.map(f=>f.pageNumber).join(", ")}</span></span>
                 {mark.excerpt && <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-gray-600">{mark.excerpt}</span>}
               </button>
-              <Button type="button" variant="ghost" size="icon-sm" className="m-1 shrink-0" disabled={disabled} aria-label={`Delete ${mark.label}`} onClick={()=>remove(mark.id)}><Trash2 /></Button>
+              <Button type="button" variant="ghost" size="icon-sm" className="m-1 shrink-0" aria-label={`Delete ${mark.label}`} onClick={()=>remove(mark.id)}><Trash2 /></Button>
             </li>)}</ul>
             {current?.review === 'preparing' ? <p role="status" className="px-1 py-4 text-sm text-gray-500">Preparing highlights</p>
-              : !loading && !visibleError && !marks.length && current && <p className="px-1 py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
+              : !visibleError && !marks.length && current && <p className="px-1 py-4 text-sm text-gray-500">No highlights. Select text or draw on the PDF to add one.</p>}
             </div>
+            {/* What belongs to one source sits under its marks, so it comes and goes without moving them. */}
+            {shownRecognition && <div className="shrink-0 border-t border-gray-200 px-3 py-2">
+              <SourceOcrProgress status={shownRecognition} ocr={ocr} /></div>}
+            {(visibleError || saving) && <p role={visibleError?'alert':'status'} className="shrink-0 border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
+              {visibleError || 'Saving…'}
+              {error && dirty && <Button disabled={saving} onClick={()=>void save()}>Retry</Button>}
+            </p>}
           </aside>
         </div>
       </div>

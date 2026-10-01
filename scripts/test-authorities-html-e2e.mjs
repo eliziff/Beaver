@@ -545,6 +545,9 @@ function Run(page, mode) {
   }
   /** Build, through the Missing PDFs warning when a source is still missing; the outputs are
    *  current (not "previous") once it finishes. */
+    // Until the chosen source opens, the panel still shows the previous one and says it is busy.
+    const opened = () => page.waitForFunction(() => document.querySelector("aside[aria-label=Highlights]")?.getAttribute("aria-busy") === "false", null, { timeout: 30000 });
+    await opened();
   async function build(label, missing) {
     let started = await now();
     await button("Build").click();
@@ -576,6 +579,7 @@ function Run(page, mode) {
       await page.getByRole("checkbox", { name: "Link citations to their tabs" }).check();
       await page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }).check();
     });
+    await opened();
     const fixed = await review("pdf", true);
     await sources("pdf", fixed);
     await highlights("pdf");
@@ -585,6 +589,44 @@ function Run(page, mode) {
     await shots("pdf-11-build");
     await noHorizontalScroll("pdf build");
     const files = await build("pdf");
+    // Moving from PDF to PDF is steady: every frame shows pages, the page area keeps its height
+    // (the scrollbar never drops out), the marks swap without the list emptying, the tools and page
+    // fields never dim, nothing shifts and no task blocks a frame. Sampled every frame, two switches.
+    const switchFrom = await now();
+    await page.evaluate(() => {
+      const frames = window.__switchFrames = [];
+      const tick = () => {
+        const aside = document.querySelector("aside[aria-label=Highlights]"), scroll = aside?.closest("dialog, [role=dialog]")?.querySelector(".beaver-pdf-scroll");
+        if (scroll) {
+          const bounds = scroll.getBoundingClientRect(), shown = (canvas) => { const rect = canvas.getBoundingClientRect();
+            return canvas.width > 0 && rect.bottom > bounds.top && rect.top < bounds.bottom; };
+          frames.push({ painted: [...scroll.parentElement.querySelectorAll("canvas")].filter(shown).length, height: scroll.scrollHeight,
+            cards: aside.querySelectorAll("ul > li").length, dimmed: aside.querySelectorAll("[role=group] button:disabled").length +
+              scroll.parentElement.querySelectorAll("input:disabled").length, note: [...aside.querySelectorAll("ul ~ p, [role=alert]")].map((node) => node.textContent).join("") });
+        }
+        if (!window.__stopSwitchFrames) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const settledHeights = [await page.evaluate(() => document.querySelector("[role=dialog] .beaver-pdf-scroll, dialog .beaver-pdf-scroll").scrollHeight)];
+    for (let index = 0; index < 2; index += 1) {
+      await editor.getByRole("button", { name: /^Next authority/u }).click();
+      await opened();
+      await page.waitForFunction(() => !document.querySelector("[data-pdf-preview]") && !document.querySelector("aside[aria-label=Highlights]")?.textContent.includes("Preparing"), null, { timeout: 30000 });
+      await page.waitForTimeout(500);
+      settledHeights.push(await page.evaluate(() => document.querySelector("[role=dialog] .beaver-pdf-scroll, dialog .beaver-pdf-scroll").scrollHeight));
+    }
+    const switchFrames = await page.evaluate(() => { window.__stopSwitchFrames = true; return window.__switchFrames; });
+    const switched = await page.evaluate(([from, to]) => window.__e2e.window(from, to), [switchFrom, await now()]);
+    const unsteady = { blank: switchFrames.filter(({ painted }) => !painted).length,
+      collapsed: switchFrames.filter(({ height }) => height < Math.min(...settledHeights)).map(({ height }) => `${height} < ${Math.min(...settledHeights)}`),
+      emptied: switchFrames.filter(({ cards, note }) => !cards && !note).length,
+      dimmed: switchFrames.filter(({ dimmed }) => dimmed).length,
+      shifts: switched.shifts.map(({ value, sources }) => [value.toFixed(4), sources.map(({ node, moved }) => `${node} ${moved}`)]),
+      longTasks: switched.longTasks.map(({ duration }) => Math.round(duration)).filter((duration) => duration > BUDGETS.longTask) };
+    note(mode, `${label}-source-switch`, { frames: switchFrames.length, ...unsteady });
+    check(switchFrames.length > 10 && !unsteady.blank && !unsteady.collapsed.length && !unsteady.emptied && !unsteady.dimmed && !unsteady.shifts.length && !unsteady.longTasks.length,
+      `${mode} ${label}: switching source PDFs in Highlights is steady`, unsteady);
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
     // A reader reaches the step tabs at the top of the page; downloading the outputs scrolled it.
