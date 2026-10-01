@@ -6,7 +6,8 @@
 //
 //   npm run test:authorities-html-e2e -- [--skip-build] [--mode=file|http] [--only=pdf|docx] [--headed] [--live]
 //     [--html=path] [--out=dir]
-// --live lets A2AJ and publishers answer for real instead of the stub (not deterministic).
+// --live lets A2AJ and publishers answer for real instead of the stub (not deterministic); a lookup
+// reported unchecked then fails the run unless A2AJ, asked once directly, is not answering either.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -118,6 +119,23 @@ for (const mode of modes) {
     note(mode, "network", { a2aj: requests.length - unexpected.length, other: unexpected.length });
     await context.close(); await server?.close();
   }
+}
+if (!args.live && modes.includes("file") && !args.only) {
+  console.log("\n== file, A2AJ limiting requests ==");
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } }), requests = [];
+  await context.route(/^https?:\/\//u, (route) => {
+    const request = route.request(), url = new URL(request.url());
+    if (url.hostname !== "api.a2aj.ca") return route.abort("blockedbyclient");
+    requests.push(`${request.method()} ${url.pathname}${url.search}`);
+    // The lookup fails as the CORS-less 429 makes it fail; the opaque request gets the 429.
+    return request.method() === "HEAD" ? route.fulfill({ status: 429 }) : route.abort("failed");
+  });
+  await context.addInitScript(instrument);
+  const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  try { await new Run(page, "file").limitedLookups(pathToFileURL(html).href, requests); }
+  catch (error) { check(false, "file: the limited-lookups run stopped", error.stack?.split("\n").slice(0, 6).join("\n")); }
+  finally { await context.close(); }
 }
 await browser.close();
 await writeFile(path.join(out, "report.json"), JSON.stringify({ budgets: BUDGETS, metrics, failures }, null, 2));
@@ -439,6 +457,7 @@ function Run(page, mode) {
     const row = (name) => page.getByRole("listitem").filter({ has: page.getByRole("heading", { name, exact: false }) });
     for (const name of ["Vavilov", "Oakes", "Jordan"])
       check(await row(name).getByRole("img", { name: "Built from source text" }).count() === 1, `${mode} ${label}: ${name} is provided from A2AJ text`);
+    await noFalseOutage(label);
     // The statute through the row's upload menu, the scan through the CanLII row's Upload.
     await pick(async () => {
       await row("Waterways Licensing Act").getByRole("button", { name: /^Upload for/u }).click();
@@ -470,6 +489,46 @@ function Run(page, mode) {
     await noHorizontalScroll(`${label} sources`);
     check(!await accessPrompts(), `${mode} ${label}: no file-access prompt on Sources`);
   }
+
+  /** A lookup A2AJ answered is never reported unchecked. Live, A2AJ is asked once from here when one
+   *  is: an outage reported while it answers fails, and its limit is never called unreachable. */
+  async function noFalseOutage(label) {
+    const reported = (await page.getByRole("status").filter({ hasText: /\b(?:wasn't|weren't) checked\b/u }).allInnerTexts()).join(" ");
+    if (!reported) return;
+    if (!args.live) return check(false, `${mode} ${label}: lookups the stub answered are reported unchecked`, reported);
+    const direct = await fetch("https://api.a2aj.ca/fetch?citation=2016+SCC+27&doc_type=cases&output_language=en",
+      { headers: { Accept: "application/json" } }).then(({ status }) => status, (error) => `${error.name}: ${error.message}`);
+    note(mode, `${label}-a2aj-direct`, { reported, direct });
+    check(direct !== 200, `${mode} ${label}: lookups are reported unchecked while A2AJ answers`, reported);
+    check(typeof direct !== "number" || !/couldn't be reached/u.test(reported), `${mode} ${label}: A2AJ answered ${direct} but is reported unreachable`, reported);
+  }
+
+  /** A2AJ's rate limit answers a page with a 429 that carries no CORS header, so the page's fetch
+   *  fails as if nothing had answered. The lookups name it A2AJ's limit and hold off: none says
+   *  A2AJ couldn't be reached, and A2AJ is not asked again until the limit passes. */
+  this.limitedLookups = async (url, requests) => {
+    await page.goto(url);
+    await pick(() => button("Add file").click(), [fixtures.briefPdf]);
+    await page.getByRole("dialog").waitFor();
+    // Through the import dialog's steps with their defaults.
+    const importing = button("Import and review");
+    for (let step = 0; step < 3 && !await importing.isVisible(); step += 1) {
+      await button("Next", page.getByRole("dialog")).click(); await settle();
+    }
+    await importing.click();
+    await page.locator(".citation-document .citation-band").first().waitFor({ timeout: 60000 });
+    await idle();
+    await button("Next").click();
+    await page.getByRole("list", { name: "Authority tab slots" }).waitFor({ timeout: 60000 });
+    await idle();
+    const reported = (await page.getByRole("status").filter({ hasText: /\b(?:wasn't|weren't) checked\b/u }).allInnerTexts()).join(" ");
+    note(mode, "limited", { reported, requests: requests.length });
+    check(/^A2AJ is limiting requests, so \d+ authorities weren't checked/u.test(reported) && !/couldn't be reached/u.test(reported),
+      `${mode}: A2AJ's limit is named for what it is`, reported);
+    // One lookup, refused, and one opaque request that finds A2AJ answering; then nothing until the limit passes.
+    check(requests.length <= 2, `${mode}: A2AJ is not asked again while it is limiting requests`, requests);
+    await shots("limited-sources");
+  };
 
   /** Highlights: the automatic marks are there; a selected passage becomes another. */
   async function highlights(label, scan = true) {

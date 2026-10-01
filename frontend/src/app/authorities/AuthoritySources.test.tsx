@@ -4,14 +4,15 @@ import { createAuthoritiesDraft } from "../../../../backend/src/lib/authoritiesD
 import { Sources } from "./AuthoritySources";
 import type { AuthoritiesProduct, AuthorityIdentity } from "./types";
 
-function renderSource(authority: AuthorityIdentity) {
+function renderSource(...authorities: AuthorityIdentity[]) {
   const state = createAuthoritiesDraft({ kind: "manual" });
   state.outputMode = "book";
-  state.authorities = { [authority.id]: authority }; state.authorityOrder = [authority.id];
+  state.authorities = Object.fromEntries(authorities.map((item) => [item.id, item]));
+  state.authorityOrder = authorities.map(({ id }) => id);
   const draft: AuthoritiesProduct = { id: "draft", kind: "authorities", revision: 1,
     title: "Book", projectId: null, state, outputs: {}, createdAt: "", updatedAt: "" };
   const retry = vi.fn(), action = vi.fn(), open = vi.fn();
-  render(<Sources draft={draft} authorities={[authority]} tabs={new Map([[authority.id, "1"]])}
+  render(<Sources draft={draft} authorities={authorities} tabs={new Map(authorities.map(({ id }, index) => [id, String(index + 1)]))}
     occurrences={[]} busy={false} sourceIssues={{}} onAction={action} onAdd={vi.fn()}
     onAttach={vi.fn()} onRelink={vi.fn()} onOpenSource={open} onRetrySource={retry}
     onEditIdentity={vi.fn()} />);
@@ -68,4 +69,21 @@ it("names an authority A2AJ left unchecked and offers retry once its window pass
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledWith("one");
   } finally { vi.useRealTimers(); }
+});
+
+it("names A2AJ's limit and a defect of our own for what they are, and tells same-named decisions apart", () => {
+  const limited = { reason: "rate-limited", retryAfter: null } as const;
+  renderSource({ ...authority, sourceUrl: undefined, sourceLookupFailure: limited },
+    { ...authority, id: "two", key: "two", citation: "2026 ABCA 45", sourceUrl: undefined, source: { kind: "resolved" } },
+    { ...authority, id: "five", key: "five", name: "Other v Other", citation: "2023 ABKB 5", sourceUrl: undefined,
+      sourceLookupFailure: limited },
+    { ...authority, id: "three", key: "three", name: "Sample v Sample", citation: "2025 ABKB 9", sourceUrl: undefined,
+      sourceLookupFailure: { reason: "defect", retryAfter: null, detail: "x is not a function" } });
+  const banner = screen.getByRole("status");
+  // A name another authority in the book shares carries its citation; a name no other has does not.
+  expect(banner).toHaveTextContent("A2AJ is limiting requests, so 2 authorities weren't checked: " +
+    "Example v Example, 2024 ABKB 123; Other v Other.");
+  expect(banner).toHaveTextContent("Authorities failed with an error of its own (x is not a function), " +
+    "so this authority wasn't checked: Sample v Sample.");
+  expect(banner).not.toHaveTextContent(/couldn't be reached|answered with an error/u);
 });

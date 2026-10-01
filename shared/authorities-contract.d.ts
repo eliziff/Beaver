@@ -74,9 +74,12 @@ export type AuthorityHighlightExclusion = { kind: string; label: string };
 
 /** The last source lookup for an authority could not be answered, so it was not checked. */
 export type AuthoritySourceLookupFailure = {
-  reason: "rate-limited" | "error" | "timeout" | "unreachable";
+  /** "defect": the lookup failed in Authorities itself, never on A2AJ's side. */
+  reason: "rate-limited" | "error" | "timeout" | "unreachable" | "defect";
   /** When the service allows asking again (ISO time), when it said. */
   retryAfter: string | null;
+  /** A defect's own message. */
+  detail?: string;
 };
 
 export type AuthorityIdentity = {

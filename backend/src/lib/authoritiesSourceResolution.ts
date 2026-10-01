@@ -136,10 +136,13 @@ export async function resolveAuthoritiesSources(
       return { source, revision };
     } catch (error) {
       signal?.throwIfAborted();
+      // A failure of our own is a defect named by its own message, never A2AJ's error.
       failure = error instanceof A2AJUnavailable ? { reason: error.reason,
-        retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null } : { reason: "error", retryAfter: null };
+        retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
+        : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) };
       // Another form of the citation would meet the same outage; ask again on retry instead.
-      if (error instanceof A2AJUnavailable) break;
+      // An error answer or a defect concerns this form alone, so the next form is still asked.
+      if (error instanceof A2AJUnavailable && error.reason !== "error") break;
     }
     return failure ? { failure } : { source: null };
   }
