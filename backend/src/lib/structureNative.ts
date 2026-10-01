@@ -166,7 +166,9 @@ type StructureAddon = {
   }>;
   hasDocxSupraReferences(bytes: Buffer): Promise<boolean>;
   derivePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<NativeDocument>;
-  preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal): Promise<PdfPreparationSummary>;
+  /** `progress(recognized, total)` follows text recognition as pages finish. */
+  preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal,
+    progress?: (recognized: number, total: number) => void): Promise<PdfPreparationSummary>;
   restorePdfDocument(request: unknown): Promise<NativeDocument | null>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;
   pdfRecognizedText(document: NativeDocument, pages?: number[]): NativePdfTextPage[] | null;

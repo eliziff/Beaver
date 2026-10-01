@@ -61,7 +61,7 @@ type ProjectionReference = {
 export type PdfPreparationProgress = {
   phase: "extracting";
   pages: number[];
-};
+} | { phase: "recognizing"; recognized: number; total: number };
 
 function preparedSummary(result: PdfPreparationSummary, expectedSha256?: string,
   expectedCacheKey?: string) {
@@ -202,7 +202,8 @@ async function preparePdf(input: PdfOpenInput) {
         sourceSha256, input.pdfProfile.cacheKey), profile };
     }
     const prepare = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
-      structureNative().preparePdfDocument(input.bytes, request, input.signal));
+      structureNative().preparePdfDocument(input.bytes, request, input.signal, input.progress &&
+        ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));
     return { summary: preparedSummary(
       await (profile.ocr ? oneRecognitionAtATime(prepare, input.signal) : prepare()),
       input.sourceSha256,

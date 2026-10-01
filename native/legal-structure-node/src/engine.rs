@@ -665,8 +665,13 @@ mod pdf {
             .map_err(|error| error.to_string())
     }
 
-    pub fn prepare_pdf_document(bytes: &[u8], request: &legalpdf::PdfRequest) -> CoreResult<legalpdf::PdfSummary> {
-        legalpdf::prepare_pdf_document(bytes, request).map_err(|error| error.to_string())
+    pub fn prepare_pdf_document(
+        bytes: &[u8],
+        request: &legalpdf::PdfRequest,
+        progress: legalpdf::RecognitionProgress<'_>,
+    ) -> CoreResult<legalpdf::PdfSummary> {
+        legalpdf::prepare_pdf_document_reporting(bytes, request, progress)
+            .map_err(|error| error.to_string())
     }
 
     pub fn restore_pdf_document(request: &legalpdf::PdfRequest) -> CoreResult<Option<NativeDocument>> {

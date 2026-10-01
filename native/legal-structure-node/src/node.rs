@@ -90,6 +90,7 @@ pub fn derive_document_fingerprint_node(
 #[cfg(feature = "legalpdf")]
 mod legalpdf_exports {
     use super::*;
+    use napi::bindgen_prelude::{FnArgs, Function};
 
     pub struct DeriveDocxDocumentTask {
         bytes: Buffer,
@@ -297,9 +298,13 @@ mod legalpdf_exports {
         }))
     }
 
+    type ProgressFunction = napi::threadsafe_function::ThreadsafeFunction<
+        FnArgs<(u32, u32)>, (), FnArgs<(u32, u32)>, napi::Status, false, true>;
+
     pub struct PreparePdfDocumentTask {
         bytes: Buffer,
         request: legalpdf::PdfRequest,
+        progress: Option<ProgressFunction>,
     }
 
     impl Task for PreparePdfDocumentTask {
@@ -307,7 +312,12 @@ mod legalpdf_exports {
         type JsValue = Unknown<'static>;
 
         fn compute(&mut self) -> napi::Result<Self::Output> {
-            engine::prepare_pdf_document(&self.bytes, &self.request).map_err(reason)
+            let report = self.progress.as_ref().map(|progress| move |done: usize, total: usize| {
+                progress.call(FnArgs::from((done as u32, total as u32)),
+                    napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking);
+            });
+            let report = report.as_ref().map(|report| report as &(dyn Fn(usize, usize) + Sync));
+            engine::prepare_pdf_document(&self.bytes, &self.request, report).map_err(reason)
         }
 
         fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
@@ -315,15 +325,20 @@ mod legalpdf_exports {
         }
     }
 
+    /// `progress(recognized, total)` follows recognition page by page window.
     #[napi(js_name = "preparePdfDocument")]
     pub fn prepare_pdf_document_node(
         env: Env,
         bytes: Buffer,
         request: Unknown<'_>,
+        _signal: Option<Unknown<'_>>,
+        progress: Option<Function<'_, FnArgs<(u32, u32)>, ()>>,
     ) -> napi::Result<AsyncTask<PreparePdfDocumentTask>> {
         Ok(AsyncTask::new(PreparePdfDocumentTask {
             bytes,
             request: env.from_js_value(request)?,
+            progress: progress.map(|progress| progress.build_threadsafe_function()
+                .callee_handled::<false>().weak::<true>().build()).transpose()?,
         }))
     }
 
