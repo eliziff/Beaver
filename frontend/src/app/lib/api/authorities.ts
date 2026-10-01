@@ -1,5 +1,5 @@
 import type { AuthoritiesBuildSettings, AuthoritiesProfileId, AuthoritiesOutputMode, AuthoritiesProduct, AuthoritiesAction, AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, AuthoritySourceLanguage, AuthoritiesBuildReceipt } from "@/app/authorities/types";
-import { post, multipartRequest, segment, apiRequest, mutationInit } from "@/app/lib/api/client";
+import { post, multipartRequest, segment, apiRequest, mutationInit, followedRequest } from "@/app/lib/api/client";
 import type { Document } from "@/app/lib/api/documents";
 import type { AuthoritiesBookSlot } from "../../../../../shared/authorities-sources.mjs";
 
@@ -21,10 +21,10 @@ export const refreshAuthorities = (id: string, revision: number) =>
 /** Whether this host turns a Word brief into PDF itself; without it the user supplies the brief PDF. */
 export const authoritiesWordToPdf = (router: "authorities" | "authorities-runtime") =>
   apiRequest<{ wordToPdf: boolean }>(`/${router}/capabilities`).then(({ wordToPdf }) => wordToPdf);
-export const prepareAuthoritiesSources = (id: string, revision: number, signal?: AbortSignal,
-  authorityId?: string) =>
-  apiRequest<AuthoritiesProduct>(`/authorities/${segment(id)}/sources`,
-    { ...mutationInit("POST", { revision, authorityId }), signal });
+export const prepareAuthoritiesSources = async (id: string, revision: number, signal?: AbortSignal,
+  authorityId?: string, progress?: (message: string) => void) =>
+  (await followedRequest(`/authorities/${segment(id)}/sources`,
+    { ...mutationInit("POST", { revision, authorityId }), signal }, progress)).json() as Promise<AuthoritiesProduct>;
 export const refreshAuthoritiesInput = (id: string, role: string, revision: number) =>
   post<AuthoritiesProduct>(
     `/authorities/${segment(id)}/inputs/${segment(role)}/refresh`, { revision });
@@ -57,10 +57,11 @@ export const attachAuthoritiesBookPdf = (id: string, revision: number,
 export const authoritiesSourceOcr = (id: string, roles: string[], cancel = false, pages?: number[]) =>
   post<Array<{ role: string; documentId?: string; done?: boolean }>>(
     `/authorities/${segment(id)}/source-ocr`, { roles, cancel, pages });
-export const buildAuthorities = (id: string, revision: number, signal?: AbortSignal) =>
-  apiRequest<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>(
-    `/authorities/${segment(id)}/build`, { ...mutationInit("POST", { revision }), signal },
-  );
+export const buildAuthorities = async (id: string, revision: number, signal?: AbortSignal,
+  progress?: (message: string) => void) =>
+  (await followedRequest(`/authorities/${segment(id)}/build`,
+    { ...mutationInit("POST", { revision }), signal }, progress)).json() as
+    Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildReceipt }>;
 
 export const prepareAuthoritiesAnnotations = (id: string, authorityId: string, bindingRole: string,
   sourceSha256: string, signal?: AbortSignal) =>

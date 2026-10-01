@@ -77,6 +77,7 @@ export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
   signal?: AbortSignal,
   onlyAuthorityId?: string,
+  progress?: (message: string) => void,
 ) {
   if (onlyAuthorityId && !initial.authorities[onlyAuthorityId]?.sourceVerificationUrl)
     throw new ApplicationError(409, "This authority has no publisher check to retry.");
@@ -102,7 +103,15 @@ export async function resolveAuthoritiesSources(
   });
   // A lookup the provider refused for its rate limit is named to the reviewer, not taken for a miss.
   let limited: A2AJLimited | undefined;
-  const resolutions = await mapBounded(candidates, async ({ id, authority }) => {
+  let looked = 0;
+  const lookup = () => candidates.length && progress?.(`Looking up authorities · ${looked} of ${candidates.length}`);
+  lookup();
+  const resolutions = await mapBounded(candidates, async (candidate) => {
+    const resolved = await resolveCandidate(candidate);
+    looked += 1; lookup();
+    return resolved;
+  });
+  async function resolveCandidate({ id, authority }: typeof candidates[number]) {
     signal?.throwIfAborted();
     if (authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj") return { source: null };
     let unavailable = false;
@@ -121,7 +130,7 @@ export async function resolveAuthoritiesSources(
       if (error instanceof A2AJLimited) { limited = error; break; }
     }
     return unavailable ? { unavailable: true as const } : { source: null };
-  });
+  }
   // Nothing found while the provider refused lookups: say so rather than report every source missing.
   if (limited && !resolutions.some((resolved) => "source" in resolved && resolved.source))
     throw new ApplicationError(503, limited.message);
@@ -207,14 +216,19 @@ export async function resolveAuthoritiesSources(
       .map((document) => ({ ...item, source: document,
         paired: documents.length === 2 || existing.size > 0 }));
   })).flat();
+  const locations = (source: ResolvedSource) => {
+    const publisherUrl = source.publisherUrl ?? source.url;
+    return { pdfUrl: source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url) ? source.verifiedPdf.url : null,
+      sourceUrl: publisherUrl && !isCanliiUrl(publisherUrl) ? publisherUrl : null };
+  };
   const blockedPublishers = new Set<string>();
-  const prepared = await mapBounded(languageSources, async (item) => {
+  let started = 0;
+  const prepareSource = async (item: typeof languageSources[number]) => {
     signal?.throwIfAborted();
     const { authority, source } = item;
-    const pdfUrl = source.verifiedPdf && !isCanliiUrl(source.verifiedPdf.url)
-      ? source.verifiedPdf.url : null;
-    const publisherUrl = source.publisherUrl ?? source.url;
-    const sourceUrl = publisherUrl && !isCanliiUrl(publisherUrl) ? publisherUrl : null;
+    const { pdfUrl, sourceUrl } = locations(source);
+    started += 1;
+    progress?.(`Fetching ${source.name ?? source.citation} · ${started} of ${languageSources.length}`);
     const provider = source.provider ?? "a2aj";
     let publisher: string | undefined;
     let original: Awaited<ReturnType<SourceServices["download"]>> | undefined;
@@ -250,7 +264,20 @@ export async function resolveAuthoritiesSources(
     } catch { signal?.throwIfAborted(); }
     return { ...item, original, verificationUrl: reconstructed ? undefined : verificationUrl,
       bytes: original?.bytes ?? reconstructed };
-  }, 1);
+  };
+  // A few publishers are fetched at once, each publisher's PDFs one after another: no site is
+  // asked more often than before, and one that challenges is not asked again in this run.
+  const publishers = new Map<string, number[]>();
+  languageSources.forEach(({ source }, index) => {
+    const { pdfUrl, sourceUrl } = locations(source);
+    let key = `source:${index}`;
+    try { if (sourceUrl ?? pdfUrl) key = new URL(sourceUrl ?? pdfUrl!).origin; } catch { /* its own queue */ }
+    publishers.set(key, [...publishers.get(key) ?? [], index]);
+  });
+  const prepared = new Array<Awaited<ReturnType<typeof prepareSource>>>(languageSources.length);
+  await mapBounded([...publishers.values()], async (indices) => {
+    for (const index of indices) prepared[index] = await prepareSource(languageSources[index]);
+  }, 3);
   for (const { authorityId, source, paired, original, bytes } of prepared) {
     if (!bytes) continue;
     const digest = sha256(bytes);

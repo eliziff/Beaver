@@ -20,7 +20,9 @@ const { api, fileStore, drafts, unexpected } = vi.hoisted(() => ({
 vi.mock("@/app/lib/standaloneWorkProducts", () => ({
   canRetainLocalFiles: () => true, ...fileStore, standaloneWorkProducts: drafts,
 }));
-vi.mock("@/app/lib/api/client", () => api);
+// Progress is read by the client; here a followed request is the plain response it ends in.
+vi.mock("@/app/lib/api/client", () => ({ ...api,
+  followedRequest: (path: string, init: RequestInit) => api.apiResponse(path, init) }));
 
 import { standaloneAuthoritiesHost } from "./standaloneHost";
 

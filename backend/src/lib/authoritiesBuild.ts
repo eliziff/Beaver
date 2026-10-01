@@ -66,6 +66,8 @@ export type AuthoritiesBuildInput = {
     passageGeometry?: NativePdfPassageGeometry }>;
   signal?: AbortSignal;
   finalPdfSource?: (bytes: Uint8Array, filename: string) => Promise<Uint8Array>;
+  /** Told what the build is doing, as it starts each part. */
+  progress?: (message: string) => void;
 };
 
 export type AuthorityPassageRequest = {
@@ -731,6 +733,7 @@ async function missingSourcePdf(pdf: PdfModule, label: string, federal = false,
 async function prepareAuthorityBook(
   draft: AuthoritiesDraft, groups: Group[], filename: string, subtitle: string,
   attached: NonNullable<AuthoritiesBuildInput["sources"]>, signal?: AbortSignal,
+  progress?: (message: string) => void,
 ): Promise<PreparedAuthoritiesBook> {
   signal?.throwIfAborted();
   const pdf = await import("pdf-lib");
@@ -769,6 +772,9 @@ async function prepareAuthorityBook(
   })), ...supplementRows];
   if (!rows.length) throw new Error(
     "Add at least one authority or supplemental PDF before building the book.");
+  let marked = 0;
+  const marking = () => progress?.(`Marking passages · ${marked} of ${authorityRows.length}`);
+  marking();
   const [authoritySources, supplementalSources, customCover, customIndex] = await Promise.all([
     Promise.all(authorityRows.map(async (entry): Promise<LoadedBookPdf> => {
       const source = entry.authority.source;
@@ -784,6 +790,7 @@ async function prepareAuthorityBook(
           `${missingLanguage} version not attached. This draft is incomplete.`);
         await appendPages(loaded.document, stub);
       }
+      marked += 1; marking();
       return { key: `authority:${entry.authority.id}`, name: entry.name, tab: entry.tab,
         sourceUrl: entry.sourceUrl, authority: entry.authority,
         ...loaded };
@@ -809,6 +816,7 @@ async function prepareAuthorityBook(
     return kept.length ? [{ label, entries: kept }] : [];
   });
   if (supplementRows.length) rowGroups.push({ label: "Documents", entries: supplementRows });
+  progress?.("Preparing the book");
   return {
     filename, subtitle, documentTitle, bookTitle, federal,
     electronic: draft.settings.filingMedium === "electronic",
@@ -1031,12 +1039,15 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     ? input.draft.import.filename : input.title;
   const bookName = (profile.bookTitle ?? "Book of Authorities").toLowerCase()
     .replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
+  input.progress?.(wanted.includes("book") ? "Preparing the book" : "Building the table");
   const built = (await Promise.all(wanted.map(async (role) => role === "table"
     ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
       input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"))]
     : role === "book"
       ? assembleBook(await prepareAuthorityBook(input.draft, bookGroups, `${base}${input.draft.settings.allowIncomplete ? ".draft-incomplete" : ""}.${bookName}.pdf`, subtitle,
-        sources, input.signal), input.signal)
+        sources, input.signal, input.progress).then((plan) => {
+          input.progress?.("Assembling the book"); return plan;
+        }), input.signal)
       : input.draft.import.kind === "document" && input.draft.import.fileType === "pdf"
         ? [await filingPdfArtifact(tableGroups,
           `${base}.with-table-of-authorities.pdf`,
@@ -1054,6 +1065,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput,
     const source = sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array();
     if (!source.byteLength || sha256(Buffer.from(source)) !== imported[0]?.resolved.sha256)
       throw new Error("The imported document changed before final PDF export.");
+    input.progress?.("Assembling the final PDF");
     const sourcePdf = input.draft.import.fileType === "pdf" ? source : briefInput?.bytes ?? await (async () => {
       if (!input.finalPdfSource) throw new Error("Word-to-PDF conversion is unavailable for final export.");
       if (!input.draft.insertIntoDocument && (!input.draft.settings.citationSuffix || input.draft.settings.citationSuffix === "none") &&
