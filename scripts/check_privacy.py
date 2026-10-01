@@ -1,6 +1,7 @@
 """Check publishable files without printing the personal values that matched."""
 import argparse
 import base64
+import gzip
 import hashlib
 import io
 import os
@@ -20,7 +21,7 @@ PRIVATE_FILE = re.compile(r'(?:^|/)(?:private_sources|private_comparison|court-r
 QUARANTINED = ('benchmarks/docx_edit/fixtures/prose/',) + tuple(
     f'benchmarks/beaver_can/tasks/dev/CAN-RESEARCH-{number:03d}/' for number in range(1, 6)
 )
-EMBEDDED = re.compile(rb'(?:AGFzb|UEsDB)[A-Za-z0-9+/=]{400,}')
+EMBEDDED = re.compile(rb'(?:AGFzb|UEsDB|H4sI)[A-Za-z0-9+/=]{400,}')
 MEDIA = {'.docx','.pdf','.png','.jpg','.jpeg','.webp','.gif','.woff','.woff2','.ttf','.ico','.pptx','.xlsx','.zip','.tgz','.gz'}
 
 def findings(raw):
@@ -49,7 +50,11 @@ def inspect_artifact(raw,name,depth=0):
         for match in EMBEDDED.finditer(raw):
             try: payload=base64.b64decode(match.group(),validate=True)
             except ValueError: continue
-            if payload.startswith((b'\0asm',b'PK\x03\x04')):
+            if payload.startswith(b'\x1f\x8b'):
+                try: payload=gzip.decompress(payload)
+                except (OSError,EOFError): continue
+                result.extend(inspect_artifact(payload,name+'!embedded-gzip',depth+1))
+            elif payload.startswith((b'\0asm',b'PK\x03\x04')):
                 result.extend(inspect_artifact(payload,name+'!embedded',depth+1))
     return result
 
@@ -76,6 +81,9 @@ def self_test():
     archive=io.BytesIO()
     with zipfile.ZipFile(archive,'w') as package: package.writestr('auth.json',b'{}')
     assert inspect_artifact(archive.getvalue(),'package.zip')==[('package.zip!auth.json','private artifact packaged')]
+    # A page carrying a gzipped WASM as base64, as the Authorities page carries its engine.
+    page=b'"'+base64.b64encode(gzip.compress(b'\0asm'+example+bytes(range(256))*4))+b'"'
+    assert inspect_artifact(page,'page.html')==[('page.html!embedded-gzip','personal home path')]
     print('Privacy checker self-test passed.')
 
 def main():
