@@ -4,7 +4,7 @@ import { updateAuthoritiesDraft } from "./authoritiesActions";
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets } from "./authoritiesBuild";
 import { authorityCitationForms, authoritiesProfile, type AuthoritiesDraft, type AuthoritiesDiscrepancyAction } from "./authoritiesDomain";
 import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
-import { authorityPdfText } from "./authorityPdfText";
+import { authorityPdfOutline, authorityPdfText } from "./authorityPdfText";
 import { applyAuthorityDiscrepancyCorrection } from "./docxOperations";
 
 /** Host callbacks verify exact input bytes; only the host publishes the corrected version. */
@@ -44,9 +44,16 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
   return { ...plan, textRoles,
     async prepareText(role: string, input: Parameters<typeof authorityPdfText>[0]) {
       input.signal?.throwIfAborted();
-      if (!textRoles.has(role)) return { pageBindings: undefined };
       const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
       const authority = attached?.authority;
+      // The book nests each authority's own headings and sections under its tab.
+      const outline = authority && draft.outputMode !== "table" ? await authorityPdfOutline({ ...input,
+        legislation: authority.kind === "legislation" }).catch((error) => {
+        if (input.signal?.aborted) throw error;
+        return [];
+      }) : [];
+      const outlined = outline.length ? { outline } : {};
+      if (!textRoles.has(role)) return { pageBindings: undefined, ...outlined };
       const brief = plan.briefPdf?.bindingRole === role;
       const filing = brief || !authority && draft.import.kind === "document" &&
         draft.import.fileType === "pdf" && role === draft.import.bindingRole;
@@ -65,7 +72,7 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
       return { pageTextByPage: text.pageTextByPage,
         ...(text.pageLabels ? { pageLabels: text.pageLabels, pageBindings: text.pageBindings } : {}),
         ...(text.ocrTextByPage.some(Boolean) ? { ocrTextByPage: text.ocrTextByPage } : {}),
-        ...(text.passageGeometry ? { passageGeometry: text.passageGeometry } : {}) };
+        ...(text.passageGeometry ? { passageGeometry: text.passageGeometry } : {}), ...outlined };
     },
   };
 }

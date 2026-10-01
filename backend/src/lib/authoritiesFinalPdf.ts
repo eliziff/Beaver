@@ -9,7 +9,7 @@ import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
 import { normalizedWords } from "./structureNative";
 
-const { appendPages, applyOutlines, destinationReader } = pdfAssembly(pdf);
+const { appendPages, applyOutlines, readOutlines } = pdfAssembly(pdf);
 const LINK_PREFIX = "https://beaver-authorities.invalid/";
 export const filingLinkUrl = (kind: "tab" | "pinpoint", id: string) =>
   `${LINK_PREFIX}${kind}/${encodeURIComponent(id)}`;
@@ -60,28 +60,6 @@ export function assertBriefPdfMatches(draft: AuthoritiesDraft, pageTextByPage: s
     "as PDF and upload that file.");
 }
 
-function pdfOutlines(document: pdf.PDFDocument, offset = 0): PdfOutline[] {
-  const pages = new Map(document.getPages().map((page, index) => [String(page.ref), index]));
-  const destination = destinationReader(document);
-  const seen = new Set<pdf.PDFDict>();
-  const branch = (first: pdf.PDFDict | undefined): PdfOutline[] => {
-    const result: PdfOutline[] = [];
-    for (let node = first; node && !seen.has(node) && seen.size < 10_000;
-      node = node.lookupMaybe(pdf.PDFName.of("Next"), pdf.PDFDict)) {
-      seen.add(node);
-      const title = node.lookupMaybe(pdf.PDFName.of("Title"), pdf.PDFString, pdf.PDFHexString);
-      const dest = destination(node);
-      const pageIndex = dest && pages.get(String(dest.get(0)));
-      const children = branch(node.lookupMaybe(pdf.PDFName.of("First"), pdf.PDFDict));
-      if (title && pageIndex !== undefined) result.push({ title: title.decodeText(),
-        pageIndex: offset + pageIndex, ...(children.length ? { children } : {}) });
-    }
-    return result;
-  };
-  return branch(document.catalog.lookupMaybe(pdf.PDFName.of("Outlines"), pdf.PDFDict)
-    ?.lookupMaybe(pdf.PDFName.of("First"), pdf.PDFDict));
-}
-
 export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   sourceBytes: Uint8Array, books: Book[]) {
   const draft = input.draft, sources = input.sources ?? {};
@@ -90,14 +68,14 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   catch { throw new Error("The brief PDF could not be opened for final export."); }
   const sourcePages = document.getPageCount();
   if (!sourcePages) throw new Error("The brief PDF is empty.");
-  const originalOutlines = pdfOutlines(document);
+  const originalOutlines = readOutlines(document);
   const outlines: PdfOutline[] = [{ title: "Brief", pageIndex: 0,
     ...(originalOutlines.length ? { children: originalOutlines } : {}) }];
   const destinations = new Map<string, { tab: number; pages: Map<number, number> }>();
   for (const output of books) {
     input.signal?.throwIfAborted();
     const offset = document.getPageCount(), book = await pdf.PDFDocument.load(output.bytes, { updateMetadata: false });
-    const children = pdfOutlines(book, offset);
+    const children = readOutlines(book, offset);
     const volume = output.role === "book" ? "1" : output.role.slice(5);
     outlines.push({ title: books.length > 1 ? `Book of authorities — Volume ${volume}` : "Book of authorities",
       pageIndex: offset, children });

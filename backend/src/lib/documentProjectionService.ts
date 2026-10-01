@@ -564,6 +564,16 @@ async function pdfPassageGeometry(
     ? { ...target, physicalPages: resolvePrintedPages(target.locator, labels).map(index => index + 1) } : target));
 }
 
+/** The PDF's own headings, and a statute's sections, with the pages they open on. */
+async function pdfOutline(
+  readBytes: () => Buffer | Promise<Buffer>,
+  reference: ProjectionReference,
+  options: PdfSourceOptions & { legislation?: boolean } = {},
+) {
+  const document = await pdfDocumentForSource(readBytes, reference, options);
+  return structureNative().documentOutline(document, options.legislation === true);
+}
+
 async function paginationFor(document: NativeDocument, starts: number[]) {
   const native = structureNative();
   let observed = native.pdfPageLabels(document);
@@ -676,6 +686,7 @@ export const documentProjectionService = Object.freeze({
   preparePdf,
   lookupPdf,
   pdfPassageGeometry,
+  pdfOutline,
   pdfTextLayer,
   pdfPageLabels,
   pdfPagination,
