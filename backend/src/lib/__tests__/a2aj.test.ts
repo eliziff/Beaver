@@ -526,14 +526,15 @@ describe("A2AJ client", () => {
       expect(guardedRemoteFetch).toHaveBeenCalledTimes(1);
 
       // In a page, A2AJ's 429 carries no CORS header: the lookup fails as a network error, but
-      // the opaque request gets an answer. That is its limit, held as one, not an outage.
+      // the opaque request gets an answer. That is its limit, held as one, not an outage. Its
+      // Retry-After cannot be read: our own minute's hold is never reported as A2AJ's time.
       guardedRemoteFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"))
         .mockResolvedValueOnce({ type: "opaque", status: 0, ok: false, body: null, headers: new Headers() } as Response);
-      expect(await failure()).toMatchObject({ reason: "rate-limited", retryAt: Date.now() + 60_000 });
+      expect(await failure()).toMatchObject({ reason: "rate-limited", retryAt: null });
       expect(guardedRemoteFetch).toHaveBeenCalledTimes(3);
       expect(guardedRemoteFetch.mock.calls[2][1]).toMatchObject({ method: "HEAD", mode: "no-cors" });
       vi.setSystemTime(Date.now() + 59_000);
-      expect(await failure()).toMatchObject({ reason: "rate-limited" });
+      expect(await failure()).toMatchObject({ reason: "rate-limited", retryAt: null });
       expect(guardedRemoteFetch).toHaveBeenCalledTimes(3);
 
       // Where the answer can be read (Node), its status says what it was.

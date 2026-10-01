@@ -117,6 +117,11 @@ The standalone page keeps each publisher PDF that arrives whole by its URL and
 content hash, with the draft files that hold those bytes, so a later import, visit
 or build does not fetch it again.
 
+A2AJ's limit leaves the authorities it did not answer unchecked, named in Sources.
+A page cannot read the `Retry-After` A2AJ sends with a 429, so Beaver says it will
+try again in about a minute, then asks once and doubles the wait while A2AJ is still
+limiting; only a time A2AJ itself named is shown as A2AJ's.
+
 `publisherPdfCandidate(url)` in `backend/src/lib/legalSourcePresentation.ts` is
 the shared, pure URL primitive; unsupported URLs return null. Lite imports its
 tracked browser distribution, generated with

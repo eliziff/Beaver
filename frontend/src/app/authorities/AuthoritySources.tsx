@@ -27,10 +27,8 @@ const lookupReason = ({ reason, detail }: LookupFailure) => ({
   "rate-limited": "A2AJ is limiting requests", timeout: "A2AJ took too long to answer", unreachable: "A2AJ couldn't be reached",
   error: "A2AJ answered with an error", defect: `Authorities failed with an error of its own (${detail ?? "no message"})`,
 })[reason];
-const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-/** When A2AJ allows the next lookup, if that is still ahead. */
-const retryWait = (failure: LookupFailure, now: number) =>
-  failure.retryAfter && Date.parse(failure.retryAfter) > now ? failure.retryAfter : null;
+const clock = (time: number) => new Date(time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const MINUTE = 60_000;
 export type AuthorityPanelProps = {
   authorities: AuthorityIdentity[]; tabs: ReadonlyMap<string, string>; busy: boolean;
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
@@ -142,10 +140,9 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const missing = needsPdf && !loaded;
   const missingIssue = sources.map(({ bindingRole }) => sourceIssues[bindingRole]).find(Boolean);
   const lookup = !sources.length ? authority.sourceLookupFailure : undefined;
-  const lookupWait = lookup && retryWait(lookup, Date.now());
   const missingLabel = issue ? "File access was denied. Allow access to this PDF to use it."
-    : lookup ? `${lookupReason(lookup)}, so this authority wasn't checked. ${
-      lookupWait ? `Retry after ${clock(lookupWait)}` : "Retry"}, or upload the PDF.`
+    : lookup ? `${lookupReason(lookup)}, so this authority wasn't checked. ${lookup.reason === "rate-limited"
+      ? "Beaver will try again" : "Retry"}, or upload the PDF.`
     : missingIssue?.status === "changed" ? "The PDF changed. Its source is being refreshed."
     : missingIssue?.status === "missing" && missingIssue.reason === "deleted"
       ? "The PDF could not be found. Upload it again."
@@ -259,19 +256,34 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   </article>;
 }
 
-/** Authorities A2AJ left unchecked, by reason, with one retry once its window passes. */
+/** A2AJ's limit, asked again by Beaver itself. A page cannot read the Retry-After A2AJ sends with
+ *  it, so Beaver waits about a minute (or until the time A2AJ named, where it could be read), asks
+ *  once again, and waits twice as long each time A2AJ is still limiting. */
+function useLimitRetry(limited: AuthorityIdentity[], busy: boolean, onRetry: (id: string) => void) {
+  const first = limited[0]?.id, named = Math.max(0, ...limited.map(({ sourceLookupFailure }) =>
+    Date.parse(sourceLookupFailure!.retryAfter ?? "") || 0));
+  const [plan, setPlan] = useState<{ tries: number; due: number; named: boolean }>();
+  useEffect(() => {
+    const wait = (tries: number) => named > Date.now() ? { tries, due: named, named: true }
+      : { tries, due: Date.now() + Math.min(MINUTE * 2 ** tries, 10 * MINUTE), named: false };
+    if (!first) return setPlan(undefined);
+    if (!plan || named > plan.due) return setPlan(wait(plan?.tries ?? 0));
+    if (busy) return;
+    const timer = setTimeout(() => { setPlan(wait(plan.tries + 1)); onRetry(first); },
+      Math.max(0, plan.due - Date.now()));
+    return () => clearTimeout(timer);
+  }, [first, named, plan, busy, onRetry]);
+  return !plan ? "" : plan.named ? `at ${clock(plan.due)}` : plan.tries ? `in about ${Math.min(2 ** plan.tries, 10)} minutes`
+    : "in about a minute";
+}
+
+/** Authorities A2AJ left unchecked, by reason: its limit retried by Beaver, anything else on request. */
 function LookupFailures({ authorities, busy, onRetry }: {
   authorities: AuthorityIdentity[]; busy: boolean; onRetry: (id: string) => void;
 }) {
   const failed = authorities.filter((authority) => authority.sourceLookupFailure);
-  const [now, setNow] = useState(Date.now);
-  const wait = failed.map(({ sourceLookupFailure }) => retryWait(sourceLookupFailure!, now))
-    .filter((value): value is string => !!value).sort().at(-1);
-  useEffect(() => {
-    if (!wait) return;
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Date.parse(wait) - Date.now()) + 250);
-    return () => clearTimeout(timer);
-  }, [wait]);
+  const limited = failed.filter(({ sourceLookupFailure }) => sourceLookupFailure!.reason === "rate-limited");
+  const again = useLimitRetry(limited, busy, onRetry);
   if (!failed.length) return null;
   const reasons = [...new Set(failed.map(({ sourceLookupFailure }) => lookupReason(sourceLookupFailure!)))];
   // Decisions sharing a style of cause in the book are told apart by their citations.
@@ -281,12 +293,14 @@ function LookupFailures({ authorities, busy, onRetry }: {
     <CircleAlert className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
     <div className="min-w-0 flex-1">
       {reasons.map((reason) => {
-        const names = failed.filter(({ sourceLookupFailure }) => lookupReason(sourceLookupFailure!) === reason).map(named);
-        return <p key={reason}>{reason}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked: {names.join("; ")}.</p>;
+        const items = failed.filter(({ sourceLookupFailure }) => lookupReason(sourceLookupFailure!) === reason);
+        const names = items.map(named);
+        return <p key={reason}>{reason}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked: {names.join("; ")}.
+          {again && items[0].sourceLookupFailure!.reason === "rate-limited" && ` Beaver will try again ${again}.`}</p>;
       })}
     </div>
-    <Button type="button" variant="outline" className={cn(control, "bg-white")} disabled={busy || !!wait}
-      onClick={() => onRetry(failed[0].id)}><RotateCw />{wait ? `Retry after ${clock(wait)}` : "Retry"}</Button>
+    {failed.length > limited.length && <Button type="button" variant="outline" className={cn(control, "bg-white")}
+      disabled={busy} onClick={() => onRetry(failed[0].id)}><RotateCw />Retry</Button>}
   </div>;
 }
 
