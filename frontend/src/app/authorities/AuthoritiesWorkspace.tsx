@@ -808,10 +808,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       setDrafts((current) => current.filter((item) => item.id !== id)); newDraft();
     });
   }
-  async function build(current = draftRef.current, force = false) {
-    if (!current) return;
+  async function build(given?: AuthoritiesProduct, force = false) {
+    if (!given && !draftRef.current) return;
     const request = new AbortController(); buildRequest.current = request; setBuilding(true);
     void run(async () => {
+      // Output choices still saving are part of what the reader asked to build.
+      await actionQueue.current;
+      const current = given ?? draftRef.current;
+      if (!current) return null;
       const inspection = await host.inspectDraft(current);
       request.signal.throwIfAborted();
       if (draftRef.current?.id !== current.id || draftRef.current.revision !== current.revision)
@@ -956,7 +960,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (STEPS.findIndex(({ value }) => value === next) <= STEPS.findIndex(({ value }) => value === reached)) viewStep(next);
     else act({ type: "set-stage", stage: next });
   };
-  const buildPanel = draft && stage === "build" && <BuildPanel draft={draft} busy={busy} building={building}
+  const buildPanel = draft && stage === "build" && <BuildPanel draft={shown!} busy={busy} building={building}
     recognitionAvailable={host.recognitionAvailable !== false} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
@@ -1182,7 +1186,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
           setStubWarning(false);
           if (draftRef.current?.state.settings.allowIncomplete) void build(draftRef.current, true);
           else act({ type: "set-settings", settings: { allowIncomplete: true } },
-              (next) => build(next, true));
+              () => build(undefined, true));
         } }}>
         <p className="text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
           ? "y has" : "ies have"} no available PDF. {draft?.state.settings.missingSourcePolicy === "omit"
