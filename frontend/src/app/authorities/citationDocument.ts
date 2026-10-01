@@ -28,6 +28,16 @@ function textIndex(text: string) {
   }
   return { value, starts, ends };
 }
+const indexes = new WeakMap<Text, { data: string; index: ReturnType<typeof textIndex> }>();
+/** A text node's index, computed again only when its text changes: marking one unit again walks
+ * the whole root, and every node outside that unit is unchanged. */
+function nodeIndex(node: Text) {
+  const cached = indexes.get(node);
+  if (cached?.data === node.data) return cached.index;
+  const index = textIndex(node.data);
+  indexes.set(node, { data: node.data, index });
+  return index;
+}
 
 /** Locate imported units against the rendered source. Notes use their source IDs;
  * repeated body text is consumed in document order, never by the first quote alone. */
@@ -59,9 +69,14 @@ export function locateCitationUnits(root: HTMLElement, units: Unit[], page?: num
 export const marksOf = (root: ParentNode, id: string) =>
   [...root.querySelectorAll<HTMLElement>('[data-citation-id]')].filter(mark => mark.dataset.citationId === id);
 
-export function clearCitationMarks(root: HTMLElement) {
-  root.querySelectorAll('[data-citation-id]').forEach(mark => mark.replaceWith(...mark.childNodes));
-  root.normalize();
+export function clearCitationMarks(root: HTMLElement, unitId?: string) {
+  const parents = new Set<Node>();
+  root.querySelectorAll<HTMLElement>('[data-citation-id]').forEach(mark => {
+    if (unitId !== undefined && mark.dataset.unit !== unitId) return;
+    parents.add(mark.parentNode!); mark.replaceWith(...mark.childNodes);
+  });
+  // One unit's marks are cleared without touching the rest of the document.
+  if (unitId === undefined) root.normalize(); else parents.forEach(parent => parent.normalize());
 }
 
 
@@ -76,15 +91,15 @@ export function markCitations(locations: LocatedUnit[], occurrences: Record<stri
       const occurrence = occurrences[id];
       if (!occurrence) return [];
       const offset = (at: number) => start + normalized(unit.text.slice(0, at)).length;
-      return [{ id, start: offset(occurrence.start), end: offset(occurrence.end),
+      return [{ id, unit: unit.id, start: offset(occurrence.start), end: offset(occurrence.end),
         pinpointStart: occurrence.pinpointSpan ? offset(occurrence.pinpointSpan.start) : -1,
         pinpointEnd: occurrence.pinpointSpan ? offset(occurrence.pinpointSpan.end) : -1 }];
     })).sort((a, b) => a.start - b.start);
     let cursor = 0, first = 0;
     for (const node of textNodes(root, root.classList.contains('docx-view-container'))) {
-      const index = textIndex(node.data), end = cursor + index.value.length;
+      const index = nodeIndex(node), end = cursor + index.value.length;
       while (first < spans.length && spans[first].end <= cursor) first++;
-      const pieces: Array<{ start: number; end: number; id: string; pinpoint: boolean }> = [];
+      const pieces: Array<{ start: number; end: number; id: string; unit: string; pinpoint: boolean }> = [];
       for (let i = first; i < spans.length && spans[i].start < end; i++) {
         const span = spans[i], from = Math.max(cursor, span.start), to = Math.min(end, span.end);
         const points = [...new Set([from, to, span.pinpointStart, span.pinpointEnd]
@@ -93,15 +108,15 @@ export function markCitations(locations: LocatedUnit[], occurrences: Record<stri
           start: points[p] === cursor && span.start < cursor ? 0 : index.starts[points[p] - cursor],
           end: points[p + 1] === end && span.end > end ? node.length :
             p < points.length - 2 ? index.starts[points[p + 1] - cursor] : index.ends[points[p + 1] - cursor - 1],
-          id: span.id, pinpoint: points[p] >= span.pinpointStart && points[p + 1] <= span.pinpointEnd,
+          id: span.id, unit: span.unit, pinpoint: points[p] >= span.pinpointStart && points[p + 1] <= span.pinpointEnd,
         });
       }
       if (pieces.length) {
         const fragment = document.createDocumentFragment(); let offset = 0;
         for (const piece of pieces) {
           fragment.append(node.data.slice(offset, piece.start));
-          const mark = document.createElement('span'); mark.dataset.citationId = piece.id;
-          mark.className = 'citation-mark';
+          const mark = document.createElement('span');
+          Object.assign(mark.dataset, { citationId: piece.id, unit: piece.unit }); mark.className = 'citation-mark';
           if (piece.pinpoint) mark.dataset.pinpoint = '';
           mark.textContent = node.data.slice(piece.start, piece.end); fragment.append(mark); offset = piece.end;
         }
@@ -123,7 +138,7 @@ export function unitText({ unit, root, start, end }: LocatedUnit) {
   let cursor = 0;
   for (const node of textNodes(root, root.classList.contains('docx-view-container'))) {
     if (cursor > end) break;
-    const index = textIndex(node.data), next = cursor + index.value.length;
+    const index = nodeIndex(node), next = cursor + index.value.length;
     for (let i = Math.max(cursor, start - 1); i < Math.min(next, end + 1); i++)
       chars.push({ node, start: index.starts[i - cursor], end: index.ends[i - cursor] });
     cursor = next;
@@ -283,14 +298,17 @@ export function paintCitations(scroller: HTMLElement, { active, range, pinpoint 
   const [layer, own] = overlay.children as unknown as [HTMLElement, HTMLElement];
   const moved = overlay.dataset.pages !== shown;
   if (mode === 'scroll' && !moved) return;
+  // Shapes are kept in content coordinates, which scrolling leaves alone: a grip drawn after a scroll
+  // from bands measured before it lands on its citation's edge.
   const box = (className: string, b: Box, data: Record<string, string> = {}) => {
     const element = Object.assign(document.createElement('div'), { className });
-    Object.assign(element.style, { left: `${b.left + x}px`, top: `${b.top + y}px`,
+    Object.assign(element.style, { left: `${b.left}px`, top: `${b.top}px`,
       width: `${b.right - b.left}px`, height: `${b.bottom - b.top}px` });
     Object.assign(element.dataset, data);
     return element;
   };
-  const pad = (line: Box) => ({ left: line.left - 2, right: line.right + 2, top: line.top - 1, bottom: line.bottom + 1 });
+  /** A measured line, padded, in content coordinates. */
+  const pad = (line: Box) => ({ left: line.left - 2 + x, right: line.right + 2 + x, top: line.top - 1 + y, bottom: line.bottom + 1 + y });
   if (mode === 'layout' || moved) {
     overlay.dataset.pages = shown;
     const groups = new Map<string, HTMLElement[]>();
@@ -321,8 +339,8 @@ export function paintCitations(scroller: HTMLElement, { active, range, pinpoint 
   const lines = range ? lineBoxes(ink(range)).map(pad) : (drawn.get(overlay) ?? []).filter(band => band.id === active);
   const marks = active && !pinpoint ? marksOf(scroller, active).filter(mark => mark.dataset.pinpoint !== undefined) : [];
   const pins = range ? [] : lineBoxes(ink(pinpoint ?? marks)).flatMap(pin => {
-    const line = lines.find(band => within(band, band.left, (pin.top + pin.bottom) / 2));
-    return line ? [{ ...line, left: Math.max(line.left, pin.left - 1), right: Math.min(line.right, pin.right + 1) }] : [];
+    const middle = (pin.top + pin.bottom) / 2 + y, line = lines.find(band => within(band, band.left, middle));
+    return line ? [{ ...line, left: Math.max(line.left, pin.left + x - 1), right: Math.min(line.right, pin.right + x + 1) }] : [];
   });
   // Each grip is a slim bar the height of its line with a round cap: the citation's start cap sits
   // above the line and its end cap below; the pinpoint's the other way round, so coinciding edges

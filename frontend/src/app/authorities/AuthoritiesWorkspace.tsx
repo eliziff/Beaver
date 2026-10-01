@@ -1,5 +1,6 @@
 import { autoFetchToast } from "../../../../shared/auto-fetch-toast.mjs";
 import { CitationReview } from "./CitationReview";
+import { previewEdit, savedIds } from "./reviewEdits";
 import { QuotationReview } from "./QuotationFinding";
 import { StepProgress } from "./StepSection";
 import { FileInputButton } from "./FileInputButton";
@@ -177,7 +178,12 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const reviewRequest = useRef<AbortController | null>(null);
   const inspectionRequest = useRef(0), relinked = useRef(new Set<string>());
   const actionQueue = useRef(Promise.resolve());
+  // Review edits shown at once and saved in order behind them, and the draft they make.
+  const edits = useRef<Array<{ action: AuthoritiesAction }>>([]);
+  const [preview, setPreview] = useState<AuthoritiesProduct>();
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
+  // Gathering that an edit interrupted, to run again once editing rests.
+  const sourcesRequest = useRef<AbortController | null>(null), sourcesStale = useRef(false);
   const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
   const refreshRequest = useRef(0);
 
@@ -185,6 +191,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const current = draftRef.current;
     if (!navigate && (!next || current?.id !== next.id || next.revision < current.revision)) return false;
     if (navigate) {
+      edits.current = [];
       reviewRequest.current?.abort(); reviewRequest.current = null; setReview(undefined);
       setFindingId(""); setViewedStep(undefined);
       scanRequest.current?.abort(); resetOcr(); setRecognitionAsked(false);
@@ -194,6 +201,9 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       setBuildLinks(undefined);
     }
     draftRef.current = next; setDraft(next);
+    // Edits still saving stay on screen over the newer draft.
+    setPreview(next && edits.current.length ? edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
+      previewEdit(view, action) ?? view, next) : undefined);
     if (next) {
       const mode = next.state.import.kind === "manual" ? "manual" : "automatic";
       modeDrafts.current[mode] = next.id;
@@ -285,8 +295,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }, [requested, projectId, adopt, load]);
 
   useEffect(() => {
-    onDraftChange?.(draft, !!draft && !busy);
-  }, [draft, busy, onDraftChange]);
+    onDraftChange?.(draft, !!draft && !busy && !preview);
+  }, [draft, busy, preview, onDraftChange]);
   useEffect(() => localStorage.setItem("beaver.authorities.preferences", JSON.stringify(preferences)),
     [preferences]);
   useEffect(() => () => {
@@ -295,14 +305,26 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   }, []);
   const draftId = draft?.id;
   const sourceKey = sourceIssueKey(draft);
-  const citationKey = draft ? canonicalJson([
-    draft.state.authorityOrder.map(id => {
-      const { citation, excluded, locators } = draft.state.authorities[id];
+  // Work that follows the citations (sources, scans, the quotation check) reads the draft once
+  // editing rests, so an edit never waits for it and its results never interrupt one. A draft
+  // that opens is read at once.
+  const [idle, setIdle] = useState<AuthoritiesProduct>();
+  useEffect(() => {
+    if (!draft || preview || idle === draft) return;
+    if (idle?.id !== draft.id) { setIdle(draft); return; }
+    const timer = setTimeout(() => setIdle(draft), 1500);
+    return () => clearTimeout(timer);
+  }, [draft, preview, idle]);
+  const settled = idle && idle.id === draftId ? idle : undefined;
+  const citationKey = useMemo(() => settled ? canonicalJson([
+    settled.state.authorityOrder.map(id => {
+      const { citation, excluded, locators } = settled.state.authorities[id];
       return [id, citation, excluded, locators];
-    }), Object.values(draft.state.occurrences).map(({ authorityId, reference, pinpoints }) =>
-      [authorityId, reference, pinpoints]), draft.state.settings.sourceMode,
-  ]) : "";
-  const scannedSources = useScannedSources(host, draft, `${sourceKey}:${citationKey}:${sourceAccessVersion}`);
+    // Text that cites no authority asks nothing of sources or scans.
+    }), Object.values(settled.state.occurrences).flatMap(({ authorityId, reference, pinpoints }) =>
+      authorityId || reference ? [[authorityId, reference, pinpoints]] : []), settled.state.settings.sourceMode,
+  ]) : "", [settled]);
+  const scannedSources = useScannedSources(host, settled, `${sourceIssueKey(settled)}:${citationKey}:${sourceAccessVersion}`);
   useEffect(() => {
     if (scannedSources.checking || draft?.state.settings.scannedPdfPolicy === "page-margin") return;
     const pending = scannedSources.files.filter(file => {
@@ -322,12 +344,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   useEffect(() => {
     if (recognitionAsked && recognitionSettled) { setRecognitionAsked(false); advance("highlights"); }
   }, [recognitionAsked, recognitionSettled]);
+  const gatheredKey = useRef("");
   useEffect(() => {
-    const current = draftRef.current;
-    if (!draftId || current?.id !== draftId || current.state.stage !== "citations" ||
-        current.state.import.kind !== "document") return;
+    const current = draftRef.current, key = `${draftId}\0${citationKey}`;
+    if (!settled || !current || current.id !== draftId || current.state.stage !== "citations" ||
+        current.state.import.kind !== "document" || key === gatheredKey.current && !sourcesStale.current) return;
+    gatheredKey.current = key; sourcesStale.current = false;
     gathering.current = gathering.current.then(() => gatherSources(2));
-  }, [draftId, citationKey, draft?.state.stage]);
+  }, [settled, citationKey, draft?.state.stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const sameDraft = draft && sourceIssueState.draftId === draft.id;
   const sourceIssues = sameDraft && sourceIssueState.sourceKey === sourceKey
     ? sourceIssueState.issues : {};
@@ -356,7 +380,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     }).catch((caught) => active && setError(errorText(caught)));
     return () => { active = false; };
   }, [draftId, sourceKey, sourceAccessVersion, refreshToken, host]);
-  const reviewKey = useMemo(() => discrepancyKey(draft), [draft]);
+  const reviewKey = useMemo(() => discrepancyKey(settled), [settled]);
   useEffect(() => {
     reviewRequest.current?.abort();
     // currentReview ignores a stored review for another draft or key, so none is cleared here.
@@ -377,10 +401,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (draftId && refreshToken?.id === draftId) void refreshDraftEffect(refreshToken.revision);
   }, [draftId, refreshToken]);
 
-  const occurrences = useMemo(() => orderedOccurrences(draft), [draft]);
+  // The review shows unsaved edits; everything else reads the saved draft.
+  const shown = preview ?? draft;
+  const occurrences = useMemo(() => orderedOccurrences(shown), [shown]);
   const currentReview = review && draft && review.id === draft.id && review.key === reviewKey
     ? review : undefined;
   const discrepancies = useMemo(() => currentReview?.items ?? [], [currentReview]);
+  // The list keeps the last check's findings while the next one runs, so its marks never blink.
+  const findings = useMemo(() => review && review.id === draftId ? review.items : [], [review, draftId]);
   const selected = occurrences.find(({ id }) => id === selectedId) ?? occurrences[0];
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
   const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
@@ -465,33 +493,62 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     actionQueue.current = result.then(() => undefined, () => undefined);
     return result;
   }
+  /** The citation that carries on an edited one: itself, the right side of a split, or the
+   * citation that now covers it. */
+  const carryOn = (action: AuthoritiesAction, before: AuthoritiesProduct, next: AuthoritiesProduct) => {
+    const prior = "occurrenceId" in action ? before.state.occurrences[action.occurrenceId] : null;
+    const unit = prior && next.state.units.find(({ id }) => id === prior.unitId);
+    const items = unit?.occurrenceIds.flatMap((id) => next.state.occurrences[id] ? [next.state.occurrences[id]] : []) ?? [];
+    const replacement = prior && (next.state.occurrences[prior.id] ?? (action.type === "split-occurrence"
+      ? items.find(({ start }) => start >= action.cursor)
+      : items.find(({ start, end }) => start <= prior.start && end >= prior.end)));
+    if (replacement) setSelectedId(replacement.id);
+  };
   const act: ActionHandler = (action, done) => {
     const targetId = draftRef.current?.id;
     if (!targetId) return;
-    const blocking = action.type !== "rename-authority";
+    // A review edit shows at once and saves behind the view; anything else holds the workspace.
+    const shown = edits.current.reduce<AuthoritiesProduct>((view, { action }) =>
+      previewEdit(view, action) ?? view, draftRef.current!);
+    const view = previewEdit(shown, action), edit = view ? { action } : undefined;
+    const blocking = !edit && action.type !== "rename-authority";
     if (blocking) setPendingActions((count) => count + 1);
+    if (edit && view) {
+      edits.current.push(edit); sourcesRequest.current?.abort();
+      setPreview(view); carryOn(action, shown, view); void done?.(view);
+    }
     actionQueue.current = actionQueue.current.then(async () => {
       try {
         const current = draftRef.current;
         if (!current || current.id !== targetId) return;
-        const prior = "occurrenceId" in action
-          ? current.state.occurrences[action.occurrenceId] : null;
-        const next = await host.act(current.id, current.revision, action);
+        const sent = edit?.action ?? action;
+        const next = await host.act(current.id, current.revision, sent).catch(async (caught) => {
+          // A save that landed meanwhile (sources gathered on the server) leaves the edit to apply again.
+          if (!edit || (caught as { status?: number })?.status !== 409) throw caught;
+          const latest = await host.drafts.get<AuthoritiesProduct["state"]>(current.id);
+          adopt(latest);
+          return host.act(latest.id, latest.revision, sent);
+        });
+        if (edit) {
+          // Later edits and the selection follow citations the save named differently.
+          const names = savedIds(previewEdit(current, sent) ?? current, next);
+          edits.current = edits.current.filter((item) => item !== edit).map((item) =>
+            "occurrenceId" in item.action && names.has(item.action.occurrenceId)
+              ? { action: { ...item.action, occurrenceId: names.get(item.action.occurrenceId)! } } : item);
+          setSelectedId((id) => names.get(id) ?? id);
+        }
         if (!adopt(next)) return;
         // A refusal stays on screen only until the next edit lands, never as if that edit failed.
         setError("");
-        if (prior) {
-          const unit = next.state.units.find(({ id }) => id === prior.unitId);
-          const items = unit?.occurrenceIds.flatMap((id) =>
-            next.state.occurrences[id] ? [next.state.occurrences[id]] : []) ?? [];
-          const replacement = next.state.occurrences[prior.id] ??
-            (action.type === "split-occurrence"
-              ? items.find(({ start }) => start >= action.cursor)
-              : items.find(({ start, end }) => start <= prior.start && end >= prior.end));
-          if (replacement) setSelectedId(replacement.id);
+        if (!edit) { carryOn(action, current, next); await done?.(next); }
+      } catch (caught) {
+        if (edit) {
+          // The edit is taken back: the view returns to the saved draft and the edits after it.
+          edits.current = edits.current.filter((item) => item !== edit);
+          adopt(draftRef.current);
         }
-        await done?.(next);
-      } catch (caught) { setError(errorText(caught)); }
+        setError(errorText(caught));
+      }
       finally { if (blocking) setPendingActions((count) => Math.max(0, count - 1)); }
     });
   };
@@ -822,20 +879,25 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   async function gatherSources(attempts: number): Promise<void> {
     const current = draftRef.current;
     if (!attempts || !current || current.state.stage !== "citations") return;
+    // An edit stops this request rather than wait for it; gathering resumes once editing rests.
+    const request = new AbortController(); sourcesRequest.current = request;
     try {
-      const next = await serialized(async () => {
+      await serialized(async () => {
         const latest = draftRef.current;
-        return latest?.id === current.id && latest.state.stage === "citations"
-          ? host.prepareSources(latest) : undefined;
+        if (request.signal.aborted || latest?.id !== current.id || latest.state.stage !== "citations") return;
+        const next = await host.prepareSources(latest, request.signal);
+        if (adopt(next)) gathered.current = { id: next.id, revision: next.revision };
       });
-      if (next && adopt(next)) gathered.current = { id: next.id, revision: next.revision };
-    } catch { await gatherSources(attempts - 1); }
+    } catch {
+      if (request.signal.aborted) { sourcesStale.current = true; return; }
+      await gatherSources(attempts - 1);
+    } finally { if (sourcesRequest.current === request) sourcesRequest.current = null; }
   }
   function findSources() {
     if (!draftRef.current) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
     void run(async () => {
-      await gathering.current;
+      await gathering.current; await actionQueue.current;
       const current = draftRef.current;
       if (!current) throw new Error("Open a draft first.");
       const ready = gathered.current.id === current.id && gathered.current.revision === current.revision;
@@ -967,8 +1029,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
                   {reviewing && <><section aria-label="Citations"
                     className="@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
-                    {operation !== "Finding source PDFs" && <CitationReview product={draft} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
-                      selected={selected} authorities={authorities} discrepancies={discrepancies}
+                    {operation !== "Finding source PDFs" && <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
+                      selected={selected} authorities={authorities} discrepancies={findings}
                       busy={busy} onSelect={setSelectedId} onAction={act}
                       onFocusChange={onFocusChange} onReview={setFindingId} />}
                   </section>{quotationReview && <div ref={revealFinding}>{quotationReview}</div>}</>}

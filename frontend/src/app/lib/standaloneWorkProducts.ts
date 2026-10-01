@@ -7,6 +7,7 @@ import {
   type WorkProductMetadata,
   type WorkProductStore,
 } from "./workProducts";
+import { BeaverApiError } from "./api/client";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 
 const DATABASE = "beaver-work-products";
@@ -108,7 +109,9 @@ export const standaloneWorkProducts: WorkProductStore = {
     const store = transaction.objectStore(DRAFTS);
     const current = await request<WorkProduct | undefined>(store.get(id));
     if (!current) throw new Error("This draft no longer exists.");
-    if (current.revision !== patch.revision) throw new Error("This draft changed elsewhere. Reopen it and try again.");
+    // A conflict, as the server reports one, so an edit can apply again to the newer draft.
+    if (current.revision !== patch.revision) throw new BeaverApiError({ status: 409,
+      message: "This draft changed elsewhere. Reopen it and try again." });
     if (patch.outputs !== undefined) {
       throw new Error("Standalone outputs must be saved with their built artifacts.");
     }

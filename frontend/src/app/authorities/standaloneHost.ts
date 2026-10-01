@@ -10,7 +10,7 @@ import {
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
-import { apiResponse } from "@/app/lib/api/client";
+import { apiResponse, BeaverApiError } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
@@ -59,7 +59,8 @@ async function save(id: string, revision: number, state: AuthoritiesDraft) {
 }
 async function currentProduct(id: string, revision: number) {
   const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
-  if (product.revision !== revision) throw new Error("This draft changed. Reopen it and try again.");
+  if (product.revision !== revision)
+    throw new BeaverApiError({ status: 409, message: "This draft changed. Reopen it and try again." });
   return { ...product, state: supportedDraft(product.state) };
 }
 
