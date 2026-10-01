@@ -3,7 +3,7 @@ import { attachAuthoritiesBookPdf, authoritiesReview, updateAuthoritiesDraft } f
 import { createAuthoritiesDraft, type AuthoritiesDraft } from "./authoritiesDomain";
 import type { AuthoritiesDiscrepancy } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
-import { authorityPdfText } from "./authorityPdfText";
+import { authorityPdfOutline, authorityPdfText } from "./authorityPdfText";
 
 vi.mock("./authorityPdfText", () => ({ authorityPdfText: vi.fn(), authorityPdfOutline: vi.fn(async () => []) }));
 const pdfText = vi.mocked(authorityPdfText);
@@ -163,6 +163,17 @@ describe("shared Authorities text preparation", () => {
         ? { passageGeometry: geometry as never } : {}) }));
     expect(await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from("pdf") }))
       .toMatchObject({ passageGeometry: geometry });
+  });
+
+  it("reads the headings of a brief PDF that a final PDF will open with", async () => {
+    const state = markedDraft();
+    state.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf", fileType: "pdf", snapshot: null };
+    state.settings.finalPdf = true;
+    const outline = [{ kind: "heading" as const, level: 0, title: "PART I - FACTS", start: 0, pageIndex: 1 }];
+    vi.mocked(authorityPdfOutline).mockResolvedValueOnce(outline);
+    expect(await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from("pdf") }))
+      .toMatchObject({ outline });
+    expect(authorityPdfOutline).toHaveBeenLastCalledWith(expect.objectContaining({ legislation: false }));
   });
 
   it.each(["unmarked", "table", "excluded"] as const)("does not read or OCR a %s source", async (mode) => {

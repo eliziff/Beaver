@@ -3,7 +3,7 @@ import { quadBounds, rectToPdfQuad, validRect } from "mike/shared/pdf-annotation
 import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/authorities-sources.mjs";
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
-import { pdfAssembly, type PdfOutline } from "./pdfAssembly";
+import { nestedOutline, pdfAssembly, type PdfOutline } from "./pdfAssembly";
 import { authorityProcedureInput, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
@@ -68,9 +68,14 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   catch { throw new Error("The brief PDF could not be opened for final export."); }
   const sourcePages = document.getPageCount();
   if (!sourcePages) throw new Error("The brief PDF is empty.");
+  const filingRole = draft.import.kind !== "document" ? undefined : draft.import.fileType === "pdf"
+    ? draft.import.bindingRole : authoritiesBriefPdf(draft)?.bindingRole;
+  // The brief's own bookmarks, or else the headings read from it.
   const originalOutlines = readOutlines(document);
+  const briefOutline = originalOutlines.length ? originalOutlines
+    : nestedOutline(filingRole ? sources[filingRole]?.outline ?? [] : []);
   const outlines: PdfOutline[] = [{ title: "Brief", pageIndex: 0,
-    ...(originalOutlines.length ? { children: originalOutlines } : {}) }];
+    ...(briefOutline.length ? { children: briefOutline } : {}) }];
   const destinations = new Map<string, { tab: number; pages: Map<number, number> }>();
   for (const output of books) {
     input.signal?.throwIfAborted();
@@ -181,8 +186,6 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
       linked.add(`${kind}:${id}`);
     }
   }
-  const filingRole = draft.import.kind !== "document" ? undefined : draft.import.fileType === "pdf"
-    ? draft.import.bindingRole : authoritiesBriefPdf(draft)?.bindingRole;
   const importedGeometry = filingRole ? sources[filingRole]?.passageGeometry : undefined;
   const verifiedImportedGeometry = importedGeometry?.sourceSha256 === sha256(Buffer.from(sourceBytes))
     ? importedGeometry : undefined;

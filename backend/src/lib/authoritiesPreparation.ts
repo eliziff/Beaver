@@ -46,17 +46,18 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
       input.signal?.throwIfAborted();
       const attached = plan.authoritySources.find(({ source }) => source.bindingRole === role);
       const authority = attached?.authority;
-      // The book nests each authority's own headings and sections under its tab.
-      const outline = authority && draft.outputMode !== "table" ? await authorityPdfOutline({ ...input,
-        legislation: authority.kind === "legislation" }).catch((error) => {
-        if (input.signal?.aborted) throw error;
-        return [];
-      }) : [];
-      const outlined = outline.length ? { outline } : {};
-      if (!textRoles.has(role)) return { pageBindings: undefined, ...outlined };
       const brief = plan.briefPdf?.bindingRole === role;
       const filing = brief || !authority && draft.import.kind === "document" &&
         draft.import.fileType === "pdf" && role === draft.import.bindingRole;
+      // The book nests each authority's own headings and sections under its tab; a final PDF
+      // without bookmarks of its own is outlined by the brief's headings.
+      const outline = authority && draft.outputMode !== "table" || filing && draft.settings.finalPdf
+        ? await authorityPdfOutline({ ...input, legislation: authority?.kind === "legislation" }).catch((error) => {
+          if (input.signal?.aborted) throw error;
+          return [];
+        }) : [];
+      const outlined = outline.length ? { outline } : {};
+      if (!textRoles.has(role)) return { pageBindings: undefined, ...outlined };
       const targets = authority ? authorityPassageTargets(draft, authority.id)
         : filing && !brief ? authorityFilingTargets(draft) : [];
       const linkGeometry = !!(draft.settings.finalPdf && draft.settings.linkPinpoints);
