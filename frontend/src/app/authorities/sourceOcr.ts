@@ -9,7 +9,7 @@ import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 export type ScannedPdf = { role: string; name: string; sourceSha256: string; textlessPages: number[]; priorityPages?: number[]; demand?: string };
 /** `pages` is the pass being read now (empty for the whole PDF); `recognized` is what it has finished. */
 export type SourceOcrStatus = ScannedPdf & { documentId?: string; pages?: number[]; recognized: number;
-  error?: string; state: "running" | "paused" | "cancelled" | "done" | "failed" };
+  error?: string; waiting?: boolean; state: "running" | "paused" | "cancelled" | "done" | "failed" };
 
 /** What a step needs to watch and steer recognition, without owning it. */
 export type SourceOcrPanel = Pick<ReturnType<typeof useSourceOcr>, "tracked" | "begin" | "stop">;
@@ -79,13 +79,14 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
           // A pass is opaque while it runs, so pages count as recognized only once it ends:
           // the cited pages when the whole-PDF pass takes over, the whole PDF when it finishes.
           const updated: SourceOcrStatus = { ...item, pages: state.pages ?? [], error: state.error,
+            waiting: !state.done && !!state.waiting,
             recognized: state.recognized ?? (state.done ? state.pages?.length
               ? Math.max(item.recognized, item.textlessPages.filter(page => state.pages!.includes(page)).length)
               : item.textlessPages.length
               : state.pages?.length ? item.recognized
                 : Math.max(item.recognized, item.pages?.length ?? 0)),
             state: state.done ? "done" : state.error ? "failed" : "running" };
-          const same = updated.state === item.state && updated.error === item.error &&
+          const same = updated.state === item.state && updated.error === item.error && updated.waiting === item.waiting &&
             updated.recognized === item.recognized && updated.pages!.join() === (item.pages ?? []).join();
           if (!same) changed = true;
           return [role, same ? item : updated];
