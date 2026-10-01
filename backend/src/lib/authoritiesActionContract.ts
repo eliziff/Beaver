@@ -36,7 +36,7 @@ export const authoritiesProfileIds = profiles.map(({ id }) => id);
 export const authorityKinds = ["case", "legislation", "commentary", "other"] as const;
 export const AUTHORITIES_ACTION_CHOICES = {
   reference: ["short", "supra", "ibid"], locator: ["paragraph", "section", "page"],
-  outputMode: ["table", "book", "both"], slot: ["cover", "index"],
+  outputMode: ["table", "book", "both"], slot: ["cover", "index", "brief"],
   stage: ["citations", "sources", "highlights", "build"],
   discrepancy: ["ignore", "pinpoint", "quote_exact", "quote_editorial"],
 } as const;

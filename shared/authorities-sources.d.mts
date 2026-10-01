@@ -23,6 +23,8 @@ export type AuthoritiesBookParts = {
   cover: AuthoritiesBoundPdf | null;
   index: AuthoritiesBoundPdf | null;
   supplements: AuthoritiesBookSupplement[];
+  /** A PDF of the Word brief, for a final PDF where no Word converter runs. */
+  brief?: AuthoritiesBoundPdf | null;
 };
 
 type SourceDraft<Binding = unknown> = {
@@ -73,6 +75,12 @@ export function authoritySourceRequirement(draft: RequirementDraft, authority: R
 export function authorityReproducedInBook(draft: BookDraft,
   authority: RequirementAuthority & { excluded: boolean }): boolean;
 export function authoritiesBookPdfs(draft: Pick<SourceDraft, "bookParts">): AuthoritiesBoundPdf[];
+export const AUTHORITIES_BOOK_SLOTS: readonly ["cover", "index", "supplemental", "brief"];
+export type AuthoritiesBookSlot = typeof AUTHORITIES_BOOK_SLOTS[number];
+export function authoritiesBriefPdf(draft: Pick<SourceDraft, "bookParts"> & {
+  import: { kind: "manual" } | { kind: "document"; fileType?: "pdf" | "docx" };
+  settings?: { finalPdf?: boolean };
+}): AuthoritiesBoundPdf | null;
 export function removeUnusedBinding(draft: SourceDraft, role: string | undefined): void;
 export function replaceSource(draft: SourceDraft, authority: SourceAuthority,
   source: AuthoritySourceDecision): void;
@@ -90,6 +98,7 @@ export function authoritiesInputPlan<A extends SourceAuthority & { excluded: boo
 }, requirements?: AuthoritySourceRequirements | null): {
   authoritySources: Array<{ authority: A; source: AttachedAuthoritySource }>;
   bookPdfs: AuthoritiesBoundPdf[];
+  briefPdf: AuthoritiesBoundPdf | null;
   bookRoles: Set<string>;
   byteRoles: Set<string>;
 };

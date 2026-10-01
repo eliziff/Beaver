@@ -1,7 +1,8 @@
 import { decodePdfProfileSelection } from "../lib/documentStore";
 import { authorityCitationForms } from "../lib/authoritiesDomain";
 import { documentProjectionService } from "../lib/documentProjectionService";
-import { docxToPdf } from "../lib/convert";
+import { docxToPdf, wordToPdfAvailable } from "../lib/convert";
+import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { Router, type Request, type RequestHandler, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -120,6 +121,7 @@ export function createAuthoritiesRuntimeRouter(
   reviewDiscrepancies: typeof reviewAuthoritiesDiscrepancies = reviewAuthoritiesDiscrepancies,
 ) {
   const router = Router(); router.use(authenticate);
+  router.get("/capabilities", (_req, res) => void res.json({ wordToPdf: wordToPdfAvailable() }));
   router.post("/quote-check", asyncRoute(async (req, res) => {
     const state = draft(req.body?.draft), links = decodeQuoteLinks(req.body?.links);
     const abort = new AbortController();
@@ -295,7 +297,7 @@ export function createAuthoritiesRuntimeRouter(
       await checkCanliiPdf(current, authority.id, bytes);
       res.json(attachAuthorityPdf(current, authority, binding, filename, sourceSha256, language));
     } else {
-      const slot = (["cover", "index", "supplemental"] as const).find(value => value === req.body?.slot)
+      const slot = AUTHORITIES_BOOK_SLOTS.find(value => value === req.body?.slot)
         ?? reject(400, "Book-part slot is invalid");
       const supplementId = req.body?.supplement_id;
       if (supplementId !== undefined && (typeof supplementId !== "string" || !supplementId.trim() ||
@@ -345,7 +347,7 @@ export function createAuthoritiesRuntimeRouter(
     let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,
       workProduct: { id, revision }, sources, signal: build.signal,
-      finalPdfSource: async (bytes) => docxToPdf(Buffer.from(bytes)),
+      ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
     }, state.settings.finalPdf ? undefined : async (prepared) => {
       book = prepared; return [];
     }).catch((error) => {

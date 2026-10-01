@@ -1,12 +1,13 @@
 import * as pdf from "pdf-lib";
 import { quadBounds, rectToPdfQuad, validRect } from "mike/shared/pdf-annotations.mjs";
-import { attachedAuthoritySources } from "mike/shared/authorities-sources.mjs";
-import type { AuthoritiesBuildReceipt, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
+import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/authorities-sources.mjs";
+import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
 import { pdfAssembly, type PdfOutline } from "./pdfAssembly";
 import { authorityProcedureInput, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
+import { normalizedWords } from "./structureNative";
 
 const { appendPages, applyOutlines, destinationReader } = pdfAssembly(pdf);
 const LINK_PREFIX = "https://beaver-authorities.invalid/";
@@ -19,6 +20,44 @@ export function filingTabText(unitText: string, occurrence: AuthorityOccurrence,
   const following = unitText.slice(occurrence.end).trimStart();
   return tab && [`[${tab}]`, `[Book of authorities ${tab}]`].find((text) => following.startsWith(text)) ||
     occurrence.authoritySpan.text;
+}
+
+/** The page of each citation in a PDF saved from the Word brief. The brief's words are read
+ *  in order, body and notes each onward from their last match, so a repeated citation keeps
+ *  its place; a citation that cannot be placed gets no page. */
+export function briefOccurrencePages(draft: AuthoritiesDraft, pageTextByPage: string[]) {
+  const words = pageTextByPage.flatMap((text, index) => normalizedWords(text).map((word) => ({ word, page: index + 1 })));
+  const positions = new Map<string, number[]>();
+  words.forEach(({ word }, at) => positions.get(word)?.push(at) ?? positions.set(word, [at]));
+  const find = (needle: string[], from: number) => positions.get(needle[0] ?? "")?.find((at) => at >= from &&
+    needle.every((word, offset) => words[at + offset]?.word === word)) ?? -1;
+  const cursors = { body: 0, note: 0 }, pages = new Map<string, number>();
+  for (const unit of draft.units) for (const id of unit.occurrenceIds) {
+    const occurrence = draft.occurrences[id], stream = unit.footnoteId === null ? "body" : "note";
+    if (!occurrence) continue;
+    const before = normalizedWords(unit.text.slice(0, occurrence.start)).slice(-4);
+    const core = normalizedWords(occurrence.text), after = normalizedWords(unit.text.slice(occurrence.end)).slice(0, 4);
+    // Surrounding words make a repeated citation unique; a tab reference or note mark can break either side.
+    const cursor = cursors[stream], attempts: Array<[string[], number, number]> = [
+      [[...before, ...core, ...after], before.length, cursor], [[...before, ...core], before.length, cursor],
+      [[...core, ...after], 0, cursor], [core, 0, cursor], [[...before, ...core, ...after], before.length, 0]];
+    for (const [needle, skip, from] of attempts) {
+      const at = needle.length > 1 ? find(needle, from) : -1;
+      if (at < 0) continue;
+      pages.set(id, words[at + skip].page); cursors[stream] = at + needle.length; break;
+    }
+  }
+  return pages;
+}
+
+/** Fails, saying how, when a supplied brief PDF is not a PDF of this brief. */
+export function assertBriefPdfMatches(draft: AuthoritiesDraft, pageTextByPage: string[], filename: string) {
+  const cited = Object.values(draft.occurrences).filter(({ authorityId }) =>
+    authorityId && !draft.authorities[authorityId]?.excluded);
+  const pages = briefOccurrencePages(draft, pageTextByPage), found = cited.filter(({ id }) => pages.has(id)).length;
+  if (found * 2 < cited.length) throw new Error(`${filename} doesn't match this brief: ${found} of ${cited.length} ` +
+    `citations are in it. In Word, save ${draft.import.kind === "document" ? draft.import.filename : "the brief"} ` +
+    "as PDF and upload that file.");
 }
 
 function pdfOutlines(document: pdf.PDFDocument, offset = 0): PdfOutline[] {
@@ -161,8 +200,9 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
       linked.add(`${kind}:${id}`);
     }
   }
-  const importedGeometry = draft.import.kind === "document" && draft.import.fileType === "pdf"
-    ? sources[draft.import.bindingRole]?.passageGeometry : undefined;
+  const filingRole = draft.import.kind !== "document" ? undefined : draft.import.fileType === "pdf"
+    ? draft.import.bindingRole : authoritiesBriefPdf(draft)?.bindingRole;
+  const importedGeometry = filingRole ? sources[filingRole]?.passageGeometry : undefined;
   const verifiedImportedGeometry = importedGeometry?.sourceSha256 === sha256(Buffer.from(sourceBytes))
     ? importedGeometry : undefined;
   for (const occurrence of Object.values(draft.occurrences)) {
@@ -172,10 +212,14 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
       if (!(kind === "tab" ? draft.settings.linkTabs : draft.settings.linkPinpoints && occurrence.pinpointSpan &&
         attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"))) continue;
       if (linked.has(`${kind}:${occurrence.id}`)) continue;
-      const quoteText = kind === "tab" ? filingTabText(unitTexts.get(occurrence.unitId) ?? "", occurrence,
-        tabs.get(authority.id)) : occurrence.pinpointSpan!.text;
+      const tab = tabs.get(authority.id);
+      // A brief saved from the Word output carries its tab reference; link that when present.
+      const quoteTexts = kind === "tab" ? [`[${tab}]`, `[Book of authorities ${tab}]`,
+        filingTabText(unitTexts.get(occurrence.unitId) ?? "", occurrence, tab)] : [occurrence.pinpointSpan!.text];
       const geometryTarget = verifiedImportedGeometry?.targets.find(({ id }) => id === `filing:${occurrence.id}`);
-      const quote = geometryTarget?.quotes.find(({ text }) => text === quoteText);
+      const quotes = geometryTarget?.quotes.filter(({ text }) => quoteTexts.includes(text)) ?? [];
+      const quote = quoteTexts.map((text) => quotes.find((item) => item.text === text && item.status === "found"))
+        .find(Boolean) ?? quotes[0];
       const fragments = quote?.fragments?.length ? quote.fragments : quote?.pageNumber
         ? [{ pageNumber: quote.pageNumber, rects: quote.rects }] : [];
       if (quote?.status !== "found" || !fragments.length || fragments.some(({ pageNumber, rects }) => {

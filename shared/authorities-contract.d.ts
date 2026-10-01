@@ -159,7 +159,7 @@ export type AuthoritiesUserAction =
       reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null }
   | { type: "begin-canlii-handoff"; authorityId: string }
   | { type: "clear-authority-source"; authorityId: string }
-  | { type: "clear-book-part"; slot: "cover" | "index" }
+  | { type: "clear-book-part"; slot: "cover" | "index" | "brief" }
   | { type: "remove-book-supplement"; id: string }
   | { type: "set-cover"; cover: AuthoritiesCover }
   | { type: "set-profile"; profileId: AuthoritiesProfileId }

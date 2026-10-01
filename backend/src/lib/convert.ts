@@ -36,6 +36,10 @@ export function resolveSofficeBinary(): string | null {
   return selected ? realpathSync(selected) : null;
 }
 
+let wordToPdf: boolean | undefined;
+/** Whether this host can turn a Word brief into PDF itself; asked once per process. */
+export const wordToPdfAvailable = () => wordToPdf ??= resolveSofficeBinary() !== null;
+
 function xmlElements(nodes: XNode[], wanted: string): XNode[] {
   return nodes.flatMap((node) => [
     ...(elName(node)?.split(":").at(-1) === wanted ? [node] : []),

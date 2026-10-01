@@ -89,9 +89,9 @@ export type AuthoritiesAction =
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "set-source-verification"; authorityId: string; pageUrl: string | null }
   | { type: "begin-canlii-handoff"; authorityId: string; pageUrl: string }
-  | { type: "set-book-part"; slot: "cover" | "index"; pdf: AuthoritiesBoundPdf;
+  | { type: "set-book-part"; slot: "cover" | "index" | "brief"; pdf: AuthoritiesBoundPdf;
       binding: WorkProductInput }
-  | { type: "clear-book-part"; slot: "cover" | "index" }
+  | { type: "clear-book-part"; slot: "cover" | "index" | "brief" }
   | { type: "set-book-supplement"; supplement: AuthoritiesBookSupplement;
       binding: WorkProductInput }
   | { type: "remove-book-supplement"; id: string }
@@ -172,7 +172,7 @@ const boundPdfFields = { bindingRole: trimmed(200), filename: trimmed(500),
 const boundPdf = closed<AuthoritiesBoundPdf>(boundPdfFields);
 const bookSupplement = closed<AuthoritiesBookSupplement>({ id: trimmed(200), ...boundPdfFields });
 const bookParts = closed<AuthoritiesBookParts>({ cover: nullable(boundPdf),
-  index: nullable(boundPdf), supplements: list(500, bookSupplement) });
+  index: nullable(boundPdf), supplements: list(500, bookSupplement), brief: maybe(nullable(boundPdf)) });
 
 const partyGroup = closed<AuthoritiesCover["partyGroups"][number]>({ role: plain(100),
   parties: list(50, plain(500)) });
@@ -1147,6 +1147,7 @@ export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
     };
     if (draft.bookParts.cover) claim(draft.bookParts.cover, "the custom cover");
     if (draft.bookParts.index) claim(draft.bookParts.index, "the custom index");
+    if (draft.bookParts.brief) claim(draft.bookParts.brief, "the brief PDF");
     const ids = new Set<string>();
     for (const supplement of draft.bookParts.supplements) {
       if (ids.has(supplement.id)) errors.push(`Duplicate supplement: ${supplement.id}`);
