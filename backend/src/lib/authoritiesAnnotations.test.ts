@@ -141,7 +141,7 @@ it('places one paragraph line to the left of its complete extent', () => {
 it('abstains from inferred manual paragraph extents and accepts detached printed-number witnesses', () => {
   const hash = 'a'.repeat(64), source = geometry(hash);
   source.targets[0].pages[0].text = 'Fixture judgment / public synthetic';
-  source.targets[0].printedLocators = [];
+  source.targets[0].printed = false;
   source.targets[0].quotes = [];
   for (const style of ['paragraph', 'margin', 'sidelined'] as const) {
     const result = initialAuthorityAnnotations({ sourceSha256: hash, style, geometry: source,
@@ -149,12 +149,12 @@ it('abstains from inferred manual paragraph extents and accepts detached printed
     expect(result.annotations.marks).toEqual([]);
     expect(result.pageMarked).toEqual([]);
   }
-  source.targets[0].printedLocators = ['42'];
+  source.targets[0].printed = true;
   const proved = initialAuthorityAnnotations({ sourceSha256: hash, style: 'paragraph', geometry: source,
     pages: [{ width: 400, height: 500 }], citedPages: new Set(), requirePrintedParagraphLocator: true });
   expect(proved.annotations.marks).toHaveLength(1);
   expect(proved.annotations.marks[0].fragments[0].rects[0]).toEqual([.1, .08, .8, .36]);
-  source.targets[0].printedLocators = [];
+  source.targets[0].printed = false;
   const existingPolicy = initialAuthorityAnnotations({ sourceSha256: hash, style: 'paragraph', geometry: source,
     pages: [{ width: 400, height: 500 }], citedPages: new Set() });
   expect(existingPolicy.annotations.marks).toHaveLength(1);

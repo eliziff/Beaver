@@ -145,12 +145,12 @@ it("locates a numeric pinpoint within a unique citation and abstains on repeated
 });
 
 it("distinguishes printed paragraph labels from an inferred paragraph number", async () => {
-  for (const [text, printed] of [["[29] A printed numbered paragraph.", ["29"]],
-    ["Unnumbered source text has no printed paragraph label.", []]] as const) {
+  for (const [text, printed] of [["[29] A printed numbered paragraph.", true],
+    ["Unnumbered source text has no printed paragraph label.", false]] as const) {
     const bytes = sourcePdf(text), document = await structureNative().derivePdfDocument(bytes, {});
     const result = await pdfPassageGeometry(document, bytes, [{ id: "paragraph", locatorKind: "paragraph",
-      locator: printed.length ? "29" : "1" }]);
-    expect(result.targets[0].printedLocators).toEqual(printed);
+      locator: printed ? "29" : "1" }]);
+    expect(result.targets[0].printed).toBe(printed);
   }
 });
 

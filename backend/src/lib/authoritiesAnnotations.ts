@@ -11,15 +11,9 @@ export const normalizePassageRect = (rect: number[], width: number, height: numb
   [rect[0] / width, rect[1] / height, rect[2] / width, rect[3] / height]
     .map(v => Math.min(1, Math.max(0, v))) as AnnotationRect;
 
-export function hasPrintedParagraphLocator(target: NativePdfPassageGeometry['targets'][number]) {
-  if (target.locatorKind !== 'paragraph') return true;
-  return target.locator.split(/\s*[-\u2013\u2014]\s*/u).every(label => {
-    if (!/^\d+$/u.test(label)) return false;
-    if (target.printedLocators) return target.printedLocators.includes(label);
-    const printed = new RegExp(String.raw`(?:^|\n)\s*(?:\[\s*${label}\s*\]|\(${label}\)|${label}[.)])(?=\s|$)`, 'u');
-    return target.pages.some(({ text }) => printed.test(text ?? ''));
-  });
-}
+/** A paragraph pinpoint is located only by its printed number, which the engine witnesses. */
+export const hasPrintedParagraphLocator = (target: NativePdfPassageGeometry['targets'][number]) =>
+  target.locatorKind !== 'paragraph' || target.printed === true;
 
 /** Both pre-build review and unreviewed exports use these exact initial marks. */
 export function initialAuthorityAnnotations(input: {
