@@ -21,6 +21,8 @@ export async function authorityPdfText(input: {
   passageTargets?: NativePdfPassageTarget[] | ((pageTextByPage: string[]) => NativePdfPassageTarget[]);
   ocrTargets?: NativePdfPassageTarget[];
   scannedPdfPolicy?: AuthoritiesBuildSettings["scannedPdfPolicy"];
+  /** Every page's text, read one page at a time; a caller that places only by geometry skips it. */
+  pageText?: boolean;
   signal?: AbortSignal;
 }, projection: Projection = documentProjectionService) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
@@ -102,7 +104,7 @@ export async function authorityPdfText(input: {
   const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);
   const pageTextByPage: string[] = [], pageCount = Math.min(native.pageCount, input.maxPages ?? native.pageCount);
   // Bound concurrent page requests rather than opening hundreds of page lookups at once.
-  for (let offset = 0; offset < pageCount; offset += 8) {
+  for (let offset = 0; input.pageText !== false && offset < pageCount; offset += 8) {
     input.signal?.throwIfAborted();
     const lookups = await Promise.all(Array.from({ length: Math.min(8, pageCount - offset) }, async (_, at) => {
       const index = offset + at;
