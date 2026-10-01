@@ -7,13 +7,11 @@
 
 export const TASK_SCHEMA = "mike.docx-edit.task.v1";
 export const MANIFEST_SCHEMA = "mike.docx-edit.manifest.v1";
-export const BENCH_VERSION = "docx-edit-bench-v2";
+export const BENCH_VERSION = "docx-edit-bench-v3";
 
 /**
- * Task sets are ADDITIVE. v1's tasks, fixtures and checks are frozen so its
- * published result stays comparable; v2 adds tasks and fixtures in their own
- * files and never edits v1's. A run selects a set, and a receipt records
- * which one it scored.
+ * Sets select the remaining public tasks. Privacy withdrawals change corpus
+ * membership; v3 results must not be compared with earlier aggregate scores.
  */
 export const TASK_SETS = ["v1", "v2"] as const;
 export type TaskSet = (typeof TASK_SETS)[number];

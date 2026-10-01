@@ -73,6 +73,7 @@ filenames; they do not certify fixture provenance or detect every kind of secret
 Review new test/eval inputs separately: genuine user prompts and private context
 must not become published fixtures, even through paraphrasing or a machine test.
 Keep the behavior being tested and independently invent the scenario and data.
+The checker also blocks the withdrawn fixture paths and their reachable history.
 
 For a release candidate, run both complete application test/build suites and the
 launcher-owned production smoke:

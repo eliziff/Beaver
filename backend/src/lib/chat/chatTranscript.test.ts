@@ -201,12 +201,12 @@ it("replays tool pairs, steering and the host answer without leaking private eve
   expect(parseAssistantEvent(step)).not.toBeNull();
   expect(publicAssistantEvent(step)).toBeNull();
   const projected = projectChatTranscript([message("assistant", [step,
-    { type: "steering", id: "s1", text: "Do not change the indemnity clause." },
+    { type: "steering", id: "s1", text: "Preserve heading ZETA." },
     { type: "content", text: "Display-only answer" },
   ])]);
   expect(projected).toHaveLength(3);
   expect(projected[0].modelState?.messages).toEqual(step.messages);
-  expect(projected[1]).toEqual({ role: "user", content: "Do not change the indemnity clause." });
+  expect(projected[1]).toEqual({ role: "user", content: "Preserve heading ZETA." });
   expect(projected[2]).toEqual({ role: "assistant", content: "Display-only answer" });
 });
 

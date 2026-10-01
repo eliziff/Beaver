@@ -400,10 +400,10 @@ it("replays steering arriving at an otherwise final response without losing earl
   const { bodies } = transport([() => gemini([{ text: "First answer." }]), () => gemini([{ text: "Corrected answer." }])]);
   let steered = false;
   const result = await streamHosted({ ...params, tools: [], takeSteering: () => {
-    if (steered) return []; steered = true; return [{ id: "s", text: "Do not change the indemnity." }];
+    if (steered) return []; steered = true; return [{ id: "s", text: "Preserve heading ZETA." }];
   } });
   expect(result.fullText).toContain("Corrected answer.");
-  expect(JSON.stringify(bodies[1].contents)).toContain("Do not change the indemnity.");
+  expect(JSON.stringify(bodies[1].contents)).toContain("Preserve heading ZETA.");
   expect(JSON.stringify(bodies[1].contents)).toContain("First answer.");
   expect(result.usage?.inputTokens).toBe(24);
 });
@@ -413,7 +413,7 @@ it("uses the native compaction summary for display without leaking it into answe
     { type: "message_start", message: { id: "m1", type: "message", role: "assistant", model: "claude-sonnet-4-6",
       content: [], usage: { input_tokens: 10, output_tokens: 0 } } },
     { type: "content_block_start", index: 0, content_block: { type: "compaction", content: "" } },
-    { type: "content_block_delta", index: 0, delta: { type: "compaction_delta", content: "Retain the indemnity restriction." } },
+    { type: "content_block_delta", index: 0, delta: { type: "compaction_delta", content: "Retain the heading constraint." } },
     { type: "content_block_stop", index: 0 },
     { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
     { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Answer" } },
@@ -426,7 +426,7 @@ it("uses the native compaction summary for display without leaking it into answe
   const result = await streamHosted({ ...params, model: "claude-sonnet-4-6", tools: [],
     callbacks: { onCompaction: compact, onModelMessages: saved } });
   expect(result.fullText).toBe("Answer");
-  expect(compact).toHaveBeenCalledWith("completed", { provider: "claude", summary: "Retain the indemnity restriction." });
+  expect(compact).toHaveBeenCalledWith("completed", { provider: "claude", summary: "Retain the heading constraint." });
   expect(saved.mock.calls[0][0].compacted).toBe(true);
 });
 
