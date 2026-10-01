@@ -71,11 +71,12 @@ function occurrenceSpans(unitText: string, authority: Span, core: Span,
       { pinpointPhrase: span(phrase) }) };
 }
 
-/** Format an already parsed range; never infer ranges from gaps between tokens. */
+/** Format an already parsed range; never infer ranges from gaps between tokens. A single
+ *  pinpoint names its locator as the engine reads it: "110ff" locates para 110. */
 export function pinpointValues<Kind extends string>(
-  pinpoints: ReadonlyArray<{ kind: Kind; text: string; last?: string | null }>) {
-  return pinpoints.map(({ kind, text, last }) => ({ kind,
-    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : text }));
+  pinpoints: ReadonlyArray<{ kind: Kind; text: string; first?: string; last?: string | null }>) {
+  return pinpoints.map(({ kind, text, first, last }) => ({ kind,
+    text: last ? text.replace(/\s*(?:[-\u2013\u2014]|to)\s*/gu, "-") : first ?? text }));
 }
 export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);
@@ -274,6 +275,7 @@ async function scanReview(
     .filter(({ fields }) => isObservedSourceUrl(fields.link_candidate) &&
       !fields.reasons.includes("embedded_second_source")) : [];
   const sourceGroups = new Map<string, string>();
+  const unkeyed = new Map<string, string>();
   for (const group of result.authorities) {
     const full = group.map((index) => byIndex.get(index))
       .filter((citation): citation is Citation => citation?.form === "full");
@@ -291,8 +293,12 @@ async function scanReview(
       (url ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
     if (!representative) continue;
     // A document-local review identity keeps unkeyed sources visible without
-    // asserting a bibliographic identity or merging separate engine groups.
-    const key = full.length && representative.key || `scan:${documentHash}:${representative.index}`;
+    // asserting a bibliographic identity; a citation written alike, style and all, names one.
+    const written = full.length ? `${representative.style?.text ?? ""} ${representative.span.text}`
+      .replace(/\s+/gu, " ").trim() : null;
+    const key = full.length && representative.key || written && unkeyed.get(written) ||
+      `scan:${documentHash}:${representative.index}`;
+    if (written) unkeyed.set(written, key);
     group.forEach((index) => authorityOf.set(index, key));
     if (authorities[key]) continue;
     const sourceLink = source?.fields.link_candidate ?? url;
@@ -379,7 +385,8 @@ async function scanReview(
           ? { kind: citation.form, targetAuthorityId: authorityId } : null,
         referenceKind: citation.form === "short" || citation.form === "ibid" || citation.form === "supra"
           ? citation.form : undefined,
-        pinpoints: pinpointValues(pinpoints.map(({ kind, span, last }) => ({ kind, text: span.text, last }))),
+        pinpoints: pinpointValues(pinpoints.map(({ kind, span, first, last }) =>
+          ({ kind, text: span.text, first, last }))),
         evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
     }
     return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
