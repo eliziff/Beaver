@@ -5,7 +5,7 @@ import { authorityCitationForms, createAuthoritiesDraft,
   type AuthoritiesDraft } from "./authoritiesDomain";
 import { authoritySourceServices, resolveAuthoritiesSources,
   type SourceServices } from "./authoritiesSourceResolution";
-import { A2AJLimited } from "./legalSources/a2aj";
+import { A2AJUnavailable } from "./legalSources/a2aj";
 
 /** A body sentence carrying two citations and one pinpoint, as the scan leaves it. */
 const TEXT = "The duty of honest performance was recognized in Bhasin v Hrynew, 2014 SCC 71 " +
@@ -154,14 +154,44 @@ describe("Authorities citation boundary actions", () => {
     expect(resolved.authorities[jordanAuthority].sourceIdentity?.stableSourceId).toBe("a2aj:en:scc:2016 scc 27");
   });
 
-  it("says the legal-source service is limiting lookups instead of reporting every source missing", async () => {
-    const draft = { ...stringCite(), outputMode: "table" as const };
-    const limited = { ...authoritySourceServices, resolve: vi.fn(async () => { throw new A2AJLimited(); }),
-      resolveForeign: async () => null } as unknown as SourceServices;
-    await expect(resolveAuthoritiesSources(draft, limited)).rejects.toMatchObject({ status: 503,
-      message: expect.stringContaining("limiting requests") });
-    // A lookup the limit refused is not asked again within the same search.
-    expect(limited.resolve).toHaveBeenCalledTimes(Object.keys(draft.authorities).length);
+  it("records which lookups A2AJ left unanswered and retries them only after its window", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2020, 0, 1) });
+    try {
+      const draft = { ...stringCite(), outputMode: "table" as const };
+      const [jordan, bhasin] = draft.units[0].occurrenceIds.map(id => draft.occurrences[id].authorityId!);
+      const until = Date.now() + 90_000;
+      let limit = true;
+      const resolve = vi.fn(async (citation: string) => {
+        if (citation === "2016 SCC 27") return { citation, alternateCitation: null, name: "R v Jordan",
+          date: "2016-07-08", url: "https://example.test/jordan", publisherUrl: null, dataset: "SCC",
+          language: "en" as const, searchText: "", verifiedPdf: null, native: {} };
+        if (limit) throw new A2AJUnavailable("rate-limited", until);
+        return null;
+      });
+      const services = { ...authoritySourceServices, resolve, resolveForeign: async () => null,
+        revision: () => "a".repeat(64) } as unknown as SourceServices;
+      const { draft: partial } = await resolveAuthoritiesSources(draft, services);
+      // One authority found, the other named as unchecked with A2AJ's own retry time.
+      expect(partial.authorities[jordan].sourceIdentity?.stableSourceId).toBe("a2aj:en:scc:2016 scc 27");
+      expect(partial.authorities[jordan].sourceLookupFailure).toBeUndefined();
+      expect(partial.authorities[bhasin].sourceLookupFailure).toEqual({ reason: "rate-limited",
+        retryAfter: new Date(until).toISOString() });
+      // Its other citation forms are not asked during the outage.
+      expect(resolve.mock.calls.filter(([citation]) => citation !== "2016 SCC 27")).toHaveLength(1);
+
+      // A retry inside the window asks nothing and keeps the reason.
+      resolve.mockClear();
+      const { draft: early } = await resolveAuthoritiesSources(partial, services, undefined, bhasin);
+      expect(resolve).not.toHaveBeenCalled();
+      expect(early.authorities[bhasin].sourceLookupFailure?.reason).toBe("rate-limited");
+      // After it, only the unanswered lookup is asked again; a definite miss clears the failure.
+      vi.setSystemTime(until + 1000); limit = false;
+      const { draft: retried } = await resolveAuthoritiesSources(early, services, undefined, bhasin);
+      expect(resolve.mock.calls.every(([citation]) => citation !== "2016 SCC 27")).toBe(true);
+      expect(resolve).toHaveBeenCalled();
+      expect(retried.authorities[bhasin].sourceLookupFailure).toBeUndefined();
+      await expect(resolveAuthoritiesSources(retried, services, undefined, bhasin)).rejects.toMatchObject({ status: 409 });
+    } finally { vi.useRealTimers(); }
   });
 
   it("decodes the boundary actions the assistant sends", () => {

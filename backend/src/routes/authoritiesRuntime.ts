@@ -19,7 +19,8 @@ import { reviewAuthoritiesDiscrepancies } from "../lib/authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, attachAuthorityPdf,
   checkCanliiPdf, attachAuthoritiesBookPdf, authoritiesReview } from "../lib/authoritiesActions";
 import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
-import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
+import { resolveAuthoritiesSources, retryableAuthoritySource,
+  type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
 import { followedRoute } from "../lib/followedRoute";
@@ -254,8 +255,8 @@ export function createAuthoritiesRuntimeRouter(
     const current = draft(req.body?.draft);
     const onlyAuthorityId = req.body?.authorityId === undefined
       ? undefined : text(req.body.authorityId, 200);
-    if (onlyAuthorityId && !current.authorities[onlyAuthorityId]?.sourceVerificationUrl)
-      reject(409, "This authority has no publisher check to retry.");
+    if (onlyAuthorityId && !retryableAuthoritySource(current, onlyAuthorityId))
+      reject(409, "This authority has nothing to retry.");
     const prepared = await resolveSources(current, undefined, preparation.signal, onlyAuthorityId, progress);
     await sendDraft(res, attachPreparedSources(prepared.draft, prepared.attachments),
       prepared.attachments);

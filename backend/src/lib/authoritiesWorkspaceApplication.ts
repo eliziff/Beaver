@@ -20,7 +20,8 @@ import { createAuthoritiesImporter, type AuthoritiesImporter, type AuthoritiesIm
   type GroundedReceiptSeed } from "./authoritiesImport";
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "./authoritiesPreparation";
-import { authoritySourceServices, resolveAuthoritiesSources, type SourceServices } from "./authoritiesSourceResolution";
+import { authoritySourceServices, resolveAuthoritiesSources, retryableAuthoritySource,
+  type SourceServices } from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
@@ -419,8 +420,8 @@ export function createAuthoritiesWorkspaceApplication(
     async prepareSources(scope: ApplicationScope, id: string, revision: number,
       signal?: AbortSignal, onlyAuthorityId?: string, progress?: Progress) {
       const { product, draft } = await edit(scope, id, revision);
-      if (onlyAuthorityId && !draft.authorities[onlyAuthorityId]?.sourceVerificationUrl)
-        throw new ApplicationError(409, "This authority has no publisher check to retry.");
+      if (onlyAuthorityId && !retryableAuthoritySource(draft, onlyAuthorityId))
+        throw new ApplicationError(409, "This authority has nothing to retry.");
       const resolved = await resolveSources(scope,
         onlyAuthorityId ? draft : await followLatestBindings(scope, draft, signal),
         product.projectId, signal, onlyAuthorityId, progress);

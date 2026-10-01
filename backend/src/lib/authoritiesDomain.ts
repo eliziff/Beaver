@@ -4,7 +4,7 @@ import type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure,
 } from "mike/shared/authorities-contract.d.ts";
 export type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
@@ -12,7 +12,7 @@ export type {
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
   AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
-  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence,
+  AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure,
 };
 
 import { attachAuthoritySource, attachedAuthoritySources,
@@ -88,6 +88,7 @@ export type AuthoritiesAction =
       origin?: "manual" | "original" | "reconstructed" }
   | { type: "clear-authority-source"; authorityId: string }
   | { type: "set-source-verification"; authorityId: string; pageUrl: string | null }
+  | { type: "set-source-lookup-failure"; authorityId: string; failure: AuthoritySourceLookupFailure | null }
   | { type: "begin-canlii-handoff"; authorityId: string; pageUrl: string }
   | { type: "set-book-part"; slot: "cover" | "index" | "brief"; pdf: AuthoritiesBoundPdf;
       binding: WorkProductInput }
@@ -226,6 +227,9 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
     try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; }
     catch { return false; }
   }),
+  sourceLookupFailure: maybe(closed<AuthoritySourceLookupFailure>({
+    reason: oneOf(["rate-limited", "error", "timeout", "unreachable"]),
+    retryAfter: nullable((value) => typeof value === "string" && Number.isFinite(Date.parse(value))) })),
   sourceUrl: maybe(isObservedSourceUrl),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
@@ -516,6 +520,7 @@ function resolveAuthority(
       return { kind, label };
     });
   survivor.sourceIdentity = structuredClone(action.source);
+  delete survivor.sourceLookupFailure;
   survivor.source = preserved.length
     ? { kind: "attached", sources: structuredClone(preserved) } : { kind: "resolved" };
   if (aliases.some((authority) => !authority.scanOnly)) delete survivor.scanOnly;
@@ -859,7 +864,9 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         throw new AuthoritiesDomainError("Only a manual authority can be edited directly.");
       }
       const citation = action.citation.trim();
-      if (citation !== authority.citation) delete authority.sourceVerificationUrl;
+      if (citation !== authority.citation) {
+        delete authority.sourceVerificationUrl; delete authority.sourceLookupFailure;
+      }
       if (authority.source.kind === "pending-canlii" && citation !== authority.citation) {
         replaceSource(draft, authority,
           authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
@@ -975,7 +982,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "attach-source": {
       if (!action.bindingRole) throw new AuthoritiesDomainError("Attachment binding role is required.");
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      delete authority.sourceVerificationUrl;
+      delete authority.sourceVerificationUrl; delete authority.sourceLookupFailure;
       attachAuthoritySource(draft, authority, {
         bindingRole: action.bindingRole, filename: action.filename,
         sourceSha256: action.sourceSha256, sourceUrl: action.sourceUrl,
@@ -993,6 +1000,12 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
       if (action.pageUrl) authority.sourceVerificationUrl = action.pageUrl;
       else delete authority.sourceVerificationUrl;
+      break;
+    }
+    case "set-source-lookup-failure": {
+      const authority = requireRecord(draft.authorities, action.authorityId, "authority");
+      if (action.failure) authority.sourceLookupFailure = structuredClone(action.failure);
+      else delete authority.sourceLookupFailure;
       break;
     }
     case "begin-canlii-handoff": {

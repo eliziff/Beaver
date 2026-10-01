@@ -3,10 +3,10 @@ import { authorityCitationServices, editAuthoritiesDraft } from "./authoritiesAc
 import { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
-  type AuthoritiesDraft, type AuthorityIdentity } from "./authoritiesDomain";
+  type AuthoritiesDraft, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
 import { buildCanliiCaseUrlFromCitation, buildCanliiPdfUrl, isCanliiUrl } from "./canliiUrls";
 import { canonicalJsonSha256, sha256 } from "./hash";
-import { A2AJLimited, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
+import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { tnaCaseSource, tnaLegalSourceProvider } from "./legalSources/tna";
 import { mapBounded } from "./mapBounded";
@@ -72,6 +72,10 @@ export type PreparedAuthoritySource = {
   language: "en" | "fr" | "bilingual";
 };
 
+/** A single-authority retry asks again for a publisher PDF or for a lookup that went unanswered. */
+export const retryableAuthoritySource = (draft: AuthoritiesDraft, id: string) =>
+  !!draft.authorities[id]?.sourceVerificationUrl || !!draft.authorities[id]?.sourceLookupFailure;
+
 /** Resolves canonical identities and prepares source bytes without choosing a persistence adapter. */
 export async function resolveAuthoritiesSources(
   initial: AuthoritiesDraft, sources: SourceServices = authoritySourceServices,
@@ -79,8 +83,11 @@ export async function resolveAuthoritiesSources(
   onlyAuthorityId?: string,
   progress?: (message: string) => void,
 ) {
-  if (onlyAuthorityId && !initial.authorities[onlyAuthorityId]?.sourceVerificationUrl)
-    throw new ApplicationError(409, "This authority has no publisher check to retry.");
+  if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
+    throw new ApplicationError(409, "This authority has nothing to retry.");
+  // Retrying an unanswered lookup retries every unanswered lookup: one request, not one per row.
+  const retrying = !onlyAuthorityId ? null : new Set(initial.authorities[onlyAuthorityId].sourceLookupFailure
+    ? initial.authorityOrder.filter((id) => initial.authorities[id]?.sourceLookupFailure) : [onlyAuthorityId]);
   // Resolution applies one or two actions per authority: one working copy, validated on return.
   const editor = editAuthoritiesDraft(initial), draft = editor.draft;
   const attachments: PreparedAuthoritySource[] = [];
@@ -93,7 +100,7 @@ export async function resolveAuthoritiesSources(
   const owed = { completeBookSources: true,
     bilingualEnactments: !!requirements?.bilingualEnactments };
   const candidates = draft.authorityOrder.flatMap((id) => {
-    if (onlyAuthorityId && id !== onlyAuthorityId) return [];
+    if (retrying && !retrying.has(id)) return [];
     const authority = draft.authorities[id];
     if (!onlyAuthorityId && authority?.sourceVerificationUrl) return [];
     const fetchable = !!authority && ["case", "legislation"].includes(authority.kind) &&
@@ -101,8 +108,8 @@ export async function resolveAuthoritiesSources(
     return fetchable && authoritySourceRequirement(draft, authority, owed)
       ? [{ id, authority }] : [];
   });
-  // A lookup the provider refused for its rate limit is named to the reviewer, not taken for a miss.
-  let limited: A2AJLimited | undefined;
+  // A lookup A2AJ did not answer is recorded on the authority, never taken for a miss; one it
+  // asked us to hold off is not asked again before its retry time.
   let looked = 0;
   const lookup = () => candidates.length && progress?.(`Looking up authorities · ${looked} of ${candidates.length}`);
   lookup();
@@ -114,7 +121,9 @@ export async function resolveAuthoritiesSources(
   async function resolveCandidate({ id, authority }: typeof candidates[number]) {
     signal?.throwIfAborted();
     if (authority.sourceIdentity && authority.sourceIdentity.provider !== "a2aj") return { source: null };
-    let unavailable = false;
+    const held = authority.sourceLookupFailure;
+    if (held?.retryAfter && Date.parse(held.retryAfter) > Date.now()) return { failure: held };
+    let failure: AuthoritySourceLookupFailure | undefined;
     for (const citation of authorityCitationForms(initial, id)) try {
       const source = await sources.resolve(citation,
         authority.kind as "case" | "legislation", signal, sourceIdentityLanguage(authority));
@@ -126,14 +135,14 @@ export async function resolveAuthoritiesSources(
       };
       return { source, revision };
     } catch (error) {
-      signal?.throwIfAborted(); unavailable = true;
-      if (error instanceof A2AJLimited) { limited = error; break; }
+      signal?.throwIfAborted();
+      failure = error instanceof A2AJUnavailable ? { reason: error.reason,
+        retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null } : { reason: "error", retryAfter: null };
+      // Another form of the citation would meet the same outage; ask again on retry instead.
+      if (error instanceof A2AJUnavailable) break;
     }
-    return unavailable ? { unavailable: true as const } : { source: null };
+    return failure ? { failure } : { source: null };
   }
-  // Nothing found while the provider refused lookups: say so rather than report every source missing.
-  if (limited && !resolutions.some((resolved) => "source" in resolved && resolved.source))
-    throw new ApplicationError(503, limited.message);
   type ResolvedSource = Pick<NonNullable<Awaited<ReturnType<SourceServices["resolve"]>>>,
     "citation" | "alternateCitation" | "name" | "date" | "url" | "publisherUrl" | "dataset" | "language" |
     "searchText" | "verifiedPdf"> & { provider?: string; identity?: string };
@@ -149,7 +158,9 @@ export async function resolveAuthoritiesSources(
         saved_source_sha256: authority.sourceIdentity?.sourceSha256,
         current_source_sha256: resolved.revision,
       });
-    if ("unavailable" in resolved || !resolved.source) continue;
+    if (resolved.failure || authority.sourceLookupFailure) editor.apply({
+      type: "set-source-lookup-failure", authorityId: id, failure: resolved.failure ?? null });
+    if (!resolved.source) continue;
     const source = resolved.source;
     resolvedSources.set(stableA2AJSourceId(source), source);
     editor.apply({ type: "resolve-authority", authorityId: id,
@@ -307,7 +318,7 @@ export async function resolveAuthoritiesSources(
   // page CanLII publishes for the citation.
   const attached = new Set(attachments.map(({ authorityId }) => authorityId));
   for (const id of draft.authorityOrder) {
-    if (onlyAuthorityId && id !== onlyAuthorityId) continue;
+    if (retrying && !retrying.has(id)) continue;
     const authority = draft.authorities[id];
     if (authority?.kind !== "case" || authority.sourceVerificationUrl || attached.has(id) ||
         authority.source.kind === "attached") continue;

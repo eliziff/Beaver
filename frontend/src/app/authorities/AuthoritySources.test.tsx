@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { createAuthoritiesDraft } from "../../../../backend/src/lib/authoritiesDomain";
 import { Sources } from "./AuthoritySources";
@@ -51,4 +51,21 @@ it("edits a non-case title separately from its citation", () => {
   expect(action).toHaveBeenCalledWith({ type: "rename-authority", authorityId: "one",
     displayName: 'John Smith, "Judicial Review"' });
   expect(screen.getByText("(2020) 58:2 Alta L Rev 123")).toBeVisible();
+});
+
+it("names an authority A2AJ left unchecked and offers retry once its window passes", () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], now: Date.UTC(2020, 0, 1, 12) });
+  try {
+    const { retry } = renderSource({ ...authority, sourceUrl: undefined, sourceLookupFailure:
+      { reason: "rate-limited", retryAfter: new Date(Date.now() + 90_000).toISOString() } });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "A2AJ is limiting requests, so this authority wasn't checked: Example v Example.");
+    expect(screen.getByRole("img", { name: /^A2AJ is limiting requests, so this authority wasn't checked\. Retry after/ })).toBeVisible();
+    expect(screen.queryByText(/No PDF attached/)).toBeNull();
+    const button = screen.getByRole("button", { name: /^Retry after/ });
+    expect(button).toBeDisabled();
+    act(() => { vi.advanceTimersByTime(91_000); });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledWith("one");
+  } finally { vi.useRealTimers(); }
 });
