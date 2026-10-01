@@ -1,4 +1,4 @@
-import { apiResponse, followedResult, PROGRESS_STREAM } from '@/app/lib/api/client';
+import { followedRequest } from '@/app/lib/api/client';
 import type { PdfRecognizedText } from '@/app/lib/api/documents';
 import type { AuthoritiesProduct } from './types';
 import { oneAtATime } from '../../../../shared/one-at-a-time.mjs';
@@ -41,8 +41,8 @@ export async function prepareSourceText(product: AuthoritiesProduct, role: strin
       // Pages done before this pass, plus the engine's count of this pass's pages.
       const before = retainedPages();
       const done = count(new Map([...before].filter(([page]) => !pages || !pages.includes(page))));
-      const response = await followedResult(await apiResponse('/authorities-runtime/source-text',
-        { method: 'POST', body: form, signal, headers: { Accept: PROGRESS_STREAM } }), (message) => {
+      const response = await followedRequest('/authorities-runtime/source-text',
+        { method: 'POST', body: form, signal }, (message) => {
         const recognized = Number(message.split('/')[0]);
         if (Number.isFinite(recognized)) completed(Math.min(scanned?.length ?? Infinity, done + recognized));
       });
