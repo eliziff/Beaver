@@ -336,23 +336,27 @@ export function createAuthoritiesRuntimeRouter(
     try { preparation = createAuthoritiesPreparation(state); }
     catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
     // Sources are read and prepared a few at a time; native preparation runs off the event loop.
+    // Several are read at once, so the count is of those finished, not of a name begun last.
     let read = 0;
+    progress?.(`Reading sources · 0 of ${files.length}`);
     const sources: NonNullable<AuthoritiesBuildInput["sources"]> = Object.fromEntries(
       await mapBounded(files, async (file, index) => {
-        progress?.(`Reading ${file.originalname} · ${++read} of ${files.length}`);
         const role = roleNames[index], bytes = await readFile(file.path);
         build.signal.throwIfAborted();
         const binding = state.bindings[role];
         const expectedHash = binding?.kind === "local-file" ? binding.lastSeen.sha256
           : binding?.kind === "document" && binding.version !== "latest" ? binding.version.sha256 : null;
         if (!expectedHash || sha256(bytes) !== expectedHash) reject(409, "An attached PDF changed. Add the current file before continuing.");
-        return [role, { bytes, ...await preparation.prepareText(role, { bytes, signal: build.signal })
+        // Recognizing a scan's pages is the long part of reading one: it reports page by page.
+        const recognizing = (done: number, total: number) =>
+          progress?.(`Recognizing text in ${file.originalname} · ${done} of ${total} page${total === 1 ? "" : "s"}`);
+        return [role, { bytes, ...await preparation.prepareText(role, { bytes, signal: build.signal, progress: recognizing })
           .catch((error) => {
             if (build.signal.aborted) throw error;
             return reject(409, error instanceof Error
               ? `Could not read ${file.originalname}: ${error.message}`
               : `Could not read ${file.originalname}`);
-          }) }] as const;
+          }).finally(() => progress?.(`Reading sources · ${++read} of ${files.length}`)) }] as const;
       }));
     let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,

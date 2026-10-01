@@ -187,8 +187,14 @@ async function openPdf(input: PdfOpenInput) {
 }
 
 // One recognition pass already schedules every core, and each pass loads its own model
-// sessions: a second concurrent pass only multiplies memory, so passes wait their turn.
+// sessions: a second concurrent pass only multiplies memory, so passes wait their turn,
+// unless the engine's host reads every pass's pages on one pool of its own (the browser page).
 const oneRecognitionAtATime = oneAtATime();
+const recognitionTurn = <T>(run: () => Promise<T>, signal?: AbortSignal) => {
+  const engine = structureNative();
+  return "schedulesRecognition" in engine && engine.schedulesRecognition === true
+    ? run() : oneRecognitionAtATime(run, signal);
+};
 
 async function preparePdf(input: PdfOpenInput) {
   const prepared = await withPdfRequest(input, async (request, profile) => {
@@ -205,7 +211,7 @@ async function preparePdf(input: PdfOpenInput) {
       structureNative().preparePdfDocument(input.bytes, request, input.signal, input.progress &&
         ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));
     return { summary: preparedSummary(
-      await (profile.ocr ? oneRecognitionAtATime(prepare, input.signal) : prepare()),
+      await (profile.ocr ? recognitionTurn(prepare, input.signal) : prepare()),
       input.sourceSha256,
     ),
     profile,
