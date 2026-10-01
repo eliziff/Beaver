@@ -107,14 +107,22 @@ function sourceUrl(record: JsonObject, language: Language) {
     publisherUrl(record, language);
 }
 
-/** A2AJ answered "too many requests": lookups wait out its limit rather than ask again. */
-export class A2AJLimited extends Error {
-  constructor() { super("A2AJ, the legal-source service, is limiting requests. Sources will be found when you try again in a few minutes; PDFs can be added by hand meanwhile."); }
+export type A2AJFailureReason = "rate-limited" | "error" | "timeout" | "unreachable";
+/** A2AJ did not answer a lookup: the authority was not checked, which is not the same as not found. */
+export class A2AJUnavailable extends Error {
+  constructor(readonly reason: A2AJFailureReason, readonly retryAt: number | null = null) {
+    super(reason === "rate-limited" ? "A2AJ is limiting requests."
+      : reason === "timeout" ? "A2AJ did not answer in time."
+      : reason === "unreachable" ? "A2AJ could not be reached." : "A2AJ answered with an error.");
+  }
 }
-let limitedUntil = 0;
-const retryAfter = (value: string | null) => {
-  const seconds = Number(value);
-  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 600) * 1000 : 60_000;
+// A limit A2AJ sets (429, or a 503 that names a Retry-After) holds every lookup until it passes.
+let pausedUntil = 0;
+const retryAt = (value: string | null, fallback: number | null) => {
+  const seconds = Number(value), date = value ? Date.parse(value) : NaN;
+  const wait = value && Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000
+    : Number.isFinite(date) ? date - Date.now() : fallback;
+  return wait === null ? null : Date.now() + Math.min(Math.max(wait, 1000), 600_000);
 };
 
 function apiError(status: number, body: unknown) {
@@ -169,19 +177,26 @@ async function request(
     scope: "shared", kind: "legal-source-a2aj", key: url, version: 1,
     ...(immutable ? {} : { ttlMs: 24 * 60 * 60_000 }),
     produce: async () => {
-      if (Date.now() < limitedUntil) throw new A2AJLimited();
-      const response = await guardedRemoteFetch(url, {
-        headers: { Accept: "application/json" }, signal,
-      }, {
-        label: "A2AJ request", allowedHosts: ["api.a2aj.ca"],
-        defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
-        response: { label: "A2AJ response", maxBytes: 64 * 1024 * 1024,
-          contentTypes: ["application/json", "application/*+json"] },
-      });
-      if (response.status === 429) {
-        limitedUntil = Date.now() + retryAfter(response.headers.get("retry-after"));
+      if (Date.now() < pausedUntil) throw new A2AJUnavailable("rate-limited", pausedUntil);
+      let response: Response;
+      try {
+        response = await guardedRemoteFetch(url, {
+          headers: { Accept: "application/json" }, signal,
+        }, {
+          label: "A2AJ request", allowedHosts: ["api.a2aj.ca"],
+          defaultPortOnly: true, allowIpLiterals: false, timeoutMs: 15_000,
+          response: { label: "A2AJ response", maxBytes: 64 * 1024 * 1024,
+            contentTypes: ["application/json", "application/*+json"] },
+        });
+      } catch (error) {
+        signal?.throwIfAborted();
+        throw new A2AJUnavailable((error as Error)?.name === "TimeoutError" ? "timeout" : "unreachable");
+      }
+      if (response.status === 429 || response.status >= 500) {
         await response.body?.cancel().catch(() => undefined);
-        throw new A2AJLimited();
+        const until = retryAt(response.headers.get("retry-after"), response.status === 429 ? 60_000 : null);
+        if (until) pausedUntil = Math.max(pausedUntil, until);
+        throw new A2AJUnavailable(response.status === 429 ? "rate-limited" : "error", until);
       }
       const body = await response.json().catch(() => null);
       if (!response.ok) throw apiError(response.status, body);

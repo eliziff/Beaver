@@ -72,8 +72,16 @@ export type AuthoritySourceIdentity = {
 
 export type AuthorityHighlightExclusion = { kind: string; label: string };
 
+/** The last source lookup for an authority could not be answered, so it was not checked. */
+export type AuthoritySourceLookupFailure = {
+  reason: "rate-limited" | "error" | "timeout" | "unreachable";
+  /** When the service allows asking again (ISO time), when it said. */
+  retryAfter: string | null;
+};
+
 export type AuthorityIdentity = {
   sourceVerificationUrl?: string;
+  sourceLookupFailure?: AuthoritySourceLookupFailure;
   /** Explicit link printed in the imported document; not a verified source identity. */
   sourceUrl?: string;
   id: string;

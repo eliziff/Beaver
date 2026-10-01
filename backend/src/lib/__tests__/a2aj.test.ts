@@ -14,7 +14,7 @@ const { guardedRemoteFetch } = vi.hoisted(() => ({
 vi.mock("../remoteUrlSafety", () => ({ guardedRemoteFetch }));
 
 import {
-  a2ajLegalSourceProvider,
+  A2AJUnavailable, a2ajLegalSourceProvider,
 } from "../legalSources/a2aj";
 import { structureNative } from "../structureNative";
 
@@ -479,5 +479,35 @@ describe("A2AJ client", () => {
 
     await expect(a2ajLegalSourceProvider.document({ citation: "2099 FC 3" }))
       .resolves.toMatchObject({ url: index, verifiedPdf: null });
+  });
+
+  it("names a lookup A2AJ did not answer, and waits out its retry window without asking again", async () => {
+    // A fixed past clock: the window this test opens has long closed for the real clock.
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2020, 0, 1) });
+    try {
+      const failure = async () => a2ajLegalSourceProvider.coverage("laws").then(() => null, (error) => error);
+      guardedRemoteFetch.mockResolvedValueOnce(new Response("upstream down", { status: 502 }));
+      expect(await failure()).toMatchObject({ reason: "error", retryAt: null });
+      guardedRemoteFetch.mockRejectedValueOnce(new DOMException("The operation timed out.", "TimeoutError"));
+      expect(await failure()).toMatchObject({ reason: "timeout" });
+      guardedRemoteFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
+      expect(await failure()).toMatchObject({ reason: "unreachable" });
+
+      guardedRemoteFetch.mockResolvedValueOnce(new Response("slow down", { status: 429,
+        headers: { "retry-after": "120" } }));
+      const limited = await failure();
+      expect(limited).toBeInstanceOf(A2AJUnavailable);
+      expect(limited).toMatchObject({ reason: "rate-limited", retryAt: Date.now() + 120_000 });
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(4);
+      // Within the window nothing is sent; after it, A2AJ is asked again.
+      vi.setSystemTime(Date.now() + 119_000);
+      expect(await failure()).toMatchObject({ reason: "rate-limited" });
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(4);
+      vi.setSystemTime(Date.now() + 2_000);
+      guardedRemoteFetch.mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200,
+        headers: { "content-type": "application/json" } }));
+      await expect(a2ajLegalSourceProvider.coverage("laws")).resolves.toEqual([]);
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(5);
+    } finally { vi.useRealTimers(); }
   });
 });

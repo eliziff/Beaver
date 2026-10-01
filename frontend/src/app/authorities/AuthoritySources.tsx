@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleAlert, ExternalLink, Eye, FileCheck2, FilePlus2, FileType2, FileX2, LockKeyhole,
-  FolderInput, FolderSearch, Loader2, Pencil, Plus, Square, Upload } from "lucide-react";
+  FolderInput, FolderSearch, Loader2, Pencil, Plus, RotateCw, Square, Upload } from "lucide-react";
 import { MoreActionsMenu } from "@/app/components/shared/MoreActionsMenu";
 import { ActionMenu } from "@/app/components/ui/action-menu";
 import { Button } from "@/app/components/ui/button";
@@ -22,6 +22,14 @@ const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
  *  shows them, an icon alone where the list (a `@container/sources`) is narrow. */
 export const rowControl = cn(control, "w-10 justify-center px-1 font-normal [&_svg]:size-3.5 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
+type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
+const lookupReason: Record<LookupFailure["reason"], string> = {
+  "rate-limited": "A2AJ is limiting requests", timeout: "A2AJ took too long to answer",
+  unreachable: "A2AJ couldn't be reached", error: "A2AJ answered with an error" };
+const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+/** When A2AJ allows the next lookup, if that is still ahead. */
+const retryWait = (failure: LookupFailure, now: number) =>
+  failure.retryAfter && Date.parse(failure.retryAfter) > now ? failure.retryAfter : null;
 export type AuthorityPanelProps = {
   authorities: AuthorityIdentity[]; tabs: ReadonlyMap<string, string>; busy: boolean;
   sourceIssues: Record<string, AuthoritiesSourceIssue>;
@@ -71,6 +79,7 @@ function SourcePanel({ state, authorities, tabs, occurrences, busy, sourceIssues
         {onLibraryAdd && <Button type="button" variant="outline" className={control} disabled={busy}
           onClick={onLibraryAdd}><FolderSearch /> {sourceLabel}</Button>}
       </div>}
+      {onRetrySource && <LookupFailures authorities={authorities} busy={busy} onRetry={onRetrySource} />}
       <div role="list" aria-label="Authority tab slots"
         className="divide-y divide-gray-200 rounded-lg border border-gray-300">
         {authorities.map((authority) => <AuthorityRow key={authority.id} authority={authority} busy={busy}
@@ -131,7 +140,11 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     : rebuildsFromText && authority.source.kind === "resolved";
   const missing = needsPdf && !loaded;
   const missingIssue = sources.map(({ bindingRole }) => sourceIssues[bindingRole]).find(Boolean);
+  const lookup = !sources.length ? authority.sourceLookupFailure : undefined;
+  const lookupWait = lookup && retryWait(lookup, Date.now());
   const missingLabel = issue ? "File access was denied. Allow access to this PDF to use it."
+    : lookup ? `${lookupReason[lookup.reason]}, so this authority wasn't checked. ${
+      lookupWait ? `Retry after ${clock(lookupWait)}` : "Retry"}, or upload the PDF.`
     : missingIssue?.status === "changed" ? "The PDF changed. Its source is being refreshed."
     : missingIssue?.status === "missing" && missingIssue.reason === "deleted"
       ? "The PDF could not be found. Upload it again."
@@ -139,8 +152,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
       ? "Couldn't auto-fetch. Download from CanLII and upload the PDF. (CanLII doesn't let us automate this.)"
     : sources.length ? "This PDF is unavailable. Upload it again."
     : "No PDF attached. Upload a PDF for this authority.";
-  const mark = missing ? { Icon: issue ? LockKeyhole : authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
-      tone: "text-red-700", label: missingLabel }
+  const mark = missing ? { Icon: issue ? LockKeyhole : lookup || authority.source.kind === "pending-canlii" ? CircleAlert : FileX2,
+      tone: lookup ? "text-amber-700" : "text-red-700", label: missingLabel }
     : fromText ? { Icon: FileType2, tone: "text-indigo-700",
       label: loaded ? "Built from source text" : "Will be built from source text" }
     : loaded ? { Icon: FileCheck2, tone: "text-green-700",
@@ -242,6 +255,34 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
             control={rowControl} label={rowLabel} trailing="w-8" />)}
       </div>}
   </article>;
+}
+
+/** Authorities A2AJ left unchecked, by reason, with one retry once its window passes. */
+function LookupFailures({ authorities, busy, onRetry }: {
+  authorities: AuthorityIdentity[]; busy: boolean; onRetry: (id: string) => void;
+}) {
+  const failed = authorities.filter((authority) => authority.sourceLookupFailure);
+  const [now, setNow] = useState(Date.now);
+  const wait = failed.map(({ sourceLookupFailure }) => retryWait(sourceLookupFailure!, now))
+    .filter((value): value is string => !!value).sort().at(-1);
+  useEffect(() => {
+    if (!wait) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Date.parse(wait) - Date.now()) + 250);
+    return () => clearTimeout(timer);
+  }, [wait]);
+  if (!failed.length) return null;
+  const reasons = [...new Set(failed.map(({ sourceLookupFailure }) => sourceLookupFailure!.reason))];
+  return <div role="status" className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    <CircleAlert className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+    <div className="min-w-0 flex-1">
+      {reasons.map((reason) => {
+        const names = failed.filter(({ sourceLookupFailure }) => sourceLookupFailure!.reason === reason).map(authorityName);
+        return <p key={reason}>{lookupReason[reason]}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked: {names.join("; ")}.</p>;
+      })}
+    </div>
+    <Button type="button" variant="outline" className={cn(control, "bg-white")} disabled={busy || !!wait}
+      onClick={() => onRetry(failed[0].id)}><RotateCw />{wait ? `Retry after ${clock(wait)}` : "Retry"}</Button>
+  </div>;
 }
 
 function AuthorityName({ value, label, onSave, onCancel }: {
