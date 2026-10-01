@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler } from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { ApplicationError } from "./lib/applicationError";
+import { profileFor } from "./lib/pdfProfile";
 import { createAuthoritiesRuntimeRouter } from "./routes/authoritiesRuntime";
 
 export type AuthoritiesStandaloneOptions = { port: number; buildId: string; frontend: string };
@@ -37,8 +38,10 @@ export function createAuthoritiesStandaloneApp({ port, buildId, frontend }: Auth
   app.use("/pdfjs-standard-fonts", express.static(
     path.join(frontend, "pdfjs-standard-fonts"), staticOptions));
   app.get(["/", "/authorities.html"], (_req, res) => res.sendFile(page));
-  app.use(((error, _req, res, _next) => {
+  app.use(((error, req, res, _next) => {
     const status = error instanceof ApplicationError ? error.status : 500;
+    // A defect is logged; a request the page itself abandoned is not one.
+    if (status === 500 && !req.destroyed) console.error(error);
     res.status(status).json({ detail: status === 500
       ? "Authorities could not complete that operation"
       : error.message });
@@ -53,6 +56,12 @@ export async function startAuthoritiesStandalone() {
   const frontend = path.resolve(__dirname, "../../frontend/dist");
   if (!existsSync(path.join(frontend, "authorities.html")))
     throw new Error("Build the frontend before starting Authorities");
+  // Scanned sources are recognized on demand; missing model files stop startup, not each source.
+  try { profileFor("kraken-lite", false); }
+  catch (error) {
+    throw new Error(`Text recognition files are missing (${error instanceof Error ? error.message : error}). ` +
+      "Set LEGALPDF_ENGINE_ROOT to the legal-pdf-parser folder that holds runtime/kraken.");
+  }
   const app = createAuthoritiesStandaloneApp({ port, buildId, frontend });
   const listener = app.listen(port, "127.0.0.1", () => {
     console.log(`Authorities running at http://127.0.0.1:${port}/authorities.html`);

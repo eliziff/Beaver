@@ -34,6 +34,7 @@ import { docxToPdf } from "./convert";
 import { isJsonRecord } from "./value";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { utf16PrefixCeil } from "./text";
+import { oneAtATime } from "mike/shared/one-at-a-time.mjs";
 import type {
   DocumentProjectionSource,
   LegalPdfOcrProvider,
@@ -185,6 +186,10 @@ async function openPdf(input: PdfOpenInput) {
       structureNative().derivePdfDocument(input.bytes, request, input.signal)));
 }
 
+// One recognition pass already schedules every core, and each pass loads its own model
+// sessions: a second concurrent pass only multiplies memory, so passes wait their turn.
+const oneRecognitionAtATime = oneAtATime();
+
 async function preparePdf(input: PdfOpenInput) {
   const prepared = await withPdfRequest(input, async (request, profile) => {
     if (input.pdfProfile && !input.pages?.length) {
@@ -196,9 +201,10 @@ async function preparePdf(input: PdfOpenInput) {
       return { summary: preparedSummary(structureNative().pdfDocumentSummary(cached),
         sourceSha256, input.pdfProfile.cacheKey), profile };
     }
+    const prepare = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
+      structureNative().preparePdfDocument(input.bytes, request, input.signal));
     return { summary: preparedSummary(
-      await pdfLifecyclePhase("prepare.native", input.documentId, () =>
-        structureNative().preparePdfDocument(input.bytes, request, input.signal)),
+      await (profile.ocr ? oneRecognitionAtATime(prepare, input.signal) : prepare()),
       input.sourceSha256,
     ),
     profile,
