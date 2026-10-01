@@ -17,6 +17,9 @@ PRIVATE_EMAILS = set(filter(None, os.environ.get('BEAVER_PRIVATE_EMAIL_SHA256', 
 HOME = re.compile(r'(?:[a-z]:[\\/]+Users[\\/]+|/mnt/[a-z]/Users/|(?<![a-z0-9_.-])/(?:Users|home)/)(?!(?:runner|runneradmin|sandbox|build|Public|Shared|Default|user|someone)(?:[\\/]|$))[a-z0-9_.@-]+[\\/]', re.I)
 EMAIL = re.compile(r'[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,63}', re.I)
 PRIVATE_FILE = re.compile(r'(?:^|/)(?:private_sources|private_comparison|court-record-exhibits|prompt_live|\.auth)(?:/|$)|(?:^|/)(?:\.codex/sessions/|private_manifest\.jsonl?$|auth\.json$|storageState\.json$|application\.(?:sqlite|db)(?:-wal|-shm)?$)', re.I)
+QUARANTINED = ('benchmarks/docx_edit/fixtures/prose/',) + tuple(
+    f'benchmarks/beaver_can/tasks/dev/CAN-RESEARCH-{number:03d}/' for number in range(1, 6)
+)
 EMBEDDED = re.compile(rb'(?:AGFzb|UEsDB)[A-Za-z0-9+/=]{400,}')
 MEDIA = {'.docx','.pdf','.png','.jpg','.jpeg','.webp','.gif','.woff','.woff2','.ttf','.ico','.pptx','.xlsx','.zip','.tgz','.gz'}
 
@@ -94,6 +97,7 @@ def main():
         for name in names.decode().split('\0'):
             if not name: continue
             if PRIVATE_FILE.search(name): errors.append((name,'private artifact tracked'))
+            if name.startswith(QUARANTINED): errors.append((name,'quarantined fixture reintroduced'))
             if Path(name).suffix.lower() in MEDIA: continue
             if args.staged: raw=git('show',':'+name)
             else:
@@ -104,6 +108,8 @@ def main():
         for email in git('log','--format=%ae%n%ce','HEAD').decode().splitlines():
             if hashlib.sha256(email.lower().encode()).hexdigest() in PRIVATE_EMAILS:
                 errors.append(('history','private email in commit attribution; use GitHub noreply'))
+        if git('log','--format=','--name-only','HEAD','--',*QUARANTINED).strip():
+            errors.append(('history','quarantined fixture remains reachable; do not merge old history'))
     for name,reason in sorted(set(errors)): print(f'{name}: {reason}',file=sys.stderr)
     print(f'Privacy check: {checked} files, {len(set(errors))} findings. No matched personal values printed.')
     return bool(errors)
