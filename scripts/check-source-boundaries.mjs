@@ -71,7 +71,8 @@ for (const file of files) {
       failures.push(`${file}: imports deployment adapter ${specifier}`);
     }
     if (!maintained || !specifier.startsWith(".")) continue;
-    const target = path.resolve(root, path.dirname(file), specifier);
+    // A bundler query ("./bookWorker?worker&inline") names how a module is loaded, not its file.
+    const target = path.resolve(root, path.dirname(file), specifier.replace(/\?.*$/u, ""));
     if ([target, ...[".ts", ".tsx", ".js", ".mjs", ".cjs", ".json"].flatMap((ext) => [
       target + ext, path.join(target, `index${ext}`),
     ])].some(existsSync)) continue;
