@@ -8,10 +8,12 @@ export function attachPdfTextSelection(scroller: HTMLElement, enabled: () => boo
   let frame = 0;
   let previewFrame = 0;
   const previews = new Map<HTMLElement, SVGSVGElement>();
-  const clearPreview = () => {
-    for (const svg of previews.values()) svg.remove();
-    previews.clear(); scroller.classList.remove('pdf-line-selection');
+  // A page that paints the selection hides its native highlight. Only that page is restyled:
+  // restyling every text layer for each selection change stalls a long document.
+  const unpaint = (page: HTMLElement) => {
+    previews.get(page)?.remove(); previews.delete(page); page.classList.remove('pdf-line-selection');
   };
+  const clearPreview = () => { for (const page of [...previews.keys()]) unpaint(page); };
   const paintSelection = () => {
     previewFrame = 0;
     const selection = document.getSelection();
@@ -34,14 +36,13 @@ export function attachPdfTextSelection(scroller: HTMLElement, enabled: () => boo
         svg.classList.add('pdf-selection-overlay'); svg.setAttribute('aria-hidden', 'true');
         svg.setAttribute('viewBox', '0 0 1 1'); svg.setAttribute('preserveAspectRatio', 'none');
         svg.append(document.createElementNS(svg.namespaceURI, 'path'));
-        page.append(svg); previews.set(page, svg);
+        page.append(svg); previews.set(page, svg); page.classList.add('pdf-line-selection');
       }
       const d = fragment.rects.map(([x0, y0, x1, y1]) => `M${x0} ${y0}H${x1}V${y1}H${x0}Z`).join('');
       if (svg.firstElementChild!.getAttribute('d') !== d) svg.firstElementChild!.setAttribute('d', d);
     }
-    for (const [page, svg] of previews) if (!retained.has(page)) { svg.remove(); previews.delete(page); }
-    // Leave native selection visible when geometry is not available (e.g. a still-loading page).
-    scroller.classList.toggle('pdf-line-selection', !!fragments.length);
+    // A page without geometry (e.g. still loading) keeps its native selection.
+    for (const page of [...previews.keys()]) if (!retained.has(page)) unpaint(page);
   };
   const preview = () => { if (!previewFrame) previewFrame = requestAnimationFrame(paintSelection); };
   const caret = (x: number, y: number, startPage?: HTMLElement): Caret | undefined => {
