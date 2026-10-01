@@ -12,41 +12,72 @@ import type { AuthoritiesHost } from './host';
 import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
 import type { AuthoritiesAction, AuthoritiesProduct } from './types';
 
-/**
- * Text recognition for one scanned source, watched where the source is being used. Its two
- * controls keep fixed slots, so toggling Pause and Resume or finishing never moves anything;
- * a caller lines them up with its own row controls through `control` and `label`.
- */
-export function SourceOcrProgress({ status, ocr, control = 'w-8 px-0', label = 'sr-only', trailing }: {
-  status: SourceOcrStatus; ocr: SourceOcrPanel; control?: string; label?: string; trailing?: string;
-}) {
-  const total = status.textlessPages.length;
+const ocrMessage = (status: SourceOcrStatus, total = status.textlessPages.length) =>
+  status.state === 'done' ? 'Text recognition complete'
+    : status.state === 'failed' ? status.error || 'Text recognition failed'
+    : status.state === 'paused' ? `Recognition paused · ${status.recognized}/${total} pages`
+    : status.state === 'cancelled' ? 'Text recognition cancelled'
+    : `${status.waiting ? 'Waiting to recognize' : 'Recognizing text'} · ${status.recognized}/${total} pages`;
+const ocrTone = (status: SourceOcrStatus) => status.state === 'done' ? 'text-green-800'
+  : status.state === 'failed' ? 'text-red-800' : 'text-gray-600';
+
+/** Pause (or Resume) and Cancel for one recognition, in slots that stay put whatever its state. */
+function OcrControls({ status, ocr, className, label }: { status: SourceOcrStatus; ocr: SourceOcrPanel; className: string; label: string }) {
   const pending = status.state === 'running' || status.state === 'paused';
   const resumable = ['paused', 'failed', 'cancelled'].includes(status.state);
-  const button = cn(buttonClassName({ variant: 'outline', size: 'compact' }), 'border-gray-400', control);
+  return <>
+    <button type="button" className={cn(className, status.state === 'done' && 'invisible')}
+      disabled={status.state === 'done'} title={resumable ? 'Resume' : 'Pause'}
+      aria-label={`${resumable ? 'Resume' : 'Pause'} text recognition for ${status.name}`}
+      onClick={() => resumable ? void ocr.begin([status], status.pages?.length ? status.pages : undefined)
+        : void ocr.stop([status.role], true)}>
+      {resumable ? <Play /> : <Pause />}<span className={label}>{resumable ? 'Resume' : 'Pause'}</span></button>
+    <button type="button" className={cn(className, !pending && 'invisible')} disabled={!pending} title="Cancel"
+      aria-label={`Cancel text recognition for ${status.name}`} onClick={() => void ocr.stop([status.role], false)}>
+      <X /><span className={label}>Cancel</span></button>
+  </>;
+}
+const ocrButton = cn(buttonClassName({ variant: 'outline', size: 'compact' }), 'border-gray-400');
+const ocrBar = 'appearance-none overflow-hidden rounded-full bg-gray-100 [&::-moz-progress-bar]:bg-gray-500 [&::-webkit-progress-bar]:bg-gray-100 [&::-webkit-progress-value]:bg-gray-500';
+
+/**
+ * Text recognition for one scanned source, watched where the source is being used. Its two
+ * controls keep fixed slots, so toggling Pause and Resume or finishing never moves anything.
+ */
+export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
+  const total = status.textlessPages.length;
+  const pending = status.state === 'running' || status.state === 'paused';
   return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 text-xs">
-    <span role="status" className={cn('min-w-0 truncate', status.state === 'done' ? 'text-green-800'
-      : status.state === 'failed' ? 'text-red-800' : 'text-gray-600')} title={status.state === 'failed' ? status.error : undefined}>
-      {status.state === 'done' ? 'Text recognition complete'
-        : status.state === 'failed' ? status.error || 'Text recognition failed'
-        : status.state === 'paused' ? `Recognition paused · ${status.recognized}/${total} pages`
-        : status.state === 'cancelled' ? 'Text recognition cancelled'
-        : `${status.waiting ? 'Waiting to recognize' : 'Recognizing text'} · ${status.recognized}/${total} pages`}</span>
+    <span role="status" className={cn('min-w-0 truncate', ocrTone(status))}
+      title={status.state === 'failed' ? status.error : undefined}>{ocrMessage(status, total)}</span>
     <span className="flex h-8 items-center justify-end gap-1">
-      <button type="button" className={cn(button, status.state === 'done' && 'invisible')}
-        disabled={status.state === 'done'} title={resumable ? 'Resume' : 'Pause'}
-        aria-label={`${resumable ? 'Resume' : 'Pause'} text recognition for ${status.name}`}
-        onClick={() => resumable ? void ocr.begin([status], status.pages?.length ? status.pages : undefined)
-          : void ocr.stop([status.role], true)}>
-        {resumable ? <Play /> : <Pause />}<span className={label}>{resumable ? 'Resume' : 'Pause'}</span></button>
-      <button type="button" className={cn(button, !pending && 'invisible')} disabled={!pending} title="Cancel"
-        aria-label={`Cancel text recognition for ${status.name}`} onClick={() => void ocr.stop([status.role], false)}>
-        <X /><span className={label}>Cancel</span></button>
-      {trailing && <span className={trailing} />}
-    </span>
+      <OcrControls status={status} ocr={ocr} className={cn(ocrButton, 'w-8 px-0')} label="sr-only" /></span>
     <progress value={status.recognized} max={total} aria-label={`Pages recognized in ${status.name}`}
-      className={cn('col-span-full h-0.5 w-full appearance-none overflow-hidden rounded-full bg-gray-100 [&::-moz-progress-bar]:bg-gray-500 [&::-webkit-progress-bar]:bg-gray-100 [&::-webkit-progress-value]:bg-gray-500',
-        !pending && 'invisible')} />
+      className={cn('col-span-full h-0.5 w-full', ocrBar, !pending && 'invisible')} />
+  </div>;
+}
+
+/**
+ * The same recognition inside one line of a list row: a short count in a fixed slot, a hairline
+ * of progress under it and two icon buttons, so the row keeps its height from start to finish.
+ * The full sentence is what assistive technology announces.
+ */
+export function SourceOcrInline({ status, ocr, className }: { status: SourceOcrStatus; ocr: SourceOcrPanel; className?: string }) {
+  const total = status.textlessPages.length;
+  const pending = status.state === 'running' || status.state === 'paused';
+  const word = status.state === 'done' ? 'Recognized' : status.state === 'failed' ? 'Failed'
+    : status.state === 'cancelled' ? 'Cancelled' : status.state === 'paused' ? 'Paused'
+    : status.waiting ? 'Waiting' : 'Recognizing';
+  const count = pending ? `${status.recognized}/${total}` : '';
+  return <div className={cn('@container/ocr flex min-w-0 items-center gap-1 text-xs', className)}>
+    <span role="status" className={cn('relative min-w-0 flex-1 truncate tabular-nums', ocrTone(status))}
+      title={status.state === 'failed' ? status.error : ocrMessage(status, total)}>
+      <span className="sr-only">{ocrMessage(status, total)}</span>
+      <span aria-hidden><span className={cn(count && 'hidden @min-[6.5rem]/ocr:inline')}>{word} </span>{count}</span>
+      <progress value={status.recognized} max={total} aria-hidden tabIndex={-1}
+        className={cn('absolute inset-x-0 -bottom-0.5 h-0.5 w-full', ocrBar, !pending && 'invisible')} />
+    </span>
+    <OcrControls status={status} ocr={ocr} className={cn(ocrButton, 'size-8 shrink-0 px-0 [&_svg]:size-3.5')} label="sr-only" />
   </div>;
 }
 
