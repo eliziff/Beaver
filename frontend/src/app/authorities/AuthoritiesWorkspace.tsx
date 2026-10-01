@@ -1067,8 +1067,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         Allow file access</Button>}
-                      <StepProgress label={stage === "sources" ? stepOperation || (recognitionAsked ? scannedSources.progress : "")
-                        : stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+                      {/* The Recognize text dialog reports its own check of the scans. */}
+                      <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
                         error={stepError} className="min-w-0" />
                       {/* Every step's Next sits here; the last step keeps its room. */}
                       <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
@@ -1184,9 +1184,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         } }}
         primaryAction={{ label: "Build anyway", disabled: busy, onClick: () => {
           setStubWarning(false);
-          if (draftRef.current?.state.settings.allowIncomplete) void build(draftRef.current, true);
-          else act({ type: "set-settings", settings: { allowIncomplete: true } },
-              () => build(undefined, true));
+          // The setting is queued before the build, which waits for queued saves and builds the result.
+          if (!draftRef.current?.state.settings.allowIncomplete)
+            act({ type: "set-settings", settings: { allowIncomplete: true } });
+          void build(undefined, true);
         } }}>
         <p className="text-sm text-gray-700">{missingPdfs.length} authorit{missingPdfs.length === 1
           ? "y has" : "ies have"} no available PDF. {draft?.state.settings.missingSourcePolicy === "omit"
