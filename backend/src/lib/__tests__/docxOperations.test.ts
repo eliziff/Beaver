@@ -53,6 +53,29 @@ describe("native Word Table of Authorities output", () => {
     expect(simpleEnd).toBeLessThan(simpleMark); expect(simpleMark).toBeLessThan(simpleTab);
   });
 
+  it("keeps a citation's own TA mark and lists its category in the table", async () => {
+    const run = (inner: string) => `<w:r>${inner}</w:r>`;
+    const own = run('<w:fldChar w:fldCharType="begin"/>')
+      + run('<w:instrText xml:space="preserve"> TA \\l "Fir v Gum (1990) 1 Imaginary R 1" \\s "Fir" \\c 3 </w:instrText>')
+      + run('<w:fldChar w:fldCharType="end"/>');
+    const source = await docxBytes([new Paragraph("first")]);
+    const zip = await JSZip.loadAsync(source);
+    const text = "Fir v Gum (1990) 1 Imaginary R 1";
+    const xml = (await zip.file("word/document.xml")!.async("string"))
+      .replace(/<w:r>(?:(?!<w:r>).)*?<w:t[^>]*>first<\/w:t><\/w:r>/u, run(`<w:t>${text}</w:t>`) + own + run("<w:t>.</w:t>"));
+    const bytes = await zip.file("word/document.xml", xml).generateAsync({ type: "nodebuffer" });
+    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: `${text}.` }], [
+      { unitId: "body:0", offset: text.length, longName: text, shortName: "Fir", category: 1, suffix: " [Tab 1]" },
+    ], "native-append");
+    const document = await (await JSZip.loadAsync(marked)).file("word/document.xml")!.async("string");
+    expect(document.match(/ TA \\l/gu)).toHaveLength(1);
+    // An insertion at the end of a run's text leaves no empty run behind.
+    expect(document).not.toMatch(/<w:t(?: [^>]*)?(?:\/>|><\/w:t>)/u);
+    expect(document).toContain("[Tab 1]");
+    expect(document).toContain(' TOA \\h \\c &quot;1&quot; ');
+    expect(document).toContain(' TOA \\h \\c &quot;3&quot; ');
+  });
+
   it("replaces exact reviewed spans in body text and footnotes", async () => {
     const body = "The court wrote This and that.";
     const note = "Example v Example, 2020 SCC 1 at para 19.";
