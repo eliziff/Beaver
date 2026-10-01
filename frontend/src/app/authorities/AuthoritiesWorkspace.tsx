@@ -10,7 +10,7 @@ import { authorityName, authorityLabel,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
   History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
-import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
+import { Fragment, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
@@ -30,6 +30,7 @@ import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { rowControl, rowLabel, Sources } from "./AuthoritySources";
 import { AuthoritiesOutputOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
+import { FileCard, OptionCards, type CardOption } from "./OptionCards";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
@@ -59,9 +60,11 @@ const TABS: ReadonlyArray<{ value: WorkspaceTab; label: string }> = [
   { value: "automatic", label: "Automatic" }, { value: "manual", label: "Manual" },
   { value: "drafts", label: "Drafts" },
 ];
-// Citation review reads the source document, so it takes the whole width, and every other
-// view shares that frame so that nothing moves between them.
-const FRAME = "mx-auto w-full px-4 sm:px-6 md:mx-auto";
+// Every view, and the header and steps above it, share one readable frame, so nothing moves
+// between them; only the citation review, which reads the source document, reaches past it to
+// the window's gutters (WIDE).
+const FRAME = "mx-auto w-full max-w-[68rem] px-4 sm:px-6 md:mx-auto";
+const WIDE = "mx-[min(0px,calc((100%-100cqw)/2+1.5rem))]";
 const SOURCE_LANGUAGE_OPTIONS = [
   { value: "bilingual", label: "English and French", description: "One bilingual official PDF." },
   { value: "en", label: "English", description: "The English official PDF." },
@@ -1020,7 +1023,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     className="min-h-0 border-0 bg-transparent px-0 py-0 sm:px-0 max-[22rem]:[&_.tab-list]:justify-between max-[22rem]:[&_.tab-list]:gap-0 max-[22rem]:[&_[role=tab]]:px-1" />;
   const statusLine = <Status busy={busy} inline={!!draft && tab !== "drafts"}
     busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
-  return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
+  return <div className={cn("authorities-workspace @container/workspace bg-app-background [scrollbar-gutter:stable]",
     host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
     {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
@@ -1078,7 +1081,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
                   {reviewing && <><section aria-label="Citations"
-                    className="@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
+                    className={cn(WIDE, "@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm")}>
                     {operation !== "Finding source PDFs" && <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
                       selected={selected} authorities={authorities} discrepancies={findings}
                       busy={busy} onSelect={setSelectedId} onAction={act}
@@ -1255,26 +1258,32 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, convertsWord, o
   const filename = pending?.source.kind === "document" ? pending.source.document.filename
     : pending?.source.selected.file.name;
   const word = filename?.toLowerCase().endsWith(".docx") ?? false;
-  const [step, setStep] = useState<"output" | "sources">("output");
-  useEffect(() => setStep("output"), [pending?.source]);
-  // The outputs come first, read as the Build step reads them; sources and marking follow.
+  const [step, setStep] = useState<"sources" | "output">("sources");
+  useEffect(() => setStep("sources"), [pending?.source]);
+  // Each step, and each new import, opens at its top.
+  const top = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const body = top.current?.closest(".modal-scroll-body");
+    if (body) body.scrollTop = 0;
+  }, [step, pending?.source]);
+  // The import options come first, as they always have; the outputs follow, drawn the same way.
   const outputStep = step === "output";
   return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={[outputStep ? "Outputs" : "Import options"]}
-    className="!h-[min(32rem,calc(100dvh-2rem))]"
+    className="!h-[min(42rem,calc(100dvh-2rem))]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
-    secondaryAction={!outputStep ? { label: "Back", disabled: busy, onClick: () => setStep("output") } : undefined}
-    primaryAction={{ label: outputStep ? "Next" : busy ? "Finding citations" : "Import and review", disabled: busy,
+    secondaryAction={outputStep ? { label: "Back", disabled: busy, onClick: () => setStep("sources") } : undefined}
+    primaryAction={{ label: !outputStep ? "Next" : busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
-      onClick: outputStep ? () => setStep("sources") : onImport }}>
-    <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
+      onClick: !outputStep ? () => setStep("output") : onImport }}>
+    <p ref={top} className="mb-4 shrink-0 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
     {outputStep ? <AuthoritiesOutputOptions value={value} disabled={busy} word={word}
       lockedDelivery={authoritiesProfile(value.profileId).locked?.settings?.tableDelivery}
-      brief={word && convertsWord === false && <p className="line-clamp-2 py-0.5 text-xs leading-4 text-gray-600"
-        title={filename}>In Word, save the original {filename} as PDF. Upload it at Build.</p>}
+      brief={word && convertsWord === false ? (available) => <FileCard disabled={!available} label="Brief saved as PDF"
+        detail={`This app can’t convert Word, so at Build you’ll upload ${filename} saved as PDF.`} /> : undefined}
       onChange={options => onChange({ ...value, ...options })} />
       : <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
         jurisdictionOrder={jurisdictionOrder} />}
-    <div className="h-5" />
+    <div className="h-5 shrink-0" />
   </Modal>;
 }
 
@@ -1406,7 +1415,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   const briefMissing = briefSlot && !!draft.state.settings.finalPdf && !brief;
   const missingText = !coverDetailsReady ? "Add cover details before building."
     : !filingRoleReady ? "Choose who is filing before building."
-    : briefMissing ? "Upload the brief PDF, or turn off Final PDF."
+    : briefMissing ? "Upload the brief saved as PDF, or don’t append the book to it."
     : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}. Build to review the incomplete-draft options.`
     : "";
   return <section className="mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
@@ -1445,8 +1454,9 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
       <AuthoritiesOutputOptions word={wordDocument} disabled={busy}
         value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
         lockedDelivery={profile.locked?.settings?.tableDelivery}
-        brief={briefSlot && <BriefPdf draft={draft} busy={busy} part={brief} onAction={onAction}
-          onPick={onPickBook} onFiles={onBookFiles} />}
+        firstTab={tabLabel(1, draft.state.settings.tabStyle, draft.state.settings)}
+        brief={briefSlot ? (available) => <BriefPdf draft={draft} busy={busy || !available} part={brief}
+          onAction={onAction} onPick={onPickBook} onFiles={onBookFiles} /> : undefined}
         onChange={({ insertIntoDocument, ...settings }) => {
           if (insertIntoDocument !== undefined) onAction({ type: "set-document-output", enabled: insertIntoDocument });
           if (Object.keys(settings).length) onAction({ type: "set-settings", settings });
@@ -1535,22 +1545,21 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
   onFiles?: (slot: AuthoritiesBookSlot, files: File[]) => void;
 }) {
   const filename = draft.state.import.kind === "document" ? draft.state.import.filename : "the brief";
-  const control = "h-7 shrink-0 border-gray-400 px-2.5 text-xs";
-  const label = part ? "Replace" : "Upload";
-  return <div className="flex min-h-8 items-center gap-2 text-sm">
-    <span className="shrink-0 font-medium text-gray-900">Brief PDF</span>
-    <span className="line-clamp-2 min-w-0 flex-1 text-xs leading-4 text-gray-600" title={part?.filename ?? filename}>
-      {part?.filename ?? `In Word, save the original ${filename} as PDF, then upload it.`}</span>
-    {onPick ? <Button type="button" variant="outline" className={control} disabled={busy}
-      aria-label={`${label} the brief PDF`} onClick={() => onPick("brief", false)}><Upload />{label}</Button>
-      : onFiles && <FileInputButton multiple={false} disabled={busy} label={label}
-        ariaLabel={`${label} the brief PDF`} accept=".pdf,application/pdf" variant="outline" compact
-        className={control} icon={<Upload />} onFiles={(files) => onFiles("brief", files)} />}
-    {part ? <MoreActionsMenu label="Brief PDF options" items={[{ label: "Remove", disabled: busy,
-      onSelect: () => onAction({ type: "clear-book-part", slot: "brief" }) }]}
-      triggerClassName="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600" />
-      : <span className="w-7 shrink-0" />}
-  </div>;
+  const label = part ? "Replace" : "Upload", control = cn(rowControl, "w-[5.625rem] px-2.5");
+  return <FileCard disabled={busy} label="Brief saved as PDF" detail={part?.filename
+    ?? `This app can’t convert Word, so in Word save ${filename} as PDF and upload it.`}
+    action={<span className="flex items-center gap-1">
+      {onPick ? <Button type="button" variant="outline" className={control} disabled={busy}
+        aria-label={`${label} the brief PDF`} onClick={() => onPick("brief", false)}><Upload />{label}</Button>
+        : onFiles && <FileInputButton multiple={false} disabled={busy} label={label}
+          ariaLabel={`${label} the brief PDF`} accept=".pdf,application/pdf" variant="outline"
+          className={control} icon={<Upload />} onFiles={(files) => onFiles("brief", files)} />}
+      {/* The menu keeps its room when there is nothing to remove, so the button never moves. */}
+      {part ? <MoreActionsMenu label="Brief PDF options" items={[{ label: "Remove", disabled: busy,
+        onSelect: () => onAction({ type: "clear-book-part", slot: "brief" }) }]}
+        triggerClassName="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600" />
+        : <span className="w-8 shrink-0" />}
+    </span>} />;
 }
 
 const completeFederalCover = (cover: AuthoritiesCover) => !!cover.courtFileNumber.trim() &&
@@ -1769,30 +1778,6 @@ function AuthorityDetailsModal({ open, busy, authority, onClose, onSave }: {
   </Modal>;
 }
 
-type CardOption<T extends string> = { value: T; label: string; detail?: string;
-  preview?: AuthoritiesBuildSettings["passageMarking"] };
-function OptionCards<T extends string>({ legend, value, options, onChange, columns, disabled,
-  className }: { legend: string; value: T; options: ReadonlyArray<CardOption<T>>;
-  onChange: (value: T) => void; columns?: boolean; disabled?: boolean; className?: string }) {
-  return <fieldset className={className} disabled={disabled}>
-    <legend className="mb-2 text-sm font-semibold text-gray-950">{legend}</legend>
-    <div className={cn("grid auto-rows-fr gap-2", columns && "sm:grid-cols-2")}>
-      {options.map((option) => <label key={option.value}
-        className="grid min-h-16 cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 rounded-lg border border-gray-300 p-3 has-[:checked]:border-red-600 has-[:checked]:bg-red-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600 has-[:disabled]:cursor-default has-[:disabled]:opacity-60">
-        <input type="radio" name={`authorities-${legend}`} value={option.value}
-          checked={value === option.value} onChange={() => onChange(option.value)}
-          className="h-4 w-4 accent-red-700" />
-        {option.preview && <MarkPreview type={option.preview} />}
-        <span className={cn("min-w-0", !option.preview && "col-span-2")}>
-          <span className="block text-sm font-semibold text-gray-950">{option.label}</span>
-          {option.detail && <span className="mt-0.5 block text-xs leading-4 text-gray-600">
-            {option.detail}</span>}
-        </span>
-      </label>)}
-    </div>
-  </fieldset>;
-}
-
 function MarkPreview({ type }: { type: AuthoritiesBuildSettings["passageMarking"] }) {
   return <span aria-hidden="true" className={cn(
     "relative block h-9 w-14 shrink-0 overflow-hidden rounded border border-gray-400 bg-white",
@@ -1861,15 +1846,15 @@ const SOURCE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["sourceM
     detail: "Create consistent pages from the available source text." },
 ];
 const PASSAGE_OPTIONS: ReadonlyArray<CardOption<AuthoritiesBuildSettings["passageMarking"]>> = [
-  { value: "margin", label: "Paragraph line and exact quote", preview: "margin",
+  { value: "margin", label: "Paragraph line and exact quote", preview: <MarkPreview type="margin" />,
     detail: "Mark the cited paragraph at the margin and highlight matching quoted words." },
-  { value: "sidelined", label: "Black paragraph line", preview: "sidelined",
+  { value: "sidelined", label: "Black paragraph line", preview: <MarkPreview type="sidelined" />,
     detail: "Add a vertical line beside the cited paragraph." },
-  { value: "paragraph", label: "Highlight cited paragraph", preview: "paragraph",
+  { value: "paragraph", label: "Highlight cited paragraph", preview: <MarkPreview type="paragraph" />,
     detail: "Highlight the full resolved paragraph." },
-  { value: "text", label: "Highlight exact quotes", preview: "text",
+  { value: "text", label: "Highlight exact quotes", preview: <MarkPreview type="text" />,
     detail: "Highlight matching quoted words only." },
-  { value: "none", label: "No passage marks", preview: "none",
+  { value: "none", label: "No passage marks", preview: <MarkPreview type="none" />,
     detail: "Leave source pages unmarked." },
 ];
 const MARKED_PASSAGE_OPTIONS = PASSAGE_OPTIONS.filter(({ value }) => value !== "none");

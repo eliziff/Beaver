@@ -264,14 +264,15 @@ function Run(page, mode) {
     await noHorizontalScroll("start");
   };
 
-  /** Import: the outputs step, then the import options, then the review. */
+  /** Import: the import options, then the outputs, then the review. */
   async function importBrief(file, label, outputs) {
     await pick(() => button("Add file").click(), [file]);
-    await page.getByRole("dialog").getByText("Outputs", { exact: true }).waitFor();
-    await outputs();
-    await shots(`${label}-02-outputs`);
+    await page.getByRole("dialog", { name: "Import options" }).waitFor();
+    await shots(`${label}-02-import-options`);
     await button("Next", page.getByRole("dialog")).click();
-    await shots(`${label}-03-import-options`);
+    await page.getByRole("dialog", { name: "Outputs" }).waitFor();
+    await outputs();
+    await shots(`${label}-03-outputs`);
     const started = await now();
     await button("Import and review").click();
     await page.locator(".citation-document .citation-band").first().waitFor({ timeout: 60000 });
@@ -571,9 +572,9 @@ function Run(page, mode) {
 
   this.pdfBrief = async () => {
     await importBrief(fixtures.briefPdf, "pdf", async () => {
-      await page.getByRole("checkbox", { name: "Final PDF with the book appended" }).check();
+      await page.getByRole("checkbox", { name: "Append the book to the brief" }).check();
       await page.getByRole("checkbox", { name: "Link citations to their tabs" }).check();
-      await page.getByRole("checkbox", { name: "Link pinpoints into PDFs you uploaded" }).check();
+      await page.getByRole("checkbox", { name: "Link pinpoints to the cited passage" }).check();
     });
     const fixed = await review("pdf", true);
     await sources("pdf", fixed);
@@ -586,6 +587,8 @@ function Run(page, mode) {
     const files = await build("pdf");
     await shots("pdf-12-built");
     // Every step tab switches at once and leaves the header and the steps where they are.
+    // A reader reaches the step tabs at the top of the page; downloading the outputs scrolled it.
+    await page.locator(".authorities-workspace").evaluate((element) => element.scrollTo(0, 0));
     const frameAtBuild = await frame();
     for (const step of ["Citations", "Sources", "Highlights", "Build book"]) {
       // The click's own input-to-paint is the switch: the new step is drawn in that frame.
@@ -609,7 +612,7 @@ function Run(page, mode) {
         requestAnimationFrame(frame);
       }, { once: true, capture: true });
     }));
-    // The label is what a reader clicks; the tab-reference pair hides its radios behind theirs.
+    // The option's card is its label, and what a reader clicks.
     await page.locator("label", { has: option }).click();
     const shown = await painted, name = await option.evaluate((element) => element.labels?.[0]?.textContent?.trim() ?? element.name);
     interactions.push({ label: `choose ${name}`, inputToPaint: shown });
@@ -620,8 +623,8 @@ function Run(page, mode) {
     if (await button("New").isEnabled()) await button("New").click();
     // New drafts start from the last import's choices; this one asks for marks and a table only.
     await importBrief(fixtures.briefDocx, "docx", async () => {
-      await page.getByRole("radio", { name: "Mark and add a table", exact: true }).check();
-      await page.getByRole("checkbox", { name: "Final PDF with the book appended" }).uncheck();
+      await page.getByRole("radio", { name: "Mark and add the table", exact: true }).check();
+      await page.getByRole("checkbox", { name: "Append the book to the brief" }).uncheck();
     });
     const fixed = await review("docx", false);
     // The scan stays missing here, so the Word brief builds through the Missing PDFs warning.
@@ -635,10 +638,9 @@ function Run(page, mode) {
     // Tab references and the final PDF, through the brief saved as PDF. Each choice shows at once
     // and moves nothing, however the options are set.
     const options = await frame();
-    await choose(page.getByRole("radio", { name: "Mark, add a table and tab references" }));
-    await choose(page.getByRole("radio", { name: "[Tab 1]" }));
-    await choose(page.getByRole("checkbox", { name: "Final PDF with the book appended" }));
-    await choose(page.getByRole("checkbox", { name: "Link tab references to their tabs" }));
+    await choose(page.getByRole("radio", { name: "Table and [Tab 1]" }));
+    await choose(page.getByRole("checkbox", { name: "Append the book to the brief" }));
+    await choose(page.getByRole("checkbox", { name: "Link citations to their tabs" }));
     check(JSON.stringify(await frame()) === JSON.stringify(options), `${mode}: the output options keep the frame still`, [options, await frame()]);
     await shots("docx-11-build");
     await pick(() => page.getByRole("button", { name: "Upload the brief PDF" }).click(), [fixtures.briefPdf]);
