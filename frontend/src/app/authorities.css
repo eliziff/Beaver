@@ -2,3 +2,6 @@
 @import "./standalone.css";
 @source "../authoritiesMain.tsx";
 @source "./authorities";
+/* The page scrolls inside its workspace and never at the root, so a modal's backdrop covers the
+   whole window and opening one moves nothing. */
+html { overflow: hidden; scrollbar-gutter: auto; }
