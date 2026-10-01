@@ -300,11 +300,12 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
               {choices.map(choice=><option key={choice.bindingRole} value={choice.bindingRole}>{choice.title}</option>)}</select>
             <Button type="button" variant="outline" size="icon-sm" className="shrink-0 border-gray-400" disabled={saving||choices.length<2} onClick={()=>go(1)} title={`Next: ${neighbour(1).title}`} aria-label={`Next authority: ${neighbour(1).title}`}><ChevronRight /></Button>
           </div>
-          <div role="group" aria-label="Highlight tool" className="flex flex-wrap items-center gap-1">
-            {([{value:'select',label:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',Icon:Highlighter},
-              {value:'draw',label:'Draw highlight',Icon:Pencil}] as const).map(({value,label,Icon})=><Button key={value} type="button"
-                variant={tool===value?'default':'ghost'} aria-pressed={tool===value} disabled={disabled} onPointerDown={event=>{if(value==='highlight')event.preventDefault();}}
-                onClick={()=>{setTool(value);if(value==='highlight')setHighlightSelection(n=>n+1);}} className="h-8"><Icon />{label}</Button>)}
+          {/* Three equal cells, so the tools never wrap onto a second row. */}
+          <div role="group" aria-label="Highlight tool" className="grid grid-cols-3 gap-1">
+            {([{value:'select',label:'Select',short:'Select',Icon:MousePointer2},{value:'highlight',label:'Highlight text',short:'Highlight',Icon:Highlighter},
+              {value:'draw',label:'Draw highlight',short:'Draw',Icon:Pencil}] as const).map(({value,label,short,Icon})=><Button key={value} type="button"
+                variant={tool===value?'default':'ghost'} aria-pressed={tool===value} aria-label={label} title={label} disabled={disabled} onPointerDown={event=>{if(value==='highlight')event.preventDefault();}}
+                onClick={()=>{setTool(value);if(value==='highlight')setHighlightSelection(n=>n+1);}} className="h-8 min-w-0 gap-1 px-1.5 text-xs"><Icon /><span className="truncate">{short}</span></Button>)}
           </div>
           <div className="flex items-center gap-1">
             <Button type="button" variant="outline" size="icon-sm" className="border-gray-400" aria-label="Delete selected highlight" disabled={disabled||!selectedId} onClick={()=>selectedId&&remove(selectedId)}><Trash2 /></Button>
