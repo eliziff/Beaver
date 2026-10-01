@@ -38,8 +38,9 @@ export function AuthoritiesOutputOptions({ value, onChange, word, disabled = fal
     citationSuffix: mode === "tabs" ? suffix === "tab" ? "tab" : "book-tab" : "none" });
   const final = !!value.finalPdf;
   return <div className="@container/output">
-    <div className="grid gap-x-8 gap-y-2 @min-[36rem]/output:grid-cols-2">
-      {word && <fieldset disabled={disabled}>
+    {/* A fieldset is as wide as its content by default; a long file name must truncate instead. */}
+    <div className="grid gap-x-8 gap-y-2 @min-[36rem]/output:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      {word && <fieldset disabled={disabled} className="min-w-0">
         <legend className={legend}>Word brief</legend>
         {WORD_OUTPUTS.map(option => <div key={option.value}>
           <label className={row}>
@@ -59,7 +60,7 @@ export function AuthoritiesOutputOptions({ value, onChange, word, disabled = fal
           </span>}
         </div>)}
       </fieldset>}
-      <fieldset disabled={disabled}>
+      <fieldset disabled={disabled} className="min-w-0">
         <legend className="sr-only">Final PDF</legend>
         <label className={cn(row, "mb-1 font-semibold")}>
           <input type="checkbox" className="accent-red-700" checked={final}
@@ -78,7 +79,7 @@ export function AuthoritiesOutputOptions({ value, onChange, word, disabled = fal
             Link pinpoints into PDFs you uploaded
           </label>
           {/* Its room is kept while the final PDF is off, so turning it on moves nothing. */}
-          {brief && <div className={cn("min-h-8", !final && "invisible")} aria-hidden={!final || undefined}>{brief}</div>}
+          {brief && <div className={cn("min-h-8 min-w-0", !final && "invisible")} aria-hidden={!final || undefined}>{brief}</div>}
         </div>
       </fieldset>
     </div>

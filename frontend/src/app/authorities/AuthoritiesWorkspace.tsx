@@ -1262,7 +1262,7 @@ function ImportSetup({ pending, busy, status, jurisdictionOrder, convertsWord, o
     <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
     {outputStep ? <AuthoritiesOutputOptions value={value} disabled={busy} word={word}
       lockedDelivery={authoritiesProfile(value.profileId).locked?.settings?.tableDelivery}
-      brief={word && convertsWord === false && <p className="truncate text-sm leading-8 text-gray-600"
+      brief={word && convertsWord === false && <p className="line-clamp-2 py-0.5 text-xs leading-4 text-gray-600"
         title={filename}>In Word, save the original {filename} as PDF. Upload it at Build.</p>}
       onChange={options => onChange({ ...value, ...options })} />
       : <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
@@ -1532,7 +1532,7 @@ function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
   const label = part ? "Replace" : "Upload";
   return <div className="flex min-h-8 items-center gap-2 text-sm">
     <span className="shrink-0 font-medium text-gray-900">Brief PDF</span>
-    <span className="min-w-0 flex-1 truncate text-gray-600" title={part?.filename ?? filename}>
+    <span className="line-clamp-2 min-w-0 flex-1 text-xs leading-4 text-gray-600" title={part?.filename ?? filename}>
       {part?.filename ?? `In Word, save the original ${filename} as PDF, then upload it.`}</span>
     {onPick ? <Button type="button" variant="outline" className={control} disabled={busy}
       aria-label={`${label} the brief PDF`} onClick={() => onPick("brief", false)}><Upload />{label}</Button>
