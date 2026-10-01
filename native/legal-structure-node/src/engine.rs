@@ -1169,8 +1169,11 @@ mod pdf {
 
     impl PdfPassagePagesJob {
         pub fn compute(self) -> CoreResult<serde_json::Value> {
+            // A scan not yet read has no geometry; a recognized page's lines are its own.
             let unavailable = self.summary.pages_needing_ocr.iter().copied()
-                .chain(self.summary.ocr_routed_pages.iter().copied()).collect::<HashSet<_>>();
+                .chain(self.summary.ocr_routed_pages.iter().copied())
+                .filter(|index| self.pages.get(*index).is_none_or(|page| page.source == "native"))
+                .collect::<HashSet<_>>();
             let prose_ids = self.paragraphs.iter().flatten().map(String::as_str).collect::<HashSet<_>>();
             let prose_lines = self.pages.iter().flat_map(|page| page.lines.iter()
                 .filter(|line| prose_ids.contains(line.id.as_str()))
@@ -1205,7 +1208,7 @@ mod pdf {
                         })
                         .map(|page| {
                             let available =
-                                page.source == "native" && !unavailable.contains(&((page.page_number - 1) as usize));
+                                !unavailable.contains(&((page.page_number - 1) as usize));
                             let lines = page
                                 .lines
                                 .iter()
@@ -1231,8 +1234,7 @@ mod pdf {
                         .collect::<Vec<_>>();
                     let mut target = serde_json::json!({ "id": plan.id, "status": status, "pages": pages });
                     if let Some(locator) = &plan.paragraph {
-                        let pages = self.pages.iter().filter(|page| page.source == "native"
-                            && !unavailable.contains(&((page.page_number - 1) as usize))
+                        let pages = self.pages.iter().filter(|page| !unavailable.contains(&((page.page_number - 1) as usize))
                             && (structural && plan.pages.contains(&page.page_number)
                                 || selected_pages.contains(&page.page_number)));
                         target["printed"] = printed_paragraph_witnessed(pages, &selected, locator).into();
