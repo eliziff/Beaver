@@ -10,7 +10,7 @@ import { authorityName, authorityLabel,
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, Download, Eye, FilePlus2, FolderSearch,
   History, Loader2, Plus, Scale, Settings2, Upload } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
+import { Fragment, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { Modal } from "@/app/components/modals/Modal";
 import { ChoiceModalButton } from "@/app/components/modals/ChoiceModalButton";
@@ -29,7 +29,7 @@ import { cn, errorMessage, formatDateTime } from "@/app/lib/utils";
 import type { WorkProductFocus, WorkProductMetadata,
   WorkProductRefresh } from "@/app/lib/workProducts";
 import { rowControl, rowLabel, Sources } from "./AuthoritySources";
-import { AuthoritiesWordOptions, type AuthoritiesWordOptionsValue } from "./AuthoritiesWordOptions";
+import { AuthoritiesOutputOptions, type AuthoritiesOutputOptionsValue } from "./AuthoritiesOutputOptions";
 import { PdfCanvas } from "@/app/components/shared/views/PdfCanvas";
 import { useScannedSources, useSourceOcr } from "./sourceOcr";
 import type { AuthoritiesBookSlot, AuthoritiesFile, AuthoritiesHost,
@@ -47,7 +47,7 @@ import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { AuthoritiesHighlights, SourceOcrProgress } from "./AuthoritiesHighlightEditor";
 
 type WorkspaceTab = "automatic" | "manual" | "drafts";
-type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & AuthoritiesWordOptionsValue & {
+type StartPreferences = Pick<AuthoritiesBuildSettings, "sourceMode" | "passageMarking"> & AuthoritiesOutputOptionsValue & {
   profileId: AuthoritiesProfileId;
 };
 type PendingImport = {
@@ -156,6 +156,15 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const [sourcePreview, setSourcePreview] = useState<{ role: string; name: string;
     quote?: string; bytes?: Uint8Array; error?: string; recognizedText?: PdfRecognizedText; pageLabels?: Array<string | null> }>();
   const ocr = useSourceOcr(host, draft?.id), resetOcr = ocr.reset;
+  // Asked once per host; a Word brief's final PDF then needs the brief saved as PDF only where it is false.
+  const [wordToPdf, setWordToPdf] = useState<{ host: AuthoritiesHost; value: boolean }>();
+  useEffect(() => {
+    let active = true;
+    void host.wordToPdf?.().then((value) => active && setWordToPdf({ host, value }))
+      .catch(() => { /* Unknown: the build reports what it needs. */ });
+    return () => { active = false; };
+  }, [host]);
+  const convertsWord = wordToPdf?.host === host ? wordToPdf.value : undefined;
   const [stubWarning, setStubWarning] = useState(false);
   const [buildLinks, setBuildLinks] = useState<{ draftId: string; revision: number;
     warnings: NonNullable<AuthoritiesBuildReceipt["linkWarnings"]> }>();
@@ -578,14 +587,16 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (!pendingImport) return;
     const filename = pendingImport.source.kind === "document" ? pendingImport.source.document.filename
       : pendingImport.source.selected.file.name;
+    // A PDF brief has no Word copy, so the Word choices remembered from a Word brief stay behind.
+    const { insertIntoDocument, tableDelivery, citationSuffix, ...shared } = pendingImport.preferences;
     const settings = filename.toLowerCase().endsWith(".docx")
-      ? { ...pendingImport.preferences, insertIntoDocument: pendingImport.preferences.insertIntoDocument ?? false,
-        tableDelivery: pendingImport.preferences.tableDelivery ?? authoritiesProfile(pendingImport.preferences.profileId).defaults.settings.tableDelivery,
-        citationSuffix: pendingImport.preferences.citationSuffix ?? "none" as const }
-      : pendingImport.preferences;
+      ? { ...shared, insertIntoDocument: insertIntoDocument ?? false,
+        tableDelivery: tableDelivery ?? authoritiesProfile(shared.profileId).defaults.settings.tableDelivery,
+        citationSuffix: citationSuffix ?? "none" as const }
+      : shared;
     void run(() => host.create({ ...pendingImport, projectId,
       settings }), (next) => {
-      setPreferences(settings); setPendingImport(undefined);
+      setPreferences({ ...pendingImport.preferences, ...settings }); setPendingImport(undefined);
       adopt(next, true);
     });
   }
@@ -935,7 +946,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     else act({ type: "set-stage", stage: next });
   };
   const buildPanel = draft && stage === "build" && <BuildPanel draft={draft} busy={busy} building={building}
-    recognitionAvailable={host.recognitionAvailable !== false}
+    recognitionAvailable={host.recognitionAvailable !== false} convertsWord={convertsWord}
     jurisdictionOrder={jurisdictionOrder} outputFreshness={outputFreshness}
     linkWarnings={buildLinks?.draftId === draft.id && buildLinks.revision === draft.revision
       ? buildLinks.warnings : undefined}
@@ -1090,7 +1101,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
         </div>}
       </Modal>
       <ImportSetup pending={pendingImport} busy={busy} status={error}
-        jurisdictionOrder={jurisdictionOrder}
+        jurisdictionOrder={jurisdictionOrder} convertsWord={convertsWord}
         onChange={(next) => setPendingImport((current) => current
           ? { ...current, preferences: next } : current)}
         onClose={() => { if (!busy) setPendingImport(undefined); }} onImport={importDocument} />
@@ -1216,28 +1227,31 @@ function AutomaticStart({ busy, onFile, onPick, onLibrary, sourceLabel = "Librar
   </section>;
 }
 
-function ImportSetup({ pending, busy, status, jurisdictionOrder, onChange, onClose, onImport }: {
+function ImportSetup({ pending, busy, status, jurisdictionOrder, convertsWord, onChange, onClose, onImport }: {
   pending?: PendingImport; busy: boolean; status: string;
-  jurisdictionOrder: string[];
+  jurisdictionOrder: string[]; convertsWord?: boolean;
   onChange: (value: StartPreferences) => void; onClose: () => void; onImport: () => void;
 }) {
   const value = pending?.preferences ?? DEFAULTS;
   const filename = pending?.source.kind === "document" ? pending.source.document.filename
     : pending?.source.selected.file.name;
   const word = filename?.toLowerCase().endsWith(".docx") ?? false;
-  const [step, setStep] = useState<"word" | "sources">("word");
-  useEffect(() => setStep("word"), [pending?.source]);
-  const wordStep = word && step === "word";
-  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={[wordStep ? "Word output" : "Import options"]}
+  const [step, setStep] = useState<"output" | "sources">("output");
+  useEffect(() => setStep("output"), [pending?.source]);
+  // The outputs come first, read as the Build step reads them; sources and marking follow.
+  const outputStep = step === "output";
+  return <Modal open={!!pending} onClose={onClose} size="xl" breadcrumbs={[outputStep ? "Outputs" : "Import options"]}
     className="!h-[min(32rem,calc(100dvh-2rem))]"
     footerStatus={status && <span className="text-sm text-red-800" role="status">{status}</span>}
-    secondaryAction={word && !wordStep ? { label: "Back", disabled: busy, onClick: () => setStep("word") } : undefined}
-    primaryAction={{ label: wordStep ? "Next" : busy ? "Finding citations" : "Import and review", disabled: busy,
+    secondaryAction={!outputStep ? { label: "Back", disabled: busy, onClick: () => setStep("output") } : undefined}
+    primaryAction={{ label: outputStep ? "Next" : busy ? "Finding citations" : "Import and review", disabled: busy,
       icon: busy ? <Loader2 className="motion-safe:animate-spin" /> : undefined,
-      onClick: wordStep ? () => setStep("sources") : onImport }}>
+      onClick: outputStep ? () => setStep("sources") : onImport }}>
     <p className="mb-4 truncate text-sm text-gray-600" title={pending?.title}>{pending?.title}</p>
-    {wordStep ? <AuthoritiesWordOptions value={value} disabled={busy}
+    {outputStep ? <AuthoritiesOutputOptions value={value} disabled={busy} word={word}
       lockedDelivery={authoritiesProfile(value.profileId).locked?.settings?.tableDelivery}
+      brief={word && convertsWord === false && <p className="truncate text-sm leading-8 text-gray-600"
+        title={filename}>In Word, save the original {filename} as PDF. Upload it at Build.</p>}
       onChange={options => onChange({ ...value, ...options })} />
       : <AuthoritiesSetupFields value={value} onChange={onChange} busy={busy}
         jurisdictionOrder={jurisdictionOrder} />}
@@ -1338,10 +1352,10 @@ function AuthoritiesSetupFields({ value, onChange, busy, jurisdictionOrder }: {
 }
 
 function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onAction, sourceIssues, recognitionAvailable,
-  outputFreshness, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
+  convertsWord, outputFreshness, linkWarnings, onRelink, onBookFiles, onPickBook, onLibraryBook, sourceLabel, onOpenSource,
   onBuild, onCancel, onDownload }: {
   draft: AuthoritiesProduct; busy: boolean; building: boolean; missing: number;
-  recognitionAvailable: boolean;
+  recognitionAvailable: boolean; convertsWord?: boolean;
   outputFreshness: "unbuilt" | "current" | "stale";
   linkWarnings?: AuthoritiesBuildReceipt["linkWarnings"];
   jurisdictionOrder: string[];
@@ -1355,8 +1369,6 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   onDownload: (documentId: string, versionId: string, filename: string) => void;
 }) {
   const [coverOpen, setCoverOpen] = useState(false);
-  const [wordOpen, setWordOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const profile = authoritiesProfile(draft.state.settings.profileId);
   const manual = draft.state.import.kind === "manual";
   const wordDocument = draft.state.import.kind === "document" && draft.state.import.fileType === "docx";
@@ -1369,20 +1381,17 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
   const filingRoleReady = !generatedFederalCover || !!draft.state.settings.bookRole;
   const coverReady = coverDetailsReady && filingRoleReady;
   const previousOutput = outputFreshness === "stale";
+  // Without a converter here, a Word brief reaches the final PDF as a PDF the user saved from Word.
+  const briefSlot = wordDocument && convertsWord === false;
+  const brief = draft.state.bookParts.brief ?? undefined;
+  const briefMissing = briefSlot && !!draft.state.settings.finalPdf && !brief;
   const missingText = !coverDetailsReady ? "Add cover details before building."
     : !filingRoleReady ? "Choose who is filing before building."
+    : briefMissing ? "Upload the brief PDF, or turn off Final PDF."
     : missing ? `${missing} missing PDF${missing === 1 ? "" : "s"}. Build to review the incomplete-draft options.`
     : "";
   return <section className="mt-3 rounded-xl border border-gray-300 bg-white p-4 shadow-sm">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="font-semibold text-gray-950">Build outputs</h2>
-      {!manual && <div className="flex flex-wrap gap-2">
-        {wordDocument && <Button type="button" variant="outline" className="h-9 px-2 text-xs"
-          disabled={busy} onClick={() => setWordOpen(true)}>Word output</Button>}
-        <Button type="button" variant="outline" className="h-9 px-2 text-xs"
-          disabled={busy} onClick={() => setExportOpen(true)}>Final PDF export</Button>
-      </div>}
-    </div>
+    <h2 className="font-semibold text-gray-950">Build outputs</h2>
     <div className={cn("mt-3 grid gap-3 sm:items-end", manual
       ? "sm:grid-cols-[minmax(0,1fr)_9rem]"
       : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem]")}>
@@ -1394,7 +1403,7 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
         onChange={(outputMode) => onAction({ type: "set-output-mode", outputMode })}
         options={[{ value: "book", label: "Book of Authorities" },
           { value: "table", label: "Table of Authorities" }, { value: "both", label: "Book and Table" }]} />}
-      <Button type="button" className="h-10" disabled={busy && !building}
+      <Button type="button" className="h-10" disabled={busy && !building || !building && briefMissing}
         onClick={building ? onCancel : coverReady ? onBuild : !coverDetailsReady
           ? () => setCoverOpen(true)
           : () => document.getElementById("authorities-filed-by")?.focus()}>
@@ -1413,6 +1422,17 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
     </div>}
     <p className={cn("mt-2 min-h-5 text-sm leading-5", missingText ? "text-red-800" : "invisible")}
       aria-hidden={!missingText || undefined}>{missingText || "Ready"}</p>
+    {!manual && <div className="mb-2 border-t border-gray-200 pt-2">
+      <AuthoritiesOutputOptions word={wordDocument} disabled={busy}
+        value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
+        lockedDelivery={profile.locked?.settings?.tableDelivery}
+        brief={briefSlot && <BriefPdf draft={draft} busy={busy} part={brief} onAction={onAction}
+          onPick={onPickBook} onFiles={onBookFiles} />}
+        onChange={({ insertIntoDocument, ...settings }) => {
+          if (insertIntoDocument !== undefined) onAction({ type: "set-document-output", enabled: insertIntoDocument });
+          if (Object.keys(settings).length) onAction({ type: "set-settings", settings });
+        }} />
+    </div>}
     {book && <BookContents draft={draft} busy={busy} onAction={onAction}
       sourceIssues={sourceIssues} onRelink={onRelink} onFiles={onBookFiles} onPick={onPickBook}
       onLibrary={onLibraryBook} sourceLabel={sourceLabel}
@@ -1456,22 +1476,17 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
             { value: "full", label: "OCR every page" }]} />}
       </div>
     </details>
-    {draft.state.settings.finalPdf && <p className="mb-3 text-sm text-gray-700">
-      Final PDF: source document and Book of Authorities{draft.state.settings.linkTabs ? ", with linked tabs" : ""}
-      {draft.state.settings.linkPinpoints ? ", with pinpoint links where located" : ""}.
-    </p>}
     <div className="min-h-12 border-t border-gray-200 pt-2">
       {!!Object.keys(draft.outputs).length && <p className={cn(
         "mb-1 min-h-5 text-xs leading-5 text-gray-600",
         !previousOutput && "invisible",
       )}>{previousOutput ? "Previous build — rebuild to update" : "Current build"}</p>}
-      {!previousOutput && draft.outputs["link-report"] && draft.state.settings.finalPdf &&
-        (draft.state.settings.linkTabs || draft.state.settings.linkPinpoints) &&
-        <p className="mb-2 text-sm text-gray-700" role="status">
+      {/* The final PDF is the culminating output; what it could not link follows it. */}
+      {Object.entries(draft.outputs).sort(([a], [b]) => outputRank(a) - outputRank(b)).map(([role, output]) => <Fragment key={role}>
+        {role === "link-report" && !previousOutput && <p className="px-2 text-sm text-gray-700" role="status">
           {linkWarnings?.length ? `${linkWarnings.length} link${linkWarnings.length === 1 ? " wasn't" : "s weren't"} added.`
-            : "Some links weren't added."} Use Unlinked citations to finish them in a PDF editor.
-        </p>}
-      {Object.entries(draft.outputs).map(([role, output]) => <button key={role} type="button"
+            : "Some links weren't added."} Use Unlinked citations to finish them in a PDF editor.</p>}
+        <button type="button"
         aria-label={`Download ${previousOutput ? "previous " : ""}${output.filename}`}
         title={output.filename}
         onClick={() => onDownload(output.documentId, output.versionId, output.filename)}
@@ -1482,52 +1497,41 @@ function BuildPanel({ draft, busy, building, missing, jurisdictionOrder, onActio
             : output.filename.toLowerCase().endsWith(".pdf") ? "Filing PDF" : "Word copy"}</span>
         <span className="min-w-0 truncate text-gray-500">{output.filename}</span>
         <span className="text-[11px] uppercase text-gray-500">{output.filename.split(".").at(-1)}</span>
-      </button>)}
+      </button></Fragment>)}
     </div>
     {coverOpen && <FederalCoverModal cover={draft.state.cover} profileId={profile.id}
       busy={busy} onClose={() => setCoverOpen(false)} onSave={(cover) => {
         setCoverOpen(false); onAction({ type: "set-cover", cover });
       }} />}
-    <Modal open={wordOpen} onClose={() => setWordOpen(false)} size="lg" fit
-      breadcrumbs={["Word output"]} primaryAction={{ label: "Done", disabled: busy,
-        onClick: () => setWordOpen(false) }}>
-      <AuthoritiesWordOptions value={{ ...draft.state.settings, insertIntoDocument: draft.state.insertIntoDocument }}
-        disabled={busy} lockedDelivery={profile.locked?.settings?.tableDelivery}
-        onChange={({ insertIntoDocument, ...settings }) => {
-          onAction({ type: "set-document-output", enabled: !!insertIntoDocument });
-          onAction({ type: "set-settings", settings });
-        }} />
-    </Modal>
-    <Modal open={exportOpen} onClose={() => setExportOpen(false)} size="lg" fit
-      breadcrumbs={["Final PDF export"]} primaryAction={{ label: "Done", disabled: busy,
-        onClick: () => setExportOpen(false) }}>
-      <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm text-gray-950 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
-        <input type="checkbox" className="mt-1 accent-red-700" disabled={busy}
-          checked={!!draft.state.settings.finalPdf} onChange={event => onAction({ type: "set-settings",
-            settings: { finalPdf: event.target.checked } })} />
-        <span><span className="block font-medium">Append the book to the source document PDF</span>
-          <span className="block text-xs leading-5 text-gray-600">Build one PDF containing the document and all authority tabs.</span></span>
-      </label>
-      {draft.state.settings.finalPdf && <div className="mt-3 space-y-2">
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm text-gray-950 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
-          <input type="checkbox" className="mt-1 accent-red-700" disabled={busy}
-            checked={!!draft.state.settings.linkTabs} onChange={event => onAction({ type: "set-settings",
-              settings: { linkTabs: event.target.checked } })} />
-          <span><span className="block font-medium">Link tab references to the book</span>
-            <span className="block text-xs leading-5 text-gray-600">{wordDocument
-              ? "Add clickable tab references beside citations in the final PDF."
-              : "Link citation text to the authority tab in the final PDF."}</span></span>
-        </label>
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm text-gray-950 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-red-600">
-          <input type="checkbox" className="mt-1 accent-red-700" disabled={busy}
-            checked={!!draft.state.settings.linkPinpoints} onChange={event => onAction({ type: "set-settings",
-              settings: { linkPinpoints: event.target.checked } })} />
-          <span><span className="block font-medium">Link pinpoints in uploaded PDFs</span>
-            <span className="block text-xs leading-5 text-gray-600">Link only located passages in PDFs you attached. Unlinked pinpoints are listed after export for manual linking.</span></span>
-        </label>
-      </div>}
-    </Modal>
   </section>;
+}
+
+const outputRank = (role: string) => role === "final-pdf" ? 1 : role === "link-report" ? 2 : 0;
+
+/** The brief saved as PDF from Word: what a final PDF is built from where Word is not converted here. */
+function BriefPdf({ draft, busy, part, onAction, onPick, onFiles }: {
+  draft: AuthoritiesProduct; busy: boolean; part?: { filename: string };
+  onAction: (action: AuthoritiesAction) => void;
+  onPick?: (slot: AuthoritiesBookSlot, multiple: boolean) => void;
+  onFiles?: (slot: AuthoritiesBookSlot, files: File[]) => void;
+}) {
+  const filename = draft.state.import.kind === "document" ? draft.state.import.filename : "the brief";
+  const control = "h-7 shrink-0 border-gray-400 px-2.5 text-xs";
+  const label = part ? "Replace" : "Upload";
+  return <div className="flex min-h-8 items-center gap-2 text-sm">
+    <span className="shrink-0 font-medium text-gray-900">Brief PDF</span>
+    <span className="min-w-0 flex-1 truncate text-gray-600" title={part?.filename ?? filename}>
+      {part?.filename ?? `In Word, save the original ${filename} as PDF, then upload it.`}</span>
+    {onPick ? <Button type="button" variant="outline" className={control} disabled={busy}
+      aria-label={`${label} the brief PDF`} onClick={() => onPick("brief", false)}><Upload />{label}</Button>
+      : onFiles && <FileInputButton multiple={false} disabled={busy} label={label}
+        ariaLabel={`${label} the brief PDF`} accept=".pdf,application/pdf" variant="outline" compact
+        className={control} icon={<Upload />} onFiles={(files) => onFiles("brief", files)} />}
+    {part ? <MoreActionsMenu label="Brief PDF options" items={[{ label: "Remove", disabled: busy,
+      onSelect: () => onAction({ type: "clear-book-part", slot: "brief" }) }]}
+      triggerClassName="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-red-600" />
+      : <span className="w-7 shrink-0" />}
+  </div>;
 }
 
 const completeFederalCover = (cover: AuthoritiesCover) => !!cover.courtFileNumber.trim() &&

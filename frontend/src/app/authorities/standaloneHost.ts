@@ -11,6 +11,7 @@ import {
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
 import { apiResponse, BeaverApiError } from "@/app/lib/api/client";
+import { authoritiesWordToPdf } from "@/app/lib/api/authorities";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
@@ -173,6 +174,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     prepareAnnotations({ ...product, state: supportedDraft(product.state) }, ...args),
   mode: "standalone",
   recognitionAvailable,
+  wordToPdf: () => authoritiesWordToPdf("authorities-runtime"),
   sourceOcr: {
     async start(id, roles, pages, scannedPages) {
       const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
