@@ -1021,7 +1021,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const statusLine = <Status busy={busy} inline={!!draft && tab !== "drafts"}
     busyText={busyText} status={status} error={!!(error || (!message && reviewError))} />;
   return <div className={cn("authorities-workspace bg-app-background [scrollbar-gutter:stable]",
-    host.mode === "standalone" ? "min-h-dvh" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
+    host.mode === "standalone" ? "h-dvh overflow-y-auto" : "min-h-full lg:h-full lg:min-h-0 lg:overflow-y-auto")}>
     {draft ? <WorkspaceHeader className={host.mode === "standalone" ? FRAME : undefined} current={draft}
         busy={busy || locked} itemLabel="authorities draft"
         onBack={() => newDraft(false)} onRename={rename} onDuplicate={duplicate}
