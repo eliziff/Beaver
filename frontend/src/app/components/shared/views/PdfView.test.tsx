@@ -277,19 +277,19 @@ describe("PdfView", () => {
     it("uses detected printed labels from the document operation instead of embedded labels", async () => {
         mocks.detectedLabels = ["101", "102", "103"];
         render(<PdfView doc={{ document_id: "detected", version_id: "v1" }} />);
-        await waitFor(() => expect(screen.getByRole("textbox", { name: "Printed page" })).toHaveValue("101"));
+        await waitFor(() => expect(screen.getByRole("textbox", { name: /^Printed page/ })).toHaveValue("101"));
     });
 
     it("navigates a chosen duplicate from the supplied page map in the ordinary reader", async () => {
         render(<PdfView doc={null} bytes={new Uint8Array([1])} pageLabels={["i", "5", "5"]} />);
-        const printed = await screen.findByRole("textbox", { name: "Printed page" });
+        const printed = await screen.findByRole("textbox", { name: /^Printed page/ });
         await waitFor(() => expect(printed).not.toBeDisabled());
         expect(printed).toHaveValue("i");
         fireEvent.change(printed, { target: { value: "5" } });
         fireEvent.keyDown(printed, { key: "Enter" });
-        expect(screen.getByRole("textbox", { name: "PDF page" })).toHaveValue("1");
+        expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("1");
         fireEvent.click(screen.getByRole("button", { name: "PDF 3" }));
-        await waitFor(() => expect(screen.getByRole("textbox", { name: "PDF page" })).toHaveValue("3"));
+        await waitFor(() => expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("3"));
         expect(printed).toHaveValue("5");
     });
 
@@ -297,7 +297,7 @@ describe("PdfView", () => {
         const { rerender } = render(<PdfView doc={{ document_id: "first" }} />);
         await screen.findByText("Page 1 text");
         const zoomIn = screen.getByRole("button", { name: "Zoom in" });
-        const pageCount = screen.getByRole("textbox", { name: "PDF page" });
+        const pageCount = screen.getByRole("textbox", { name: /^PDF page/ });
         fileResult = null;
         rerender(<PdfView doc={{ document_id: "second" }} />);
         await waitFor(() => expect(mocks.hookCalls).toBe(2));
@@ -627,7 +627,7 @@ describe("PdfView", () => {
         fireEvent.scroll(scroller);
         expect(requestFrame.mock.calls.length).toBeLessThanOrEqual(2);
         act(() => callback!(0));
-        await waitFor(() => expect(screen.getByRole("textbox", { name: "PDF page" })).toHaveValue("2"));
+        await waitFor(() => expect(screen.getByRole("textbox", { name: /^PDF page/ })).toHaveValue("2"));
         fireEvent.scroll(scroller);
         unmount();
         expect(cancelFrame).toHaveBeenCalledWith(7);
