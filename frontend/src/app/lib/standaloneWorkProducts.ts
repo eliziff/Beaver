@@ -16,6 +16,7 @@ const METADATA = "metadata";
 const HANDLES = "fileHandles";
 const FILES = "files";
 const OUTPUTS = "outputs";
+const ANSWERS = "sourceAnswers";
 const OUTPUT_FOLDER = "preference:output-folder";
 const FILING_CONTACT = "preference:filing-contact";
 const MAX_UNCLAIMED_HANDLES = 64;
@@ -478,6 +479,30 @@ export async function readSourcePdf(url: string) {
   return bytes && await digestBytes(bytes) === sha256 ? bytes : null;
 }
 
+type StoredAnswer = { id: string; body: string; expires: number };
+let answersSwept = false;
+/** A source's answer to a lookup, kept by its URL until it expires, so a later visit does not ask
+ *  again. Only answers are kept: a lookup that failed is asked again. */
+export async function rememberSourceAnswer(url: string, body: string, expires: number) {
+  const database = await openDatabase(), transaction = database.transaction(ANSWERS, "readwrite");
+  const store = transaction.objectStore(ANSWERS);
+  store.put({ id: url, body, expires } satisfies StoredAnswer);
+  if (!answersSwept) {
+    answersSwept = true;
+    const now = Date.now(), cursor = store.openCursor();
+    cursor.onsuccess = () => {
+      if (!cursor.result) return;
+      if ((cursor.result.value as StoredAnswer).expires <= now) cursor.result.delete();
+      cursor.result.continue();
+    };
+  }
+  await completed(transaction);
+}
+export async function readSourceAnswer(url: string) {
+  const kept = await read<StoredAnswer>(ANSWERS, url);
+  return kept && kept.expires > Date.now() ? kept.body : null;
+}
+
 /** Retains generated/downloaded bytes without pretending they have a user filesystem handle. */
 export async function retainStandaloneFile(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer()), sha256 = await digestBytes(bytes);
@@ -626,10 +651,10 @@ function openDatabase() {
     void navigator.storage?.persist?.().catch(() => false);
   }
   return database ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const opening = indexedDB.open(DATABASE, 5);
+    const opening = indexedDB.open(DATABASE, 6);
     opening.onupgradeneeded = () => {
       const names = opening.result.objectStoreNames;
-      for (const name of [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS]) {
+      for (const name of [DRAFTS, METADATA, HANDLES, FILES, OUTPUTS, ANSWERS]) {
         if (!names.contains(name)) opening.result.createObjectStore(name, { keyPath: "id" });
       }
     };

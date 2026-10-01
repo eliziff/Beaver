@@ -10,7 +10,8 @@ const { api, fileStore, drafts, unexpected } = vi.hoisted(() => ({
   fileStore: {
     bindStandaloneFile: vi.fn(), chooseStandaloneOutputFolder: vi.fn(), clearStandaloneOutputFolder: vi.fn(),
     getStandaloneOutputFolder: vi.fn(), inspectStandaloneFile: vi.fn(), pickRetainedFiles: vi.fn(),
-    readSourcePdf: vi.fn(), readStandaloneOutput: vi.fn(), rememberSourcePdf: vi.fn(),
+    readSourceAnswer: vi.fn(), readSourcePdf: vi.fn(), readStandaloneOutput: vi.fn(), rememberSourceAnswer: vi.fn(),
+    rememberSourcePdf: vi.fn(),
     resolveStandaloneFile: vi.fn(), relinkStandaloneFile: vi.fn(),
     retainStandaloneFile: vi.fn(), saveStandaloneArtifacts: vi.fn(), writeStandaloneArtifactsToOutputFolder: vi.fn(),
   },
