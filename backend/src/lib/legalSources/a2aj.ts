@@ -117,21 +117,24 @@ export class A2AJUnavailable extends Error {
   }
 }
 // A limit A2AJ sets (429, or a 503 that names a Retry-After) holds every lookup until it passes.
-let paused = { until: 0, reason: "rate-limited" as A2AJFailureReason };
-const pause = (reason: A2AJFailureReason, until: number | null) => {
-  if (until && until > paused.until) paused = { until, reason };
-  return new A2AJUnavailable(reason, until);
+// Only a time A2AJ named is reported as when it allows lookups again; a hold of our own
+// (a 429 without one, or one a page cannot read) is never presented as A2AJ's.
+let paused = { until: 0, reason: "rate-limited" as A2AJFailureReason, named: false };
+const pause = (reason: A2AJFailureReason, retryAfter: string | null, hold: number | null) => {
+  const named = retryAt(retryAfter), until = named ?? (hold === null ? null : Date.now() + hold);
+  if (until && until > paused.until) paused = { until, reason, named: !!named };
+  return new A2AJUnavailable(reason, named);
 };
-const retryAt = (value: string | null, fallback: number | null) => {
+const retryAt = (value: string | null) => {
   const seconds = Number(value), date = value ? Date.parse(value) : NaN;
   const wait = value && Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000
-    : Number.isFinite(date) ? date - Date.now() : fallback;
+    : Number.isFinite(date) ? date - Date.now() : null;
   return wait === null ? null : Date.now() + Math.min(Math.max(wait, 1000), 600_000);
 };
 /** The failure an answer from A2AJ stands for, or null when it answered the lookup. */
 const refusal = (response: Response) => response.status === 429
-  ? pause("rate-limited", retryAt(response.headers.get("retry-after"), 60_000))
-  : response.status >= 500 ? pause("error", retryAt(response.headers.get("retry-after"), null)) : null;
+  ? pause("rate-limited", response.headers.get("retry-after"), 60_000)
+  : response.status >= 500 ? pause("error", response.headers.get("retry-after"), null) : null;
 // What fetch rejects with when no answer could be used: a TypeError (undici, browsers), or a
 // lookup or socket error from Node. Anything else was raised by our own request path.
 const NETWORK_CODES = new Set(["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET",
@@ -170,7 +173,7 @@ async function send(url: string, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (!answer) throw new A2AJUnavailable("unreachable");
     await answer.body?.cancel().catch(() => undefined);
-    if (answer.type === "opaque") throw pause("rate-limited", retryAt(null, 60_000));
+    if (answer.type === "opaque") throw pause("rate-limited", null, 60_000);
     throw refusal(answer) ?? new A2AJUnavailable("error", null,
       `A2AJ answered (${answer.status}) but the lookup failed: ${(error as Error).message}`);
   }
@@ -240,7 +243,7 @@ async function request(
     // One request at a time, a limit applying to every one still waiting its turn.
     produce: () => inTurn(async () => {
       signal?.throwIfAborted();
-      if (Date.now() < paused.until) throw new A2AJUnavailable(paused.reason, paused.until);
+      if (Date.now() < paused.until) throw new A2AJUnavailable(paused.reason, paused.named ? paused.until : null);
       const response = await send(url, signal);
       const body = await response.json().catch(() => null);
       if (!response.ok) throw apiError(response.status, body);
@@ -642,5 +645,5 @@ export const a2ajLegalSourceProvider = Object.assign(provider, {
   document,
   viewer,
   coverage,
-  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited" }; },
+  clearCache: () => { documents.clear(); paused = { until: 0, reason: "rate-limited", named: false }; },
 });

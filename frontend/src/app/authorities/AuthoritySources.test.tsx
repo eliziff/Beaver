@@ -54,20 +54,45 @@ it("edits a non-case title separately from its citation", () => {
   expect(screen.getByText("(2020) 58:2 Alta L Rev 123")).toBeVisible();
 });
 
-it("names an authority A2AJ left unchecked and offers retry once its window passes", () => {
+it("never shows its own wait as A2AJ's time, and asks again itself once a minute has passed, then less often", () => {
   vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], now: Date.UTC(2020, 0, 1, 12) });
   try {
+    // A page cannot read the Retry-After A2AJ sends with its limit: the failure names no time.
     const { retry } = renderSource({ ...authority, sourceUrl: undefined, sourceLookupFailure:
-      { reason: "rate-limited", retryAfter: new Date(Date.now() + 90_000).toISOString() } });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "A2AJ is limiting requests, so this authority wasn't checked: Example v Example.");
-    expect(screen.getByRole("img", { name: /^A2AJ is limiting requests, so this authority wasn't checked\. Retry after/ })).toBeVisible();
-    expect(screen.queryByText(/No PDF attached/)).toBeNull();
-    const button = screen.getByRole("button", { name: /^Retry after/ });
-    expect(button).toBeDisabled();
-    act(() => { vi.advanceTimersByTime(91_000); });
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      { reason: "rate-limited", retryAfter: null } });
+    expect(screen.getByRole("status")).toHaveTextContent("A2AJ is limiting requests, so this authority " +
+      "wasn't checked: Example v Example. Beaver will try again in about a minute.");
+    expect(screen.getByRole("img", { name: "A2AJ is limiting requests, so this authority wasn't checked. " +
+      "Beaver will try again, or upload the PDF." })).toBeVisible();
+    expect(screen.queryByText(/Retry after|No PDF attached/u)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Retry/u })).toBeNull();
+    act(() => { vi.advanceTimersByTime(59_000); });
+    expect(retry).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(2_000); });
+    expect(retry).toHaveBeenCalledTimes(1);
     expect(retry).toHaveBeenCalledWith("one");
+    // A2AJ still limiting: twice as long before the next request, and never a loop meanwhile.
+    expect(screen.getByRole("status")).toHaveTextContent("Beaver will try again in about 2 minutes.");
+    act(() => { vi.advanceTimersByTime(118_000); });
+    expect(retry).toHaveBeenCalledTimes(1);
+    act(() => { vi.advanceTimersByTime(2_000); });
+    expect(retry).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status")).toHaveTextContent("Beaver will try again in about 4 minutes.");
+  } finally { vi.useRealTimers(); }
+});
+
+it("waits until the time A2AJ named, where its answer could be read", () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"], now: Date.UTC(2020, 0, 1, 12) });
+  try {
+    const until = Date.now() + 150_000;
+    const { retry } = renderSource({ ...authority, sourceUrl: undefined, sourceLookupFailure:
+      { reason: "rate-limited", retryAfter: new Date(until).toISOString() } });
+    expect(screen.getByRole("status")).toHaveTextContent(`Beaver will try again at ${new Date(until)
+      .toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`);
+    act(() => { vi.advanceTimersByTime(149_000); });
+    expect(retry).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(2_000); });
+    expect(retry).toHaveBeenCalledTimes(1);
   } finally { vi.useRealTimers(); }
 });
 
