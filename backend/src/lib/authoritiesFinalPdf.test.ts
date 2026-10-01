@@ -1,6 +1,7 @@
 import * as pdf from "pdf-lib";
 import { expect, it } from "vitest";
-import { assembleFinalAuthoritiesPdf } from "./authoritiesFinalPdf";
+import type { AuthoritiesDraft } from "mike/shared/authorities-contract.d.ts";
+import { assembleFinalAuthoritiesPdf, briefOccurrencePages } from "./authoritiesFinalPdf";
 import { createAuthoritiesDraft } from "./authoritiesDomain";
 import { pdfAssembly } from "./pdfAssembly";
 
@@ -55,4 +56,27 @@ it("outlines a brief without bookmarks by its headings, then the book's tabs", a
       { title: "PART I - FACTS", pageIndex: 0, children: [{ title: "A. The tow", pageIndex: 1 }] },
       { title: "PART II - ISSUES", pageIndex: 2 }] },
     { title: "Book of authorities", pageIndex: 3, children: [{ title: "Tab 1 — Harbour Board v Tug", pageIndex: 4 }] }]);
+});
+
+/** A draft of footnotes, each citing one authority. */
+function notes(...entries: Array<[text: string, citation: string]>) {
+  const units = entries.map(([text, citation], index) => ({ id: `footnote:${index + 1}`, footnoteId: String(index + 1),
+    text, occurrenceIds: [`c${index}`], citation }));
+  return { units, occurrences: Object.fromEntries(units.map(({ text, citation }, index) => {
+    const start = text.indexOf(citation);
+    return [`c${index}`, { id: `c${index}`, start, end: start + citation.length, text: citation }];
+  })) } as unknown as AuthoritiesDraft;
+}
+
+it("places citations followed by tab references when one only matches the brief's own table", () => {
+  const draft = notes(["See Cedar Act, RSA 2000, c C-1 at s 4.", "Cedar Act, RSA 2000, c C-1"],
+    ["Compare Dogwood v Elm, 2003 SCC 3 at para 9.", "Dogwood v Elm, 2003 SCC 3"]);
+  const pages = briefOccurrencePages(draft, [
+    // The Word copy's PDF: the first citation reads differently there, the second has its tab after it,
+    "1 See Cedar Act, RSA 2000, ch C-1 [Tab 1] at s 4.",
+    "2 Compare Dogwood v Elm, 2003 SCC 3 [Tab 2] at para 9.",
+    // and the table of authorities Word built lists both after every citation.
+    "Table of Authorities Statutes Cedar Act, RSA 2000, c C-1 ..... 1 Cases Dogwood v Elm, 2003 SCC 3 ..... 2",
+  ]);
+  expect(pages.get("c1")).toBe(2);
 });
