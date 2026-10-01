@@ -18,9 +18,7 @@ PRIVATE_EMAILS = set(filter(None, os.environ.get('BEAVER_PRIVATE_EMAIL_SHA256', 
 HOME = re.compile(r'(?:[a-z]:[\\/]+Users[\\/]+|/mnt/[a-z]/Users/|(?<![a-z0-9_.-])/(?:Users|home)/)(?!(?:runner|runneradmin|sandbox|build|Public|Shared|Default|user|someone)(?:[\\/]|$))[a-z0-9_.@-]+[\\/]', re.I)
 EMAIL = re.compile(r'[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,63}', re.I)
 PRIVATE_FILE = re.compile(r'(?:^|/)(?:private_sources|private_comparison|court-record-exhibits|prompt_live|\.auth)(?:/|$)|(?:^|/)(?:\.codex/sessions/|private_manifest\.jsonl?$|auth\.json$|storageState\.json$|application\.(?:sqlite|db)(?:-wal|-shm)?$)', re.I)
-QUARANTINED = ('benchmarks/docx_edit/fixtures/prose/',) + tuple(
-    f'benchmarks/beaver_can/tasks/dev/CAN-RESEARCH-{number:03d}/' for number in range(1, 6)
-)
+QUARANTINED = ('benchmarks/docx_edit/fixtures/prose/', 'benchmarks/beaver_can/tasks/dev/')
 EMBEDDED = re.compile(rb'(?:AGFzb|UEsDB|H4sI)[A-Za-z0-9+/=]{400,}')
 MEDIA = {'.docx','.pdf','.png','.jpg','.jpeg','.webp','.gif','.woff','.woff2','.ttf','.ico','.pptx','.xlsx','.zip','.tgz','.gz'}
 
