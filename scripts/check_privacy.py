@@ -3,6 +3,7 @@ import argparse
 import base64
 import hashlib
 import io
+import os
 import re
 import subprocess
 import sys
@@ -12,7 +13,7 @@ from pathlib import Path
 
 # Exact address fingerprints avoid flagging public court records and licenses.
 # Standard build accounts and conventional synthetic placeholders are not identities.
-PRIVATE_EMAILS = set(filter(None, __import__('os').environ.get('BEAVER_PRIVATE_EMAIL_SHA256', '').split(',')))
+PRIVATE_EMAILS = set(filter(None, os.environ.get('BEAVER_PRIVATE_EMAIL_SHA256', '').split(',')))
 HOME = re.compile(r'(?:[a-z]:[\\/]+Users[\\/]+|/mnt/[a-z]/Users/|(?<![a-z0-9_.-])/(?:Users|home)/)(?!(?:runner|runneradmin|sandbox|build|Public|Shared|Default|user|someone)(?:[\\/]|$))[a-z0-9_.@-]+[\\/]', re.I)
 EMAIL = re.compile(r'[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,63}', re.I)
 PRIVATE_FILE = re.compile(r'(?:^|/)(?:private_sources|private_comparison|court-record-exhibits|prompt_live|\.auth)(?:/|$)|(?:^|/)(?:\.codex/sessions/|private_manifest\.jsonl?$|auth\.json$|storageState\.json$|application\.(?:sqlite|db)(?:-wal|-shm)?$)', re.I)
@@ -81,6 +82,8 @@ def main():
     parser.add_argument('--self-test',action='store_true')
     args=parser.parse_args()
     if args.self_test: self_test();return 0
+    configured=subprocess.run(['git','config','--get','privacy.privateEmailSha256'],capture_output=True,text=True).stdout.strip()
+    PRIVATE_EMAILS.update(filter(None,configured.split(',')))
     errors=[];checked=0
     if args.artifact:
         for path in args.artifact:
@@ -98,9 +101,9 @@ def main():
                 if not path.is_file() or path.is_symlink(): continue
                 raw=path.read_bytes()
             errors.extend((name,reason) for reason in findings(raw));checked+=1
-        for email in git('log','-1','--format=%ae%n%ce').decode().splitlines():
+        for email in git('log','--format=%ae%n%ce','HEAD').decode().splitlines():
             if hashlib.sha256(email.lower().encode()).hexdigest() in PRIVATE_EMAILS:
-                errors.append(('HEAD','private email in commit attribution; use GitHub noreply'))
+                errors.append(('history','private email in commit attribution; use GitHub noreply'))
     for name,reason in sorted(set(errors)): print(f'{name}: {reason}',file=sys.stderr)
     print(f'Privacy check: {checked} files, {len(set(errors))} findings. No matched personal values printed.')
     return bool(errors)
