@@ -373,11 +373,11 @@ describe("Authorities UI contracts", () => {
   });
 
   it.each([
-    { label: "Leave the brief unmarked", insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
-    { label: "Mark citations", insertIntoDocument: true, tableDelivery: "native-marks", citationSuffix: "none" },
-    { label: "Mark and add the table", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "none" },
-    { label: "Table and [Tab 1]", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "tab" },
-    { label: "Table and [Book of authorities Tab 1]", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "book-tab" },
+    { label: "No Word copy", insertIntoDocument: false, tableDelivery: "native-append", citationSuffix: "none" },
+    { label: "Marked copy", insertIntoDocument: true, tableDelivery: "native-marks", citationSuffix: "none" },
+    { label: "Marked copy and table", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "none" },
+    { label: "Marked copy, table and [Tab 1]", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "tab" },
+    { label: "Marked copy, table and [Book of authorities Tab 1]", insertIntoDocument: true, tableDelivery: "native-append", citationSuffix: "book-tab" },
   ] as const)("imports the Word output choice: $label", async ({ label, ...settings }) => {
     api.uploadAuthoritiesDocument.mockResolvedValue({ id: "word-source" });
     api.createAuthorities.mockResolvedValue(documentDraft());
@@ -508,7 +508,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(screen.getByRole("button", { name: /^French\./u }));
 
     await waitFor(() => expect(api.attachAuthorityPdf)
-      .toHaveBeenCalledWith("draft-1", "code", 1, file, "fr"));
+      .toHaveBeenCalledWith("draft-1", "code", 1, file, "fr", undefined));
     expect(await screen.findByRole("button", { name: "View PDFs for Criminal Code" })).toBeVisible();
     expect(screen.getByText("Tab 1")).toBeVisible();
   });
@@ -1143,7 +1143,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(pinpointLinks);
     await waitFor(() => expect(pinpointLinks).toBeChecked());
     expect(screen.queryByRole("button", { name: "Final PDF export" })).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Leave the brief unmarked" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "No Word copy" })).toBeChecked();
     expect(current.state.settings).toMatchObject({ finalPdf: true, linkTabs: true, linkPinpoints: true });
     expect(current.state.insertIntoDocument).toBe(false);
   });
@@ -1183,7 +1183,7 @@ describe("Authorities UI contracts", () => {
     const replacement = new File(["%PDF-1.7"], "replacement.pdf", { type: "application/pdf" });
     await userEvent.upload(within(row).getByLabelText("Upload PDF for Alpha"), replacement);
     await waitFor(() => expect(api.attachAuthorityPdf)
-      .toHaveBeenCalledWith("draft-1", "alpha", 1, replacement, "en"));
+      .toHaveBeenCalledWith("draft-1", "alpha", 1, replacement, "en", undefined));
     await userEvent.click(within(row).getByRole("button", { name: "Options for Alpha" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Remove PDF" }));
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 2,
@@ -1395,8 +1395,8 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1,
       { type: "add-authority", kind: "other", citation: "beta", name: "beta" }));
     await waitFor(() => expect(api.attachAuthorityPdf)
-      .toHaveBeenCalledWith("draft-1", "beta", 2, file, "en"));
-    expect(api.attachAuthorityPdf).not.toHaveBeenCalledWith("draft-1", "alpha", 1, file, "en");
+      .toHaveBeenCalledWith("draft-1", "beta", 2, file, "en", undefined));
+    expect(api.attachAuthorityPdf).not.toHaveBeenCalledWith("draft-1", "alpha", 1, file, "en", undefined);
   });
 
   it("corrects filename-derived manual PDF identity in one editor", async () => {
@@ -1465,7 +1465,7 @@ describe("Authorities UI contracts", () => {
     const file = new File(["%PDF-"], "oakes.pdf", { type: "application/pdf" });
     await userEvent.upload(within(known).getByLabelText("Upload PDF for R v Oakes", { selector: "input" }), file);
     await waitFor(() => expect(api.attachAuthorityPdf).toHaveBeenCalledWith(
-      "draft-1", "oakes", 1, file, "en"));
+      "draft-1", "oakes", 1, file, "en", undefined));
   });
 
   it("prepares a manually added neutral citation before asking for its PDF", async () => {
