@@ -1,96 +1,115 @@
-.citation-review{display:grid;grid-template-columns:11rem minmax(0,1fr) 13.5rem;height:var(--citation-review-height,32rem);min-height:0;outline:none}
-.citation-outline{overflow-y:auto;min-height:0;min-width:0;padding:.8rem .6rem;border-inline-end:1px solid #e5e7eb;font-size:.76rem}
-.citation-outline h3{margin:0 .45rem .5rem;font-size:.7rem;font-weight:650;color:#4b5563}
+.citation-review{display:grid;grid-template:minmax(0,1fr) auto/15rem minmax(0,1fr);height:var(--citation-review-height,32rem);min-height:0;outline:none}
+.citation-outline{overflow-y:auto;min-height:0;min-width:0;padding:.75rem .5rem;border-inline-end:1px solid #e5e7eb;font-size:.875rem}
+.citation-outline h3{margin:0 .5rem .5rem;font-size:.8125rem;font-weight:650;color:#4b5563}
 .citation-outline>[role=group]+[role=group]{margin-top:1.2rem}
-.citation-outline button{display:block;width:100%;text-align:start;padding:.4rem .5rem;border-radius:4px;color:#4b5563;line-height:1.4}
-.citation-outline button>span,.citation-outline small>*{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* The pinpoint follows the citation while both stay legible; otherwise the citation wraps out of view. */
-.citation-outline small{display:flex;flex-flow:row-reverse wrap;column-gap:.4rem;height:1.4em;overflow:hidden;font-size:.65rem;line-height:1.4;color:#6b7280;margin-top:.1rem}
-.citation-outline small>span{flex:1 1 6em}
-.citation-outline small>em{flex:none;max-width:100%;margin-right:auto;font-style:normal;color:#4b5563}
-.citation-outline em[data-manual]::after{content:'';display:inline-block;width:4px;height:4px;margin:0 0 1px .25rem;border-radius:50%;background:#b91c1c;vertical-align:middle}
+/* Each row is the citation as the article prints it, in two lines at most, every row the same height. */
+.citation-outline button{display:flex;flex-direction:column;width:100%;height:calc(2.8em + .9rem);text-align:start;padding:.45rem .6rem;border-radius:4px;color:#374151;line-height:1.4}
+.citation-outline button>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.citation-outline button+button{margin-top:.15rem}
+.citation-group-pinpoint span[data-manual]::after{content:'';display:inline-block;width:5px;height:5px;margin:0 0 2px .3rem;border-radius:50%;background:#b91c1c;vertical-align:middle}
 .citation-outline button:hover{background:#f3f4f6}
 .citation-outline button[aria-selected=true]{background:#fff1f0;color:#991b1b;box-shadow:inset 2px 0 #b91c1c}
 .citation-outline button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px}
-.citation-note{display:grid;grid-template-columns:1.4rem minmax(0,1fr);align-items:start;margin-bottom:.65rem}
+.citation-note{display:grid;grid-template-columns:1.6rem minmax(0,1fr);align-items:start;margin-bottom:.65rem}
 .citation-note>div{min-width:0;border-inline-start:1px solid #d1d5db;padding-inline-start:.35rem}
-.citation-note-number{padding-top:.4rem;color:#374151;font-size:.7rem;font-weight:650;text-align:center}
-.citation-outline .citation-finding{color:#991b1b}
+.citation-note-number{padding-top:.5rem;color:#374151;font-size:.8125rem;font-weight:650;text-align:center}
 .citation-dismissed{margin-top:1.2rem;color:#6b7280}
-.citation-dismissed summary{cursor:pointer;margin:0 .45rem .3rem;font-size:.7rem;font-weight:650;color:#4b5563}
+.citation-dismissed summary{cursor:pointer;margin:0 .5rem .3rem;font-size:.8125rem;font-weight:650;color:#4b5563}
 .citation-dismissed>div{display:flex;align-items:center;gap:.4rem;padding:0 .5rem}
 .citation-dismissed s{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.citation-outline .citation-dismissed button{display:inline-flex;width:auto}
+.citation-outline .citation-dismissed button{display:inline-flex;width:auto;min-height:0;font-size:.8125rem}
 
-.citation-document{position:relative;display:flex;min-height:10rem;min-width:0;overflow:hidden}
+.citation-document{grid-column:2;position:relative;display:flex;min-height:10rem;min-width:0;overflow:hidden}
 .citation-document>div,.citation-document>section{border-radius:0}
 .citation-document .docx-view-scroll{position:relative;isolation:isolate;padding:1.1rem}
 .citation-document .docx-view-container{outline:none}
-.citation-document .docx-text-highlight,.citation-document .pdf-text-highlight{background:transparent!important;border:0!important;padding:0}
 .citation-mark{cursor:pointer;color:inherit}
-.citation-mark[data-active=true]{cursor:text}
+.citation-mark[data-active]{cursor:text}
 .pdf-text-layer .citation-mark{position:static}
 .citation-document[data-split] *{cursor:crosshair}
-.citation-document[data-dragging] *{cursor:ew-resize!important}
-/* One shape per citation line, drawn over the text and multiplied into it. */
+.citation-document[data-dragging] *{cursor:ew-resize!important;user-select:none}
+/* One rounded shape per citation line, drawn over the text and multiplied into it. */
 .citation-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:4;pointer-events:none;mix-blend-mode:multiply}
-.citation-overlay>div{position:absolute;box-sizing:border-box;border-radius:3px}
-.citation-band:not([data-active])::after{content:'';position:absolute;inset:auto 0 -1px;height:1px;background:rgb(185 28 28 / .38)}
-.citation-band[data-hot]:not([data-active]){background:rgb(185 28 28 / .06)}
-.citation-band[data-active]{background:#f9d8d0}
-.citation-pinpoint{background:#efb2a4}
-.citation-grip{opacity:0;cursor:ew-resize;transition:opacity .12s}
+.citation-overlay div{position:absolute;box-sizing:border-box}
+.citation-band{border:1px solid rgb(185 28 28 / .35);border-radius:3px}
+.citation-band[data-hot]:not([data-active]){background:rgb(185 28 28 / .07)}
+.citation-band[data-active]{border-color:transparent;background:#f8d5cc}
+.citation-pinpoint{border-radius:3px;background:#eba596}
+/* A grip is a slim bar the height of its line with a round cap, like a text-selection handle. */
+.citation-grip{pointer-events:auto;cursor:ew-resize;opacity:.8;transition:opacity .12s}
 .citation-grip::before,.citation-grip::after{content:'';position:absolute;background:#b91c1c}
-.citation-grip::before{inset:0 calc(50% - 1px);border-radius:1px}
-.citation-grip::after{left:0;top:calc(50% - 4px);width:8px;height:8px;border-radius:50%}
-.citation-grip[data-grip^=pin]::before{inset:1px calc(50% - 1.5px);background:#9a3412}
-.citation-grip[data-grip^=pin]::after{display:none}
-.citation-overlay[data-hover=band] .citation-grip:not([data-grip^=pin]),.citation-overlay[data-hover=pin] [data-grip^=pin]{opacity:1;pointer-events:auto}
-[data-dragging] .citation-overlay .citation-grip{pointer-events:none}
-.citation-split{width:2px;margin-left:-1px;border-radius:1px!important;background:#7f1d1d}
-.citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.8rem}
-.citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.75rem}
+.citation-grip::before{left:11px;width:2px;top:0;bottom:0;border-radius:1px}
+.citation-grip::after{left:7.5px;width:9px;height:9px;border-radius:50%;transition:transform .12s}
+.citation-grip[data-grip$=end]::before{left:3px}
+.citation-grip[data-grip$=end]::after{left:-.5px}
+.citation-grip[data-cap=top]::before{top:8px}
+.citation-grip[data-cap=top]::after{top:0}
+.citation-grip[data-cap=bottom]::before{bottom:8px}
+.citation-grip[data-cap=bottom]::after{bottom:0}
+.citation-grip[data-grip^=pin]::before,.citation-grip[data-grip^=pin]::after{background:#7f1d1d}
+.citation-grip:hover,[data-dragging] .citation-grip{opacity:1}
+.citation-grip:hover::after{transform:scale(1.2)}
+[data-dragging] .citation-grip{pointer-events:none}
+.citation-split{width:2px;margin-left:-1px;border-radius:1px;background:#7f1d1d}
+.citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.875rem}
+.citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.875rem}
 .citation-fallback[data-full]{inset:0;max-height:none;border-top:0;box-shadow:none}
-.citation-fallback>p{margin:0;color:#6b7280;font-size:.68rem}
+.citation-fallback>p{margin:0;color:#6b7280;font-size:.8125rem}
 .citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
 
-/* Information packs at the top of a fixed card; actions sit at the foot and never move. */
-.citation-rail{display:flex;flex-direction:column;gap:.6rem;padding:.6rem .8rem .75rem;border-inline-start:1px solid #e5e7eb;min-width:0;min-height:0;overflow:hidden auto;font-size:.72rem;color:#374151}
-.citation-rail>*{flex:none;min-width:0}
-.citation-rail button{font-size:.7rem;height:1.9rem;min-height:0;padding:0 .6rem;max-width:100%}
-.citation-rail-nav{display:flex;align-items:center;justify-content:space-between;height:2rem;font-variant-numeric:tabular-nums;color:#4b5563}
-.citation-rail-nav button{width:2rem;padding:0}
-.citation-rail-card{display:flex;flex-direction:column;gap:.35rem;height:11.75rem;overflow:hidden}
-.citation-rail-card strong,.citation-rail-card p{margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.citation-rail-card strong{font-size:.8rem;font-weight:650;line-height:1.3;color:#111827}
-.citation-rail-card p{line-height:1.4;color:#4b5563}
-.citation-rail-pin{display:flex;align-items:baseline;gap:.6rem;white-space:nowrap;color:#6b7280}
-.citation-rail-pin span{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.citation-rail-pin button{flex:none;height:auto;padding:0;color:#991b1b;text-decoration:underline;text-underline-offset:2px}
-.citation-rail-row{display:flex;flex-wrap:wrap;gap:.3rem}
-.citation-rail-row>span{flex:1 0 100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#4b5563}
-.citation-rail-actions{margin-top:auto;display:flex;flex-direction:column;gap:.25rem}
-.citation-rail-keys{margin:0;font-size:.65rem;line-height:1.5;color:#9ca3af}
-
-@container(max-width:52rem){
-  .citation-review{grid-template-columns:8.5rem minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-  .citation-outline,.citation-document{grid-row:2}
-  .citation-rail{grid-row:1;grid-column:1/-1;display:grid;grid-template:"nav card actions" 4.35rem/7.5rem minmax(0,1fr) 9.5rem;
-    gap:.9rem;border-inline-start:0;border-bottom:1px solid #e5e7eb;overflow:hidden}
-  .citation-rail-nav{grid-area:nav;align-self:start}
-  .citation-rail-card{grid-area:card;height:auto;flex-flow:row wrap;align-content:start;gap:.15rem .6rem}
-  .citation-rail-card strong,.citation-rail-card p{flex:0 0 100%;-webkit-line-clamp:1}
-  .citation-rail-row{flex:1;min-width:0;flex-wrap:nowrap;align-items:center}
-  .citation-rail-row>span{flex:0 1 auto;min-width:5.5em}
-  .citation-rail-row button{height:1.6rem;flex:none}
-  .citation-rail-actions{grid-area:actions;margin:0}
-  .citation-rail-keys{display:none}
+/* Labelled groups under the list and the document, each in a fixed place: moving between citations,
+   editing the citation, its pinpoint and its authority. Nothing in them moves between citations. */
+.citation-panel{grid-column:1/-1;display:grid;grid-template:"navigate citation" auto "pinpoint authority" auto/16rem minmax(0,1fr);gap:.55rem 1.5rem;min-width:0;padding:.65rem 1rem .75rem;border-top:1px solid #e5e7eb;background:#fafafa;font-size:.875rem;color:#374151}
+.citation-panel>div{min-width:0}
+.citation-group-navigate{grid-area:navigate}
+.citation-group-citation{grid-area:citation}
+.citation-group-pinpoint{grid-area:pinpoint}
+.citation-group-authority{grid-area:authority}
+.citation-panel h4{display:flex;align-items:center;gap:.5rem;height:1.25rem;margin:0 0 .3rem;font-size:.75rem;font-weight:600;letter-spacing:.05em;line-height:1.25rem;text-transform:uppercase;color:#6b7280;white-space:nowrap}
+.citation-panel h4>span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:.8125rem;font-weight:400;letter-spacing:0;text-transform:none;color:#9ca3af}
+.citation-panel h4>.citation-overlap{color:#991b1b}
+.citation-panel>div>div{display:flex;align-items:center;gap:.4rem;height:2.25rem;min-width:0;white-space:nowrap}
+.citation-panel button{height:2.25rem;min-height:0;padding-inline:.6rem;font-size:.875rem}
+.citation-panel kbd{margin-left:.15rem;padding:.1rem .3rem;border:1px solid #e5e7eb;border-radius:4px;background:#fff;font-family:inherit;font-size:.75rem;font-weight:500;line-height:1.2;color:#6b7280}
+.citation-panel h4 kbd{margin:0;letter-spacing:0}
+.citation-group-navigate>div>span{min-width:5.5em;text-align:center;font-variant-numeric:tabular-nums;color:#4b5563}
+.citation-panel .citation-group-navigate button{width:2.25rem;padding:0}
+.citation-group-pinpoint>div>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#111827}
+.citation-panel [data-empty]{color:#9ca3af}
+.citation-panel .citation-reset{flex:none;height:auto;padding:0;color:#991b1b;text-decoration:underline;text-underline-offset:2px}
+/* The authority opens a searchable list upward, over the document. */
+/* A fixed width keeps the chevron and the controls after it in place whatever the authority's name. */
+.citation-authority{position:relative;flex:0 1 30rem;min-width:12rem}
+.citation-panel .citation-authority-trigger{display:inline-flex;align-items:center;gap:.5rem;width:100%;padding-inline:.7rem .5rem;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#111827}
+.citation-authority-trigger:hover{border-color:#9ca3af}
+.citation-authority-trigger:focus-visible{outline:2px solid #b91c1c;outline-offset:1px}
+.citation-authority-trigger>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:start}
+.citation-authority-trigger>svg{flex:none;width:1rem;height:1rem;color:#6b7280}
+.citation-authority-menu{position:absolute;bottom:calc(100% + .4rem);left:0;z-index:20;display:flex;flex-direction:column;width:min(30rem,calc(100vw - 2rem));max-height:min(22rem,55vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
+.citation-authority-menu>input{flex:none;height:2.25rem;margin:.5rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
+.citation-authority-menu>input:focus-visible{border-color:#b91c1c}
+.citation-authority-menu>[role=listbox]{overflow-y:auto;padding:0 .35rem .4rem}
+.citation-authority-menu [role=group]>div{padding:.55rem .45rem .2rem;font-size:.75rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#6b7280}
+.citation-panel .citation-authority-menu [role=option]{display:block;width:100%;height:auto;padding:.4rem .45rem;border-radius:4px;text-align:start;white-space:normal}
+.citation-authority-menu [role=option]>span{display:block;color:#111827}
+.citation-authority-menu [role=option]>small{display:block;font-size:.8125rem;color:#6b7280}
+.citation-authority-menu [role=option]:hover,.citation-authority-menu [role=option]:focus-visible{background:#f3f4f6;outline:none}
+.citation-authority-menu [role=option][aria-selected=true]{background:#fff1f0}
+.citation-authority-menu .citation-authority-unlink{color:#991b1b}
+.citation-authority-menu p{margin:0;padding:.6rem .45rem;color:#6b7280}
+@container (max-width:64rem){
+  .citation-panel{grid-template:"navigate pinpoint" auto "citation citation" auto "authority authority" auto/auto minmax(0,1fr)}
 }
-@container(max-width:29rem){
-  .citation-review{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto;height:auto}
+@container (max-width:46rem){
+  .citation-panel{padding:.6rem .75rem}
+  .citation-group-citation kbd,.citation-panel h4>span:not(.citation-overlap){display:none}
+}
+@container (max-width:32rem){
+  .citation-group-citation>div{flex-wrap:wrap;height:4.9rem;align-content:flex-start}
+}
+@container (max-width:48rem){
+  .citation-review{grid-template:auto 25rem auto/minmax(0,1fr);height:auto}
   .citation-outline{grid-row:1;max-height:10rem;border-inline-end:0;border-bottom:1px solid #e5e7eb}
-  .citation-rail{grid-row:2;grid-template:"nav actions" 2rem "card card" 4.35rem/minmax(0,1fr) auto;gap:.5rem}
-  .citation-rail-actions{flex-direction:row}
-  .citation-document{grid-row:3;height:25rem}
+  .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}
 }
