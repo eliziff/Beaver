@@ -1006,6 +1006,13 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     onClick={() => newDraft()}><Plus /> New</Button>;
 
   const reviewing = !!draft && stage === "citations" && tab !== "drafts" && draft.state.import.kind === "document";
+  const stepNext = reviewing ? () => reached === "citations" ? findSources() : viewStep("sources")
+    : stage === "sources" ? () => {
+      // A draft set to keep scans as images has already answered the question.
+      if (recognitionSettled || host.recognitionAvailable === false ||
+        draft?.state.settings.scannedPdfPolicy === "page-margin") advance("highlights");
+      else askRecognition();
+    } : stage === "highlights" ? () => advance("build") : undefined;
   const stepping = !!draft && tab !== "drafts";
   // The sections share the header row and the status shares the step row, so the step below starts high.
   const sections = <TabList value={tab} onValueChange={changeTab} options={TABS}
@@ -1051,19 +1058,24 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
               : <>
                   <TabList value={stage} onValueChange={viewStep} options={steps}
                     ariaLabel="Book steps" variant="subtab" panelId="authorities-step"
-                    // The steps keep a fixed share of the row, so no status or action moves them.
-                    className="gap-3 [&_[role=tab]]:text-sm [&_.tab-list]:w-[min(40rem,60%)] [&_.tab-list]:flex-none [&>[data-tabs-actions]]:min-w-0 [&>[data-tabs-actions]]:flex-1 [&>[data-tabs-actions]]:justify-end"
-                    actions={<>{statusLine}{reviewing && <>
-                      {importedRole && importedIssue && host.relinkSource &&
+                    // The steps keep a fixed share of the row, and the actions the height of Next, so no
+                    // status or action moves them or the step below.
+                    className="gap-3 [&_[role=tab]]:text-sm [&_.tab-list]:w-[min(40rem,60%)] [&_.tab-list]:flex-none [&>[data-tabs-actions]]:min-h-9 [&>[data-tabs-actions]]:min-w-0 [&>[data-tabs-actions]]:flex-1 [&>[data-tabs-actions]]:justify-end"
+                    actions={<>{statusLine}
+                      {reviewing && importedRole && importedIssue && host.relinkSource &&
                         relinkable(importedIssue) && <Button type="button"
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         Allow file access</Button>}
-                      <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+                      <StepProgress label={stage === "sources" ? stepOperation || (recognitionAsked ? scannedSources.progress : "")
+                        : stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
                         error={stepError} className="min-w-0" />
-                      <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
-                        Next<ChevronRight /></Button></>}</>} />
-                  <div id="authorities-step" role="tabpanel"
+                      {/* Every step's Next sits here; the last step keeps its room. */}
+                      <Button className={cn("h-9", !stepNext && "invisible")} aria-hidden={!stepNext || undefined}
+                        tabIndex={stepNext ? undefined : -1} disabled={busy || !stepNext || stage === "sources" && recognitionAsked}
+                        onClick={stepNext}>Next<ChevronRight /></Button></>} />
+                  {/* Every step starts the same distance below the steps, so switching moves nothing. */}
+                  <div id="authorities-step" role="tabpanel" className="flow-root [&>*:first-child]:mt-2"
                     aria-labelledby={`authorities-step-tab-${steps.findIndex(({ value }) => value === stage)}`}>
                   {reviewing && <><section aria-label="Citations"
                     className="@container mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
@@ -1081,20 +1093,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                       onFiles: (files: File[]) => appendManual(files.map((file) => ({ file }))),
                     } : {})} />
                     {host.recognitionAvailable === false && scannedSources.files.length > 0 &&
-                      <p className="mt-3 text-sm text-gray-700">Scanned pages stay as images in this copy; text recognition is unavailable.</p>}
-                    <div className="mt-3 flex items-center justify-end gap-3">
-                      <StepProgress label={stepOperation || (recognitionAsked ? scannedSources.progress : "")} error={stepError} />
-                      <Button disabled={busy || recognitionAsked} onClick={() => {
-                        // A draft set to keep scans as images has already answered the question.
-                        if (recognitionSettled || host.recognitionAvailable === false ||
-                          draft.state.settings.scannedPdfPolicy === "page-margin") advance("highlights");
-                        else askRecognition();
-                      }}>Next<ChevronRight /></Button>
-                    </div></>}
+                      <p className="mt-3 text-sm text-gray-700">Scanned pages stay as images in this copy; text recognition is unavailable.</p>}</>}
                   {highlightPanel}
-                  {stage === "highlights" && <div className="mt-3 flex justify-end">
-                    <Button disabled={busy} onClick={() => advance("build")}>
-                      Next<ChevronRight /></Button></div>}
                   {buildPanel}
                   </div>
                 </>}
@@ -1823,8 +1823,8 @@ function Status({ busy, busyText, status, error, inline = false }: { busy: boole
   status: string; error: boolean; inline?: boolean }) {
   const visible = (busy && !!busyText) || !!status;
   // The line keeps its height when empty so the step below never shifts as work starts and ends;
-  // beside the steps it takes no height of its own.
-  return <p className={cn("flex items-center px-1 text-sm", inline ? "min-w-0 truncate" : "mb-1 min-h-6",
+  // beside the steps it fills the row's free width, so a longer message never moves its box.
+  return <p className={cn("flex items-center px-1 text-sm", inline ? "min-w-0 flex-1 justify-end truncate" : "mb-1 min-h-6",
     visible && "font-medium", busy && !status && "beaver-loading-indicator",
     error ? "text-red-800" : "text-gray-600")}
     role="status" aria-live="polite" aria-atomic="true" aria-busy={busy || undefined}
