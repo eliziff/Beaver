@@ -288,3 +288,24 @@ it("reads a bilingual statute's sections from its English body, not its contents
   expect(found("3(2)").pages.map((target) => target.text).join(" ")).toContain("waiver of rule 3");
   expect(found("9").status).toBe("not_found");
 });
+
+it("reads a sentence a page break cuts before a provision reference as one paragraph", async () => {
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.TimesRoman);
+  const page = (rows: string[]) => {
+    const target = pdf.addPage([612, 792]);
+    rows.forEach((row, index) => target.drawText(row, { x: 48, y: 720 - index * 11, size: 9, font }));
+  };
+  page(["Harbour Berths Act", "Decisions", "3  The harbour master of the port may make a decision",
+    "(a)  that assigns a berth in the port to a vessel; or", "(b)  that sets the fee that is payable for the berth.",
+    "Appeal", "4  A master of a vessel may appeal any decision of the", "harbour master of the port made under paragraph"]);
+  page(["7(b) to the harbour authority within ten days of it.", "Fees", "5  The fee is payable on the arrival of the vessel."]);
+  const bytes = Buffer.from(await pdf.save()), native = structureNative();
+  const document = await native.derivePdfDocument(bytes, {});
+  const result = await pdfPassageGeometry(document, bytes, ["4", "5", "7"].map((locator) =>
+    ({ id: locator, locatorKind: "section" as const, locator })));
+  const found = (id: string) => result.targets.find((target) => target.id === id)!;
+  expect(found("4").status).toBe("found");
+  expect(found("4").pages.map((target) => target.text).join(" ")).toContain("within ten days");
+  expect(found("5").pages.map((target) => target.pageNumber)).toEqual([2]);
+  expect(found("7").status).toBe("not_found");
+});
