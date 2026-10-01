@@ -5,7 +5,7 @@ import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForm
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
-import { nativeOccurrenceSpans, pinpointValues } from "./authoritiesImport";
+import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./authoritiesImport";
 import { buildCanliiCaseUrlFromCitation } from "./canliiUrls";
 import { authorityPdfText } from "./authorityPdfText";
 import { citationAliasKeysBatch } from "./caselawCitator";
@@ -192,7 +192,8 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
     : sameValue(donorIds) ? donorIds[0] : null;
   const occurrence: AuthorityOccurrence = {
     id: `${unit.id}:manual:${start}:${end}`, unitId: unit.id, start, end, text,
-    ...(match ? nativeOccurrenceSpans(match, unit.text, start) : {
+    ...(match ? nativeOccurrenceSpans(match, unit.text, start) : selectedReference
+      ? nativeReferenceSpans(selectedReference, unit.text, start) : {
       authoritySpan: { start, end, text }, coreSpan: { start, end, text },
       pinpointSpan: null,
     }),
@@ -340,11 +341,14 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
   }
   const from = Math.min(occurrence.authoritySpan.start, selected.start);
   const to = Math.max(occurrence.authoritySpan.end, selected.end);
-  const matches = sources.occurrences(selected.unit.text.slice(from, to));
-  const match = matches.find((item) => lookupKey(sources, item.coreCitation.text) ===
+  const stretch = selected.unit.text.slice(from, to);
+  const match = sources.occurrences(stretch).find((item) => lookupKey(sources, item.coreCitation.text) ===
     draft.authorities[occurrence.authorityId ?? ""]?.key);
-  const pinpoints = match?.pinpoints.filter((item) =>
-    from + item.end > selected.start && from + item.start < selected.end) ?? [];
+  // A supra, ibid or short form carries its pinpoint after its own reference.
+  const parsed = match?.pinpoints ?? (occurrence.kind === "reference"
+    ? sources.references(stretch).flatMap(({ pinpoints }) => pinpoints) : []);
+  const pinpoints = parsed.filter((item) =>
+    from + item.end > selected.start && from + item.start < selected.end);
   if (!pinpoints.length) throw new ApplicationError(400,
     "Select a complete pinpoint for this authority");
   occurrence.pinpointSpan = { start: selected.start, end: selected.end, text: selected.text };
