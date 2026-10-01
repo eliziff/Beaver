@@ -127,13 +127,15 @@ export type AuthorityOccurrence = {
   authoritySpan: AuthorityTextSpan;
   coreSpan: AuthorityTextSpan;
   pinpointSpan: AuthorityTextSpan | null;
+  /** The pinpoints as written, with the words that introduce them: "at para 105". */
+  pinpointPhrase?: AuthorityTextSpan;
   kind: AuthorityKind | "reference";
   citation: string;
   authorityId: string | null;
   reference: { kind: "short" | "supra" | "ibid"; targetAuthorityId: string } | null;
   referenceKind?: "short" | "supra" | "ibid";
   pinpoints: Array<{ kind: string; text: string }>;
-  /** A reviewer placed the pinpoint; range edits keep it while it stays inside. */
+  /** The assistant placed the pinpoint by hand; any range edit derives it again. */
   pinpointManual?: true;
   evidenceIds: string[];
   sourceTextSha256: string;
@@ -162,7 +164,6 @@ export type AuthoritiesUserAction =
   | { type: "set-citation-range"; occurrenceId: string; start: number; end: number }
   | { type: "set-pinpoint-span"; occurrenceId: string; start: number; end: number }
   | { type: "clear-pinpoint"; occurrenceId: string }
-  | { type: "reset-pinpoint"; occurrenceId: string }
   | { type: "add-occurrence"; unitId: string; start: number; end: number }
   | { type: "relink-occurrence"; occurrenceId: string; authorityId: string | null }
   | { type: "set-reviewed"; occurrenceId: string; reviewed: boolean }

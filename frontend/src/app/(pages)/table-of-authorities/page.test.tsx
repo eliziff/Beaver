@@ -775,42 +775,37 @@ describe("Authorities UI contracts", () => {
     expect(await screen.findByRole("textbox", { name: "In-text citation context" })).toHaveTextContent("Alpha; Beta");
   });
 
-  it("keeps the right citation selected after splitting a later footnote span", async () => {
-    const saved = documentDraft(), text = "Alpha; Beta", split = text.indexOf("Beta");
-    const occurrence = (id: string, start: number, end: number, ordinal: number) => ({
-      id, unitId: "footnote:1", start, end, text: text.slice(start, end), kind: "other" as const,
-      citation: text.slice(start, end), authoritySpan: { start, end, text: text.slice(start, end) },
-      coreSpan: { start, end, text: text.slice(start, end) }, pinpointSpan: null,
-      authorityId: null, reference: null, pinpoints: [], evidenceIds: [],
-      sourceTextSha256: "a".repeat(64), localOrdinal: ordinal, reviewed: false,
-    });
+  it("offers only Add and Remove, and shows the pinpoint as the citation writes it", async () => {
+    const saved = documentDraft(), text = "Alpha v Beta, 2024 ABKB 1 at paras 16–23; Gamma v Delta, 2024 ABKB 2";
+    const occurrence = (id: string, citation: string, pinpoint: string | null, ordinal: number) => {
+      const start = text.indexOf(citation.split(",")[0]), end = text.indexOf(citation) + citation.length;
+      const at = pinpoint ? text.indexOf(pinpoint) : -1, value = pinpoint?.replace(/^at paras /u, "");
+      return { id, unitId: "footnote:1", start, end: at < 0 ? end : at + pinpoint!.length,
+        text: text.slice(start, at < 0 ? end : at + pinpoint!.length), kind: "case" as const, citation,
+        authoritySpan: { start, end, text: text.slice(start, end) },
+        coreSpan: { start: text.indexOf(citation), end, text: citation },
+        pinpointSpan: value ? { start: text.indexOf(value), end: text.indexOf(value) + value.length, text: value } : null,
+        ...(pinpoint && { pinpointPhrase: { start: at, end: at + pinpoint.length, text: pinpoint } }),
+        authorityId: null, reference: null, pinpoints: value ? [{ kind: "paragraph", text: "16-23" }] : [],
+        evidenceIds: [], sourceTextSha256: "a".repeat(64), localOrdinal: ordinal, reviewed: false };
+    };
     saved.state.units = [{ id: "footnote:1", kind: "footnote", ordinal: 0, footnoteId: 1,
-      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["whole"] }];
-    saved.state.occurrences = { whole: occurrence("whole", 0, text.length, 0) };
-    const changed = structuredClone(saved); changed.revision = 2;
-    changed.state.units[0].occurrenceIds = ["left", "right"];
-    changed.state.occurrences = {
-      left: occurrence("left", 0, split, 0),
-      right: occurrence("right", split, text.length, 1),
+      footnoteRefs: [], pageNumbers: [1], text, occurrenceIds: ["first", "second"] }];
+    saved.state.occurrences = {
+      first: occurrence("first", "2024 ABKB 1", "at paras 16–23", 0),
+      second: occurrence("second", "2024 ABKB 2", null, 1),
     };
     api.getWorkProduct.mockResolvedValue(saved);
-    api.actOnAuthorities.mockResolvedValue(changed);
     render(<MemoryRouter><AuthoritiesWorkspace host={beaverAuthoritiesHost}
       {...workspaceRoute("draft-1")} /></MemoryRouter>);
 
-    const context = await screen.findByRole("textbox", { name: "Footnote context" });
-    const mark = context.querySelector<HTMLElement>('[data-citation-id="whole"]')!;
-    // A stand-in for the browser's hit test: the pointer rests in the gap before "Beta",
-    // the split marker appears, and a click there splits.
-    document.caretPositionFromPoint = () => ({ offsetNode: mark.firstChild!, offset: split }) as CaretPosition;
-    fireEvent.pointerMove(mark);
-    await new Promise(resolve => setTimeout(resolve, 400));
-    fireEvent.click(mark);
-    Reflect.deleteProperty(document, "caretPositionFromPoint");
-    await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
-      type: "split-occurrence", occurrenceId: "whole", cursor: split,
-    }));
-    expect(await screen.findByRole("option", { name: /Beta/ })).toHaveAttribute("aria-selected", "true");
+    const bar = await screen.findByRole("group", { name: "This citation" });
+    await waitFor(() => expect(bar).toHaveTextContent("Pinpoint at paras 16–23"));
+    expect(within(screen.getByRole("group", { name: "Edit citation" })).getAllByRole("button")
+      .map((button) => button.textContent)).toEqual(["Add", "Remove"]);
+    expect(screen.queryByRole("button", { name: "Reset the pinpoint" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Next citation" }));
+    await waitFor(() => expect(bar).toHaveTextContent("No pinpoint"));
   });
 
   it("keeps parallel citation forms visible under one authority", async () => {

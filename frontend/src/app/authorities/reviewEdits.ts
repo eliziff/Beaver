@@ -5,9 +5,9 @@ const overlap = (a: { start: number; end: number }, b: { start: number; end: num
   Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
 
 /** An edit as the reviewer asked for it, shown while the save that makes it durable runs: the
- * citation's new range, pinpoint, split, merge, removal or authority, or an output choice. The
- * saved draft then replaces this view with what the parser makes of the text. Other actions have
- * no preview. */
+ * citation's new range, removal or authority, or an output choice. The saved draft then replaces
+ * this view with what the parser makes of the text, its pinpoint included. Other actions have no
+ * preview. */
 export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesAction): AuthoritiesProduct | null {
   const state = product.state, occurrences = { ...state.occurrences };
   // An output choice shows as soon as it is made; a change of source handling also clears
@@ -22,17 +22,20 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
   const unit = state.units.find(({ id }) => id === unitId);
   if (!unit || action.type !== 'add-occurrence' && action.type !== 'restore-occurrence' && !item) return null;
   let ids = [...unit.occurrenceIds], dismissed = state.dismissedOccurrences;
-  /** A citation over [start, end) trimmed of space, keeping what `base` knew that still lies inside it. */
+  /** A citation over [start, end) trimmed of space, keeping the pinpoint `base` knew while it still
+   * lies inside: the save parses the text again. */
   const cite = (start: number, end: number, base?: AuthorityOccurrence): AuthorityOccurrence => {
     while (start < end && /\s/u.test(unit.text[start])) start++;
     while (end > start && /\s/u.test(unit.text[end - 1])) end--;
     const span = { start, end, text: unit.text.slice(start, end) };
     const pin = base?.pinpointSpan && base.pinpointSpan.start >= start && base.pinpointSpan.end <= end ? base.pinpointSpan : null;
+    const phrase = pin && base!.pinpointPhrase && base!.pinpointPhrase.start >= start && base!.pinpointPhrase.end <= end
+      ? base!.pinpointPhrase : undefined;
     return { kind: 'other', citation: span.text, authorityId: null, reference: null, evidenceIds: [], reviewed: true,
       sourceTextSha256: ids.map(id => occurrences[id]?.sourceTextSha256).find(Boolean) ?? '', ...base,
       id: base?.id ?? `${unit.id}:manual:${start}:${end}`, unitId: unit.id, ...span, localOrdinal: start,
-      authoritySpan: span, coreSpan: span, pinpointSpan: pin, pinpoints: pin ? base!.pinpoints : [],
-      ...(pin && base!.pinpointManual ? { pinpointManual: true } : { pinpointManual: undefined }) };
+      authoritySpan: span, coreSpan: span, pinpointSpan: pin, pinpointPhrase: phrase, pinpoints: pin ? base!.pinpoints : [],
+      pinpointManual: undefined };
   };
   const put = (...items: AuthorityOccurrence[]) => items.forEach(next => { occurrences[next.id] = next; ids.push(next.id); });
   const drop = (...gone: string[]) => { gone.forEach(id => delete occurrences[id]); ids = ids.filter(id => !gone.includes(id)); };
@@ -49,31 +52,6 @@ export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesActi
           if (start < end && unit.text.slice(start, end).trim()) put(cite(start, end, { ...other, id: `${other.id}:${start}` }));
       }
       occurrences[next.id] = next; break;
-    }
-    case 'set-pinpoint-span': {
-      const pinpointSpan = { start: action.start, end: action.end, text: unit.text.slice(action.start, action.end) };
-      const start = Math.min(item!.start, action.start), end = Math.max(item!.end, action.end);
-      // Part of the pinpoint already found keeps its values; the save parses any other.
-      occurrences[item!.id] = { ...item!, start, end, text: unit.text.slice(start, end), pinpointSpan, pinpointManual: true,
-        pinpoints: item!.pinpointSpan && overlap(item!.pinpointSpan, pinpointSpan) ? item!.pinpoints
-          : [{ kind: item!.pinpoints[0]?.kind ?? 'page', text: pinpointSpan.text.replace(/^at\s+/u, '') }] };
-      break;
-    }
-    case 'reset-pinpoint': occurrences[item!.id] = { ...item!, pinpointManual: undefined }; break;
-    case 'clear-pinpoint': occurrences[item!.id] = { ...item!, pinpointSpan: null, pinpoints: [] }; break;
-    case 'split-occurrence': {
-      // The left side ends before the separator that joins the two citations.
-      let cut = action.cursor;
-      while (cut > item!.start && /[\s;,]/u.test(unit.text[cut - 1])) cut--;
-      drop(item!.id); put(cite(item!.start, cut, { ...item!, id: undefined! }), cite(action.cursor, item!.end, { ...item!, id: undefined! }));
-      break;
-    }
-    case 'merge-occurrence': {
-      const previous = occurrences[ids[ids.indexOf(item!.id) - 1]];
-      if (!previous) return null;
-      drop(previous.id, item!.id);
-      put(cite(previous.start, item!.end, { ...previous, id: undefined!, pinpointSpan: item!.pinpointSpan, pinpoints: item!.pinpoints }));
-      break;
     }
     case 'remove-occurrence':
       drop(item!.id); dismissed = { ...dismissed, [item!.id]: { occurrence: item!, authority: null } }; break;

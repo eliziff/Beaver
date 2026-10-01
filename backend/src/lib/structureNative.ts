@@ -37,6 +37,8 @@ export type NativeCitationOccurrence = NativeCitationTextSpan & {
     kind: import("legal-citations").PinpointKind;
     first?: string; last?: string;
   }>;
+  /** The pinpoints as written, with the words that introduce them: "at para 105". */
+  pinpointPhrase?: NativeCitationTextSpan;
   kind: "case" | "statute" | "journal" | "book" | "parliamentary" | "other";
   shortForm?: string;
   explicitShortForm?: string;
@@ -49,6 +51,8 @@ export type NativeAuthorityReferenceOccurrence = NativeCitationTextSpan & {
     kind: import("legal-citations").PinpointKind;
     first?: string; last?: string;
   }>;
+  /** The pinpoints as written, with the words that introduce them: "at para 105". */
+  pinpointPhrase?: NativeCitationTextSpan;
   kind: "short" | "ibid" | "supra";
   noteNumber?: number;
 };

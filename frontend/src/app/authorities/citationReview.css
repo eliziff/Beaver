@@ -46,14 +46,9 @@
 .citation-grip[data-cap=top]::after{top:0}
 .citation-grip[data-cap=bottom]::before{bottom:8px}
 .citation-grip[data-cap=bottom]::after{bottom:0}
-/* The pinpoint's grips show only while the pointer is on the pinpoint, or while one is dragged. */
-.citation-grip[data-grip^=pin]{visibility:hidden}
-.citation-grip[data-grip^=pin]::before,.citation-grip[data-grip^=pin]::after{background:#7f1d1d}
-.citation-document[data-pin] .citation-grip[data-grip^=pin],.citation-document[data-dragging=pin] .citation-grip[data-grip^=pin]{visibility:visible}
 .citation-grip:hover,[data-dragging] .citation-grip{opacity:1}
 .citation-grip:hover::after{transform:scale(1.2)}
 [data-dragging] .citation-grip{pointer-events:none}
-.citation-split{width:12px;margin-left:-6px;background:linear-gradient(90deg,transparent 5px,#7f1d1d 5px 7px,transparent 7px);pointer-events:auto;cursor:crosshair}
 .citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.875rem}
 .citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.875rem}
 .citation-fallback[data-full]{inset:0;max-height:none;border-top:0;box-shadow:none}
@@ -78,11 +73,6 @@
 .citation-pin{flex:none;display:flex;align-items:center;gap:.4rem;width:12.5rem;height:2.25rem;white-space:nowrap;color:#6b7280}
 .citation-pin>b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#111827}
 .citation-pin[data-empty]>b{font-weight:400;color:#9ca3af}
-.citation-pin>[data-hidden]{visibility:hidden}
-.citation-pin>small{font-size:.75rem;color:#9ca3af}
-.citation-reset{display:inline-grid;place-items:center;flex:none;width:1.75rem;height:1.75rem;border-radius:5px;color:#6b7280}
-.citation-reset:hover{background:#f3f4f6;color:#111827}
-.citation-reset>svg{width:.9rem;height:.9rem}
 .citation-quote{flex:none;display:inline-flex;align-items:center;gap:.35rem;height:2.25rem;padding:0 .25rem;color:#991b1b}
 .citation-quote>span{text-decoration:underline;text-underline-offset:3px}
 .citation-quote>svg{display:none;width:1.1rem;height:1.1rem}
