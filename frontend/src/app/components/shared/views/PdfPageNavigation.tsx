@@ -37,8 +37,10 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
             else setMatches(found);
         }
     }
-    const range = "font-normal text-gray-400 tabular-nums";
-    const inputClass = "h-7 w-12 rounded bg-transparent px-1 text-center tabular-nums focus-visible:outline-2 focus-visible:outline-offset-1 disabled:opacity-50";
+    // The range sits inside the field as a faint suffix, so the page and its bounds read as one input.
+    const field = "flex h-7 items-center rounded border border-gray-200 pe-1.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-red-700";
+    const range = "pointer-events-none select-none font-normal text-gray-400 tabular-nums";
+    const inputClass = "h-full w-9 bg-transparent px-1 text-end tabular-nums text-gray-950 outline-none disabled:opacity-50";
     return <div className="relative min-w-0 text-[0.8125rem] font-medium text-gray-700" onKeyDown={event => {
         if (event.key === "Escape") {
             if (matches.length) printedRef.current?.focus();
@@ -47,18 +49,22 @@ export function PdfPageNavigation({ page, count, labels, disabled, onNavigate }:
     }}>
         <div className="flex flex-wrap items-center gap-x-3 rounded-lg border border-gray-200 bg-white px-2 py-1 shadow-sm">
             <label className="flex items-center gap-1">PDF
-                <input aria-label="PDF page" value={pdfInput} inputMode="numeric" disabled={disabled}
-                    aria-describedby={error ? id : undefined} className={`${inputClass} text-gray-950 focus-visible:outline-red-700`}
-                    onChange={event => { setPdfInput(event.target.value); setError(""); setMatches([]); }}
-                    onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
-                <span className={range}>1–{count}</span>
+                <span className={field}>
+                    <input aria-label={`PDF page, 1 to ${count}`} value={pdfInput} inputMode="numeric" disabled={disabled}
+                        aria-describedby={error ? id : undefined} className={inputClass}
+                        onChange={event => { setPdfInput(event.target.value); setError(""); setMatches([]); }}
+                        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("pdf"); } }} />
+                    <span className={range} aria-hidden="true">/ 1–{count}</span>
+                </span>
             </label>
             {known.length > 0 && <label className="flex items-center gap-1">Printed
-                <input ref={printedRef} aria-label="Printed page" value={printedInput} placeholder="—" disabled={disabled}
-                    aria-describedby={error ? id : undefined} className={`${inputClass} !w-16 text-gray-950 placeholder:text-gray-500 focus-visible:outline-red-700`}
-                    onChange={event => { setPrintedInput(event.target.value); setError(""); setMatches([]); }}
-                    onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("printed"); } }} />
-                <span className={range}>{known[0]}–{known.at(-1)}</span>
+                <span className={field}>
+                    <input ref={printedRef} aria-label={`Printed page, ${known[0]} to ${known.at(-1)}`} value={printedInput} placeholder="—" disabled={disabled}
+                        aria-describedby={error ? id : undefined} className={`${inputClass} !w-12 placeholder:text-gray-500`}
+                        onChange={event => { setPrintedInput(event.target.value); setError(""); setMatches([]); }}
+                        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); jump("printed"); } }} />
+                    <span className={range} aria-hidden="true">/ {known[0]}–{known.at(-1)}</span>
+                </span>
             </label>}
         </div>
         {(error || matches.length > 0) && <div className="absolute bottom-full left-0 mb-2 max-h-48 w-[min(16rem,calc(100vw-2rem))] overflow-auto rounded-lg border border-gray-200 bg-white p-2 text-gray-900 shadow-sm">
