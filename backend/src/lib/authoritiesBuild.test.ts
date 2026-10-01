@@ -1667,7 +1667,8 @@ describe("Authorities output builder", () => {
     expect(xml).toContain(
       ' TA \\l &quot;R v Grant, 2009 SCC 32, [2009] 2 SCR 353&quot;',
     );
-    expect(xml).toContain(' TOA \\h \\e &quot;\\t&quot; ');
+    // Word builds a table for one category per field: here, its cases.
+    expect(xml).toContain(' TOA \\h \\c &quot;1&quot; ');
     expect(result.receipt.outputs["annotated-document"]?.sha256)
       .toBe(result.artifacts["annotated-document"]?.sha256);
 

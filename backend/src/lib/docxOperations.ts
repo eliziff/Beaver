@@ -127,47 +127,65 @@ export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
   return save();
 }
 
-function fieldRuns(instruction: string, hidden: boolean) {
-  const run = (child: XNode) => makeEl("w:r", [
-    ...(hidden ? [makeEl("w:rPr", [makeEl("w:vanish")])] : []), child,
-  ]);
+/** A field as Word itself writes it. A TA mark has no result and is not hidden text, or Word's
+ *  table leaves it out; a table has a result, which Word fills in when it updates the field. */
+function fieldRuns(instruction: string, result: boolean) {
+  const run = (child: XNode) => makeEl("w:r", [child]);
   return [
-    run(makeEl("w:fldChar", [], { "w:fldCharType": "begin", "w:dirty": "true" })),
+    run(makeEl("w:fldChar", [], { "w:fldCharType": "begin", ...(result && { "w:dirty": "true" }) })),
     run(makeEl("w:instrText", [makeText(instruction)], { "xml:space": "preserve" })),
-    run(makeEl("w:fldChar", [], { "w:fldCharType": "separate" })),
+    ...(result ? [run(makeEl("w:fldChar", [], { "w:fldCharType": "separate" }))] : []),
     run(makeEl("w:fldChar", [], { "w:fldCharType": "end" })),
   ];
 }
 
+/** Inserts nodes at a text offset. Text inside a field's result is Word's to replace when it updates
+ *  the field (a cross-reference's note number, say), so an offset there inserts after the field. */
 function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
-  let cursor = 0;
+  let cursor = 0, local = 0, open = 0;
   let target: { node: XNode; run: XNode; parent: XNode } | null = null;
+  let after: { node: XNode; parent: XNode } | null = null;
   const descend = (node: XNode, parent: XNode | null, run: XNode | null,
     runParent: XNode | null): void => {
-    if (target || elName(node) === "w:del") return;
+    if (after || elName(node) === "w:del") return;
     const name = elName(node);
     const nextRun = name === "w:r" ? node : run;
     const nextRunParent = name === "w:r" ? parent : runParent;
-    if (name === "w:t") {
+    if (name === "w:fldChar") {
+      const type = (node[ATTR_KEY] as Record<string, string> | undefined)?.["@_w:fldCharType"];
+      open = Math.max(0, open + (type === "begin" ? 1 : type === "end" ? -1 : 0));
+      if (target && open === 0 && run && runParent) after = { node: run, parent: runParent };
+    }
+    if (name === "w:t" && !target) {
       const value = getTextContent(node), end = cursor + value.length;
       if (cursor <= offset && offset <= end && nextRun && nextRunParent) {
         target = { node, run: nextRun, parent: nextRunParent };
+        local = offset - cursor;
+        if (!open && elName(nextRunParent) !== "w:fldSimple") after = target;
       }
       cursor = end;
       return;
     }
     if (name === "w:tab" || name === "w:br" || name === "w:cr") cursor += 1;
     for (const child of elChildren(node)) descend(child, node, nextRun, nextRunParent);
+    if (name === "w:fldSimple" && target && !after && parent) after = { node, parent };
   };
   descend(root, null, null, null);
   if (!target) throw new Error("A reviewed citation no longer matches the Word document.");
-  const { node, run, parent } = target;
+  // Assigned inside descend, which TypeScript does not follow.
+  const field = after as { node: XNode; parent: XNode } | null;
+  if (field && field !== target) {
+    const siblings = elChildren(field.parent);
+    siblings.splice(siblings.indexOf(field.node) + 1, 0, ...nodes);
+    return;
+  }
+  const { node, run, parent } = target as { node: XNode; run: XNode; parent: XNode };
   const runChildren = elChildren(run), textIndex = runChildren.indexOf(node);
   const parentChildren = elChildren(parent), runIndex = parentChildren.indexOf(run);
   if (textIndex < 0 || runIndex < 0) {
     throw new Error("A reviewed citation is inside unsupported Word markup.");
   }
-  const value = getTextContent(node), local = offset - (cursor - value.length);
+  const value = getTextContent(node);
   const rightRun = cloneNode(run), rightChildren = elChildren(rightRun);
   setText(node, value.slice(0, local));
   setChildren(run, runChildren.slice(0, textIndex + 1));
@@ -182,10 +200,18 @@ function insertAtOffset(root: XNode, offset: number, nodes: XNode[]) {
       ? [rightRun] : []));
 }
 const insertField = (root: XNode, offset: number, instruction: string) =>
-  insertAtOffset(root, offset, fieldRuns(instruction, true));
+  insertAtOffset(root, offset, fieldRuns(instruction, false));
 
+/** Settings Word writes after updateFields (CT_Settings order); extension settings come last. */
+const SETTINGS_AFTER_UPDATE_FIELDS = new Set(["w:hdrShapeDefaults", "w:footnotePr", "w:endnotePr",
+  "w:compat", "w:docVars", "w:rsids", "w:attachedSchema", "w:themeFontLang", "w:clrSchemeMapping",
+  "w:doNotIncludeSubdocsInStats", "w:doNotAutoCompressPictures", "w:forceUpgrade", "w:captions",
+  "w:readModeInkLockDown", "w:smartTagType", "w:shapeDefaults", "w:doNotEmbedSmartTags",
+  "w:decimalSymbol", "w:listSeparator"]);
+/** A field argument's text. Word ends the argument at a straight or curly double quote, so each
+ *  is escaped with a backslash, as Word's own Mark Citation escapes a straight one. */
 const fieldText = (value: string) => value.replace(/\s+/gu, " ").trim()
-  .replace(/["\\]/gu, "'");
+  .replace(/\\/gu, "'").replace(/["“”]/gu, "\\$&");
 
 function linkedTable(entries: readonly DocxLinkedAuthority[]) {
   const run = (value: string, linked = false) => makeEl("w:r", [
@@ -247,19 +273,31 @@ export async function applyTableOfAuthorities(
     }
   const body = document.body, children = elChildren(body);
   const section = children.findIndex((node) => elName(node) === "w:sectPr");
+  // Word's table lists one category per field, under that category's heading, as Word does for "All".
+  const categories = [...new Set(marks.filter((mark) => mark.mark !== false).map(({ category }) => category))]
+    .sort((left, right) => left - right);
   const appended = delivery === "native-append" ? [
     makeEl("w:p", [makeEl("w:r", [makeEl("w:br", [], { "w:type": "page" })])]),
     makeEl("w:p", [makeEl("w:pPr", [makeEl("w:pStyle", [], { "w:val": "Heading1" })]),
       makeEl("w:r", [makeEl("w:t", [makeText("Table of Authorities")])])]),
-    makeEl("w:p", fieldRuns(' TOA \\h \\e "\\t" ', false)),
+    ...(categories.length ? categories : [1]).map((category) =>
+      makeEl("w:p", fieldRuns(` TOA \\h \\c "${category}" `, true))),
   ] : delivery === "linked-append" ? linkedTable(linked) : [];
   children.splice(section < 0 ? children.length : section, 0, ...appended);
   const settings = await session.readXml("word/settings.xml");
   const root = settings?.find((node) => elName(node) === "w:settings");
   if (root) {
-    const update = elChildren(root).find((node) => elName(node) === "w:updateFields");
+    const settingsChildren = elChildren(root);
+    const update = settingsChildren.find((node) => elName(node) === "w:updateFields");
     if (update) update[ATTR_KEY] = { "@_w:val": "true" };
-    else elChildren(root).push(makeEl("w:updateFields", [], { "w:val": "true" }));
+    else {
+      const after = settingsChildren.findIndex((node) => {
+        const name = elName(node);
+        return name !== null && (SETTINGS_AFTER_UPDATE_FIELDS.has(name) || !name.startsWith("w:"));
+      });
+      settingsChildren.splice(after < 0 ? settingsChildren.length : after, 0,
+        makeEl("w:updateFields", [], { "w:val": "true" }));
+    }
     session.write("word/settings.xml", ensureXmlDeclaration(createBuilder().build(settings)));
   }
   return save();
