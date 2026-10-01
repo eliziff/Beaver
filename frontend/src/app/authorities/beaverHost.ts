@@ -84,7 +84,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     return { ...prepared, annotations: decodeAnnotationSet(prepared.annotations) };
   },
   mode: "beaver",
-  wordToPdf: () => authoritiesWordToPdf("authorities"),
+  wordToPdf: authoritiesWordToPdf,
   drafts,
   async create({ source, title, projectId, settings }) {
     const imported = source.kind === "file"

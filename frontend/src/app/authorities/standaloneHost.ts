@@ -10,8 +10,7 @@ import {
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
-import { BeaverApiError, followedRequest } from "@/app/lib/api/client";
-import { authoritiesWordToPdf } from "@/app/lib/api/authorities";
+import { apiRequest, BeaverApiError, followedRequest } from "@/app/lib/api/client";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
   AuthoritySourceLanguage } from "./types";
@@ -19,8 +18,26 @@ import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from ".
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
 import { prepareSourceText, readSourceText, recognitionWaiting } from './standalonePdfText';
-import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from
+import { mapAuthorityBookBytes, type BuiltAuthorityBook, type PreparedAuthoritiesBook } from
   "../../../../backend/src/lib/authoritiesBook";
+import BookWorker from "./bookWorker?worker&inline";
+
+/** Assembles the book in a worker: its pages are copied and saved there, not on the page's thread. */
+function renderBook(book: PreparedAuthoritiesBook, signal?: AbortSignal) {
+  const worker = new BookWorker();
+  return new Promise<BuiltAuthorityBook[]>((resolve, reject) => {
+    const stop = () => { worker.terminate(); reject(new DOMException("The build was cancelled.", "AbortError")); };
+    signal?.addEventListener("abort", stop, { once: true });
+    const finish = () => { signal?.removeEventListener("abort", stop); worker.terminate(); };
+    worker.onmessage = ({ data }: MessageEvent<{ built?: BuiltAuthorityBook[]; error?: string }>) => {
+      finish(); if (data.built) resolve(data.built); else reject(new Error(data.error));
+    };
+    worker.onerror = (event) => { finish(); reject(new Error(event.message || "The book could not be assembled.")); };
+    // The prepared PDFs are the response's own copies, so they move to the worker rather than copy.
+    worker.postMessage(book, [...new Set([book.customCover, book.customIndex, ...book.sources.map(({ bytes }) => bytes)]
+      .flatMap((bytes) => bytes ? [bytes.buffer as ArrayBuffer] : []))]);
+  });
+}
 
 const recognitionAvailable = import.meta.env.VITE_AUTHORITIES_RECOGNITION !== "unavailable";
 function supportedDraft(state: AuthoritiesDraft): AuthoritiesDraft {
@@ -175,7 +192,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     prepareAnnotations({ ...product, state: supportedDraft(product.state) }, ...args),
   mode: "standalone",
   recognitionAvailable,
-  wordToPdf: () => authoritiesWordToPdf("authorities-runtime"),
+  wordToPdf: () => apiRequest<{ wordToPdf: boolean }>("/authorities-runtime/capabilities")
+    .then(({ wordToPdf }) => wordToPdf),
   sourceOcr: {
     async start(id, roles, pages, scannedPages) {
       const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
@@ -318,9 +336,10 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
           if (!(source instanceof File)) throw new Error(`The prepared PDF ${role} is missing.`);
           return new Uint8Array(await source.arrayBuffer());
         });
-      const built = await renderAuthoritiesBook(await import("pdf-lib"), book, signal);
+      progress?.("Assembling the book");
+      const built = await renderBook(book, signal);
       for (const item of built) {
-        const hash = await crypto.subtle.digest("SHA-256", item.bytes.slice().buffer);
+        const hash = await crypto.subtle.digest("SHA-256", item.bytes as Uint8Array<ArrayBuffer>);
         const sha256 = [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
         const detail = { filename: item.filename, mimeType: item.mimeType, sha256, pageCount: item.pageCount };
         receipt.outputs[item.role] = detail;

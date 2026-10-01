@@ -214,7 +214,7 @@ export async function saveStandaloneArtifacts<State>(
     const output = { documentId, versionId, filename: artifact.filename,
       mimeType: artifact.mimeType, sha256: artifact.sha256, pageCount: artifact.pageCount };
     outputs.add({ ...artifact, id: versionId, workProductId: product.id, documentId,
-      bytes: artifact.bytes.slice().buffer, createdAt: now, stateSha256 } satisfies StoredOutput);
+      bytes: ownBuffer(artifact.bytes), createdAt: now, stateSha256 } satisfies StoredOutput);
     return [artifact.role, output];
   }));
   const next: WorkProduct<State> = { ...current, outputs: saved,
@@ -683,8 +683,12 @@ function exactOutput(stored: StoredOutput, workProductId: string, role: string,
       saved[key as keyof typeof output] === value);
 }
 
+/** The bytes as a buffer of their own, copied only when they are part of a larger one. */
+const ownBuffer = (bytes: Uint8Array) => bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+  ? bytes.buffer as ArrayBuffer : bytes.slice().buffer;
 async function digestBytes(bytes: Uint8Array) {
-  const hash = await crypto.subtle.digest("SHA-256", bytes.slice().buffer);
+  // The view is hashed where it lies; copying a whole book first held the page for a moment.
+  const hash = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>);
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
