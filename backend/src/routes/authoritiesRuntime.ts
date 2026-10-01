@@ -142,7 +142,7 @@ export function createAuthoritiesRuntimeRouter(
         ? error.message : "Checking stopped. Completed receipts are available to download." })}\n\n`);
     } finally { res.end(); }
   }));
-  router.post("/source-text", singleFileUpload("file"), asyncRoute(async (req, res) => {
+  router.post("/source-text", singleFileUpload("file"), followedRoute(async (req, res, progress) => {
     const state = draft(json(req.body?.draft, "draft"));
     const role = String(req.body?.role), bytes = await readFile(requiredFile(req).path);
     const source = Object.values(state.authorities).flatMap(authority =>
@@ -156,8 +156,11 @@ export function createAuthoritiesRuntimeRouter(
     const reference = { documentId: `standalone-authority:${source.sourceSha256}`,
       versionId: source.sourceSha256, sourceSha256: source.sourceSha256 };
     if (req.body?.prepareOnly === "true") {
+      // One recognition pass, followed page by page as "recognized/total".
       const prepared = await documentProjectionService.preparePdf({ ...reference, bytes,
-        ocrProvider: "kraken-lite", pages, signal: abort.signal });
+        ocrProvider: "kraken-lite", pages, signal: abort.signal, ...(progress ? { progress: (value) => {
+          if (value.phase === "recognizing") progress(`${value.recognized}/${value.total}`);
+        } } : {}) });
       const text = await documentProjectionService.pdfTextLayer(() => bytes, reference,
         {pdfProfile:prepared,signal:abort.signal});
       return void res.json({pages:text});

@@ -86,7 +86,7 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         #[cfg(feature = "legalpdf")]
         "derivePdfDocument" => done(engine::derive_pdf_document(bytes, &call.get("request")?).map(store)),
         #[cfg(feature = "legalpdf")]
-        "preparePdfDocument" => done(engine::prepare_pdf_document(bytes, &call.get("request")?).and_then(value)),
+        "preparePdfDocument" => done(engine::prepare_pdf_document(bytes, &call.get("request")?, None).and_then(value)),
         #[cfg(feature = "legalpdf")]
         "restorePdfDocument" => done(engine::restore_pdf_document(&call.get("request")?)
             .map(|document| document.map(store).unwrap_or(Value::Null))),
