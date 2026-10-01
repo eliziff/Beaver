@@ -1,4 +1,4 @@
-import { documentProjectionService } from "./documentProjectionService";
+import { documentProjectionService, type PdfPreparationProgress } from "./documentProjectionService";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
 import { reporterStartPages, resolvePrintedPages } from "./pdfPagination";
@@ -40,6 +40,8 @@ export async function authorityPdfText(input: {
   scannedPdfPolicy?: AuthoritiesBuildSettings["scannedPdfPolicy"];
   /** Every page's text, read one page at a time; a caller that places only by geometry skips it. */
   pageText?: boolean;
+  /** Pages recognized so far, of those this pass reads. */
+  progress?: (recognized: number, total: number) => void;
   signal?: AbortSignal;
 }, projection: Projection = documentProjectionService) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
@@ -53,7 +55,10 @@ export async function authorityPdfText(input: {
   const reference = { documentId, versionId, sourceSha256 };
   const options = { ...reference, bytes: input.bytes, signal: input.signal };
   // Physical page selection needs folios, not a whole-document layout model.
-  const recognition = { ...options, ...(pageOnly ? { layout: false } : {}) };
+  const recognition = { ...options, ...(pageOnly ? { layout: false } : {}),
+    ...(input.progress && { progress: (step: PdfPreparationProgress) => {
+      if (step.phase === "recognizing") input.progress!(step.recognized, step.total);
+    } }) };
   const selectedProfile = (prepared: Awaited<ReturnType<Projection["preparePdf"]>>) => ({
     cacheKey: prepared.cacheKey, profile: prepared.profile, status: prepared.status,
   });
