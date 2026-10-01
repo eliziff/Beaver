@@ -38,6 +38,8 @@ From the repository root, select the relevant checks:
 ```sh
 node --test docs/scripts/check-docs.test.mjs
 node docs/scripts/check-docs.mjs
+python scripts/check_privacy.py --self-test
+python scripts/check_privacy.py
 npm test --prefix backend -- <focused-test-name>
 npm test --prefix frontend -- <focused-test-name>
 npm run check:source-boundaries
@@ -57,6 +59,13 @@ builders, which need the shared Python citation runtime pinned in
 `PATH` with `python -m pip install -r backend/scripts/requirements-citations.txt`
 (the source distribution builds with Rust), or install the Windows wheel from
 the same release.
+
+Before committing, `python scripts/check_privacy.py --staged` checks the exact
+staged source. Before publishing, run `python scripts/check_privacy.py --artifact
+<package-or-html> ...` on the actual outputs; it inspects archives and embedded
+WASM/ZIP payloads. The source check skips compressed documents and media. These
+checks flag concrete personal paths, the known private email and private artifact
+filenames; they do not certify fixture provenance or detect every kind of secret.
 
 For a release candidate, run both complete application test/build suites and the
 launcher-owned production smoke:
