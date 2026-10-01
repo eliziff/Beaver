@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pencil, Redo2, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Highlighter, MousePointer2, Pause, Pencil, Play, Redo2, Trash2, Undo2, X } from 'lucide-react';
 import { Modal } from '@/app/components/modals/Modal';
-import { Button } from '@/app/components/ui/button';
+import { Button, buttonClassName } from '@/app/components/ui/button';
 import { StepSection } from './StepSection';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '../../../../shared/pdf/pdfAnnotationLayer';
@@ -12,31 +12,41 @@ import type { AuthoritiesHost } from './host';
 import type { SourceOcrPanel, SourceOcrStatus } from './sourceOcr';
 import type { AuthoritiesAction, AuthoritiesProduct } from './types';
 
-/** Text recognition for one scanned source, watched where the source is being used. */
-export function SourceOcrProgress({ status, ocr }: { status: SourceOcrStatus; ocr: SourceOcrPanel }) {
-  const action = (label: string, act: () => void) => <button type="button"
-    className="h-7 rounded-md border border-gray-300 bg-white px-2 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-    onClick={act}>{label}</button>;
+/**
+ * Text recognition for one scanned source, watched where the source is being used. Its two
+ * controls keep fixed slots, so toggling Pause and Resume or finishing never moves anything;
+ * a caller lines them up with its own row controls through `control` and `label`.
+ */
+export function SourceOcrProgress({ status, ocr, control = 'w-8 px-0', label = 'sr-only', trailing }: {
+  status: SourceOcrStatus; ocr: SourceOcrPanel; control?: string; label?: string; trailing?: string;
+}) {
   const total = status.textlessPages.length;
   const pending = status.state === 'running' || status.state === 'paused';
-  return <div className="col-span-full grid min-w-0 gap-1.5 text-xs">
-    <div className="flex flex-wrap items-center gap-2">
-      <span role="status" className={cn('min-w-0', status.state === 'done' ? 'text-green-800'
-        : status.state === 'failed' ? 'text-red-800' : 'text-gray-600')}>
-        {status.state === 'done' ? 'Text recognition complete'
-          : status.state === 'failed' ? status.error || 'Text recognition failed'
-          : status.state === 'paused' ? `OCR paused · ${status.recognized}/${total} pages`
-          : status.state === 'cancelled' ? 'Text recognition cancelled'
-          : `Recognizing text · ${status.recognized}/${total} pages`}</span>
-      <span className="ms-auto flex shrink-0 gap-1">
-        {status.state === 'running' && action('Pause', () => ocr.stop([status.role], true))}
-        {['paused', 'failed', 'cancelled'].includes(status.state) && action('Resume', () => void ocr.begin([status], status.pages?.length ? status.pages : undefined))}
-        {pending && action('Cancel', () => void ocr.stop([status.role], false))}
-      </span>
-    </div>
-    {pending && <progress value={status.recognized} max={total}
-      aria-label={`Pages recognized in ${status.name}`}
-      className="h-0.5 w-full appearance-none overflow-hidden rounded-full bg-gray-100 [&::-moz-progress-bar]:bg-gray-500 [&::-webkit-progress-bar]:bg-gray-100 [&::-webkit-progress-value]:bg-gray-500" />}
+  const resumable = ['paused', 'failed', 'cancelled'].includes(status.state);
+  const button = cn(buttonClassName({ variant: 'outline', size: 'compact' }), 'border-gray-400', control);
+  return <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 text-xs">
+    <span role="status" className={cn('min-w-0 truncate', status.state === 'done' ? 'text-green-800'
+      : status.state === 'failed' ? 'text-red-800' : 'text-gray-600')} title={status.state === 'failed' ? status.error : undefined}>
+      {status.state === 'done' ? 'Text recognition complete'
+        : status.state === 'failed' ? status.error || 'Text recognition failed'
+        : status.state === 'paused' ? `Recognition paused · ${status.recognized}/${total} pages`
+        : status.state === 'cancelled' ? 'Text recognition cancelled'
+        : `${status.waiting ? 'Waiting to recognize' : 'Recognizing text'} · ${status.recognized}/${total} pages`}</span>
+    <span className="flex h-8 items-center justify-end gap-1">
+      <button type="button" className={cn(button, status.state === 'done' && 'invisible')}
+        disabled={status.state === 'done'} title={resumable ? 'Resume' : 'Pause'}
+        aria-label={`${resumable ? 'Resume' : 'Pause'} text recognition for ${status.name}`}
+        onClick={() => resumable ? void ocr.begin([status], status.pages?.length ? status.pages : undefined)
+          : void ocr.stop([status.role], true)}>
+        {resumable ? <Play /> : <Pause />}<span className={label}>{resumable ? 'Resume' : 'Pause'}</span></button>
+      <button type="button" className={cn(button, !pending && 'invisible')} disabled={!pending} title="Cancel"
+        aria-label={`Cancel text recognition for ${status.name}`} onClick={() => void ocr.stop([status.role], false)}>
+        <X /><span className={label}>Cancel</span></button>
+      {trailing && <span className={trailing} />}
+    </span>
+    <progress value={status.recognized} max={total} aria-label={`Pages recognized in ${status.name}`}
+      className={cn('col-span-full h-0.5 w-full appearance-none overflow-hidden rounded-full bg-gray-100 [&::-moz-progress-bar]:bg-gray-500 [&::-webkit-progress-bar]:bg-gray-100 [&::-webkit-progress-value]:bg-gray-500',
+        !pending && 'invisible')} />
   </div>;
 }
 

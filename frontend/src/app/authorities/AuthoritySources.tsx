@@ -114,7 +114,8 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
     !name.toLocaleLowerCase().includes(citation.toLocaleLowerCase())).join("; ");
   const pick = () => { if (onPick) onPick(); else fileInput.current?.click(); };
   const replacement = sources.length && !requireLanguages ? "Replace" : "Upload";
-  const rowControl = cn(control, "w-10 justify-center px-1 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
+  // Buttons, menus and links in the action column share one type weight and icon size.
+  const rowControl = cn(control, "w-10 justify-center px-1 font-normal [&_svg]:size-3.5 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
   const actionLabel = "hidden @min-[44rem]/sources:inline";
   const issue = sources.find(({ bindingRole }) => relinkable(sourceIssues[bindingRole]));
   const loaded = sources.length && sources.every(({ bindingRole }) => !sourceIssues[bindingRole]);
@@ -234,9 +235,10 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
         if (file) onAttach(file);
       }} />
     {sources.some(({ bindingRole }) => ocr?.tracked[bindingRole]) &&
-      <div className="col-start-3 col-end-[-1] min-w-0 pb-1">
+      <div className="col-start-3 col-end-[-1] min-w-0">
         {sources.map(({ bindingRole }) => ocr?.tracked[bindingRole] &&
-          <SourceOcrProgress key={bindingRole} ocr={ocr} status={ocr.tracked[bindingRole]} />)}
+          <SourceOcrProgress key={bindingRole} ocr={ocr} status={ocr.tracked[bindingRole]}
+            control={rowControl} label={actionLabel} trailing="w-8" />)}
       </div>}
   </article>;
 }
