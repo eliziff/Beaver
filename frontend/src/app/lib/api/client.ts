@@ -60,6 +60,50 @@ export async function apiResponse(path: string, init?: RequestInit, errorMessage
   if (!response.ok) throw await responseError(response, errorMessage);
   return response;
 }
+/** Asked for in `Accept` by a request that reports progress (backend lib/followedRoute.ts). */
+export const PROGRESS_STREAM = "application/x-beaver-progress";
+/** Reads a followed response: each progress line goes to `progress` as it arrives, and the
+ *  result after them comes back as a response of its own, or as the error it reports. */
+export async function followedResult(response: Response, progress: (message: string) => void,
+  errorMessage?: string) {
+  if (response.headers.get("content-type") !== PROGRESS_STREAM || !response.body) return response;
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = new Uint8Array(0);
+  for (;;) {
+    const newline = buffer.indexOf(10);
+    if (newline < 0) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error("The response ended before its result.");
+      const joined = new Uint8Array(buffer.length + value.length);
+      joined.set(buffer); joined.set(value, buffer.length); buffer = joined;
+      continue;
+    }
+    const line = JSON.parse(decoder.decode(buffer.subarray(0, newline))) as
+      { progress: string } | { result: { status: number; type: string } };
+    buffer = buffer.subarray(newline + 1);
+    if ("progress" in line) { progress(line.progress); continue; }
+    const rest = buffer;
+    const body = new ReadableStream<Uint8Array>({
+      start: (controller) => { if (rest.length) controller.enqueue(rest); },
+      pull: async (controller) => {
+        const { value, done } = await reader.read();
+        if (done) controller.close(); else controller.enqueue(value);
+      },
+      cancel: (reason) => reader.cancel(reason),
+    });
+    const result = new Response(body, { status: line.result.status,
+      headers: { "Content-Type": line.result.type } });
+    if (!result.ok) throw await responseError(result, errorMessage);
+    return result;
+  }
+}
+/** A request that reports its progress, when `progress` is given, and then its result. */
+export async function followedRequest(path: string, init: RequestInit,
+  progress?: (message: string) => void) {
+  if (!progress) return apiResponse(path, init);
+  const headers = new Headers(init.headers); headers.set("Accept", PROGRESS_STREAM);
+  return followedResult(await apiResponse(path, { ...init, headers }), progress);
+}
 export async function apiRequest<T>(path: string, init?: RequestInit, errorMessage?: string): Promise<T> {
   const response = await apiResponse(path, init, errorMessage);
   if (response.status === 204 || response.headers.get("content-length") === "0")

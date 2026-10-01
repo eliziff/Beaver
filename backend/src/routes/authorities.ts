@@ -5,6 +5,7 @@ import { bad, choice, decodeAuthoritiesDiscrepancyAction,
   decodeAuthoritiesInitialSettings, decodeAuthoritiesUserAction, integer, object,
   text } from "../lib/authoritiesActionContract";
 import { asyncRoute } from "../lib/asyncRoute";
+import { followedRoute } from "../lib/followedRoute";
 import { wordToPdfAvailable } from "../lib/convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { requireAuth } from "../middleware/auth";
@@ -102,11 +103,11 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     res.json(await application.refresh(applicationScope(res), text(req.params.id),
       revision(object(req.body).revision)));
   }));
-  router.post("/:id/sources", asyncRoute(async (req, res) => {
+  router.post("/:id/sources", followedRoute(async (req, res, progress) => {
     const preparation = new AbortController(); res.once("close", () => preparation.abort());
     res.json(await application.prepareSources(applicationScope(res), text(req.params.id),
       revision(object(req.body).revision), preparation.signal,
-      req.body?.authorityId === undefined ? undefined : text(req.body.authorityId, 200)));
+      req.body?.authorityId === undefined ? undefined : text(req.body.authorityId, 200), progress));
   }));
   router.post("/:id/inputs/:role/refresh", asyncRoute(async (req, res) => {
     res.json(await application.refreshInput(applicationScope(res), text(req.params.id), {
@@ -152,11 +153,11 @@ export function createAuthoritiesRouter(application: AuthoritiesWorkspaceApplica
     res.json(await application.sourceOcr(applicationScope(res), text(req.params.id),
       (roles as unknown[]).map((role) => text(role)), body.cancel === true, pages));
   }));
-  router.post("/:id/build", asyncRoute(async (req, res) => {
+  router.post("/:id/build", followedRoute(async (req, res, progress) => {
     const build = new AbortController();
     res.once("close", () => build.abort());
     res.json(await application.build(applicationScope(res), text(req.params.id),
-      revision(object(req.body).revision), build.signal));
+      revision(object(req.body).revision), build.signal, progress));
   }));
   return router;
 }

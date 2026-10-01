@@ -22,6 +22,7 @@ import { validateAuthoritiesPdf } from "../lib/authoritiesPdf";
 import { resolveAuthoritiesSources, type PreparedAuthoritySource } from "../lib/authoritiesSourceResolution";
 import { createAuthoritiesPreparation, prepareAuthoritiesCorrection } from "../lib/authoritiesPreparation";
 import { asyncRoute } from "../lib/asyncRoute";
+import { followedRoute } from "../lib/followedRoute";
 import { mapBounded } from "../lib/mapBounded";
 import { sha256 } from "../lib/hash";
 import { multipleFileUpload, requiredFile, singleFileUpload } from "../lib/upload";
@@ -242,14 +243,14 @@ export function createAuthoritiesRuntimeRouter(
     const action = decodeAuthoritiesUserAction(req.body?.action);
     await sendDraft(res, applyAuthoritiesUserAction(current, action), []);
   }));
-  router.post("/sources", asyncRoute(async (req, res) => {
+  router.post("/sources", followedRoute(async (req, res, progress) => {
     const preparation = new AbortController(); res.once("close", () => preparation.abort());
     const current = draft(req.body?.draft);
     const onlyAuthorityId = req.body?.authorityId === undefined
       ? undefined : text(req.body.authorityId, 200);
     if (onlyAuthorityId && !current.authorities[onlyAuthorityId]?.sourceVerificationUrl)
       reject(409, "This authority has no publisher check to retry.");
-    const prepared = await resolveSources(current, undefined, preparation.signal, onlyAuthorityId);
+    const prepared = await resolveSources(current, undefined, preparation.signal, onlyAuthorityId, progress);
     await sendDraft(res, attachPreparedSources(prepared.draft, prepared.attachments),
       prepared.attachments);
   }));
@@ -305,7 +306,7 @@ export function createAuthoritiesRuntimeRouter(
       res.json(attachAuthoritiesBookPdf(current, { slot, supplementId }, binding, filename, sourceSha256));
     }
   }));
-  router.post("/build", multipleFileUpload("files", 500, 16 * 1024 * 1024), asyncRoute(async (req, res) => {
+  router.post("/build", multipleFileUpload("files", 500, 16 * 1024 * 1024), followedRoute(async (req, res, progress) => {
     const build = new AbortController();
     res.once("close", () => build.abort());
     let raw: unknown, roles: unknown;
@@ -328,8 +329,10 @@ export function createAuthoritiesRuntimeRouter(
     try { preparation = createAuthoritiesPreparation(state); }
     catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
     // Sources are read and prepared a few at a time; native preparation runs off the event loop.
+    let read = 0;
     const sources: NonNullable<AuthoritiesBuildInput["sources"]> = Object.fromEntries(
       await mapBounded(files, async (file, index) => {
+        progress?.(`Reading ${file.originalname} · ${++read} of ${files.length}`);
         const role = roleNames[index], bytes = await readFile(file.path);
         build.signal.throwIfAborted();
         const binding = state.bindings[role];
@@ -346,7 +349,7 @@ export function createAuthoritiesRuntimeRouter(
       }));
     let book: PreparedAuthoritiesBook | undefined;
     const built = await buildAuthorities({ draft: state, title,
-      workProduct: { id, revision }, sources, signal: build.signal,
+      workProduct: { id, revision }, sources, signal: build.signal, progress,
       ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
     }, state.settings.finalPdf ? undefined : async (prepared) => {
       book = prepared; return [];

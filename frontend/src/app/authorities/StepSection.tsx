@@ -14,7 +14,8 @@ export function StepProgress({ label, error, className, announce = true }: {
   return <span role={announce ? "status" : undefined}
     // Like every Beaver loading placeholder, progress that ends within 150 ms never paints.
     className={cn("beaver-loading-indicator flex items-center gap-2 text-sm font-medium text-gray-700", className)}>
-    <Loader2 className="size-4 shrink-0 text-red-700 motion-safe:animate-spin" aria-hidden="true" />{label}</span>;
+    <Loader2 className="size-4 shrink-0 text-red-700 motion-safe:animate-spin" aria-hidden="true" />
+    <span className="truncate" title={label}>{label}</span></span>;
 }
 
 /** One step of the authorities workflow: a titled card whose actions sit on the right. */

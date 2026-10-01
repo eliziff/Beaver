@@ -10,7 +10,7 @@ import {
   standaloneWorkProducts, writeStandaloneArtifactsToOutputFolder,
   type StandaloneArtifact,
 } from "@/app/lib/standaloneWorkProducts";
-import { apiResponse, BeaverApiError } from "@/app/lib/api/client";
+import { BeaverApiError, followedRequest } from "@/app/lib/api/client";
 import { authoritiesWordToPdf } from "@/app/lib/api/authorities";
 import type { WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft,
@@ -66,14 +66,15 @@ async function currentProduct(id: string, revision: number) {
 }
 
 async function runtimeResponse(path: string, body: BodyInit, json = false,
-  signal?: AbortSignal) {
-  return apiResponse(`/authorities-runtime/${path}`, {
+  signal?: AbortSignal, progress?: (message: string) => void) {
+  return followedRequest(`/authorities-runtime/${path}`, {
     method: "POST", body, signal,
     ...(json ? { headers: { "Content-Type": "application/json" } } : {}),
-  });
+  }, progress);
 }
-async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal) {
-  const response = await runtimeResponse(path, body, json, signal);
+async function runtimeDraft(path: string, body: BodyInit, json = false, signal?: AbortSignal,
+  progress?: (message: string) => void) {
+  const response = await runtimeResponse(path, body, json, signal, progress);
   if (!response.headers.get("content-type")?.startsWith("multipart/form-data")) {
     return supportedDraft(await response.json() as AuthoritiesDraft);
   }
@@ -282,11 +283,11 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const state = structuredClone(product.state); state.bindings[role] = resolved.input;
     return save(id, revision, await refreshImported(state, resolved.file));
   },
-  async prepareSources(selected, signal, authorityId) {
+  async prepareSources(selected, signal, authorityId, progress) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
     const prepared = await runtimeDraft("sources",
-      JSON.stringify({ draft: product.state, authorityId }), true, signal);
+      JSON.stringify({ draft: product.state, authorityId }), true, signal, progress);
     signal?.throwIfAborted();
     return JSON.stringify(prepared) === JSON.stringify(product.state)
       ? product : save(product.id, product.revision, prepared);
@@ -300,7 +301,7 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const product = await currentProduct(selected.id, selected.revision);
     const form = await buildInputs(product, progress, signal);
     progress?.("Building outputs");
-    const response = await (await runtimeResponse("build", form, false, signal)).formData();
+    const response = await (await runtimeResponse("build", form, false, signal, progress)).formData();
     signal?.throwIfAborted();
     const receipt = JSON.parse(String(response.get("receipt"))) as AuthoritiesBuildReceipt;
     const artifacts: Omit<StandaloneArtifact, "receipt">[] = await Promise.all(

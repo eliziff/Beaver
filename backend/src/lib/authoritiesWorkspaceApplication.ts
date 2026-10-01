@@ -1,4 +1,5 @@
 import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
+import type { Progress } from "./followedRoute";
 import { mapBounded } from "./mapBounded";
 import { authorityCitationForms } from "./authoritiesDomain";
 import { reporterStartPages } from "./pdfPagination";
@@ -112,8 +113,8 @@ export function createAuthoritiesWorkspaceApplication(
   }
 
   async function resolveSources(scope: ApplicationScope, initial: AuthoritiesDraft,
-    projectId?: string | null, signal?: AbortSignal, onlyAuthorityId?: string) {
-    let { draft, attachments } = await resolveAuthoritiesSources(initial, sources, signal, onlyAuthorityId);
+    projectId?: string | null, signal?: AbortSignal, onlyAuthorityId?: string, progress?: Progress) {
+    let { draft, attachments } = await resolveAuthoritiesSources(initial, sources, signal, onlyAuthorityId, progress);
     const created: DocumentRollback[] = [];
     return withRollback(scope, created, async () => {
       for (const attachment of attachments) {
@@ -416,13 +417,13 @@ export function createAuthoritiesWorkspaceApplication(
       return workProducts.save(scope, id, { revision, state: changed });
     },
     async prepareSources(scope: ApplicationScope, id: string, revision: number,
-      signal?: AbortSignal, onlyAuthorityId?: string) {
+      signal?: AbortSignal, onlyAuthorityId?: string, progress?: Progress) {
       const { product, draft } = await edit(scope, id, revision);
       if (onlyAuthorityId && !draft.authorities[onlyAuthorityId]?.sourceVerificationUrl)
         throw new ApplicationError(409, "This authority has no publisher check to retry.");
       const resolved = await resolveSources(scope,
         onlyAuthorityId ? draft : await followLatestBindings(scope, draft, signal),
-        product.projectId, signal, onlyAuthorityId);
+        product.projectId, signal, onlyAuthorityId, progress);
       // Every reducer hands back a fresh object, so re-offering a CanLII handoff
       // the draft already holds reads as a change. Opening a draft that needed
       // nothing must not spend a revision: compare the state, not the reference.
@@ -577,14 +578,14 @@ export function createAuthoritiesWorkspaceApplication(
           return { role: source.bindingRole, documentId: resolved.documentId };
         }));
     },
-    async build(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal):
+    async build(scope: ApplicationScope, id: string, revision: number, signal?: AbortSignal, progress?: Progress):
       Promise<{ product: AuthoritiesProduct; receipt: AuthoritiesBuildResult["receipt"] }> {
       const { product, draft: storedDraft } = await edit(scope, id, revision);
       const draft = await followLatestBindings(scope, storedDraft, signal);
       let built: AuthoritiesBuildResult;
       try {
         built = await builder({ draft, title: product.title,
-          workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal,
+          workProduct: { id, revision }, sources: await buildSources(scope, draft, signal), signal, progress,
           ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
         });
       } catch (error) {

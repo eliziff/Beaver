@@ -1107,7 +1107,7 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith(saved.id, saved.revision,
       { type: "set-settings", settings: { allowIncomplete: true } }));
     await waitFor(() => expect(api.buildAuthorities).toHaveBeenCalledWith(saved.id, allowed.revision,
-      expect.any(AbortSignal)));
+      expect.any(AbortSignal), expect.any(Function)));
   });
 
   it("offers an unlinked-citations report after a final export abstains", async () => {
@@ -1499,7 +1499,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(api.prepareAuthoritiesSources)
-      .toHaveBeenCalledWith("draft-1", 2, undefined, undefined));
+      .toHaveBeenCalledWith("draft-1", 2, undefined, undefined, undefined));
     expect(await screen.findByRole("link", { name: /^CanLII PDF for/ })).toBeVisible();
     const row = screen.getByRole("heading", { name: "R v Jordan" }).closest("article")!;
     await userEvent.click(within(row).getByRole("button", { name: "Options for R v Jordan" }));
@@ -1532,7 +1532,7 @@ describe("Authorities UI contracts", () => {
     await userEvent.click(within(await screen.findByRole("dialog", { name: "Missing PDFs" }))
       .getByRole("button", { name: "Build anyway" }));
     await waitFor(() => expect(api.buildAuthorities).toHaveBeenCalledWith(
-      "draft-1", 2, expect.any(AbortSignal)));
+      "draft-1", 2, expect.any(AbortSignal), expect.any(Function)));
     expect(screen.getByText("Saved to Court outputs")).toBeVisible();
   });
 

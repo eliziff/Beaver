@@ -193,6 +193,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const gathering = useRef(Promise.resolve()), gathered = useRef({ id: "", revision: -1 });
   // Gathering that an edit interrupted, to run again once editing rests.
   const sourcesRequest = useRef<AbortController | null>(null), sourcesStale = useRef(false);
+  // Gathering reports which authority it is on; the step shows it only while someone waits for it,
+  // so the citations being reviewed meanwhile are never re-rendered for it.
+  const sourcesNote = useRef(""), awaitingSources = useRef(false);
+  const [sourcesProgress, setSourcesProgress] = useState("");
+  const noteSources = useCallback((note: string) => {
+    sourcesNote.current = note;
+    if (awaitingSources.current) setSourcesProgress(note);
+  }, []);
   const modeDrafts = useRef<{ automatic?: string; manual?: string }>({});
   const refreshRequest = useRef(0);
 
@@ -896,7 +904,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       await serialized(async () => {
         const latest = draftRef.current;
         if (request.signal.aborted || latest?.id !== current.id || latest.state.stage !== "citations") return;
-        const next = await host.prepareSources(latest, request.signal);
+        const next = await host.prepareSources(latest, request.signal, undefined, noteSources)
+          .finally(() => { sourcesNote.current = ""; });
         if (adopt(next)) gathered.current = { id: next.id, revision: next.revision };
       });
     } catch {
@@ -908,6 +917,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (!draftRef.current) return;
     const request = new AbortController(); scanRequest.current?.abort(); scanRequest.current = request;
     let unavailable = "";
+    awaitingSources.current = true; setSourcesProgress(sourcesNote.current);
     void run(async () => {
       await gathering.current; await actionQueue.current;
       const current = draftRef.current;
@@ -915,7 +925,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       const ready = gathered.current.id === current.id && gathered.current.revision === current.revision;
       // A legal-source service that is down or limiting requests leaves the sources to add by hand:
       // the step still opens, and says why nothing was found.
-      const prepared = ready ? current : await host.prepareSources(current, request.signal).catch((caught) => {
+      const prepared = ready ? current : await host.prepareSources(current, request.signal, undefined, noteSources).catch((caught) => {
         if ((caught as { status?: number })?.status !== 503) throw caught;
         unavailable = errorText(caught); return current;
       });
@@ -923,6 +933,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       if (!ready) adopt(prepared);
       return host.act(prepared.id, prepared.revision, { type: "set-stage", stage: "sources" });
     }, (next) => { adopt(next); if (unavailable) setMessage(unavailable); }, "", "Finding source PDFs").finally(() => {
+      awaitingSources.current = false; setSourcesProgress("");
       if (scanRequest.current === request) scanRequest.current = null;
     });
   }
@@ -1044,7 +1055,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                         variant="outline" className="h-9 border-gray-400" disabled={busy}
                         onClick={() => relinkSource(importedRole)}><FilePlus2 />
                         Allow file access</Button>}
-                      <StepProgress label={stepOperation} error={stepError} />
+                      <StepProgress label={stepOperation === "Finding source PDFs" && sourcesProgress || stepOperation}
+                        error={stepError} className="min-w-0" />
                       <Button disabled={busy} className="h-9" onClick={() => reached === "citations" ? findSources() : viewStep("sources")}>
                         Next<ChevronRight /></Button></>}</>} />
                   <div id="authorities-step" role="tabpanel"

@@ -99,8 +99,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   },
   act: actOnAuthorities, refresh: refreshAuthorities, review: reviewAuthorities,
   resolveDiscrepancy: resolveAuthoritiesDiscrepancy,
-  prepareSources: (draft, signal, authorityId) =>
-    prepareAuthoritiesSources(draft.id, draft.revision, signal, authorityId),
+  prepareSources: (draft, signal, authorityId, progress) =>
+    prepareAuthoritiesSources(draft.id, draft.revision, signal, authorityId, progress),
   relinkSource: refreshAuthoritiesInput,
   attach: (id, authorityId, revision, selected, language = "en") =>
     attachAuthorityPdf(id, authorityId, revision, selected.file, language),
@@ -144,7 +144,7 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
   async build(draft, progress, signal) {
     await prepareSourcePdfs(draft, progress, signal);
     progress?.("Building outputs");
-    return buildAuthorities(draft.id, draft.revision, signal);
+    return buildAuthorities(draft.id, draft.revision, signal, progress);
   },
   download: (documentId, versionId) =>
     downloadDocument(documentId, versionId).then(({ blob }) => blob),
