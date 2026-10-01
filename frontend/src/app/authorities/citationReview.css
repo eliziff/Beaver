@@ -8,7 +8,6 @@
 .citation-outline button>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .citation-outline button+button{margin-top:.1rem}
 .citation-finding{position:absolute;top:.6rem;right:.15rem;width:6px;height:6px;border-radius:50%;background:#b91c1c}
-.citation-group-pinpoint span[data-manual]::after{content:'';display:inline-block;width:5px;height:5px;margin:0 0 2px .3rem;border-radius:50%;background:#b91c1c;vertical-align:middle}
 .citation-outline button:hover{background:#f3f4f6}
 .citation-outline button[aria-selected=true]{background:#fff1f0;color:#991b1b;box-shadow:inset 2px 0 #b91c1c}
 .citation-outline button:focus-visible{outline:2px solid #b91c1c;outline-offset:-2px}
@@ -28,15 +27,14 @@
 .citation-mark{cursor:pointer;color:inherit}
 .citation-mark[data-active]{cursor:text}
 .pdf-text-layer .citation-mark{position:static}
-.citation-document[data-split] *{cursor:crosshair}
-.citation-document[data-dragging] *{cursor:ew-resize!important;user-select:none}
 /* One rounded shape per citation line, drawn over the text and multiplied into it. */
 .citation-overlay{position:absolute;left:0;top:0;width:0;height:0;z-index:4;pointer-events:none;mix-blend-mode:multiply}
 .citation-overlay div{position:absolute;box-sizing:border-box}
 .citation-band{border:1px solid rgb(185 28 28 / .35);border-radius:3px}
 .citation-band[data-hot]:not([data-active]){background:rgb(185 28 28 / .07)}
 .citation-band[data-active]{border-color:transparent;background:#f8d5cc}
-.citation-pinpoint{border-radius:3px;background:#eba596}
+/* The pinpoint: a slightly deeper fill inside the active citation's, with no edge of its own. */
+.citation-pinpoint{border-radius:2px;background:#f3c1b4}
 /* A grip is a slim bar the height of its line with a round cap, like a text-selection handle. */
 .citation-grip{pointer-events:auto;cursor:ew-resize;opacity:.8;transition:opacity .12s}
 .citation-grip::before,.citation-grip::after{content:'';position:absolute;background:#b91c1c}
@@ -48,88 +46,87 @@
 .citation-grip[data-cap=top]::after{top:0}
 .citation-grip[data-cap=bottom]::before{bottom:8px}
 .citation-grip[data-cap=bottom]::after{bottom:0}
+/* The pinpoint's grips show only while the pointer is on the pinpoint, or while one is dragged. */
+.citation-grip[data-grip^=pin]{visibility:hidden}
 .citation-grip[data-grip^=pin]::before,.citation-grip[data-grip^=pin]::after{background:#7f1d1d}
+.citation-document[data-pin] .citation-grip[data-grip^=pin],.citation-document[data-dragging=pin] .citation-grip[data-grip^=pin]{visibility:visible}
 .citation-grip:hover,[data-dragging] .citation-grip{opacity:1}
 .citation-grip:hover::after{transform:scale(1.2)}
 [data-dragging] .citation-grip{pointer-events:none}
-.citation-split{width:2px;margin-left:-1px;border-radius:1px;background:#7f1d1d}
+.citation-split{width:12px;margin-left:-6px;background:linear-gradient(90deg,transparent 5px,#7f1d1d 5px 7px,transparent 7px);pointer-events:auto;cursor:crosshair}
 .citation-source-status{align-self:center;margin:auto;padding:2rem;color:#6b7280;font-size:.875rem}
 .citation-fallback{position:absolute;inset:auto 0 0;max-height:45%;display:flex;flex-direction:column;background:white;border-top:1px solid #e5e7eb;box-shadow:0 -4px 12px rgb(0 0 0 / .04);padding:.6rem .9rem;font-size:.875rem}
 .citation-fallback[data-full]{inset:0;max-height:none;border-top:0;box-shadow:none}
 .citation-fallback>p{margin:0;color:#6b7280;font-size:.8125rem}
 .citation-fallback>div{position:relative;isolation:isolate;white-space:pre-wrap;overflow:hidden auto;padding:.5rem 0;line-height:1.8;outline:none}
 
-/* Labelled groups under the list and the document, each in a fixed place: moving between citations,
-   editing the citation, its pinpoint and its authority. Nothing in them moves between citations. */
-.citation-panel{grid-column:1/-1;display:grid;grid-template:"navigate citation" auto "pinpoint authority" auto/16rem minmax(0,1fr);gap:.55rem 1.5rem;min-width:0;padding:.65rem 1rem .75rem;border-top:1px solid #e5e7eb;background:#fafafa;font-size:.875rem;color:#374151}
-.citation-panel>div{min-width:0}
-.citation-group-navigate{grid-area:navigate}
-.citation-group-citation{grid-area:citation}
-.citation-group-pinpoint{grid-area:pinpoint}
-.citation-group-authority{grid-area:authority}
-.citation-panel h4{display:flex;align-items:center;gap:.5rem;height:1.25rem;margin:0 0 .3rem;font-size:.75rem;font-weight:600;letter-spacing:.05em;line-height:1.25rem;text-transform:uppercase;color:#6b7280;white-space:nowrap}
-.citation-panel h4>span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:.8125rem;font-weight:400;letter-spacing:0;text-transform:none;color:#9ca3af}
-.citation-panel h4>small{display:inline-flex;align-items:center;gap:.25rem;font-size:.8125rem;font-weight:400;letter-spacing:0;text-transform:none;color:#6b7280}
-.citation-panel h4>.citation-overlap{color:#991b1b}
-.citation-panel>div>div{display:flex;align-items:center;gap:.4rem;height:2.25rem;min-width:0;white-space:nowrap}
-.citation-panel button{height:2.25rem;min-height:0;padding-inline:.6rem;font-size:.875rem}
-.citation-panel kbd{margin-left:.15rem;padding:.1rem .3rem;border:1px solid #e5e7eb;border-radius:4px;background:#fff;font-family:inherit;font-size:.75rem;font-weight:500;line-height:1.2;color:#6b7280}
-.citation-panel h4 kbd{margin:0;letter-spacing:0}
-.citation-group-navigate>div>span{min-width:5.5em;text-align:center;font-variant-numeric:tabular-nums;color:#4b5563}
-.citation-panel .citation-group-navigate button{width:2.25rem;padding:0}
-.citation-group-pinpoint>div>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#111827}
-.citation-panel [data-empty]{color:#9ca3af}
-.citation-panel .citation-reset{flex:none;height:auto;padding:0;color:#991b1b;text-decoration:underline;text-underline-offset:2px}
-/* The authority opens a searchable list upward, over the document. */
-/* A fixed width keeps the chevron and the controls after it in place whatever the authority's name. */
-.citation-authority{position:relative;flex:0 1 30rem;min-width:12rem}
-.citation-panel .citation-authority-trigger{display:inline-flex;align-items:center;gap:.5rem;width:100%;padding-inline:.7rem .5rem;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#111827}
+/* One bar under the list and the document, its zones in fixed places: where you are, what the
+   citation refers to and where, and the edits. Nothing in it moves or resizes between citations. */
+.citation-panel{grid-column:1/-1;display:grid;grid-template:"nav meaning edit" 3.5rem/auto minmax(0,1fr) auto;align-items:center;column-gap:1.5rem;padding:0 1rem;border-top:1px solid #e5e7eb;background:#fafafa;font-size:.875rem;color:#374151}
+.citation-panel>div{display:flex;align-items:center;min-width:0}
+.citation-nav{grid-area:nav;gap:.125rem}
+.citation-nav>span{min-width:6.25rem;text-align:center;font-variant-numeric:tabular-nums}
+.citation-panel .citation-nav button{width:2.25rem;height:2.25rem}
+.citation-meaning{grid-area:meaning;gap:.75rem}
+#citation-refers{flex:none;color:#6b7280}
+.citation-authority-trigger{display:flex;align-items:center;gap:.5rem;width:100%;height:2.25rem;padding:0 .5rem 0 .75rem;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#111827;font-weight:500}
 .citation-authority-trigger:hover{border-color:#9ca3af}
 .citation-authority-trigger:focus-visible{outline:2px solid #b91c1c;outline-offset:1px}
-.citation-authority-trigger>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:start}
+.citation-authority-trigger>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.citation-authority-trigger>[data-empty]{font-weight:400;color:#6b7280}
 .citation-authority-trigger>svg{flex:none;width:1rem;height:1rem;color:#6b7280}
-.citation-authority-menu{position:absolute;bottom:calc(100% + .4rem);left:0;z-index:20;display:flex;flex-direction:column;width:min(30rem,calc(100vw - 2rem));max-height:min(22rem,55vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
-.citation-authority-menu>input{flex:none;height:2.25rem;margin:.5rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
-.citation-authority-menu>input:focus-visible{border-color:#b91c1c}
-.citation-authority-menu>[role=listbox]{overflow-y:auto;padding:0 .35rem .4rem}
-.citation-authority-menu [role=group]>div{padding:.55rem .45rem .2rem;font-size:.75rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#6b7280}
-.citation-panel .citation-authority-menu [role=option]{display:block;width:100%;height:auto;padding:.4rem .45rem;border-radius:4px;text-align:start;white-space:normal}
-.citation-authority-menu [role=option]>span{display:block;color:#111827}
-.citation-authority-menu [role=option]>small{display:block;font-size:.8125rem;color:#6b7280}
+.citation-pin{flex:none;display:flex;align-items:center;gap:.4rem;width:12.5rem;height:2.25rem;white-space:nowrap;color:#6b7280}
+.citation-pin>b{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:#111827}
+.citation-pin[data-empty]{color:#9ca3af}
+.citation-pin>small{font-size:.75rem;color:#9ca3af}
+.citation-reset{display:inline-grid;place-items:center;flex:none;width:1.75rem;height:1.75rem;border-radius:5px;color:#6b7280}
+.citation-reset:hover{background:#f3f4f6;color:#111827}
+.citation-reset>svg{width:.9rem;height:.9rem}
+.citation-quote{flex:none;display:inline-flex;align-items:center;gap:.35rem;height:2.25rem;padding:0 .25rem;color:#991b1b}
+.citation-quote>span{text-decoration:underline;text-underline-offset:3px}
+.citation-quote>svg{display:none;width:1.1rem;height:1.1rem}
+/* The edits read as one group: joined buttons of one height. */
+.citation-edit{grid-area:edit}
+.citation-panel .citation-edit button{height:2.25rem;margin-left:-1px;padding-inline:.9rem;border-radius:0;border-color:#d1d5db;background:#fff;font-size:.875rem;font-weight:500;box-shadow:none}
+.citation-panel .citation-edit button:first-child{margin-left:0;border-radius:6px 0 0 6px}
+.citation-panel .citation-edit button:last-child{border-radius:0 6px 6px 0}
+.citation-panel .citation-edit button:disabled{opacity:1;color:#9ca3af}
+.citation-panel .citation-edit button:focus-visible{position:relative;z-index:1}
+/* The authorities open upward over the document, each under the place that cites it. */
+.citation-authority{position:relative;flex:1 1 0;min-width:0;max-width:30rem}
+.citation-authority-menu{position:absolute;bottom:calc(100% + .6rem);left:0;right:0;z-index:20;display:flex;flex-direction:column;max-height:min(26rem,60vh);border:1px solid #d1d5db;border-radius:8px;background:#fff;box-shadow:0 10px 30px rgb(0 0 0 / .14)}
+.citation-authority-menu>[role=listbox]{overflow:hidden auto;padding:.6rem .5rem .4rem}
+.citation-authority-menu h4{margin:0 .5rem .4rem;font-size:.8125rem;font-weight:650;color:#4b5563}
+.citation-authority-menu [role=listbox]>[role=group]+[role=group]{margin-top:1rem}
+.citation-authority-menu [role=option]{display:block;width:100%;padding:.35rem .6rem;border-radius:4px;text-align:start;line-height:1.4}
+.citation-authority-menu [role=option]+[role=option]{margin-top:.1rem}
+.citation-authority-menu [role=option]>span{display:block;color:#111827;overflow-wrap:anywhere}
+.citation-authority-menu [role=option]>small{display:block;font-size:.8125rem;color:#6b7280;overflow-wrap:anywhere}
 .citation-authority-menu [role=option]:hover,.citation-authority-menu [role=option]:focus-visible{background:#f3f4f6;outline:none}
-.citation-authority-menu [role=option][aria-selected=true]{background:#fff1f0}
-.citation-authority-menu .citation-authority-unlink{color:#991b1b}
-.citation-authority-menu p{margin:0;padding:.6rem .45rem;color:#6b7280}
+.citation-authority-menu [role=option][aria-selected=true]{background:#fff1f0;box-shadow:inset 2px 0 #b91c1c}
+.citation-authority-menu [role=option][aria-selected=true]>span{color:#991b1b}
+.citation-authority-unlink{display:block;width:100%;margin-top:.75rem;padding:.45rem .6rem;border-top:1px solid #f3f4f6;text-align:start;color:#991b1b}
+.citation-authority-menu p{margin:0;padding:.6rem .5rem;color:#6b7280}
+.citation-authority-menu>input{flex:none;height:2.25rem;margin:.4rem;padding:0 .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.875rem;outline:none}
+.citation-authority-menu>input:focus-visible{border-color:#b91c1c}
+/* Narrower: where you are and the edits share the first row; what the citation means takes the second. */
 @container (max-width:64rem){
-  .citation-panel{grid-template:"navigate pinpoint" auto "citation citation" auto "authority authority" auto/auto minmax(0,1fr)}
-}
-@container (max-width:48rem){
-  .citation-panel{padding:.6rem .75rem}
-  .citation-group-citation kbd,.citation-panel h4>span:not(.citation-overlap){display:none}
-}
-@container (max-width:32rem){
-  .citation-panel .citation-group-citation>div{flex-wrap:wrap;height:4.9rem;align-content:flex-start}
+  .citation-panel{grid-template:"nav edit" 3rem "meaning meaning" 3rem/minmax(0,1fr) auto;padding-bottom:.4rem}
+  .citation-authority{max-width:none}
 }
 @container (max-width:48rem){
   .citation-review{grid-template:7.5rem minmax(0,1fr) auto/minmax(0,1fr)}
   .citation-outline{grid-row:1;border-inline-end:0;border-bottom:1px solid #e5e7eb}
   .citation-document{grid-column:1}
   .citation-note{margin-bottom:.3rem}
+  .citation-panel{padding-inline:.75rem;column-gap:.75rem}
+  .citation-nav>span{min-width:5.25rem}
+  .citation-pin{width:9.5rem}
+  .citation-meaning{gap:.5rem}
+  .citation-quote>span{display:none}
+  .citation-quote>svg{display:block}
 }
-/* Where the citation's controls fit beside a label, every label sits beside its controls with its
-   keys or kind under it, and the citation hint takes the room after the authority: three rows of
-   controls, and two on wide screens, where the hint sits under the citation's controls. */
-@container (width > 53.5rem){
-  .citation-panel{position:relative;grid-template:"navigate pinpoint" 2.125rem "citation citation" 2.125rem "authority authority" 2.125rem/16rem minmax(0,1fr);gap:.3rem 1.25rem;padding:.4rem 1rem}
-  .citation-panel>div{display:flex;align-items:center;gap:.4rem}
-  .citation-panel h4{flex:none;flex-direction:column;align-items:flex-start;justify-content:center;gap:.2rem;width:5.25rem;height:2.125rem;margin:0;line-height:1}
-  .citation-panel h4 kbd{padding-block:0}
-  .citation-panel>div>div{flex:1;height:2.125rem}
-  .citation-panel button{height:2.125rem}
-  .citation-group-citation h4>span{position:absolute;left:calc(1rem + 38rem + 1.25rem);right:1rem;bottom:.4rem;display:flex;align-items:center;height:2.125rem;line-height:1.25;white-space:normal}
-  .citation-authority{flex:0 0 23rem;min-width:0}
-}
-@container (width > 70.75rem){
-  .citation-panel{grid-template:"navigate citation citation" 2.125rem "pinpoint authority ." 2.125rem/16rem 38rem minmax(0,1fr)}
-  .citation-group-citation h4>span{left:calc(1rem + 16rem + 38rem + 2 * 1.25rem)}
+@container (max-width:30rem){
+  .citation-panel .citation-edit button{padding-inline:.6rem}
+  .citation-pin{width:7.5rem}
 }

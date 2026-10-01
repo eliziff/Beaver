@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, RotateCcw, TextQuote } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { DocxCanvas } from '@/app/components/shared/views/DocxCanvas';
 import { PdfCanvas } from '@/app/components/shared/views/PdfCanvas';
@@ -13,24 +13,33 @@ import { activeBand, caretAt, citationSelection, clearCitationMarks, locateCitat
   type UnitText } from './citationDocument';
 import './citationReview.css';
 
+type Unit = AuthoritiesProduct['state']['units'][number];
 const SCROLLERS = '.beaver-pdf-scroll,.docx-view-scroll,.citation-fallback>div';
 const LOCATORS: Record<string, [string, string]> = { paragraph: ['para', 'paras'], section: ['s', 'ss'] };
 /** "para 35", "ss 3-4", "103": the parsed pinpoint with its locator. */
 const pinpointText = ({ pinpointSpan, pinpoints }: AuthorityOccurrence) => {
-  // A pinpoint selected by hand may carry the "at" that introduces it.
-  const text = (pinpointSpan?.text ?? pinpoints.map(({ text }) => text).join(', ')).replace(/^at\s+/u, '');
+  // The parsed values, whole even where a hand-placed pinpoint covers part of one; failing those,
+  // the text placed, which may carry the "at" that introduces it.
+  const text = (pinpoints.length ? pinpoints.map(({ text }) => text.replace(/-/gu, '–')).join(', ')
+    : pinpointSpan?.text ?? '').replace(/^at\s+/u, '');
   const [one, many] = LOCATORS[pinpoints[0]?.kind] ?? [];
   // A pinpoint placed by hand may already carry its locator.
   return !text || !one || text.startsWith(one) ? text
     : `${pinpoints.length > 1 || pinpoints[0].text.includes('-') ? many : one} ${text}`;
 };
+/** A unit's citations as marked in the document: an edit marks again only the units it changed. */
+const marking = (unit: Unit, occurrences: AuthoritiesProduct['state']['occurrences']) => unit.occurrenceIds.map(id => {
+  const item = occurrences[id];
+  return item ? `${id}:${item.start}:${item.end}:${item.pinpointSpan?.start}:${item.pinpointSpan?.end}` : '';
+}).join('|');
 
 /** An outline row: the citation as it reads in the article, with a quotation finding marked in its
- * padding. The review marks the selected row itself, so choosing another re-renders no row. */
+ * padding. The review marks the selected row itself, so choosing another re-renders no row, and a
+ * saved draft re-renders only the rows whose text it changed. */
 const Row = memo(function Row({ row, finding }: { row: AuthorityOccurrence; finding: boolean }) {
   return <button type="button" role="option" data-id={row.id} aria-selected="false" tabIndex={-1} title={row.text}>
     <span>{row.text}</span>{finding && <i className="citation-finding" role="img" aria-label="Quotation to review" />}</button>;
-});
+}, (a, b) => a.finding === b.finding && a.row.id === b.row.id && a.row.text === b.row.text);
 
 /** The citations in reading order, and the text marked "Not a citation", which stays listed so a
  * wrong call can be taken back. It renders again only when the draft or its review changes. */
@@ -65,25 +74,27 @@ const Outline = memo(function Outline({ product, occurrences, findings, busy, on
   </>;
 });
 
-type AuthorityOption = { authorityId: string; group: string; label: string; description: string };
-/** The authority a citation points to, chosen from a searchable list that opens upward over the
- * document: the authorities cited in-text, then per footnote, then the rest. */
+const SECTIONS = ['In-text', 'Footnotes', 'Other authorities'] as const;
+type AuthorityOption = { authorityId: string; section: typeof SECTIONS[number]; note?: string; label: string; description: string };
+/** The authority a citation refers to, chosen from a searchable list that opens upward over the
+ * document. It is laid out as the citation list is: the authorities cited in-text, each footnote's
+ * under its number, then the rest. */
 function AuthorityPicker({ options, current, busy, onPick }: {
   options: AuthorityOption[]; current?: AuthorityIdentity; busy: boolean; onPick(authorityId: string | null): void;
 }) {
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (!open) return;
-    root.current?.querySelector('[role=option][aria-selected=true]')?.scrollIntoView?.({ block: 'nearest' });
+    // Each opening starts unfiltered.
+    if (!open) { setQuery(''); return; }
+    root.current?.querySelector('[role=option][aria-selected=true]')?.scrollIntoView?.({ block: 'center' });
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
     addEventListener('pointerdown', outside, true);
     return () => removeEventListener('pointerdown', outside, true);
   }, [open]);
   const words = query.toLowerCase().split(/\s+/u).filter(Boolean);
   const shown = options.filter(option => words.every(word => `${option.label} ${option.description}`.toLowerCase().includes(word)));
-  const groups = [...new Set(shown.map(option => option.group))];
-  const pick = (authorityId: string | null) => { setOpen(false); setQuery(''); trigger.current?.focus(); onPick(authorityId); };
+  const pick = (authorityId: string | null) => { setOpen(false); trigger.current?.focus(); onPick(authorityId); };
   return <div ref={root} className="citation-authority" onKeyDown={event => {
     if (!open) return;
     // Keys inside the list stay in the list: arrows move between choices and Escape closes it.
@@ -91,28 +102,38 @@ function AuthorityPicker({ options, current, busy, onPick }: {
     if (event.key === 'Escape') { event.preventDefault(); setOpen(false); trigger.current?.focus(); }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    const items = [...root.current!.querySelectorAll<HTMLElement>('input,[role=option]')];
+    const items = [...root.current!.querySelectorAll<HTMLElement>('[role=option],input')];
     const at = items.indexOf(document.activeElement as HTMLElement);
     items[Math.min(items.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus();
   }}>
     <button ref={trigger} type="button" className="citation-authority-trigger" disabled={busy} aria-haspopup="listbox"
-      aria-expanded={open} aria-label={`Authority: ${current ? authorityLabel(current) : 'not linked'}`}
+      aria-expanded={open} aria-labelledby="citation-refers citation-authority-name"
       title={current ? authorityLabel(current) : undefined} onClick={() => setOpen(value => !value)}>
-      <span data-empty={current ? undefined : ''}>{current ? authorityLabel(current) : 'Not linked'}</span><ChevronUp aria-hidden="true" />
+      <span id="citation-authority-name" data-empty={current ? undefined : ''}>{current ? authorityLabel(current) : 'No authority'}</span>
+      <ChevronUp aria-hidden="true" />
     </button>
     {open && <div className="citation-authority-menu">
-      <input autoFocus aria-label="Search authorities" placeholder="Search authorities" value={query}
-        onChange={event => setQuery(event.target.value)} />
       <div role="listbox" aria-label="Authorities">
+        {SECTIONS.map(section => {
+          const items = shown.filter(option => option.section === section);
+          const choice = (option: AuthorityOption) => <button key={option.authorityId} type="button" role="option"
+            aria-selected={option.authorityId === current?.id} onClick={() => pick(option.authorityId)}>
+            <span>{option.label}</span>{option.description !== option.label && <small>{option.description}</small>}</button>;
+          return !!items.length && <div key={section} role="group" aria-label={section}>
+            <h4 aria-hidden="true">{section}</h4>
+            {section === 'Footnotes' ? [...new Set(items.map(option => option.note))].map(note =>
+              <div key={note} role="group" aria-label={`Footnote ${note}`} className="citation-note">
+                <span className="citation-note-number" aria-hidden="true">{note}</span>
+                <div>{items.filter(option => option.note === note).map(choice)}</div>
+              </div>) : items.map(choice)}
+          </div>;
+        })}
+        {!shown.length && <p>No authority matches</p>}
         {current && <button type="button" role="option" aria-selected="false" className="citation-authority-unlink"
           onClick={() => pick(null)}>Unlink</button>}
-        {groups.map(group => <div key={group} role="group" aria-label={group}><div aria-hidden="true">{group}</div>
-          {shown.filter(option => option.group === group).map(option => <button key={option.authorityId} type="button"
-            role="option" aria-selected={option.authorityId === current?.id} onClick={() => pick(option.authorityId)}>
-            <span>{option.label}</span>{option.description && <small>{option.description}</small>}</button>)}
-        </div>)}
-        {!shown.length && <p>No authority matches</p>}
       </div>
+      <input autoFocus aria-label="Search authorities" placeholder="Search authorities" value={query}
+        onChange={event => setQuery(event.target.value)} />
     </div>}
   </div>;
 }
@@ -128,10 +149,13 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const reviewRef = useRef<HTMLDivElement>(null), listRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<HTMLDivElement>(null), fallbackRef = useRef<HTMLDivElement>(null);
   const locations = useRef<LocatedUnit[]>([]), texts = useRef(new WeakMap<LocatedUnit, UnitText>());
-  // Pages whose text layer has been searched for citations.
-  const decorated = useRef(new Set<number>());
+  // Pages whose text layer has been searched for citations, and each marked unit's citations.
+  const decorated = useRef(new Set<number>()), marked = useRef(new Map<string, string>());
   const preview = useRef<CitationPaint>({}), frame = useRef(0), mode = useRef<PaintMode | undefined>(undefined);
-  const split = useRef<{ k: number; timer: ReturnType<typeof setTimeout> }>(undefined), hot = useRef<string | undefined>(undefined);
+  const split = useRef<{ k: number; cursor: number; shown: boolean; timer: ReturnType<typeof setTimeout> }>(undefined);
+  const hot = useRef<string | undefined>(undefined);
+  // Citations removed in this session, the latest last, for Ctrl+Z.
+  const removed = useRef<string[]>([]);
   const nudge = useRef<{ id: string; from: number; to: number; commit(): void; timer: ReturnType<typeof setTimeout> }>(undefined);
   // Document events and frames read the latest props here.
   const live = useRef({ product, selected, onAction, onSelect });
@@ -151,6 +175,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const { units } = product.state, imported = product.state.import;
   const pdf = imported.kind === 'document' && imported.fileType === 'pdf';
   const sourceKey = JSON.stringify([product.id, product.state.bindings.source, sourceVersion]);
+  // The document is marked from scratch only when its text changes; edits mark their own units.
+  const textKey = useMemo(() => units.map(unit => `${unit.id}:${unit.text.length}`).join(), [units]);
   const unitById = new Map(units.map(unit => [unit.id, unit]));
   const authorityById = new Map(authorities.map(authority => [authority.id, authority]));
   const unit = selected && unitById.get(selected.unitId);
@@ -202,9 +228,9 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     frame.current ||= requestAnimationFrame(() => paint(mode.current ?? 'scroll'));
   };
   // The split marker waits for the pointer to rest in a gap; only a shown marker splits on click.
+  // Nothing outside the marker changes: restyling the whole document on every rest would stall it.
   const clearSplit = () => {
     clearTimeout(split.current?.timer); split.current = undefined;
-    documentRef.current?.removeAttribute('data-split');
     documentRef.current?.querySelectorAll(SCROLLERS).forEach(scroller => showSplit(scroller));
   };
   const flushNudge = () => { clearTimeout(nudge.current?.timer); nudge.current?.commit(); };
@@ -220,7 +246,6 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     const found = locations.current.some(location => location.unit.id === selected.unitId);
     setLocated(found || product.state.import.kind === 'document' && product.state.import.fileType === 'pdf' &&
       !pages.every(page => decorated.current.has(page)));
-    repaint('active');
     const scroller = root.querySelector<HTMLElement>('.docx-view-scroll,.beaver-pdf-scroll');
     if (!scrollPending.current || !scroller) return;
     const view = scroller.getBoundingClientRect();
@@ -240,13 +265,15 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     // A page's text layer is rebuilt on zoom and resize; the layer it replaced leaves with it.
     locations.current = page ? [...locations.current.filter(item => item.root !== root && item.root.isConnected), ...found] : found;
     if (page) decorated.current.add(page);
-    markCitations(found, product.state.occurrences); activate(); repaint('layout');
+    markCitations(found, product.state.occurrences);
+    for (const { unit } of found) marked.current.set(unit.id, marking(unit, product.state.occurrences));
+    activate(); repaint('layout');
     if (page) setReady(value => value || 1);
   };
 
   useEffect(() => {
     let live = true; setSource(undefined); setError(''); setLocated(true); setReady(0);
-    locations.current = []; decorated.current.clear();
+    locations.current = []; decorated.current.clear(); marked.current.clear();
     void (async () => {
       if (!host.readSource || imported.kind !== 'document') throw new Error('The source document is unavailable.');
       const blob = await host.readSource(product, imported.bindingRole), buffer = await blob.arrayBuffer();
@@ -267,10 +294,28 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       }
     } else documentRef.current?.querySelectorAll<HTMLElement>('.pdf-text-layer').forEach(root =>
       decorate(root, Number(root.closest<HTMLElement>('[data-page-number]')?.dataset.pageNumber)));
-  }, [ready, source, units, product.state.occurrences]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    flushNudge(); rememberSelection(); clearSplit(); activate();
-    listRef.current?.querySelector('[aria-selected=true]')?.scrollIntoView?.({ block: 'nearest' });
+  }, [ready, source, textKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // An edit marks again only the units whose citations it changed, and paints before the frame shows.
+  useLayoutEffect(() => {
+    const { occurrences } = product.state, current = new Map(units.map(unit => [unit.id, unit]));
+    const changed = new Set(units.filter(unit => marked.current.has(unit.id) &&
+      marked.current.get(unit.id) !== marking(unit, occurrences)).map(unit => unit.id));
+    // Unmarking joins the text nodes around a unit's marks, so every unit sharing that root is read afresh.
+    const touched = new Set(locations.current.filter(item => changed.has(item.unit.id)).map(item => item.root));
+    locations.current = locations.current.filter(item => item.root.isConnected).map(item => {
+      const now = current.get(item.unit.id) ?? item.unit;
+      if (changed.has(now.id)) clearCitationMarks(item.root, now.id);
+      return touched.has(item.root) ? { ...item, unit: now } : Object.assign(item, { unit: now });
+    });
+    if (!changed.size) return;
+    markCitations(locations.current.filter(item => changed.has(item.unit.id)), occurrences);
+    for (const id of changed) marked.current.set(id, marking(current.get(id)!, occurrences));
+    activate(); paint('layout');
+  }, [units, product.state.occurrences]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    flushNudge(); rememberSelection(); clearSplit(); activate(); paint('active');
+    [...listRef.current?.querySelectorAll<HTMLElement>('[role=option]') ?? []].find(row => row.dataset.id === selected?.id)
+      ?.scrollIntoView?.({ block: 'nearest' });
   }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const root = fallbackRef.current;
@@ -329,9 +374,11 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const outline = <Outline product={product} occurrences={occurrences} findings={findings} busy={busy} onRestore={restore} />;
   if (!selected || !unit) return <div className="p-8 text-sm text-gray-500">
     <p>No citations found.</p>{outline}</div>;
-  const submit = (action: AuthoritiesAction, then?: () => void) => onAction(action, () => {
-    window.getSelection()?.removeAllRanges(); setSelection(null); then?.();
-  });
+  // An edit shows at once: the drag or nudge it previewed gives way to the citation as edited.
+  const submit = (action: AuthoritiesAction, then?: (next: AuthoritiesProduct) => void) => {
+    preview.current = {};
+    onAction(action, next => { window.getSelection()?.removeAllRanges(); setSelection(null); then?.(next); });
+  };
   const option = (at: number) => [...listRef.current?.querySelectorAll<HTMLElement>('[role=option]') ?? []]
     .find(row => row.dataset.id === navigation[at].id);
   const step = (delta: number, focus = false) => {
@@ -343,6 +390,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   // The reviewer keeps their place: the next citation becomes active where the view already is.
   const remove = () => {
     const next = navigation[index + 1] ?? navigation[index - 1];
+    removed.current.push(selected.id);
     submit({ type: 'remove-occurrence', occurrenceId: selected.id }, () => { if (next) choose(next.id, false); });
   };
   // What a selection means: a new citation where it touches none, the active citation's own range
@@ -354,14 +402,13 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     }) : [];
     return !span ? null : touched.includes(selected.id) ? 'active' : touched.length ? 'other' : 'new';
   };
-  const intent = intentOf(selection), ownSelection = intent === 'active' && selection;
+  const intent = intentOf(selection);
   const mergeable = unit.occurrenceIds.indexOf(selected.id) > 0;
   /** A new citation from the selection; it becomes active where the view already is. */
   const addCitation = (span = selection) => {
     if (intentOf(span) !== 'new' || !span || busy) return;
     const { unitId, start, end } = span, before = new Set(unitById.get(unitId)?.occurrenceIds);
-    onAction({ type: 'add-occurrence', unitId, start, end }, next => {
-      window.getSelection()?.removeAllRanges(); setSelection(null);
+    submit({ type: 'add-occurrence', unitId, start, end }, next => {
       const added = next.state.units.find(item => item.id === unitId)?.occurrenceIds.find(id => !before.has(id));
       if (added) choose(added, false);
     });
@@ -403,6 +450,7 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const hover = (event: ReactPointerEvent) => {
     if (event.buttons || documentRef.current?.dataset.dragging) return clearSplit();
     const element = event.target as Element, scroller = element.closest(SCROLLERS);
+    if (element.closest('.citation-split')) return;
     // Another citation under the pointer is tinted: a click makes it active.
     const over = element.closest<HTMLElement>('[data-citation-id]')?.dataset.citationId;
     if (over !== hot.current) {
@@ -410,13 +458,17 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       documentRef.current?.querySelectorAll<HTMLElement>('.citation-band').forEach(band =>
         band.toggleAttribute('data-hot', !!over && band.dataset.id === over));
     }
+    // The pinpoint's handles show only while the pointer is on the pinpoint or its handles.
+    documentRef.current?.toggleAttribute('data-pin', !!scroller &&
+      !!activeBand(scroller, event.clientX, event.clientY, '.citation-pinpoint,.citation-grip[data-grip^=pin]', 2));
     const band = scroller && (activeBand(scroller, event.clientX, event.clientY) ||
       (over === selected.id ? element.closest('[data-citation-id]')!.getBoundingClientRect() : undefined));
     const gap = band && scroller ? splitAt(event.clientX, event.clientY) : null;
     if (gap && gap.k === split.current?.k) return;
     clearSplit();
-    if (gap) split.current = { k: gap.k, timer: setTimeout(() => {
-      documentRef.current?.setAttribute('data-split', ''); showSplit(scroller!, { band: band!, x: gap.x });
+    if (!gap) return;
+    const armed = split.current = { k: gap.k, cursor: gap.text.from(gap.k), shown: false as boolean, timer: setTimeout(() => {
+      armed.shown = true; showSplit(scroller!, { band: band!, x: gap.x });
     }, 350) };
   };
   /** A grip drags a citation or pinpoint edge from word to word. The band follows the pointer every
@@ -424,11 +476,13 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const grab = (event: ReactPointerEvent) => {
     const grip = (event.target as HTMLElement).closest<HTMLElement>('.citation-grip')?.dataset.grip;
     const found = grip && locate(), root = documentRef.current, pin = !!grip?.startsWith('pin-');
+    // The overlay holds the pointer while dragging: its few shapes take the drag cursor, not the whole text.
+    const holder = (event.target as HTMLElement).closest<HTMLElement>('.citation-overlay');
     const span = pin ? selected.pinpointSpan : selected;
     if (!grip) return false;
     // A grip never starts a text selection, even while an edit is saving.
     event.preventDefault();
-    if (!found || !root || !span || busy || event.button !== 0) return true;
+    if (!found || !root || !holder || !span || busy || event.button !== 0) return true;
     flushNudge(); clearSplit();
     const { text } = found, side = grip.endsWith('start') ? 'start' : 'end', pointer = event.pointerId;
     const [low, high] = pin ? [text.index(selected.start), text.index(selected.end)] : [0, text.count];
@@ -446,7 +500,8 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       cancelAnimationFrame(raf); delete root.dataset.dragging;
       root.removeEventListener('pointermove', move); root.removeEventListener('pointerup', up);
       root.removeEventListener('pointercancel', cancel); removeEventListener('keydown', escape, true);
-      if (root.hasPointerCapture(pointer)) root.releasePointerCapture(pointer);
+      if (holder.hasPointerCapture(pointer)) holder.releasePointerCapture(pointer);
+      holder.style.cursor = '';
       const start = text.from(from), end = text.to(to);
       if (commit && (start !== span.start || end !== span.end))
         submit({ type: pin ? 'set-pinpoint-span' : 'set-citation-range', occurrenceId: selected.id, start, end });
@@ -457,14 +512,23 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
       if (key.key === 'Escape') { key.preventDefault(); key.stopPropagation(); finish(false); }
     };
     window.getSelection()?.removeAllRanges(); root.dataset.dragging = pin ? 'pin' : 'band';
-    root.setPointerCapture(pointer);
+    holder.setPointerCapture(pointer); holder.style.cursor = 'ew-resize';
     root.addEventListener('pointermove', move); root.addEventListener('pointerup', up);
     root.addEventListener('pointercancel', cancel); addEventListener('keydown', escape, true);
     return true;
   };
   const keys = (event: React.KeyboardEvent) => {
     const element = event.target as Element, key = event.key;
-    if (event.ctrlKey || event.metaKey || element.closest('input,textarea,select,[role=dialog]')) return;
+    if (element.closest('input,textarea,select,[role=dialog]')) return;
+    // Ctrl+Z takes back the last removal still listed under Not citations.
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && (key === 'z' || key === 'Z')) {
+      const dismissed = product.state.dismissedOccurrences ?? {};
+      while (removed.current.length && !dismissed[removed.current.at(-1)!]) removed.current.pop();
+      const last = removed.current.pop();
+      if (last && !busy) { event.preventDefault(); restore(last); }
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) return;
     // The document is focusable for selection only; it is never edited.
     if (element.closest('.docx-view-container,.citation-fallback') && (key.length === 1 || ['Backspace', 'Delete', 'Enter'].includes(key)))
       event.preventDefault();
@@ -483,7 +547,6 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
     else if (key === 'Enter' && meaning === 'active' && now && !element.closest('button'))
       submit({ type: 'set-citation-range', occurrenceId: selected.id, start: now.start, end: now.end });
     else if ((key === 'Enter' && !element.closest('button') || key === 'n' || key === 'N') && meaning === 'new') addCitation(now);
-    else if (key === 'Enter' && meaning === 'other') { /* The note in the bar explains why nothing happens. */ }
     else if ((key === 'm' || key === 'M') && mergeable) submit({ type: 'merge-occurrence', occurrenceId: selected.id });
     else if ((key === 's' || key === 'S') && cut != null) submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: cut });
     else if (key === 'Delete') remove();
@@ -498,13 +561,13 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
   const options = [...new Map(navigation.flatMap(row => {
     const authority = !row.reference && authorityById.get(row.authorityId ?? ''), place = unitById.get(row.unitId);
     if (!authority || !place) return [];
-    const group = place.kind === 'footnote' ? `Footnote ${place.footnoteId ?? place.ordinal + 1}` : 'In-text';
-    return [[`${group}\0${authority.id}`, { authorityId: authority.id, group, label: authorityName(authority),
-      description: authority.citation ?? '' }]] as const;
+    const note = place.kind === 'footnote' ? String(place.footnoteId ?? place.ordinal + 1) : undefined;
+    return [[`${note}\0${authority.id}`, { authorityId: authority.id, section: note ? 'Footnotes' : 'In-text', note,
+      label: authorityName(authority), description: authority.citation ?? '' } as AuthorityOption]] as const;
   })).values()];
   const cited = new Set(options.map(option => option.authorityId));
   for (const authority of authorities) if (!cited.has(authority.id)) options.push({ authorityId: authority.id,
-    group: 'Other authorities', label: authorityName(authority), description: authority.citation ?? '' });
+    section: 'Other authorities', label: authorityName(authority), description: authority.citation ?? '' });
   // A supra, ibid or short form names its authority by reference; a full citation is relinked.
   const link = (authorityId: string | null) => selected.kind === 'reference'
     ? referenceKind && submit({ type: 'set-reference', occurrenceId: selected.id,
@@ -525,17 +588,16 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
         if (!reviewRef.current?.contains(document.activeElement)) reviewRef.current?.focus({ preventScroll: true });
       }}
       onPointerLeave={() => {
-        clearSplit(); hot.current = undefined;
+        clearSplit(); hot.current = undefined; documentRef.current?.removeAttribute('data-pin');
         documentRef.current?.querySelectorAll('[data-hot]').forEach(band => band.removeAttribute('data-hot'));
       }}
       onMouseUp={rememberSelection} onKeyUp={rememberSelection} onBeforeInput={readOnly} onPaste={readOnly} onDrop={readOnly}
       onClick={event => {
         if (!window.getSelection()?.isCollapsed || busy) return;
-        const element = event.target as Element, armed = split.current?.k;
-        const gap = documentRef.current?.hasAttribute('data-split') && splitAt(event.clientX, event.clientY);
-        if (gap && gap.k === armed) {
+        const element = event.target as Element, armed = split.current;
+        if (armed?.shown && (element.closest('.citation-split') || splitAt(event.clientX, event.clientY)?.k === armed.k)) {
           event.preventDefault(); clearSplit();
-          return submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: gap.text.from(gap.k) });
+          return submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: armed.cursor });
         }
         const mark = element.closest<HTMLElement>('[data-citation-id]');
         if (mark?.dataset.citationId) { event.preventDefault(); choose(mark.dataset.citationId, false); }
@@ -553,51 +615,41 @@ export function CitationReview({ product, host, sourceVersion, occurrences, sele
           spellCheck={false}>{unit.text}</div>
       </div>}
     </div>
-    {/* Controls in labelled groups that keep their places: moving, editing the citation, its pinpoint, its authority. */}
+    {/* One bar in three fixed zones: where you are, what this citation means, and edits to it. */}
     <div className="citation-panel">
-      <div role="group" aria-labelledby="citation-group-navigate" className="citation-group-navigate">
-        <h4 id="citation-group-navigate">Navigate<small><kbd>↑</kbd><kbd>↓</kbd></small></h4>
-        <div>
-          <Button variant="ghost" size="icon-sm" aria-label="Previous citation" disabled={index < 1}
-            onClick={() => step(-1)}><ChevronLeft /></Button>
-          <span>{index + 1} of {navigation.length}</span>
-          <Button variant="ghost" size="icon-sm" aria-label="Next citation" disabled={index === navigation.length - 1}
-            onClick={() => step(1)}><ChevronRight /></Button>
-        </div>
+      <div role="group" aria-label="Citations" className="citation-nav">
+        <Button variant="ghost" size="icon-sm" aria-label="Previous citation" title="Previous citation (↑)"
+          aria-keyshortcuts="ArrowUp" disabled={index < 1} onClick={() => step(-1)}><ChevronLeft /></Button>
+        <span>{index + 1} of {navigation.length}</span>
+        <Button variant="ghost" size="icon-sm" aria-label="Next citation" title="Next citation (↓)" aria-keyshortcuts="ArrowDown"
+          disabled={index === navigation.length - 1} onClick={() => step(1)}><ChevronRight /></Button>
       </div>
-      <div role="group" aria-labelledby="citation-group-citation" className="citation-group-citation">
-        <h4 id="citation-group-citation">Citation<small title="Shift+← → move the end; Alt+Shift+← → move the start">
-          <kbd>⇧←</kbd><kbd>⇧→</kbd></small>{intent === 'other'
-          ? <span role="status" className="citation-overlap">The selection overlaps another citation</span>
-          : <span>Drag its handles to adjust; rest on a space to split there</span>}</h4>
-        <div>
-          <Button variant="outline" disabled={busy || intent !== 'new'} onClick={() => addCitation()}
-            title="Add the selected text as a new citation">Add citation <kbd>N</kbd></Button>
-          <Button variant="outline" disabled={busy || !ownSelection} title="Make the selected text this citation"
-            onClick={() => ownSelection && submit({ type: 'set-citation-range', occurrenceId: selected.id, start: ownSelection.start, end: ownSelection.end })}>
-            Set to selection <kbd>Enter</kbd></Button>
-          <Button variant="outline" disabled={busy || splitPoint == null} title="Split this citation at the word gap by the cursor"
-            onClick={() => splitPoint != null && submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: splitPoint })}>
-            Split <kbd>S</kbd></Button>
-          <Button variant="outline" disabled={busy || !mergeable}
-            onClick={() => submit({ type: 'merge-occurrence', occurrenceId: selected.id })}>Merge with previous <kbd>M</kbd></Button>
-          <Button variant="outline" disabled={busy} onClick={remove}>Not a citation <kbd>Del</kbd></Button>
+      <div role="group" aria-label="This citation" className="citation-meaning">
+        <span id="citation-refers">Refers to</span>
+        <AuthorityPicker options={options} current={linked} busy={busy || selected.kind === 'reference' && !referenceKind} onPick={link} />
+        <div className="citation-pin" data-empty={pinpoint ? undefined : ''}
+          title={selected.pinpointManual ? 'Set by hand' : 'Found automatically'}>
+          {pinpoint ? <>Pinpoint <b>{pinpoint}</b></> : 'No pinpoint'}
+          {selected.pinpointManual && <><small>edited</small><button type="button" className="citation-reset" disabled={busy}
+            aria-label="Reset the pinpoint" title="Reset to the pinpoint found automatically"
+            onClick={() => submit({ type: 'reset-pinpoint', occurrenceId: selected.id })}><RotateCcw /></button></>}
         </div>
+        {/* Its room is kept when there is nothing to review, so nothing beside it moves. */}
+        <button type="button" className="citation-quote" style={finding ? undefined : { visibility: 'hidden' }}
+          aria-label="Review quotation" onClick={() => finding && onReview(finding.id)}>
+          <TextQuote aria-hidden="true" /><span>Review quotation</span></button>
       </div>
-      <div role="group" aria-labelledby="citation-group-pinpoint" className="citation-group-pinpoint">
-        <h4 id="citation-group-pinpoint">Pinpoint<small><kbd>P</kbd></small></h4>
-        <div>{pinpoint ? <span data-manual={selected.pinpointManual ? '' : undefined}
-          title={selected.pinpointManual ? `at ${pinpoint}, set by hand` : `at ${pinpoint}`}>at {pinpoint}</span>
-          : <span data-empty="">None</span>}
-          {selected.pinpointManual && <button type="button" className="citation-reset" disabled={busy}
-            onClick={() => submit({ type: 'reset-pinpoint', occurrenceId: selected.id })}>Reset to automatic</button>}</div>
-      </div>
-      <div role="group" aria-labelledby="citation-group-authority" className="citation-group-authority">
-        <h4 id="citation-group-authority">Authority{selected.kind === 'reference' && <small>{referenceKind ?? 'reference'}</small>}</h4>
-        <div>
-          <AuthorityPicker options={options} current={linked} busy={busy || selected.kind === 'reference' && !referenceKind} onPick={link} />
-          {finding && <Button variant="outline" onClick={() => onReview(finding.id)}>Review quotation</Button>}
-        </div>
+      <div role="group" aria-label="Edit citation" className="citation-edit">
+        <Button variant="outline" disabled={busy || intent !== 'new'} onClick={() => addCitation()} aria-keyshortcuts="N"
+          title={intent === 'other' ? 'The selection overlaps another citation' : 'Add the selected text as a citation (N)'}>Add</Button>
+        <Button variant="outline" disabled={busy || splitPoint == null} aria-keyshortcuts="S"
+          title="Split this citation at the space by the cursor (S), or rest the pointer on a space and click"
+          onClick={() => splitPoint != null && submit({ type: 'split-occurrence', occurrenceId: selected.id, cursor: splitPoint })}>
+          Split</Button>
+        <Button variant="outline" disabled={busy || !mergeable} aria-keyshortcuts="M" title="Merge with the citation before it (M)"
+          onClick={() => submit({ type: 'merge-occurrence', occurrenceId: selected.id })}>Merge</Button>
+        <Button variant="outline" disabled={busy} onClick={remove} aria-keyshortcuts="Delete Control+Z"
+          title="Not a citation (Delete). Ctrl+Z restores it, as does Restore under Not citations">Remove</Button>
       </div>
     </div>
   </div>;

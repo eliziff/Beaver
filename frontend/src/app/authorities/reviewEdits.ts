@@ -1,0 +1,107 @@
+import type { AuthoritiesAction, AuthoritiesProduct, AuthorityOccurrence } from './types';
+
+type State = AuthoritiesProduct['state'];
+const overlap = (a: { start: number; end: number }, b: { start: number; end: number }) =>
+  Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
+
+/** A review edit as the reviewer asked for it, shown while the save that makes it durable runs:
+ * the citation's new range, pinpoint, split, merge, removal or authority. The saved draft then
+ * replaces this view with what the parser makes of the text. Other actions have no preview. */
+export function previewEdit(product: AuthoritiesProduct, action: AuthoritiesAction): AuthoritiesProduct | null {
+  const state = product.state, occurrences = { ...state.occurrences };
+  const item = 'occurrenceId' in action ? occurrences[action.occurrenceId] : undefined;
+  const unitId = action.type === 'add-occurrence' ? action.unitId : action.type === 'restore-occurrence'
+    ? state.dismissedOccurrences?.[action.occurrenceId]?.occurrence.unitId : item?.unitId;
+  const unit = state.units.find(({ id }) => id === unitId);
+  if (!unit || action.type !== 'add-occurrence' && action.type !== 'restore-occurrence' && !item) return null;
+  let ids = [...unit.occurrenceIds], dismissed = state.dismissedOccurrences;
+  /** A citation over [start, end) trimmed of space, keeping what `base` knew that still lies inside it. */
+  const cite = (start: number, end: number, base?: AuthorityOccurrence): AuthorityOccurrence => {
+    while (start < end && /\s/u.test(unit.text[start])) start++;
+    while (end > start && /\s/u.test(unit.text[end - 1])) end--;
+    const span = { start, end, text: unit.text.slice(start, end) };
+    const pin = base?.pinpointSpan && base.pinpointSpan.start >= start && base.pinpointSpan.end <= end ? base.pinpointSpan : null;
+    return { kind: 'other', citation: span.text, authorityId: null, reference: null, evidenceIds: [], reviewed: true,
+      sourceTextSha256: ids.map(id => occurrences[id]?.sourceTextSha256).find(Boolean) ?? '', ...base,
+      id: base?.id ?? `${unit.id}:manual:${start}:${end}`, unitId: unit.id, ...span, localOrdinal: start,
+      authoritySpan: span, coreSpan: span, pinpointSpan: pin, pinpoints: pin ? base!.pinpoints : [],
+      ...(pin && base!.pinpointManual ? { pinpointManual: true } : { pinpointManual: undefined }) };
+  };
+  const put = (...items: AuthorityOccurrence[]) => items.forEach(next => { occurrences[next.id] = next; ids.push(next.id); });
+  const drop = (...gone: string[]) => { gone.forEach(id => delete occurrences[id]); ids = ids.filter(id => !gone.includes(id)); };
+  switch (action.type) {
+    case 'add-occurrence': put(cite(action.start, action.end)); break;
+    case 'set-citation-range': {
+      const next = cite(action.start, action.end, item);
+      // Citations inside the new range join it; one it overlaps keeps the text outside.
+      for (const id of ids) {
+        const other = occurrences[id];
+        if (id === item!.id || !other || !overlap(other, next)) continue;
+        drop(id);
+        for (const [start, end] of [[other.start, next.start], [next.end, other.end]])
+          if (start < end && unit.text.slice(start, end).trim()) put(cite(start, end, { ...other, id: `${other.id}:${start}` }));
+      }
+      occurrences[next.id] = next; break;
+    }
+    case 'set-pinpoint-span': {
+      const pinpointSpan = { start: action.start, end: action.end, text: unit.text.slice(action.start, action.end) };
+      const start = Math.min(item!.start, action.start), end = Math.max(item!.end, action.end);
+      // Part of the pinpoint already found keeps its values; the save parses any other.
+      occurrences[item!.id] = { ...item!, start, end, text: unit.text.slice(start, end), pinpointSpan, pinpointManual: true,
+        pinpoints: item!.pinpointSpan && overlap(item!.pinpointSpan, pinpointSpan) ? item!.pinpoints
+          : [{ kind: item!.pinpoints[0]?.kind ?? 'page', text: pinpointSpan.text.replace(/^at\s+/u, '') }] };
+      break;
+    }
+    case 'reset-pinpoint': occurrences[item!.id] = { ...item!, pinpointManual: undefined }; break;
+    case 'clear-pinpoint': occurrences[item!.id] = { ...item!, pinpointSpan: null, pinpoints: [] }; break;
+    case 'split-occurrence': {
+      // The left side ends before the separator that joins the two citations.
+      let cut = action.cursor;
+      while (cut > item!.start && /[\s;,]/u.test(unit.text[cut - 1])) cut--;
+      drop(item!.id); put(cite(item!.start, cut, { ...item!, id: undefined! }), cite(action.cursor, item!.end, { ...item!, id: undefined! }));
+      break;
+    }
+    case 'merge-occurrence': {
+      const previous = occurrences[ids[ids.indexOf(item!.id) - 1]];
+      if (!previous) return null;
+      drop(previous.id, item!.id);
+      put(cite(previous.start, item!.end, { ...previous, id: undefined!, pinpointSpan: item!.pinpointSpan, pinpoints: item!.pinpoints }));
+      break;
+    }
+    case 'remove-occurrence':
+      drop(item!.id); dismissed = { ...dismissed, [item!.id]: { occurrence: item!, authority: null } }; break;
+    case 'restore-occurrence': {
+      const saved = dismissed?.[action.occurrenceId];
+      if (!saved) return null;
+      put(saved.occurrence); dismissed = { ...dismissed }; delete dismissed[action.occurrenceId]; break;
+    }
+    case 'relink-occurrence': occurrences[item!.id] = { ...item!, authorityId: action.authorityId }; break;
+    case 'set-reference':
+      occurrences[item!.id] = { ...item!, kind: 'reference', reference: action.reference,
+        authorityId: action.reference?.targetAuthorityId ?? null };
+      break;
+    default: return null;
+  }
+  ids.sort((a, b) => occurrences[a].start - occurrences[b].start);
+  const units = state.units.map(other => other === unit ? { ...unit, occurrenceIds: ids } : other);
+  return { ...product, state: { ...state, units, occurrences, dismissedOccurrences: dismissed } as State };
+}
+
+/** What each citation of a preview became in the saved draft: the saved citation in the same unit
+ * that covers most of it, for every preview citation the save named differently. */
+export function savedIds(preview: AuthoritiesProduct, saved: AuthoritiesProduct) {
+  const names = new Map<string, string>();
+  for (const unit of preview.state.units) {
+    const after = saved.state.units.find(({ id }) => id === unit.id);
+    if (!after || after.occurrenceIds === unit.occurrenceIds) continue;
+    const fresh = after.occurrenceIds.map(id => saved.state.occurrences[id]).filter(item => item && !preview.state.occurrences[item.id]);
+    for (const id of unit.occurrenceIds) {
+      const item = preview.state.occurrences[id];
+      if (!item || saved.state.occurrences[id]) continue;
+      const best = fresh.reduce<AuthorityOccurrence | undefined>((top, next) =>
+        overlap(next, item) > (top ? overlap(top, item) : 0) ? next : top, undefined);
+      if (best) names.set(id, best.id);
+    }
+  }
+  return names;
+}

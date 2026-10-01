@@ -714,8 +714,10 @@ describe("Authorities UI contracts", () => {
     await waitFor(() => expect(api.actOnAuthorities).toHaveBeenCalledWith("draft-1", 1, {
       type: "set-citation-range", occurrenceId: "occurrence-1", start: 0, end,
     }));
-    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("status")).toHaveTextContent("Updating authorities");
+    // The edit shows before its save returns, without holding the workspace.
+    await waitFor(() => expect([...context.querySelectorAll<HTMLElement>("[data-citation-id]")]
+      .map((node) => node.textContent).join("")).toBe(text.slice(0, end)));
+    expect(screen.queryByText("Updating authorities")).not.toBeInTheDocument();
     await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(saved, false));
     fireEvent.keyDown(context, { key: "Enter" });
     update.resolve(changed);
