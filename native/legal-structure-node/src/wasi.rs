@@ -99,6 +99,8 @@ fn dispatch(op: &str, call: &Call, bytes: &[u8]) -> CoreResult<(Value, Vec<u8>)>
         "pdfPageLabels" => done(with_document(doc()?, |d|
             engine::pdf_page_labels(d).and_then(value))),
         #[cfg(feature = "legalpdf")]
+        "pdfPageTexts" => done(with_document(doc()?, |d| engine::pdf_page_texts(d).and_then(value))),
+        #[cfg(feature = "legalpdf")]
         "pdfAuthorityTextUnits" => done(with_document(doc()?, |d|
             engine::pdf_authority_text_units(d).and_then(value))),
         #[cfg(feature = "legalpdf")]
