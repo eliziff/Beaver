@@ -199,11 +199,12 @@ const RENDERERS: Record<RequestedRole, string> = {
 
 function authorityName(draft: AuthoritiesDraft, authority: AuthorityIdentity) {
   const forms = authorityCitationForms(draft, authority.id), values: string[] = [];
+  const lower = (value: string) => value.toLocaleLowerCase("en-CA");
   const add = (value: string | null | undefined) => {
     const exact = value?.trim();
-    if (!exact || values.some((item) => item.toLocaleLowerCase("en-CA")
-      .includes(exact.toLocaleLowerCase("en-CA")))) return;
-    values.push(exact);
+    if (!exact || values.some((item) => lower(item).includes(lower(exact)))) return;
+    // A fuller form replaces the shorter forms it already contains, so none repeats.
+    values.splice(0, values.length, ...values.filter((item) => !lower(exact).includes(lower(item))), exact);
   };
   const heading = authority.displayName ?? authority.name;
   if (!heading || !forms.some((form) => form.toLocaleLowerCase("en-CA")

@@ -118,10 +118,13 @@ export async function renderAuthoritiesBook(pdf: PdfModule, input: PreparedAutho
               cover.drawRectangle({ x: 0, y: 0, width: 18, height: 792, color: ink });
               cover.drawLine({ start: { x: margin, y: 626 }, end: { x: 612 - margin, y: 626 },
                 thickness: 2, color: ink });
-              cover.drawText(fit(bold, documentTitle, 28, contentWidth),
-                { x: margin, y: 500, size: 28, font: bold, color: ink });
+              // The title wraps rather than losing its end; the subtitle follows its last line.
+              const title = wrapped(bold, documentTitle, 28, contentWidth).slice(0, 4);
+              title.forEach((line, index) => cover.drawText(line,
+                { x: margin, y: 500 - index * 34, size: 28, font: bold, color: ink }));
               if (bookTitle !== subtitle) cover.drawText(fit(serif, subtitle, 13, contentWidth),
-                { x: margin, y: 462, size: 13, font: serif, color: ink });
+                { x: margin, y: 462 - (title.length - 1) * 34, size: 13, font: serif, color: ink });
+              coverBottom = 432 - (title.length - 1) * 34;
             }
           }
           if (input.allowIncomplete) {
