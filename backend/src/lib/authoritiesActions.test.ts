@@ -167,6 +167,29 @@ describe("Authorities citation boundary actions", () => {
     expect(resolved.authorities[jordanAuthority].sourceIdentity?.stableSourceId).toBe("a2aj:en:scc:2016 scc 27");
   });
 
+  it("keeps looking up after one authority's lookup fails, and names a defect of its own as one", async () => {
+    const draft = { ...stringCite(), outputMode: "table" as const };
+    const [jordan, bhasin] = draft.units[0].occurrenceIds.map(id => draft.occurrences[id].authorityId!);
+    const found = (citation: string) => ({ citation, alternateCitation: null, name: "R v Jordan",
+      date: "2016-07-08", url: "https://example.test/jordan", publisherUrl: null, dataset: "SCC",
+      language: "en" as const, searchText: "", verifiedPdf: null, native: {} });
+    for (const [thrown, failure] of [
+      [new A2AJUnavailable("timeout"), { reason: "timeout", retryAfter: null }],
+      [new TypeError("Cannot read properties of undefined (reading 'dataset')"), { reason: "defect",
+        retryAfter: null, detail: "Cannot read properties of undefined (reading 'dataset')" }],
+    ] as const) {
+      const resolve = vi.fn(async (citation: string) => {
+        if (citation === "2016 SCC 27") return found(citation);
+        throw thrown;
+      });
+      const services = { ...authoritySourceServices, resolve, resolveForeign: async () => null,
+        revision: () => "a".repeat(64) } as unknown as SourceServices;
+      const { draft: resolved } = await resolveAuthoritiesSources(draft, services);
+      expect(resolved.authorities[jordan].sourceIdentity?.stableSourceId).toBe("a2aj:en:scc:2016 scc 27");
+      expect(resolved.authorities[bhasin].sourceLookupFailure).toEqual(failure);
+    }
+  });
+
   it("records which lookups A2AJ left unanswered and retries them only after its window", async () => {
     vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2020, 0, 1) });
     try {

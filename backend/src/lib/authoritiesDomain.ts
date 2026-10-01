@@ -228,8 +228,9 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
     catch { return false; }
   }),
   sourceLookupFailure: maybe(closed<AuthoritySourceLookupFailure>({
-    reason: oneOf(["rate-limited", "error", "timeout", "unreachable"]),
-    retryAfter: nullable((value) => typeof value === "string" && Number.isFinite(Date.parse(value))) })),
+    reason: oneOf(["rate-limited", "error", "timeout", "unreachable", "defect"]),
+    retryAfter: nullable((value) => typeof value === "string" && Number.isFinite(Date.parse(value))),
+    detail: maybe(text) })),
   sourceUrl: maybe(isObservedSourceUrl),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,

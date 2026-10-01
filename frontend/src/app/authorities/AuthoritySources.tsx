@@ -8,7 +8,7 @@ import { Input } from "@/app/components/ui/input";
 import { cn } from "@/app/lib/utils";
 import { FileInputButton } from "./FileInputButton";
 import { TabFormatModal } from "./TabFormatModal";
-import { authorityName, authorityCitationForms, requiresBilingualSources,
+import { authorityName, authorityLabel, authorityCitationForms, requiresBilingualSources,
   requiresPdf, sourceLanguageLabel, relinkable } from "./authorityPresentation";
 import type { AuthoritiesAction, AuthoritiesDraft, AuthoritiesProduct,
   AuthorityIdentity, AuthorityOccurrence } from "./types";
@@ -23,9 +23,10 @@ const control = "h-8 shrink-0 border-gray-400 px-2.5 text-xs";
 export const rowControl = cn(control, "w-10 justify-center px-1 font-normal [&_svg]:size-3.5 @min-[44rem]/sources:w-[5.625rem] @min-[44rem]/sources:px-2.5");
 export const rowLabel = "hidden @min-[44rem]/sources:inline";
 type LookupFailure = NonNullable<AuthorityIdentity["sourceLookupFailure"]>;
-const lookupReason: Record<LookupFailure["reason"], string> = {
-  "rate-limited": "A2AJ is limiting requests", timeout: "A2AJ took too long to answer",
-  unreachable: "A2AJ couldn't be reached", error: "A2AJ answered with an error" };
+const lookupReason = ({ reason, detail }: LookupFailure) => ({
+  "rate-limited": "A2AJ is limiting requests", timeout: "A2AJ took too long to answer", unreachable: "A2AJ couldn't be reached",
+  error: "A2AJ answered with an error", defect: `Authorities failed with an error of its own (${detail ?? "no message"})`,
+})[reason];
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 /** When A2AJ allows the next lookup, if that is still ahead. */
 const retryWait = (failure: LookupFailure, now: number) =>
@@ -143,7 +144,7 @@ function AuthorityRow({ authority, tab, citations, busy, needsPdf, requireLangua
   const lookup = !sources.length ? authority.sourceLookupFailure : undefined;
   const lookupWait = lookup && retryWait(lookup, Date.now());
   const missingLabel = issue ? "File access was denied. Allow access to this PDF to use it."
-    : lookup ? `${lookupReason[lookup.reason]}, so this authority wasn't checked. ${
+    : lookup ? `${lookupReason(lookup)}, so this authority wasn't checked. ${
       lookupWait ? `Retry after ${clock(lookupWait)}` : "Retry"}, or upload the PDF.`
     : missingIssue?.status === "changed" ? "The PDF changed. Its source is being refreshed."
     : missingIssue?.status === "missing" && missingIssue.reason === "deleted"
@@ -272,13 +273,16 @@ function LookupFailures({ authorities, busy, onRetry }: {
     return () => clearTimeout(timer);
   }, [wait]);
   if (!failed.length) return null;
-  const reasons = [...new Set(failed.map(({ sourceLookupFailure }) => sourceLookupFailure!.reason))];
+  const reasons = [...new Set(failed.map(({ sourceLookupFailure }) => lookupReason(sourceLookupFailure!)))];
+  // Decisions sharing a style of cause in the book are told apart by their citations.
+  const named = (authority: AuthorityIdentity) => authorities.filter((other) =>
+    authorityName(other) === authorityName(authority)).length > 1 ? authorityLabel(authority) : authorityName(authority);
   return <div role="status" className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
     <CircleAlert className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
     <div className="min-w-0 flex-1">
       {reasons.map((reason) => {
-        const names = failed.filter(({ sourceLookupFailure }) => sourceLookupFailure!.reason === reason).map(authorityName);
-        return <p key={reason}>{lookupReason[reason]}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked: {names.join("; ")}.</p>;
+        const names = failed.filter(({ sourceLookupFailure }) => lookupReason(sourceLookupFailure!) === reason).map(named);
+        return <p key={reason}>{reason}, so {names.length === 1 ? "this authority wasn't" : `${names.length} authorities weren't`} checked: {names.join("; ")}.</p>;
       })}
     </div>
     <Button type="button" variant="outline" className={cn(control, "bg-white")} disabled={busy || !!wait}

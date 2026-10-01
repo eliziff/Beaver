@@ -490,24 +490,80 @@ describe("A2AJ client", () => {
       expect(await failure()).toMatchObject({ reason: "error", retryAt: null });
       guardedRemoteFetch.mockRejectedValueOnce(new DOMException("The operation timed out.", "TimeoutError"));
       expect(await failure()).toMatchObject({ reason: "timeout" });
-      guardedRemoteFetch.mockRejectedValueOnce(new TypeError("fetch failed"));
+      // Nothing answers the lookup or the opaque request that asks whether anything answers.
+      guardedRemoteFetch.mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockRejectedValueOnce(new TypeError("fetch failed"));
       expect(await failure()).toMatchObject({ reason: "unreachable" });
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(4);
 
       guardedRemoteFetch.mockResolvedValueOnce(new Response("slow down", { status: 429,
         headers: { "retry-after": "120" } }));
       const limited = await failure();
       expect(limited).toBeInstanceOf(A2AJUnavailable);
       expect(limited).toMatchObject({ reason: "rate-limited", retryAt: Date.now() + 120_000 });
-      expect(guardedRemoteFetch).toHaveBeenCalledTimes(4);
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(5);
       // Within the window nothing is sent; after it, A2AJ is asked again.
       vi.setSystemTime(Date.now() + 119_000);
       expect(await failure()).toMatchObject({ reason: "rate-limited" });
-      expect(guardedRemoteFetch).toHaveBeenCalledTimes(4);
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(5);
       vi.setSystemTime(Date.now() + 2_000);
       guardedRemoteFetch.mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200,
         headers: { "content-type": "application/json" } }));
       await expect(a2ajLegalSourceProvider.coverage("laws")).resolves.toEqual([]);
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(6);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("tells A2AJ's limit a page cannot read from A2AJ being unreachable, and our own defect from both", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2020, 0, 1) });
+    try {
+      const failure = async () => a2ajLegalSourceProvider.document({ citation: "2099 SCC 97" })
+        .then(() => null, (error) => error);
+      // Our own request path failing is not A2AJ's doing: its own error and message, nothing more sent.
+      const defect = new Error("A2AJ request is outside the allowed hosts.");
+      guardedRemoteFetch.mockRejectedValueOnce(defect);
+      expect(await failure()).toBe(defect);
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(1);
+
+      // In a page, A2AJ's 429 carries no CORS header: the lookup fails as a network error, but
+      // the opaque request gets an answer. That is its limit, held as one, not an outage.
+      guardedRemoteFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        .mockResolvedValueOnce({ type: "opaque", status: 0, ok: false, body: null, headers: new Headers() } as Response);
+      expect(await failure()).toMatchObject({ reason: "rate-limited", retryAt: Date.now() + 60_000 });
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(3);
+      expect(guardedRemoteFetch.mock.calls[2][1]).toMatchObject({ method: "HEAD", mode: "no-cors" });
+      vi.setSystemTime(Date.now() + 59_000);
+      expect(await failure()).toMatchObject({ reason: "rate-limited" });
+      expect(guardedRemoteFetch).toHaveBeenCalledTimes(3);
+
+      // Where the answer can be read (Node), its status says what it was.
+      vi.setSystemTime(Date.now() + 2_000);
+      guardedRemoteFetch.mockRejectedValueOnce(Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }))
+        .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "retry-after": "30" } }));
+      expect(await failure()).toMatchObject({ reason: "rate-limited", retryAt: Date.now() + 30_000 });
       expect(guardedRemoteFetch).toHaveBeenCalledTimes(5);
     } finally { vi.useRealTimers(); }
+  });
+
+  it("sends one request to A2AJ at a time, however many lookups ask at once", async () => {
+    const answers: Array<() => void> = [];
+    guardedRemoteFetch.mockImplementation(() => new Promise((resolve) => answers.push(() =>
+      resolve(new Response(JSON.stringify({ results: [] }), { status: 200,
+        headers: { "content-type": "application/json" } })))));
+    try {
+      let settled = false;
+      const lookups = Promise.all(["2099 SCC 91", "2099 SCC 92", "2099 SCC 93"].map((citation) =>
+        a2ajLegalSourceProvider.document({ citation, discoverPdf: false }))).finally(() => { settled = true; });
+      while (!settled) {
+        await vi.waitFor(() => expect(settled || answers.length > 0).toBe(true));
+        if (settled) break;
+        // Whatever else is waiting, nothing more is sent until this request is answered.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(answers).toHaveLength(1);
+        answers.shift()!();
+      }
+      await expect(lookups).resolves.toEqual([null, null, null]);
+      expect(guardedRemoteFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
+    } finally { guardedRemoteFetch.mockReset(); guardedRemoteFetch.mockImplementation((input, init) => fetch(input, init)); }
   });
 });
